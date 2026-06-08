@@ -4130,6 +4130,9 @@ final class PdfOutlineExtractor
         if ($pageIndexes === []) {
             return true;
         }
+        if ($this->destinationValueIsStreamCarrier($value, $objects)) {
+            return false;
+        }
 
         $resolved = $this->resolveValue($value, $objects);
         if ($this->stringOrNameValue($resolved) !== null) {
@@ -4144,6 +4147,10 @@ final class PdfOutlineExtractor
      */
     private function destinationActionValueAllowedForMap(mixed $value, array $objects): bool
     {
+        if ($this->destinationValueIsStreamCarrier($value, $objects)) {
+            return false;
+        }
+
         $resolved = $this->resolveValue($value, $objects);
         if ($this->stringOrNameValue($resolved) !== null) {
             return true;
@@ -4152,6 +4159,20 @@ final class PdfOutlineExtractor
         $dict = $this->dictionaryItems($resolved);
 
         return $dict !== null && (array_key_exists('S', $dict) || array_key_exists('Next', $dict));
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function destinationValueIsStreamCarrier(mixed $value, array $objects): bool
+    {
+        if ($this->nameTreeNodeReferenceHasTopLevelStream($value, $objects)) {
+            return true;
+        }
+
+        $dictionary = $this->dictionaryItems($this->resolveValue($value, $objects));
+
+        return $dictionary !== null && $this->nameTreeNodeHasStreamCarrierType($dictionary, $objects);
     }
 
     /**

@@ -8100,6 +8100,10 @@ final class PdfMetadataExtractor
             return null;
         }
 
+        if ($this->destinationValueIsStreamCarrier($trimmed, $objects)) {
+            return null;
+        }
+
         $referenceKey = $this->destinationReferenceKey($trimmed, $objects);
         if ($referenceKey !== null) {
             if (isset($seenObjects[$referenceKey])) {
@@ -8171,6 +8175,29 @@ final class PdfMetadataExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function destinationValueIsStreamCarrier(string $value, array $objects): bool
+    {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $objectBody = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($objectBody !== null && $this->streamObjectHasStreamKeyword($objectBody)) {
+                return true;
+            }
+        }
+
+        $dictionary = $this->resolveDictionaryFromValue($value, $objects);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        $type = $this->dictionaryNameValue($dictionary['body'], 'Type', $objects);
+
+        return in_array($type, ['ObjStm', 'XRef', 'Metadata', 'EmbeddedFile', 'XObject'], true);
     }
 
     /**

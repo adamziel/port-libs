@@ -1639,6 +1639,10 @@ final class PdfNamedDestinationExtractor
         array $destinationValuesByName = [],
         array $seenAliases = []
     ): ?array {
+        if ($this->destinationValueIsStreamCarrier($value, $objects, $cache)) {
+            return null;
+        }
+
         $unwrapped = $this->unwrappedGoToDestinationValue($value, $objects, $cache);
         if ($unwrapped === null) {
             return null;
@@ -2265,6 +2269,26 @@ final class PdfNamedDestinationExtractor
         }
 
         return $this->unwrappedGoToDestinationValue($destination['D'], $objects, $cache, $seenObjects, $depth + 1);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function destinationValueIsStreamCarrier(mixed $value, array $objects, array &$cache): bool
+    {
+        $objectId = $this->validRefObjectId($value, $objects);
+        if (
+            $objectId !== null
+            && $this->nameTreeNodeReferenceHasTopLevelStream($objectId, $this->refGeneration($value), $objects)
+        ) {
+            return true;
+        }
+
+        $resolved = $this->resolve($value, $objects, $cache);
+
+        return $this->isDictionary($resolved)
+            && $this->nameTreeNodeDictionaryHasStreamCarrierType($resolved, $objects, $cache);
     }
 
     /**

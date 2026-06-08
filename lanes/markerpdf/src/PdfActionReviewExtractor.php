@@ -1045,6 +1045,10 @@ final class PdfActionReviewExtractor
      */
     private function destinationViewDetails(mixed $destination, ?string $destinationName = null, array $seenNames = []): ?array
     {
+        if ($this->destinationValueIsStreamCarrier($destination)) {
+            return null;
+        }
+
         $pageReference = $this->referenceObject($destination);
         $pageIndex = $pageReference === null ? null : $this->pageIndexForReference($pageReference);
         if ($pageIndex !== null) {
@@ -1168,6 +1172,9 @@ final class PdfActionReviewExtractor
         if ($depth > 20) {
             return false;
         }
+        if ($this->destinationValueIsStreamCarrier($value)) {
+            return false;
+        }
 
         $pageReference = $this->referenceObject($value);
         if ($pageReference !== null) {
@@ -1217,6 +1224,17 @@ final class PdfActionReviewExtractor
         }
 
         return false;
+    }
+
+    private function destinationValueIsStreamCarrier(mixed $value): bool
+    {
+        if ($this->nameTreeNodeReferenceHasTopLevelStream($value)) {
+            return true;
+        }
+
+        $dictionary = $this->dictionaryItems($this->resolveValue($value));
+
+        return $dictionary !== null && $this->nameTreeNodeHasStreamCarrierType($dictionary);
     }
 
     /**
