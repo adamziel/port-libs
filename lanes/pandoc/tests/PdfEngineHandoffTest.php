@@ -6659,6 +6659,85 @@ MARKDOWN);
         $t->same('https://example.test/review/page-1.html', $sequence['finalPdfWebCaptureMetadata'][1]['sourceUrls'][0]);
     },
 
+    'fake runner extracts pdf legal attestation metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['outputPath' => 'packets/legal-attestation.pdf']);
+        $attestationBytes = 'Reviewer attests that the WordPress handoff packet preserves legal notices.';
+        $pdfBytes = implode("\n", [
+            '%PDF-2.0',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /LegalAttestation 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /LegalAttestation /Lang (en-US) /Statement 9 0 R /Status /Accepted /Jurisdiction (US) /AF [10 0 R] >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Length ' . strlen($attestationBytes) . ' >>',
+            'stream',
+            $attestationBytes,
+            'endstream',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Filespec /F (legal-review.txt) /Desc (Legal review note) /AFRelationship /Supplement /EF << /F 11 0 R >> >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Length 0 >>',
+            'stream',
+            '',
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            'startxref',
+            '321',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/legal-attestation.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/legal-attestation.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'object' => '8 0 R',
+            'type' => 'LegalAttestation',
+            'language' => 'en-US',
+            'status' => 'Accepted',
+            'jurisdiction' => 'US',
+            'attestation' => null,
+            'attestationObject' => '9 0 R',
+            'attestationBytes' => strlen($attestationBytes),
+            'attestationSha256' => hash('sha256', $attestationBytes),
+            'attestationSkipped' => null,
+            'associatedFiles' => ['10 0 R'],
+            'keys' => ['AF', 'Jurisdiction', 'Lang', 'Statement', 'Status', 'Type'],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfLegalAttestationMetadata']);
+        $t->contains('pdf-byte-legal-attestation', $diagnostics);
+        $t->contains('pdf-byte-legal-attestation-status:Accepted', $diagnostics);
+        $t->contains('pdf-byte-legal-attestation-stream-bytes:' . strlen($attestationBytes), $diagnostics);
+        $t->contains('pdf-byte-legal-attestation-associated-files:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfLegalAttestationMetadata']);
+    },
+
     'rejects unsafe pdf handoff engine path and option inputs' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
 

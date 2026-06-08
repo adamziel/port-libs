@@ -14,6 +14,7 @@ final class PdfEngineHandoff
     private const MAX_EMBEDDED_FILE_STREAM_BYTES = 262144;
     private const MAX_SIGNATURE_CONTENTS_BYTES = 262144;
     private const MAX_PIECE_INFO_PRIVATE_STREAM_BYTES = 262144;
+    private const MAX_LEGAL_ATTESTATION_STREAM_BYTES = 262144;
     private const MAX_EMBEDDED_FONT_STREAM_BYTES = 262144;
     private const MAX_IMAGE_STREAM_BYTES = 262144;
     private const MAX_FORM_XOBJECT_STREAM_BYTES = 262144;
@@ -317,6 +318,7 @@ final class PdfEngineHandoff
      *     pdfViewerPreferences: array<string, bool|int|string|list<int>|list<string>>,
      *     pdfNeedsRendering: bool|null,
      *     pdfCatalogRequirements: list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
+     *     pdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     pdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
@@ -755,6 +757,7 @@ final class PdfEngineHandoff
         $pdfViewerPreferences = [];
         $pdfNeedsRendering = null;
         $pdfCatalogRequirements = [];
+        $pdfLegalAttestationMetadata = [];
         $pdfTaggingMetadata = [];
         $pdfStructureElements = [];
         $pdfMarkedContentProperties = [];
@@ -851,6 +854,7 @@ final class PdfEngineHandoff
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
                 $pdfNeedsRendering = $pdfInspection['needsRendering'];
                 $pdfCatalogRequirements = $pdfInspection['catalogRequirements'];
+                $pdfLegalAttestationMetadata = $pdfInspection['legalAttestationMetadata'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfStructureElements = $pdfInspection['structureElements'];
                 $pdfMarkedContentProperties = $pdfInspection['markedContentProperties'];
@@ -1675,6 +1679,27 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-catalog-requirement-handlers:' . $requirementHandlers;
                     }
                 }
+                if ($pdfLegalAttestationMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-legal-attestation';
+                    if (is_string($pdfLegalAttestationMetadata['status'] ?? null) && $pdfLegalAttestationMetadata['status'] !== '') {
+                        $diagnostics[] = 'pdf-byte-legal-attestation-status:' . $pdfLegalAttestationMetadata['status'];
+                    }
+                    if (is_string($pdfLegalAttestationMetadata['jurisdiction'] ?? null) && $pdfLegalAttestationMetadata['jurisdiction'] !== '') {
+                        $diagnostics[] = 'pdf-byte-legal-attestation-jurisdiction:' . $pdfLegalAttestationMetadata['jurisdiction'];
+                    }
+                    if (is_int($pdfLegalAttestationMetadata['attestationBytes'] ?? null)) {
+                        $diagnostics[] = 'pdf-byte-legal-attestation-stream-bytes:' . $pdfLegalAttestationMetadata['attestationBytes'];
+                    }
+                    if (is_string($pdfLegalAttestationMetadata['attestation'] ?? null) && $pdfLegalAttestationMetadata['attestation'] !== '') {
+                        $diagnostics[] = 'pdf-byte-legal-attestation-text';
+                    }
+                    if (is_string($pdfLegalAttestationMetadata['attestationSkipped'] ?? null) && $pdfLegalAttestationMetadata['attestationSkipped'] !== '') {
+                        $diagnostics[] = 'pdf-byte-legal-attestation-skipped:' . $pdfLegalAttestationMetadata['attestationSkipped'];
+                    }
+                    if (isset($pdfLegalAttestationMetadata['associatedFiles']) && is_array($pdfLegalAttestationMetadata['associatedFiles']) && $pdfLegalAttestationMetadata['associatedFiles'] !== []) {
+                        $diagnostics[] = 'pdf-byte-legal-attestation-associated-files:' . count($pdfLegalAttestationMetadata['associatedFiles']);
+                    }
+                }
                 if ($pdfTaggingMetadata !== []) {
                     $diagnostics[] = 'pdf-byte-tagging-metadata:' . count($pdfTaggingMetadata);
                     if (($pdfTaggingMetadata['marked'] ?? null) === true) {
@@ -2360,6 +2385,7 @@ final class PdfEngineHandoff
             'pdfViewerPreferences' => $pdfViewerPreferences,
             'pdfNeedsRendering' => $pdfNeedsRendering,
             'pdfCatalogRequirements' => $pdfCatalogRequirements,
+            'pdfLegalAttestationMetadata' => $pdfLegalAttestationMetadata,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfStructureElements' => $pdfStructureElements,
             'pdfMarkedContentProperties' => $pdfMarkedContentProperties,
@@ -2477,6 +2503,7 @@ final class PdfEngineHandoff
      *     finalPdfViewerPreferences: array<string, bool|int|string|list<int>|list<string>>,
      *     finalPdfNeedsRendering: bool|null,
      *     finalPdfCatalogRequirements: list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
+     *     finalPdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     finalPdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
@@ -2708,6 +2735,7 @@ final class PdfEngineHandoff
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
             'finalPdfNeedsRendering' => is_array($finalRun) && is_bool($finalRun['pdfNeedsRendering'] ?? null) ? $finalRun['pdfNeedsRendering'] : null,
             'finalPdfCatalogRequirements' => is_array($finalRun) && is_array($finalRun['pdfCatalogRequirements'] ?? null) ? $finalRun['pdfCatalogRequirements'] : [],
+            'finalPdfLegalAttestationMetadata' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationMetadata'] ?? null) ? $finalRun['pdfLegalAttestationMetadata'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
             'finalPdfMarkedContentProperties' => is_array($finalRun) && is_array($finalRun['pdfMarkedContentProperties'] ?? null) ? $finalRun['pdfMarkedContentProperties'] : [],
@@ -3949,6 +3977,7 @@ final class PdfEngineHandoff
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
             'needsRendering' => $this->extractPdfNeedsRendering($catalog),
             'catalogRequirements' => $this->extractPdfCatalogRequirements($pdfBytes, $catalog),
+            'legalAttestationMetadata' => $this->extractPdfLegalAttestationMetadata($pdfBytes, $catalog),
             'taggingMetadata' => $this->extractPdfTaggingMetadata($pdfBytes, $catalog),
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
             'markedContentProperties' => $this->extractPdfMarkedContentProperties($pdfBytes, $catalog),
@@ -8332,6 +8361,180 @@ final class PdfEngineHandoff
             'object' => $objectKey . ' R',
             'dictionary' => $resolved['value'],
         ];
+    }
+
+    /**
+     * @return array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{}
+     */
+    private function extractPdfLegalAttestationMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/LegalAttestation')) {
+            return [];
+        }
+
+        $value = $this->extractPdfValueForName($catalog, 'LegalAttestation');
+        if ($value === null) {
+            return [];
+        }
+
+        return $this->summarizePdfLegalAttestationValue(
+            $value,
+            $this->pdfObjectBodiesByReference($pdfBytes),
+            0
+        );
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{}
+     */
+    private function summarizePdfLegalAttestationValue(array $value, array $objects, int $depth): array
+    {
+        if ($depth > 8) {
+            return [];
+        }
+
+        $object = null;
+        $dictionary = null;
+        if ($value['kind'] === 'dictionary') {
+            $object = 'inline';
+            $dictionary = $value['value'];
+        } elseif ($value['kind'] === 'reference') {
+            $objectKey = $this->pdfReferenceKey($value['value']);
+            $object = $objectKey . ' R';
+            $body = $objects[$objectKey] ?? null;
+            if ($body !== null) {
+                $resolved = $this->parsePdfValueAt($body, 0);
+                if ($resolved !== null && $resolved['kind'] === 'dictionary') {
+                    $dictionary = $resolved['value'];
+                } elseif (str_starts_with(ltrim($body), '<<')) {
+                    $dictionary = $body;
+                }
+            }
+        }
+
+        if ($dictionary === null) {
+            return [];
+        }
+
+        $keys = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($dictionary) as $entry) {
+            if ($entry['key'] !== '') {
+                $keys[] = $entry['key'];
+            }
+        }
+        $keys = array_values(array_unique($keys));
+        sort($keys, SORT_STRING);
+
+        $attestation = $this->summarizePdfLegalAttestationPayload(
+            $this->extractPdfValueForName($dictionary, 'Attestation')
+                ?? $this->extractPdfValueForName($dictionary, 'Statement')
+                ?? $this->extractPdfValueForName($dictionary, 'Contents')
+                ?? $this->extractPdfValueForName($dictionary, 'Text'),
+            $objects,
+            $depth + 1
+        );
+        $associatedFiles = array_map(
+            static fn (string $reference): string => $reference . ' R',
+            $this->extractPdfReferenceArray($dictionary, 'AF')
+        );
+        $associatedFiles = array_values(array_unique($associatedFiles));
+        sort($associatedFiles, SORT_STRING);
+
+        return [
+            'object' => $object,
+            'type' => $this->extractPdfNameToken($dictionary, 'Type'),
+            'language' => $this->extractPdfStringOrNameValue($dictionary, 'Lang'),
+            'status' => $this->extractPdfStringOrNameValue($dictionary, 'Status'),
+            'jurisdiction' => $this->extractPdfStringOrNameValue($dictionary, 'Jurisdiction'),
+            'attestation' => $attestation['text'],
+            'attestationObject' => $attestation['object'],
+            'attestationBytes' => $attestation['bytes'],
+            'attestationSha256' => $attestation['sha256'],
+            'attestationSkipped' => $attestation['skipped'],
+            'associatedFiles' => $associatedFiles,
+            'keys' => $keys,
+        ];
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int}|null $value
+     * @param array<string, string> $objects
+     * @return array{text:string|null, object:string|null, bytes:int|null, sha256:string|null, skipped:string|null}
+     */
+    private function summarizePdfLegalAttestationPayload(?array $value, array $objects, int $depth): array
+    {
+        $empty = [
+            'text' => null,
+            'object' => null,
+            'bytes' => null,
+            'sha256' => null,
+            'skipped' => null,
+        ];
+        if ($value === null || $depth > 8) {
+            return $empty;
+        }
+
+        if (in_array($value['kind'], ['literal', 'hex', 'name', 'number'], true)) {
+            $text = trim($value['value']);
+            $empty['text'] = $text === '' ? null : $text;
+
+            return $empty;
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            $text = $this->extractPdfStringOrNameValue($value['value'], 'Statement')
+                ?? $this->extractPdfStringOrNameValue($value['value'], 'Contents')
+                ?? $this->extractPdfStringOrNameValue($value['value'], 'Text');
+            $empty['text'] = $text === null || trim($text) === '' ? null : trim($text);
+
+            return $empty;
+        }
+
+        if ($value['kind'] !== 'reference') {
+            return $empty;
+        }
+
+        $objectKey = $this->pdfReferenceKey($value['value']);
+        $summary = $empty;
+        $summary['object'] = $objectKey . ' R';
+        $body = $objects[$objectKey] ?? null;
+        if ($body === null) {
+            return $summary;
+        }
+
+        $streamBytes = $this->extractPdfStreamBytes($body);
+        if ($streamBytes !== null) {
+            $summary['bytes'] = strlen($streamBytes);
+            if (preg_match('/\/Filter\b/s', $body) === 1) {
+                $summary['skipped'] = 'filtered';
+
+                return $summary;
+            }
+            if (strlen($streamBytes) > self::MAX_LEGAL_ATTESTATION_STREAM_BYTES) {
+                $summary['skipped'] = 'too-large';
+
+                return $summary;
+            }
+
+            $summary['sha256'] = hash('sha256', $streamBytes);
+
+            return $summary;
+        }
+
+        $resolved = $this->parsePdfValueAt($body, 0);
+        if ($resolved === null) {
+            return $summary;
+        }
+
+        $resolvedSummary = $this->summarizePdfLegalAttestationPayload($resolved, $objects, $depth + 1);
+        $summary['text'] = $resolvedSummary['text'];
+        $summary['bytes'] = $resolvedSummary['bytes'];
+        $summary['sha256'] = $resolvedSummary['sha256'];
+        $summary['skipped'] = $resolvedSummary['skipped'];
+
+        return $summary;
     }
 
     private function extractPdfUriBase(string $pdfBytes, ?string $catalog): ?string
