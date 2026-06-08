@@ -1273,3 +1273,23 @@ s/\[gallery[^\]]*\]/<!-- wp:shortcode -->[gallery]<!-- \/wp:shortcode -->/g
 :normalized
 p
 ```
+
+``` {.biblatex #bibtex-review .numberLines startFrom=1040}
+% WordPress bibliography review handoff
+@online{wp-data-liberation,
+  author       = {Doe, Jane and WordPress.org Contributors},
+  title        = {Data Liberation Review Packet},
+  date         = {2026-06-08},
+  url          = {https://example.test/import-review},
+  langid       = {english},
+  keywords     = {wordpress, migration, blocks},
+}
+
+@string{wp = "WordPress"}
+
+@article{legacy-shortcode,
+  title = wp # " shortcode audit",
+  journaltitle = {Import Notes},
+  year = 2025,
+}
+```

@@ -436,6 +436,12 @@ if (!$sedCodeBlock instanceof PortLibs\Pandoc\AstNode || $sedCodeBlock->type !==
 }
 $sed = $highlighter->highlightCodeBlock($sedCodeBlock, 'tango');
 $sedWordpressBlock = $highlighter->wordpressHtmlBlock($sedCodeBlock, 'tango');
+$bibtexCodeBlock = $document->children[69] ?? null;
+if (!$bibtexCodeBlock instanceof PortLibs\Pandoc\AstNode || $bibtexCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a BibTeX review code block');
+}
+$bibtex = $highlighter->highlightCodeBlock($bibtexCodeBlock, 'zenburn');
+$bibtexWordpressBlock = $highlighter->wordpressHtmlBlock($bibtexCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1892,6 +1898,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($sedWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
         throw new RuntimeException('Expected Sed WordPress style metadata');
     }
+    if (($bibtex['language'] ?? '') !== 'bibtex') {
+        throw new RuntimeException('Expected BibTeX language handoff');
+    }
+    if (($bibtex['requestedLanguage'] ?? '') !== 'biblatex') {
+        throw new RuntimeException('Expected BibLaTeX requested-language wrapper handoff');
+    }
+    if (($bibtex['lineNumbering']['start'] ?? null) !== 1040) {
+        throw new RuntimeException('Expected BibTeX source startFrom line-number handoff');
+    }
+    if (!str_contains($bibtex['html'], '<span class="kw">@online</span><span class="op">{</span><span class="va">wp-data-liberation</span>')) {
+        throw new RuntimeException('Expected BibTeX entry keyword and citation key token handoff');
+    }
+    if (!str_contains($bibtex['html'], '<span class="ot">title</span> <span class="op">=</span> <span class="va">wp</span> <span class="op">#</span> <span class="st">&quot; shortcode audit&quot;</span>')) {
+        throw new RuntimeException('Expected BibTeX string macro concatenation token handoff');
+    }
+    if (!str_contains($bibtexWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected BibTeX WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2040,4 +2064,5 @@ echo "batchWordpressBlock:\n" . $batchWordpressBlock . "\n";
 echo "matlabWordpressBlock:\n" . $matlabWordpressBlock . "\n";
 echo "fishWordpressBlock:\n" . $fishWordpressBlock . "\n";
 echo "sedWordpressBlock:\n" . $sedWordpressBlock . "\n";
+echo "bibtexWordpressBlock:\n" . $bibtexWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

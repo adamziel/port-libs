@@ -62,6 +62,9 @@ $stylesXml = <<<'XML'
     <style:style style:name="ReviewDefaultCell" style:family="table-cell">
       <style:table-cell-properties fo:background-color="#e6ffed" style:vertical-align="top"/>
     </style:style>
+    <style:style style:name="CoveredAuditCell" style:family="table-cell">
+      <style:table-cell-properties fo:background-color="#fff4cc" style:cell-protect="protected"/>
+    </style:style>
     <style:style style:name="ReadyCell" style:family="table-cell">
       <style:table-cell-properties fo:background-color="#e6ffed"/>
     </style:style>
@@ -273,7 +276,7 @@ $contentXml = <<<'XML'
         </table:table-row>
         <table:table-row>
           <table:table-cell table:number-columns-spanned="2" table:formula="of:=COUNT([.A2:.B2])" office:value-type="float" office:value="2"><text:p>Ready for block import review</text:p></table:table-cell>
-          <table:covered-table-cell/>
+          <table:covered-table-cell table:style-name="CoveredAuditCell" office:value-type="string" office:string-value="draft source"><text:p>Draft state hidden by merge</text:p></table:covered-table-cell>
         </table:table-row>
       </table:table>
       <text:p text:style-name="Table">Table 2: Source package review grid</text:p>
@@ -906,8 +909,8 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, 'ODT footnote reviewer context.')) {
         throw new RuntimeException('Expected ODT footnote body to render in WordPress footnotes');
     }
-    if (!str_contains($blocks, '<td class="odf-table-cell-value odf-table-cell-formula" data-odf-cell-formula="of:=COUNT([.A2:.B2])" data-odf-cell-value-type="float" data-odf-cell-value="2" colspan="2"><p>Ready for block import review</p></td>')) {
-        throw new RuntimeException('Expected ODT calculated table colspan metadata to survive WordPress table handoff');
+    if (!str_contains($blocks, '<td class="odf-table-cell-value odf-table-cell-formula odf-covered-cell-source" data-odf-cell-formula="of:=COUNT([.A2:.B2])" data-odf-cell-value-type="float" data-odf-cell-value="2" data-odf-covered-cell-count="1" data-odf-covered-cell-source-columns="1" data-odf-covered-cell-style-names="CoveredAuditCell" data-odf-covered-cell-text-count="1" data-odf-covered-cell-value-count="1" colspan="2"><p>Ready for block import review</p></td>')) {
+        throw new RuntimeException('Expected ODT calculated table colspan and covered-cell metadata to survive WordPress table handoff');
     }
     if (($result['importReport']['content']['tableStyledCellCount'] ?? 0) !== 2
         || ($result['importReport']['content']['tableProtectedCellCount'] ?? 0) !== 1
@@ -952,6 +955,14 @@ if (($argv[1] ?? '') === '--self-test') {
     $calculatedCellAttributes = $reviewCoverage[2]['sourceAttributes']['htmlAttributes'] ?? [];
     if (($calculatedCellAttributes['data-odf-cell-formula'] ?? '') !== 'of:=COUNT([.A2:.B2])' || ($calculatedCellAttributes['data-odf-cell-value'] ?? '') !== '2') {
         throw new RuntimeException('Expected ODT calculated cell metadata to survive table geometry review packets');
+    }
+    if (($calculatedCellAttributes['data-odf-covered-cell-count'] ?? '') !== '1'
+        || ($calculatedCellAttributes['data-odf-covered-cell-style-names'] ?? '') !== 'CoveredAuditCell') {
+        throw new RuntimeException('Expected ODT covered-cell provenance to survive table geometry review packets');
+    }
+    if (($result['importReport']['content']['tableCoveredCellCount'] ?? 0) !== 1
+        || ($result['importReport']['content']['tableCoveredCellMetadataCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT covered-cell provenance to be counted in the import report');
     }
     if (!str_contains($blocks, 'data-odf-cell-style-name="ReviewDefaultCell"')
         || !str_contains($blocks, 'data-odf-cell-default-style-name="ReviewDefaultCell"')

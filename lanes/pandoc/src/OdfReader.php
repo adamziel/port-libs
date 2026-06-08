@@ -233,6 +233,8 @@ final class OdfReader
                     'hiddenTableRowCount' => $contentStats['hiddenTableRowCount'],
                     'repeatedTableRowCount' => $contentStats['repeatedTableRowCount'],
                     'truncatedTableRowRepeatCount' => $contentStats['truncatedTableRowRepeatCount'],
+                    'tableCoveredCellCount' => $contentStats['tableCoveredCellCount'],
+                    'tableCoveredCellMetadataCount' => $contentStats['tableCoveredCellMetadataCount'],
                     'tableStyledCellCount' => $contentStats['tableStyledCellCount'],
                     'tableProtectedCellCount' => $contentStats['tableProtectedCellCount'],
                     'tablePrintHiddenCellCount' => $contentStats['tablePrintHiddenCellCount'],
@@ -2049,11 +2051,40 @@ final class OdfReader
     private function tableRowNode(\DOMElement $row, ZipPackage $package, array $catalog, array $columnDefinitions, array $repeatMetadata = []): AstNode
     {
         $cells = [];
+        $rowCoveredCells = [];
         $columnIndex = 0;
+        $lastCellStartColumn = null;
+        $lastCellColspan = 1;
+        $lastCellCoveredOffset = 0;
         $rowDefaultCellStyleName = self::attr($row, self::TABLE_NS, 'default-cell-style-name');
         foreach (self::childElements($row) as $cellElement) {
             if ($this->isElement($cellElement, self::TABLE_NS, 'covered-table-cell')) {
-                $columnIndex += min(32, max(1, self::intAttr($cellElement, self::TABLE_NS, 'number-columns-repeated', 1)));
+                $declaredRepeat = max(1, self::intAttr($cellElement, self::TABLE_NS, 'number-columns-repeated', 1));
+                $repeat = min(32, $declaredRepeat);
+                for ($index = 0; $index < $repeat; $index++) {
+                    $coversPreviousCell = $lastCellStartColumn !== null && $lastCellCoveredOffset < max(0, $lastCellColspan - 1);
+                    $sourceColumn = $coversPreviousCell
+                        ? $lastCellStartColumn + 1 + $lastCellCoveredOffset
+                        : $columnIndex;
+                    $metadata = $this->coveredTableCellMetadata($cellElement, $package, $catalog, [
+                        'sourceColumn' => $sourceColumn,
+                        'repeatIndex' => $repeat > 1 ? $index + 1 : null,
+                        'sourceRepeat' => $repeat > 1 ? $repeat : null,
+                        'declaredRepeat' => $declaredRepeat > 1 ? $declaredRepeat : null,
+                        'repeatTruncated' => $declaredRepeat > $repeat ? true : null,
+                    ]);
+
+                    if ($coversPreviousCell && $this->appendCoveredTableCellMetadata($cells, $metadata)) {
+                        $lastCellCoveredOffset++;
+                        continue;
+                    }
+
+                    $rowCoveredCells[] = $metadata;
+                    $columnIndex++;
+                    if ($coversPreviousCell) {
+                        $lastCellCoveredOffset++;
+                    }
+                }
                 continue;
             }
             if (!$this->isElement($cellElement, self::TABLE_NS, 'table-cell')) {
@@ -2063,17 +2094,180 @@ final class OdfReader
             $repeat = min(32, max(1, self::intAttr($cellElement, self::TABLE_NS, 'number-columns-repeated', 1)));
             $colspan = max(1, self::intAttr($cellElement, self::TABLE_NS, 'number-columns-spanned', 1));
             for ($index = 0; $index < $repeat; $index++) {
+                $cellStartColumn = $columnIndex;
                 $cells[] = $this->tableCellNode($cellElement, $package, $catalog, [
                     'rowDefaultCellStyleName' => $rowDefaultCellStyleName,
                     'columnDefaultCellStyleName' => $this->columnDefaultCellStyleName($columnDefinitions, $columnIndex),
                 ]);
                 $columnIndex += $colspan;
+                $lastCellStartColumn = $cellStartColumn;
+                $lastCellColspan = $colspan;
+                $lastCellCoveredOffset = 0;
             }
         }
 
         $attrs = $this->tableRowMetadata($row, $repeatMetadata);
+        if ($rowCoveredCells !== []) {
+            $attrs['odfCoveredCells'] = $rowCoveredCells;
+            $attrs['coveredCellCount'] = count($rowCoveredCells);
+            if ($this->coveredTableCellsHaveReviewMetadata($rowCoveredCells)) {
+                $attrs['htmlAttributes'] = array_merge(
+                    is_array($attrs['htmlAttributes'] ?? null) ? $attrs['htmlAttributes'] : [],
+                    $this->coveredTableCellHtmlAttributes($rowCoveredCells),
+                );
+                $attrs['classes'] = array_values(array_unique(array_merge(
+                    is_array($attrs['classes'] ?? null) ? $attrs['classes'] : [],
+                    ['odf-covered-table-row'],
+                )));
+            }
+        }
 
         return new AstNode('table_row', $attrs, $cells);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @param array{sourceColumn:int,repeatIndex?:int|null,sourceRepeat?:int|null,declaredRepeat?:int|null,repeatTruncated?:bool|null} $sourceMetadata
+     * @return array<string, mixed>
+     */
+    private function coveredTableCellMetadata(\DOMElement $cell, ZipPackage $package, array $catalog, array $sourceMetadata): array
+    {
+        $blocks = $this->blockNodes($cell, $package, $catalog);
+        $styleName = self::attr($cell, self::TABLE_NS, 'style-name');
+        $style = $this->resolveStyle($styleName, $catalog);
+        $styleProperties = is_array($style['tableCellProperties'] ?? null) ? $style['tableCellProperties'] : [];
+        $metadata = $this->tableCellMetadata($cell);
+
+        return self::withoutEmpty([
+            'element' => 'covered-table-cell',
+            'sourceColumn' => $sourceMetadata['sourceColumn'],
+            'repeatIndex' => $sourceMetadata['repeatIndex'] ?? null,
+            'sourceRepeat' => $sourceMetadata['sourceRepeat'] ?? null,
+            'declaredRepeat' => $sourceMetadata['declaredRepeat'] ?? null,
+            'repeatTruncated' => ($sourceMetadata['repeatTruncated'] ?? false) === true ? true : null,
+            'styleName' => self::nullable($styleName),
+            'style' => $style !== [] ? $style : null,
+            'styleProperties' => $styleProperties !== [] ? $styleProperties : null,
+            'cellMetadata' => $metadata !== [] ? $metadata : null,
+            'text' => self::nullable($this->plainBlockText($blocks)),
+        ]);
+    }
+
+    /**
+     * @param list<AstNode> $cells
+     * @param array<string, mixed> $metadata
+     */
+    private function appendCoveredTableCellMetadata(array &$cells, array $metadata): bool
+    {
+        $lastIndex = array_key_last($cells);
+        if ($lastIndex === null) {
+            return false;
+        }
+
+        $cell = $cells[$lastIndex];
+        $coveredCells = $cell->attr('odfCoveredCells', []);
+        if (!is_array($coveredCells) || !array_is_list($coveredCells)) {
+            $coveredCells = [];
+        }
+        $coveredCells[] = $metadata;
+
+        $attrs = $cell->attrs;
+        $attrs['odfCoveredCells'] = $coveredCells;
+        $attrs['coveredCellCount'] = count($coveredCells);
+        if ($this->coveredTableCellsHaveReviewMetadata($coveredCells)) {
+            $attrs['htmlAttributes'] = array_merge(
+                is_array($attrs['htmlAttributes'] ?? null) ? $attrs['htmlAttributes'] : [],
+                $this->coveredTableCellHtmlAttributes($coveredCells),
+            );
+            $attrs['classes'] = array_values(array_unique(array_merge(
+                is_array($attrs['classes'] ?? null) ? $attrs['classes'] : [],
+                ['odf-covered-cell-source'],
+            )));
+        }
+
+        $cells[$lastIndex] = new AstNode($cell->type, $attrs, $cell->children);
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coveredCells
+     */
+    private function coveredTableCellsHaveReviewMetadata(array $coveredCells): bool
+    {
+        foreach ($coveredCells as $metadata) {
+            if (!is_array($metadata)) {
+                continue;
+            }
+            if ($this->coveredTableCellHasReviewMetadata($metadata)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function coveredTableCellHasReviewMetadata(array $metadata): bool
+    {
+        foreach (['styleName', 'styleProperties', 'cellMetadata', 'text', 'sourceRepeat', 'declaredRepeat', 'repeatTruncated'] as $key) {
+            if (array_key_exists($key, $metadata)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coveredCells
+     * @return array<string, string>
+     */
+    private function coveredTableCellHtmlAttributes(array $coveredCells): array
+    {
+        $sourceColumns = [];
+        $styleNames = [];
+        $textCount = 0;
+        $valueCount = 0;
+        $repeatedCount = 0;
+        $truncatedRepeatCount = 0;
+
+        foreach ($coveredCells as $metadata) {
+            if (!is_array($metadata)) {
+                continue;
+            }
+            if (isset($metadata['sourceColumn']) && is_numeric($metadata['sourceColumn'])) {
+                $sourceColumns[] = (string) ((int) $metadata['sourceColumn']);
+            }
+            $styleName = (string) ($metadata['styleName'] ?? '');
+            if ($styleName !== '') {
+                $styleNames[] = $styleName;
+            }
+            if ((string) ($metadata['text'] ?? '') !== '') {
+                $textCount++;
+            }
+            if (is_array($metadata['cellMetadata'] ?? null) && $metadata['cellMetadata'] !== []) {
+                $valueCount++;
+            }
+            if (is_numeric($metadata['sourceRepeat'] ?? null) && (int) $metadata['sourceRepeat'] > 1) {
+                $repeatedCount++;
+            }
+            if (($metadata['repeatTruncated'] ?? false) === true) {
+                $truncatedRepeatCount++;
+            }
+        }
+
+        return self::withoutEmpty([
+            'data-odf-covered-cell-count' => (string) count($coveredCells),
+            'data-odf-covered-cell-source-columns' => $sourceColumns === [] ? null : implode(',', array_values(array_unique($sourceColumns))),
+            'data-odf-covered-cell-style-names' => $styleNames === [] ? null : implode(',', array_values(array_unique($styleNames))),
+            'data-odf-covered-cell-text-count' => $textCount > 0 ? (string) $textCount : null,
+            'data-odf-covered-cell-value-count' => $valueCount > 0 ? (string) $valueCount : null,
+            'data-odf-covered-cell-repeated-count' => $repeatedCount > 0 ? (string) $repeatedCount : null,
+            'data-odf-covered-cell-truncated-repeat-count' => $truncatedRepeatCount > 0 ? (string) $truncatedRepeatCount : null,
+        ]);
     }
 
     /**
@@ -7441,6 +7635,8 @@ final class OdfReader
             'hiddenTableRowCount' => 0,
             'repeatedTableRowCount' => 0,
             'truncatedTableRowRepeatCount' => 0,
+            'tableCoveredCellCount' => 0,
+            'tableCoveredCellMetadataCount' => 0,
             'tableStyledCellCount' => 0,
             'tableProtectedCellCount' => 0,
             'tablePrintHiddenCellCount' => 0,
@@ -7506,6 +7702,15 @@ final class OdfReader
                 }
                 if ($node->attr('repeatTruncated') === true) {
                     $stats['truncatedTableRowRepeatCount']++;
+                }
+            }
+            $coveredCells = $node->attr('odfCoveredCells', []);
+            if (is_array($coveredCells) && $coveredCells !== []) {
+                $stats['tableCoveredCellCount'] += count($coveredCells);
+                foreach ($coveredCells as $coveredCell) {
+                    if (is_array($coveredCell) && $this->coveredTableCellHasReviewMetadata($coveredCell)) {
+                        $stats['tableCoveredCellMetadataCount']++;
+                    }
                 }
             }
             if ($node->type === 'table_cell' && $node->attr('odfCellStyleProperties', []) !== []) {

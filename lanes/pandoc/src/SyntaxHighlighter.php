@@ -56,6 +56,9 @@ final class SyntaxHighlighter
         'bat' => 'batch',
         'batch' => 'batch',
         'batchfile' => 'batch',
+        'bib' => 'bibtex',
+        'biblatex' => 'bibtex',
+        'bibtex' => 'bibtex',
         'c' => 'c',
         'cargo-lock' => 'toml',
         'c#' => 'csharp',
@@ -714,6 +717,7 @@ final class SyntaxHighlighter
             'awk' => $this->tokenizeAwk($code),
             'bash' => $this->tokenizeBash($code),
             'batch' => $this->tokenizeBatch($code),
+            'bibtex' => $this->tokenizeBibtex($code),
             'c', 'cpp' => $this->tokenizeC($code),
             'clojure' => $this->tokenizeClojure($code),
             'cmake' => $this->tokenizeCMake($code),
@@ -1428,6 +1432,92 @@ final class SyntaxHighlighter
             ['attribute', '/^[A-Za-z_$][A-Za-z0-9_$-]*(?=\s*:)/'],
             ['operator', '/^[{}[\]:,]/'],
         ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeBibtex(string $code): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            $this->tokenizeBibtexLine($line, $tokens);
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeBibtexLine(string $line, array &$tokens): void
+    {
+        if ($line === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(%.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'comment', $matches[2]);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(@[A-Za-z][A-Za-z0-9_-]*)([ \t]*)([({])([A-Za-z0-9_:.\\/-]+)?(,?)(.*)$/', $line, $matches) === 1) {
+            $entryType = strtolower($matches[2]);
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'keyword', $matches[2]);
+            $this->appendToken($tokens, 'text', $matches[3]);
+            $this->appendToken($tokens, 'operator', $matches[4]);
+
+            if ($entryType === '@string' || $entryType === '@preamble' || $entryType === '@comment') {
+                $this->scanInto($matches[5] . $matches[6] . $matches[7], self::bibtexFieldPatterns(), $tokens);
+                return;
+            }
+
+            if (($matches[5] ?? '') !== '') {
+                $this->appendToken($tokens, 'variable', $matches[5]);
+            }
+            if (($matches[6] ?? '') !== '') {
+                $this->appendToken($tokens, 'operator', $matches[6]);
+            }
+            $this->scanInto($matches[7], self::bibtexFieldPatterns(), $tokens);
+            return;
+        }
+
+        $this->scanInto($line, self::bibtexFieldPatterns(), $tokens);
+    }
+
+    /**
+     * @return list<array{0:string, 1:string}>
+     */
+    private static function bibtexFieldPatterns(): array
+    {
+        return [
+            ['comment', '/^%[^\\n]*/'],
+            ['attribute', '/^[A-Za-z][A-Za-z0-9_-]*(?=\\s*=)/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', '/^\\{(?:\\\\.|[^{}\\\\]|\\{(?:\\\\.|[^{}\\\\])*\\})*\\}/s'],
+            ['keyword', '/^\\b(?:and)\\b/i'],
+            ['constant', '/^\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\b/i'],
+            ['number', '/^\\b\\d{1,4}\\b/'],
+            ['variable', '/^[A-Za-z_][A-Za-z0-9_:.\\/-]*/'],
+            ['operator', '/^(?:#|[{}()[\\],=])/'],
+        ];
     }
 
     /**

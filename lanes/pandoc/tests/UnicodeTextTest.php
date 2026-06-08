@@ -534,6 +534,26 @@ return [
         $t->contains('<h1 id="importação">Importação</h1>', $blocks);
         $t->contains('<p>Português: Conteúdo, Ônibus, São Tomé, açúcar; «citação»; £/₧.</p>', $blocks);
     },
+    'decodes ibm861 dos icelandic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# DOS 861\n\nIcelandic: \xA4\xA1 \xA5sland, \x8Dingvellir, \x8B/\x8C, \x95orn; vowels \xA0\xA1\xA2\xA3 \xA4\xA5\xA6\xA7; box \xC9\xCD\xBB; \x9C.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp861');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm861');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x8B\x8C\x8D\x8E\x95\x97\x98\xA4\xA5\xA6\xA7", 'ibm861');
+        $ibm437Comparison = UnicodeText::decodeBytes("\x8B\x8C\x8D\x8E\x95\x97\x98\xA4\xA5\xA6\xA7", 'ibm437');
+
+        $t->same('ibm861', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# DOS 861\n\nIcelandic: Áí Ísland, Þingvellir, Ð/ð, þorn; vowels áíóú ÁÍÓÚ; box ╔═╗; £.", $decoded['text']);
+        $t->same('ÐðÞÄþÝýÁÍÓÚ', $specials['text']);
+        $t->same('ïîìÄòùÿñÑªº', $ibm437Comparison['text']);
+        $t->same(['encoding' => 'ibm861', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('DOS 861', $document->children[0]->attr('text'));
+        $t->same('Icelandic: Áí Ísland, Þingvellir, Ð/ð, þorn; vowels áíóú ÁÍÓÚ; box ╔═╗; £.', $document->children[1]->attr('text'));
+        $t->same(74, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="dos-861">DOS 861</h1>', $blocks);
+        $t->contains('<p>Icelandic: Áí Ísland, Þingvellir, Ð/ð, þorn; vowels áíóú ÁÍÓÚ; box ╔═╗; £.</p>', $blocks);
+    },
     'decodes ibm865 dos nordic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# DOS 865\n\nDansk: K\x9Bbenhavn, sm\x9Brrebr\x9Bd, bl\x86b\x91r; Norsk: \x92\x9D\x8F; Islandsk: \xD1\xD0 \xE8\xE7; \xAF.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp865');

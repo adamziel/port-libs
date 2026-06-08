@@ -78,6 +78,10 @@ return [
         $t->same('batch', SyntaxHighlighter::normalizeLanguage('cmd'));
         $t->same('batch', SyntaxHighlighter::normalizeLanguage('cmd.exe'));
         $t->same('batch', SyntaxHighlighter::normalizeLanguage('language-dosbatch'));
+        $t->same('bibtex', SyntaxHighlighter::normalizeLanguage('bibtex'));
+        $t->same('bibtex', SyntaxHighlighter::normalizeLanguage('biblatex'));
+        $t->same('bibtex', SyntaxHighlighter::normalizeLanguage('bib'));
+        $t->same('bibtex', SyntaxHighlighter::normalizeLanguage('language-biblatex'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('rst'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('rest'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('reStructuredText'));
@@ -3338,6 +3342,49 @@ return [
         $t->same('sed', $directSed['language']);
         $t->same('gnu-sed', $directSed['requestedLanguage']);
         $t->contains('<span class="kw">s</span><span class="st">#&lt;h1&gt;\(.*\)&lt;/h1&gt;#&lt;!-- wp:heading --&gt;\1&lt;!-- /wp:heading --&gt;#</span><span class="ot">g</span>', $directSed['html']);
+    },
+    'highlights bibtex bibliography review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[69] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a BibTeX review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $directBibtex = $highlighter->highlight('@book{review, year = 2025, month = jun, title = wp # " guide"}', 'bib');
+
+        $t->same('biblatex', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('bibtex', SyntaxHighlighter::normalizeLanguage('bibtex'));
+        $t->same('bibtex', SyntaxHighlighter::normalizeLanguage('biblatex'));
+        $t->same('bibtex', SyntaxHighlighter::normalizeLanguage('bib'));
+        $t->same('bibtex', $highlighted['language']);
+        $t->same('biblatex', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1040, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource biblatex numberLines"><code class="sourceCode bibtex" style="counter-reset: source-line 1039;">', $highlighted['html']);
+        $t->contains('<span id="bibtex-review-1040"><a href="#bibtex-review-1040"></a><span class="co">% WordPress bibliography review handoff</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">@online</span><span class="op">{</span><span class="va">wp-data-liberation</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="ot">author</span>       <span class="op">=</span> <span class="st">{Doe, Jane and WordPress.org Contributors}</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="ot">date</span>         <span class="op">=</span> <span class="st">{2026-06-08}</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="ot">keywords</span>     <span class="op">=</span> <span class="st">{wordpress, migration, blocks}</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="kw">@string</span><span class="op">{</span><span class="ot">wp</span> <span class="op">=</span> <span class="st">&quot;WordPress&quot;</span><span class="op">}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">@article</span><span class="op">{</span><span class="va">legacy-shortcode</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="ot">title</span> <span class="op">=</span> <span class="va">wp</span> <span class="op">#</span> <span class="st">&quot; shortcode audit&quot;</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="ot">year</span> <span class="op">=</span> <span class="dv">2025</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<span class="kw">@online</span><span class="op">{</span><span class="va">wp-data-liberation</span>', $wordpressBlock);
+        $t->same('bibtex', $directBibtex['language']);
+        $t->same('bib', $directBibtex['requestedLanguage']);
+        $t->contains('<span class="kw">@book</span><span class="op">{</span><span class="va">review</span><span class="op">,</span> <span class="ot">year</span> <span class="op">=</span> <span class="dv">2025</span><span class="op">,</span> <span class="ot">month</span> <span class="op">=</span> <span class="cn">jun</span>', $directBibtex['html']);
+        $t->contains('<span class="ot">title</span> <span class="op">=</span> <span class="va">wp</span> <span class="op">#</span> <span class="st">&quot; guide&quot;</span><span class="op">}</span>', $directBibtex['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

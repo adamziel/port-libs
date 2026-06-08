@@ -1323,6 +1323,117 @@ XML;
         $t->contains('data-odf-cell-style-name="ExplicitCell"', $blocksHtml);
         $t->contains('Explicit cell wins', $blocksHtml);
     },
+    'preserves ODT covered table cell provenance without rendering extra cells' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithCoveredCells = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="CoveredAuditCell" style:family="table-cell">
+      <style:table-cell-properties fo:background-color="#fff4cc" style:cell-protect="protected"/>
+    </style:style>
+    <style:style style:name="CoveredMutedCell" style:family="table-cell">
+      <style:table-cell-properties fo:background-color="#f3f4f6"/>
+    </style:style>
+    <style:style style:name="TrailingDefaultCell" style:family="table-cell">
+      <style:table-cell-properties fo:background-color="#e0f2fe"/>
+    </style:style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithCoveredCells = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="Covered Cell Review">
+        <table:table-column/>
+        <table:table-column/>
+        <table:table-column/>
+        <table:table-column/>
+        <table:table-column table:default-cell-style-name="TrailingDefaultCell"/>
+        <table:table-row>
+          <table:table-cell table:number-columns-spanned="4"><text:p>Published source</text:p></table:table-cell>
+          <table:covered-table-cell table:style-name="CoveredAuditCell" office:value-type="string" office:string-value="hidden draft"><text:p>Draft hidden by merge</text:p></table:covered-table-cell>
+          <table:covered-table-cell table:style-name="CoveredMutedCell" table:number-columns-repeated="2"/>
+          <table:table-cell><text:p>Visible trailing</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:covered-table-cell table:style-name="CoveredAuditCell" office:value-type="string" office:string-value="rowspan source"/>
+          <table:table-cell><text:p>Trailing note</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithCoveredCells, null, $stylesWithCoveredCells));
+        $table = $result['document']->children[0];
+        $rows = $table->children[0]->children;
+        $anchorCell = $rows[0]->children[0];
+        $trailingCell = $rows[0]->children[1];
+        $leadingCoveredRow = $rows[1];
+        $leadingRenderedCell = $rows[1]->children[0];
+        $coveredCells = $anchorCell->attr('odfCoveredCells');
+        $leadingCoveredCells = $leadingCoveredRow->attr('odfCoveredCells');
+        $anchorHtml = $anchorCell->attr('htmlAttributes');
+        $geometry = $table->attr('tableGeometry');
+        $coverage = is_array($geometry) ? ($geometry['coverage'] ?? []) : [];
+        $summary = is_array($geometry) ? ($geometry['summary'] ?? []) : [];
+
+        $t->same('Published source', $anchorCell->attr('text'));
+        $t->same(4, $anchorCell->attr('colspan'));
+        $t->same(3, $anchorCell->attr('coveredCellCount'));
+        $t->same(3, count($coveredCells));
+        $t->same(1, $coveredCells[0]['sourceColumn']);
+        $t->same(2, $coveredCells[1]['sourceColumn']);
+        $t->same(3, $coveredCells[2]['sourceColumn']);
+        $t->same('CoveredAuditCell', $coveredCells[0]['styleName']);
+        $t->same('protected', $coveredCells[0]['styleProperties']['cellProtect']);
+        $t->same('string', $coveredCells[0]['cellMetadata']['valueType']);
+        $t->same('hidden draft', $coveredCells[0]['cellMetadata']['stringValue']);
+        $t->same('Draft hidden by merge', $coveredCells[0]['text']);
+        $t->same('CoveredMutedCell', $coveredCells[1]['styleName']);
+        $t->same(1, $coveredCells[1]['repeatIndex']);
+        $t->same(2, $coveredCells[2]['repeatIndex']);
+        $t->same(2, $coveredCells[2]['sourceRepeat']);
+        $t->same(['odf-covered-cell-source'], $anchorCell->attr('classes'));
+        $t->same('3', $anchorHtml['data-odf-covered-cell-count']);
+        $t->same('1,2,3', $anchorHtml['data-odf-covered-cell-source-columns']);
+        $t->same('CoveredAuditCell,CoveredMutedCell', $anchorHtml['data-odf-covered-cell-style-names']);
+        $t->same('1', $anchorHtml['data-odf-covered-cell-text-count']);
+        $t->same('1', $anchorHtml['data-odf-covered-cell-value-count']);
+        $t->same('2', $anchorHtml['data-odf-covered-cell-repeated-count']);
+
+        $t->same('TrailingDefaultCell', $trailingCell->attr('styleName'));
+        $t->same('column', $trailingCell->attr('defaultCellStyleSource'));
+        $t->same('#e0f2fe', $trailingCell->attr('odfCellStyleProperties')['backgroundColor']);
+        $t->same('Visible trailing', $trailingCell->attr('text'));
+        $t->same(1, $leadingCoveredRow->attr('coveredCellCount'));
+        $t->same(1, count($leadingCoveredCells));
+        $t->same(0, $leadingCoveredCells[0]['sourceColumn']);
+        $t->same('rowspan source', $leadingCoveredCells[0]['cellMetadata']['stringValue']);
+        $t->same(['odf-covered-table-row'], $leadingCoveredRow->attr('classes'));
+        $t->same('1', $leadingCoveredRow->attr('htmlAttributes')['data-odf-covered-cell-count']);
+        $t->same('Trailing note', $leadingRenderedCell->attr('text'));
+
+        $t->same(5, $geometry['columnCount']);
+        $t->same(3, $summary['coveredSlotCount']);
+        $t->same(3, $summary['cellCount']);
+        $t->same('3', $coverage[0]['sourceAttributes']['htmlAttributes']['data-odf-covered-cell-count'] ?? null);
+        $t->same('TrailingDefaultCell', $coverage[1]['sourceAttributes']['htmlAttributes']['data-odf-cell-default-style-name'] ?? null);
+        $t->same(4, $result['importReport']['content']['tableCoveredCellCount']);
+        $t->same(4, $result['importReport']['content']['tableCoveredCellMetadataCount']);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<td class="odf-covered-cell-source" data-odf-covered-cell-count="3" data-odf-covered-cell-source-columns="1,2,3" data-odf-covered-cell-style-names="CoveredAuditCell,CoveredMutedCell" data-odf-covered-cell-text-count="1" data-odf-covered-cell-value-count="1" data-odf-covered-cell-repeated-count="2" colspan="4"><p>Published source</p></td>', $blocksHtml);
+        $t->contains('<td class="odf-table-cell-style odf-table-cell-background" data-odf-cell-style-name="TrailingDefaultCell" data-odf-cell-background-color="#e0f2fe" data-odf-cell-default-style-name="TrailingDefaultCell" data-odf-cell-default-style-source="column" style="background-color:#e0f2fe"><p>Visible trailing</p></td>', $blocksHtml);
+        $t->contains('<tr class="odf-covered-table-row" data-odf-covered-cell-count="1" data-odf-covered-cell-source-columns="0" data-odf-covered-cell-style-names="CoveredAuditCell" data-odf-covered-cell-value-count="1"><td><p>Trailing note</p></td></tr>', $blocksHtml);
+    },
     'preserves ODT style map rules on table cell review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithStyleMaps = <<<'XML'
 <office:document-styles

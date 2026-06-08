@@ -6257,6 +6257,16 @@ return [
             strlen($tarBytes),
             512
         ));
+        $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decodeWithDictionaries($lz4Tar, [
+            $tarDictionaryId => '',
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
+            $lz4Tar,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            [$tarDictionaryId => ''],
+            strlen($tarBytes),
+            512
+        ));
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
             $lz4Tar,
             ArchiveCompressionStream::FORMAT_GZIP_TAR,

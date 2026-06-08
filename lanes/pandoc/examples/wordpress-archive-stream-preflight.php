@@ -880,6 +880,14 @@ try {
 } catch (RuntimeException) {
     $lz4SuppliedMissingDictionaryBlocked = true;
 }
+$lz4SuppliedEmptyDictionaryBlocked = false;
+try {
+    Lz4Frame::decodeWithDictionaries($lz4SuppliedDictionaryStream, [
+        $lz4DictionaryId => '',
+    ]);
+} catch (RuntimeException) {
+    $lz4SuppliedEmptyDictionaryBlocked = true;
+}
 $zlibDictionaryArchiveBytes = TarArchive::fromEntries([
     [
         'name' => 'packet/manifest.json',
@@ -944,6 +952,17 @@ try {
     );
 } catch (RuntimeException) {
     $lz4PackageMissingDictionaryBlocked = true;
+}
+$lz4PackageEmptyDictionaryBlocked = false;
+try {
+    ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
+        $lz4PackageStream,
+        ArchiveCompressionStream::FORMAT_LZ4_TAR,
+        [$lz4PackageDictionaryId => ''],
+        strlen($lz4PackageArchiveBytes)
+    );
+} catch (RuntimeException) {
+    $lz4PackageEmptyDictionaryBlocked = true;
 }
 $lz4SplitPackageArchiveBytes = TarArchive::fromEntries([
     [
@@ -1400,6 +1419,7 @@ if (in_array('--self-test', $argv, true)) {
         'lz4SuppliedDecodedPayload' => $lz4SuppliedDecodedPayload,
         'lz4SuppliedFrameCount' => 2,
         'lz4SuppliedBlockCount' => 2,
+        'lz4SuppliedEmptyDictionaryBlocked' => true,
         'zlibDictionaryKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'zlibDictionaryFormat' => ArchiveCompressionStream::FORMAT_ZLIB_TAR,
         'zlibDictionaryEntryCount' => 2,
@@ -1413,6 +1433,7 @@ if (in_array('--self-test', $argv, true)) {
         'lz4PackageDictionaryId' => $lz4PackageDictionaryId,
         'lz4PackageDictionarySize' => strlen($lz4PackageDictionary),
         'lz4PackageContent' => $lz4PackageContentBytes,
+        'lz4PackageEmptyDictionaryBlocked' => true,
         'lz4SplitPackageKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'lz4SplitPackageFormat' => ArchiveCompressionStream::FORMAT_LZ4_TAR,
         'lz4SplitPackageEntryCount' => 2,
@@ -1793,6 +1814,7 @@ if (in_array('--self-test', $argv, true)) {
         || $lz4SuppliedDecodedPayloadActual !== $expected['lz4SuppliedDecodedPayload']
         || count($lz4SuppliedFrames) !== $expected['lz4SuppliedFrameCount']
         || !$lz4SuppliedMissingDictionaryBlocked
+        || $lz4SuppliedEmptyDictionaryBlocked !== $expected['lz4SuppliedEmptyDictionaryBlocked']
         || ($lz4SuppliedFrames[1]['dictionaryId'] ?? null) !== $expected['lz4DictionaryId']
         || ($lz4SuppliedFrames[1]['blockCount'] ?? null) !== $expected['lz4SuppliedBlockCount']
         || ($lz4SuppliedFrames[1]['blockTypes'] ?? []) !== ['compressed', 'compressed']
@@ -1819,6 +1841,7 @@ if (in_array('--self-test', $argv, true)) {
         || $lz4PackageInspection['archive']->read('/packet/content.md') !== $expected['lz4PackageContent']
         || ($lz4PackageInspection['entryLayouts'][1]['modifiedAt'] ?? null) !== 1780479093
         || !$lz4PackageMissingDictionaryBlocked
+        || $lz4PackageEmptyDictionaryBlocked !== $expected['lz4PackageEmptyDictionaryBlocked']
         || $lz4SplitPackageInspection['kind'] !== $expected['lz4SplitPackageKind']
         || $lz4SplitPackageInspection['format'] !== $expected['lz4SplitPackageFormat']
         || $lz4SplitPackageInspection['entryCount'] !== $expected['lz4SplitPackageEntryCount']
@@ -2123,6 +2146,7 @@ echo 'lz4Dictionary.dictionaryFrameCount=' . $lz4DictionaryInspection['dictionar
 echo 'lz4Dictionary.dictionaryId=' . $lz4DictionaryInspection['stream']['frames'][1]['dictionaryId'] . "\n";
 echo 'lz4Dictionary.payloadSize=' . $lz4DictionaryInspection['stream']['frames'][1]['contentSize'] . "\n";
 echo 'lz4Dictionary.extractionBlocked=' . ($lz4DictionaryExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'lz4Dictionary.emptySuppliedBlocked=' . ($lz4SuppliedEmptyDictionaryBlocked ? 'yes' : 'no') . "\n";
 echo 'zlibDictionary.kind=' . $zlibDictionaryInspection['kind'] . "\n";
 echo 'zlibDictionary.format=' . $zlibDictionaryInspection['format'] . "\n";
 echo 'zlibDictionary.dictionaryId=' . $zlibDictionaryInspection['stream']['presetDictionaryId'] . "\n";
@@ -2135,6 +2159,7 @@ echo 'lz4Package.dictionaryId=' . $lz4PackageInspection['stream']['frames'][1]['
 echo 'lz4Package.dictionarySize=' . $lz4PackageInspection['stream']['frames'][1]['dictionarySize'] . "\n";
 echo 'lz4Package.content.md=' . $lz4PackageInspection['archive']->read('/packet/content.md') . "\n";
 echo 'lz4Package.missingBlocked=' . ($lz4PackageMissingDictionaryBlocked ? 'yes' : 'no') . "\n";
+echo 'lz4Package.emptySuppliedBlocked=' . ($lz4PackageEmptyDictionaryBlocked ? 'yes' : 'no') . "\n";
 echo 'lz4SplitPackage.kind=' . $lz4SplitPackageInspection['kind'] . "\n";
 echo 'lz4SplitPackage.format=' . $lz4SplitPackageInspection['format'] . "\n";
 echo 'lz4SplitPackage.frameCount=' . $lz4SplitPackageInspection['stream']['frameCount'] . "\n";

@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-08 21:39:53 UTC",
-    "sourceCommit": "ba1acddf7dda63f41a17e1f25945a52ff91962c3",
-    "sourceCommitShort": "ba1acddf7dda",
+    "generated": "2026-06-08 21:40:39 UTC",
+    "sourceCommit": "27517e184202c06059ca99a4301cb076b15f94ae",
+    "sourceCommitShort": "27517e184202",
     "sourceBranch": "unknown",
-    "dashboardCommit": "ba1acddf7dda63f41a17e1f25945a52ff91962c3",
-    "dashboardCommitShort": "ba1acddf7dda",
+    "dashboardCommit": "27517e184202c06059ca99a4301cb076b15f94ae",
+    "dashboardCommitShort": "27517e184202",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2301",
-            "coverage": "2,301 / 2,276 (101.1%)",
-            "mapPercent": "101.1%",
+            "mapped": "2303",
+            "coverage": "2,303 / 2,276 (101.2%)",
+            "mapPercent": "101.2%",
             "unmapped": "0",
-            "php": "1,876 pass / 0 fail",
+            "php": "1,880 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-08 UTC upstream-runner dependency audit current-base extra-do...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For BibTeX/CSL follow-up, choose a non-overlapping native Bib...",
-            "remainingGate": "No new support component is needed for this slice: it reuses native B...",
+            "nextTarget": "For syntax-highlighting follow-up, choose a non-overlapping b...",
+            "remainingGate": "No new support component is needed for this slice: it reuses native S...",
             "commit": "pending fast ba..."
         },
         {

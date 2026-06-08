@@ -3270,6 +3270,10 @@ final class ArchiveCompressionStream
                 throw new \RuntimeException('LZ4 external dictionaries must be byte strings');
             }
 
+            if ($dictionary === '') {
+                throw new \RuntimeException('LZ4 external dictionaries must not be empty');
+            }
+
             if (is_int($id)) {
                 $dictionaryId = $id;
             } elseif (is_string($id) && preg_match('/^(?:0|[1-9][0-9]*)$/', $id) === 1) {
