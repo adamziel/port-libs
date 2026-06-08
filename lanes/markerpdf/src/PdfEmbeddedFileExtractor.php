@@ -4987,7 +4987,8 @@ final class PdfEmbeddedFileExtractor
             return $previousOffset;
         }
 
-        return $this->latestXrefSectionOffsetBefore($pdfBytes, $currentOffset, $definitions);
+        return $this->latestXrefSectionOffsetBefore($pdfBytes, $previousOffset + 1, $definitions)
+            ?? $this->latestXrefSectionOffsetBefore($pdfBytes, $currentOffset, $definitions);
     }
 
     /**

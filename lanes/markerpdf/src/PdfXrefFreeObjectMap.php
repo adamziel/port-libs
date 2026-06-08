@@ -1635,8 +1635,13 @@ final class PdfXrefFreeObjectMap
             return $previousOffset;
         }
 
-        if ($previousOffset >= $beforeOffset || !self::xrefSectionExistsAtOffset($pdfBytes, $previousOffset)) {
+        if ($previousOffset >= $beforeOffset) {
             return self::latestXrefSectionOffsetBefore($pdfBytes, $beforeOffset);
+        }
+
+        if (!self::xrefSectionExistsAtOffset($pdfBytes, $previousOffset)) {
+            return self::latestXrefSectionOffsetBefore($pdfBytes, $previousOffset + 1)
+                ?? self::latestXrefSectionOffsetBefore($pdfBytes, $beforeOffset);
         }
 
         return $previousOffset;

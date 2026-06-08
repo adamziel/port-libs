@@ -1752,7 +1752,12 @@ final class PdfActionReviewExtractor
             return $previousOffset;
         }
 
-        return $this->latestXrefSectionOffsetBefore($pdfBytes, $definitions, $currentOffset);
+        if ($previousOffset >= $currentOffset) {
+            return $this->latestXrefSectionOffsetBefore($pdfBytes, $definitions, $currentOffset);
+        }
+
+        return $this->latestXrefSectionOffsetBefore($pdfBytes, $definitions, $previousOffset + 1)
+            ?? $this->latestXrefSectionOffsetBefore($pdfBytes, $definitions, $currentOffset);
     }
 
     /**
