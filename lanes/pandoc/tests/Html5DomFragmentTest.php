@@ -2304,6 +2304,74 @@ return [
         $t->true(!str_contains($invalidHtml, 'Language:'), 'Expected invalid language metadata to stay hidden');
         $t->true(!str_contains($invalidHtml, 'Direction:'), 'Expected invalid direction metadata to stay hidden');
     },
+    'converts element language and direction attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article lang=" EN-us " dir="RTL" data-pandoc-lang="source-spoof">'
+            . '<p xml:lang="sr-Cyrl-rs" dir="auto">Cyrillic <b lang="x-private-review" dir="ltr">custom</b></p>'
+            . '<blockquote lang="bad lang" xml:lang="fr-ca" dir="sideways">Quote</blockquote>'
+            . '<span xml:lang="x" dir="">Invalid private tag</span>'
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/element-language-direction-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article data-pandoc-lang="en-US" data-pandoc-dir="rtl">'
+            . '<p data-pandoc-lang="sr-Cyrl-RS" data-pandoc-dir="auto">Cyrillic <b data-pandoc-lang="x-private-review" data-pandoc-dir="ltr">custom</b></p>'
+            . '<blockquote data-pandoc-lang="fr-CA">Quote</blockquote>'
+            . '<span>Invalid private tag</span></article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Cyrillic customQuoteInvalid private tag', $fragment->textContent());
+        $t->same(['article', 'b', 'blockquote', 'p', 'span'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['data-pandoc-lang', 'dir', 'lang', 'xml:lang'], $summary['filteredAttributes']);
+        $t->same([
+            'language-direction-review',
+            'language-direction-review',
+            'unsafe-attribute',
+            'language-direction-review',
+            'language-direction-review',
+            'language-direction-review',
+            'language-direction-review',
+            'unsafe-attribute',
+            'language-direction-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+        ], $policyDiagnostics);
+        $t->same([
+            'data-pandoc-lang' => 'en-US',
+            'data-pandoc-dir' => 'rtl',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'data-pandoc-lang' => 'sr-Cyrl-RS',
+            'data-pandoc-dir' => 'auto',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'data-pandoc-lang' => 'x-private-review',
+            'data-pandoc-dir' => 'ltr',
+        ], $nodes[0]['children'][0]['children'][1]['attrs']);
+        $t->same(['data-pandoc-lang' => 'fr-CA'], $nodes[0]['children'][1]['attrs']);
+        $t->same([], $nodes[0]['children'][2]['attrs']);
+        $t->same('/migration/element-language-direction-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' lang=', ' xml:lang=', ' dir=', 'source-spoof', 'bad lang', 'sideways'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected source language/direction attribute to be stripped or converted: ' . $blocked);
+        }
+        $t->true(!str_contains($blocks, ' lang='), 'Expected WordPress blocks to omit source lang attributes');
+        $t->true(!str_contains($blocks, ' dir='), 'Expected WordPress blocks to omit source dir attributes');
+    },
     'converts passive named metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

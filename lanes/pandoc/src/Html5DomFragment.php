@@ -242,7 +242,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'revision-metadata-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'revision-metadata-review', 'language-direction-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -2510,14 +2510,15 @@ final class Html5DomFragment
             return null;
         }
 
-        $direction = strtolower(self::cleanHtmlMetadataAttribute($htmlElement->getAttribute('dir')));
-        if (!in_array($direction, ['ltr', 'rtl', 'auto'], true)) {
-            if ($direction !== '') {
+        $direction = self::normalizeHtmlDirectionValue($htmlElement->getAttribute('dir'));
+        if ($direction === null) {
+            $sourceDirection = strtolower(self::cleanHtmlMetadataAttribute($htmlElement->getAttribute('dir')));
+            if ($sourceDirection !== '') {
                 $diagnostics[] = [
                     'code' => 'unsafe-attribute',
                     'tag' => 'html',
                     'attribute' => 'dir',
-                    'value' => $direction,
+                    'value' => $sourceDirection,
                 ];
             }
 
@@ -2571,6 +2572,13 @@ final class Html5DomFragment
         }
 
         return implode('-', $normalized);
+    }
+
+    private static function normalizeHtmlDirectionValue(string $value): ?string
+    {
+        $direction = strtolower(self::cleanHtmlMetadataAttribute($value));
+
+        return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
     }
 
     /**
@@ -2663,6 +2671,20 @@ final class Html5DomFragment
                     $baseUrl
                 );
                 foreach ($revisionMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
+            if ($mode === 'html' && self::isHtmlLanguageDirectionAttribute($name)) {
+                $languageDirectionMetadata = self::normalizeHtmlLanguageDirectionAttribute(
+                    $name,
+                    $value,
+                    $tagName,
+                    $diagnostics
+                );
+                if ($languageDirectionMetadata !== null) {
+                    [$metadataName, $metadataValue] = $languageDirectionMetadata;
                     $attrs[$metadataName] = $metadataValue;
                 }
                 continue;
@@ -2797,6 +2819,71 @@ final class Html5DomFragment
         }
 
         return $attrs;
+    }
+
+    private static function isHtmlLanguageDirectionAttribute(string $name): bool
+    {
+        return in_array(strtolower($name), ['dir', 'lang', 'xml:lang'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string}|null
+     */
+    private static function normalizeHtmlLanguageDirectionAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): ?array {
+        $attribute = strtolower($name);
+        if ($attribute === 'dir') {
+            $direction = self::normalizeHtmlDirectionValue($value);
+            if ($direction === null) {
+                $sourceDirection = strtolower(self::cleanHtmlMetadataAttribute($value));
+                if ($sourceDirection !== '') {
+                    $diagnostics[] = [
+                        'code' => 'unsafe-attribute',
+                        'tag' => $tagName,
+                        'attribute' => 'dir',
+                        'value' => $sourceDirection,
+                    ];
+                }
+
+                return null;
+            }
+
+            $diagnostics[] = [
+                'code' => 'language-direction-review',
+                'tag' => $tagName,
+                'attribute' => 'dir',
+                'direction' => $direction,
+                'reason' => 'language-direction-preserved-as-metadata',
+            ];
+
+            return ['data-pandoc-dir', $direction];
+        }
+
+        $language = self::normalizeHtmlLanguageTag($value);
+        if ($language === null) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => $attribute,
+            ];
+
+            return null;
+        }
+
+        $diagnostics[] = [
+            'code' => 'language-direction-review',
+            'tag' => $tagName,
+            'attribute' => $attribute,
+            'language' => $language,
+            'reason' => 'language-direction-preserved-as-metadata',
+        ];
+
+        return ['data-pandoc-lang', $language];
     }
 
     /**
