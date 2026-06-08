@@ -46627,8 +46627,25 @@ final class PdfTextExtractor
         array $toUnicodeMap = []
     ): bool {
         $mappedSource = substr($normalized, $offset, $mappedLength);
-        if ($mappedSource === '' || preg_match('/^(?:00)+$/', $mappedSource) === 1) {
+        if ($mappedSource === '') {
             return false;
+        }
+
+        $mappedSourceIsAllZero = preg_match('/^(?:00)+$/', $mappedSource) === 1;
+        if ($mappedSourceIsAllZero) {
+            if (!array_key_exists($mappedSource, $mappings)) {
+                return false;
+            }
+
+            $nextOffset = $offset + $mappedLength;
+            if ($nextOffset < strlen($normalized) && !$this->nextToUnicodeSourceKeyIsMapped(
+                $normalized,
+                $nextOffset,
+                $mappings,
+                $toUnicodeMap
+            )) {
+                return false;
+            }
         }
 
         $codeSpaceSource = substr($normalized, $offset, $codeSpaceLength);
@@ -46637,6 +46654,35 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param array<string, string> $mappings
+     */
+    private function nextToUnicodeSourceKeyIsMapped(
+        string $normalized,
+        int $offset,
+        array $mappings,
+        array $toUnicodeMap = []
+    ): bool {
+        $keyLengths = array_values(array_unique(array_merge(
+            array_map('strlen', array_keys($mappings)),
+            $this->toUnicodeRangeKeyLengths($toUnicodeMap)
+        )));
+        rsort($keyLengths, SORT_NUMERIC);
+
+        $remainingHexLength = strlen($normalized) - $offset;
+        foreach ($keyLengths as $keyLength) {
+            if ($keyLength <= 0 || $keyLength > $remainingHexLength) {
+                continue;
+            }
+
+            if ($this->toUnicodeSourceKeyIsMapped(substr($normalized, $offset, $keyLength), $toUnicodeMap, $mappings)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
