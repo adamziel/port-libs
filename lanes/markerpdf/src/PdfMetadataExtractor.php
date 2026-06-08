@@ -4984,8 +4984,9 @@ final class PdfMetadataExtractor
             return [];
         }
 
+        $mapAllowedEntries = $this->documentDestinationEntriesAllowedForMap($entries, $objects, $pageIndexes);
         $rawDestinationsByName = $this->documentDestinationEntryValueMap($entries, $objects, $pageIndexes);
-        $decodedCollisionNames = $this->documentDestinationDecodedCollisionNames($entries);
+        $decodedCollisionNames = $this->documentDestinationDecodedCollisionNames($mapAllowedEntries);
 
         $destinationsByKey = [];
         $nameTreeNames = [];
@@ -6090,11 +6091,9 @@ final class PdfMetadataExtractor
     private function documentDestinationEntryValueMap(array $entries, array $objects, array $pageIndexes): array
     {
         $destinations = [];
-        $decodedCollisionNames = $this->documentDestinationDecodedCollisionNames($entries);
-        foreach ($entries as $entry) {
-            if (!$this->documentDestinationValueAllowedForMap($entry['value'], $objects, $pageIndexes)) {
-                continue;
-            }
+        $mapAllowedEntries = $this->documentDestinationEntriesAllowedForMap($entries, $objects, $pageIndexes);
+        $decodedCollisionNames = $this->documentDestinationDecodedCollisionNames($mapAllowedEntries);
+        foreach ($mapAllowedEntries as $entry) {
             if ($entry['source'] === 'names_dests') {
                 if (is_string($entry['name_key'] ?? null)) {
                     $destinations[$entry['name_key']] = $entry['value'];
@@ -6114,6 +6113,24 @@ final class PdfMetadataExtractor
         }
 
         return $destinations;
+    }
+
+    /**
+     * @param list<array{name: string, value: string, source: string}> $entries
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     * @return list<array{name: string, value: string, source: string}>
+     */
+    private function documentDestinationEntriesAllowedForMap(array $entries, array $objects, array $pageIndexes): array
+    {
+        $allowed = [];
+        foreach ($entries as $entry) {
+            if ($this->documentDestinationValueAllowedForMap($entry['value'], $objects, $pageIndexes)) {
+                $allowed[] = $entry;
+            }
+        }
+
+        return $allowed;
     }
 
     /**
@@ -9084,22 +9101,36 @@ final class PdfMetadataExtractor
         }
 
         $lookupKey = $this->documentDestinationLookupKeyFromRaw($trimmed, $objects);
-        if ($lookupKey !== null && array_key_exists($lookupKey, $destinationsByName)) {
-            if (isset($seenNames[$lookupKey])) {
-                return null;
+        if ($lookupKey !== null) {
+            $lookupKeys = [$lookupKey];
+            $decodedName = $this->destinationNameFromRaw($trimmed, $objects);
+            if ($decodedName !== null && $decodedName !== $lookupKey) {
+                $lookupKeys[] = $decodedName;
             }
-            $seenNames[$lookupKey] = true;
 
-            return $this->documentDestinationDetails(
-                $destinationsByName[$lookupKey],
-                $objects,
-                $pageIndexes,
-                $destinationsByName,
-                $this->documentDestinationNameFromLookupKey($lookupKey),
-                $seenNames,
-                $seenObjects,
-                $depth + 1
-            );
+            foreach ($lookupKeys as $candidateLookupKey) {
+                if (!array_key_exists($candidateLookupKey, $destinationsByName) || isset($seenNames[$candidateLookupKey])) {
+                    continue;
+                }
+
+                $candidateSeenNames = $seenNames;
+                $candidateSeenNames[$candidateLookupKey] = true;
+                $details = $this->documentDestinationDetails(
+                    $destinationsByName[$candidateLookupKey],
+                    $objects,
+                    $pageIndexes,
+                    $destinationsByName,
+                    $this->documentDestinationNameFromLookupKey($candidateLookupKey),
+                    $candidateSeenNames,
+                    $seenObjects,
+                    $depth + 1
+                );
+                if ($details !== null) {
+                    return $details;
+                }
+            }
+
+            return null;
         }
 
         $dictionary = $this->resolveDictionaryFromValue($trimmed, $objects);

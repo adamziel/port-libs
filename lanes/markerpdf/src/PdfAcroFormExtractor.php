@@ -4956,14 +4956,16 @@ final class PdfAcroFormExtractor
     {
         $defaults = [];
         foreach (['DA', 'DR', 'Q'] as $name) {
-            $value = $this->lastTopLevelValueAfterName($acroForm, $name);
-            if ($value !== null) {
-                $defaults[$name] = [
-                    'value' => $value,
-                    'source' => 'acroform',
-                    'source_object' => null,
-                ];
+            $span = $this->lastTopLevelValueSpanAfterName($acroForm, $name);
+            if ($span === null || $this->topLevelValueSpanHasTrailingOperand($acroForm, $span)) {
+                continue;
             }
+
+            $defaults[$name] = [
+                'value' => $span['value'],
+                'source' => 'acroform',
+                'source_object' => null,
+            ];
         }
 
         return $defaults;

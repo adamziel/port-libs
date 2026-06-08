@@ -2638,8 +2638,8 @@ final class MarkerAppPreview
 
             $startValue = $this->pageLabelSinglePdfToken($this->resolvePageLabelPdfValue($entry['value'], $objects, $seen));
             $startInteger = $startValue === null ? null : $this->pageLabelIntegerTokenValue($startValue);
-            if ($startInteger !== null) {
-                return max(1, $startInteger);
+            if ($startInteger !== null && $startInteger >= 1) {
+                return $startInteger;
             }
         }
 

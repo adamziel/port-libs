@@ -125,10 +125,34 @@ final class PdfNamedDestinationExtractor
             }
         }
 
-        $decodedCollisionNames = $this->decodedCollisionDestinationNames($nameTreeEntries);
-        $destinationValuesByName = $legacyDestinationValues;
+        $rawDestinationValuesByName = $legacyDestinationValues;
         foreach ($nameTreeEntries as $entry) {
-            $destinationValuesByName[$entry['name_key']] = $entry['value'];
+            $rawDestinationValuesByName[$entry['name_key']] = $entry['value'];
+        }
+
+        $permissiveDestinationValuesByName = $rawDestinationValuesByName;
+        foreach ($nameTreeEntries as $entry) {
+            $permissiveDestinationValuesByName[$entry['name']] = $entry['value'];
+        }
+
+        $validNameTreeEntries = [];
+        foreach ($nameTreeEntries as $entry) {
+            if ($this->normalizeDestination(
+                $entry['name'],
+                $entry['value'],
+                'names-tree',
+                $pageIndexes,
+                $objects,
+                $cache,
+                $permissiveDestinationValuesByName
+            ) !== null) {
+                $validNameTreeEntries[] = $entry;
+            }
+        }
+
+        $decodedCollisionNames = $this->decodedCollisionDestinationNames($validNameTreeEntries);
+        $destinationValuesByName = $rawDestinationValuesByName;
+        foreach ($validNameTreeEntries as $entry) {
             if (isset($decodedCollisionNames[$entry['name']])) {
                 unset($destinationValuesByName[$entry['name']]);
                 continue;
@@ -1878,22 +1902,35 @@ final class PdfNamedDestinationExtractor
         $destination = $unwrapped['destination'];
         $aliasKey = $this->destinationAliasLookupKey($destinationValue, $objects, $cache);
         if ($aliasKey !== null) {
-            if (!array_key_exists($aliasKey, $destinationValuesByName) || isset($seenAliases[$aliasKey])) {
-                return null;
+            $aliasKeys = [$aliasKey];
+            $aliasName = $this->destinationAliasName($destinationValue, $objects, $cache);
+            if ($aliasName !== null && $aliasName !== $aliasKey) {
+                $aliasKeys[] = $aliasName;
             }
 
-            $seenAliases[$aliasKey] = true;
+            foreach ($aliasKeys as $candidateAliasKey) {
+                if (!array_key_exists($candidateAliasKey, $destinationValuesByName) || isset($seenAliases[$candidateAliasKey])) {
+                    continue;
+                }
 
-            return $this->normalizeDestination(
-                $name,
-                $destinationValuesByName[$aliasKey],
-                $source,
-                $pageIndexes,
-                $objects,
-                $cache,
-                $destinationValuesByName,
-                $seenAliases
-            );
+                $candidateSeenAliases = $seenAliases;
+                $candidateSeenAliases[$candidateAliasKey] = true;
+                $destination = $this->normalizeDestination(
+                    $name,
+                    $destinationValuesByName[$candidateAliasKey],
+                    $source,
+                    $pageIndexes,
+                    $objects,
+                    $cache,
+                    $destinationValuesByName,
+                    $candidateSeenAliases
+                );
+                if ($destination !== null) {
+                    return $destination;
+                }
+            }
+
+            return null;
         }
 
         $pageOnly = $this->pageOnlyDestinationDetails($destinationValue, $pageIndexes, $objects, $cache);

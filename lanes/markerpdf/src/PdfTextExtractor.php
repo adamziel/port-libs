@@ -17634,16 +17634,10 @@ final class PdfTextExtractor
         $candidate = $this->pageLabelNameValueAfterName($dictionary, 'S', $objects);
         $style = in_array($candidate, ['D', 'R', 'r', 'A', 'a'], true) ? $candidate : null;
 
-        $start = 1;
-        $startValue = $this->pageLabelIntegerValueAfterName($dictionary, 'St', $objects);
-        if ($startValue !== null) {
-            $start = max(1, $startValue);
-        }
-
         return [
             'prefix' => $this->pageLabelPrefix($dictionary, $objects),
             'style' => $style,
-            'start' => $start,
+            'start' => $this->pageLabelStartValueAfterName($dictionary, 'St', $objects),
         ];
     }
 
@@ -17735,7 +17729,7 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function pageLabelIntegerValueAfterName(string $dictionary, string $name, array $objects): ?int
+    private function pageLabelStartValueAfterName(string $dictionary, string $name, array $objects): int
     {
         foreach ($this->pageLabelTopLevelValueEntriesAfterName($dictionary, $name) as $entry) {
             if ($entry['has_trailing_operand']) {
@@ -17743,12 +17737,12 @@ final class PdfTextExtractor
             }
 
             $integer = $this->pageLabelIntegerValue($entry['value'], $objects);
-            if ($integer !== null) {
+            if ($integer !== null && $integer >= 1) {
                 return $integer;
             }
         }
 
-        return null;
+        return 1;
     }
 
     /**
