@@ -5697,6 +5697,119 @@ XML
 XML
         ));
     },
+    'applies bounded csl macro sort keys using rendered macro output' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'visible-zed',
+                'type' => 'report',
+                'title' => 'Visible Zed Packet',
+                'author' => [
+                    ['family' => 'Zed', 'given' => 'Zoe'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'collection-number' => '001',
+            ],
+            [
+                'id' => 'visible-adams',
+                'type' => 'report',
+                'title' => 'Visible Adams Packet',
+                'author' => [
+                    ['family' => 'Adams', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2020]]],
+                'collection-number' => '900',
+            ],
+            [
+                'id' => 'visible-ng',
+                'type' => 'report',
+                'title' => 'Visible Ng Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'collection-number' => '050',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Macro Sort Review Style</title>
+    <id>https://example.test/styles/macro-sort-review</id>
+    <updated>2026-06-08T06:41:07+00:00</updated>
+  </info>
+  <macro name="review-bucket">
+    <group delimiter="-">
+      <text variable="collection-number"/>
+      <names variable="author">
+        <name form="short"/>
+      </names>
+    </group>
+  </macro>
+  <macro name="visible-review">
+    <group delimiter=" | ">
+      <names variable="author">
+        <name form="short"/>
+      </names>
+      <date variable="issued"><date-part name="year"/></date>
+      <text variable="title"/>
+    </group>
+  </macro>
+  <citation>
+    <sort>
+      <key macro="review-bucket"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <text macro="visible-review"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key macro="review-bucket" sort="descending"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text macro="visible-review"/>
+      <text macro="review-bucket"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Macro Sort Review Style', $summary['title'] ?? null);
+        $t->same('review-bucket', $summary['citationSort'][0]['macro'] ?? null);
+        $t->same('review-bucket', $summary['bibliographySort'][0]['macro'] ?? null);
+        $t->same('collection-number', $summary['macros']['review-bucket'][0]['children'][0]['variable'] ?? null);
+
+        $document = (new MarkdownReader())->read(
+            'Macro sorted review [@visible-adams; @visible-zed; @visible-ng] keeps visible citations unchanged.'
+        );
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $cluster = $processed->children[0]->children[1];
+        $bibliography = $processed->children[2];
+
+        $t->same('[Zed | 2026 | Visible Zed Packet; Ng | 2024 | Visible Ng Packet; Adams | 2020 | Visible Adams Packet]', $cluster->attr('rendered'));
+        $t->same('Adams 2020', $bibliography->children[0]->children[0]->attr('text'));
+        $t->same('Ng 2024', $bibliography->children[1]->children[0]->attr('text'));
+        $t->same('Zed 2026', $bibliography->children[2]->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Macro sorted review [Zed | 2026 | Visible Zed Packet; Ng | 2024 | Visible Ng Packet; Adams | 2020 | Visible Adams Packet] keeps visible citations unchanged.', $markdown);
+        $adamsPosition = strpos($markdown, 'Adams 2020' . "\n" . ':   Adams \\| 2020 \\| Visible Adams Packet :: 900-Adams');
+        $ngPosition = strpos($markdown, 'Ng 2024' . "\n" . ':   Ng \\| 2024 \\| Visible Ng Packet :: 050-Ng');
+        $zedPosition = strpos($markdown, 'Zed 2026' . "\n" . ':   Zed \\| 2026 \\| Visible Zed Packet :: 001-Zed');
+        $t->true(is_int($adamsPosition) && is_int($ngPosition) && is_int($zedPosition), 'Macro-sorted bibliography entries were not rendered');
+        $t->true($adamsPosition < $ngPosition && $ngPosition < $zedPosition, 'Bibliography entries should follow rendered macro sort order descending');
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Macro sorted review [Zed | 2026 | Visible Zed Packet; Ng | 2024 | Visible Ng Packet; Adams | 2020 | Visible Adams Packet] keeps visible citations unchanged.</p>', $blocks);
+        $blocksAdamsPosition = strpos($blocks, '<dt>Adams 2020</dt><dd>Adams | 2020 | Visible Adams Packet :: 900-Adams</dd>');
+        $blocksNgPosition = strpos($blocks, '<dt>Ng 2024</dt><dd>Ng | 2024 | Visible Ng Packet :: 050-Ng</dd>');
+        $blocksZedPosition = strpos($blocks, '<dt>Zed 2026</dt><dd>Zed | 2026 | Visible Zed Packet :: 001-Zed</dd>');
+        $t->true(is_int($blocksAdamsPosition) && is_int($blocksNgPosition) && is_int($blocksZedPosition), 'Macro-sorted WordPress bibliography entries were not rendered');
+        $t->true($blocksAdamsPosition < $blocksNgPosition && $blocksNgPosition < $blocksZedPosition, 'WordPress bibliography entries should follow rendered macro sort order descending');
+    },
     'applies bounded csl name-part formatting for family and given names' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

@@ -3143,7 +3143,7 @@ final class CitationCslProcessor
             ];
         }
 
-        usort($entries, fn (array $left, array $right): int => $this->compareSortEntries($left, $right, $sortKeys));
+        usort($entries, fn (array $left, array $right): int => $this->compareSortEntries($left, $right, $sortKeys, 'bibliography'));
 
         return array_map(static fn (array $entry): string => (string) $entry['id'], $entries);
     }
@@ -3174,7 +3174,7 @@ final class CitationCslProcessor
             ];
         }
 
-        usort($entries, fn (array $left, array $right): int => $this->compareSortEntries($left, $right, $sortKeys));
+        usort($entries, fn (array $left, array $right): int => $this->compareSortEntries($left, $right, $sortKeys, 'citation'));
 
         return array_map(static fn (array $entry): AstNode => $entry['node'], $entries);
     }
@@ -3184,7 +3184,7 @@ final class CitationCslProcessor
      * @param array{index:int, item:array<string, mixed>|null, fallback:string} $right
      * @param list<array{sort:string, variable?:string, macro?:string}> $sortKeys
      */
-    private function compareSortEntries(array $left, array $right, array $sortKeys): int
+    private function compareSortEntries(array $left, array $right, array $sortKeys, string $scope): int
     {
         $leftItem = $left['item'];
         $rightItem = $right['item'];
@@ -3197,8 +3197,8 @@ final class CitationCslProcessor
         }
 
         foreach ($sortKeys as $key) {
-            $leftValue = $this->sortValue($leftItem, $key, (string) $left['fallback']);
-            $rightValue = $this->sortValue($rightItem, $key, (string) $right['fallback']);
+            $leftValue = $this->sortValue($leftItem, $key, (string) $left['fallback'], $scope);
+            $rightValue = $this->sortValue($rightItem, $key, (string) $right['fallback'], $scope);
             $comparison = $leftValue <=> $rightValue;
             if ($comparison !== 0) {
                 return ($key['sort'] ?? 'ascending') === 'descending' ? -$comparison : $comparison;
@@ -3212,8 +3212,13 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @param array{sort:string, variable?:string, macro?:string} $key
      */
-    private function sortValue(array $item, array $key, string $fallback): string
+    private function sortValue(array $item, array $key, string $fallback, string $scope): string
     {
+        $macro = trim((string) ($key['macro'] ?? ''));
+        if ($macro !== '') {
+            return $this->sortMacroValue($item, $macro, $scope);
+        }
+
         $variable = $this->sortVariable($key);
 
         return match ($variable) {
@@ -3240,6 +3245,30 @@ final class CitationCslProcessor
             'id' => $this->normalizeSortText((string) $item['id']),
             default => $this->normalizeSortText($fallback),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sortMacroValue(array $item, string $macro, string $scope): string
+    {
+        $elements = $this->style->macroRenderingElements($macro);
+        if ($elements === null) {
+            throw new \InvalidArgumentException('CSL references undefined macro: ' . $macro);
+        }
+
+        $bibliographyState = null;
+        $value = $this->renderRenderingElementsWithMacroStack(
+            $elements,
+            $item,
+            $scope === 'bibliography' ? 'bibliography' : 'citation',
+            '',
+            [$macro],
+            null,
+            $bibliographyState
+        );
+
+        return $this->normalizeSortText($value);
     }
 
     /**
