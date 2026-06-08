@@ -78,6 +78,8 @@ Review controls $\color{red}{p_i} + \textcolor{#336699}{\operatorname{media}} + 
 
 Color declaration audit $\color{reviewblue} p_i + m_i + \frac{a}{b}$ scopes review color to the remaining math expression.
 
+Xcolor model audit $\textcolor[HTML]{336699}{\operatorname{media}} + \textcolor[rgb]{0.2,0.4,0.6}{p_i} + \color[gray]{.5} m_i + q_i$ keeps bounded color models semantic.
+
 Boxed equation audit $\boxed{p_i + m_i} + \boxed{\frac{a}{b}}_j$ stays semantic.
 
 Overlap layout audit $\smash{\frac{a}{b}} + \smash[t]{p_i} + \smash[b]{m_i} + \mathllap{L_i} + \mathrlap{R_i} + \mathclap{x+y}$ stays semantic.
@@ -236,6 +238,7 @@ $summary = [
     'withDelimsFractionMathml' => $converter->texToMathMl('{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}'),
     'colorPhantomCancelMathml' => $converter->texToMathMl('\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}'),
     'colorDeclarationMathml' => $converter->texToMathMl('\\color{reviewblue} p_i + m_i + \\frac{a}{b}'),
+    'xcolorModelMathml' => $converter->texToMathMl('\\textcolor[HTML]{336699}{\\operatorname{media}} + \\textcolor[rgb]{0.2,0.4,0.6}{p_i} + \\color[gray]{.5} m_i + q_i'),
     'boxedMathml' => $converter->texToMathMl('\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j'),
     'smashOverlapMathml' => $converter->texToMathMl('\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}'),
     'mathVariantMathml' => $converter->texToMathMl('\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i'),
@@ -373,6 +376,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['xcolorModelMathml'], '<mo>[</mo>')
+        || !str_contains($summary['xcolorModelMathml'], '<mstyle mathcolor="#336699"><mi>media</mi></mstyle>')
+        || !str_contains($summary['xcolorModelMathml'], '<mstyle mathcolor="#336699"><msub><mi>p</mi><mi>i</mi></msub></mstyle>')
+        || !str_contains($summary['xcolorModelMathml'], '<mstyle mathcolor="#808080"><mrow><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><msub><mi>q</mi><mi>i</mi></msub></mrow></mstyle>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map bounded xcolor model arguments');
+    }
+
+    if (
         !str_contains($summary['rowSpacingMathml'], 'rowspacing=".5em"')
         || !str_contains($summary['rowSpacingMathml'], 'data-tex-rowspacing="after-row-1:.5em"')
     ) {
@@ -489,6 +501,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\({a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}\\)</span>',
         '<span class="math inline">\\({a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}\\)</span>',
         '<span class="math inline">\\(\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}\\)</span>',
+        '<span class="math inline">\\(\\textcolor[HTML]{336699}{\\operatorname{media}} + \\textcolor[rgb]{0.2,0.4,0.6}{p_i} + \\color[gray]{.5} m_i + q_i\\)</span>',
         '<span class="math inline">\\(\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j\\)</span>',
         '<span class="math inline">\\(\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}\\)</span>',
         '<span class="math inline">\\(\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i\\)</span>',
@@ -610,6 +623,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mstyle mathcolor="red"><msub><mi>p</mi><mi>i</mi></msub></mstyle>',
         '<mstyle mathcolor="#336699"><mi>media</mi></mstyle>',
         '<mstyle mathcolor="reviewblue"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></mrow></mstyle>',
+        '<mstyle mathcolor="#808080"><mrow><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><msub><mi>q</mi><mi>i</mi></msub></mrow></mstyle>',
         '<mphantom><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mphantom>',
         '<mpadded height="0" depth="0"><mphantom><mrow><mi>d</mi><mi>r</mi><mi>a</mi><mi>f</mi><mi>t</mi></mrow></mphantom></mpadded>',
         '<mpadded width="0"><mphantom><mfrac><mi>a</mi><mi>b</mi></mfrac></mphantom></mpadded>',
@@ -704,6 +718,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mi>P</mi><mo>⇌</mo><mi>Q</mi><mo>+</mo><mi>p</mi><mo>∵</mo><mi>q</mi><mo>+</mo><mi>f</mi><mo>⊸</mo><mi>g</mi>',
         '<annotation encoding="application/x-tex">A \\prec B + C \\succ D + E \\ll F + G \\gg H + x \\nearrow y + a \\searrow b + L \\leftharpoonup M + N \\rightharpoondown O + P \\rightleftharpoons Q + p \\because q + f \\multimap g</annotation>',
         '<annotation encoding="application/x-tex">\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}</annotation>',
+        '<annotation encoding="application/x-tex">\\textcolor[HTML]{336699}{\\operatorname{media}} + \\textcolor[rgb]{0.2,0.4,0.6}{p_i} + \\color[gray]{.5} m_i + q_i</annotation>',
         '<annotation encoding="application/x-tex">\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}</annotation>',
         '<annotation encoding="application/x-tex">\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i</annotation>',
         '<annotation encoding="application/x-tex">\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}</annotation>',

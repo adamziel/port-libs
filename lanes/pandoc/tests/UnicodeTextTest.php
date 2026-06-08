@@ -140,6 +140,29 @@ return [
         $t->contains('<h1 id="mac-import">Mac Import</h1>', $blocks);
         $t->contains("<p>Classic \u{201C}quoted\u{201D} source \u{2014} price \u{20AC}10; caf\u{00E9} and \u{FB01}le.</p>", $blocks);
     },
+    'decodes mac turkish source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Mac Turkish\n\nYazar \xD2\xDCstanbul\xD3 \xD1 \x82a\xDB; \xDEi\xDFli, \xDDl\xDDk; \xDA\xDB \xF5.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-turkish');
+        $document = (new MarkdownReader())->readBytes($bytes, 'mac-turkish');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xDA\xDB\xDC\xDD\xDE\xDF\xF5", 'macturkish');
+        $macRomanComparison = UnicodeText::decodeBytes("\xDA\xDB\xDC\xDD\xDE\xDF\xF5", 'macintosh');
+
+        $t->same('mac-turkish', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Mac Turkish\n\nYazar “İstanbul” — Çağ; Şişli, ılık; Ğğ \u{F8A0}.", $decoded['text']);
+        $t->same("ĞğİıŞş\u{F8A0}", $specials['text']);
+        $t->same('mac-turkish', $specials['encoding']);
+        $t->same(0, $specials['repairs']);
+        $t->same("⁄€‹›ﬁﬂı", $macRomanComparison['text']);
+        $t->same(['encoding' => 'mac-turkish', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Mac Turkish', $document->children[0]->attr('text'));
+        $t->same("Yazar “İstanbul” — Çağ; Şişli, ılık; Ğğ \u{F8A0}.", $document->children[1]->attr('text'));
+        $t->same(42, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(48, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="mac-turkish">Mac Turkish</h1>', $blocks);
+        $t->contains("<p>Yazar “İstanbul” — Çağ; Şişli, ılık; Ğğ \u{F8A0}.</p>", $blocks);
+    },
     'decodes central european single byte labels into wordpress blocks' => static function (TestRunner $t): void {
         $windowsBytes = "# Central Import\n\nZa\xBF\xF3\xB3\xE6 g\xEA\x9Cl\xB9 ja\x9F\xF1; \xC8esk\xFD \x8At\xECp\xE1n; k\xF9\xF2; \xF5\xFB; \x93quoted\x94 \x97 \x8010.";
         $latin2Bytes = "# Latin2 Import\n\nZa\xBF\xF3\xB3\xE6 g\xEA\xB6l\xB1 ja\xBC\xF1; \xC8esk\xFD \xA9t\xECp\xE1n; k\xF9\xF2; \xF5\xFB.";

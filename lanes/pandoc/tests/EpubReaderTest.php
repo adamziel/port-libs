@@ -6056,6 +6056,97 @@ XML;
         $t->same('mo-chapter-1', $result['document']->children[0]->attr('mediaOverlay'));
         $t->same($overlay, $result['importReport']['mediaOverlays']['mo-chapter-1']);
     },
+    'reports EPUB SMIL media overlay resource provenance for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $chapter1Xhtml): void {
+        $smilWithResourceProvenance = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <seq id="resource-overlay" epub:textref="../text/chapter1.xhtml">
+      <par id="intro-audio" epub:type="bodymatter">
+        <text src="../text/chapter1.xhtml#intro"/>
+        <audio src="../audio/chapter1.mp3" clipBegin="0s" clipEnd="2s"/>
+      </par>
+      <par id="encrypted-audio" epub:type="annotation">
+        <text src="../text/chapter1.xhtml#page-1"/>
+        <audio src="../audio/encrypted.mp3" clipBegin="2s" clipEnd="4s"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData>
+      <CipherReference URI="OEBPS/audio/encrypted.mp3"/>
+    </CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+        $opfWithOverlay = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-resource"/>'
+                . '<item id="mo-resource" href="overlays/resource.smil" media-type="application/smil+xml"/>'
+                . '<item id="audio-chapter-1" href="audio/chapter1.mp3" media-type="audio/mpeg"/>'
+                . '<item id="audio-encrypted" href="audio/encrypted.mp3" media-type="audio/mpeg"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithOverlay,
+            null,
+            [
+                ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+                ['name' => 'OEBPS/overlays/resource.smil', 'data' => $smilWithResourceProvenance],
+                ['name' => 'OEBPS/audio/chapter1.mp3', 'data' => 'MP3-DATA'],
+                ['name' => 'OEBPS/audio/encrypted.mp3', 'data' => 'LOCKED-AUDIO'],
+            ]
+        ));
+
+        $overlay = $result['mediaOverlays']['mo-resource'];
+        $t->same('/OEBPS/text/chapter1.xhtml', $overlay['textRefTarget']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $overlay['textRefPart']);
+        $t->same('chapter-1', $overlay['textRefManifestId']);
+        $t->same('application/xhtml+xml', $overlay['textRefMediaType']);
+        $t->same(true, $overlay['textRefExists']);
+        $t->same(false, $overlay['textRefEncrypted']);
+        $t->same(true, $overlay['textRefCanExposeBytes']);
+        $t->same(strlen($chapter1Xhtml), $overlay['textRefByteLength']);
+        $t->same(hash('sha256', $chapter1Xhtml), $overlay['textRefByteSha256']);
+
+        $intro = $overlay['items'][0];
+        $t->same('intro-audio', $intro['id']);
+        $t->same('chapter-1', $intro['textManifestId']);
+        $t->same('application/xhtml+xml', $intro['textMediaType']);
+        $t->same(false, $intro['textEncrypted']);
+        $t->same(true, $intro['textCanExposeBytes']);
+        $t->same(hash('sha256', $chapter1Xhtml), $intro['textByteSha256']);
+        $t->same('audio-chapter-1', $intro['audioManifestId']);
+        $t->same('audio/mpeg', $intro['audioMediaType']);
+        $t->same(false, $intro['audioEncrypted']);
+        $t->same(true, $intro['audioCanExposeBytes']);
+        $t->same(hash('sha256', 'MP3-DATA'), $intro['audioByteSha256']);
+        $t->same([], $intro['diagnostics']);
+
+        $encrypted = $overlay['items'][1];
+        $t->same('encrypted-audio', $encrypted['id']);
+        $t->same('chapter-1', $encrypted['textManifestId']);
+        $t->same('audio-encrypted', $encrypted['audioManifestId']);
+        $t->same('audio/mpeg', $encrypted['audioMediaType']);
+        $t->same(true, $encrypted['audioEncrypted']);
+        $t->same(false, $encrypted['audioCanExposeBytes']);
+        $t->same(null, $encrypted['audioByteSha256']);
+        $t->same('encrypted-media-overlay-reference', $encrypted['diagnostics'][0]['type']);
+        $t->same('/OEBPS/audio/encrypted.mp3', $encrypted['diagnostics'][0]['part']);
+
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+        $t->same('chapter-1', $manifestById['chapter-1']['mediaOverlayReference']['textRefManifestId']);
+        $t->same(hash('sha256', $chapter1Xhtml), $manifestById['chapter-1']['mediaOverlayReference']['textRefByteSha256']);
+        $t->same($overlay, $result['importReport']['mediaOverlays']['mo-resource']);
+    },
     'reports OPF media overlay duration metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $smilXml): void {
         $opfWithOverlayDuration = str_replace(
             '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',

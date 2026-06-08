@@ -161,6 +161,12 @@ final class LegacyDocReader
     /** @var list<array<string,mixed>> */
     private array $activeExternalFileReferences = [];
 
+    /** @var list<array<string,mixed>> */
+    private array $activeListFormats = [];
+
+    /** @var list<array<string,mixed>> */
+    private array $activeListOverrides = [];
+
     /**
      * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
@@ -485,7 +491,11 @@ final class LegacyDocReader
         ];
 
         $previousExternalFileReferences = $this->activeExternalFileReferences;
+        $previousListFormats = $this->activeListFormats;
+        $previousListOverrides = $this->activeListOverrides;
         $this->activeExternalFileReferences = $externalFileReferences;
+        $this->activeListFormats = $listFormats;
+        $this->activeListOverrides = $listOverrides;
         try {
             $documentChildren = $this->paragraphNodes(
                 $textResult['text'],
@@ -496,6 +506,8 @@ final class LegacyDocReader
             );
         } finally {
             $this->activeExternalFileReferences = $previousExternalFileReferences;
+            $this->activeListFormats = $previousListFormats;
+            $this->activeListOverrides = $previousListOverrides;
         }
 
         return [
@@ -2544,10 +2556,103 @@ final class LegacyDocReader
             }
         }
 
+        $attributes += $this->automaticNumberingListReferenceAttrs($fieldName);
+
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-numbering-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function automaticNumberingListReferenceAttrs(string $fieldName): array
+    {
+        if (!in_array($fieldName, ['AUTONUM', 'AUTONUMOUT', 'AUTONUMLGL'], true)) {
+            return [];
+        }
+
+        $matches = [];
+        foreach ($this->activeListOverrides as $override) {
+            if (($override['autoNumberField'] ?? null) === $fieldName) {
+                $matches[] = $override;
+            }
+        }
+        if ($matches === []) {
+            return [];
+        }
+
+        $override = $matches[0];
+        $lsid = (int) ($override['lsid'] ?? 0);
+        $format = $this->listFormatByLsid($lsid);
+        $level = $this->listReferenceLevel($format, $override);
+
+        $attributes = [
+            'data-legacy-doc-numbering-field-list-policy' => 'metadata-only-native-review',
+            'data-legacy-doc-numbering-field-list-match-count' => (string) count($matches),
+            'data-legacy-doc-numbering-field-list-ilfo' => (string) ((int) ($override['ilfo'] ?? 0)),
+            'data-legacy-doc-numbering-field-list-lsid' => (string) $lsid,
+        ];
+        if (isset($override['firstParagraphCp'])) {
+            $attributes['data-legacy-doc-numbering-field-list-first-paragraph-cp'] = (string) ((int) $override['firstParagraphCp']);
+        }
+        if ($format !== null) {
+            $attributes['data-legacy-doc-numbering-field-list-index'] = (string) ((int) ($format['index'] ?? 0));
+            $attributes['data-legacy-doc-numbering-field-list-template-code'] = (string) ((int) ($format['templateCode'] ?? 0));
+            $attributes['data-legacy-doc-numbering-field-list-simple'] = ($format['simple'] ?? false) === true ? 'true' : 'false';
+        }
+        if ($level !== null) {
+            $attributes['data-legacy-doc-numbering-field-list-level'] = (string) ((int) ($level['level'] ?? 0));
+            $attributes['data-legacy-doc-numbering-field-list-start-at'] = (string) ((int) ($level['startAt'] ?? 0));
+            $attributes['data-legacy-doc-numbering-field-list-number-format'] = (string) ($level['numberFormat'] ?? '');
+            $attributes['data-legacy-doc-numbering-field-list-text-template'] = (string) ($level['numberText'] ?? '');
+            $attributes['data-legacy-doc-numbering-field-list-follow'] = (string) ($level['follow'] ?? '');
+        }
+        foreach (($override['levels'] ?? []) as $levelOverride) {
+            if (!is_array($levelOverride) || ($levelOverride['startAtOverride'] ?? false) !== true || isset($levelOverride['startAt']) === false) {
+                continue;
+            }
+            $attributes['data-legacy-doc-numbering-field-list-override-level'] = (string) ((int) ($levelOverride['level'] ?? 0));
+            $attributes['data-legacy-doc-numbering-field-list-override-start-at'] = (string) ((int) $levelOverride['startAt']);
+            break;
+        }
+
+        return $attributes;
+    }
+
+    private function listFormatByLsid(int $lsid): ?array
+    {
+        foreach ($this->activeListFormats as $format) {
+            if ((int) ($format['lsid'] ?? 0) === $lsid) {
+                return $format;
+            }
+        }
+
+        return null;
+    }
+
+    private function listReferenceLevel(?array $format, array $override): ?array
+    {
+        if ($format === null) {
+            return null;
+        }
+
+        $levelIndex = 0;
+        foreach (($override['levels'] ?? []) as $levelOverride) {
+            if (is_array($levelOverride) && isset($levelOverride['level'])) {
+                $levelIndex = (int) $levelOverride['level'];
+                break;
+            }
+        }
+
+        foreach (($format['levels'] ?? []) as $level) {
+            if (is_array($level) && (int) ($level['level'] ?? -1) === $levelIndex) {
+                return $level;
+            }
+        }
+
+        return null;
     }
 
     private function formCheckboxResultIsChecked(string $result): bool

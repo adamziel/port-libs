@@ -5894,10 +5894,21 @@ final class EpubReader
                 'styleMetadata' => null,
                 'textRef' => null,
                 'textRefTarget' => null,
+                'textRefPart' => null,
                 'textRefFragment' => null,
                 'textRefFragmentKind' => null,
                 'textRefEpubCfi' => null,
+                'textRefMediaFragment' => null,
                 'textRefExternal' => false,
+                'textRefExists' => false,
+                'textRefByteLength' => null,
+                'textRefCrc32' => null,
+                'textRefByteSha256' => null,
+                'textRefManifestId' => null,
+                'textRefMediaType' => null,
+                'textRefEncrypted' => false,
+                'textRefCanExposeBytes' => false,
+                'textRefDiagnostics' => [],
                 'itemCount' => 0,
                 'diagnostics' => [[
                     'type' => 'missing-media-overlay-manifest-item',
@@ -5931,10 +5942,21 @@ final class EpubReader
             'styleMetadata' => is_array($overlay['styleMetadata'] ?? null) ? $overlay['styleMetadata'] : null,
             'textRef' => is_string($overlay['textRef'] ?? null) ? $overlay['textRef'] : null,
             'textRefTarget' => is_string($overlay['textRefTarget'] ?? null) ? $overlay['textRefTarget'] : null,
+            'textRefPart' => is_string($overlay['textRefPart'] ?? null) ? $overlay['textRefPart'] : null,
             'textRefFragment' => is_string($overlay['textRefFragment'] ?? null) ? $overlay['textRefFragment'] : null,
             'textRefFragmentKind' => is_string($overlay['textRefFragmentKind'] ?? null) ? $overlay['textRefFragmentKind'] : null,
             'textRefEpubCfi' => is_array($overlay['textRefEpubCfi'] ?? null) ? $overlay['textRefEpubCfi'] : null,
+            'textRefMediaFragment' => is_array($overlay['textRefMediaFragment'] ?? null) ? $overlay['textRefMediaFragment'] : null,
             'textRefExternal' => (bool) ($overlay['textRefExternal'] ?? false),
+            'textRefExists' => (bool) ($overlay['textRefExists'] ?? false),
+            'textRefByteLength' => is_int($overlay['textRefByteLength'] ?? null) ? $overlay['textRefByteLength'] : null,
+            'textRefCrc32' => is_string($overlay['textRefCrc32'] ?? null) ? $overlay['textRefCrc32'] : null,
+            'textRefByteSha256' => is_string($overlay['textRefByteSha256'] ?? null) ? $overlay['textRefByteSha256'] : null,
+            'textRefManifestId' => is_string($overlay['textRefManifestId'] ?? null) ? $overlay['textRefManifestId'] : null,
+            'textRefMediaType' => is_string($overlay['textRefMediaType'] ?? null) ? $overlay['textRefMediaType'] : null,
+            'textRefEncrypted' => (bool) ($overlay['textRefEncrypted'] ?? false),
+            'textRefCanExposeBytes' => (bool) ($overlay['textRefCanExposeBytes'] ?? false),
+            'textRefDiagnostics' => is_array($overlay['textRefDiagnostics'] ?? null) ? array_values($overlay['textRefDiagnostics']) : [],
             'itemCount' => is_array($overlay['items'] ?? null) ? count($overlay['items']) : 0,
             'diagnostics' => is_array($overlay['diagnostics'] ?? null) ? array_values($overlay['diagnostics']) : [],
         ];
@@ -9845,6 +9867,7 @@ final class EpubReader
             $references[$mediaOverlay][] = (string) $item['id'];
         }
 
+        $manifestByPart = self::manifestByPart($manifestById);
         $overlays = [];
         foreach ($references as $id => $referencedBy) {
             $item = $manifestById[$id] ?? null;
@@ -9871,6 +9894,21 @@ final class EpubReader
                     'styleMetadata' => null,
                     'textRef' => null,
                     'textRefTarget' => null,
+                    'textRefPart' => null,
+                    'textRefFragment' => null,
+                    'textRefFragmentKind' => null,
+                    'textRefEpubCfi' => null,
+                    'textRefMediaFragment' => null,
+                    'textRefExternal' => false,
+                    'textRefExists' => false,
+                    'textRefByteLength' => null,
+                    'textRefCrc32' => null,
+                    'textRefByteSha256' => null,
+                    'textRefManifestId' => null,
+                    'textRefMediaType' => null,
+                    'textRefEncrypted' => false,
+                    'textRefCanExposeBytes' => false,
+                    'textRefDiagnostics' => [],
                     'items' => [],
                     'diagnostics' => [[
                         'type' => 'missing-media-overlay-manifest-item',
@@ -9887,7 +9925,7 @@ final class EpubReader
             $styleMetadata = is_array($mediaOverlayStyles['overlaysById'][$id] ?? null)
                 ? $mediaOverlayStyles['overlaysById'][$id]
                 : null;
-            $overlays[$id] = $this->readMediaOverlayItem($package, $item, $referencedBy, $durationMetadata, $styleMetadata);
+            $overlays[$id] = $this->readMediaOverlayItem($package, $item, $referencedBy, $durationMetadata, $styleMetadata, $manifestByPart);
         }
 
         return $overlays;
@@ -9904,7 +9942,8 @@ final class EpubReader
         array $item,
         array $referencedBy,
         ?array $durationMetadata,
-        ?array $styleMetadata
+        ?array $styleMetadata,
+        array $manifestByPart
     ): array {
         $diagnostics = [];
         if (($item['mediaType'] ?? null) !== self::SMIL_MEDIA_TYPE) {
@@ -9952,10 +9991,10 @@ final class EpubReader
             $body = self::firstChildElement($root, 'body', self::SMIL_NS) ?? $root;
             $textRef = self::firstSmilTextRef($body);
             if ($textRef !== null) {
-                $textRefReference = $this->smilReference($package, (string) $item['part'], $textRef);
+                $textRefReference = $this->smilReference($package, (string) $item['part'], $textRef, $manifestByPart);
                 $textRefTarget = $textRefReference['target'];
             }
-            $items = $this->readSmilOverlayItems($package, $body, (string) $item['part'], $textRefTarget);
+            $items = $this->readSmilOverlayItems($package, $body, (string) $item['part'], $textRefTarget, $manifestByPart);
         }
 
         return [
@@ -9980,11 +10019,20 @@ final class EpubReader
             'styleMetadata' => $styleMetadata,
             'textRef' => $textRef,
             'textRefTarget' => $textRefTarget,
+            'textRefPart' => $textRefReference['part'] ?? null,
             'textRefFragment' => $textRefReference['fragment'] ?? null,
             'textRefFragmentKind' => $textRefReference['fragmentKind'] ?? null,
             'textRefEpubCfi' => $textRefReference['epubCfi'] ?? null,
             'textRefMediaFragment' => $textRefReference['mediaFragment'] ?? null,
             'textRefExternal' => $textRefReference['external'] ?? false,
+            'textRefExists' => $textRefReference['exists'] ?? false,
+            'textRefByteLength' => $textRefReference['byteLength'] ?? null,
+            'textRefCrc32' => $textRefReference['crc32'] ?? null,
+            'textRefByteSha256' => $textRefReference['byteSha256'] ?? null,
+            'textRefManifestId' => $textRefReference['manifestId'] ?? null,
+            'textRefMediaType' => $textRefReference['mediaType'] ?? null,
+            'textRefEncrypted' => $textRefReference['encrypted'] ?? false,
+            'textRefCanExposeBytes' => $textRefReference['canExposeBytes'] ?? false,
             'textRefDiagnostics' => $textRefReference['diagnostics'] ?? [],
             'items' => $items,
             'diagnostics' => $diagnostics,
@@ -9998,17 +10046,18 @@ final class EpubReader
         ZipPackage $package,
         \DOMElement $element,
         string $smilPart,
-        ?string $inheritedTextTarget
+        ?string $inheritedTextTarget,
+        array $manifestByPart
     ): array {
         $currentTextTarget = $inheritedTextTarget;
         $textRef = self::smilTextRef($element);
         if ($textRef !== null) {
-            $currentTextTarget = $this->smilReference($package, $smilPart, $textRef)['target'];
+            $currentTextTarget = $this->smilReference($package, $smilPart, $textRef, $manifestByPart)['target'];
         }
 
         $items = [];
         if ($element->localName === 'par' && $element->namespaceURI === self::SMIL_NS) {
-            $items[] = $this->readSmilPar($package, $element, $smilPart, $currentTextTarget);
+            $items[] = $this->readSmilPar($package, $element, $smilPart, $currentTextTarget, $manifestByPart);
         }
 
         foreach (self::childElements($element) as $child) {
@@ -10016,7 +10065,7 @@ final class EpubReader
                 continue;
             }
 
-            array_push($items, ...$this->readSmilOverlayItems($package, $child, $smilPart, $currentTextTarget));
+            array_push($items, ...$this->readSmilOverlayItems($package, $child, $smilPart, $currentTextTarget, $manifestByPart));
         }
 
         return $items;
@@ -10025,14 +10074,20 @@ final class EpubReader
     /**
      * @return array<string, mixed>
      */
-    private function readSmilPar(ZipPackage $package, \DOMElement $par, string $smilPart, ?string $textTarget): array
+    private function readSmilPar(
+        ZipPackage $package,
+        \DOMElement $par,
+        string $smilPart,
+        ?string $textTarget,
+        array $manifestByPart
+    ): array
     {
         $text = self::firstChildElement($par, 'text', self::SMIL_NS);
         $audio = self::firstChildElement($par, 'audio', self::SMIL_NS);
         $textSrc = $text instanceof \DOMElement ? self::nullableAttribute($text, 'src') : null;
         $audioSrc = $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'src') : null;
-        $textReference = $textSrc === null ? self::emptySmilReference($textTarget) : $this->smilReference($package, $smilPart, $textSrc);
-        $audioReference = $this->smilReference($package, $smilPart, $audioSrc);
+        $textReference = $textSrc === null ? self::emptySmilReference($textTarget) : $this->smilReference($package, $smilPart, $textSrc, $manifestByPart);
+        $audioReference = $this->smilReference($package, $smilPart, $audioSrc, $manifestByPart);
         $clipBegin = $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'clipBegin') : null;
         $clipEnd = $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'clipEnd') : null;
         $clipTiming = self::smilClipTiming($clipBegin, $clipEnd);
@@ -10049,6 +10104,13 @@ final class EpubReader
             'textMediaFragment' => $textReference['mediaFragment'],
             'textExternal' => $textReference['external'],
             'textExists' => $textReference['exists'],
+            'textByteLength' => $textReference['byteLength'],
+            'textCrc32' => $textReference['crc32'],
+            'textByteSha256' => $textReference['byteSha256'],
+            'textManifestId' => $textReference['manifestId'],
+            'textMediaType' => $textReference['mediaType'],
+            'textEncrypted' => $textReference['encrypted'],
+            'textCanExposeBytes' => $textReference['canExposeBytes'],
             'audioSrc' => $audioSrc,
             'audioTarget' => $audioReference['target'],
             'audioPart' => $audioReference['part'],
@@ -10060,6 +10122,11 @@ final class EpubReader
             'audioExists' => $audioReference['exists'],
             'audioByteLength' => $audioReference['byteLength'],
             'audioCrc32' => $audioReference['crc32'],
+            'audioByteSha256' => $audioReference['byteSha256'],
+            'audioManifestId' => $audioReference['manifestId'],
+            'audioMediaType' => $audioReference['mediaType'],
+            'audioEncrypted' => $audioReference['encrypted'],
+            'audioCanExposeBytes' => $audioReference['canExposeBytes'],
             'clipBegin' => $clipBegin,
             'clipBeginSeconds' => $clipTiming['clipBeginSeconds'],
             'clipEnd' => $clipEnd,
@@ -10122,88 +10189,67 @@ final class EpubReader
     }
 
     /**
-     * @return array{target:?string, part:?string, fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>, mediaFragment:?array<string, mixed>, external:bool, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array{target:?string, part:?string, fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>, mediaFragment:?array<string, mixed>, external:bool, exists:bool, byteLength:?int, crc32:?string, byteSha256:?string, manifestId:?string, mediaType:?string, encrypted:bool, canExposeBytes:bool, diagnostics:list<array<string, mixed>>}
      */
-    private function smilReference(ZipPackage $package, string $basePart, ?string $src): array
+    private function smilReference(ZipPackage $package, string $basePart, ?string $src, array $manifestByPart): array
     {
         $src = trim((string) $src);
         if ($src === '') {
             return self::emptySmilReference(null);
         }
 
-        if (self::isExternalReference($src)) {
-            $fragmentFields = self::targetFragmentFields($src);
-
-            return [
-                'target' => $src,
-                'part' => null,
-                'fragment' => $fragmentFields['fragment'],
-                'fragmentKind' => $fragmentFields['fragmentKind'],
-                'epubCfi' => $fragmentFields['epubCfi'],
-                'mediaFragment' => $fragmentFields['mediaFragment'],
-                'external' => true,
-                'exists' => false,
-                'byteLength' => null,
-                'crc32' => null,
-                'diagnostics' => [[
-                    'type' => 'external-media-overlay-reference',
-                    'src' => $src,
-                    'message' => 'EPUB media-overlay reference points outside the package and was not fetched',
-                ]],
+        $reference = $this->packageReference($package, $basePart, $src, $manifestByPart, 'media-overlay');
+        $diagnostics = $reference['diagnostics'];
+        if (($reference['encrypted'] ?? false) === true) {
+            $diagnostics[] = [
+                'type' => 'encrypted-media-overlay-reference',
+                'part' => $reference['part'],
+                'message' => 'EPUB media-overlay reference targets an encrypted package part that cannot expose source bytes',
             ];
         }
 
-        try {
-            $target = OpcPackagePath::resolveInternalTarget($basePart, $src);
-        } catch (\InvalidArgumentException $exception) {
-            $fragmentFields = self::targetFragmentFields(null);
-
-            return [
-                'target' => null,
-                'part' => null,
-                'fragment' => $fragmentFields['fragment'],
-                'fragmentKind' => $fragmentFields['fragmentKind'],
-                'epubCfi' => $fragmentFields['epubCfi'],
-                'mediaFragment' => $fragmentFields['mediaFragment'],
-                'external' => false,
-                'exists' => false,
-                'byteLength' => null,
-                'crc32' => null,
-                'diagnostics' => [[
-                    'type' => 'invalid-media-overlay-reference',
-                    'src' => $src,
+        $byteSha256 = null;
+        if (
+            ($reference['external'] ?? false) !== true
+            && ($reference['exists'] ?? false) === true
+            && ($reference['canExposeBytes'] ?? false) === true
+            && is_string($reference['part'] ?? null)
+        ) {
+            try {
+                $byteSha256 = hash('sha256', $package->read((string) $reference['part']));
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => 'media-overlay-reference-bytes-unavailable',
+                    'part' => $reference['part'],
                     'message' => $exception->getMessage(),
-                ]],
-            ];
+                ];
+            }
         }
-
-        $part = OpcPackagePath::stripQueryAndFragment($target);
-        $fragmentFields = self::targetFragmentFields($target);
-        $exists = $package->has($part);
-        $entry = $exists ? $package->entry($part) : null;
 
         return [
-            'target' => $target,
-            'part' => $part,
-            'fragment' => $fragmentFields['fragment'],
-            'fragmentKind' => $fragmentFields['fragmentKind'],
-            'epubCfi' => $fragmentFields['epubCfi'],
-            'mediaFragment' => $fragmentFields['mediaFragment'],
-            'external' => false,
-            'exists' => $exists,
-            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
-            'diagnostics' => $exists ? [] : [[
-                'type' => 'missing-media-overlay-reference',
-                'src' => $src,
-                'part' => $part,
-                'message' => 'EPUB media-overlay reference target is missing from the package',
-            ]],
+            'target' => $reference['target'],
+            'part' => $reference['part'],
+            'fragment' => $reference['fragment'],
+            'fragmentKind' => $reference['fragmentKind'],
+            'epubCfi' => $reference['epubCfi'],
+            'mediaFragment' => $reference['mediaFragment'],
+            'external' => $reference['external'],
+            'exists' => $reference['exists'],
+            'byteLength' => $reference['byteLength'],
+            'crc32' => $reference['crc32'],
+            'byteSha256' => $byteSha256,
+            'manifestId' => $reference['manifestId'],
+            'mediaType' => $reference['mediaType'],
+            'encrypted' => $reference['encrypted'],
+            'canExposeBytes' => $reference['canExposeBytes'],
+            'diagnostics' => $diagnostics,
         ];
     }
 
     /**
-     * @return array{target:?string, part:?string, fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>, mediaFragment:?array<string, mixed>, external:bool, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
+     * @return array{target:?string, part:?string, fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>, mediaFragment:?array<string, mixed>, external:bool, exists:bool, byteLength:?int, crc32:?string, byteSha256:?string, manifestId:?string, mediaType:?string, encrypted:bool, canExposeBytes:bool, diagnostics:list<array<string, mixed>>}
      */
     private static function emptySmilReference(?string $target): array
     {
@@ -10221,6 +10267,11 @@ final class EpubReader
             'exists' => false,
             'byteLength' => null,
             'crc32' => null,
+            'byteSha256' => null,
+            'manifestId' => null,
+            'mediaType' => null,
+            'encrypted' => false,
+            'canExposeBytes' => false,
             'diagnostics' => [],
         ];
     }

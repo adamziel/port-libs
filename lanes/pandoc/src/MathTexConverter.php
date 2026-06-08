@@ -3163,7 +3163,7 @@ final class MathTexConverter
 
     private function parseColorCommand(string $source, int &$offset, string $command): string
     {
-        $color = $this->normalizeMathColor($this->readRequiredGroupText($source, $offset));
+        $color = $this->readMathColorArgument($source, $offset, $command);
         $content = $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content');
 
         return '<mstyle mathcolor="' . $this->esc($color) . '">' . $content . '</mstyle>';
@@ -3181,13 +3181,13 @@ final class MathTexConverter
             return null;
         }
 
-        $this->skipWhitespace($source, $cursor);
-        $argument = $this->readTexBraceArgument($source, $cursor);
-        if ($argument === null) {
+        try {
+            $color = $this->readMathColorArgument($source, $cursor, 'color');
+        } catch (\InvalidArgumentException) {
             return null;
         }
 
-        $after = $argument['next'];
+        $after = $cursor;
         $this->skipWhitespace($source, $after);
 
         if (($source[$after] ?? '') === '{') {
@@ -3199,9 +3199,117 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX color declaration content at offset ' . $after);
         }
 
-        $offset = $argument['next'];
+        $offset = $cursor;
 
-        return $this->normalizeMathColor($argument['value']);
+        return $color;
+    }
+
+    private function readMathColorArgument(string $source, int &$offset, string $command): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $model = null;
+        if (($source[$offset] ?? '') === '[') {
+            $argument = $this->readTexBracketArgument($source, $offset);
+            if ($argument === null) {
+                throw new \InvalidArgumentException('Expected TeX \\' . $command . ' color model at offset ' . $offset);
+            }
+
+            $model = trim($argument['value']);
+            if ($model === '') {
+                throw new \InvalidArgumentException('Expected TeX \\' . $command . ' color model at offset ' . $offset);
+            }
+
+            $offset = $argument['next'];
+        }
+
+        $color = $this->readRequiredGroupText($source, $offset);
+
+        return $model === null
+            ? $this->normalizeMathColor($color)
+            : $this->normalizeMathColorModel($model, $color, $command);
+    }
+
+    private function normalizeMathColorModel(string $model, string $color, string $command): string
+    {
+        return match ($model) {
+            'HTML', 'html' => $this->normalizeMathHexColor($color, $command),
+            'RGB' => $this->normalizeMathRgbColor($color, $command, true),
+            'rgb' => $this->normalizeMathRgbColor($color, $command, false),
+            'gray' => $this->normalizeMathGrayColor($color, $command),
+            'named' => $this->normalizeMathColor($color),
+            default => throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' color model ' . $model),
+        };
+    }
+
+    private function normalizeMathHexColor(string $color, string $command): string
+    {
+        $color = trim($color);
+        if (str_starts_with($color, '#')) {
+            $color = substr($color, 1);
+        }
+
+        if (preg_match('/^[0-9A-Fa-f]{6}$/', $color) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' HTML color ' . $color);
+        }
+
+        return '#' . strtolower($color);
+    }
+
+    private function normalizeMathRgbColor(string $color, string $command, bool $integerComponents): string
+    {
+        $components = array_map('trim', explode(',', trim($color)));
+        if (count($components) !== 3) {
+            throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' RGB color ' . $color);
+        }
+
+        $bytes = [];
+        foreach ($components as $component) {
+            $bytes[] = $integerComponents
+                ? $this->normalizeMathIntegerColorComponent($component, $command, $color)
+                : $this->normalizeMathUnitColorComponent($component, $command, $color);
+        }
+
+        return $this->mathColorHexTriplet($bytes[0], $bytes[1], $bytes[2]);
+    }
+
+    private function normalizeMathGrayColor(string $color, string $command): string
+    {
+        $component = $this->normalizeMathUnitColorComponent(trim($color), $command, $color);
+
+        return $this->mathColorHexTriplet($component, $component, $component);
+    }
+
+    private function normalizeMathIntegerColorComponent(string $component, string $command, string $color): int
+    {
+        if (preg_match('/^\d+$/', $component) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' RGB color ' . $color);
+        }
+
+        $value = (int) $component;
+        if ($value < 0 || $value > 255) {
+            throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' RGB color ' . $color);
+        }
+
+        return $value;
+    }
+
+    private function normalizeMathUnitColorComponent(string $component, string $command, string $color): int
+    {
+        if (preg_match('/^(?:0(?:\.\d+)?|1(?:\.0+)?|\.\d+)$/', $component) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' rgb color ' . $color);
+        }
+
+        $value = (float) $component;
+        if ($value < 0.0 || $value > 1.0) {
+            throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' rgb color ' . $color);
+        }
+
+        return (int) round($value * 255);
+    }
+
+    private function mathColorHexTriplet(int $red, int $green, int $blue): string
+    {
+        return sprintf('#%02x%02x%02x', $red, $green, $blue);
     }
 
     private function normalizeMathColor(string $color): string

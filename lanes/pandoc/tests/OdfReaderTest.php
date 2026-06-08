@@ -3327,6 +3327,56 @@ XML;
         $t->contains('<span class="odf-field odf-field-expression" data-odf-field-type="expression" data-odf-field-name="ApprovedBudget" data-odf-field-formula="ooow:approved-budget" data-odf-field-value-type="currency" data-odf-field-value="42.50" data-odf-field-currency="USD">42.50</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="NeedsLegalReview" data-odf-field-value-type="boolean" data-odf-field-boolean-value="false" data-odf-field-declared="true">false</span>', $blocksHtml);
     },
+    'maps ODT measure fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithMeasureFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Measures <text:measure text:name="ApprovedImports" text:kind="value" text:formula="ooow:COUNT([Review.B2:Review.B12])" office:value-type="float" office:value="11" style:data-style-name="ReviewInteger">11</text:measure> and fallback <text:measure text:name="SourceBudget" text:kind="unit" office:value-type="currency" office:value="42.50" office:currency="USD"/> stay reviewable.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithMeasureFields));
+        $paragraph = $result['document']->children[0];
+        $approvedImports = $paragraph->children[1];
+        $sourceBudget = $paragraph->children[3];
+
+        $t->same('Measures 11 and fallback 42.50 stay reviewable.', $paragraph->attr('text'));
+        $t->same('span', $approvedImports->type);
+        $t->same(['odf-field', 'odf-field-measure'], $approvedImports->attr('classes'));
+        $t->same('measure', $approvedImports->attr('fieldType'));
+        $t->same('ApprovedImports', $approvedImports->attr('fieldName'));
+        $t->same('value', $approvedImports->attr('fieldMetadata')['kind']);
+        $t->same('ooow:COUNT([Review.B2:Review.B12])', $approvedImports->attr('fieldMetadata')['formula']);
+        $t->same('float', $approvedImports->attr('fieldMetadata')['valueType']);
+        $t->same('11', $approvedImports->attr('fieldMetadata')['value']);
+        $t->same('ReviewInteger', $approvedImports->attr('fieldMetadata')['styleName']);
+        $t->same('value', $approvedImports->attr('attributes')['data-odf-field-kind']);
+        $t->same('ReviewInteger', $approvedImports->attr('attributes')['data-odf-field-style-name']);
+        $t->same('11', $approvedImports->children[0]->attr('text'));
+
+        $t->same('span', $sourceBudget->type);
+        $t->same(['odf-field', 'odf-field-measure'], $sourceBudget->attr('classes'));
+        $t->same('SourceBudget', $sourceBudget->attr('fieldName'));
+        $t->same('unit', $sourceBudget->attr('fieldMetadata')['kind']);
+        $t->same('currency', $sourceBudget->attr('fieldMetadata')['valueType']);
+        $t->same('42.50', $sourceBudget->attr('fieldMetadata')['value']);
+        $t->same('USD', $sourceBudget->attr('fieldMetadata')['currency']);
+        $t->same('42.50', $sourceBudget->children[0]->attr('text'));
+        $t->same(2, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[11]{.odf-field .odf-field-measure data-odf-field-type="measure" data-odf-field-name="ApprovedImports" data-odf-field-kind="value" data-odf-field-formula="ooow:COUNT([Review.B2:Review.B12])" data-odf-field-value-type="float" data-odf-field-value="11" data-odf-field-style-name="ReviewInteger"}', $markdown);
+        $t->contains('[42.50]{.odf-field .odf-field-measure data-odf-field-type="measure" data-odf-field-name="SourceBudget" data-odf-field-kind="unit" data-odf-field-value-type="currency" data-odf-field-value="42.50" data-odf-field-currency="USD"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-measure" data-odf-field-type="measure" data-odf-field-name="ApprovedImports" data-odf-field-kind="value" data-odf-field-formula="ooow:COUNT([Review.B2:Review.B12])" data-odf-field-value-type="float" data-odf-field-value="11" data-odf-field-style-name="ReviewInteger">11</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-measure" data-odf-field-type="measure" data-odf-field-name="SourceBudget" data-odf-field-kind="unit" data-odf-field-value-type="currency" data-odf-field-value="42.50" data-odf-field-currency="USD">42.50</span>', $blocksHtml);
+    },
     'maps ODT text and variable input fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithInputFields = <<<'XML'
 <office:document-content

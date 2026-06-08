@@ -1370,6 +1370,12 @@ XML;
     if (($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? null) !== '/EPUB/audio/chapter.mp3') {
         throw new RuntimeException('Expected EPUB media-overlay audio target to resolve relative to the SMIL part');
     }
+    if (($result['mediaOverlays']['mo-chapter']['items'][0]['audioManifestId'] ?? null) !== 'audio-chapter' || ($result['mediaOverlays']['mo-chapter']['items'][0]['audioMediaType'] ?? null) !== 'audio/mpeg') {
+        throw new RuntimeException('Expected EPUB media-overlay audio target to preserve OPF manifest provenance');
+    }
+    if (($result['mediaOverlays']['mo-chapter']['items'][0]['audioByteSha256'] ?? null) !== hash('sha256', 'MP3-DATA')) {
+        throw new RuntimeException('Expected EPUB media-overlay audio target to expose local package byte hash');
+    }
     if (($result['mediaOverlays']['mo-chapter']['items'][0]['clipBeginSeconds'] ?? null) !== 0.0 || ($result['mediaOverlays']['mo-chapter']['items'][0]['clipEndSeconds'] ?? null) !== 4.25) {
         throw new RuntimeException('Expected EPUB media-overlay first clip timing to normalize to seconds');
     }
@@ -1411,6 +1417,12 @@ XML;
     }
     if (($result['document']->children[0]->attr('mediaOverlayReference')['textRefTarget'] ?? null) !== '/EPUB/text/chapter.xhtml') {
         throw new RuntimeException('Expected WordPress EPUB handoff block to expose media-overlay text reference target');
+    }
+    if (($result['document']->children[0]->attr('mediaOverlayReference')['textRefManifestId'] ?? null) !== 'chapter' || ($result['document']->children[0]->attr('mediaOverlayReference')['textRefMediaType'] ?? null) !== 'application/xhtml+xml') {
+        throw new RuntimeException('Expected WordPress EPUB handoff block to expose media-overlay textref manifest metadata');
+    }
+    if (($result['document']->children[0]->attr('mediaOverlayReference')['textRefByteSha256'] ?? null) !== hash('sha256', $chapterXhtml)) {
+        throw new RuntimeException('Expected WordPress EPUB handoff block to expose media-overlay textref byte hash');
     }
     if (($result['document']->attr('mediaDurations')['overlaysById']['mo-chapter']['duration'] ?? null) !== '0:00:08.000') {
         throw new RuntimeException('Expected WordPress document handoff to expose EPUB media duration metadata');
@@ -1684,6 +1696,9 @@ echo 'ocfSignatureReferences=' . ($result['ocf']['signatures']['referenceCount']
 echo 'ocfExternalReferences=' . ($result['ocf']['externalReferenceCount'] ?? 0) . "\n";
 echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
+echo 'mediaOverlayAudioManifestId=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioManifestId'] ?? '') . "\n";
+echo 'mediaOverlayAudioMediaType=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioMediaType'] ?? '') . "\n";
+echo 'mediaOverlayAudioSha256=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioByteSha256'] ?? '') . "\n";
 echo 'mediaOverlayFirstClipSeconds=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['clipDurationSeconds'] ?? '') . "\n";
 echo 'mediaOverlayPageClipSeconds=' . ($result['mediaOverlays']['mo-chapter']['items'][1]['clipDurationSeconds'] ?? '') . "\n";
 echo 'remoteOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][2]['audioTarget'] ?? '') . "\n";
@@ -1693,6 +1708,8 @@ echo 'mediaOverlayDuration=' . ($result['mediaOverlays']['mo-chapter']['duration
 echo 'manifestMediaOverlayPart=' . ($result['manifest'][1]['mediaOverlayReference']['part'] ?? '') . "\n";
 echo 'manifestMediaOverlayItems=' . ($result['manifest'][1]['mediaOverlayReference']['itemCount'] ?? 0) . "\n";
 echo 'spineMediaOverlayDuration=' . ($result['spine'][0]['mediaOverlayReference']['duration'] ?? '') . "\n";
+echo 'spineMediaOverlayTextRefManifestId=' . ($result['spine'][0]['mediaOverlayReference']['textRefManifestId'] ?? '') . "\n";
+echo 'spineMediaOverlayTextRefSha256=' . ($result['spine'][0]['mediaOverlayReference']['textRefByteSha256'] ?? '') . "\n";
 echo 'remoteManifestResources=' . count($result['importReport']['manifest']['externalItems'] ?? []) . "\n";
 echo 'manifestDuplicatePackageParts=' . implode(',', $result['importReport']['manifest']['duplicatePackageParts'] ?? []) . "\n";
 echo 'manifestDuplicatePackageDiagnostics=' . ($result['importReport']['manifest']['diagnosticCount'] ?? 0) . "\n";

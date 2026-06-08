@@ -1658,8 +1658,8 @@ $listLevel = static function (
         . $numberTextBytes;
 };
 
-$buildListTableDocStreams = static function () use ($u16, $u32, $listLevel): array {
-    $text = "First numbered item\rSecond bullet item\r";
+$buildListTableDocStreams = static function (?string $text = null) use ($u16, $u32, $listLevel): array {
+    $text ??= "First numbered item\rSecond bullet item\r";
     $wordDocument = str_repeat("\0", 1024) . $text;
     $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
     $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
@@ -4955,6 +4955,55 @@ return [
         $t->same([], $overrides[1]['levels']);
         $t->contains('<p>First numbered item</p>', $blocks);
         $t->contains('<p>Second bullet item</p>', $blocks);
+    },
+    'cross-references legacy DOC automatic numbering fields to list table overrides' => static function (TestRunner $t) use ($buildCfb, $buildListTableDocStreams): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Auto '
+            . $fieldBegin . ' AUTONUM \* Arabic ' . $fieldSeparator . '7.' . $fieldEnd
+            . " item\r";
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildListTableDocStreams($text)));
+        $document = $result['document'];
+        $metadata = $result['metadata'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $t->same(2, $metadata['listFormatCount']);
+        $t->same(2, $metadata['listOverrideCount']);
+        $autoNumber = $paragraph->children[1];
+        $attrs = $autoNumber->attr('attributes');
+        $t->same('span', $autoNumber->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-numbering-field', 'legacy-doc-field-autonum'], $autoNumber->attr('classes'));
+        $t->same('autonum', $attrs['data-legacy-doc-field']);
+        $t->same('AUTONUM \* Arabic', $attrs['data-legacy-doc-field-instruction']);
+        $t->same('auto-number', $attrs['data-legacy-doc-numbering-field-type']);
+        $t->same('Arabic', $attrs['data-legacy-doc-field-format']);
+        $t->same('metadata-only-native-review', $attrs['data-legacy-doc-numbering-field-list-policy']);
+        $t->same('1', $attrs['data-legacy-doc-numbering-field-list-match-count']);
+        $t->same('1', $attrs['data-legacy-doc-numbering-field-list-ilfo']);
+        $t->same('1001', $attrs['data-legacy-doc-numbering-field-list-lsid']);
+        $t->same('0', $attrs['data-legacy-doc-numbering-field-list-first-paragraph-cp']);
+        $t->same('1', $attrs['data-legacy-doc-numbering-field-list-index']);
+        $t->same('2001', $attrs['data-legacy-doc-numbering-field-list-template-code']);
+        $t->same('true', $attrs['data-legacy-doc-numbering-field-list-simple']);
+        $t->same('0', $attrs['data-legacy-doc-numbering-field-list-level']);
+        $t->same('3', $attrs['data-legacy-doc-numbering-field-list-start-at']);
+        $t->same('decimal', $attrs['data-legacy-doc-numbering-field-list-number-format']);
+        $t->same('%1.', $attrs['data-legacy-doc-numbering-field-list-text-template']);
+        $t->same('space', $attrs['data-legacy-doc-numbering-field-list-follow']);
+        $t->same('0', $attrs['data-legacy-doc-numbering-field-list-override-level']);
+        $t->same('7', $attrs['data-legacy-doc-numbering-field-list-override-start-at']);
+        $t->same('7.', $autoNumber->children[0]->attr('text'));
+
+        $t->contains('[\7.]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonum data-legacy-doc-field="autonum"', $markdown);
+        $t->contains('data-legacy-doc-numbering-field-list-lsid="1001"', $markdown);
+        $t->contains('data-legacy-doc-numbering-field-list-override-start-at="7"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonum" data-legacy-doc-field="autonum" data-legacy-doc-field-instruction="AUTONUM \* Arabic" data-legacy-doc-numbering-field-type="auto-number" data-legacy-doc-field-format="Arabic" data-legacy-doc-numbering-field-list-policy="metadata-only-native-review"', $blocks);
+        $t->contains('data-legacy-doc-numbering-field-list-text-template="%1."', $blocks);
+        $t->contains('data-legacy-doc-numbering-field-list-override-start-at="7">7.</span>', $blocks);
+        $t->true(!str_contains(strip_tags($blocks), 'AUTONUM'), 'Legacy DOC AUTONUM field instructions should not render as visible text');
     },
     'rejects malformed legacy DOC list tables before exposing numbering metadata' => static function (TestRunner $t) use ($buildCfb, $buildListTableDocStreams, $u32): void {
         $reader = new LegacyDocReader();

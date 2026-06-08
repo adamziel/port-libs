@@ -5085,6 +5085,7 @@ final class OdfReader
             'user-field-get',
             'user-field-input',
             'expression',
+            'measure',
             'text-input',
             'drop-down',
             'script',
@@ -5382,6 +5383,7 @@ final class OdfReader
 
         $metadata = self::withoutEmpty([
             'name' => self::nullable(self::attr($field, self::TEXT_NS, 'name')),
+            'kind' => self::nullable(self::attr($field, self::TEXT_NS, 'kind')),
             'description' => self::nullable(self::attr($field, self::TEXT_NS, 'description')),
             'refName' => self::nullable(self::attr($field, self::TEXT_NS, 'ref-name')),
             'formula' => self::nullable(self::attr($field, self::TEXT_NS, 'formula')),

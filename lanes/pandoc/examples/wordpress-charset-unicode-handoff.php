@@ -141,6 +141,9 @@ $iso88599Text = (string) $iso88599Source->children[1]->attr('text');
 $windows1254Bytes = "# Windows Turkish\n\nYazar \x93\xDDstanbul\x94 \x97 \x8010; \xD0a\xF0, \xDEi\xFEli, \xFDl\xFDk; \xD6\xDC remain.";
 $windows1254Source = (new MarkdownReader())->readBytes($windows1254Bytes, 'cp1254');
 $windows1254Text = (string) $windows1254Source->children[1]->attr('text');
+$macTurkishBytes = "# Mac Turkish\n\nYazar \xD2\xDCstanbul\xD3 \xD1 \x82a\xDB; \xDEi\xDFli, \xDDl\xDDk; \xDA\xDB \xF5.";
+$macTurkishSource = (new MarkdownReader())->readBytes($macTurkishBytes, 'x-mac-turkish');
+$macTurkishText = (string) $macTurkishSource->children[1]->attr('text');
 $tis620Bytes = "# \xE4\xB7\xC2\n\n\xE0\xB9\xD7\xE9\xCD\xCB\xD2 \xE0\xCD\xA1\xCA\xD2\xC3.";
 $tis620Source = (new MarkdownReader())->readBytes($tis620Bytes, 'tis-620');
 $tis620Text = (string) $tis620Source->children[1]->attr('text');
@@ -689,6 +692,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($windows1254Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($windows1254Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Mac Turkish source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $macTurkishText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macTurkishSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macTurkishText) . '/' . UnicodeText::displayWidth($macTurkishText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'TIS-620 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $tis620Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($tis620Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($tis620Text)])]),
@@ -1121,6 +1129,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Windows-1254 source</td><td>Yazar “İstanbul” — €10; Ğağ, Şişli, ılık; ÖÜ remain.</td><td>windows-1254:52</td>')) {
         throw new RuntimeException('charset handoff self-test missing Windows-1254 Turkish decode audit row');
+    }
+    if (($macTurkishSource->attr('sourceEncoding')['encoding'] ?? '') !== 'mac-turkish') {
+        throw new RuntimeException('charset handoff self-test missing Mac Turkish source encoding');
+    }
+    if (!str_contains($blocks, "<td>Mac Turkish source</td><td>Yazar “İstanbul” — Çağ; Şişli, ılık; Ğğ \u{F8A0}.</td><td>mac-turkish:42/48</td>")) {
+        throw new RuntimeException('charset handoff self-test missing Mac Turkish decode audit row');
     }
     if (($tis620Source->attr('sourceEncoding')['encoding'] ?? '') !== 'tis-620') {
         throw new RuntimeException('charset handoff self-test missing TIS-620 source encoding');

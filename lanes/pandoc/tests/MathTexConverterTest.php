@@ -1632,6 +1632,29 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color{red}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color{red}_1'));
     },
+    'converts bounded tex xcolor model arguments to mathml colors' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $modelMathml = $converter->texToMathMl('\\textcolor[HTML]{336699}{\\operatorname{media}} + \\color[RGB]{51,102,153}{p_i} + \\textcolor[rgb]{0.2,0.4,0.6}{m_i}', true);
+        $declarationMathml = $converter->texToMathMl('\\color[gray]{.5} p_i + \\textcolor[named]{reviewblue}{m_i}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\textcolor[HTML]{336699}{x+y}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $modelMathml);
+        $t->contains('<mstyle mathcolor="#336699"><mi>media</mi></mstyle>', $modelMathml);
+        $t->contains('<mstyle mathcolor="#336699"><msub><mi>p</mi><mi>i</mi></msub></mstyle>', $modelMathml);
+        $t->contains('<mstyle mathcolor="#336699"><msub><mi>m</mi><mi>i</mi></msub></mstyle>', $modelMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\textcolor[HTML]{336699}{\\operatorname{media}} + \\color[RGB]{51,102,153}{p_i} + \\textcolor[rgb]{0.2,0.4,0.6}{m_i}</annotation>', $modelMathml);
+        $t->contains('<mstyle mathcolor="#808080"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><mstyle mathcolor="reviewblue"><msub><mi>m</mi><mi>i</mi></msub></mstyle></mrow></mstyle>', $declarationMathml);
+        $t->contains('alttext="x plus y"', $accessibleMathml);
+        $t->contains('intent="row(x,plus,y)"', $accessibleMathml);
+        $t->true(!str_contains($modelMathml . $declarationMathml, '<mo>[</mo>'), 'Expected xcolor model brackets to stay out of MathML tokens');
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textcolor[HTML]{33669}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textcolor[RGB]{256,0,0}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textcolor[rgb]{1.1,0,0}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textcolor[gray]{2}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textcolor[cmyk]{0,0,0,1}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color[]{red}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color[HTML]{336699}'));
+    },
     'converts bounded tex boxed expressions to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $boxedMathml = $converter->texToMathMl('\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j', true);
