@@ -254,6 +254,10 @@ final class OdfReader
                     'dataPilotMemberCount' => (int) ($content['contentDeclarations']['dataPilotMemberCount'] ?? 0),
                     'tableTrackedChangeCount' => (int) ($content['contentDeclarations']['tableTrackedChangeCount'] ?? 0),
                     'ddeConnectionDeclarationCount' => (int) ($content['contentDeclarations']['ddeConnectionDeclarationCount'] ?? 0),
+                    'drawLayerCount' => (int) ($content['contentDeclarations']['drawLayerCount'] ?? 0),
+                    'hiddenDrawLayerCount' => (int) ($content['contentDeclarations']['hiddenDrawLayerCount'] ?? 0),
+                    'protectedDrawLayerCount' => (int) ($content['contentDeclarations']['protectedDrawLayerCount'] ?? 0),
+                    'frameLayerReferenceCount' => $contentStats['frameLayerReferenceCount'],
                 ],
             ],
         ];
@@ -418,7 +422,7 @@ final class OdfReader
 
         $this->trackedChanges = $this->trackedChangesFromText($text);
         $this->formControlsById = $this->formControlsFromText($text);
-        $this->contentDeclarations = $this->contentDeclarationsFromText($text);
+        $this->contentDeclarations = $this->contentDeclarationsFromText($text, $root);
         $this->listContinuationStartCounters = [];
         $this->currentListStyleNames = [];
         $this->currentListLevel = 0;
@@ -3145,7 +3149,7 @@ final class OdfReader
     /**
      * @return array<string, mixed>
      */
-    private function contentDeclarationsFromText(\DOMElement $text): array
+    private function contentDeclarationsFromText(\DOMElement $text, ?\DOMElement $contentRoot = null): array
     {
         $noteConfigurations = [];
         $noteConfigurationsByClass = [];
@@ -3328,6 +3332,23 @@ final class OdfReader
             }
         }
 
+        $drawLayers = $this->drawLayerDeclarationsFromRoot($contentRoot ?? $text);
+        $drawLayersByName = [];
+        $hiddenDrawLayerCount = 0;
+        $protectedDrawLayerCount = 0;
+        foreach ($drawLayers as $layer) {
+            $name = (string) ($layer['name'] ?? '');
+            if ($name !== '') {
+                $drawLayersByName[$name] = $layer;
+            }
+            if (($layer['hidden'] ?? false) === true) {
+                $hiddenDrawLayerCount++;
+            }
+            if (($layer['protected'] ?? false) === true) {
+                $protectedDrawLayerCount++;
+            }
+        }
+
         return [
             'noteConfigurationCount' => count($noteConfigurations),
             'noteConfigurations' => $noteConfigurations,
@@ -3366,7 +3387,56 @@ final class OdfReader
             'ddeConnectionDeclarationCount' => count($ddeConnectionDeclarations),
             'ddeConnectionDeclarations' => $ddeConnectionDeclarations,
             'ddeConnectionDeclarationsByName' => $ddeConnectionDeclarationsByName,
+            'drawLayerCount' => count($drawLayers),
+            'hiddenDrawLayerCount' => $hiddenDrawLayerCount,
+            'protectedDrawLayerCount' => $protectedDrawLayerCount,
+            'drawLayers' => $drawLayers,
+            'drawLayersByName' => $drawLayersByName,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function drawLayerDeclarationsFromRoot(\DOMElement $root): array
+    {
+        $layers = [];
+        foreach ($root->getElementsByTagNameNS(self::DRAW_NS, 'layer-set') as $layerSet) {
+            if (!$layerSet instanceof \DOMElement) {
+                continue;
+            }
+
+            foreach (self::childElements($layerSet, 'layer', self::DRAW_NS) as $layer) {
+                $definition = $this->drawLayerDefinition($layer);
+                if ($definition !== []) {
+                    $layers[] = $definition;
+                }
+            }
+        }
+
+        return $layers;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function drawLayerDefinition(\DOMElement $layer): array
+    {
+        $name = self::attr($layer, self::DRAW_NS, 'name');
+        if ($name === '') {
+            return [];
+        }
+
+        $display = self::attr($layer, self::DRAW_NS, 'display');
+        $protected = self::nullableBool(self::attr($layer, self::DRAW_NS, 'protected'));
+        $hidden = in_array(strtolower($display), ['false', 'hidden', 'none'], true);
+
+        return self::withoutEmpty([
+            'name' => $name,
+            'display' => self::nullable($display),
+            'protected' => $protected,
+            'hidden' => $hidden ? true : null,
+        ]);
     }
 
     /**
@@ -6145,7 +6215,7 @@ final class OdfReader
             'x' => self::nullable(self::attr($frame, self::SVG_NS, 'x')),
             'y' => self::nullable(self::attr($frame, self::SVG_NS, 'y')),
             'zIndex' => self::nullable(self::attr($frame, self::DRAW_NS, 'z-index')),
-        ]);
+        ] + $this->frameLayerMetadata($frame));
         if ($metadata === [] || array_keys($metadata) === ['name']) {
             return [];
         }
@@ -6182,12 +6252,51 @@ final class OdfReader
             'width' => self::nullable(self::attr($frame, self::SVG_NS, 'width')),
             'height' => self::nullable(self::attr($frame, self::SVG_NS, 'height')),
             'zIndex' => self::nullable(self::attr($frame, self::DRAW_NS, 'z-index')),
-        ]);
+        ] + $this->frameLayerMetadata($frame));
         if ($metadata === [] || array_keys($metadata) === ['name']) {
             return [];
         }
 
         return array_map(static fn (mixed $value): string => (string) $value, $metadata);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function frameLayerMetadata(\DOMElement $frame): array
+    {
+        $layerName = self::attr($frame, self::DRAW_NS, 'layer');
+        if ($layerName === '') {
+            return [];
+        }
+
+        $metadata = [
+            'layer' => $layerName,
+            'layerExists' => 'false',
+        ];
+        $layersByName = $this->contentDeclarations['drawLayersByName'] ?? [];
+        $layer = is_array($layersByName) && is_array($layersByName[$layerName] ?? null)
+            ? $layersByName[$layerName]
+            : null;
+        if ($layer === null) {
+            return $metadata;
+        }
+
+        $metadata['layerExists'] = 'true';
+        foreach ([
+            'display' => 'layerDisplay',
+            'hidden' => 'layerHidden',
+            'protected' => 'layerProtected',
+        ] as $source => $target) {
+            if (!array_key_exists($source, $layer)) {
+                continue;
+            }
+
+            $value = $layer[$source];
+            $metadata[$target] = is_bool($value) ? ($value ? 'true' : 'false') : (string) $value;
+        }
+
+        return $metadata;
     }
 
     private function frameObjectMathNode(\DOMElement $frame, ?ZipPackage $package): ?AstNode
@@ -7640,6 +7749,7 @@ final class OdfReader
             'tableStyledCellCount' => 0,
             'tableProtectedCellCount' => 0,
             'tablePrintHiddenCellCount' => 0,
+            'frameLayerReferenceCount' => 0,
         ];
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
@@ -7810,6 +7920,10 @@ final class OdfReader
                         }
                     }
                 }
+            }
+            $frameMetadata = $node->attr('odfFrameMetadata');
+            if (is_array($frameMetadata) && (string) ($frameMetadata['layer'] ?? '') !== '') {
+                $stats['frameLayerReferenceCount']++;
             }
             if (($node->type === 'ordered_list' || $node->type === 'bullet_list') && $node->attr('continued') === true) {
                 $stats['continuedListCount']++;

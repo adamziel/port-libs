@@ -2510,21 +2510,80 @@ try {
 } catch (RuntimeException $exception) {
     $strictCommentImportRejected = str_contains($exception->getMessage(), 'package-or-entry-comments');
 }
-$strictCommentControlImportPackage = ZipPackage::fromParts([
-    [
-        'name' => 'word/document.xml',
-        'data' => '<w:document><w:body><w:p>Control comment review</w:p></w:body></w:document>',
-        'compressionMethod' => 8,
-        'comment' => "entry\x7freview",
-        'externalAttributes' => 0x81a40000,
-    ],
-    [
-        'name' => 'word/media/review.txt',
-        'data' => "review media bytes with control comment metadata\n",
-        'compressionMethod' => 0,
-        'externalAttributes' => 0x81a40000,
-    ],
-], "package\0review");
+$buildCommentControlBackedPackage = static function () use ($crc32): string {
+    $entries = [
+        [
+            'name' => 'word/document.xml',
+            'data' => '<w:document><w:body><w:p>Control comment review</w:p></w:body></w:document>',
+            'method' => 8,
+            'comment' => "entry\x7freview",
+        ],
+        [
+            'name' => 'word/media/review.txt',
+            'data' => "review media bytes with control comment metadata\n",
+            'method' => 0,
+            'comment' => '',
+        ],
+    ];
+    $body = '';
+    $central = '';
+    foreach ($entries as $entry) {
+        $name = $entry['name'];
+        $data = $entry['data'];
+        $method = $entry['method'];
+        $comment = $entry['comment'];
+        $compressed = $method === 8 ? gzdeflate($data) : $data;
+        $offset = strlen($body);
+        $crc = $crc32($data);
+        $flags = 0x0800;
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0
+        );
+        $body .= $name . $compressed;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0,
+            strlen($comment),
+            0,
+            0,
+            0x81a40000,
+            $offset
+        );
+        $central .= $name . $comment;
+    }
+
+    $packageComment = "package\0review";
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), strlen($body), strlen($packageComment))
+        . $packageComment;
+};
+$strictCommentControlImportPackage = ZipPackage::fromString($buildCommentControlBackedPackage());
 $strictCommentControlPreflight = $strictCommentControlImportPackage->commentPreflight();
 $strictCommentControlImportPreflight = $strictCommentControlImportPackage->strictImportPreflight(4096, 100.0, 4096);
 $strictCommentControlImportRejected = false;
@@ -2532,6 +2591,29 @@ try {
     $strictCommentControlImportPackage->assertStrictImportable(4096, 100.0, 4096);
 } catch (RuntimeException $exception) {
     $strictCommentControlImportRejected = str_contains($exception->getMessage(), 'comment-control-bytes');
+}
+$generatedPackageCommentControlRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/document.xml',
+            'data' => '<w:document><w:body><w:p>Generated package comment guard</w:p></w:body></w:document>',
+        ],
+    ], "package\0review");
+} catch (RuntimeException $exception) {
+    $generatedPackageCommentControlRejected = str_contains($exception->getMessage(), 'control bytes');
+}
+$generatedEntryCommentControlRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/document.xml',
+            'data' => '<w:document><w:body><w:p>Generated entry comment guard</w:p></w:body></w:document>',
+            'comment' => "entry\x7freview",
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $generatedEntryCommentControlRejected = str_contains($exception->getMessage(), 'control bytes');
 }
 $odtMimetype = 'application/vnd.oasis.opendocument.text';
 $odtMimetypePackage = ZipPackage::fromParts([
@@ -4108,6 +4190,10 @@ if (in_array('--self-test', $argv, true)) {
         || !$strictCommentControlImportRejected
     ) {
         throw new RuntimeException('Expected strict ZIP import preflight to reject raw comment control bytes');
+    }
+
+    if (!$generatedPackageCommentControlRejected || !$generatedEntryCommentControlRejected) {
+        throw new RuntimeException('Expected generated ZIP comments with raw control bytes to be rejected before writing');
     }
 
     if (

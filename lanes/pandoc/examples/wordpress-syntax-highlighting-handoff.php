@@ -442,6 +442,12 @@ if (!$bibtexCodeBlock instanceof PortLibs\Pandoc\AstNode || $bibtexCodeBlock->ty
 }
 $bibtex = $highlighter->highlightCodeBlock($bibtexCodeBlock, 'zenburn');
 $bibtexWordpressBlock = $highlighter->wordpressHtmlBlock($bibtexCodeBlock, 'zenburn');
+$vimCodeBlock = $document->children[70] ?? null;
+if (!$vimCodeBlock instanceof PortLibs\Pandoc\AstNode || $vimCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Vimscript review code block');
+}
+$vim = $highlighter->highlightCodeBlock($vimCodeBlock, 'monochrome');
+$vimWordpressBlock = $highlighter->wordpressHtmlBlock($vimCodeBlock, 'monochrome');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1916,6 +1922,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($bibtexWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
         throw new RuntimeException('Expected BibTeX WordPress style metadata');
     }
+    if (($vim['language'] ?? '') !== 'vim') {
+        throw new RuntimeException('Expected Vimscript language handoff');
+    }
+    if (($vim['requestedLanguage'] ?? '') !== 'vim') {
+        throw new RuntimeException('Expected Vim requested-language wrapper handoff');
+    }
+    if (($vim['lineNumbering']['start'] ?? null) !== 1060) {
+        throw new RuntimeException('Expected Vimscript source startFrom line-number handoff');
+    }
+    if (!str_contains($vim['html'], '<span class="kw">function</span><span class="op">!</span> <span class="va">s:NormalizeTitle</span>')) {
+        throw new RuntimeException('Expected Vimscript function token handoff');
+    }
+    if (!str_contains($vim['html'], '<span class="kw">command</span><span class="op">!</span> <span class="ot">-nargs</span>')) {
+        throw new RuntimeException('Expected Vimscript user-command token handoff');
+    }
+    if (!str_contains($vim['html'], '<span class="kw">syntax</span> <span class="kw">match</span> <span class="va">wpImportSource</span> <span class="st">/\v(import_source|post_title)/</span>')) {
+        throw new RuntimeException('Expected Vimscript syntax match token handoff');
+    }
+    if (!str_contains($vim['html'], '<span class="kw">highlight</span> <span class="va">wpImportSource</span> <span class="kw">ctermfg</span><span class="op">=</span><span class="va">Green</span>')) {
+        throw new RuntimeException('Expected Vimscript highlight command token handoff');
+    }
+    if (!str_contains($vimWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
+        throw new RuntimeException('Expected Vimscript WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2005,6 +2035,7 @@ echo "batchHighlightedHtml:\n" . $batch['html'] . "\n";
 echo "matlabHighlightedHtml:\n" . $matlab['html'] . "\n";
 echo "fishHighlightedHtml:\n" . $fish['html'] . "\n";
 echo "sedHighlightedHtml:\n" . $sed['html'] . "\n";
+echo "vimHighlightedHtml:\n" . $vim['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2065,4 +2096,5 @@ echo "matlabWordpressBlock:\n" . $matlabWordpressBlock . "\n";
 echo "fishWordpressBlock:\n" . $fishWordpressBlock . "\n";
 echo "sedWordpressBlock:\n" . $sedWordpressBlock . "\n";
 echo "bibtexWordpressBlock:\n" . $bibtexWordpressBlock . "\n";
+echo "vimWordpressBlock:\n" . $vimWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

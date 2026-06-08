@@ -1293,3 +1293,24 @@ p
   year = 2025,
 }
 ```
+
+``` {.vim #vim-review .numberLines startFrom=1060}
+" Vimscript WordPress import review
+scriptencoding utf-8
+let g:wp_import_review = v:true
+let s:source_path = expand('~/exports/wxr.json')
+setlocal keywordprg=:help
+
+function! s:NormalizeTitle(packet) abort
+  let l:title = trim(a:packet.title)
+  if empty(l:title)
+    return 'Untitled'
+  endif
+  return substitute(l:title, '\s\+', ' ', 'g')
+endfunction
+
+command! -nargs=1 ReviewImport call s:NormalizeTitle(json_decode(readfile(<q-args>)[0]))
+nnoremap <leader>wr :execute 'edit ' . fnameescape(s:source_path)<CR>
+syntax match wpImportSource /\v(import_source|post_title)/
+highlight wpImportSource ctermfg=Green guifg=#005cc5
+```

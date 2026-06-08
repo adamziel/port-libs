@@ -37,6 +37,8 @@ Dot and named symbol alias audit $\ldots + \cdots + \ddots + \aleph + \ell + \Re
 
 Operator relation alias audit $a \oplus b + c \ominus d + x \asymp y + p \vdash q + u \bowtie v$ stays semantic.
 
+Generated symbol alias audit $a \dotplus b + c \boxplus d + e \boxminus f + A \sqsubset B + C \sqsupseteq D + x \lesssim y + r \gtrapprox s + p \Bumpeq q + x \rightsquigarrow y + m \nleq n$ stays semantic.
+
 Symbol override alias audit $\arg z + \hbar\omega + \digamma + \varnothing + a \dag b + c \ddag d + A \lhd B + C \unrhd D + M \longmapsto N + \blacklozenge$ stays semantic.
 
 Display audit:
@@ -209,6 +211,7 @@ $summary = [
     'textAliasMathml' => $converter->texToMathMl('\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}'),
     'dotRelationSymbolAliasMathml' => $converter->texToMathMl('\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot'),
     'operatorRelationAliasMathml' => $converter->texToMathMl('a \\oplus b + c \\ominus d + x \\asymp y + p \\vdash q + u \\bowtie v'),
+    'generatedSymbolAliasMathml' => $converter->texToMathMl('a \\dotplus b + c \\boxplus d + e \\boxminus f + A \\sqsubset B + C \\sqsupseteq D + x \\lesssim y + r \\gtrapprox s + p \\Bumpeq q + x \\rightsquigarrow y + m \\nleq n'),
     'symbolOverrideAliasMathml' => $converter->texToMathMl('\\arg z + \\hbar\\omega + \\digamma + \\varnothing + a \\dag b + c \\ddag d + A \\lhd B + C \\unrhd D + M \\longmapsto N + \\blacklozenge'),
     'plainRootMathml' => $converter->texToMathMl('\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}'),
     'arrayClineMathml' => $converter->texToMathMl('\\begin{array}{l|c|r}p_i & m_i & 1 \\\\ \\cline{2-3} q_i & n_i & 2 \\\\ \\cline{1-1}\\cline{3-3} r_i & s_i & 3\\end{array}'),
@@ -430,6 +433,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}\\)</span>',
         '<span class="math inline">\\(\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot\\)</span>',
         '<span class="math inline">\\(a \\oplus b + c \\ominus d + x \\asymp y + p \\vdash q + u \\bowtie v\\)</span>',
+        '<span class="math inline">\\(a \\dotplus b + c \\boxplus d + e \\boxminus f + A \\sqsubset B + C \\sqsupseteq D + x \\lesssim y + r \\gtrapprox s + p \\Bumpeq q + x \\rightsquigarrow y + m \\nleq n\\)</span>',
         '<span class="math inline">\\(\\arg z + \\hbar\\omega + \\digamma + \\varnothing + a \\dag b + c \\ddag d + A \\lhd B + C \\unrhd D + M \\longmapsto N + \\blacklozenge\\)</span>',
         '<span class="math display">\\[\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\sqrt[3]{x_i + y_i} + \\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c} + \\dfrac{q_i}{r_i} + \\genfrac{\\langle}{\\rangle}{0pt}{0}{n}{k} + \\widehat{\\operatorname{quality}} + \\vec{v}_i + \\begin{pmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{pmatrix} + \\begin{aligned}x_i &amp;= \\operatorname{score}(p_i) \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{aligned} + \\begin{array}{l|c|r}\\alpha &amp; \\beta &amp; \\omega \\\\ \\hline 1 &amp; 2 &amp; 3\\end{array} + \\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases} + \\forall p_i \\in P \\Rightarrow p_i \\notin \\emptyset + \\alpha \\times \\omega\\]</span>',
         '<span class="math inline">\\(\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}\\)</span>',
@@ -650,6 +654,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}</annotation>',
         '<annotation encoding="application/x-tex">{a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}</annotation>',
         '<annotation encoding="application/x-tex">{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}</annotation>',
+        '<mi>a</mi><mo>∔</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>⊞</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>⊟</mo><mi>f</mi>',
+        '<mi>A</mi><mo>⊏</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>⊒</mo><mi>D</mi><mo>+</mo><mi>x</mi><mo>≲</mo><mi>y</mi><mo>+</mo><mi>r</mi><mo>⪆</mo><mi>s</mi>',
+        '<mi>p</mi><mo>≎</mo><mi>q</mi><mo>+</mo><mi>x</mi><mo>⇝</mo><mi>y</mi><mo>+</mo><mi>m</mi><mo>≰</mo><mi>n</mi>',
+        '<annotation encoding="application/x-tex">a \\dotplus b + c \\boxplus d + e \\boxminus f + A \\sqsubset B + C \\sqsupseteq D + x \\lesssim y + r \\gtrapprox s + p \\Bumpeq q + x \\rightsquigarrow y + m \\nleq n</annotation>',
         '<annotation encoding="application/x-tex">\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}</annotation>',
         '<annotation encoding="application/x-tex">\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}</annotation>',
         '<annotation encoding="application/x-tex">\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i</annotation>',

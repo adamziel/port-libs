@@ -5899,6 +5899,79 @@ XML;
         $t->contains('::: {.odf-text-box data-odf-frame-name="Reviewer aside frame" data-odf-frame-style-name="AsideFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="3" data-odf-frame-x="2cm" data-odf-frame-y="4cm" data-odf-frame-width="6cm" data-odf-frame-height="2cm" data-odf-frame-z-index="9"}', $markdown);
         $t->contains('<div class="odf-text-box" data-odf-frame-name="Reviewer aside frame" data-odf-frame-style-name="AsideFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="3" data-odf-frame-x="2cm" data-odf-frame-y="4cm" data-odf-frame-width="6cm" data-odf-frame-height="2cm" data-odf-frame-z-index="9"><p>Anchored reviewer aside.</p></div>', $blocksHtml);
     },
+    'maps ODT drawing layers into frame review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithDrawLayers = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:automatic-styles>
+    <draw:layer-set>
+      <draw:layer draw:name="review-media" draw:display="screen" draw:protected="true"/>
+      <draw:layer draw:name="draft-notes" draw:display="none"/>
+    </draw:layer-set>
+  </office:automatic-styles>
+  <office:body>
+    <office:text>
+      <draw:frame draw:name="Layered hero" draw:layer="review-media" svg:width="4cm">
+        <draw:image xlink:href="Pictures/hero.png"><svg:title>Layered hero title</svg:title><svg:desc>Layered hero alt</svg:desc></draw:image>
+      </draw:frame>
+      <draw:frame draw:name="Layered aside" draw:layer="draft-notes" svg:width="6cm">
+        <draw:text-box><text:p>Draft layer note.</text:p></draw:text-box>
+      </draw:frame>
+      <text:p>Inline <draw:frame draw:name="Unmapped inline layer" draw:layer="missing-layer"><draw:image xlink:href="Pictures/hero.png"><svg:desc>Missing layer alt</svg:desc></draw:image></draw:frame> remains visible.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDrawLayers));
+        $declarations = $result['contentDeclarations'];
+        $image = $result['document']->children[0]->children[0];
+        $textBox = $result['document']->children[1];
+        $inlineImage = $result['document']->children[2]->children[1];
+
+        $t->same(2, $declarations['drawLayerCount']);
+        $t->same(1, $declarations['hiddenDrawLayerCount']);
+        $t->same(1, $declarations['protectedDrawLayerCount']);
+        $t->same('review-media', $declarations['drawLayers'][0]['name']);
+        $t->same('screen', $declarations['drawLayersByName']['review-media']['display']);
+        $t->same(true, $declarations['drawLayersByName']['review-media']['protected']);
+        $t->same(true, $declarations['drawLayersByName']['draft-notes']['hidden']);
+
+        $t->same('image', $image->type);
+        $t->same('review-media', $image->attr('odfFrameMetadata')['layer']);
+        $t->same('true', $image->attr('odfFrameMetadata')['layerExists']);
+        $t->same('screen', $image->attr('odfFrameMetadata')['layerDisplay']);
+        $t->same('true', $image->attr('odfFrameMetadata')['layerProtected']);
+        $t->same('review-media', $image->attr('attributes')['data-odf-frame-layer']);
+        $t->same('true', $image->attr('attributes')['data-odf-frame-layer-exists']);
+
+        $t->same('div', $textBox->type);
+        $t->same('draft-notes', $textBox->attr('odfFrameMetadata')['layer']);
+        $t->same('none', $textBox->attr('odfFrameMetadata')['layerDisplay']);
+        $t->same('true', $textBox->attr('odfFrameMetadata')['layerHidden']);
+        $t->same('true', $textBox->attr('attributes')['data-odf-frame-layer-hidden']);
+
+        $t->same('image', $inlineImage->type);
+        $t->same('missing-layer', $inlineImage->attr('odfFrameMetadata')['layer']);
+        $t->same('false', $inlineImage->attr('odfFrameMetadata')['layerExists']);
+        $t->same('missing-layer', $inlineImage->attr('attributes')['data-odf-frame-layer']);
+        $t->same('false', $inlineImage->attr('attributes')['data-odf-frame-layer-exists']);
+
+        $t->same(2, $result['importReport']['content']['drawLayerCount']);
+        $t->same(1, $result['importReport']['content']['hiddenDrawLayerCount']);
+        $t->same(1, $result['importReport']['content']['protectedDrawLayerCount']);
+        $t->same(3, $result['importReport']['content']['frameLayerReferenceCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('![Layered hero alt](Pictures/hero.png "Layered hero title"){width="4cm" data-odf-frame-name="Layered hero" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"}', $markdown);
+        $t->contains('<img src="Pictures/hero.png" alt="Layered hero alt" title="Layered hero title" width="4cm" data-odf-frame-name="Layered hero" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"/>', $blocksHtml);
+        $t->contains('<div class="odf-text-box" data-odf-frame-name="Layered aside" data-odf-frame-width="6cm" data-odf-frame-layer="draft-notes" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="none" data-odf-frame-layer-hidden="true"><p>Draft layer note.</p></div>', $blocksHtml);
+    },
     'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = (new OdfReader())->readDocument($buildOdtPackage());
         $markdown = (new MarkdownWriter())->write($document);

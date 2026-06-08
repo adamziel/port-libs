@@ -297,6 +297,10 @@ final class SyntaxHighlighter
         'vue-component' => 'vue',
         'vue-sfc' => 'vue',
         'vuejs' => 'vue',
+        'vim' => 'vim',
+        'vim-script' => 'vim',
+        'viml' => 'vim',
+        'vimscript' => 'vim',
         'xhtml' => 'html',
         'xml' => 'xml',
         'xsd' => 'xml',
@@ -773,6 +777,7 @@ final class SyntaxHighlighter
             'tsx' => $this->tokenizeTsx($code),
             'typst' => $this->tokenizeTypst($code),
             'typescript' => $this->tokenizeTypeScript($code),
+            'vim' => $this->tokenizeVimscript($code),
             'vue' => $this->tokenizeVue($code),
             'xml' => $this->tokenizeXml($code),
             'xslt' => $this->tokenizeXml($code),
@@ -2973,6 +2978,70 @@ final class SyntaxHighlighter
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
             ['operator', '/^(?:=>|==|!=|<=|>=|\\.\\.\\.|[{}()[\\],.:;=+*\\/%!<>?&|#~-])/'],
         ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeVimscript(string $code): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            $this->tokenizeVimscriptLine($line, $tokens);
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeVimscriptLine(string $line, array &$tokens): void
+    {
+        if ($line === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)("[^\\n]*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'comment', $matches[2]);
+            return;
+        }
+
+        $this->scanInto($line, [
+            ['comment', '/^"[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:''|[^'])*'/s"],
+            ['string', '/^\\/(?:\\\\.|[^\\/\\\\\\n])+\\/[A-Za-z]*/'],
+            ['constant', '/^v:(?:false|null|none|true)\\b/i'],
+            ['constant', '/^#[0-9A-Fa-f]{3,8}\\b/'],
+            ['variable', '/^[gsbtwavl]:[A-Za-z_][A-Za-z0-9_#]*/i'],
+            ['attribute', '/^&(?:[gl]:)?[A-Za-z_][A-Za-z0-9_]*/i'],
+            ['keyword', '/^\\b(?:augroup|autocmd|break|call|command|continue|else|elseif|endfunction|endif|endfor|endtry|execute|finally|for|function!?|highlight|if|let|match|nnoremap|return|scriptencoding|setlocal|syntax|try|unlet)\\b/i'],
+            ['keyword', '/^\\b(?:abort|contained|contains|ctermfg|guifg|silent|syn|then)\\b/i'],
+            ['function', '/^\\b(?:empty|escape|execute|expand|fnamemodify|json_decode|printf|readfile|split|substitute|trim)\\b(?=\\s*\\()/i'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f]+|\\d+(?:\\.\\d+)?)\\b/'],
+            ['attribute', '/^--?[A-Za-z][A-Za-z0-9_-]*/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_#]*(?=\\s*=)/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_#]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_#]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|==|!=|<=|>=|&&|\\|\\||=>|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ], $tokens);
     }
 
     /**

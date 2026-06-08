@@ -242,6 +242,10 @@ return [
         $t->same('vue', SyntaxHighlighter::normalizeLanguage('vue'));
         $t->same('vue', SyntaxHighlighter::normalizeLanguage('vue-sfc'));
         $t->same('vue', SyntaxHighlighter::normalizeLanguage('language-html-vue'));
+        $t->same('vim', SyntaxHighlighter::normalizeLanguage('vim'));
+        $t->same('vim', SyntaxHighlighter::normalizeLanguage('vimscript'));
+        $t->same('vim', SyntaxHighlighter::normalizeLanguage('viml'));
+        $t->same('vim', SyntaxHighlighter::normalizeLanguage('language-vim-script'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('number-lines'));
@@ -3385,6 +3389,50 @@ return [
         $t->same('bib', $directBibtex['requestedLanguage']);
         $t->contains('<span class="kw">@book</span><span class="op">{</span><span class="va">review</span><span class="op">,</span> <span class="ot">year</span> <span class="op">=</span> <span class="dv">2025</span><span class="op">,</span> <span class="ot">month</span> <span class="op">=</span> <span class="cn">jun</span>', $directBibtex['html']);
         $t->contains('<span class="ot">title</span> <span class="op">=</span> <span class="va">wp</span> <span class="op">#</span> <span class="st">&quot; guide&quot;</span><span class="op">}</span>', $directBibtex['html']);
+    },
+    'highlights vimscript import review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[70] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Vimscript review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'monochrome');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'monochrome');
+        $directVim = $highlighter->highlight('let g:title = trim(a:title) | return v:true', 'vimscript');
+
+        $t->same('vim', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('vim', $highlighted['language']);
+        $t->same('vim', $highlighted['requestedLanguage']);
+        $t->same('monochrome', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1060, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource vim numberLines"><code class="sourceCode vim" style="counter-reset: source-line 1059;">', $highlighted['html']);
+        $t->contains('<span id="vim-review-1060"><a href="#vim-review-1060"></a><span class="co">&quot; Vimscript WordPress import review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">scriptencoding</span> <span class="va">utf</span><span class="dv">-8</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="va">g:wp_import_review</span> <span class="op">=</span> <span class="cn">v:true</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="va">s:source_path</span> <span class="op">=</span> <span class="fu">expand</span><span class="op">(</span><span class="st">&#039;~/exports/wxr.json&#039;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">setlocal</span> <span class="ot">keywordprg</span><span class="op">=:</span><span class="va">help</span>', $highlighted['html']);
+        $t->contains('<span class="kw">function</span><span class="op">!</span> <span class="va">s:NormalizeTitle</span><span class="op">(</span><span class="va">packet</span><span class="op">)</span> <span class="kw">abort</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="va">l:title</span> <span class="op">=</span> <span class="fu">trim</span><span class="op">(</span><span class="va">a:packet</span><span class="op">.</span><span class="va">title</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="fu">empty</span><span class="op">(</span><span class="va">l:title</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="fu">substitute</span><span class="op">(</span><span class="va">l:title</span><span class="op">,</span> <span class="st">&#039;\s\+&#039;</span><span class="op">,</span> <span class="st">&#039; &#039;</span><span class="op">,</span> <span class="st">&#039;g&#039;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">command</span><span class="op">!</span> <span class="ot">-nargs</span><span class="op">=</span><span class="dv">1</span> <span class="va">ReviewImport</span> <span class="kw">call</span> <span class="va">s:NormalizeTitle</span>', $highlighted['html']);
+        $t->contains('<span class="fu">json_decode</span><span class="op">(</span><span class="fu">readfile</span><span class="op">(&lt;</span><span class="va">q</span><span class="ot">-args</span><span class="op">&gt;)[</span><span class="dv">0</span><span class="op">]))</span>', $highlighted['html']);
+        $t->contains('<span class="kw">nnoremap</span> <span class="op">&lt;</span><span class="va">leader</span><span class="op">&gt;</span><span class="va">wr</span> <span class="op">:</span><span class="kw">execute</span> <span class="st">&#039;edit &#039;</span> <span class="op">.</span> <span class="fu">fnameescape</span>', $highlighted['html']);
+        $t->contains('<span class="kw">syntax</span> <span class="kw">match</span> <span class="va">wpImportSource</span> <span class="st">/\v(import_source|post_title)/</span>', $highlighted['html']);
+        $t->contains('<span class="kw">highlight</span> <span class="va">wpImportSource</span> <span class="kw">ctermfg</span><span class="op">=</span><span class="va">Green</span> <span class="kw">guifg</span><span class="op">=</span><span class="cn">#005cc5</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="monochrome">', $wordpressBlock);
+        $t->contains('<span class="kw">command</span><span class="op">!</span> <span class="ot">-nargs</span>', $wordpressBlock);
+        $t->same('vim', $directVim['language']);
+        $t->same('vimscript', $directVim['requestedLanguage']);
+        $t->contains('<span class="kw">let</span> <span class="va">g:title</span> <span class="op">=</span> <span class="fu">trim</span><span class="op">(</span><span class="va">a:title</span><span class="op">)</span> <span class="op">|</span> <span class="kw">return</span> <span class="cn">v:true</span>', $directVim['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

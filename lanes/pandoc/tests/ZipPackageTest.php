@@ -3809,6 +3809,47 @@ return [
         $t->same(['package-or-entry-comments'], $safeCommentPackage->strictImportPreflight(2048, 100.0, 2048)['diagnostics']);
     },
 
+    'rejects generated zip comment control bytes before package writing' => static function (TestRunner $t): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>generated package comment control bytes</w:p></w:document>',
+            ],
+        ], "source\0package"));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>generated entry comment control bytes</w:p></w:document>',
+                'comment' => "entry\x7freview",
+            ],
+        ]));
+
+        $package = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>safe generated comments still round trip</w:p></w:document>',
+                'comment' => 'reviewer comment',
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "comment-free media remains readable\n",
+                'compressionMethod' => 0,
+            ],
+        ], 'source package');
+        $summary = $package->commentPreflight();
+
+        $t->same(true, $summary['hasComments']);
+        $t->same(false, $summary['hasCommentControlBytes']);
+        $t->same(false, $summary['packageCommentHasControlBytes']);
+        $t->same([], $summary['packageCommentControlByteOffsets']);
+        $t->same(0, $summary['commentControlByteEntryCount']);
+        $t->same([], $summary['commentControlByteEntries']);
+        $t->same('source package', $summary['packageComment']);
+        $t->same('reviewer comment', $summary['commentedEntries'][0]['comment']);
+        $t->same(['package-or-entry-comments'], $package->strictImportPreflight(2048, 100.0, 2048)['diagnostics']);
+        $t->same("comment-free media remains readable\n", $package->read('word/media/review.txt'));
+    },
+
     'rejects unsafe raw zip names even when unicode path metadata is safe' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $safeUnicodePath = 'word/media/review.png';
         $absoluteRawName = '/word/media/review.png';

@@ -630,6 +630,29 @@ return [
         $t->true(!str_contains($combinedMathml, '<mi>\\bullet</mi>'));
         $t->true(!str_contains($combinedMathml, '<mi>\\asymp</mi>'));
     },
+    'converts bounded generated texmath operator and relation aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $boxedMathml = $converter->texToMathMl('a \\dotplus b + c \\boxplus d + e \\boxminus f + g \\boxtimes h + i \\boxdot j', true);
+        $squareRelationMathml = $converter->texToMathMl('A \\sqsubset B + C \\sqsupset D + E \\sqsubseteq F + G \\sqsupseteq H');
+        $approxRelationMathml = $converter->texToMathMl('x \\lesssim y + u \\gtrsim v + p \\lessapprox q + r \\gtrapprox s + m \\curlyeqprec n + o \\curlyeqsucc p');
+        $arrowRelationMathml = $converter->texToMathMl('p \\Bumpeq q + r \\bumpeq s + x \\rightsquigarrow y + a \\nRightarrow b + f \\twoheadrightarrow g + h \\hookrightarrow i + m \\nleq n + u \\ngeq v');
+        $accessibleMathml = $converter->texToAccessibleMathMl('a \\boxplus b + x \\rightsquigarrow y + m \\nleq n');
+        $combinedMathml = $boxedMathml . $squareRelationMathml . $approxRelationMathml . $arrowRelationMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $boxedMathml);
+        $t->contains('<mi>a</mi><mo>∔</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>⊞</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>⊟</mo><mi>f</mi><mo>+</mo><mi>g</mi><mo>⊠</mo><mi>h</mi><mo>+</mo><mi>i</mi><mo>⊡</mo><mi>j</mi>', $boxedMathml);
+        $t->contains('<annotation encoding="application/x-tex">a \\dotplus b + c \\boxplus d + e \\boxminus f + g \\boxtimes h + i \\boxdot j</annotation>', $boxedMathml);
+        $t->contains('<mi>A</mi><mo>⊏</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>⊐</mo><mi>D</mi><mo>+</mo><mi>E</mi><mo>⊑</mo><mi>F</mi><mo>+</mo><mi>G</mi><mo>⊒</mo><mi>H</mi>', $squareRelationMathml);
+        $t->contains('<mi>x</mi><mo>≲</mo><mi>y</mi><mo>+</mo><mi>u</mi><mo>≳</mo><mi>v</mi><mo>+</mo><mi>p</mi><mo>⪅</mo><mi>q</mi><mo>+</mo><mi>r</mi><mo>⪆</mo><mi>s</mi><mo>+</mo><mi>m</mi><mo>⋞</mo><mi>n</mi><mo>+</mo><mi>o</mi><mo>⋟</mo><mi>p</mi>', $approxRelationMathml);
+        $t->contains('<mi>p</mi><mo>≎</mo><mi>q</mi><mo>+</mo><mi>r</mi><mo>≏</mo><mi>s</mi><mo>+</mo><mi>x</mi><mo>⇝</mo><mi>y</mi><mo>+</mo><mi>a</mi><mo>⇏</mo><mi>b</mi><mo>+</mo><mi>f</mi><mo>↠</mo><mi>g</mi><mo>+</mo><mi>h</mi><mo>↪</mo><mi>i</mi><mo>+</mo><mi>m</mi><mo>≰</mo><mi>n</mi><mo>+</mo><mi>u</mi><mo>≱</mo><mi>v</mi>', $arrowRelationMathml);
+        $t->contains('<annotation encoding="application/x-tex">p \\Bumpeq q + r \\bumpeq s + x \\rightsquigarrow y + a \\nRightarrow b + f \\twoheadrightarrow g + h \\hookrightarrow i + m \\nleq n + u \\ngeq v</annotation>', $arrowRelationMathml);
+        $t->contains('alttext="a box plus b plus x right squiggle arrow y plus m not less than or equal to n"', $accessibleMathml);
+        $t->contains('intent="row(a,box_plus,b,plus,x,right_squiggle_arrow,y,plus,m,not_less_than_or_equal_to,n)"', $accessibleMathml);
+        $t->true(!str_contains($combinedMathml, '<mi>\\dotplus</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\sqsubset</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\lesssim</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\rightsquigarrow</mi>'));
+    },
     'converts bounded texmath symbol override aliases to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $identifierMathml = $converter->texToMathMl('\\arg z + \\hbar\\omega + \\digamma + \\varnothing', true);

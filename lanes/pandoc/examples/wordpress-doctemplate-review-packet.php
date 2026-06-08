@@ -481,6 +481,34 @@ HTML,
         }
     }
 
+    $latexPartialFallback = (new DocTemplate())->renderResource('review-packets/latex-partial-smoke.latex', [
+        'review-packets/latex-partial-smoke.latex' => <<<'LATEX'
+${ fonts.latex() }
+${ hypersetup.latex() }
+LATEX,
+    ], [
+        'fontenc' => 'T1',
+        'title-meta' => 'WordPress LaTeX Partial Review',
+        'author-meta' => 'Migration bot',
+        'lang' => 'en-US',
+        'keywords' => ['migration', 'review'],
+    ]);
+    foreach ([
+        '\\usepackage[T1]{fontenc}',
+        '\\usepackage{textcomp} % provide euro and other symbols',
+        '\\hypersetup{',
+        'pdftitle={WordPress LaTeX Partial Review},',
+        'pdfauthor={Migration bot},',
+        'pdflang={en-US},',
+        'pdfkeywords={\\xmpquote{migration}, \\xmpquote{review}},',
+        'pdfcreator={LaTeX via pandoc}}',
+    ] as $needle) {
+        if (!str_contains($latexPartialFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate LaTeX partial fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $chunkedDefault = (new DocTemplate())->renderResource('templates/default', [], [
         'lang' => 'en',
         'dir' => 'ltr',

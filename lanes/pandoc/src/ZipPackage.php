@@ -338,6 +338,7 @@ final class ZipPackage
     {
         self::assertUInt16Length($packageComment, 'ZIP package comment');
         self::assertUtf8($packageComment, 'ZIP package comment');
+        self::assertNoCommentControlBytes($packageComment, 'ZIP package comment');
         if (count($parts) > 0xffff) {
             throw new \RuntimeException('ZIP package writer cannot emit more than 65535 entries without ZIP64');
         }
@@ -400,6 +401,7 @@ final class ZipPackage
             }
             self::assertUtf8($comment, "ZIP entry {$name} comment");
             self::assertUInt16Length($comment, "ZIP entry comment {$name}");
+            self::assertNoCommentControlBytes($comment, "ZIP entry {$name} comment");
 
             $crc32 = self::unsignedCrc32($data);
             $compressedSize = strlen($compressed);
@@ -7791,6 +7793,18 @@ final class ZipPackage
         }
 
         return $offsets;
+    }
+
+    private static function assertNoCommentControlBytes(string $bytes, string $label): void
+    {
+        $offsets = self::rawControlByteOffsets($bytes);
+        if ($offsets === []) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            "{$label} must not contain raw C0 or DEL control bytes"
+        );
     }
 
     private static function unicodeTextFromExtraFieldData(string $extraFieldData, int $id, string $rawBytes, string $label): ?string

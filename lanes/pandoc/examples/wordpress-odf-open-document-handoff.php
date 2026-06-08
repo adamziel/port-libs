@@ -118,6 +118,10 @@ $contentXml = <<<'XML'
   xmlns:xml="http://www.w3.org/XML/1998/namespace">
   <office:body>
     <office:text>
+      <draw:layer-set>
+        <draw:layer draw:name="review-media" draw:display="screen" draw:protected="true"/>
+        <draw:layer draw:name="draft-notes" draw:display="none"/>
+      </draw:layer-set>
       <text:notes-configuration
         text:note-class="footnote"
         text:citation-style-name="Footnote_20_Symbol"
@@ -258,13 +262,13 @@ $contentXml = <<<'XML'
       <text:list text:style-name="ReviewSteps" text:continue-numbering="true">
         <text:list-item><text:p>Publish continued review checklist</text:p></text:list-item>
       </text:list>
-      <draw:frame draw:name="Source hero" draw:style-name="HeroFrame" text:anchor-type="paragraph" text:anchor-page-number="2" svg:x="1.2cm" svg:y="2.4cm" svg:width="6cm" svg:height="3.5cm" draw:z-index="5">
+      <draw:frame draw:name="Source hero" draw:style-name="HeroFrame" draw:layer="review-media" text:anchor-type="paragraph" text:anchor-page-number="2" svg:x="1.2cm" svg:y="2.4cm" svg:width="6cm" svg:height="3.5cm" draw:z-index="5">
         <draw:image xlink:href="../Pictures/source%20hero.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad">
           <svg:title>Source hero</svg:title>
           <svg:desc>ODT source hero alt</svg:desc>
         </draw:image>
       </draw:frame>
-      <draw:frame draw:name="Reviewer aside" draw:style-name="AsideFrame" text:anchor-type="paragraph" text:anchor-page-number="3" svg:x="2cm" svg:y="5cm" svg:width="7cm" svg:height="2cm" draw:z-index="6">
+      <draw:frame draw:name="Reviewer aside" draw:style-name="AsideFrame" draw:layer="draft-notes" text:anchor-type="paragraph" text:anchor-page-number="3" svg:x="2cm" svg:y="5cm" svg:width="7cm" svg:height="2cm" draw:z-index="6">
         <draw:text-box>
           <text:p>Anchored text box note for reviewers.</text:p>
         </draw:text-box>
@@ -458,6 +462,10 @@ if (($argv[1] ?? '') === '--self-test') {
         !is_array($frameMetadata)
         || ($frameMetadata['name'] ?? '') !== 'Source hero'
         || ($frameMetadata['styleName'] ?? '') !== 'HeroFrame'
+        || ($frameMetadata['layer'] ?? '') !== 'review-media'
+        || ($frameMetadata['layerExists'] ?? '') !== 'true'
+        || ($frameMetadata['layerDisplay'] ?? '') !== 'screen'
+        || ($frameMetadata['layerProtected'] ?? '') !== 'true'
         || ($frameMetadata['anchorType'] ?? '') !== 'paragraph'
         || ($frameMetadata['anchorPageNumber'] ?? '') !== '2'
         || ($frameMetadata['x'] ?? '') !== '1.2cm'
@@ -465,6 +473,18 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($frameMetadata['zIndex'] ?? '') !== '5'
     ) {
         throw new RuntimeException('Expected ODT image frame anchor metadata to survive AST handoff');
+    }
+    if (($result['contentDeclarations']['drawLayerCount'] ?? 0) !== 2
+        || (($result['contentDeclarations']['drawLayersByName']['review-media']['protected'] ?? null) !== true)
+        || (($result['contentDeclarations']['drawLayersByName']['draft-notes']['hidden'] ?? null) !== true)
+        || (($result['importReport']['content']['frameLayerReferenceCount'] ?? 0) !== 2)) {
+        throw new RuntimeException('Expected ODT drawing layers to survive content declaration and frame metadata handoff');
+    }
+    if (!str_contains($blocks, 'data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"')) {
+        throw new RuntimeException('Expected ODT image frame layer metadata to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, 'data-odf-frame-layer="draft-notes" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="none" data-odf-frame-layer-hidden="true"')) {
+        throw new RuntimeException('Expected ODT text-box layer metadata to render in WordPress blocks');
     }
     if (($result['importReport']['encryption']['encryptedParts'][0] ?? '') !== 'Pictures/source hero.png') {
         throw new RuntimeException('Expected ODT encrypted media to be listed in the import report');
@@ -885,10 +905,10 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($blocks, 'chart:bar')) {
         throw new RuntimeException('Expected ODT chart object XML to stay out of WordPress output');
     }
-    if (!str_contains($blocks, '<img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad" data-odf-frame-name="Source hero" data-odf-frame-style-name="HeroFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="2" data-odf-frame-x="1.2cm" data-odf-frame-y="2.4cm" data-odf-frame-z-index="5"/>')) {
+    if (!str_contains($blocks, '<img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad" data-odf-frame-name="Source hero" data-odf-frame-style-name="HeroFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="2" data-odf-frame-x="1.2cm" data-odf-frame-y="2.4cm" data-odf-frame-z-index="5" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"/>')) {
         throw new RuntimeException('Expected ODT image dimensions, xlink metadata, and frame anchor metadata to render in WordPress blocks');
     }
-    if (!str_contains($blocks, '<div class="odf-text-box" data-odf-frame-name="Reviewer aside" data-odf-frame-style-name="AsideFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="3" data-odf-frame-x="2cm" data-odf-frame-y="5cm" data-odf-frame-width="7cm" data-odf-frame-height="2cm" data-odf-frame-z-index="6"><p>Anchored text box note for reviewers.</p></div>')) {
+    if (!str_contains($blocks, '<div class="odf-text-box" data-odf-frame-name="Reviewer aside" data-odf-frame-style-name="AsideFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="3" data-odf-frame-x="2cm" data-odf-frame-y="5cm" data-odf-frame-width="7cm" data-odf-frame-height="2cm" data-odf-frame-z-index="6" data-odf-frame-layer="draft-notes" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="none" data-odf-frame-layer-hidden="true"><p>Anchored text box note for reviewers.</p></div>')) {
         throw new RuntimeException('Expected ODT text-box frame metadata to render in WordPress blocks');
     }
     if (str_contains($blocks, '../Pictures/source%20hero.png')) {

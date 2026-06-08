@@ -2484,6 +2484,173 @@ HTML;
         ], null, 'latex'));
     },
 
+    'renders bundled pandoc latex partial fallback resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+        $template = <<<'LATEX'
+${ document-metadata.latex() }
+${ passoptions.latex() }
+${ fonts.latex() }
+${ font-settings.latex() }
+${ common.latex() }
+$for(header-includes)$
+$header-includes$
+$endfor$
+${ after-header-includes.latex() }
+${ hypersetup.latex() }
+LATEX;
+
+        $latex = $renderer->renderResource('templates/review.latex', [
+            'templates/review.latex' => $template,
+        ], [
+            'pdfstandard' => [
+                'version' => '2.0',
+                'standards' => ['a-2b', 'ua-2'],
+                'tagging' => true,
+            ],
+            'lang' => 'en-US',
+            'hyperrefoptions' => ['pdfencoding=auto'],
+            'colorlinks' => true,
+            'CJKmainfont' => 'Noto Serif CJK',
+            'fontenc' => 'LY1',
+            'mainfont' => 'Alegreya',
+            'mainfontoptions' => ['Numbers=OldStyle'],
+            'mainfontfallback' => ['Noto Serif CJK', 'Noto Emoji'],
+            'sansfont' => 'Atkinson Hyperlegible',
+            'sansfontoptions' => ['Scale=MatchLowercase'],
+            'monofont' => 'JetBrains Mono',
+            'monofontoptions' => ['Scale=0.9'],
+            'fontfamilies' => [
+                [
+                    'name' => '\\reviewfont',
+                    'options' => ['Scale=0.95'],
+                    'font' => 'Review Serif',
+                ],
+            ],
+            'mathfont' => 'TeX Gyre Pagella Math',
+            'mathfontoptions' => ['Scale=MatchUppercase'],
+            'CJKoptions' => ['AutoFakeBold=true'],
+            'CJKsansfont' => 'Noto Sans CJK',
+            'CJKmonofont' => 'Noto Sans Mono CJK',
+            'luatexjapresetoptions' => ['noto-otc'],
+            'luatexjafontspecoptions' => ['match'],
+            'zero-width-non-joiner' => true,
+            'microtypeoptions' => ['protrusion=true'],
+            'linestretch' => '1.15',
+            'block-headings' => true,
+            'verbatim-in-note' => true,
+            'listings' => true,
+            'lhs' => true,
+            'highlighting-macros' => '\\newcommand{\\ReviewCode}[1]{#1}',
+            'tables' => true,
+            'multirow' => true,
+            'graphics' => true,
+            'svg' => true,
+            'strikeout' => true,
+            'csl-refs' => true,
+            'csl-hanging-indent' => true,
+            'babel-lang' => 'english',
+            'babeloptions' => ['main=english'],
+            'babelfonts' => [
+                'serif' => 'Alegreya',
+            ],
+            'pagestyle' => 'plain',
+            'subfigure' => true,
+            'dir' => 'rtl',
+            'natbib' => true,
+            'natbiboptions' => 'numbers',
+            'biblio-style' => 'plainnat',
+            'biblatex' => true,
+            'biblatexoptions' => ['backend=biber'],
+            'bibliography' => ['review.bib', 'archive.bib'],
+            'csquotes' => true,
+            'csquotesoptions' => ['autostyle'],
+            'header-includes' => ['\\usepackage{booktabs}'],
+            'urlstyle' => 'same',
+            'links-as-notes' => true,
+            'title-meta' => 'Review Packet',
+            'author-meta' => 'Migration bot',
+            'subject' => 'Migration review',
+            'keywords' => ['migration', 'wordpress'],
+            'linkcolor' => 'Maroon',
+            'filecolor' => 'ForestGreen',
+            'citecolor' => 'Blue',
+            'urlcolor' => 'MidnightBlue',
+        ]);
+
+        foreach ([
+            '\\DocumentMetadata{',
+            'pdfversion=2.0,',
+            'pdfstandard={a-2b,ua-2},',
+            'tagging=on,',
+            '\\PassOptionsToPackage{unicode,pdfencoding=auto}{hyperref}',
+            '\\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}',
+            '\\PassOptionsToPackage{space}{xeCJK}',
+            '\\usepackage[LY1]{fontenc}',
+            '\\usepackage{unicode-math} % this also loads fontspec',
+            '\\defaultfontfeatures{Scale=MatchLowercase}',
+            '\\setmainfont[Numbers=OldStyle,RawFeature={fallback=mainfontfallback}]{Alegreya}',
+            '\\directlua{luaotfload.add_fallback("mainfontfallback"',
+            '"Noto Serif CJK","Noto Emoji"',
+            '\\setsansfont[Scale=MatchLowercase]{Atkinson Hyperlegible}',
+            '\\setmonofont[Scale=0.9]{JetBrains Mono}',
+            '\\newfontfamily{\\reviewfont}[Scale=0.95]{Review Serif}',
+            '\\setmathfont[Scale=MatchUppercase]{TeX Gyre Pagella Math}',
+            '\\setCJKmainfont[AutoFakeBold=true]{Noto Serif CJK}',
+            '\\setCJKsansfont[AutoFakeBold=true]{Noto Sans CJK}',
+            '\\setCJKmonofont[AutoFakeBold=true]{Noto Sans Mono CJK}',
+            '\\usepackage[noto-otc]{luatexja-preset}',
+            '\\usepackage[match]{luatexja-fontspec}',
+            '\\setmainjfont[AutoFakeBold=true]{Noto Serif CJK}',
+            '\\def\\zerowidthnonjoiner',
+            '\\UseMicrotypeSet[protrusion]{basicmath}',
+            '\\usepackage{setspace}',
+            '\\paragraph',
+            '\\subparagraph',
+            '\\VerbatimFootnotes',
+            '\\usepackage{listings}',
+            '\\newcommand{\\ReviewCode}[1]{#1}',
+            '\\usepackage{longtable,booktabs,array}',
+            '\\usepackage{multirow}',
+            '\\usepackage{graphicx}',
+            '\\usepackage{svg}',
+            '\\usepackage{soul}',
+            '\\newlength{\\cslhangindent}',
+            '\\usepackage[bidi=basic,shorthands=off,main=english]{babel}',
+            '\\babelfont[serif]{rm}{Alegreya}',
+            '\\pagestyle{plain}',
+            '\\usepackage{subcaption}',
+            '\\TeXXeTstate=1',
+            '\\usepackage[numbers]{natbib}',
+            '\\bibliographystyle{plainnat}',
+            '\\usepackage[style=plainnat,backend=biber]{biblatex}',
+            '\\addbibresource{review.bib}',
+            '\\addbibresource{archive.bib}',
+            '\\usepackage[autostyle]{csquotes}',
+            '\\usepackage{booktabs}',
+            '\\usepackage{bookmark}',
+            '\\IfFileExists{xurl.sty}{\\usepackage{xurl}}{}',
+            '\\urlstyle{same}',
+            '\\DeclareRobustCommand{\\href}[2]{#2\\footnote{\\url{#1}}}',
+            'pdftitle={Review Packet},',
+            'pdfauthor={Migration bot},',
+            'pdflang={en-US},',
+            'pdfsubject={Migration review},',
+            'pdfkeywords={\\xmpquote{migration}, \\xmpquote{wordpress}},',
+            'linkcolor={Maroon},',
+            'filecolor={ForestGreen},',
+            'citecolor={Blue},',
+            'urlcolor={MidnightBlue},',
+            'pdfcreator={LaTeX via pandoc}}',
+        ] as $needle) {
+            $t->contains($needle, $latex);
+        }
+
+        $t->same('% custom fonts', $renderer->renderResource('templates/review.latex', [
+            'templates/review.latex' => '${ fonts.latex() }',
+            'templates/fonts.latex' => '% custom fonts',
+        ], []));
+    },
+
     'renders bounded pandoc default context template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
