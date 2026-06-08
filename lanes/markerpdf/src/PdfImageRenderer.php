@@ -9686,10 +9686,11 @@ final class PdfImageRenderer
             return null;
         }
 
+        $decodedPrefixReview = $this->rawJpegPreviewPayloadBytesForReview($decodedPrefix) ?? $decodedPrefix;
         $prefixBoundary = $this->dctPreviewStreamBoundaryReview(
             $resolvedFilters,
             $stream,
-            $decodedPrefix,
+            $decodedPrefixReview,
             true,
             $nativePrefixFilters,
             $resolvedFilters[$dctFilterIndex] ?? 'DCTDecode'

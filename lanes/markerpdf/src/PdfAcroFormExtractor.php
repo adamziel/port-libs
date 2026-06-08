@@ -10677,13 +10677,13 @@ final class PdfAcroFormExtractor
             return null;
         }
 
+        if ($this->topLevelValueSpanHasTrailingOperand($catalog, $span)) {
+            return null;
+        }
+
         $value = $span['value'];
         $value = trim($value);
         if (str_starts_with($value, '<<')) {
-            if ($this->topLevelValueSpanHasTrailingOperand($catalog, $span)) {
-                return null;
-            }
-
             return $this->readPdfDictionaryAt($value, 0);
         }
 

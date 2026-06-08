@@ -11023,10 +11023,11 @@ final class PdfTextExtractor
             return null;
         }
 
+        $decodedPrefixReview = $this->rawJpegPreviewPayloadBytesForReview($decodedPrefix) ?? $decodedPrefix;
         $prefixBoundary = $this->dctPreviewStreamBoundaryReview(
             $resolvedFilters,
             $stream,
-            $decodedPrefix,
+            $decodedPrefixReview,
             true,
             $nativePrefixFilters,
             (string) ($filters[$dctFilterIndex] ?? 'DCTDecode')
