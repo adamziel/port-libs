@@ -5053,7 +5053,7 @@ final class PdfTextExtractor
      * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}> $baseStates
      * @param array<string, array<string, mixed>> $graphicsStateResourceReviews
      * @param array<string, array{actualText: string|null, altText: string|null, mcid: int|null}> $markedContentProperties
-     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, path_bbox?: list<float>, paint_kind?: string, stroke_width?: float|null, stroke_width_expanded?: bool, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, graphics_state_paint_suppression_reason?: string|null, geometry_paint_suppression_reason?: string|null, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}>>
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, path_bbox?: list<float>, paint_kind?: string, stroke_width?: float|null, stroke_width_expanded?: bool, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, graphics_state_paint_suppression_reason?: string|null, geometry_paint_suppression_reason?: string|null, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>, malformed_ctm_operands?: list<array<string, mixed>>}>>
      */
     private function contentXObjectInvocationDetails(
         string $content,
@@ -5156,6 +5156,15 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($token === 'cm' && $this->contentMatrixOperand($operands) === null) {
+                $malformedCtmOperand = $this->malformedImageXObjectCtmOperandDetail($operands, $currentStates);
+                foreach ($currentStates as $index => $state) {
+                    $stack = $this->imageInvocationMalformedCtmOperandStack($state['malformed_ctm_operands'] ?? []);
+                    $stack[] = $malformedCtmOperand;
+                    $currentStates[$index]['malformed_ctm_operands'] = $stack;
+                }
+            }
+
             $clipPathOperatorHandled = false;
             foreach ($currentStates as $index => $state) {
                 $matrix = $state['matrix'];
@@ -5235,6 +5244,7 @@ final class PdfTextExtractor
                             'geometry_paint_suppression_reason' => $geometryPaintSuppressionReason,
                             'marked_content' => $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []),
                             'form_transparency_groups' => $this->imageInvocationFormTransparencyGroupStack($state['form_transparency_groups'] ?? []),
+                            'malformed_ctm_operands' => $this->imageInvocationMalformedCtmOperandStack($state['malformed_ctm_operands'] ?? []),
                         ];
                         $reviewGraphicsState = $this->nonDefaultInvocationGraphicsState($graphicsState);
                         if ($reviewGraphicsState !== null) {
@@ -5246,6 +5256,9 @@ final class PdfTextExtractor
                     if ($malformed !== null) {
                         $malformedInvocations[$malformed['resource_name']][] = $malformed['detail'];
                     }
+                }
+                foreach ($currentStates as $index => $state) {
+                    $currentStates[$index]['malformed_ctm_operands'] = [];
                 }
                 $operands = [];
                 continue;
@@ -5259,6 +5272,48 @@ final class PdfTextExtractor
         }
 
         return $invocations;
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param list<array<string, mixed>> $currentStates
+     * @return array<string, mixed>
+     */
+    private function malformedImageXObjectCtmOperandDetail(array $operands, array $currentStates): array
+    {
+        $matrices = [];
+        $bboxes = [];
+        foreach ($currentStates as $state) {
+            $matrix = $state['matrix'] ?? null;
+            if (!is_array($matrix) || count($matrix) < 6) {
+                continue;
+            }
+
+            $normalizedMatrix = $this->normalizedPdfReviewNumbers(array_slice($matrix, 0, 6));
+            $matrices[] = $normalizedMatrix;
+            $bboxes[] = $this->imageUnitBboxForMatrix($normalizedMatrix);
+        }
+
+        return [
+            'reason' => 'malformed_ctm_operands',
+            'operator' => 'cm',
+            'expected_operand_count' => 6,
+            'operand_count' => count($operands),
+            'operand_types' => array_map(
+                fn (string $operand): string => $this->contentOperandReviewType($operand),
+                $operands
+            ),
+            'operand_previews' => array_map(
+                fn (string $operand): string => $this->contentOperandPreview($operand),
+                $operands
+            ),
+            'matrices_before_operator' => $matrices,
+            'bboxes_before_operator' => $bboxes,
+            'matrix_unchanged' => true,
+            'paints_image' => false,
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ];
     }
 
     /**
@@ -5377,6 +5432,46 @@ final class PdfTextExtractor
                 'bboxes' => $bboxes,
                 'clip_bboxes' => $clipBboxes,
                 'visible_bboxes' => $visibleBboxes,
+                'paints_image' => false,
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        return $reviews;
+    }
+
+    private function imageInvocationMalformedCtmOperandStack(mixed $stack): array
+    {
+        if (!is_array($stack)) {
+            return [];
+        }
+
+        return array_values(array_filter($stack, static fn (mixed $entry): bool => is_array($entry)));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     * @return list<array<string, mixed>>
+     */
+    private function imageXObjectMalformedCtmOperandReviews(array $details): array
+    {
+        $reviews = [];
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $reviews[] = [
+                'reason' => is_string($detail['reason'] ?? null) ? $detail['reason'] : 'malformed_ctm_operands',
+                'operator' => 'cm',
+                'expected_operand_count' => 6,
+                'operand_count' => is_int($detail['operand_count'] ?? null) ? $detail['operand_count'] : 0,
+                'operand_types' => $this->stringList($detail['operand_types'] ?? []),
+                'operand_previews' => $this->stringList($detail['operand_previews'] ?? []),
+                'matrices_before_operator' => $this->normalizedPdfMatrixList($detail['matrices_before_operator'] ?? []),
+                'bboxes_before_operator' => $this->normalizedPdfRectangleList($detail['bboxes_before_operator'] ?? []),
+                'matrix_unchanged' => ($detail['matrix_unchanged'] ?? false) === true,
                 'paints_image' => false,
                 'payload_in_visible_text' => false,
                 'review_only' => true,
@@ -5890,6 +5985,7 @@ final class PdfTextExtractor
                 'graphics_state' => $this->defaultInvocationGraphicsState(),
                 'marked_content' => [],
                 'form_transparency_groups' => [],
+                'malformed_ctm_operands' => [],
             ]];
         }
 
@@ -5914,6 +6010,7 @@ final class PdfTextExtractor
                 'graphics_state' => $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null),
                 'marked_content' => $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []),
                 'form_transparency_groups' => $this->imageInvocationFormTransparencyGroupStack($state['form_transparency_groups'] ?? []),
+                'malformed_ctm_operands' => $this->imageInvocationMalformedCtmOperandStack($state['malformed_ctm_operands'] ?? []),
             ];
         }
 
@@ -5926,6 +6023,7 @@ final class PdfTextExtractor
             'graphics_state' => $this->defaultInvocationGraphicsState(),
             'marked_content' => [],
             'form_transparency_groups' => [],
+            'malformed_ctm_operands' => [],
         ]] : $normalized;
     }
 
@@ -7284,6 +7382,7 @@ final class PdfTextExtractor
                     'graphics_state' => $detail['graphics_state'] ?? null,
                     'marked_content' => $detail['marked_content'] ?? [],
                     'form_transparency_groups' => $formTransparencyGroups,
+                    'malformed_ctm_operands' => $detail['malformed_ctm_operands'] ?? [],
                 ];
             }
             foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
@@ -7578,6 +7677,7 @@ final class PdfTextExtractor
         $invocationGraphicsStates = [];
         $invocationMarkedContent = [];
         $invocationFormTransparencyGroups = [];
+        $invocationMalformedCtmOperands = [];
         $formTransparencyGroupCount = 0;
         $imageMaskPaintColors = [];
         $clipApplied = false;
@@ -7644,6 +7744,9 @@ final class PdfTextExtractor
                     )),
                     'review_only' => true,
                 ];
+            }
+            foreach ($this->imageInvocationMalformedCtmOperandStack($detail['malformed_ctm_operands'] ?? []) as $malformedCtmOperand) {
+                $invocationMalformedCtmOperands[] = $malformedCtmOperand;
             }
             $markedContentStack = $this->imageInvocationMarkedContentStack($detail['marked_content'] ?? []);
             if ($markedContentStack !== []) {
@@ -7784,6 +7887,7 @@ final class PdfTextExtractor
             $filters
         );
         $malformedDoOperands = $this->imageXObjectMalformedDoOperandReviews($malformedInvocationDetails);
+        $malformedCtmOperands = $this->imageXObjectMalformedCtmOperandReviews($invocationMalformedCtmOperands);
 
         return [
             'page_index' => $pageIndex,
@@ -7838,6 +7942,12 @@ final class PdfTextExtractor
                 ? null
                 : 'reject_malformed_image_xobject_do_operands',
             'malformed_do_operand_review_only' => $malformedDoOperands !== [],
+            'malformed_ctm_operand_count' => count($malformedCtmOperands),
+            'malformed_ctm_operands' => $malformedCtmOperands,
+            'malformed_ctm_operand_policy' => $malformedCtmOperands === []
+                ? null
+                : 'preserve_prior_ctm_and_review_image_placement',
+            'malformed_ctm_operand_review_only' => $malformedCtmOperands !== [],
             'invocation_form_transparency_groups' => $invocationFormTransparencyGroups,
             'form_transparency_group_review_only' => $invocationFormTransparencyGroups !== [],
             'form_transparency_group_count' => $formTransparencyGroupCount,

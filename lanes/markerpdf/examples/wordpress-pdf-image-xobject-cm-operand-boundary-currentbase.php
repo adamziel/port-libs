@@ -42,8 +42,12 @@ if (
     || ($review['uninvoked_image_xobject_count'] ?? 0) !== 0
     || ($entriesByName['Malformed Cm Image']['invocation_matrices'][0] ?? null) !== [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
     || ($entriesByName['Malformed Cm Image']['image_unit_bbox'] ?? null) !== [0.0, 0.0, 1.0, 1.0]
+    || ($entriesByName['Malformed Cm Image']['malformed_ctm_operand_count'] ?? null) !== 1
+    || ($entriesByName['Malformed Cm Image']['malformed_ctm_operand_review_only'] ?? false) !== true
+    || ($entriesByName['Malformed Cm Image']['malformed_ctm_operand_policy'] ?? null) !== 'preserve_prior_ctm_and_review_image_placement'
     || ($entriesByName['Valid Cm Image']['invocation_matrices'][0] ?? null) !== [14.0, 0.0, 0.0, 7.0, 110.0, 690.0]
     || ($entriesByName['Valid Cm Image']['decoded_sha256'] ?? null) !== hash('sha256', $validPayload)
+    || ($entriesByName['Valid Cm Image']['malformed_ctm_operand_count'] ?? null) !== 0
     || str_contains($plainText, 'WordPress Malformed Cm Image Payload Noise')
     || str_contains($plainText, 'WordPress Valid Cm Image Payload Noise')
 ) {
@@ -59,8 +63,14 @@ $metadata = [
     'invoked_image_xobject_count' => $review['invoked_image_xobject_count'],
     'uninvoked_image_xobject_count' => $review['uninvoked_image_xobject_count'],
     'malformed_cm_transform_rejected' => ($entriesByName['Malformed Cm Image']['invocation_matrices'][0] ?? null) === [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+    'malformed_cm_operand_count' => $entriesByName['Malformed Cm Image']['malformed_ctm_operand_count'] ?? null,
+    'malformed_cm_operand_review_only' => $entriesByName['Malformed Cm Image']['malformed_ctm_operand_review_only'] ?? false,
+    'malformed_cm_operand_policy' => $entriesByName['Malformed Cm Image']['malformed_ctm_operand_policy'] ?? null,
+    'malformed_cm_operand_types' => $entriesByName['Malformed Cm Image']['malformed_ctm_operands'][0]['operand_types'] ?? [],
+    'malformed_cm_matrix_unchanged' => $entriesByName['Malformed Cm Image']['malformed_ctm_operands'][0]['matrix_unchanged'] ?? null,
     'malformed_cm_bbox' => $entriesByName['Malformed Cm Image']['image_unit_bbox'] ?? null,
     'valid_sibling_image_painted' => ($entriesByName['Valid Cm Image']['invoked'] ?? false) === true,
+    'valid_sibling_malformed_cm_operand_count' => $entriesByName['Valid Cm Image']['malformed_ctm_operand_count'] ?? null,
     'valid_sibling_bbox' => $entriesByName['Valid Cm Image']['image_unit_bbox'] ?? null,
     'payload_in_visible_text' => str_contains($plainText, 'WordPress Malformed Cm Image Payload Noise')
         || str_contains($plainText, 'WordPress Valid Cm Image Payload Noise'),
