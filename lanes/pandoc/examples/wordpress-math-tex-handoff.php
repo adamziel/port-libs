@@ -100,6 +100,8 @@ AMS layout audit $\begin{align}f(p_i) &= m_i \\ g(p_i) &= \frac{a_i}{b_i}\end{al
 
 Alignedat audit $\begin{alignedat}{2}p_i &= m_i & a_i &= b_i \\ x &= y & u &= v\end{alignedat}$ stays semantic.
 
+Intertext audit $\begin{align}p_i &= m_i \\ \intertext{review \& media} x_i &= y_i \\ \shortintertext{compact review} u_i &= v_i\end{align}$ stays semantic.
+
 Optional AMS placement audit $\begin{aligned}[t]p_i &= m_i \\ x &= y\end{aligned} + \begin{gathered}[b]u+v \\ w\end{gathered} + \begin{alignedat}[c]{2}a &= b & c &= d\end{alignedat}$ stays semantic.
 
 Flush alignment audit $\begin{flalign}\text{source} && p_i &= m_i && \text{review} \\ \text{target} && x_i &= y_i \tag{WP-F}\end{flalign}$ stays semantic.
@@ -237,6 +239,7 @@ $summary = [
     'mathClassMathml' => $converter->texToMathMl('\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathopen{[}q_i\\mathclose{]} + f\\mathpunct{,}g'),
     'amsEnvironmentMathml' => $converter->texToMathMl('\\begin{align}f(p_i) &= m_i \\\\ g(p_i) &= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &= \\sum_{i=1}^{n} p_i \\\\ &= \\frac{a}{b}\\end{split}'),
     'alignedAtMathml' => $converter->texToMathMl('\\begin{alignedat}{2}p_i &= m_i & a_i &= b_i \\\\ x &= y & u &= v\\end{alignedat}'),
+    'intertextMathml' => $converter->texToMathMl('\\begin{align}p_i &= m_i \\\\ \\intertext{review \\& media} x_i &= y_i \\\\ \\shortintertext{compact review} u_i &= v_i\\end{align}', true),
     'optionalAmsPlacementMathml' => $converter->texToMathMl('\\begin{aligned}[t]p_i &= m_i \\\\ x &= y\\end{aligned} + \\begin{gathered}[b]u+v \\\\ w\\end{gathered} + \\begin{alignedat}[c]{2}a &= b & c &= d\\end{alignedat}'),
     'flalignMathml' => $converter->texToMathMl('\\begin{flalign}\\text{source} && p_i &= m_i && \\text{review} \\\\ \\text{target} && x_i &= y_i \\tag{WP-F}\\end{flalign}', true),
     'eqnarrayMathml' => $converter->texToMathMl('\\begin{eqnarray}p_i &=& m_i \\\\ x_i &=& y_i \\tag{WP-E}\\end{eqnarray}', true),
@@ -356,6 +359,15 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Math TeX handoff self-test did not preserve optional row-spacing metadata');
     }
 
+    if (
+        str_contains($summary['intertextMathml'], '<mi>\\intertext</mi>')
+        || str_contains($summary['intertextMathml'], '<mi>\\shortintertext</mi>')
+        || !str_contains($summary['intertextMathml'], '<mtr data-tex-intertext="normal"><mtd columnspan="2"><mtext>review &amp; media</mtext></mtd></mtr>')
+        || !str_contains($summary['intertextMathml'], '<mtr data-tex-intertext="short"><mtd columnspan="2"><mtext>compact review</mtext></mtd></mtr>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not preserve AMS intertext rows');
+    }
+
     if (str_contains($summary['dotRelationSymbolAliasMathml'], '<mi>\\ldots</mi>') || str_contains($summary['dotRelationSymbolAliasMathml'], '<mi>\\cong</mi>')) {
         throw new RuntimeException('Math TeX handoff self-test emitted dot/relation symbol aliases as literal identifiers');
     }
@@ -449,6 +461,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathopen{[}q_i\\mathclose{]} + f\\mathpunct{,}g\\)</span>',
         '<span class="math inline">\\(\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}\\)</span>',
         '<span class="math inline">\\(\\begin{alignedat}{2}p_i &amp;= m_i &amp; a_i &amp;= b_i \\\\ x &amp;= y &amp; u &amp;= v\\end{alignedat}\\)</span>',
+        '<span class="math inline">\\(\\begin{align}p_i &amp;= m_i \\\\ \\intertext{review \\&amp; media} x_i &amp;= y_i \\\\ \\shortintertext{compact review} u_i &amp;= v_i\\end{align}\\)</span>',
         '<span class="math inline">\\(\\begin{aligned}[t]p_i &amp;= m_i \\\\ x &amp;= y\\end{aligned} + \\begin{gathered}[b]u+v \\\\ w\\end{gathered} + \\begin{alignedat}[c]{2}a &amp;= b &amp; c &amp;= d\\end{alignedat}\\)</span>',
         '<span class="math inline">\\(\\begin{flalign}\\text{source} &amp;&amp; p_i &amp;= m_i &amp;&amp; \\text{review} \\\\ \\text{target} &amp;&amp; x_i &amp;= y_i \\tag{WP-F}\\end{flalign}\\)</span>',
         '<span class="math inline">\\(\\begin{eqnarray}p_i &amp;=&amp; m_i \\\\ x_i &amp;=&amp; y_i \\tag{WP-E}\\end{eqnarray}\\)</span>',
@@ -651,6 +664,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx</annotation>',
         '<annotation encoding="application/x-tex">\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}</annotation>',
         '<annotation encoding="application/x-tex">\\begin{alignedat}{2}p_i &amp;= m_i &amp; a_i &amp;= b_i \\\\ x &amp;= y &amp; u &amp;= v\\end{alignedat}</annotation>',
+        '<mtr data-tex-intertext="normal"><mtd columnspan="2"><mtext>review &amp; media</mtext></mtd></mtr>',
+        '<mtr data-tex-intertext="short"><mtd columnspan="2"><mtext>compact review</mtext></mtd></mtr>',
+        '<annotation encoding="application/x-tex">\\begin{align}p_i &amp;= m_i \\\\ \\intertext{review \\&amp; media} x_i &amp;= y_i \\\\ \\shortintertext{compact review} u_i &amp;= v_i\\end{align}</annotation>',
         '<mtable columnalign="right left" align="top" data-tex-env-position="top"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mi>x</mi></mtd><mtd><mo>=</mo><mi>y</mi></mtd></mtr></mtable>',
         '<mtable columnalign="center" align="bottom" data-tex-env-position="bottom"><mtr><mtd><mi>u</mi><mo>+</mo><mi>v</mi></mtd></mtr><mtr><mtd><mi>w</mi></mtd></mtr></mtable>',
         '<mtable columnalign="right left right left" align="center" data-tex-env-position="center"><mtr><mtd><mi>a</mi></mtd><mtd><mo>=</mo><mi>b</mi></mtd><mtd><mi>c</mi></mtd><mtd><mo>=</mo><mi>d</mi></mtd></mtr></mtable>',

@@ -769,6 +769,25 @@ return [
         $t->contains('<mtable columnalign="right left right left"><mtr><mtd><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></mtd><mtd><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><mi>x</mi><mo>+</mo><mn>1</mn></mtd></mtr></mtable>', $alignAtMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{alignat*}{2}f(x) &amp;= x^2 &amp; g(x) &amp;= x + 1\\end{alignat*}</annotation>', $alignAtMathml);
     },
+    'converts bounded tex ams intertext rows to mathml metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $alignMathml = $converter->texToMathMl('\\begin{align}p_i &= m_i \\\\ \\intertext{review \\& media} x_i &= y_i \\tag{I}\\end{align}', true);
+        $alignedAtMathml = $converter->texToMathMl('\\begin{alignat}{2}a &= b & c &= d \\\\ \\shortintertext{compact review} u &= v & w &= z\\end{alignat}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\begin{align}p_i &= m_i \\\\ \\intertext{review note} x_i &= y_i\\end{align}', true);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $alignMathml);
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr data-tex-intertext="normal"><mtd columnspan="2"><mtext>review &amp; media</mtext></mtd></mtr><mlabeledtr><mtd><mtext>(I)</mtext></mtd><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub></mtd></mlabeledtr></mtable>', $alignMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{align}p_i &amp;= m_i \\\\ \\intertext{review \\&amp; media} x_i &amp;= y_i \\tag{I}\\end{align}</annotation>', $alignMathml);
+        $t->contains('<mtable columnalign="right left right left"><mtr><mtd><mi>a</mi></mtd><mtd><mo>=</mo><mi>b</mi></mtd><mtd><mi>c</mi></mtd><mtd><mo>=</mo><mi>d</mi></mtd></mtr><mtr data-tex-intertext="short"><mtd columnspan="4"><mtext>compact review</mtext></mtd></mtr><mtr><mtd><mi>u</mi></mtd><mtd><mo>=</mo><mi>v</mi></mtd><mtd><mi>w</mi></mtd><mtd><mo>=</mo><mi>z</mi></mtd></mtr></mtable>', $alignedAtMathml);
+        $t->contains('alttext="table row p sub i, equals m sub i; row review note; row x sub i, equals y sub i"', $accessibleMathml);
+        $t->true(!str_contains($alignMathml . $alignedAtMathml, '<mi>\\intertext</mi>'));
+        $t->true(!str_contains($alignMathml . $alignedAtMathml, '<mi>\\shortintertext</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}\\intertext{bad} p &= q\\end{align}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}p &= q \\intertext{bad} \\\\ r &= s\\end{align}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}p &= q \\\\ \\intertext{} r &= s\\end{align}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}p &= q \\\\ \\intertext{tail}\\end{align}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}p &= q \\\\ \\intertext{review \\label{bad}} r &= s\\end{align}'));
+    },
     'converts bounded tex optional ams environment positions to mathml metadata' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $alignedTop = $converter->texToMathMl('\\begin{aligned}[t]p_i &= m_i \\\\ x &= y\\end{aligned}', true);

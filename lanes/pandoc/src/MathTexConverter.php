@@ -595,6 +595,18 @@ final class MathTexConverter
     ];
 
     /** @var array<string, true> */
+    private const AMS_INTERTEXT_ENVIRONMENTS = [
+        'align' => true,
+        'align*' => true,
+        'alignat' => true,
+        'alignat*' => true,
+        'flalign' => true,
+        'flalign*' => true,
+    ];
+
+    private const INTERTEXT_ROW_MARKER = '__portlibs_tex_intertext_row__';
+
+    /** @var array<string, true> */
     private const AMS_OPTIONAL_POSITION_ENVIRONMENTS = [
         'aligned' => true,
         'alignedat' => true,
@@ -2887,7 +2899,7 @@ final class MathTexConverter
         $this->validateAmsRowEnvironmentRows($rows, $environment, $spec['columns']);
         $rowSpacingAttributes = $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc($spec['columnalign']) . '"' . $positionAttributes . $rowSpacingAttributes, true, $environment);
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($spec['columnalign']) . '"' . $positionAttributes . $rowSpacingAttributes, true, $environment, null, $spec['columns']);
     }
 
     private function parseAmsAlignedAtEnvironment(string $source, int &$offset, string $environment): string
@@ -2904,7 +2916,7 @@ final class MathTexConverter
         $this->validateAmsRowEnvironmentRows($rows, $environment, $pairs * 2);
         $rowSpacingAttributes = $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc(implode(' ', array_fill(0, $pairs, 'right left'))) . '"' . $positionAttributes . $rowSpacingAttributes, true, $environment);
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc(implode(' ', array_fill(0, $pairs, 'right left'))) . '"' . $positionAttributes . $rowSpacingAttributes, true, $environment, null, $pairs * 2);
     }
 
     private function parseAmsFlushAlignedEnvironment(string $source, int &$offset, string $environment): string
@@ -2920,7 +2932,7 @@ final class MathTexConverter
         $columns = $this->validateAmsFlushAlignedRows($rows, $environment);
         $rowSpacingAttributes = $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc($this->flushAlignedColumnAlign($columns)) . '"' . $positionAttributes . $rowSpacingAttributes, true, $environment);
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($this->flushAlignedColumnAlign($columns)) . '"' . $positionAttributes . $rowSpacingAttributes, true, $environment, null, $columns);
     }
 
     private function parseEqnarrayEnvironment(string $source, int &$offset, string $environment): string
@@ -2935,7 +2947,7 @@ final class MathTexConverter
         $this->validateAmsRowEnvironmentRows($rows, $environment, 3);
         $rowSpacingAttributes = $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
-        return $this->environmentTable($rows, ' columnalign="right center left"' . $rowSpacingAttributes, true, $environment);
+        return $this->environmentTable($rows, ' columnalign="right center left"' . $rowSpacingAttributes, true, $environment, null, 3);
     }
 
     private function parseTextModeCommand(string $source, int &$offset, string $command): string
@@ -3893,6 +3905,10 @@ final class MathTexConverter
     private function validateAmsRowEnvironmentRows(array $rows, string $environment, int $columns): void
     {
         foreach ($rows as $rowIndex => $row) {
+            if ($this->validateIntertextRowPosition($rows, $rowIndex, $environment)) {
+                continue;
+            }
+
             if (count($row) !== $columns) {
                 throw new \InvalidArgumentException('Expected ' . $columns . '-column TeX ' . $environment . ' row at row ' . ($rowIndex + 1));
             }
@@ -3918,6 +3934,10 @@ final class MathTexConverter
     {
         $columns = 0;
         foreach ($rows as $rowIndex => $row) {
+            if ($this->validateIntertextRowPosition($rows, $rowIndex, $environment)) {
+                continue;
+            }
+
             $rowColumns = count($row);
             if ($rowColumns < 2) {
                 throw new \InvalidArgumentException('Expected TeX ' . $environment . ' alignment markers at row ' . ($rowIndex + 1));
@@ -3943,6 +3963,37 @@ final class MathTexConverter
         }
 
         return $columns;
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     */
+    private function validateIntertextRowPosition(array $rows, int $rowIndex, string $environment): bool
+    {
+        $row = $rows[$rowIndex] ?? [];
+        if (!self::isIntertextRow($row)) {
+            return false;
+        }
+
+        $rowNumber = $rowIndex + 1;
+        if (
+            $rowIndex === 0
+            || $rowIndex === count($rows) - 1
+            || self::isIntertextRow($rows[$rowIndex - 1] ?? [])
+            || self::isIntertextRow($rows[$rowIndex + 1] ?? [])
+        ) {
+            throw new \InvalidArgumentException('Expected TeX ' . $environment . ' intertext between equation rows at row ' . $rowNumber);
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $row
+     */
+    private static function isIntertextRow(array $row): bool
+    {
+        return count($row) === 3 && ($row[0] ?? '') === self::INTERTEXT_ROW_MARKER;
     }
 
     private function flushAlignedColumnAlign(int $columns): string
@@ -4564,10 +4615,15 @@ final class MathTexConverter
     /**
      * @param list<list<string>> $rows
      */
-    private function environmentTable(array $rows, string $attributes, bool $allowRowMetadata = false, string $environment = '', ?int $arrayColumnCount = null): string
+    private function environmentTable(array $rows, string $attributes, bool $allowRowMetadata = false, string $environment = '', ?int $arrayColumnCount = null, ?int $intertextColumnCount = null): string
     {
         $table = '<mtable' . $attributes . '>';
         foreach ($rows as $rowIndex => $row) {
+            if (self::isIntertextRow($row)) {
+                $table .= $this->renderIntertextRow($row, $intertextColumnCount);
+                continue;
+            }
+
             $metadata = [
                 'labelId' => null,
                 'tag' => null,
@@ -4621,6 +4677,17 @@ final class MathTexConverter
         }
 
         return $table . '</mtable>';
+    }
+
+    /**
+     * @param list<string> $row
+     */
+    private function renderIntertextRow(array $row, ?int $columnCount): string
+    {
+        $kind = ($row[1] ?? '') === 'shortintertext' ? 'short' : 'normal';
+        $columnSpan = $columnCount !== null && $columnCount > 0 ? ' columnspan="' . $columnCount . '"' : '';
+
+        return '<mtr data-tex-intertext="' . $kind . '"><mtd' . $columnSpan . '><mtext>' . $this->esc($row[2] ?? '') . '</mtext></mtd></mtr>';
     }
 
     /**
@@ -5043,6 +5110,10 @@ final class MathTexConverter
     private function collectEquationReferenceLabelsFromEnvironmentRows(array $rows, string $environment, array &$labels, int &$nextAutomaticNumber, bool $numberUntagged): void
     {
         foreach ($rows as $rowIndex => $row) {
+            if (self::isIntertextRow($row)) {
+                continue;
+            }
+
             $parsed = $this->extractEnvironmentRowMetadata($row, $environment, $rowIndex);
             if ($parsed['label'] !== null) {
                 $automaticReference = null;
@@ -5234,6 +5305,18 @@ final class MathTexConverter
                     continue;
                 }
 
+                $intertext = $depth === 0 ? $this->readIntertextRowCommand($content, $offset, $environment) : null;
+                if ($intertext !== null) {
+                    if (trim($cell) !== '' || $row !== [] || $rows === [] || self::isIntertextRow($rows[count($rows) - 1])) {
+                        throw new \InvalidArgumentException('Expected TeX ' . $environment . ' intertext after row separator at offset ' . $offset);
+                    }
+
+                    $rows[] = [self::INTERTEXT_ROW_MARKER, $intertext['command'], $intertext['text']];
+                    $cell = '';
+                    $offset = $intertext['next'];
+                    continue;
+                }
+
                 $cell .= $char;
                 $offset++;
                 if (($content[$offset] ?? '') !== '' && !ctype_alpha($content[$offset])) {
@@ -5296,6 +5379,88 @@ final class MathTexConverter
             'rows' => $rows,
             'rowSpacing' => $rowSpacing,
         ];
+    }
+
+    /**
+     * @return array{command:string, text:string, next:int}|null
+     */
+    private function readIntertextRowCommand(string $content, int $offset, string $environment): ?array
+    {
+        if (!isset(self::AMS_INTERTEXT_ENVIRONMENTS[$environment]) || ($content[$offset] ?? '') !== '\\') {
+            return null;
+        }
+
+        $cursor = $offset + 1;
+        try {
+            $command = $this->readCommandName($content, $cursor);
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+
+        if ($command !== 'intertext' && $command !== 'shortintertext') {
+            return null;
+        }
+
+        $this->skipWhitespace($content, $cursor);
+        $argument = $this->readTexBraceArgument($content, $cursor);
+        if ($argument === null) {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' text group at offset ' . $cursor);
+        }
+
+        return [
+            'command' => $command,
+            'text' => $this->normalizeIntertextContent($argument['value'], $command),
+            'next' => $argument['next'],
+        ];
+    }
+
+    private function normalizeIntertextContent(string $text, string $command): string
+    {
+        $this->assertIntertextTextSource($text, $command);
+        $normalized = trim(preg_replace('/\s+/', ' ', $this->normalizeTextModeContent($text)) ?? '');
+        if ($normalized === '') {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' text content');
+        }
+
+        return $normalized;
+    }
+
+    private function assertIntertextTextSource(string $text, string $command): void
+    {
+        $offset = 0;
+        $length = strlen($text);
+        while ($offset < $length) {
+            $char = $text[$offset];
+            if ($char === '&') {
+                throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' alignment marker');
+            }
+
+            if ($char !== '\\') {
+                $offset++;
+                continue;
+            }
+
+            $offset++;
+            $escaped = $text[$offset] ?? '';
+            if ($escaped === '\\') {
+                throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' row separator');
+            }
+
+            if ($escaped !== '' && !ctype_alpha($escaped)) {
+                $offset++;
+                continue;
+            }
+
+            $commandStart = $offset;
+            while ($offset < $length && ctype_alpha($text[$offset])) {
+                $offset++;
+            }
+
+            $textCommand = substr($text, $commandStart, $offset - $commandStart);
+            if (in_array($textCommand, ['begin', 'end', 'label', 'tag', 'notag', 'nonumber', 'intertext', 'shortintertext'], true)) {
+                throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' structural command \\' . $textCommand);
+            }
+        }
     }
 
     private function skipOptionalAlignmentRowSpacingArgument(string $content, int &$offset): void

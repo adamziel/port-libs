@@ -6471,6 +6471,138 @@ XML;
         $t->same(false, $wrongSourceRoles['rIdWrongSourceProps']['valid']);
         $t->same(['invalid-custom-xml-properties-source-content-type'], $wrongSourceRoles['rIdWrongSourceProps']['issues']);
     },
+    'preflights WordprocessingML custom XML properties payload metadata' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
+  <Override PartName="/customXml/itemProps-invalid.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
+  <Override PartName="/customXml/itemProps-wrong-root.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
+  <Override PartName="/customXml/itemProps-malformed.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>
+</Relationships>
+XML;
+
+        $customXmlRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdItemProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/>
+  <Relationship Id="rIdInvalidItemProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps-invalid.xml"/>
+  <Relationship Id="rIdWrongRootProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps-wrong-root.xml"/>
+  <Relationship Id="rIdMalformedProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps-malformed.xml"/>
+</Relationships>
+XML;
+
+        $validPropertiesXml = <<<'XML'
+<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="{11111111-2222-3333-4444-555555555555}">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="urn:wordpress:review-packet"/>
+    <ds:schemaRef ds:uri="https://example.test/schema/review.xsd"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
+        $invalidPropertiesXml = <<<'XML'
+<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="not-a-guid">
+  <ds:schemaRefs>
+    <ds:schemaRef/>
+    <ds:schemaRef ds:uri="bad uri"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
+        $wrongRootPropertiesXml = <<<'XML'
+<ds:wrongRoot xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="{11111111-2222-3333-4444-555555555555}"/>
+XML;
+
+        $malformedPropertiesXml = '<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="{11111111-2222-3333-4444-555555555555}">';
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+            ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $customXmlRelationshipsXml],
+            ['name' => 'customXml/itemProps1.xml', 'data' => $validPropertiesXml],
+            ['name' => 'customXml/itemProps-invalid.xml', 'data' => $invalidPropertiesXml],
+            ['name' => 'customXml/itemProps-wrong-root.xml', 'data' => $wrongRootPropertiesXml],
+            ['name' => 'customXml/itemProps-malformed.xml', 'data' => $malformedPropertiesXml],
+        ]));
+
+        $payloads = [];
+        foreach ($graph->preflightCustomXmlProperties('/customXml/item1.xml') as $payload) {
+            $payloads[$payload['id']] = $payload;
+        }
+
+        $t->same([
+            'rIdItemProps',
+            'rIdInvalidItemProps',
+            'rIdWrongRootProps',
+            'rIdMalformedProps',
+        ], array_keys($payloads));
+
+        $t->same('/customXml/item1.xml', $payloads['rIdItemProps']['source']);
+        $t->same('application/xml', $payloads['rIdItemProps']['sourceContentType']);
+        $t->same('custom-xml-properties', $payloads['rIdItemProps']['role']);
+        $t->same('/customXml/itemProps1.xml', $payloads['rIdItemProps']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.customXmlProperties+xml', $payloads['rIdItemProps']['contentType']);
+        $t->same('datastoreItem', $payloads['rIdItemProps']['rootName']);
+        $t->same(OpcRelationshipGraph::CUSTOM_XML_DATA_STORE_NAMESPACE_URI, $payloads['rIdItemProps']['rootNamespace']);
+        $t->same('{11111111-2222-3333-4444-555555555555}', $payloads['rIdItemProps']['itemId']);
+        $t->same(true, $payloads['rIdItemProps']['itemIdValid']);
+        $t->same(2, $payloads['rIdItemProps']['schemaRefCount']);
+        $t->same(['urn:wordpress:review-packet', 'https://example.test/schema/review.xsd'], $payloads['rIdItemProps']['schemaRefUris']);
+        $t->same(null, $payloads['rIdItemProps']['parseError']);
+        $t->same(true, $payloads['rIdItemProps']['valid']);
+        $t->same([], $payloads['rIdItemProps']['issues']);
+
+        $t->same('/customXml/itemProps-invalid.xml', $payloads['rIdInvalidItemProps']['targetPart']);
+        $t->same('not-a-guid', $payloads['rIdInvalidItemProps']['itemId']);
+        $t->same(false, $payloads['rIdInvalidItemProps']['itemIdValid']);
+        $t->same(2, $payloads['rIdInvalidItemProps']['schemaRefCount']);
+        $t->same([], $payloads['rIdInvalidItemProps']['schemaRefUris']);
+        $t->same(false, $payloads['rIdInvalidItemProps']['valid']);
+        $t->same([
+            'invalid-custom-xml-item-id',
+            'missing-custom-xml-schema-ref-uri',
+            'invalid-custom-xml-schema-ref-uri',
+        ], $payloads['rIdInvalidItemProps']['issues']);
+
+        $t->same('/customXml/itemProps-wrong-root.xml', $payloads['rIdWrongRootProps']['targetPart']);
+        $t->same('wrongRoot', $payloads['rIdWrongRootProps']['rootName']);
+        $t->same(OpcRelationshipGraph::CUSTOM_XML_DATA_STORE_NAMESPACE_URI, $payloads['rIdWrongRootProps']['rootNamespace']);
+        $t->same(null, $payloads['rIdWrongRootProps']['itemId']);
+        $t->same(null, $payloads['rIdWrongRootProps']['itemIdValid']);
+        $t->same(false, $payloads['rIdWrongRootProps']['valid']);
+        $t->same(['missing-custom-xml-datastore-item-root'], $payloads['rIdWrongRootProps']['issues']);
+
+        $t->same('/customXml/itemProps-malformed.xml', $payloads['rIdMalformedProps']['targetPart']);
+        $t->same(null, $payloads['rIdMalformedProps']['rootName']);
+        $t->same(null, $payloads['rIdMalformedProps']['itemId']);
+        $t->same(null, $payloads['rIdMalformedProps']['itemIdValid']);
+        $t->same(true, str_contains((string) $payloads['rIdMalformedProps']['parseError'], 'OPC custom XML properties XML'));
+        $t->same(false, $payloads['rIdMalformedProps']['valid']);
+        $t->same(['custom-xml-properties-parse-error'], $payloads['rIdMalformedProps']['issues']);
+
+        $allPayloads = [];
+        foreach ($graph->preflightCustomXmlProperties() as $payload) {
+            $allPayloads[$payload['source'] . ':' . $payload['id']] = $payload;
+        }
+        $t->same(true, isset($allPayloads['/customXml/item1.xml:rIdItemProps']));
+    },
     'preflights DOCX reader supplemental relationship role content types' => static function (TestRunner $t): void {
         $commentsExtendedType = OpcRelationshipGraph::WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE;
         $glossaryType = OpcRelationshipGraph::WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE;
@@ -7067,7 +7199,7 @@ XML;
             ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
             ['name' => 'word/media/document.xml', 'data' => '<review/>'],
-            ['name' => 'word/_rels/media/document.xml.rels', 'data' => $nestedPayloadSegmentRelationshipXml],
+            ['name' => 'word/_rels/media/document.xml.rels', 'data' => $nestedRelationshipXml],
             ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
             ['name' => 'word/targetmode.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],

@@ -15,14 +15,18 @@ final class CitationCslProcessor
     /** @var array<string, string> */
     private array $canonicalIdsById;
 
+    /** @var array<string, array<string, string>> */
+    private array $cslAbbreviations;
+
     private CslStyle $style;
 
     /**
      * @param array<string, array<string, mixed>> $itemsById
      * @param list<string> $primaryIds
      * @param array<string, string> $canonicalIdsById
+     * @param array<string, mixed> $cslAbbreviations
      */
-    private function __construct(array $itemsById, ?CslStyle $style = null, array $primaryIds = [], array $canonicalIdsById = [])
+    private function __construct(array $itemsById, ?CslStyle $style = null, array $primaryIds = [], array $canonicalIdsById = [], array $cslAbbreviations = [])
     {
         $this->itemsById = $itemsById;
         $this->primaryIds = $primaryIds === [] ? array_keys($itemsById) : $primaryIds;
@@ -31,6 +35,7 @@ final class CitationCslProcessor
             $this->canonicalIdsById[$id] = $this->canonicalIdsById[$id] ?? $id;
         }
         $this->style = $style ?? CslStyle::default();
+        $this->cslAbbreviations = self::normalizeCslAbbreviations($cslAbbreviations);
     }
 
     public static function fromJson(string $json): self
@@ -123,15 +128,76 @@ final class CitationCslProcessor
      */
     public function withCslStyle(string $styleXml, array $localeXmls = []): self
     {
-        return new self($this->itemsById, CslStyle::fromXml($styleXml, $localeXmls), $this->primaryIds, $this->canonicalIdsById);
+        return new self($this->itemsById, CslStyle::fromXml($styleXml, $localeXmls), $this->primaryIds, $this->canonicalIdsById, $this->cslAbbreviations);
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, pageRangeFormat:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @param array<string, mixed> $abbreviations
+     */
+    public function withCslAbbreviations(array $abbreviations): self
+    {
+        return new self($this->itemsById, $this->style, $this->primaryIds, $this->canonicalIdsById, $abbreviations);
+    }
+
+    /**
+     * @return array<string, mixed>
      */
     public function cslStyleSummary(): array
     {
-        return $this->style->summary();
+        $summary = $this->style->summary();
+        if ($this->cslAbbreviations !== []) {
+            $summary['abbreviations'] = $this->cslAbbreviations;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $abbreviations
+     * @return array<string, array<string, string>>
+     */
+    private static function normalizeCslAbbreviations(array $abbreviations): array
+    {
+        if ($abbreviations === []) {
+            return [];
+        }
+
+        $source = $abbreviations;
+        if (array_key_exists('default', $source)) {
+            if (!is_array($source['default'])) {
+                throw new \InvalidArgumentException('CSL abbreviations default must be a map');
+            }
+
+            $source = $source['default'];
+        }
+
+        $normalized = [];
+        foreach ($source as $category => $entries) {
+            $category = str_replace('_', '-', strtolower(trim((string) $category)));
+            if ($category === '') {
+                continue;
+            }
+
+            if (!is_array($entries)) {
+                throw new \InvalidArgumentException('CSL abbreviations category ' . $category . ' must be a map');
+            }
+
+            foreach ($entries as $full => $short) {
+                if (!is_scalar($short)) {
+                    throw new \InvalidArgumentException('CSL abbreviations category ' . $category . ' values must be scalar');
+                }
+
+                $full = trim((string) $full);
+                $short = trim((string) $short);
+                if ($full === '' || $short === '') {
+                    continue;
+                }
+
+                $normalized[$category][$full] = $short;
+            }
+        }
+
+        return $normalized;
     }
 
     /**
@@ -7926,11 +7992,59 @@ final class CitationCslProcessor
             return $this->renderVariableValue($item, $variable, $scope, $citation);
         }
 
-        return match ($normalizedVariable) {
-            'title' => (string) ($item['shortTitle'] !== '' ? $item['shortTitle'] : $item['title']),
-            'container-title' => (string) ($item['containerTitleShort'] !== '' ? $item['containerTitleShort'] : $item['containerTitle']),
-            'collection-title' => (string) (($item['collectionTitleShort'] ?? '') !== '' ? $item['collectionTitleShort'] : $item['collectionTitle']),
-            default => $this->renderVariableValue($item, $variable, $scope, $citation),
+        $directShort = match ($normalizedVariable) {
+            'title' => (string) ($item['shortTitle'] ?? ''),
+            'container-title' => (string) ($item['containerTitleShort'] ?? ''),
+            'collection-title' => (string) ($item['collectionTitleShort'] ?? ''),
+            default => '',
+        };
+        if ($directShort !== '') {
+            return $directShort;
+        }
+
+        $abbreviation = $this->shortFormAbbreviation($item, $normalizedVariable, $scope, $citation);
+        if ($abbreviation !== null) {
+            return $abbreviation;
+        }
+
+        return $this->renderVariableValue($item, $variable, $scope, $citation);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function shortFormAbbreviation(array $item, string $variable, string $scope, ?AstNode $citation = null): ?string
+    {
+        if ($this->cslAbbreviations === []) {
+            return null;
+        }
+
+        $longValue = trim($this->renderVariableValue($item, $variable, $scope, $citation));
+        if ($longValue === '') {
+            return null;
+        }
+
+        foreach ($this->abbreviationCategoriesForVariable($variable) as $category) {
+            $abbreviation = $this->cslAbbreviations[$category][$longValue] ?? null;
+            if (is_string($abbreviation) && $abbreviation !== '') {
+                return $abbreviation;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function abbreviationCategoriesForVariable(string $variable): array
+    {
+        $variable = str_replace('_', '-', strtolower(trim($variable)));
+
+        return match ($variable) {
+            'publisher-place', 'archive-place', 'event-place', 'original-publisher-place' => [$variable, 'place'],
+            'publisher', 'original-publisher', 'authority' => [$variable, 'institution'],
+            default => [$variable],
         };
     }
 

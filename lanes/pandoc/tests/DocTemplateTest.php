@@ -1317,24 +1317,78 @@ HTML;
         ]), $baseOutput);
     },
 
-    'resolves pandoc html4 default template alias to html5 resources' => static function (TestRunner $t): void {
+    'renders bounded pandoc default html4 template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
         $html4 = $renderer->renderResource('templates/default', [], [
             'pandoc-version' => '3.7.0',
-            'pagetitle' => 'HTML4 Alias Packet',
-            'body' => '<p>HTML4 alias body.</p>',
+            'lang' => 'en',
+            'dir' => 'ltr',
+            'title-prefix' => 'WordPress Import',
+            'pagetitle' => 'HTML4 Default Packet',
+            'title' => 'HTML4 Review',
+            'subtitle' => 'Legacy XHTML review',
+            'author' => ['Migration bot', 'Content editor'],
+            'author-meta' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-08',
+            'date-meta' => '2026-06-08',
+            'keywords' => ['migration', 'wordpress', 'html4'],
+            'description-meta' => 'HTML4 default template packet',
+            'css' => ['legacy-review.css'],
+            'header-includes' => ['<meta name="robots" content="noindex" />'],
+            'math' => '<script type="math/tex">queued</script>',
+            'include-before' => ['<div class="before">Queued before</div>'],
+            'idprefix' => 'wp-',
+            'toc' => true,
+            'toc-title' => 'Contents',
+            'table-of-contents' => '<ul><li>Imported body</li></ul>',
+            'abstract-title' => 'Abstract',
+            'abstract' => '<p>Legacy HTML import summary.</p>',
+            'body' => '<p>HTML4 default body.</p>',
+            'include-after' => ['<div class="after">Queued after</div>'],
         ], null, 'html4');
 
-        $t->contains('<!DOCTYPE html>', $html4);
-        $t->contains('<title>HTML4 Alias Packet</title>', $html4);
-        $t->contains('<p>HTML4 alias body.</p>', $html4);
+        $t->contains('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"', $html4);
+        $t->contains('<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" dir="ltr">', $html4);
+        $t->contains('<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />', $html4);
+        $t->contains('<meta http-equiv="Content-Style-Type" content="text/css" />', $html4);
+        $t->contains('<meta name="generator" content="pandoc 3.7.0" />', $html4);
+        $t->contains('<meta name="author" content="Migration bot" />', $html4);
+        $t->contains('<meta name="date" content="2026-06-08" />', $html4);
+        $t->contains('<meta name="keywords" content="migration, wordpress, html4" />', $html4);
+        $t->contains('<meta name="description" content="HTML4 default template packet" />', $html4);
+        $t->contains('<title>WordPress Import – HTML4 Default Packet</title>', $html4);
+        $t->contains('<style type="text/css">', $html4);
+        $t->contains('span.smallcaps{font-variant: small-caps;}', $html4);
+        $t->contains('<link rel="stylesheet" href="legacy-review.css" type="text/css" />', $html4);
+        $t->contains('<meta name="robots" content="noindex" />', $html4);
+        $t->contains('<script type="math/tex">queued</script>', $html4);
+        $t->contains('<div class="before">Queued before</div>', $html4);
+        $t->contains('<div id="wp-header">', $html4);
+        $t->contains('<h1 class="title">HTML4 Review</h1>', $html4);
+        $t->contains('<h1 class="subtitle">Legacy XHTML review</h1>', $html4);
+        $t->contains('<h2 class="author">Content editor</h2>', $html4);
+        $t->contains('<h3 class="date">2026-06-08</h3>', $html4);
+        $t->contains('<div class="abstract-title">Abstract</div>', $html4);
+        $t->contains('<div id="wp-TOC">', $html4);
+        $t->contains('<h2 id="wp-toc-title">Contents</h2>', $html4);
+        $t->contains('<p>HTML4 default body.</p>', $html4);
+        $t->contains('<div class="after">Queued after</div>', $html4);
+
+        $direct = $renderer->renderResource('templates/default.html4', [], [
+            'pandoc-version' => '3.7.0',
+            'pagetitle' => 'Direct HTML4 Packet',
+            'body' => '<p>Direct HTML4 body.</p>',
+        ]);
+        $t->contains('<title>Direct HTML4 Packet</title>', $direct);
+        $t->contains('<p>Direct HTML4 body.</p>', $direct);
 
         $extensionQualified = $renderer->renderResource('templates/default', [], [
             'pandoc-version' => '3.7.0',
             'pagetitle' => 'HTML4 Extension Packet',
             'body' => '<p>HTML4 extension body.</p>',
         ], null, 'html4+smart');
+        $t->contains('XHTML 1.0 Transitional', $extensionQualified);
         $t->contains('<title>HTML4 Extension Packet</title>', $extensionQualified);
         $t->contains('<p>HTML4 extension body.</p>', $extensionQualified);
 
@@ -1345,11 +1399,11 @@ HTML;
             'body' => 'Exact HTML4 override',
         ], null, 'html4'));
 
-        $t->same('custom html5 HTML5 fallback override', $renderer->renderResource('templates/default', [
+        $t->same('custom html5 HTML alias override', $renderer->renderResource('templates/default', [
             'templates/default.html5' => 'custom html5 $body$',
         ], [
-            'body' => 'HTML5 fallback override',
-        ], null, 'html4'));
+            'body' => 'HTML alias override',
+        ], null, 'html'));
     },
 
     'renders bounded pandoc default rtf template resource' => static function (TestRunner $t): void {

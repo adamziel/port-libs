@@ -39,6 +39,7 @@ final class OpcRelationshipGraph
     public const RELATIONSHIP_TRANSFORM_ALGORITHM = 'http://schemas.openxmlformats.org/package/2006/RelationshipTransform';
     public const XML_SIGNATURE_NAMESPACE_URI = 'http://www.w3.org/2000/09/xmldsig#';
     public const DIGITAL_SIGNATURE_NAMESPACE_URI = 'http://schemas.openxmlformats.org/package/2006/digital-signature';
+    public const CUSTOM_XML_DATA_STORE_NAMESPACE_URI = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
     public const EMBEDDED_PACKAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
     public const EMBEDDED_OBJECT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     public const WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES = [
@@ -1757,6 +1758,97 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{source:string, sourceContentType:?string, id:string, role:string, type:string, target:string, targetPart:?string, contentType:?string, expectedContentType:?string, expectedSourceContentTypes:?list<string>, expectedExternal:?bool, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, rootName:?string, rootNamespace:?string, itemId:?string, itemIdValid:?bool, schemaRefCount:int, schemaRefUris:list<string>, parseError:?string, valid:bool, issues:list<string>}>
+     */
+    public function preflightCustomXmlProperties(?string $sourcePartName = null): array
+    {
+        $sources = $sourcePartName === null
+            ? $this->sourcePartNames()
+            : [$this->relationshipSourceNameForEquivalent($sourcePartName)];
+
+        $preflight = [];
+        foreach ($sources as $source) {
+            foreach ($this->preflightWordprocessingDocumentRelationships($source) as $relationship) {
+                if ($relationship['role'] !== 'custom-xml-properties') {
+                    continue;
+                }
+
+                $issues = $relationship['issues'];
+                $rootName = null;
+                $rootNamespace = null;
+                $itemId = null;
+                $itemIdValid = null;
+                $schemaRefCount = 0;
+                $schemaRefUris = [];
+                $parseError = null;
+
+                if (
+                    !$relationship['external']
+                    && $relationship['targetPart'] !== null
+                    && $relationship['exists'] === true
+                    && self::contentTypeMatches($relationship['contentType'], self::WORDPROCESSING_CUSTOM_XML_PROPERTIES_CONTENT_TYPE)
+                ) {
+                    try {
+                        $metadata = self::customXmlPropertiesMetadata($this->package->read($relationship['targetPart']));
+                        $rootName = $metadata['rootName'];
+                        $rootNamespace = $metadata['rootNamespace'];
+                        $itemId = $metadata['itemId'];
+                        $itemIdValid = $metadata['itemIdValid'];
+                        $schemaRefCount = $metadata['schemaRefCount'];
+                        $schemaRefUris = $metadata['schemaRefUris'];
+
+                        foreach ($metadata['issues'] as $issue) {
+                            self::appendUniqueString($issues, $issue);
+                        }
+                    } catch (\InvalidArgumentException | \RuntimeException $exception) {
+                        self::appendUniqueString($issues, 'custom-xml-properties-parse-error');
+                        $parseError = $exception->getMessage();
+                    }
+                }
+
+                $issues = array_values(array_unique($issues));
+                $preflight[] = [
+                    'source' => $relationship['source'],
+                    'sourceContentType' => $relationship['sourceContentType'],
+                    'id' => $relationship['id'],
+                    'role' => $relationship['role'],
+                    'type' => $relationship['type'],
+                    'target' => $relationship['target'],
+                    'targetPart' => $relationship['targetPart'],
+                    'contentType' => $relationship['contentType'],
+                    'expectedContentType' => $relationship['expectedContentType'],
+                    'expectedSourceContentTypes' => $relationship['expectedSourceContentTypes'],
+                    'expectedExternal' => $relationship['expectedExternal'],
+                    'external' => $relationship['external'],
+                    'exists' => $relationship['exists'],
+                    'relationshipPartTarget' => $relationship['relationshipPartTarget'],
+                    'relationshipTypeKind' => $relationship['relationshipTypeKind'],
+                    'relationshipTypeScheme' => $relationship['relationshipTypeScheme'],
+                    'relationshipTypeValid' => $relationship['relationshipTypeValid'],
+                    'relationshipTypeIssues' => $relationship['relationshipTypeIssues'],
+                    'externalTargetKind' => $relationship['externalTargetKind'],
+                    'externalTargetScheme' => $relationship['externalTargetScheme'],
+                    'externalTargetAllowed' => $relationship['externalTargetAllowed'],
+                    'externalTargetRequiresBaseUri' => $relationship['externalTargetRequiresBaseUri'],
+                    'externalTargetRewriteBasePart' => $relationship['externalTargetRewriteBasePart'],
+                    'externalTargetRewriteReason' => $relationship['externalTargetRewriteReason'],
+                    'rootName' => $rootName,
+                    'rootNamespace' => $rootNamespace,
+                    'itemId' => $itemId,
+                    'itemIdValid' => $itemIdValid,
+                    'schemaRefCount' => $schemaRefCount,
+                    'schemaRefUris' => $schemaRefUris,
+                    'parseError' => $parseError,
+                    'valid' => $issues === [],
+                    'issues' => $issues,
+                ];
+            }
+        }
+
+        return $preflight;
+    }
+
+    /**
      * @return list<array{source:string, id:string, type:string, target:string, targetPart:?string, contentType:?string, expectedContentTypePrefix:string, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function preflightThumbnails(?string $sourcePartName = null): array
@@ -3219,6 +3311,108 @@ final class OpcRelationshipGraph
         }
 
         return $elements;
+    }
+
+    /**
+     * @return array{rootName:?string, rootNamespace:?string, itemId:?string, itemIdValid:?bool, schemaRefCount:int, schemaRefUris:list<string>, valid:bool, issues:list<string>}
+     */
+    private static function customXmlPropertiesMetadata(string $xml): array
+    {
+        $dom = XmlHtmlDom::loadXmlDocument($xml, 'OPC custom XML properties XML');
+        $root = $dom->documentElement;
+        $rootName = $root instanceof \DOMElement ? $root->localName : null;
+        $rootNamespace = $root instanceof \DOMElement ? $root->namespaceURI : null;
+        $issues = [];
+        $itemId = null;
+        $itemIdValid = null;
+        $schemaRefCount = 0;
+        $schemaRefUris = [];
+
+        if (
+            !$root instanceof \DOMElement
+            || $rootNamespace !== self::CUSTOM_XML_DATA_STORE_NAMESPACE_URI
+            || $rootName !== 'datastoreItem'
+        ) {
+            $issues[] = 'missing-custom-xml-datastore-item-root';
+
+            return [
+                'rootName' => $rootName,
+                'rootNamespace' => $rootNamespace,
+                'itemId' => $itemId,
+                'itemIdValid' => $itemIdValid,
+                'schemaRefCount' => $schemaRefCount,
+                'schemaRefUris' => $schemaRefUris,
+                'valid' => false,
+                'issues' => $issues,
+            ];
+        }
+
+        $itemId = trim($root->getAttributeNS(self::CUSTOM_XML_DATA_STORE_NAMESPACE_URI, 'itemID'));
+        if ($itemId === '') {
+            $issues[] = 'missing-custom-xml-item-id';
+            $itemId = null;
+        } else {
+            $itemIdValid = self::isCustomXmlItemId($itemId);
+            if (!$itemIdValid) {
+                $issues[] = 'invalid-custom-xml-item-id';
+            }
+        }
+
+        $schemaRefs = self::firstChildElementByNamespace($root, self::CUSTOM_XML_DATA_STORE_NAMESPACE_URI, 'schemaRefs');
+        if ($schemaRefs instanceof \DOMElement) {
+            foreach ($schemaRefs->childNodes as $schemaRef) {
+                if (
+                    !$schemaRef instanceof \DOMElement
+                    || $schemaRef->namespaceURI !== self::CUSTOM_XML_DATA_STORE_NAMESPACE_URI
+                    || $schemaRef->localName !== 'schemaRef'
+                ) {
+                    continue;
+                }
+
+                $schemaRefCount++;
+                $uri = trim($schemaRef->getAttributeNS(self::CUSTOM_XML_DATA_STORE_NAMESPACE_URI, 'uri'));
+                if ($uri === '') {
+                    self::appendUniqueString($issues, 'missing-custom-xml-schema-ref-uri');
+                    continue;
+                }
+
+                if (preg_match('/[\x00-\x20\x7f]/', $uri) === 1) {
+                    self::appendUniqueString($issues, 'invalid-custom-xml-schema-ref-uri');
+                    continue;
+                }
+
+                $schemaRefUris[] = $uri;
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'rootName' => $rootName,
+            'rootNamespace' => $rootNamespace,
+            'itemId' => $itemId,
+            'itemIdValid' => $itemIdValid,
+            'schemaRefCount' => $schemaRefCount,
+            'schemaRefUris' => $schemaRefUris,
+            'valid' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    private static function isCustomXmlItemId(string $itemId): bool
+    {
+        $hasOpeningBrace = str_starts_with($itemId, '{');
+        $hasClosingBrace = str_ends_with($itemId, '}');
+        if ($hasOpeningBrace !== $hasClosingBrace) {
+            return false;
+        }
+
+        $guid = $hasOpeningBrace ? substr($itemId, 1, -1) : $itemId;
+
+        return preg_match(
+            '/^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$/D',
+            $guid
+        ) === 1;
     }
 
     /**

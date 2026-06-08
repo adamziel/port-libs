@@ -461,18 +461,22 @@ HTML,
         }
     }
 
-    $html4DefaultAlias = (new DocTemplate())->renderResource('templates/default', [], [
+    $html4Default = (new DocTemplate())->renderResource('templates/default', [], [
         'pandoc-version' => '3.7.0',
-        'pagetitle' => 'HTML4 Alias Review',
-        'body' => '<p>HTML4 alias review body.</p>',
+        'pagetitle' => 'HTML4 Default Review',
+        'title' => 'HTML4 Review Packet',
+        'body' => '<p>HTML4 default review body.</p>',
     ], null, 'html4+smart');
     foreach ([
-        '<!DOCTYPE html>',
-        '<title>HTML4 Alias Review</title>',
-        '<p>HTML4 alias review body.</p>',
+        '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"',
+        '<meta http-equiv="Content-Style-Type" content="text/css" />',
+        '<title>HTML4 Default Review</title>',
+        '<div id="header">',
+        '<h1 class="title">HTML4 Review Packet</h1>',
+        '<p>HTML4 default review body.</p>',
     ] as $needle) {
-        if (!str_contains($html4DefaultAlias, $needle)) {
-            fwrite(STDERR, "Missing expected doctemplate html4 default alias fallback: {$needle}\n");
+        if (!str_contains($html4Default, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate html4 default fallback: {$needle}\n");
             exit(1);
         }
     }

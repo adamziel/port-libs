@@ -338,7 +338,7 @@ final class DocTemplate
     private function defaultPartialResourcesFor(string $templatePath): array
     {
         return match ($templatePath) {
-            'templates/default.html5' => [
+            'templates/default.html4', 'templates/default.html5' => [
                 'templates/styles.html' => $this->defaultHtmlStylesTemplate(),
                 'templates/styles.citations.html' => $this->defaultHtmlCitationStylesTemplate(),
             ],
@@ -373,7 +373,7 @@ final class DocTemplate
     private function canonicalDefaultTemplateFormat(string $format): ?string
     {
         return match ($format) {
-            'html', 'html4' => 'html5',
+            'html' => 'html5',
             'docx' => 'openxml',
             'odt' => 'opendocument',
             'epub' => 'epub3',
@@ -400,6 +400,7 @@ final class DocTemplate
     private function defaultTemplateResourceForBasename(string $basename): ?string
     {
         return match ($basename) {
+            'default.html4' => $this->defaultHtml4Template(),
             'default.html5' => $this->defaultHtml5Template(),
             'default.chunkedhtml' => $this->defaultChunkedHtmlTemplate(),
             'default.plain' => $this->defaultPlainTemplate(),
@@ -461,6 +462,7 @@ final class DocTemplate
     {
         return [
             'default.html5',
+            'default.html4',
             'default.chunkedhtml',
             'default.plain',
             'default.ansi',
@@ -2920,6 +2922,82 @@ $endif$$table-of-contents$
 $endif$$body$
 $for(include-after)$
 $it$$endfor$
+</body>
+</html>
+HTML;
+    }
+
+    private function defaultHtml4Template(): string
+    {
+        return <<<'HTML'
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"$if(lang)$ lang="$lang$" xml:lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc $pandoc-version$" />
+$for(author-meta)$
+  <meta name="author" content="$author-meta$" />
+$endfor$
+$if(date-meta)$
+  <meta name="date" content="$date-meta$" />
+$endif$
+$if(keywords)$
+  <meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
+$endif$
+$if(description-meta)$
+  <meta name="description" content="$description-meta$" />
+$endif$
+  <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
+  <style type="text/css">
+    $styles.html()$
+  </style>
+$for(css)$
+  <link rel="stylesheet" href="$css$" type="text/css" />
+$endfor$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+$if(math)$
+  $math$
+$endif$
+</head>
+<body>
+$for(include-before)$
+$include-before$
+$endfor$
+$if(title)$
+<div id="$idprefix$header">
+<h1 class="title">$title$</h1>
+$if(subtitle)$
+<h1 class="subtitle">$subtitle$</h1>
+$endif$
+$for(author)$
+<h2 class="author">$author$</h2>
+$endfor$
+$if(date)$
+<h3 class="date">$date$</h3>
+$endif$
+$if(abstract)$
+<div class="abstract">
+<div class="abstract-title">$abstract-title$</div>
+$abstract$
+</div>
+$endif$
+</div>
+$endif$
+$if(toc)$
+<div id="$idprefix$TOC">
+$if(toc-title)$
+<h2 id="$idprefix$toc-title">$toc-title$</h2>
+$endif$
+$table-of-contents$
+</div>
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
 </body>
 </html>
 HTML;

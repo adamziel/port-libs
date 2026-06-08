@@ -358,7 +358,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
     ['name' => 'word/review source.xml', 'data' => '<review/>'],
     ['name' => 'word/_rels/review%20source.xml.rels', 'data' => $reviewSourceRelationshipsXml],
-    ['name' => 'customXml/itemProps1.xml', 'data' => '<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"/>'],
+    ['name' => 'customXml/itemProps1.xml', 'data' => '<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="{11111111-2222-3333-4444-555555555555}"><ds:schemaRefs><ds:schemaRef ds:uri="urn:wordpress:review-packet"/><ds:schemaRef ds:uri="https://example.test/schema/review.xsd"/></ds:schemaRefs></ds:datastoreItem>'],
     ['name' => 'word/draft.xml', 'data' => '<draft/>'],
     ['name' => 'word/_rels/draft.xml.rels', 'data' => $draftRelationshipsXml],
     ['name' => 'word/media/draft-hidden.png', 'data' => 'PNG'],
@@ -1887,6 +1887,23 @@ $customXmlPropertyParts = array_values(array_unique(array_filter(
     array_map(static fn (array $role): ?string => $role['valid'] ? $role['targetPart'] : null, $customXmlPropertyRelationships),
     static fn (?string $part): bool => $part !== null
 )));
+$customXmlPropertyPayloads = [];
+foreach ($graph->preflightCustomXmlProperties('/word/review source.xml') as $payload) {
+    $customXmlPropertyPayloads[$payload['id']] = [
+        'id' => $payload['id'],
+        'source' => $payload['source'],
+        'targetPart' => $payload['targetPart'],
+        'contentType' => $payload['contentType'],
+        'rootName' => $payload['rootName'],
+        'rootNamespace' => $payload['rootNamespace'],
+        'itemId' => $payload['itemId'],
+        'itemIdValid' => $payload['itemIdValid'],
+        'schemaRefCount' => $payload['schemaRefCount'],
+        'schemaRefUris' => $payload['schemaRefUris'],
+        'valid' => $payload['valid'],
+        'issues' => $payload['issues'],
+    ];
+}
 $thumbnailPreflight = [];
 foreach ($graph->preflightThumbnails() as $thumbnail) {
     $thumbnailPreflight[$thumbnail['source'] . ':' . $thumbnail['id']] = [
@@ -2119,6 +2136,7 @@ $summary = [
         'documentPropertyParts' => $documentPropertyParts,
         'customXmlPropertyParts' => $customXmlPropertyParts,
         'customXmlPropertyRelationships' => array_values($customXmlPropertyRelationships),
+        'customXmlPropertyPayloads' => array_values($customXmlPropertyPayloads),
         'thumbnailParts' => array_values(array_unique(array_filter(
             array_map(static fn (array $thumbnail): ?string => $thumbnail['targetPart'], $thumbnailPreflight),
             static fn (?string $target): bool => $target !== null
@@ -2381,6 +2399,18 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['external'] ?? null) !== false
         || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['valid'] ?? null) !== true
         || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['issues'] ?? null) !== []
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['id'] ?? null) !== 'rIdReviewSourceProperties'
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['source'] ?? null) !== '/word/review source.xml'
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['targetPart'] ?? null) !== '/customXml/itemProps1.xml'
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml'
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['rootName'] ?? null) !== 'datastoreItem'
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['rootNamespace'] ?? null) !== OpcRelationshipGraph::CUSTOM_XML_DATA_STORE_NAMESPACE_URI
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['itemId'] ?? null) !== '{11111111-2222-3333-4444-555555555555}'
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['itemIdValid'] ?? null) !== true
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['schemaRefCount'] ?? null) !== 2
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['schemaRefUris'] ?? null) !== ['urn:wordpress:review-packet', 'https://example.test/schema/review.xsd']
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['valid'] ?? null) !== true
+        || ($summary['wordpressImport']['customXmlPropertyPayloads'][0]['issues'] ?? null) !== []
         || ($summary['thumbnailPreflight']['/:rIdThumbnail']['source'] ?? null) !== '/'
         || ($summary['thumbnailPreflight']['/:rIdThumbnail']['targetPart'] ?? null) !== '/docProps/thumbnail.png'
         || ($summary['thumbnailPreflight']['/:rIdThumbnail']['contentType'] ?? null) !== 'image/png'

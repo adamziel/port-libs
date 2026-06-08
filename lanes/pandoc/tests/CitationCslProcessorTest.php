@@ -3165,6 +3165,121 @@ XML);
         $t->contains('<dt>Curator 2026</dt><dd>Reviewer Guide :: J. Import. Sources :: Migration Manual: Reviewer Packet Guide :: Journal of Imported Sources</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Full Report Packet :: Migration Proceedings :: Full Report Packet :: Migration Proceedings</dd>', $blocks);
     },
+    'applies bounded csl abbreviation list lookup for short text variables' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'abbrev-source',
+                'type' => 'report',
+                'title' => 'Migration Review Source Packet',
+                'container-title' => 'Journal of Imported Source Packets',
+                'collection-title' => 'Migration Review Series',
+                'publisher' => 'WordPress Migration Press',
+                'publisher-place' => 'New York',
+                'genre' => 'technical report',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Vera'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'direct-short-source',
+                'type' => 'report',
+                'title' => 'Direct Short Packet',
+                'title-short' => 'Direct Packet',
+                'container-title' => 'Journal of Imported Source Packets',
+                'container-title-short' => 'Direct JISP',
+                'collection-title' => 'Migration Review Series',
+                'collection-title-short' => 'Direct MRS',
+                'publisher' => 'WordPress Migration Press',
+                'publisher-place' => 'New York',
+                'genre' => 'technical report',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Abbreviation Lookup Review</title>
+    <id>https://example.test/styles/bounded-abbreviation-lookup-review</id>
+    <updated>2026-06-08T21:20:45+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title" form="short"/>
+        <text variable="container-title" form="short"/>
+        <text variable="collection-title" form="short"/>
+        <text variable="publisher" form="short"/>
+        <text variable="publisher-place" form="short"/>
+        <text variable="genre" form="short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title" form="short"/>
+      <text variable="container-title" form="short"/>
+      <text variable="collection-title" form="short"/>
+      <text variable="publisher" form="short"/>
+      <text variable="publisher-place" form="short"/>
+      <text variable="genre" form="short"/>
+    </layout>
+  </bibliography>
+</style>
+XML)->withCslAbbreviations([
+            'default' => [
+                'title' => [
+                    'Migration Review Source Packet' => 'Migr. Rev. Source',
+                    'Direct Short Packet' => 'Map Direct Packet',
+                ],
+                'container-title' => [
+                    'Journal of Imported Source Packets' => 'J. Imported Source Packets',
+                ],
+                'collection-title' => [
+                    'Migration Review Series' => 'Migr. Rev. Ser.',
+                ],
+                'publisher' => [
+                    'WordPress Migration Press' => 'WP Migr. Press',
+                ],
+                'place' => [
+                    'New York' => 'N.Y.',
+                ],
+                'genre' => [
+                    'technical report' => 'tech. rep.',
+                ],
+            ],
+        ]);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Abbreviation Lookup Review', $summary['title'] ?? null);
+        $t->same('Migr. Rev. Source', $summary['abbreviations']['title']['Migration Review Source Packet'] ?? null);
+        $t->same('N.Y.', $summary['abbreviations']['place']['New York'] ?? null);
+
+        $t->same(
+            '[Migr. Rev. Source | J. Imported Source Packets | Migr. Rev. Ser. | WP Migr. Press | N.Y. | tech. rep.; Direct Packet | Direct JISP | Direct MRS | WP Migr. Press | N.Y. | tech. rep.]',
+            $processor->renderCitationCluster([
+                $citation('abbrev-source', '[@abbrev-source]'),
+                $citation('direct-short-source', '[@direct-short-source]'),
+            ])
+        );
+        $t->same('Migr. Rev. Source :: J. Imported Source Packets :: Migr. Rev. Ser. :: WP Migr. Press :: N.Y. :: tech. rep.', $processor->renderBibliographyEntry('abbrev-source'));
+        $t->same('Direct Packet :: Direct JISP :: Direct MRS :: WP Migr. Press :: N.Y. :: tech. rep.', $processor->renderBibliographyEntry('direct-short-source'));
+
+        $document = (new MarkdownReader())->read('Abbreviation review cites [@abbrev-source; @direct-short-source] for source packets.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Abbreviation review cites [Migr. Rev. Source | J. Imported Source Packets | Migr. Rev. Ser. | WP Migr. Press | N.Y. | tech. rep.; Direct Packet | Direct JISP | Direct MRS | WP Migr. Press | N.Y. | tech. rep.] for source packets.</p>', $blocks);
+        $t->contains('<dt>Vale 2026</dt><dd>Migr. Rev. Source :: J. Imported Source Packets :: Migr. Rev. Ser. :: WP Migr. Press :: N.Y. :: tech. rep.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Direct Packet :: Direct JISP :: Direct MRS :: WP Migr. Press :: N.Y. :: tech. rep.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslAbbreviations([
+            'default' => [
+                'container-title' => 'Journal=J.',
+            ],
+        ]));
+    },
     'maps bounded biblatex publication details identifiers and eprint metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{journal-detail,
