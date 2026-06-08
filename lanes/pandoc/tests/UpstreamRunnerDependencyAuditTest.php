@@ -153,6 +153,16 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
         'build-type: Simple',
         'tested-with: GHC == 9.6.7, GHC == 9.8.4, GHC == 9.10.3, GHC == 9.12.2',
         '',
+        'flag embed_data_files',
+        '  description: Embed data files in the built executable',
+        '  default: False',
+        '  manual: True',
+        '',
+        'flag http',
+        '  description: Enable HTTP support for the runner closure',
+        '  default: True',
+        '  manual: True',
+        '',
         'common common-options',
         '  build-depends: ' . implode(', ', $formatRunnerDependencies('test:test-pandoc', $commonDependencies)),
         $defaultLanguage === null || $defaultLanguage === '' ? '' : '  default-language: ' . $defaultLanguage,
@@ -485,6 +495,7 @@ return [
         ], $audit['projectSourceRepositoryPins']['missing']);
         $t->same(UpstreamRunnerDependencyAudit::expectedProjectPackages(), $audit['projectPackageClosure']['missingPackages']);
         $t->same(['embed_data_files', 'http'], $audit['projectPackageClosure']['missingFlags']['pandoc']);
+        $t->same(['embed_data_files', 'http'], $audit['packageFlagDefinitionClosure']['missingFlags']['pandoc.cabal']);
         $t->same([
             'auto-update',
             'crypton',
@@ -501,6 +512,7 @@ return [
         $t->contains('missing required Cabal toolchain commands: cabal', $blocked);
         $t->contains('missing cabal.project package entries', $blocked);
         $t->contains('missing cabal.project solver constraints', $blocked);
+        $t->contains('missing Cabal package flag definitions: pandoc.cabal (embed_data_files, http)', $blocked);
         $t->contains('missing Cabal runner test-suite stanzas', $blocked);
         $t->contains('missing upstream runner source/golden fixture artifacts', $blocked);
         $t->contains(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $audit['activationGate']);
@@ -551,6 +563,10 @@ return [
         $t->same(false, $audit['packageSetupClosure']['present']['pandoc-lua-engine/pandoc-lua-engine.cabal']['customSetup']);
         $t->same([], $audit['packageSetupClosure']['unexpectedCustomSetupStanzas']);
         $t->same([], $audit['packageSetupClosure']['unexpectedSetupDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageFlagDefinitions(), $audit['packageFlagDefinitionClosure']['expectedFlags']);
+        $t->same(['embed_data_files', 'http'], $audit['packageFlagDefinitionClosure']['presentFlags']['pandoc.cabal']);
+        $t->same([], $audit['packageFlagDefinitionClosure']['presentFlags']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same([], $audit['packageFlagDefinitionClosure']['missingFlags']);
         $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $audit['runnerTargets']);
         $t->same('pandoc.cabal', $audit['runnerEntryPoints']['test:test-pandoc']['packageFile']);
         $t->same('exitcode-stdio-1.0', $audit['runnerEntryPoints']['test:test-pandoc']['type']);
@@ -667,6 +683,7 @@ return [
         $t->same([], $audit['benchmarkDependencyClosure']['present']['benchmark:benchmark-pandoc']['conditionalBranches']);
         $t->contains('non-mutating solver/build plan', $audit['activationGate']);
         $t->contains('record Cabal package identity/version headers', $audit['nonMutatingPlan'][0]);
+        $t->contains('package flag definitions for cabal.project flags', $audit['nonMutatingPlan'][0]);
         $t->contains('pandoc.cabal tested-with GHC matrix', $audit['nonMutatingPlan'][0]);
         $t->contains('cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
@@ -1140,6 +1157,54 @@ return [
         $t->contains('unexpected Cabal custom-setup stanzas: pandoc.cabal (custom-setup); pandoc-lua-engine/pandoc-lua-engine.cabal (custom-setup)', $blocked);
         $t->contains('unexpected Cabal setup-depends: pandoc.cabal (Cabal >= 3.10 && < 3.13, base >= 4.18 && < 5); pandoc-lua-engine/pandoc-lua-engine.cabal (Cabal >= 3.8, base >= 4.12 && < 5)', $blocked);
         $t->contains('no package custom-setup/setup-depends hooks', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks missing package flag definitions before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(implode("\n", [
+            'flag embed_data_files',
+            '  description: Embed data files in the built executable',
+            '  default: False',
+            '  manual: True',
+            '',
+        ]), '', $files['pandoc.cabal']);
+        $files['pandoc.cabal'] = str_replace(implode("\n", [
+            'flag http',
+            '  description: Enable HTTP support for the runner closure',
+            '  default: True',
+            '  manual: True',
+            '',
+        ]), '', $files['pandoc.cabal']);
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['packageIdentityClosure']['missingHeaders']);
+        $t->same([], $audit['packageIdentityClosure']['mismatchedHeaders']);
+        $t->same([], $audit['packageSetupClosure']['unexpectedCustomSetupStanzas']);
+        $t->same([], $audit['packageSetupClosure']['unexpectedSetupDependencies']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectPackageClosure']['missingFlags']);
+        $t->same([], $audit['projectPackageClosure']['mismatchedFlags']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageFlagDefinitions(), $audit['packageFlagDefinitionClosure']['expectedFlags']);
+        $t->same([], $audit['packageFlagDefinitionClosure']['presentFlags']['pandoc.cabal']);
+        $t->same([
+            'embed_data_files',
+            'http',
+        ], $audit['packageFlagDefinitionClosure']['missingFlags']['pandoc.cabal']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing Cabal package flag definitions: pandoc.cabal (embed_data_files, http)', $blocked);
+        $t->contains('package flag definitions for cabal.project flags', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'rejects hydrated checkout with incomplete runner package closure' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $luaCabal): void {
