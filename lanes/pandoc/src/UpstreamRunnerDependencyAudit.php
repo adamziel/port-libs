@@ -1793,7 +1793,9 @@ final class UpstreamRunnerDependencyAudit
             $buildToolDepends = self::extractCabalBuildToolDepends($fields['build-tool-depends'] ?? '');
             $buildTools = self::extractCabalBuildTools($fields['build-tools'] ?? '');
             $testOptions = self::splitWords($fields['test-options'] ?? '');
-            $defaultExtensions = self::extractCabalDefaultExtensions($fields['default-extensions'] ?? '');
+            $defaultExtensions = self::extractCabalDefaultExtensions(
+                self::joinCabalFieldValues($fields['default-extensions'] ?? '', $fields['extensions'] ?? '')
+            );
             $otherExtensions = self::extractCabalDefaultExtensions($fields['other-extensions'] ?? '');
             $otherModules = self::extractCabalModuleNames($fields['other-modules'] ?? '');
             $nativeSystemFields = self::extractCabalNativeSystemFields($fields);
@@ -1864,7 +1866,9 @@ final class UpstreamRunnerDependencyAudit
                 'buildToolDepends' => self::extractCabalBuildToolDepends($fields['build-tool-depends'] ?? ''),
                 'buildTools' => self::extractCabalBuildTools($fields['build-tools'] ?? ''),
                 'benchmarkOptions' => self::splitWords($fields['benchmark-options'] ?? ''),
-                'defaultExtensions' => self::extractCabalDefaultExtensions($fields['default-extensions'] ?? ''),
+                'defaultExtensions' => self::extractCabalDefaultExtensions(
+                    self::joinCabalFieldValues($fields['default-extensions'] ?? '', $fields['extensions'] ?? '')
+                ),
                 'otherExtensions' => self::extractCabalDefaultExtensions($fields['other-extensions'] ?? ''),
                 'nativeSystemFields' => self::extractCabalNativeSystemFields($fields),
             ];
@@ -3308,7 +3312,7 @@ final class UpstreamRunnerDependencyAudit
     private static function mergeCabalFields(array $base, array $next): array
     {
         foreach ($next as $field => $value) {
-            if (in_array($field, array_merge(['build-depends', 'setup-depends', 'build-tool-depends', 'build-tools', 'default-extensions', 'other-extensions', 'other-modules', 'autogen-modules', 'reexported-modules', 'mixins', 'extra-source-files', 'extra-doc-files', 'data-files'], self::CABAL_NATIVE_SYSTEM_FIELDS), true) && array_key_exists($field, $base) && $base[$field] !== '') {
+            if (in_array($field, array_merge(['build-depends', 'setup-depends', 'build-tool-depends', 'build-tools', 'default-extensions', 'extensions', 'other-extensions', 'other-modules', 'autogen-modules', 'reexported-modules', 'mixins', 'extra-source-files', 'extra-doc-files', 'data-files'], self::CABAL_NATIVE_SYSTEM_FIELDS), true) && array_key_exists($field, $base) && $base[$field] !== '') {
                 $base[$field] .= ",\n" . $value;
                 continue;
             }
@@ -3577,6 +3581,18 @@ final class UpstreamRunnerDependencyAudit
     private static function normalizeCabalListItem(string $raw): string
     {
         return preg_replace('/\s+/', ' ', trim($raw)) ?? trim($raw);
+    }
+
+    private static function joinCabalFieldValues(string ...$values): string
+    {
+        $present = [];
+        foreach ($values as $value) {
+            if (trim($value) !== '') {
+                $present[] = $value;
+            }
+        }
+
+        return implode(",\n", $present);
     }
 
     /**
