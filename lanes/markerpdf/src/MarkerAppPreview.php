@@ -2276,12 +2276,12 @@ final class MarkerAppPreview
 
     private function pageLabelDictionaryToken(string $value): ?string
     {
-        $value = trim($value);
-        if (!str_starts_with($value, '<<')) {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if (!str_starts_with(substr($value, $offset), '<<')) {
             return null;
         }
 
-        $dictionary = $this->readBalancedDictionary($value, 0);
+        $dictionary = $this->readBalancedDictionary($value, $offset);
         if ($dictionary === null) {
             return null;
         }
@@ -2300,12 +2300,12 @@ final class MarkerAppPreview
 
     private function pageLabelArrayToken(string $value): ?string
     {
-        $value = trim($value);
-        if (($value[0] ?? '') !== '[') {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if (($value[$offset] ?? '') !== '[') {
             return null;
         }
 
-        $array = $this->readBalancedArray($value, 0);
+        $array = $this->readBalancedArray($value, $offset);
         if ($array === null) {
             return null;
         }

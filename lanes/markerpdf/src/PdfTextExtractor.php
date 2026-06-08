@@ -15608,9 +15608,9 @@ final class PdfTextExtractor
      */
     private function pageLabelDictionaryFromValueResolved(string $value, array $objects, array $seen = []): ?string
     {
-        $value = trim($value);
-        if (str_starts_with($value, '<<')) {
-            return $this->pageLabelDictionaryObjectBody($value);
+        $dictionary = $this->pageLabelDictionaryObjectBody($value);
+        if ($dictionary !== null) {
+            return $dictionary;
         }
 
         $reference = $this->pageLabelReferenceOperand($value);
@@ -15636,12 +15636,11 @@ final class PdfTextExtractor
 
     private function pageLabelDictionaryObjectBody(string $value): ?string
     {
-        $value = trim($value);
-        if (!str_starts_with($value, '<<')) {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if (!str_starts_with(substr($value, $offset), '<<')) {
             return null;
         }
 
-        $offset = 0;
         $dictionary = $this->readPdfDictionaryTokenAt($value, $offset);
         if ($dictionary === null) {
             return null;
@@ -15927,7 +15926,6 @@ final class PdfTextExtractor
      */
     private function pageLabelNameValue(string $value, array $objects, array $seen = []): ?string
     {
-        $value = trim($value);
         $reference = $this->pageLabelReferenceOperand($value);
         if ($reference !== null) {
             $objectNumber = $reference['objectNumber'];
@@ -15946,16 +15944,17 @@ final class PdfTextExtractor
             return $this->pageLabelNameValue($body, $objects, $seen);
         }
 
-        if (($value[0] ?? '') !== '/') {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if (($value[$offset] ?? '') !== '/') {
             return null;
         }
 
-        $end = 1;
+        $end = $offset + 1;
         while ($end < strlen($value) && !str_contains(" \t\r\n\f[]()<>{}/%", $value[$end])) {
             $end++;
         }
 
-        $name = substr($value, 1, $end - 1);
+        $name = substr($value, $offset + 1, $end - $offset - 1);
         if ($name === '') {
             return null;
         }
