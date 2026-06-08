@@ -521,6 +521,7 @@ return [
         $t->same([], $audit['missingTools']);
         $t->same([], $audit['projectSourceRepositoryPins']['missing']);
         $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['unexpectedFields']);
         $expectedPins = UpstreamRunnerDependencyAudit::expectedProjectPins();
         ksort($expectedPins);
         $t->same($expectedPins, $audit['projectSourceRepositoryPins']['present']);
@@ -831,6 +832,50 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('mismatched cabal.project source-repository package locations/types: doclayout, typst-symbols', $blocked);
         $t->contains('exact cabal.project source-repository Git types and locations', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks unexpected cabal project source repository fields before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $project = str_replace(
+            implode("\n", [
+                '  location: https://github.com/jgm/texmath.git',
+                '  tag: 0a3fbebc5d0e21769f01b048eb63e1451ccf0e1a',
+            ]),
+            implode("\n", [
+                '  location: https://github.com/jgm/texmath.git',
+                '  tag: 0a3fbebc5d0e21769f01b048eb63e1451ccf0e1a',
+                '  branch: runner-audit',
+                '  subdir: texmath-core',
+                '  post-checkout-command: sh ./configure-runner-audit',
+            ]),
+            $pinnedProject()
+        );
+
+        $root = $makeTree($requiredFiles($project));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['missing']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['mismatched']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['unexpected']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([
+            'branch: runner-audit',
+            'post-checkout-command: sh ./configure-runner-audit',
+            'subdir: texmath-core',
+        ], $audit['projectSourceRepositoryClosure']['unexpectedFields']['texmath']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected cabal.project source-repository package fields: texmath (branch: runner-audit, post-checkout-command: sh ./configure-runner-audit, subdir: texmath-core)', $blocked);
+        $t->contains('no unexpected cabal.project source-repository package fields', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks unexpected cabal project package repository flag and constraint drift before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
