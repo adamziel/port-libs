@@ -5952,6 +5952,10 @@ final class PdfMetadataExtractor
      */
     private function documentOutlineItemAllowsTraversalByType(string $dictionary, array $objects): bool
     {
+        if ($this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Type')) {
+            return false;
+        }
+
         if ($this->dictionaryTopLevelRawValue($dictionary, 'S') !== null) {
             return false;
         }

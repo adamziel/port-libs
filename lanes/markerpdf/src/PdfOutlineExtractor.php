@@ -1366,7 +1366,7 @@ final class PdfOutlineExtractor
             if ($dict === null) {
                 break;
             }
-            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
+            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects, $current)) {
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject, $current)) {
@@ -1866,9 +1866,13 @@ final class PdfOutlineExtractor
      * @param array<string, mixed> $outline
      * @param array<int, mixed> $objects
      */
-    private function outlineItemDictionaryAllowsTraversal(array $outline, array $objects): bool
+    private function outlineItemDictionaryAllowsTraversal(array $outline, array $objects, ?int $outlineObject = null): bool
     {
         if (array_key_exists('S', $outline)) {
+            return false;
+        }
+
+        if ($outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Type')) {
             return false;
         }
 
@@ -4525,7 +4529,7 @@ final class PdfOutlineExtractor
             if ($dict === null) {
                 break;
             }
-            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
+            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects, $current)) {
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject, $current)) {
@@ -4626,7 +4630,7 @@ final class PdfOutlineExtractor
             if ($dict === null) {
                 break;
             }
-            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
+            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects, $current)) {
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject, $current)) {
@@ -4742,7 +4746,7 @@ final class PdfOutlineExtractor
             if ($dict === null) {
                 break;
             }
-            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
+            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects, $current)) {
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject, $current)) {
@@ -5188,7 +5192,7 @@ final class PdfOutlineExtractor
             if ($dict === null) {
                 break;
             }
-            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
+            if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects, $current)) {
                 break;
             }
             if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject, $current)) {

@@ -23151,7 +23151,11 @@ final class PdfTextExtractor
         }
 
         $glyphNamesByCode = $this->type3EncodingGlyphNamesByCode($fontBody, $objects);
-        $charProcObjectReferences = $this->charProcObjectReferences($fontBody, $objects);
+        $charProcObjectReferences = $this->charProcObjectReferences(
+            $fontBody,
+            $objects,
+            array_values($glyphNamesByCode)
+        );
         if ($glyphNamesByCode === [] || $charProcObjectReferences === []) {
             return [];
         }
@@ -23239,13 +23243,18 @@ final class PdfTextExtractor
             return null;
         }
 
-        $unicodeByGlyphName = $this->type3StandardCharProcUnicodeByName($fontBody, $objects);
+        $glyphNamesByCode = $this->type3EncodingGlyphNamesByCode($fontBody, $objects);
+        $unicodeByGlyphName = $this->type3StandardCharProcUnicodeByName(
+            $fontBody,
+            $objects,
+            array_values($glyphNamesByCode)
+        );
         if ($unicodeByGlyphName === null) {
             return null;
         }
 
         $map = [];
-        foreach ($this->type3EncodingGlyphNamesByCode($fontBody, $objects) as $code => $glyphName) {
+        foreach ($glyphNamesByCode as $code => $glyphName) {
             if (!isset($unicodeByGlyphName[$glyphName])) {
                 continue;
             }
@@ -23289,10 +23298,15 @@ final class PdfTextExtractor
     /**
      * @return array<string, string>|null
      * @param array<int, string> $objects
+     * @param list<string>|null $selectedGlyphNames
      */
-    private function type3StandardCharProcUnicodeByName(string $fontBody, array $objects): ?array
+    private function type3StandardCharProcUnicodeByName(
+        string $fontBody,
+        array $objects,
+        ?array $selectedGlyphNames = null
+    ): ?array
     {
-        $charProcObjectReferences = $this->charProcObjectReferences($fontBody, $objects);
+        $charProcObjectReferences = $this->charProcObjectReferences($fontBody, $objects, $selectedGlyphNames);
         if ($charProcObjectReferences === []) {
             return null;
         }
@@ -23459,15 +23473,20 @@ final class PdfTextExtractor
     /**
      * @return array<string, array{objectNumber: int, generation: int}>
      * @param array<int, string> $objects
+     * @param list<string>|null $selectedGlyphNames
      */
-    private function charProcObjectReferences(string $fontBody, array $objects): array
+    private function charProcObjectReferences(
+        string $fontBody,
+        array $objects,
+        ?array $selectedGlyphNames = null
+    ): array
     {
         $dictionary = $this->charProcsDictionaryBody($fontBody, $objects);
         if ($dictionary === null) {
             return [];
         }
 
-        return $this->charProcObjectReferencesFromDictionary($dictionary);
+        return $this->charProcObjectReferencesFromDictionary($dictionary, [], true, $selectedGlyphNames);
     }
 
     /**
@@ -23668,14 +23687,19 @@ final class PdfTextExtractor
     /**
      * @return array<string, array{objectNumber: int, generation: int}>
      * @param array<string, true> $excludedNames
+     * @param list<string>|null $selectedGlyphNames
      */
     private function charProcObjectReferencesFromDictionary(
         string $dictionary,
         array $excludedNames = [],
-        bool $rejectMalformedReferenceTail = true
+        bool $rejectMalformedReferenceTail = true,
+        ?array $selectedGlyphNames = null
     ): array {
         $references = [];
         $malformedReferenceTailByGlyph = [];
+        $selectedGlyphNameSet = $selectedGlyphNames === null
+            ? null
+            : array_fill_keys($selectedGlyphNames, true);
         $offset = 0;
         $length = strlen($dictionary);
         while ($offset < $length) {
@@ -23739,8 +23763,12 @@ final class PdfTextExtractor
             $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
         }
 
-        if ($rejectMalformedReferenceTail && $malformedReferenceTailByGlyph !== []) {
-            return [];
+        if ($rejectMalformedReferenceTail && $selectedGlyphNameSet !== null) {
+            foreach (array_keys($malformedReferenceTailByGlyph) as $glyphName) {
+                if (isset($selectedGlyphNameSet[$glyphName])) {
+                    return [];
+                }
+            }
         }
 
         return $references;

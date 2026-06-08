@@ -2458,13 +2458,33 @@ final class TableRecognizer
         }
 
         if (!$this->tableHasAnyScalarKey($table, $this->tableGeometryCoordinateOrderKeys($field))) {
-            $order = $this->rowsColsGeometryCoordinateOrder($container, $field);
+            $order = $this->rowsColsGeometryCoordinateOrder($container, $field)
+                ?? ($this->isSavedTabledRowsColsGeometryContainer($container) ? 'x1_x2_y1_y2' : null);
             if ($order !== null) {
                 $table[$field . '_bbox_order'] = $order;
             }
         }
 
         return $table;
+    }
+
+    /**
+     * Saved tabled TableResult rows/cols bands use x1,x2,y1,y2 rectangles even
+     * when that TableResult is nested inside ExtractPageResult.rows_cols.
+     *
+     * @param array<string, mixed> $container
+     */
+    private function isSavedTabledRowsColsGeometryContainer(array $container): bool
+    {
+        if (!array_key_exists('pnum', $container) || !array_key_exists('tnum', $container)) {
+            return false;
+        }
+        if ($this->rowsColsGeometryRecords($container, 'rows') === null || $this->rowsColsGeometryRecords($container, 'cols') === null) {
+            return false;
+        }
+
+        return $this->hasPositiveBboxValue($container['bbox'] ?? null)
+            && $this->hasPositiveBboxValue($container['image_bbox'] ?? null);
     }
 
     /**
