@@ -8381,7 +8381,7 @@ final class PdfTextExtractor
                 : null,
             'page_resource_review_only' => is_array($pageResourceReview),
             'placement_review_only' => true,
-            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
+            'subtype' => $this->topLevelPdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $imageWidth,
             'height' => $imageHeight,
             'image_dimensions_valid' => $imageDimensionsValid,
@@ -8958,7 +8958,7 @@ final class PdfTextExtractor
             'present' => true,
             'object_number' => $objectNumber,
             'object_generation' => $objectGeneration,
-            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
+            'subtype' => $this->topLevelPdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $imageWidth,
             'height' => $imageHeight,
             'color_space' => $colorSpace,
@@ -9317,7 +9317,7 @@ final class PdfTextExtractor
             'type' => $imageMask ? 'image_mask_stream' : 'explicit_mask_stream',
             'object_number' => $objectNumber,
             'object_generation' => $objectGeneration,
-            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
+            'subtype' => $this->topLevelPdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $imageWidth,
             'height' => $imageHeight,
             'color_space' => $colorSpace,
@@ -10043,7 +10043,7 @@ final class PdfTextExtractor
             'object_number' => $objectNumber,
             'object_generation' => $objectGeneration,
             'default_for_printing' => $defaultForPrinting,
-            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
+            'subtype' => $this->topLevelPdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $imageWidth,
             'height' => $imageHeight,
             'color_space' => $colorSpace,
@@ -10134,7 +10134,7 @@ final class PdfTextExtractor
         return [
             'object_number' => $reference['objectNumber'],
             'object_generation' => $reference['generation'],
-            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects),
+            'subtype' => $this->topLevelPdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects),
             ...$filterOperandBoundary,
             'filters' => $this->publicImageXObjectFilterList($resolvedFilters),
             'preview_only_filters' => $this->previewOnlyImageXObjectFilters($resolvedFilters),
@@ -27475,6 +27475,19 @@ final class PdfTextExtractor
         }
 
         return $this->pdfNameValueAt($body, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function topLevelPdfNameValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?string
+    {
+        $offset = $this->topLevelNameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->pdfNameValueAtStrictIndirectOperand($body, $offset, $objects);
     }
 
     /**

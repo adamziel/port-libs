@@ -4981,6 +4981,22 @@ final class BatchConverter
         $outputPathTypeBeforeListing = $this->filesystemPathType($absoluteOutputFolder);
         $outputTaskCandidateBeforeCreation = $outputRelativeToInput
             && is_file($absoluteOutputFolder);
+        $sameFolderReview = [
+            'source' => 'convert.py same input/output folder runtime preflight',
+            'review_reached' => $sameFolder,
+            'input_output_same_folder' => $sameFolder,
+            'ordering' => 'os.listdir(in_folder) before os.makedirs(out_folder, exist_ok=True)',
+            'listdir_runs_before_makedirs' => $sameFolder,
+            'makedirs_exist_ok_directory_noop' => $sameFolder && is_dir($absoluteOutputFolder),
+            'no_same_folder_runtime_guard' => $sameFolder,
+            'task_args_out_folder_equals_input_folder' => $sameFolder,
+            'existing_input_files_remain_task_candidates' => $sameFolder,
+            'same_folder_output_artifact_directories_filtered_only_by_isfile' => $sameFolder,
+            'native_plan_creates_output_folder' => false,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
 
         return [
             'source' => 'convert.py os.path.abspath input/output boundary',
@@ -5020,6 +5036,7 @@ final class BatchConverter
             'input_folder_relative_to_output_folder' => $inputRelativeToOutput,
             'output_folder_relative_to_input_folder' => $outputRelativeToInput,
             'input_output_same_folder' => $sameFolder,
+            'input_output_same_folder_review' => $sameFolderReview,
             'output_folder_nested_in_input_folder' => $outputRelativeToInput,
             'output_folder_existed_before_input_listing' => $outputExistedBeforeListing,
             'output_folder_path_type_before_input_listing' => $outputPathTypeBeforeListing,
