@@ -2668,6 +2668,16 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && strtolower($tagName) === 'time' && strtolower($name) === 'datetime') {
+                $timeMetadata = self::normalizeHtmlTimeDatetimeAttribute($value, $tagName, $diagnostics);
+                if ($timeMetadata !== null) {
+                    [$kind, $datetime] = $timeMetadata;
+                    $attrs['data-pandoc-time-datetime'] = $datetime;
+                    $attrs['data-pandoc-time-kind'] = $kind;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && strtolower($tagName) === 'track') {
                 $trackAttributeName = strtolower($name);
                 if ($trackAttributeName === 'kind') {
@@ -2888,6 +2898,162 @@ final class Html5DomFragment
         }
 
         return implode('-', $canonical);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string}|null
+     */
+    private static function normalizeHtmlTimeDatetimeAttribute(
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): ?array {
+        $datetime = self::normalizeHtmlTimeDatetimeValue(self::cleanHtmlMetadataAttribute($value));
+        if ($datetime === null) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => 'datetime',
+            ];
+
+            return null;
+        }
+
+        $diagnostics[] = [
+            'code' => 'time-metadata-review',
+            'tag' => $tagName,
+            'attribute' => 'datetime',
+            'kind' => $datetime[0],
+        ];
+
+        return $datetime;
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private static function normalizeHtmlTimeDatetimeValue(string $value): ?array
+    {
+        if ($value === '' || strlen($value) > 128 || preg_match('/[<>{}`]/', $value) === 1) {
+            return null;
+        }
+
+        $datePattern = '([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])';
+        $timePattern = '((?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]{1,3})?)?)';
+        $timezonePattern = '([Zz]|[+-](?:[01][0-9]|2[0-3]):?[0-5][0-9])';
+
+        if (preg_match('/^' . $datePattern . '[T ]' . $timePattern . $timezonePattern . '$/', $value, $matches) === 1) {
+            if (!self::isValidHtmlDate((string) $matches[1], (string) $matches[2], (string) $matches[3])) {
+                return null;
+            }
+
+            return [
+                'global-datetime',
+                self::formatHtmlDate((string) $matches[1], (string) $matches[2], (string) $matches[3])
+                    . 'T' . (string) $matches[4]
+                    . self::normalizeHtmlTimezone((string) $matches[5]),
+            ];
+        }
+
+        if (preg_match('/^' . $datePattern . '[T ]' . $timePattern . '$/', $value, $matches) === 1) {
+            if (!self::isValidHtmlDate((string) $matches[1], (string) $matches[2], (string) $matches[3])) {
+                return null;
+            }
+
+            return [
+                'local-datetime',
+                self::formatHtmlDate((string) $matches[1], (string) $matches[2], (string) $matches[3])
+                    . 'T' . (string) $matches[4],
+            ];
+        }
+
+        if (preg_match('/^' . $datePattern . '$/', $value, $matches) === 1) {
+            if (!self::isValidHtmlDate((string) $matches[1], (string) $matches[2], (string) $matches[3])) {
+                return null;
+            }
+
+            return ['date', self::formatHtmlDate((string) $matches[1], (string) $matches[2], (string) $matches[3])];
+        }
+
+        if (preg_match('/^([0-9]{4})-(0[1-9]|1[0-2])$/', $value, $matches) === 1) {
+            return ['month', (string) $matches[1] . '-' . (string) $matches[2]];
+        }
+
+        if (preg_match('/^([0-9]{4})-W(0[1-9]|[1-4][0-9]|5[0-3])$/', $value, $matches) === 1) {
+            $year = (int) $matches[1];
+            $week = (int) $matches[2];
+            $date = (new \DateTimeImmutable())->setISODate($year, $week, 1);
+            if ((int) $date->format('o') !== $year || (int) $date->format('W') !== $week) {
+                return null;
+            }
+
+            return ['week', (string) $matches[1] . '-W' . (string) $matches[2]];
+        }
+
+        if (preg_match('/^[0-9]{4}$/', $value) === 1) {
+            return ['year', $value];
+        }
+
+        if (preg_match('/^' . $timePattern . '$/', $value, $matches) === 1) {
+            return ['time', (string) $matches[1]];
+        }
+
+        $duration = self::normalizeHtmlDurationValue($value);
+        if ($duration !== null) {
+            return ['duration', $duration];
+        }
+
+        return null;
+    }
+
+    private static function isValidHtmlDate(string $year, string $month, string $day): bool
+    {
+        return checkdate((int) $month, (int) $day, (int) $year);
+    }
+
+    private static function formatHtmlDate(string $year, string $month, string $day): string
+    {
+        return $year . '-' . $month . '-' . $day;
+    }
+
+    private static function normalizeHtmlTimezone(string $timezone): string
+    {
+        if (strtoupper($timezone) === 'Z') {
+            return 'Z';
+        }
+
+        if (preg_match('/^([+-])([0-9]{2}):?([0-9]{2})$/', $timezone, $matches) === 1) {
+            return (string) $matches[1] . (string) $matches[2] . ':' . (string) $matches[3];
+        }
+
+        return $timezone;
+    }
+
+    private static function normalizeHtmlDurationValue(string $value): ?string
+    {
+        $duration = strtoupper($value);
+        if ($duration === '' || preg_match('/^[P0-9YMWDTHS.]+$/', $duration) !== 1) {
+            return null;
+        }
+
+        if (preg_match('/^P[0-9]+W$/', $duration) === 1) {
+            return $duration;
+        }
+
+        if (str_contains($duration, 'W')) {
+            return null;
+        }
+
+        if (preg_match('/^P(?=.*[0-9])(?:[0-9]+Y)?(?:[0-9]+M)?(?:[0-9]+D)?(?:T(?:[0-9]+H)?(?:[0-9]+M)?(?:[0-9]+(?:\.[0-9]{1,3})?S)?)?$/', $duration) !== 1) {
+            return null;
+        }
+
+        if (str_ends_with($duration, 'T')) {
+            return null;
+        }
+
+        return $duration;
     }
 
     private static function normalizeUrlAttributeValue(string $value): string

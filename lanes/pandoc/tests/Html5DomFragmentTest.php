@@ -1257,6 +1257,94 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe semantic metadata URLs to be stripped');
         $t->true(!str_contains($html, 'bad&lt;tag'), 'Expected malformed semantic term tokens to be stripped');
     },
+    'converts time datetime attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article><p>'
+            . '<time datetime=" 2026-06-08 ">June 8</time>'
+            . '<time datetime="2026-06-08 09:30:05.120Z" data-pandoc-time-datetime="source-spoof">Published</time>'
+            . '<time datetime="2026-06-08T09:30-0400">Offset</time>'
+            . '<time datetime="2026-W23">Week 23</time>'
+            . '<time datetime="PT2H30M">Two hours</time>'
+            . '<time datetime="2026-06-08T09:30">Local time</time>'
+            . '<time datetime="2026-13-40">Bad date</time>'
+            . '<time datetime="java&#10;script:alert(1)">Bad scheme</time>'
+            . '</p></article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/time-metadata-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><p>'
+            . '<time data-pandoc-time-datetime="2026-06-08" data-pandoc-time-kind="date">June 8</time>'
+            . '<time data-pandoc-time-datetime="2026-06-08T09:30:05.120Z" data-pandoc-time-kind="global-datetime">Published</time>'
+            . '<time data-pandoc-time-datetime="2026-06-08T09:30-04:00" data-pandoc-time-kind="global-datetime">Offset</time>'
+            . '<time data-pandoc-time-datetime="2026-W23" data-pandoc-time-kind="week">Week 23</time>'
+            . '<time data-pandoc-time-datetime="PT2H30M" data-pandoc-time-kind="duration">Two hours</time>'
+            . '<time data-pandoc-time-datetime="2026-06-08T09:30" data-pandoc-time-kind="local-datetime">Local time</time>'
+            . '<time>Bad date</time><time>Bad scheme</time></p></article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('June 8PublishedOffsetWeek 23Two hoursLocal timeBad dateBad scheme', $fragment->textContent());
+        $t->same(['article', 'p', 'time'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['data-pandoc-time-datetime', 'datetime'], $summary['filteredAttributes']);
+        $t->same(9, count($policyDiagnostics));
+        $t->same([
+            'time-metadata-review',
+            'time-metadata-review',
+            'unsafe-attribute',
+            'time-metadata-review',
+            'time-metadata-review',
+            'time-metadata-review',
+            'time-metadata-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+        ], $policyDiagnostics);
+        $times = $nodes[0]['children'][0]['children'];
+        $t->same([
+            'data-pandoc-time-datetime' => '2026-06-08',
+            'data-pandoc-time-kind' => 'date',
+        ], $times[0]['attrs']);
+        $t->same([
+            'data-pandoc-time-datetime' => '2026-06-08T09:30:05.120Z',
+            'data-pandoc-time-kind' => 'global-datetime',
+        ], $times[1]['attrs']);
+        $t->same([
+            'data-pandoc-time-datetime' => '2026-06-08T09:30-04:00',
+            'data-pandoc-time-kind' => 'global-datetime',
+        ], $times[2]['attrs']);
+        $t->same([
+            'data-pandoc-time-datetime' => '2026-W23',
+            'data-pandoc-time-kind' => 'week',
+        ], $times[3]['attrs']);
+        $t->same([
+            'data-pandoc-time-datetime' => 'PT2H30M',
+            'data-pandoc-time-kind' => 'duration',
+        ], $times[4]['attrs']);
+        $t->same([
+            'data-pandoc-time-datetime' => '2026-06-08T09:30',
+            'data-pandoc-time-kind' => 'local-datetime',
+        ], $times[5]['attrs']);
+        $t->same([], $times[6]['attrs']);
+        $t->same([], $times[7]['attrs']);
+        $t->same('/migration/time-metadata-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, ' datetime='), 'Expected source datetime attributes to be replaced by inert metadata');
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned Pandoc time metadata to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected malformed datetime schemes to stay diagnostic-only');
+        $t->true(!str_contains($blocks, ' datetime='), 'Expected WordPress blocks to omit source datetime attributes');
+    },
     'parses XML fragments strictly and rejects DTD entity expansion inputs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromXml('<root xml:lang="en"><br/><custom data-id="42">A &amp; B</custom></root><note/>');
         $summary = $fragment->summary();
