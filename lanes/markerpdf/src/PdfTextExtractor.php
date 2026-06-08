@@ -30068,8 +30068,11 @@ final class PdfTextExtractor
         if ($decoded === null) {
             return true;
         }
+        if ($this->xrefStreamRowsAreUnaligned($dictionary, $streamObjects, $decoded)) {
+            return true;
+        }
 
-        return $this->xrefStreamRowsAreUnaligned($dictionary, $streamObjects, $decoded);
+        return $this->xrefStreamRowValueOverflowProblem($dictionary, $streamObjects, $decoded) !== null;
     }
 
     /**
@@ -30195,6 +30198,30 @@ final class PdfTextExtractor
                 'rejected_before_row_decode' => true,
                 'review_only' => true,
             ];
+        } else {
+            $decoded = $this->decodeStreamObject($streamSection['definition']['body'], $streamObjects);
+            $overflowProblem = $decoded === null || $this->xrefStreamRowsAreUnaligned($dictionary, $streamObjects, $decoded)
+                ? null
+                : $this->xrefStreamRowValueOverflowProblem($dictionary, $streamObjects, $decoded);
+            if ($overflowProblem !== null) {
+                $entries[] = [
+                    'xref_offset' => $streamSection['definition']['offset'],
+                    'selected_generation' => $streamSection['definition']['generation'],
+                    'width_array' => $overflowProblem['width_array'],
+                    'widths' => $overflowProblem['widths'],
+                    'malformed_width_indexes' => [$overflowProblem['field_index']],
+                    'owner_policy' => $overflowProblem['owner_policy'],
+                    'entry_width' => $overflowProblem['entry_width'],
+                    'decoded_length' => $overflowProblem['decoded_length'],
+                    'decoded_entry_count' => $overflowProblem['decoded_entry_count'],
+                    'overflow_object_number' => $overflowProblem['object_number'],
+                    'overflow_row_index' => $overflowProblem['row_index'],
+                    'overflow_field_index' => $overflowProblem['field_index'],
+                    'overflow_field_width' => $overflowProblem['field_width'],
+                    'rejected_before_row_decode' => true,
+                    'review_only' => true,
+                ];
+            }
         }
 
         $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $streamSection['body'], $streamObjects);
@@ -31666,6 +31693,16 @@ final class PdfTextExtractor
             $definitions,
             $streamSection['definition']['offset']
         );
+        $dictionary = $this->dictionaryObjectBody($streamSection['body']) ?? $streamSection['body'];
+        $decoded = $this->decodeStreamObject($streamSection['definition']['body'], $streamObjects);
+        if (
+            $decoded !== null
+            && !$this->xrefStreamRowsAreUnaligned($dictionary, $streamObjects, $decoded)
+            && $this->xrefStreamRowValueOverflowProblem($dictionary, $streamObjects, $decoded) !== null
+        ) {
+            return [];
+        }
+
         $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions, $pdfBytes);
         $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $streamSection['body'], $offset, $definitions, $streamObjects);
         $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
@@ -35177,6 +35214,9 @@ final class PdfTextExtractor
         if ($this->xrefStreamRowsAreUnaligned($dictionary, $streamObjects, $decoded)) {
             return $entries;
         }
+        if ($this->xrefStreamRowValueOverflowProblem($dictionary, $streamObjects, $decoded) !== null) {
+            return $entries;
+        }
 
         $xrefOffset = (int) $definition['offset'];
         $decodedEntryCount = intdiv(strlen($decoded), $entryWidth);
@@ -35199,6 +35239,10 @@ final class PdfTextExtractor
                 $type = $widths[0] === 0 ? 1 : $this->xrefFieldValue($decoded, $fieldOffset, $widths[0]);
                 $fieldTwo = $this->xrefFieldValue($decoded, $fieldOffset, $widths[1]);
                 $fieldThree = $this->xrefFieldValue($decoded, $fieldOffset, $widths[2]);
+                if ($type === null || $fieldTwo === null || $fieldThree === null) {
+                    return [];
+                }
+
                 $objectNumber = $startObject + $index;
                 $generation = $fieldThree;
                 if ($type === 1 && $widths[1] > 0 && $definitions !== null) {
@@ -35501,6 +35545,61 @@ final class PdfTextExtractor
     private function xrefStreamRowsAreUnaligned(string $dictionary, array $objects, string $decoded): bool
     {
         return $this->xrefStreamRowAlignmentProblem($dictionary, $objects, $decoded) !== null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{width_array: string|null, widths: list<int>, entry_width: int, decoded_length: int, decoded_entry_count: int, row_index: int, object_number: int, field_index: int, field_width: int, owner_policy: string}|null
+     */
+    private function xrefStreamRowValueOverflowProblem(string $dictionary, array $objects, string $decoded): ?array
+    {
+        $widths = $this->xrefStreamFieldWidths($dictionary, $objects);
+        if ($widths === null) {
+            return null;
+        }
+
+        $entryWidth = array_sum($widths);
+        if ($entryWidth <= 0) {
+            return null;
+        }
+
+        $decodedLength = strlen($decoded);
+        $decodedEntryCount = intdiv($decodedLength, $entryWidth);
+        $offset = 0;
+        $rowIndex = 0;
+        foreach ($this->xrefIndexRanges($dictionary, $decodedEntryCount, $objects) as $range) {
+            [$startObject, $count] = $range;
+            for ($index = 0; $index < $count; $index++) {
+                if ($offset + $entryWidth > $decodedLength) {
+                    break 2;
+                }
+
+                $fieldOffset = $offset;
+                foreach ($widths as $fieldIndex => $width) {
+                    if ($this->xrefFieldValue($decoded, $fieldOffset, $width) !== null) {
+                        continue;
+                    }
+
+                    return [
+                        'width_array' => $this->pdfArrayValueAfterNameResolvingObjects($dictionary, 'W', $objects),
+                        'widths' => $widths,
+                        'entry_width' => $entryWidth,
+                        'decoded_length' => $decodedLength,
+                        'decoded_entry_count' => $decodedEntryCount,
+                        'row_index' => $rowIndex,
+                        'object_number' => $startObject + $index,
+                        'field_index' => $fieldIndex,
+                        'field_width' => $width,
+                        'owner_policy' => 'overflowing_xref_stream_field_value',
+                    ];
+                }
+
+                $offset += $entryWidth;
+                $rowIndex++;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -35985,11 +36084,18 @@ final class PdfTextExtractor
         return array_map('floatval', $matches[0]);
     }
 
-    private function xrefFieldValue(string $bytes, int &$offset, int $width): int
+    private function xrefFieldValue(string $bytes, int &$offset, int $width): ?int
     {
         $value = 0;
         for ($index = 0; $index < $width; $index++) {
-            $value = ($value << 8) + ord($bytes[$offset + $index]);
+            $byte = ord($bytes[$offset + $index]);
+            if ($value > intdiv(PHP_INT_MAX - $byte, 256)) {
+                $offset += $width;
+
+                return null;
+            }
+
+            $value = ($value * 256) + $byte;
         }
         $offset += $width;
 
