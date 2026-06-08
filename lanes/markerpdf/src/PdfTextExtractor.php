@@ -47268,6 +47268,16 @@ final class PdfTextExtractor
         return is_finite($delta) && abs($delta) <= self::MAX_FONT_ADVANCE_METRIC;
     }
 
+    private function positionedHorizontalAdjustmentCreatesWordGap(float $previousEndX, float $adjustedEndX, float $horizontalScale): bool
+    {
+        $delta = $adjustedEndX - $previousEndX;
+        if ($horizontalScale < 0.0) {
+            return $delta <= -self::POSITIONED_TEXT_WORD_GAP;
+        }
+
+        return $delta >= self::POSITIONED_TEXT_WORD_GAP;
+    }
+
     private function advanceTextEndX(
         ?float $currentTextEndX,
         string $decoded,
@@ -48940,7 +48950,7 @@ final class PdfTextExtractor
             if ($adjustedEndX === null) {
                 continue;
             }
-            if ($adjustedEndX - $previousEndX >= self::POSITIONED_TEXT_WORD_GAP) {
+            if ($this->positionedHorizontalAdjustmentCreatesWordGap($previousEndX, $adjustedEndX, $horizontalScale)) {
                 $pendingWordGap = $text !== '';
             }
             $endX = $adjustedEndX;
