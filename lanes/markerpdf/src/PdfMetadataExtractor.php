@@ -4974,6 +4974,10 @@ final class PdfMetadataExtractor
             $metadata[$key] = $value;
         }
 
+        foreach ($this->documentOutlineMetadataStreamSummary($items) as $key => $value) {
+            $metadata[$key] = $value;
+        }
+
         foreach ($this->documentOutlineStructureElementSummary($items) as $key => $value) {
             $metadata[$key] = $value;
         }
@@ -5244,6 +5248,83 @@ final class PdfMetadataExtractor
             if ($boundaryTrailingObjects !== []) {
                 $summary['structure_element_boundary_trailing_reference_objects'] = $this->uniqueIntegers($boundaryTrailingObjects);
             }
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array<string, mixed>
+     */
+    private function documentOutlineMetadataStreamSummary(array $items): array
+    {
+        $count = 0;
+        $statuses = [];
+        $objects = [];
+        $trailingObjects = [];
+        $types = [];
+        $subtypes = [];
+        $filters = [];
+
+        foreach ($items as $item) {
+            $review = $item['metadata_stream_review'] ?? null;
+            if (!is_array($review)) {
+                continue;
+            }
+
+            $count++;
+            if (is_string($review['status'] ?? null) && $review['status'] !== '') {
+                $statuses[] = $review['status'];
+            }
+            if (is_int($review['object_number'] ?? null)) {
+                $objects[] = $review['object_number'];
+            }
+            foreach (($review['trailing_reference_object_numbers'] ?? []) as $objectNumber) {
+                if (is_int($objectNumber)) {
+                    $trailingObjects[] = $objectNumber;
+                }
+            }
+            if (is_string($review['type'] ?? null) && $review['type'] !== '') {
+                $types[] = $review['type'];
+            }
+            if (is_string($review['subtype'] ?? null) && $review['subtype'] !== '') {
+                $subtypes[] = $review['subtype'];
+            }
+            foreach (($review['filters'] ?? []) as $filter) {
+                if (is_string($filter) && $filter !== '') {
+                    $filters[] = $filter;
+                }
+            }
+        }
+
+        if ($count === 0) {
+            return [];
+        }
+
+        $summary = [
+            'item_metadata_stream_count' => $count,
+            'item_metadata_stream_review_only' => true,
+            'item_metadata_stream_payload_included' => false,
+            'item_metadata_stream_accepted_as_document_xmp' => false,
+        ];
+        if ($statuses !== []) {
+            $summary['item_metadata_stream_statuses'] = $this->uniqueStrings($statuses);
+        }
+        if ($objects !== []) {
+            $summary['item_metadata_stream_objects'] = $this->uniqueIntegers($objects);
+        }
+        if ($trailingObjects !== []) {
+            $summary['item_metadata_stream_trailing_reference_objects'] = $this->uniqueIntegers($trailingObjects);
+        }
+        if ($types !== []) {
+            $summary['item_metadata_stream_types'] = $this->uniqueStrings($types);
+        }
+        if ($subtypes !== []) {
+            $summary['item_metadata_stream_subtypes'] = $this->uniqueStrings($subtypes);
+        }
+        if ($filters !== []) {
+            $summary['item_metadata_stream_filters'] = $this->uniqueStrings($filters);
         }
 
         return $summary;

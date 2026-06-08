@@ -22744,7 +22744,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $bodyDefaultWidth = $this->finiteHorizontalFontAdvanceMetric($this->topLevelPdfSingleNumberValueAfterNameResolvingObjects($body, 'DW', $objects));
+            $bodyDefaultWidth = $this->finiteHorizontalFontAdvanceMetric($this->topLevelPdfLastSingleNumberValueAfterNameResolvingObjects($body, 'DW', $objects));
             if ($bodyDefaultWidth !== null) {
                 $defaultWidth = $bodyDefaultWidth;
             }
@@ -25184,6 +25184,23 @@ final class PdfTextExtractor
         }
 
         $value = $this->topLevelPdfValueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfSingleNumberFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function topLevelPdfLastSingleNumberValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?float
+    {
+        if ($this->topLevelLastValueAfterNameHasTrailingTopLevelOperand($body, $name)) {
+            return null;
+        }
+
+        $value = $this->topLevelPdfLastValueAfterName($body, $name);
         if ($value === null) {
             return null;
         }

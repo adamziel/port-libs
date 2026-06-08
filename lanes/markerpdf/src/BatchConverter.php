@@ -848,6 +848,10 @@ final class BatchConverter
             $selectedFilenames,
             static fn (string $filename): bool => !array_key_exists($filename, $runtimeMetadata)
         ));
+        $metadataBasenameLookupReview = $this->runtimeMetadataBasenameLookupReview(
+            $selectedFilenames,
+            $runtimeMetadataPlan
+        );
 
         $totalProcesses = min(count($selectedFiles), $workers);
         $spawnStartMethod = $this->convertMainSpawnStartMethodPlan(null, $spawnStartMethodAlreadySet, $totalProcesses);
@@ -940,6 +944,7 @@ final class BatchConverter
                         $selectedFilenames,
                         $runtimeMetadataPlan
                     ),
+                    'metadata_basename_lookup_review' => $metadataBasenameLookupReview,
                     'metadata_value_review' => $this->runtimeMetadataValueReview(
                         $selectedFilenames,
                         $runtimeMetadata,
@@ -1091,6 +1096,7 @@ final class BatchConverter
                         $selectedFilenames,
                         $runtimeMetadataPlan
                     ),
+                    'metadata_basename_lookup_review' => $metadataBasenameLookupReview,
                     'metadata_value_review' => $metadataValueReview,
                     'metadata_filenames' => $metadataFilenames,
                     'selected_metadata_filenames' => $selectedMetadataFilenames,
@@ -1221,6 +1227,7 @@ final class BatchConverter
                         $selectedFilenames,
                         $runtimeMetadataPlan
                     ),
+                    'metadata_basename_lookup_review' => $metadataBasenameLookupReview,
                     'metadata_value_review' => $this->runtimeMetadataValueReview(
                         $selectedFilenames,
                         $runtimeMetadata,
@@ -1406,6 +1413,7 @@ final class BatchConverter
                     $selectedFilenames,
                     $runtimeMetadataPlan
                 ),
+                'metadata_basename_lookup_review' => $metadataBasenameLookupReview,
                 'metadata_value_review' => $metadataValueReview,
                 'metadata_filenames' => $metadataFilenames,
                 'selected_metadata_filenames' => $selectedMetadataFilenames,
@@ -2408,6 +2416,107 @@ final class BatchConverter
             'executes_multiprocessing' => false,
             'executes_external_pdf_tools' => false,
         ];
+    }
+
+    /**
+     * convert.py queues worker metadata with metadata.get(os.path.basename(f)).
+     * Path-shaped metadata keys stay loaded for review, but do not satisfy a
+     * selected file unless the JSON object also contains the exact basename key.
+     *
+     * @param list<string> $selectedFilenames
+     * @param array<string, mixed> $runtimeMetadataPlan
+     * @return array<string, mixed>
+     */
+    private function runtimeMetadataBasenameLookupReview(array $selectedFilenames, array $runtimeMetadataPlan): array
+    {
+        $metadata = $runtimeMetadataPlan['metadata'] ?? [];
+        $metadataValueTypes = $runtimeMetadataPlan['metadata_value_types'] ?? [];
+        $metadataKeys = array_map(static fn (int|string $filename): string => (string) $filename, array_keys($metadata));
+        sort($metadataKeys, SORT_STRING);
+
+        $selectedMetadataFilenames = array_values(array_filter(
+            $selectedFilenames,
+            static fn (string $filename): bool => array_key_exists($filename, $metadata)
+        ));
+        $missingMetadataFilenames = array_values(array_filter(
+            $selectedFilenames,
+            static fn (string $filename): bool => !array_key_exists($filename, $metadata)
+        ));
+
+        $selectedFilenameSet = array_fill_keys($selectedFilenames, true);
+        $pathLikeMetadataKeys = [];
+        $pathLikeMetadataKeyBasenames = [];
+        $pathLikeMetadataKeyValueTypes = [];
+        $pathLikeKeysByBasename = [];
+        foreach ($metadataKeys as $metadataKey) {
+            if (!$this->runtimeMetadataKeyIsPathLike($metadataKey)) {
+                continue;
+            }
+
+            $basename = $this->runtimeMetadataKeyBasename($metadataKey);
+            $pathLikeMetadataKeys[] = $metadataKey;
+            $pathLikeMetadataKeyBasenames[$metadataKey] = $basename;
+            $pathLikeMetadataKeyValueTypes[$metadataKey] = $metadataValueTypes[$metadataKey]
+                ?? $this->phpMetadataValueType($metadata[$metadataKey] ?? null);
+            $pathLikeKeysByBasename[$basename] ??= [];
+            $pathLikeKeysByBasename[$basename][] = $metadataKey;
+        }
+
+        ksort($pathLikeMetadataKeyBasenames, SORT_STRING);
+        ksort($pathLikeMetadataKeyValueTypes, SORT_STRING);
+
+        $pathLikeMetadataKeysWithSelectedBasenames = array_values(array_filter(
+            $pathLikeMetadataKeys,
+            static fn (string $metadataKey): bool => isset($selectedFilenameSet[$pathLikeMetadataKeyBasenames[$metadataKey]])
+        ));
+        $exactBasenameKeysWithPathLikeDecoys = array_values(array_filter(
+            $selectedMetadataFilenames,
+            static fn (string $filename): bool => isset($pathLikeKeysByBasename[$filename])
+        ));
+        $missingMetadataFilenamesDueToPathLikeKeys = array_values(array_filter(
+            $missingMetadataFilenames,
+            static fn (string $filename): bool => isset($pathLikeKeysByBasename[$filename])
+        ));
+
+        return [
+            'source' => 'convert.py task_args metadata.get(os.path.basename(f))',
+            'review_reached' => true,
+            'metadata_lookup' => 'metadata.get(os.path.basename(f))',
+            'lookup_key_source' => 'os.path.basename(f)',
+            'basename_only_lookup_preserved' => true,
+            'metadata_get_available' => $runtimeMetadataPlan['metadata_get_available'] ?? false,
+            'selected_filenames' => $selectedFilenames,
+            'metadata_key_count' => count($metadataKeys),
+            'metadata_keys' => $metadataKeys,
+            'selected_metadata_filenames' => $selectedMetadataFilenames,
+            'missing_metadata_filenames' => $missingMetadataFilenames,
+            'path_like_metadata_keys_found' => $pathLikeMetadataKeys !== [],
+            'path_like_metadata_key_count' => count($pathLikeMetadataKeys),
+            'path_like_metadata_keys' => $pathLikeMetadataKeys,
+            'path_like_metadata_key_basenames' => $pathLikeMetadataKeyBasenames,
+            'path_like_metadata_key_value_types' => $pathLikeMetadataKeyValueTypes,
+            'path_like_metadata_keys_with_selected_basenames' => $pathLikeMetadataKeysWithSelectedBasenames,
+            'path_like_metadata_values_excluded_from_task_args' => $pathLikeMetadataKeysWithSelectedBasenames !== [],
+            'exact_basename_keys_with_path_like_decoys' => $exactBasenameKeysWithPathLikeDecoys,
+            'exact_basename_values_preferred_over_path_like_keys' => $exactBasenameKeysWithPathLikeDecoys !== [],
+            'missing_metadata_filenames_due_to_path_like_keys' => $missingMetadataFilenamesDueToPathLikeKeys,
+            'task_args_receive_path_like_values' => false,
+            'blocks_task_args' => false,
+            'blocks_model_handoff' => false,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    private function runtimeMetadataKeyIsPathLike(string $metadataKey): bool
+    {
+        return str_contains($metadataKey, '/') || str_contains($metadataKey, '\\');
+    }
+
+    private function runtimeMetadataKeyBasename(string $metadataKey): string
+    {
+        return basename(str_replace('\\', '/', $metadataKey));
     }
 
     /**

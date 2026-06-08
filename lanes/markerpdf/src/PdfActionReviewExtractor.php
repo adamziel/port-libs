@@ -161,7 +161,11 @@ final class PdfActionReviewExtractor
         }
 
         $previousUriActions = [];
-        if (array_key_exists('PA', $dict)) {
+        if (
+            array_key_exists('PA', $dict)
+            && !isset($malformedValueKeys['PA'])
+            && !$this->valueHasTrailingOperandAfterResolution($dict['PA'])
+        ) {
             $seen = [];
             foreach ($this->reviewActionsFromValue($dict['PA'], $seen) as $action) {
                 $action['previous_uri_action'] = true;

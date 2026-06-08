@@ -752,8 +752,7 @@ final class PdfXrefFreeObjectMap
                     return null;
                 }
 
-                $index++;
-                continue;
+                return null;
             }
 
             $foundSection = true;
@@ -781,7 +780,7 @@ final class PdfXrefFreeObjectMap
             }
         }
 
-        return $entries;
+        return $foundSection ? $entries : null;
     }
 
     private static function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int

@@ -205,6 +205,10 @@ final class PdfLinkAnnotationExtractor
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_duplicate_action_key_review'] = $link['duplicate_action_key_review'];
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_duplicate_action_keys'] = $link['duplicate_action_keys'] ?? [];
                         }
+                        if (array_key_exists('malformed_action_operand_review', $link)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_malformed_action_operand_review'] = $link['malformed_action_operand_review'];
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_malformed_action_operand_keys'] = $link['malformed_action_operand_keys'] ?? [];
+                        }
                         if (array_key_exists('struct_parent', $link)) {
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_struct_parent'] = $link['struct_parent'];
                         }

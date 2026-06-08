@@ -9,6 +9,7 @@ use InvalidArgumentException;
 final class PdfPageArtifactSelector
 {
     private const AMBIGUOUS_PAGE_MARKER_WRAPPER = '__markerpdf_ambiguous_page_marker_wrapper';
+    private const ARTIFACT_PAGE_LIST_ENVELOPES = ['pages', 'dictionary_output', 'pdftext', 'page_map', 'pageMap'];
     private const ENVELOPE_PAGE_KEY_MARKER = '__markerpdf_envelope_page_key_marker';
     private const MISSING_PAGE_ARTIFACT = '__markerpdf_missing_page_artifact';
     private const PAGE_MARKER_METADATA_WRAPPERS = [
@@ -277,7 +278,7 @@ final class PdfPageArtifactSelector
             return false;
         }
 
-        foreach (['pages', 'dictionary_output', 'pdftext'] as $envelopeKey) {
+        foreach (self::ARTIFACT_PAGE_LIST_ENVELOPES as $envelopeKey) {
             $nested = $value[$envelopeKey] ?? null;
             if (is_array($nested) && self::jsonDecodedValueLooksLikeSuppliedArtifact($nested, $depth + 1)) {
                 return true;
@@ -389,7 +390,7 @@ final class PdfPageArtifactSelector
             return null;
         }
 
-        foreach (['pages', 'dictionary_output', 'pdftext'] as $pageListKey) {
+        foreach (self::ARTIFACT_PAGE_LIST_ENVELOPES as $pageListKey) {
             if (!array_key_exists($pageListKey, $value)) {
                 continue;
             }

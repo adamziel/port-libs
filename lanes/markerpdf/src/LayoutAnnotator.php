@@ -160,6 +160,8 @@ final class LayoutAnnotator
         'pages',
         'dictionary_output',
         'pdftext',
+        'page_map',
+        'pageMap',
     ];
     private const LAYOUT_RESULT_PAGE_MARKER_FIELD_GROUPS = [
         ['page_index', 'pageIndex', 'page_idx', 'doc_page_index', 'docPageIndex', 'doc_page_idx', 'document_page_index', 'documentPageIndex', 'document_page_idx', 'source_page_index', 'sourcePageIndex', 'source_page_idx', 'page_range', 'pageRange', 'source_page_range', 'sourcePageRange', 'document_page_range', 'documentPageRange', 'page_indices', 'pageIndices', 'source_page_indices', 'sourcePageIndices', 'document_page_indices', 'documentPageIndices'],

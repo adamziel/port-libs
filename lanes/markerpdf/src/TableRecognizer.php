@@ -2943,6 +2943,24 @@ final class TableRecognizer
                 'table_bboxes_bbox_geometry_space',
             ];
         }
+        if (str_starts_with($lastSourcePart, 'source_') || str_starts_with($normalizedSource, 'source_')) {
+            $keys = [
+                ...$keys,
+                'source_coordinate_space',
+                'source_geometry_space',
+                'source_bbox_coordinate_space',
+                'source_bbox_geometry_space',
+            ];
+        }
+        if (str_starts_with($lastSourcePart, 'original_') || str_starts_with($normalizedSource, 'original_')) {
+            $keys = [
+                ...$keys,
+                'original_coordinate_space',
+                'original_geometry_space',
+                'original_bbox_coordinate_space',
+                'original_bbox_geometry_space',
+            ];
+        }
 
         foreach (array_values(array_unique($keys)) as $key) {
             if (isset($record[$key]) && is_scalar($record[$key])) {

@@ -8,6 +8,8 @@ use InvalidArgumentException;
 
 final class PdfTextDocumentExtractor
 {
+    private const SUPPLIED_DICTIONARY_PAGE_LIST_KEYS = ['dictionary_output', 'pdftext', 'pages', 'page_map', 'pageMap'];
+
     private PdfTextBlockConverter $converter;
     private PdfPageArtifactSelector $artifactSelector;
 
@@ -110,7 +112,7 @@ final class PdfTextDocumentExtractor
      * The upstream markerPDF boundary only consumes the ordered page list, so
      * unwrap that list before slicing and keep envelope payloads out of pages.
      * Explicit dictionary_output wins first, pdftext cache envelopes are next,
-     * and legacy adapter pages stay a fallback.
+     * and legacy adapter pages/page maps stay a fallback.
      *
      * @param array<mixed> $pdftextPages
      * @return list<mixed>
@@ -126,7 +128,7 @@ final class PdfTextDocumentExtractor
             return [$pdftextPages];
         }
 
-        foreach (['dictionary_output', 'pdftext', 'pages'] as $pageListKey) {
+        foreach (self::SUPPLIED_DICTIONARY_PAGE_LIST_KEYS as $pageListKey) {
             if (!array_key_exists($pageListKey, $pdftextPages)) {
                 continue;
             }
@@ -253,7 +255,7 @@ final class PdfTextDocumentExtractor
             return $entry;
         }
 
-        foreach (['dictionary_output', 'pdftext', 'pages'] as $pageListKey) {
+        foreach (self::SUPPLIED_DICTIONARY_PAGE_LIST_KEYS as $pageListKey) {
             if (!array_key_exists($pageListKey, $entry)) {
                 continue;
             }
