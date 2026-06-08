@@ -6878,7 +6878,18 @@ final class EpubReader
     /**
      * @param array<string, array<string, mixed>> $manifestById
      *
-     * @return array{present:bool, items:list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
+     * @return array{
+     *     present:bool,
+     *     itemCount:int,
+     *     typedItemCount:int,
+     *     missingTypeCount:int,
+     *     types:list<string>,
+     *     typeCounts:array<string, int>,
+     *     items:list<array<string, mixed>>,
+     *     itemsByType:array<string, list<array<string, mixed>>>,
+     *     diagnosticCount:int,
+     *     diagnostics:list<array<string, mixed>>
+     * }
      */
     private function readGuide(
         ZipPackage $package,
@@ -6889,20 +6900,49 @@ final class EpubReader
         if (!$guideElement instanceof \DOMElement) {
             return [
                 'present' => false,
+                'itemCount' => 0,
+                'typedItemCount' => 0,
+                'missingTypeCount' => 0,
+                'types' => [],
+                'typeCounts' => [],
                 'items' => [],
+                'itemsByType' => [],
+                'diagnosticCount' => 0,
                 'diagnostics' => [],
             ];
         }
 
         $manifestByPart = self::manifestByPart($manifestById);
         $items = [];
+        $itemsByType = [];
+        $types = [];
+        $typedItemCount = 0;
+        $missingTypeCount = 0;
         $diagnostics = [];
         foreach (self::childElements($guideElement, 'reference', self::OPF_NS) as $index => $referenceElement) {
             $href = trim($referenceElement->getAttribute('href'));
             $reference = $this->packageReference($package, $opfPart, $href, $manifestByPart, 'guide');
+            $typeRaw = self::nullableAttribute($referenceElement, 'type');
+            $typeTokens = self::spaceDelimited($typeRaw ?? '');
+            $itemDiagnostics = $reference['diagnostics'];
+            if ($typeTokens === []) {
+                ++$missingTypeCount;
+                $missingTypeDiagnostic = [
+                    'type' => 'missing-guide-reference-type',
+                    'href' => $href === '' ? null : $href,
+                    'message' => 'EPUB OPF guide reference is missing type metadata for import handoff classification',
+                ];
+                $itemDiagnostics[] = $missingTypeDiagnostic;
+                $diagnostics[] = ['index' => $index] + $missingTypeDiagnostic;
+            } else {
+                ++$typedItemCount;
+            }
+
             $item = [
                 'index' => $index,
-                'type' => self::nullableAttribute($referenceElement, 'type'),
+                'type' => $typeTokens[0] ?? null,
+                'typeRaw' => $typeRaw,
+                'types' => $typeTokens,
                 'title' => self::nullableAttribute($referenceElement, 'title'),
                 'href' => $href === '' ? null : $href,
                 'target' => $reference['target'],
@@ -6919,18 +6959,32 @@ final class EpubReader
                 'mediaType' => $reference['mediaType'],
                 'encrypted' => $reference['encrypted'],
                 'canExposeBytes' => $reference['canExposeBytes'],
-                'diagnostics' => $reference['diagnostics'],
+                'diagnostics' => $itemDiagnostics,
             ];
 
             foreach ($reference['diagnostics'] as $diagnostic) {
                 $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+            foreach ($typeTokens as $type) {
+                if (!isset($types[$type])) {
+                    $types[$type] = 0;
+                }
+                ++$types[$type];
+                $itemsByType[$type][] = $item;
             }
             $items[] = $item;
         }
 
         return [
             'present' => true,
+            'itemCount' => count($items),
+            'typedItemCount' => $typedItemCount,
+            'missingTypeCount' => $missingTypeCount,
+            'types' => array_keys($types),
+            'typeCounts' => $types,
             'items' => $items,
+            'itemsByType' => $itemsByType,
+            'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
     }

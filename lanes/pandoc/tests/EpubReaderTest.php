@@ -2388,8 +2388,15 @@ XML;
 
         $guide = $result['guide'];
         $t->same(true, $guide['present']);
+        $t->same(3, $guide['itemCount']);
+        $t->same(3, $guide['typedItemCount']);
+        $t->same(0, $guide['missingTypeCount']);
+        $t->same(['cover', 'text', 'glossary'], $guide['types']);
+        $t->same(['cover' => 1, 'text' => 1, 'glossary' => 1], $guide['typeCounts']);
         $t->same(3, count($guide['items']));
         $t->same('cover', $guide['items'][0]['type']);
+        $t->same('cover', $guide['items'][0]['typeRaw']);
+        $t->same(['cover'], $guide['items'][0]['types']);
         $t->same('Cover image', $guide['items'][0]['title']);
         $t->same('images/cover.png', $guide['items'][0]['href']);
         $t->same('/OEBPS/images/cover.png', $guide['items'][0]['target']);
@@ -2400,9 +2407,13 @@ XML;
         $t->same([], $guide['items'][0]['diagnostics']);
         $t->same('/OEBPS/text/chapter1.xhtml#intro', $guide['items'][1]['target']);
         $t->same('chapter-1', $guide['items'][1]['manifestId']);
+        $t->same('Start reading', $guide['itemsByType']['text'][0]['title']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $guide['itemsByType']['text'][0]['target']);
         $t->same(false, $guide['items'][2]['exists']);
         $t->same('/OEBPS/text/missing.xhtml', $guide['items'][2]['part']);
         $t->same('missing-guide-reference', $guide['items'][2]['diagnostics'][0]['type']);
+        $t->same($guide['items'][2], $guide['itemsByType']['glossary'][0]);
+        $t->same(1, $guide['diagnosticCount']);
         $t->same($guide, $result['importReport']['guide']);
 
         $collections = $result['collections'];
@@ -2431,6 +2442,46 @@ XML;
         $t->same($collections, $result['importReport']['collections']);
         $t->same($guide, $result['document']->attr('guide'));
         $t->same($collections, $result['document']->attr('collections'));
+    },
+    'summarizes OPF guide reference type vocabulary for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $guideVocabularyOpf = str_replace(
+            '<reference type="cover" title="Cover image" href="images/cover.png"/>',
+            '<reference type="cover title-page" title="Cover image" href="images/cover.png"/>',
+            $opfXml
+        );
+        $guideVocabularyOpf = str_replace(
+            '<reference type="glossary" title="Missing glossary" href="text/missing.xhtml"/>',
+            '<reference title="Untyped reading point" href="text/chapter2.xhtml#media"/>',
+            $guideVocabularyOpf
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($guideVocabularyOpf));
+        $guide = $result['guide'];
+
+        $t->same(true, $guide['present']);
+        $t->same(3, $guide['itemCount']);
+        $t->same(2, $guide['typedItemCount']);
+        $t->same(1, $guide['missingTypeCount']);
+        $t->same(['cover', 'title-page', 'text'], $guide['types']);
+        $t->same(['cover' => 1, 'title-page' => 1, 'text' => 1], $guide['typeCounts']);
+        $t->same('cover', $guide['items'][0]['type']);
+        $t->same('cover title-page', $guide['items'][0]['typeRaw']);
+        $t->same(['cover', 'title-page'], $guide['items'][0]['types']);
+        $t->same('Cover image', $guide['itemsByType']['cover'][0]['title']);
+        $t->same('Cover image', $guide['itemsByType']['title-page'][0]['title']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $guide['itemsByType']['text'][0]['target']);
+        $t->same(null, $guide['items'][2]['type']);
+        $t->same(null, $guide['items'][2]['typeRaw']);
+        $t->same([], $guide['items'][2]['types']);
+        $t->same('Untyped reading point', $guide['items'][2]['title']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $guide['items'][2]['target']);
+        $t->same('chapter-2', $guide['items'][2]['manifestId']);
+        $t->same('missing-guide-reference-type', $guide['items'][2]['diagnostics'][0]['type']);
+        $t->same(1, $guide['diagnosticCount']);
+        $t->same('missing-guide-reference-type', $guide['diagnostics'][0]['type']);
+        $t->same(2, $guide['diagnostics'][0]['index']);
+        $t->same($guide, $result['importReport']['guide']);
+        $t->same($guide, $result['document']->attr('guide'));
     },
     'reports OPF collection role tokens for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithCollectionRoles = str_replace(

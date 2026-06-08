@@ -5045,6 +5045,11 @@ final class DocxReader
             'imprint' => 'run-imprint',
             'em' => 'emphasis-mark',
             'effect' => 'text-effect',
+            'spacing' => 'run-spacing',
+            'w' => 'run-scale',
+            'kern' => 'run-kern',
+            'position' => 'run-position',
+            'fitText' => 'run-fit-text',
         ] as $childName => $family) {
             if ($this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $childName) instanceof \DOMElement) {
                 $families[] = $family;
@@ -5142,6 +5147,7 @@ final class DocxReader
         $removeExactAttributes = [];
         $removeAttributePrefixes = [];
         $runEffectFamily = false;
+        $runMetricFamily = false;
 
         if ($family === 'highlight') {
             $removeExactClasses[] = 'docx-highlight';
@@ -5208,6 +5214,26 @@ final class DocxReader
             $removeClassPrefixes[] = 'docx-text-effect-';
             $removeExactAttributes[] = 'data-docx-text-effect';
             $runEffectFamily = true;
+        } elseif ($family === 'run-spacing') {
+            array_push($removeExactClasses, 'docx-run-spacing', 'docx-run-spacing-expanded', 'docx-run-spacing-condensed');
+            $removeExactAttributes[] = 'data-docx-run-spacing-twips';
+            $runMetricFamily = true;
+        } elseif ($family === 'run-scale') {
+            $removeExactClasses[] = 'docx-run-scale';
+            $removeExactAttributes[] = 'data-docx-run-scale-percent';
+            $runMetricFamily = true;
+        } elseif ($family === 'run-kern') {
+            $removeExactClasses[] = 'docx-run-kern';
+            $removeExactAttributes[] = 'data-docx-run-kern-half-points';
+            $runMetricFamily = true;
+        } elseif ($family === 'run-position') {
+            array_push($removeExactClasses, 'docx-run-position', 'docx-run-position-raised', 'docx-run-position-lowered');
+            $removeExactAttributes[] = 'data-docx-run-position-half-points';
+            $runMetricFamily = true;
+        } elseif ($family === 'run-fit-text') {
+            $removeExactClasses[] = 'docx-run-fit-text';
+            array_push($removeExactAttributes, 'data-docx-fit-text-width-twips', 'data-docx-fit-text-id');
+            $runMetricFamily = true;
         }
 
         $classes = array_values(array_filter(
@@ -5243,6 +5269,9 @@ final class DocxReader
 
         if ($runEffectFamily && !$this->hasRunEffectMetadataClass($classes)) {
             $classes = array_values(array_diff($classes, ['docx-run-effect']));
+        }
+        if ($runMetricFamily && !$this->hasRunMetricMetadataClass($classes)) {
+            $classes = array_values(array_diff($classes, ['docx-run-metrics']));
         }
 
         if ($family === 'font') {
@@ -5287,6 +5316,30 @@ final class DocxReader
     }
 
     /**
+     * @param list<string> $classes
+     */
+    private function hasRunMetricMetadataClass(array $classes): bool
+    {
+        foreach ($classes as $class) {
+            if (in_array($class, [
+                'docx-run-spacing',
+                'docx-run-spacing-expanded',
+                'docx-run-spacing-condensed',
+                'docx-run-scale',
+                'docx-run-kern',
+                'docx-run-position',
+                'docx-run-position-raised',
+                'docx-run-position-lowered',
+                'docx-run-fit-text',
+            ], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return array{classes:list<string>, attributes:array<string, string>}|null
      */
     private function runMetadataAttrs(\DOMElement $properties, bool $includeFormattingChange = true): ?array
@@ -5298,6 +5351,7 @@ final class DocxReader
             $this->runLanguageDirectionAttrs($properties),
             $this->runFontAttrs($properties),
             $this->runEffectAttrs($properties),
+            $this->runMetricAttrs($properties),
             $includeFormattingChange ? $this->runFormattingChangeAttrs($properties) : null,
         ] as $source) {
             if ($source === null) {
@@ -5367,6 +5421,90 @@ final class DocxReader
                 $classes[] = $class . '-' . $suffix;
             }
             $attributes[$attribute] = $value;
+        }
+
+        if ($attributes === []) {
+            return null;
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function runMetricAttrs(\DOMElement $properties): ?array
+    {
+        $classes = [];
+        $attributes = [];
+
+        $spacing = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'spacing');
+        if ($spacing instanceof \DOMElement) {
+            $value = $this->optionalIntWordAttr($spacing, 'val');
+            if ($value !== null) {
+                $classes[] = 'docx-run-metrics';
+                $classes[] = 'docx-run-spacing';
+                if ($value > 0) {
+                    $classes[] = 'docx-run-spacing-expanded';
+                } elseif ($value < 0) {
+                    $classes[] = 'docx-run-spacing-condensed';
+                }
+                $attributes['data-docx-run-spacing-twips'] = (string) $value;
+            }
+        }
+
+        $scale = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'w');
+        if ($scale instanceof \DOMElement) {
+            $value = $this->optionalIntWordAttr($scale, 'val');
+            if ($value !== null) {
+                $classes[] = 'docx-run-metrics';
+                $classes[] = 'docx-run-scale';
+                $attributes['data-docx-run-scale-percent'] = (string) $value;
+            }
+        }
+
+        $kern = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'kern');
+        if ($kern instanceof \DOMElement) {
+            $value = $this->optionalIntWordAttr($kern, 'val');
+            if ($value !== null) {
+                $classes[] = 'docx-run-metrics';
+                $classes[] = 'docx-run-kern';
+                $attributes['data-docx-run-kern-half-points'] = (string) $value;
+            }
+        }
+
+        $position = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'position');
+        if ($position instanceof \DOMElement) {
+            $value = $this->optionalIntWordAttr($position, 'val');
+            if ($value !== null) {
+                $classes[] = 'docx-run-metrics';
+                $classes[] = 'docx-run-position';
+                if ($value > 0) {
+                    $classes[] = 'docx-run-position-raised';
+                } elseif ($value < 0) {
+                    $classes[] = 'docx-run-position-lowered';
+                }
+                $attributes['data-docx-run-position-half-points'] = (string) $value;
+            }
+        }
+
+        $fitText = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'fitText');
+        if ($fitText instanceof \DOMElement) {
+            $width = $this->optionalIntWordAttr($fitText, 'val');
+            $id = trim((string) ($this->wordAttr($fitText, 'id') ?? ''));
+            if ($width !== null || $id !== '') {
+                $classes[] = 'docx-run-metrics';
+                $classes[] = 'docx-run-fit-text';
+                if ($width !== null) {
+                    $attributes['data-docx-fit-text-width-twips'] = (string) $width;
+                }
+                if ($id !== '') {
+                    $attributes['data-docx-fit-text-id'] = $id;
+                }
+            }
         }
 
         if ($attributes === []) {

@@ -4720,6 +4720,178 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfAnnotationAppearances']);
     },
 
+    'fake runner summarizes bounded pdf stream filter policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/stream-filters.pdf']);
+        $contentBytes = "filtered page content bytes\n";
+        $imageBytes = "jpeg image bytes\n";
+        $formBytes = "filtered form xobject bytes\n";
+        $appearanceBytes = "jpx appearance bytes\n";
+        $xrefBytes = "filtered xref stream bytes\n";
+        $objectStreamHeader = "20 0\n";
+        $objectStreamBytes = $objectStreamHeader . "<< /Title (Compressed object) >>\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /XObject << /ImFiltered 8 0 R /FxFiltered 9 0 R >> >> /Contents 6 0 R /Annots [5 0 R] >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /T (review.status) /AP << /N 10 0 R >> >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Filter [/ASCII85Decode /FlateDecode] /Length ' . strlen($contentBytes) . ' >>',
+            'stream',
+            $contentBytes,
+            'endstream',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 100 /Height 60 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /DCTDecode /Length ' . strlen($imageBytes) . ' >>',
+            'stream',
+            $imageBytes,
+            'endstream',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 100 60] /Filter /FlateDecode /Length ' . strlen($formBytes) . ' >>',
+            'stream',
+            $formBytes,
+            'endstream',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 100 24] /Filter /JPXDecode /Length ' . strlen($appearanceBytes) . ' >>',
+            'stream',
+            $appearanceBytes,
+            'endstream',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /XRef /Size 12 /Root 1 0 R /Index [0 12] /W [1 2 1] /Filter /FlateDecode /Length ' . strlen($xrefBytes) . ' >>',
+            'stream',
+            $xrefBytes,
+            'endstream',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /ObjStm /N 1 /First ' . strlen($objectStreamHeader) . ' /Filter /LZWDecode /Length ' . strlen($objectStreamBytes) . ' >>',
+            'stream',
+            $objectStreamBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            'startxref',
+            '512',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/stream-filters.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/stream-filters.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expectedStreams = [
+            [
+                'surface' => 'xref-stream',
+                'source' => 'xref:11 0 R',
+                'object' => '11 0 R',
+                'filters' => ['FlateDecode'],
+                'action' => 'deferred-decode',
+                'streamBytes' => strlen($xrefBytes),
+                'streamSkipped' => 'filtered',
+            ],
+            [
+                'surface' => 'object-stream',
+                'source' => 'object-stream:12 0 R',
+                'object' => '12 0 R',
+                'filters' => ['LZWDecode'],
+                'action' => 'deferred-decode',
+                'streamBytes' => strlen($objectStreamBytes),
+                'streamSkipped' => 'filtered',
+            ],
+            [
+                'surface' => 'page-content',
+                'source' => 'page:3 0 R.Contents',
+                'object' => '6 0 R',
+                'filters' => ['ASCII85Decode', 'FlateDecode'],
+                'action' => 'deferred-decode',
+                'streamBytes' => strlen($contentBytes),
+                'streamSkipped' => 'filtered',
+            ],
+            [
+                'surface' => 'image-xobject',
+                'source' => 'page:3 0 R.XObject.ImFiltered',
+                'object' => '8 0 R',
+                'filters' => ['DCTDecode'],
+                'action' => 'image-codec-review',
+                'streamBytes' => strlen($imageBytes),
+                'streamSkipped' => null,
+            ],
+            [
+                'surface' => 'form-xobject',
+                'source' => 'page:3 0 R.XObject.FxFiltered',
+                'object' => '9 0 R',
+                'filters' => ['FlateDecode'],
+                'action' => 'deferred-decode',
+                'streamBytes' => strlen($formBytes),
+                'streamSkipped' => null,
+            ],
+            [
+                'surface' => 'annotation-appearance',
+                'source' => 'annotation:5 0 R.AP.N',
+                'object' => '10 0 R',
+                'filters' => ['JPXDecode'],
+                'action' => 'image-codec-review',
+                'streamBytes' => strlen($appearanceBytes),
+                'streamSkipped' => null,
+            ],
+        ];
+        $expected = [
+            'streamCount' => 6,
+            'filterCount' => 7,
+            'filters' => [
+                'ASCII85Decode' => 1,
+                'DCTDecode' => 1,
+                'FlateDecode' => 3,
+                'JPXDecode' => 1,
+                'LZWDecode' => 1,
+            ],
+            'surfaces' => [
+                'annotation-appearance' => 1,
+                'form-xobject' => 1,
+                'image-xobject' => 1,
+                'object-stream' => 1,
+                'page-content' => 1,
+                'xref-stream' => 1,
+            ],
+            'actions' => [
+                'deferred-decode' => 4,
+                'image-codec-review' => 2,
+            ],
+            'streams' => $expectedStreams,
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStreamFilterPolicy'] ?? null);
+        $t->contains('pdf-byte-stream-filter-policy:6', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter:FlateDecode:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter-action:deferred-decode:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter-action:image-codec-review:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter-surface:page-content:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStreamFilterPolicy'] ?? null);
+    },
+
     'fake runner extracts bounded pdf rich media annotation metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/rich-media.pdf']);

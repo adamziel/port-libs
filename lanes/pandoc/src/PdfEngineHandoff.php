@@ -295,6 +295,7 @@ final class PdfEngineHandoff
      *     pdfColorSpaceFamilies: array<string, int>,
      *     pdfFormXObjects: list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     pdfFormXObjectFilters: array<string, int>,
+     *     pdfStreamFilterPolicy: array{streamCount:int, filterCount:int, filters:array<string, int>, surfaces:array<string, int>, actions:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, action:string, streamBytes:int|null, streamSkipped:string|null}>}|array{},
      *     pdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>,
      *     pdfGraphicsStateBlendModes: array<string, int>,
      *     pdfOutlineTitles: list<string>,
@@ -741,6 +742,7 @@ final class PdfEngineHandoff
         $pdfColorSpaceFamilies = [];
         $pdfFormXObjects = [];
         $pdfFormXObjectFilters = [];
+        $pdfStreamFilterPolicy = [];
         $pdfGraphicsStates = [];
         $pdfGraphicsStateBlendModes = [];
         $pdfOutlineTitles = [];
@@ -845,6 +847,7 @@ final class PdfEngineHandoff
                 $pdfColorSpaceFamilies = $pdfInspection['colorSpaceFamilies'];
                 $pdfFormXObjects = $pdfInspection['formXObjects'];
                 $pdfFormXObjectFilters = $pdfInspection['formXObjectFilters'];
+                $pdfStreamFilterPolicy = $pdfInspection['streamFilterPolicy'];
                 $pdfGraphicsStates = $pdfInspection['graphicsStates'];
                 $pdfGraphicsStateBlendModes = $pdfInspection['graphicsStateBlendModes'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
@@ -1249,6 +1252,18 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'pdf-byte-form-xobject-filters:' . count($pdfFormXObjectFilters);
                     foreach ($pdfFormXObjectFilters as $filter => $filterCount) {
                         $diagnostics[] = 'pdf-byte-form-xobject-filter:' . $filter . ':' . $filterCount;
+                    }
+                }
+                if ($pdfStreamFilterPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-stream-filter-policy:' . $pdfStreamFilterPolicy['streamCount'];
+                    foreach ($pdfStreamFilterPolicy['filters'] as $filter => $filterCount) {
+                        $diagnostics[] = 'pdf-byte-stream-filter:' . $filter . ':' . $filterCount;
+                    }
+                    foreach ($pdfStreamFilterPolicy['surfaces'] as $surface => $surfaceCount) {
+                        $diagnostics[] = 'pdf-byte-stream-filter-surface:' . $surface . ':' . $surfaceCount;
+                    }
+                    foreach ($pdfStreamFilterPolicy['actions'] as $action => $actionCount) {
+                        $diagnostics[] = 'pdf-byte-stream-filter-action:' . $action . ':' . $actionCount;
                     }
                 }
                 if ($pdfGraphicsStates !== []) {
@@ -2577,6 +2592,7 @@ final class PdfEngineHandoff
             'pdfColorSpaceFamilies' => $pdfColorSpaceFamilies,
             'pdfFormXObjects' => $pdfFormXObjects,
             'pdfFormXObjectFilters' => $pdfFormXObjectFilters,
+            'pdfStreamFilterPolicy' => $pdfStreamFilterPolicy,
             'pdfGraphicsStates' => $pdfGraphicsStates,
             'pdfGraphicsStateBlendModes' => $pdfGraphicsStateBlendModes,
             'pdfOutlineTitles' => $pdfOutlineTitles,
@@ -2694,6 +2710,7 @@ final class PdfEngineHandoff
      *     finalPdfColorSpaceFamilies: array<string, int>,
      *     finalPdfFormXObjects: list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     finalPdfFormXObjectFilters: array<string, int>,
+     *     finalPdfStreamFilterPolicy: array{streamCount:int, filterCount:int, filters:array<string, int>, surfaces:array<string, int>, actions:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, action:string, streamBytes:int|null, streamSkipped:string|null}>}|array{},
      *     finalPdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>,
      *     finalPdfGraphicsStateBlendModes: array<string, int>,
      *     finalPdfTrailerCount: int,
@@ -2933,6 +2950,7 @@ final class PdfEngineHandoff
             'finalPdfColorSpaceFamilies' => is_array($finalRun) && is_array($finalRun['pdfColorSpaceFamilies'] ?? null) ? $finalRun['pdfColorSpaceFamilies'] : [],
             'finalPdfFormXObjects' => is_array($finalRun) && is_array($finalRun['pdfFormXObjects'] ?? null) ? $finalRun['pdfFormXObjects'] : [],
             'finalPdfFormXObjectFilters' => is_array($finalRun) && is_array($finalRun['pdfFormXObjectFilters'] ?? null) ? $finalRun['pdfFormXObjectFilters'] : [],
+            'finalPdfStreamFilterPolicy' => is_array($finalRun) && is_array($finalRun['pdfStreamFilterPolicy'] ?? null) ? $finalRun['pdfStreamFilterPolicy'] : [],
             'finalPdfGraphicsStates' => is_array($finalRun) && is_array($finalRun['pdfGraphicsStates'] ?? null) ? $finalRun['pdfGraphicsStates'] : [],
             'finalPdfGraphicsStateBlendModes' => is_array($finalRun) && is_array($finalRun['pdfGraphicsStateBlendModes'] ?? null) ? $finalRun['pdfGraphicsStateBlendModes'] : [],
             'finalPdfTrailerCount' => is_array($finalRun) && is_int($finalRun['pdfTrailerCount'] ?? null) ? $finalRun['pdfTrailerCount'] : 0,
@@ -4155,6 +4173,14 @@ final class PdfEngineHandoff
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
         $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
         $annotationAppearances = $this->extractPdfAnnotationAppearances($pdfBytes, $catalog);
+        $streamFilterPolicy = $this->summarizePdfStreamFilterPolicy(
+            $xrefStreams,
+            $objectStreams,
+            $pageContentStreams,
+            $images,
+            $formXObjects,
+            $annotationAppearances
+        );
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $documentInfo = $this->extractPdfDocumentInfo($pdfBytes);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
@@ -4198,6 +4224,7 @@ final class PdfEngineHandoff
             'colorSpaceFamilies' => $this->summarizePdfColorSpaceFamilies($colorSpaces),
             'formXObjects' => $formXObjects,
             'formXObjectFilters' => $this->summarizePdfFormXObjectFilters($formXObjects),
+            'streamFilterPolicy' => $streamFilterPolicy,
             'graphicsStates' => $graphicsStates,
             'graphicsStateBlendModes' => $this->summarizePdfGraphicsStateBlendModes($graphicsStates),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
@@ -4543,6 +4570,202 @@ final class PdfEngineHandoff
         ksort($filters);
 
         return $filters;
+    }
+
+    /**
+     * @param list<array{object:string, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $xrefStreams
+     * @param list<array{object:string, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $objectStreams
+     * @param list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $pageContentStreams
+     * @param list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $images
+     * @param list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $formXObjects
+     * @param list<array{source:string, appearanceObject:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $annotationAppearances
+     * @return array{streamCount:int, filterCount:int, filters:array<string, int>, surfaces:array<string, int>, actions:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, action:string, streamBytes:int|null, streamSkipped:string|null}>}|array{}
+     */
+    private function summarizePdfStreamFilterPolicy(
+        array $xrefStreams,
+        array $objectStreams,
+        array $pageContentStreams,
+        array $images,
+        array $formXObjects,
+        array $annotationAppearances
+    ): array {
+        $streams = [];
+
+        foreach ($xrefStreams as $stream) {
+            $object = is_string($stream['object'] ?? null) ? $stream['object'] : null;
+            $source = $object === null ? 'xref:unknown' : 'xref:' . $object;
+            $this->addPdfStreamFilterPolicyEntry(
+                $streams,
+                'xref-stream',
+                $source,
+                $object,
+                $stream['filters'] ?? [],
+                $stream['streamBytes'] ?? null,
+                $stream['streamSkipped'] ?? null
+            );
+        }
+
+        foreach ($objectStreams as $stream) {
+            $object = is_string($stream['object'] ?? null) ? $stream['object'] : null;
+            $source = $object === null ? 'object-stream:unknown' : 'object-stream:' . $object;
+            $this->addPdfStreamFilterPolicyEntry(
+                $streams,
+                'object-stream',
+                $source,
+                $object,
+                $stream['filters'] ?? [],
+                $stream['streamBytes'] ?? null,
+                $stream['streamSkipped'] ?? null
+            );
+        }
+
+        foreach ($pageContentStreams as $stream) {
+            $this->addPdfStreamFilterPolicyEntry(
+                $streams,
+                'page-content',
+                is_string($stream['source'] ?? null) ? $stream['source'] : 'page:unknown.Contents',
+                is_string($stream['contentObject'] ?? null) ? $stream['contentObject'] : null,
+                $stream['filters'] ?? [],
+                $stream['streamBytes'] ?? null,
+                $stream['streamSkipped'] ?? null
+            );
+        }
+
+        foreach ($images as $image) {
+            $pageObject = is_string($image['pageObject'] ?? null) ? $image['pageObject'] : 'unknown';
+            $resourceName = is_string($image['resourceName'] ?? null) && $image['resourceName'] !== '' ? $image['resourceName'] : 'unknown';
+            $this->addPdfStreamFilterPolicyEntry(
+                $streams,
+                'image-xobject',
+                'page:' . $pageObject . '.XObject.' . $resourceName,
+                is_string($image['imageObject'] ?? null) ? $image['imageObject'] : null,
+                $image['filters'] ?? [],
+                $image['streamBytes'] ?? null,
+                $image['streamSkipped'] ?? null
+            );
+        }
+
+        foreach ($formXObjects as $form) {
+            $pageObject = is_string($form['pageObject'] ?? null) ? $form['pageObject'] : 'unknown';
+            $resourceName = is_string($form['resourceName'] ?? null) && $form['resourceName'] !== '' ? $form['resourceName'] : 'unknown';
+            $this->addPdfStreamFilterPolicyEntry(
+                $streams,
+                'form-xobject',
+                'page:' . $pageObject . '.XObject.' . $resourceName,
+                is_string($form['formObject'] ?? null) ? $form['formObject'] : null,
+                $form['filters'] ?? [],
+                $form['streamBytes'] ?? null,
+                $form['streamSkipped'] ?? null
+            );
+        }
+
+        foreach ($annotationAppearances as $appearance) {
+            $this->addPdfStreamFilterPolicyEntry(
+                $streams,
+                'annotation-appearance',
+                is_string($appearance['source'] ?? null) ? $appearance['source'] : 'annotation:unknown.AP',
+                is_string($appearance['appearanceObject'] ?? null) ? $appearance['appearanceObject'] : null,
+                $appearance['filters'] ?? [],
+                $appearance['streamBytes'] ?? null,
+                $appearance['streamSkipped'] ?? null
+            );
+        }
+
+        if ($streams === []) {
+            return [];
+        }
+
+        $filters = [];
+        $surfaces = [];
+        $actions = [];
+        foreach ($streams as $stream) {
+            $surfaces[$stream['surface']] = ($surfaces[$stream['surface']] ?? 0) + 1;
+            $actions[$stream['action']] = ($actions[$stream['action']] ?? 0) + 1;
+            foreach ($stream['filters'] as $filter) {
+                $filters[$filter] = ($filters[$filter] ?? 0) + 1;
+            }
+        }
+
+        ksort($filters);
+        ksort($surfaces);
+        ksort($actions);
+
+        return [
+            'streamCount' => count($streams),
+            'filterCount' => array_sum($filters),
+            'filters' => $filters,
+            'surfaces' => $surfaces,
+            'actions' => $actions,
+            'streams' => $streams,
+        ];
+    }
+
+    /**
+     * @param list<array{surface:string, source:string, object:string|null, filters:list<string>, action:string, streamBytes:int|null, streamSkipped:string|null}> $streams
+     * @param list<string> $filters
+     */
+    private function addPdfStreamFilterPolicyEntry(
+        array &$streams,
+        string $surface,
+        string $source,
+        ?string $object,
+        array $filters,
+        ?int $streamBytes,
+        ?string $streamSkipped
+    ): void {
+        $filters = array_values(array_unique(array_filter($filters, static fn (string $filter): bool => $filter !== '')));
+        sort($filters);
+        if ($filters === []) {
+            return;
+        }
+
+        $streams[] = [
+            'surface' => $surface,
+            'source' => $source,
+            'object' => $object,
+            'filters' => $filters,
+            'action' => $this->pdfStreamFilterPolicyAction($filters),
+            'streamBytes' => $streamBytes,
+            'streamSkipped' => $streamSkipped === '' ? null : $streamSkipped,
+        ];
+    }
+
+    /**
+     * @param list<string> $filters
+     */
+    private function pdfStreamFilterPolicyAction(array $filters): string
+    {
+        $deferredFilters = [
+            'ASCII85Decode' => true,
+            'ASCIIHexDecode' => true,
+            'FlateDecode' => true,
+            'LZWDecode' => true,
+            'RunLengthDecode' => true,
+        ];
+        $imageFilters = [
+            'CCITTFaxDecode' => true,
+            'DCTDecode' => true,
+            'JBIG2Decode' => true,
+            'JPXDecode' => true,
+        ];
+        $hasImageFilter = false;
+
+        foreach ($filters as $filter) {
+            if ($filter === 'Crypt') {
+                return 'requires-decryption';
+            }
+            if (isset($imageFilters[$filter])) {
+                $hasImageFilter = true;
+                continue;
+            }
+            if (isset($deferredFilters[$filter])) {
+                continue;
+            }
+
+            return 'unsupported-filter';
+        }
+
+        return $hasImageFilter ? 'image-codec-review' : 'deferred-decode';
     }
 
     /**

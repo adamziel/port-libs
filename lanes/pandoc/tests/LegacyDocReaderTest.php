@@ -2056,6 +2056,15 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($redRoot));
     },
+    'rejects red CFB root storage entries before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $bytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Root color guard packet\r"),
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $redRootStorage = substr_replace($bytes, "\0", $directorySectorOffset + 67, 1);
+
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($redRootStorage));
+    },
     'rejects unequal black-height CFB directory sibling trees before stream lookup' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
             'A' => 'a',

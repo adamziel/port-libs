@@ -4398,6 +4398,12 @@ final class OdfReader
         if ($styleName === '') {
             $styleName = self::attr($field, self::STYLE_NS, 'data-style-name');
         }
+        $numPrefix = $field->hasAttributeNS(self::STYLE_NS, 'num-prefix')
+            ? $field->getAttributeNS(self::STYLE_NS, 'num-prefix')
+            : '';
+        $numSuffix = $field->hasAttributeNS(self::STYLE_NS, 'num-suffix')
+            ? $field->getAttributeNS(self::STYLE_NS, 'num-suffix')
+            : '';
 
         $metadata = self::withoutEmpty([
             'name' => self::nullable(self::attr($field, self::TEXT_NS, 'name')),
@@ -4428,7 +4434,12 @@ final class OdfReader
             'timeValue' => self::nullable($timeValue),
             'selectPage' => self::nullable(self::attr($field, self::TEXT_NS, 'select-page')),
             'pageAdjust' => self::nullable(self::attr($field, self::TEXT_NS, 'page-adjust')),
+            'dateAdjust' => self::nullable(self::attr($field, self::TEXT_NS, 'date-adjust')),
+            'timeAdjust' => self::nullable(self::attr($field, self::TEXT_NS, 'time-adjust')),
             'numFormat' => self::nullable(self::attr($field, self::STYLE_NS, 'num-format')),
+            'numPrefix' => self::nullable($numPrefix),
+            'numSuffix' => self::nullable($numSuffix),
+            'numLetterSync' => self::nullableBool(self::attr($field, self::STYLE_NS, 'num-letter-sync')),
             'formatSource' => self::nullable(self::attr($field, self::TEXT_NS, 'format-source')),
             'styleName' => self::nullable($styleName),
         ]);

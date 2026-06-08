@@ -252,6 +252,44 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
         . $packageComment;
 };
 
+$packZip64UInt64 = static function (int $value): string {
+    return pack('VV', $value & 0xffffffff, intdiv($value, 0x100000000));
+};
+
+$buildZip64EndOfCentralDirectoryZip = static function (string $zip) use ($packZip64UInt64): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if (! is_int($eocdOffset)) {
+        throw new RuntimeException('ZIP fixture is missing an end of central directory record.');
+    }
+
+    $centralDirectorySize = unpack('Vvalue', substr($zip, $eocdOffset + 12, 4));
+    $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4));
+    if (! is_array($centralDirectorySize) || ! is_array($centralDirectoryOffset)) {
+        throw new RuntimeException('Unable to read ZIP central directory metadata.');
+    }
+
+    $zip64EocdOffset = $eocdOffset;
+    $zip64Eocd = "PK\x06\x06"
+        . $packZip64UInt64(44)
+        . pack('vvVV', 45, 45, 0, 0)
+        . $packZip64UInt64(1)
+        . $packZip64UInt64(1)
+        . $packZip64UInt64((int) $centralDirectorySize['value'])
+        . $packZip64UInt64((int) $centralDirectoryOffset['value']);
+    $zip64Locator = "PK\x06\x07"
+        . pack('V', 0)
+        . $packZip64UInt64($zip64EocdOffset)
+        . pack('V', 1);
+
+    $eocd = substr($zip, $eocdOffset);
+    $eocd = substr_replace($eocd, pack('v', 0xffff), 8, 2);
+    $eocd = substr_replace($eocd, pack('v', 0xffff), 10, 2);
+    $eocd = substr_replace($eocd, pack('V', 0xffffffff), 12, 4);
+    $eocd = substr_replace($eocd, pack('V', 0xffffffff), 16, 4);
+
+    return substr($zip, 0, $eocdOffset) . $zip64Eocd . $zip64Locator . $eocd;
+};
+
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
 $legacyContentBytes = "# Legacy contiguous source packet\n\nReady for WordPress archive review.\n";
@@ -668,6 +706,29 @@ try {
     ZipPackage::fromString($zip64DescriptorZipBytes);
 } catch (RuntimeException) {
     $zip64DescriptorExtractionBlocked = true;
+}
+$zip64EocdZipBytes = $buildZip64EndOfCentralDirectoryZip($zipDescriptorFixtureBytes([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>ZIP64 EOCD archive stream review</w:p></w:body></w:document>',
+        'compressionMethod' => 8,
+    ],
+], 'zip64 eocd review fixture'));
+$zip64EocdZipGzip = GzipStream::build($zip64EocdZipBytes, [
+    'filename' => 'wordpress-zip64-eocd-package.zip',
+    'comment' => 'ZIP64 end of central directory preflight fixture',
+    'headerCrc' => true,
+]);
+$zip64EocdInspection = ArchiveCompressionStream::inspectZip64EndOfCentralDirectoryPolicy(
+    $zip64EocdZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($zip64EocdZipBytes)
+);
+$zip64EocdExtractionBlocked = false;
+try {
+    ZipPackage::fromString($zip64EocdZipBytes);
+} catch (RuntimeException) {
+    $zip64EocdExtractionBlocked = true;
 }
 $splitZipBytes = $zipDescriptorFixtureBytes([
     [
@@ -1102,6 +1163,19 @@ if (in_array('--self-test', $argv, true)) {
         'zip64DescriptorSignatures' => [true, false],
         'zip64DescriptorLengths' => [24, 20],
         'zip64DescriptorGzipFilename' => 'wordpress-zip64-descriptor-package.zip',
+        'zip64EocdFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zip64EocdRequiresZip64' => true,
+        'zip64EocdSupportedByBoundedReader' => false,
+        'zip64EocdIssues' => ['zip64-end-of-central-directory'],
+        'zip64EocdRecordPayloadSize' => 44,
+        'zip64EocdRecordSize' => 56,
+        'zip64EocdVersionNeeded' => 45,
+        'zip64EocdLocatorTotalDisks' => 1,
+        'zip64EocdTotalEntryCount' => 1,
+        'zip64EocdEocdTotalEntryCount' => 0xffff,
+        'zip64EocdEocdCentralDirectorySize' => 0xffffffff,
+        'zip64EocdEocdCentralDirectoryOffset' => 0xffffffff,
+        'zip64EocdGzipFilename' => 'wordpress-zip64-eocd-package.zip',
         'zipSplitFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipSplitEntryCount' => 3,
         'zipSplitDiskNumber' => 1,
@@ -1380,6 +1454,30 @@ if (in_array('--self-test', $argv, true)) {
         || ($zip64DescriptorIntegrityInspection['descriptorEntries'][1]['valueOffset'] ?? null) !== ($zip64DescriptorIntegrityInspection['descriptorEntries'][1]['descriptorOffset'] ?? null)
         || ($zip64DescriptorIntegrityInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zip64DescriptorGzipFilename']
         || !$zip64DescriptorExtractionBlocked
+        || $zip64EocdInspection['format'] !== $expected['zip64EocdFormat']
+        || $zip64EocdInspection['zipBytes'] !== $zip64EocdZipBytes
+        || $zip64EocdInspection['packageByteSize'] !== strlen($zip64EocdZipBytes)
+        || $zip64EocdInspection['requiresZip64'] !== $expected['zip64EocdRequiresZip64']
+        || $zip64EocdInspection['isSupportedByBoundedReader'] !== $expected['zip64EocdSupportedByBoundedReader']
+        || $zip64EocdInspection['hasZip64EndOfCentralDirectoryLocator'] !== true
+        || $zip64EocdInspection['hasZip64EndOfCentralDirectory'] !== true
+        || $zip64EocdInspection['issues'] !== $expected['zip64EocdIssues']
+        || $zip64EocdInspection['recordPayloadSize'] !== $expected['zip64EocdRecordPayloadSize']
+        || $zip64EocdInspection['recordSize'] !== $expected['zip64EocdRecordSize']
+        || $zip64EocdInspection['versionNeededToExtract'] !== $expected['zip64EocdVersionNeeded']
+        || $zip64EocdInspection['locatorDiskWithEndOfCentralDirectory'] !== 0
+        || $zip64EocdInspection['locatorTotalDisks'] !== $expected['zip64EocdLocatorTotalDisks']
+        || $zip64EocdInspection['diskEntryCount'] !== $expected['zip64EocdTotalEntryCount']
+        || $zip64EocdInspection['totalEntryCount'] !== $expected['zip64EocdTotalEntryCount']
+        || $zip64EocdInspection['centralDirectoryEndMatchesRecordOffset'] !== true
+        || $zip64EocdInspection['isSingleDisk'] !== true
+        || $zip64EocdInspection['centralDirectoryOffset'] + $zip64EocdInspection['centralDirectorySize'] !== $zip64EocdInspection['centralDirectoryEnd']
+        || $zip64EocdInspection['recordOffset'] !== $zip64EocdInspection['centralDirectoryEnd']
+        || $zip64EocdInspection['eocdTotalEntryCount'] !== $expected['zip64EocdEocdTotalEntryCount']
+        || $zip64EocdInspection['eocdCentralDirectorySize'] !== $expected['zip64EocdEocdCentralDirectorySize']
+        || $zip64EocdInspection['eocdCentralDirectoryOffset'] !== $expected['zip64EocdEocdCentralDirectoryOffset']
+        || ($zip64EocdInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zip64EocdGzipFilename']
+        || !$zip64EocdExtractionBlocked
         || $splitZipInspection['format'] !== $expected['zipSplitFormat']
         || $splitZipInspection['zipBytes'] !== $splitZipBytes
         || $splitZipInspection['packageByteSize'] !== strlen($splitZipBytes)
@@ -1658,6 +1756,15 @@ echo 'zip64Descriptor.issues=' . implode(',', $zip64DescriptorIntegrityInspectio
 echo 'zip64Descriptor.lengths=' . implode(',', array_column($zip64DescriptorIntegrityInspection['descriptorEntries'], 'descriptorLength')) . "\n";
 echo 'zip64Descriptor.gzipFilename=' . $zip64DescriptorIntegrityInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zip64Descriptor.extractionBlocked=' . ($zip64DescriptorExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zip64Eocd.format=' . $zip64EocdInspection['format'] . "\n";
+echo 'zip64Eocd.requiresZip64=' . ($zip64EocdInspection['requiresZip64'] ? 'yes' : 'no') . "\n";
+echo 'zip64Eocd.supportedByBoundedReader=' . ($zip64EocdInspection['isSupportedByBoundedReader'] ? 'yes' : 'no') . "\n";
+echo 'zip64Eocd.issues=' . implode(',', $zip64EocdInspection['issues']) . "\n";
+echo 'zip64Eocd.record=' . $zip64EocdInspection['recordPayloadSize'] . ':' . $zip64EocdInspection['recordSize'] . "\n";
+echo 'zip64Eocd.entryCount=' . $zip64EocdInspection['totalEntryCount'] . "\n";
+echo 'zip64Eocd.eocdSentinels=' . $zip64EocdInspection['eocdTotalEntryCount'] . ':' . $zip64EocdInspection['eocdCentralDirectorySize'] . ':' . $zip64EocdInspection['eocdCentralDirectoryOffset'] . "\n";
+echo 'zip64Eocd.gzipFilename=' . $zip64EocdInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zip64Eocd.extractionBlocked=' . ($zip64EocdExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'zipSplit.format=' . $splitZipInspection['format'] . "\n";
 echo 'zipSplit.entryCount=' . $splitZipInspection['entryCount'] . "\n";
 echo 'zipSplit.issues=' . implode(',', $splitZipInspection['issues']) . "\n";

@@ -10116,6 +10116,111 @@ XML);
         $t->contains('<dt>Ng 2024</dt><dd>Approximate Access Packet :: access circa</dd>', $blocks);
         $t->contains('<dt>Review Desk 2023</dt><dd>Stable Source Packet :: no circa markers</dd>', $blocks);
     },
+    'applies bounded csl is date conditionals for date variables' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'full-date-packet',
+                'type' => 'report',
+                'title' => 'Full Date Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 5]]],
+                'accessed' => ['date-parts' => [[2026, 6, 8]]],
+            ],
+            [
+                'id' => 'issued-packet',
+                'type' => 'report',
+                'title' => 'Issued Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'original-packet',
+                'type' => 'manuscript',
+                'title' => 'Original Packet',
+                'author' => [
+                    ['literal' => 'Archive Desk'],
+                ],
+                'original-date' => ['literal' => 'undated source letter'],
+            ],
+            [
+                'id' => 'undated-packet',
+                'type' => 'report',
+                'title' => 'Undated Packet',
+                'author' => [
+                    ['literal' => 'Review Desk'],
+                ],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Date Condition Review Style</title>
+    <id>https://example.test/styles/bounded-date-condition-review</id>
+    <updated>2026-06-08T16:07:14+00:00</updated>
+  </info>
+  <macro name="date-route">
+    <choose>
+      <if is-date="issued accessed" match="all">
+        <text value="both-dates"/>
+      </if>
+      <else-if is-date="issued original-date" match="any">
+        <text value="source-date"/>
+      </else-if>
+      <else-if is-date="issued accessed original-date" match="none">
+        <text value="no-date"/>
+      </else-if>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text macro="date-route"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text macro="date-route"/>
+      <date variable="original-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $branches = $summary['macros']['date-route'][0]['branches'] ?? [];
+        $t->same(['issued', 'accessed'], $branches[0]['isDate'] ?? null);
+        $t->same('all', $branches[0]['match'] ?? null);
+        $t->same(['issued', 'original-date'], $branches[1]['isDate'] ?? null);
+        $t->same('any', $branches[1]['match'] ?? null);
+        $t->same(['issued', 'accessed', 'original-date'], $branches[2]['isDate'] ?? null);
+        $t->same('none', $branches[2]['match'] ?? null);
+
+        $t->same('[Full Date Packet | both-dates; Issued Packet | source-date; Original Packet | source-date; Undated Packet | no-date]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'full-date-packet', 'text' => '[@full-date-packet]']),
+            new AstNode('citation', ['id' => 'issued-packet', 'text' => '[@issued-packet]']),
+            new AstNode('citation', ['id' => 'original-packet', 'text' => '[@original-packet]']),
+            new AstNode('citation', ['id' => 'undated-packet', 'text' => '[@undated-packet]']),
+        ]));
+        $t->same('Full Date Packet :: both-dates', $processor->renderBibliographyEntry('full-date-packet'));
+        $t->same('Issued Packet :: source-date', $processor->renderBibliographyEntry('issued-packet'));
+        $t->same('Original Packet :: source-date :: undated source letter', $processor->renderBibliographyEntry('original-packet'));
+        $t->same('Undated Packet :: no-date', $processor->renderBibliographyEntry('undated-packet'));
+
+        $document = (new MarkdownReader())->read('Date routes [@full-date-packet; @issued-packet; @original-packet; @undated-packet] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Date routes [Full Date Packet | both-dates; Issued Packet | source-date; Original Packet | source-date; Undated Packet | no-date] remain visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Full Date Packet :: both-dates</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Issued Packet :: source-date</dd>', $blocks);
+        $t->contains('<dt>Archive Desk n.d.</dt><dd>Original Packet :: source-date :: undated source letter</dd>', $blocks);
+        $t->contains('<dt>Review Desk n.d.</dt><dd>Undated Packet :: no-date</dd>', $blocks);
+    },
     'applies bounded csl locator and page label rendering' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

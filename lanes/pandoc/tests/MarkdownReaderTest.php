@@ -893,6 +893,36 @@ return [
         $t->contains('This literal block line is not indented.</p>', $blocks);
         $t->contains('<h1 id="invalid-scalar-body">Invalid scalar body</h1>', $blocks);
     },
+    'keeps pandoc yaml block scalar with later under-indented line as markdown body' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Late invalid block scalar **Packet**',
+            'abstract: |',
+            '  First indented reviewer line.',
+            'Second reviewer line is under-indented.',
+            '---',
+            '',
+            '# Late invalid scalar body',
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(null, $document->attr('meta'), 'late under-indented block scalar does not become metadata');
+        $t->same(4, count($document->children), 'invalid YAML front matter remains visible as markdown blocks');
+        $t->same('horizontal_rule', $document->children[0]->type);
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same(
+            'title: Late invalid block scalar Packet abstract: | First indented reviewer line. Second reviewer line is under-indented.',
+            $document->children[1]->attr('text'),
+            'late under-indented block scalar source is preserved in the body'
+        );
+        $t->same('horizontal_rule', $document->children[2]->type);
+        $t->same('heading', $document->children[3]->type);
+        $t->same('late-invalid-scalar-body', $document->children[3]->attr('id'));
+        $t->contains('<p>title: Late invalid block scalar <strong>Packet</strong>', $blocks);
+        $t->contains('First indented reviewer line.', $blocks);
+        $t->contains('Second reviewer line is under-indented.</p>', $blocks);
+        $t->contains('<h1 id="late-invalid-scalar-body">Late invalid scalar body</h1>', $blocks);
+    },
     'maps pandoc yaml metadata with omitted opening marker at document start' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             'title: "Implicit **Packet**"',

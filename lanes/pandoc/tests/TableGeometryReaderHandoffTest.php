@@ -371,11 +371,28 @@ HTML;
         $t->same(3, $packet['coverage'][0]['rowspan'] ?? null);
         $t->same(3, $packet['coverage'][0]['rawRowspan'] ?? null);
         $t->same(true, $packet['coverage'][0]['rowspanToEnd'] ?? null);
+        $t->same(0, $packet['coverage'][0]['sourceRowspanAttribute'] ?? null);
+        $t->same('to-section-end', $packet['coverage'][0]['sourceRowspanMode'] ?? null);
+        $t->same(1, $packet['summary']['rowspanToEndCellCount'] ?? null);
+        $t->same(true, $packet['summary']['hasRowspanToEndCells'] ?? null);
+        $t->same(['body'], $packet['summary']['rowspanToEndSections'] ?? null);
         $t->same([
             ['row' => 0, 'column' => 0, 'covering' => 'anchor'],
             ['row' => 1, 'column' => 0, 'covering' => 'rowspan'],
             ['row' => 2, 'column' => 0, 'covering' => 'rowspan'],
         ], $packet['coverage'][0]['occupiedSlots'] ?? null);
+        $t->same(0, $packet['sections'][1]['rows'][0]['slots'][0]['sourceRowspanAttribute'] ?? null);
+        $t->same('to-section-end', $packet['sections'][1]['rows'][0]['slots'][0]['sourceRowspanMode'] ?? null);
+        $t->same(0, $packet['sections'][1]['rows'][1]['slots'][0]['sourceRowspanAttribute'] ?? null);
+        $t->same('to-section-end', $packet['sections'][1]['rows'][1]['slots'][0]['sourceRowspanMode'] ?? null);
+        $t->same(0, $packet['rowMatrix']['rows'][0]['cells'][0]['sourceRowspanAttribute'] ?? null);
+        $t->same('to-section-end', $packet['rowMatrix']['rows'][0]['cells'][0]['sourceRowspanMode'] ?? null);
+        $t->same(0, $packet['flatGrid']['rows'][0]['cells'][0]['sourceRowspanAttribute'] ?? null);
+        $t->same('to-section-end', $packet['flatGrid']['rows'][0]['cells'][0]['sourceRowspanMode'] ?? null);
+        $t->same(0, $packet['flatGrid']['rows'][1]['cells'][0]['sourceRowspanAttribute'] ?? null);
+        $t->same('to-section-end', $packet['flatGrid']['rows'][1]['cells'][0]['sourceRowspanMode'] ?? null);
+        $t->same(0, $packet['flatGridFallbacks'][0]['slots'][0]['sourceRowspanAttribute'] ?? null);
+        $t->same('to-section-end', $packet['flatGridFallbacks'][0]['slots'][0]['sourceRowspanMode'] ?? null);
         $t->same('7', $packet['coverage'][2]['text'] ?? null);
         $t->same(1, $packet['coverage'][2]['column'] ?? null);
         $t->same('Needs media', $packet['coverage'][3]['text'] ?? null);
@@ -390,6 +407,8 @@ HTML;
         ));
         $t->same(1, count($markdownRowspanDowngrades));
         $t->same(true, $markdownRowspanDowngrades[0]['rowspanToEnd'] ?? null);
+        $t->same(0, $markdownRowspanDowngrades[0]['sourceRowspanAttribute'] ?? null);
+        $t->same('to-section-end', $markdownRowspanDowngrades[0]['sourceRowspanMode'] ?? null);
         $t->same(3, $markdownRowspanDowngrades[0]['rowspan'] ?? null);
         $t->same(3, $markdownRowspanDowngrades[0]['rawRowspan'] ?? null);
         $t->same([
@@ -402,6 +421,8 @@ HTML;
         ));
         $t->same(1, count($rstRowspanRequirements));
         $t->same(true, $rstRowspanRequirements[0]['rowspanToEnd'] ?? null);
+        $t->same(0, $rstRowspanRequirements[0]['sourceRowspanAttribute'] ?? null);
+        $t->same('to-section-end', $rstRowspanRequirements[0]['sourceRowspanMode'] ?? null);
         $t->same('grid-table', $rstRowspanRequirements[0]['requiredFeature'] ?? null);
         $latexRowspanRequirements = array_values(array_filter(
             TableGeometry::writerDowngradeDiagnostics($table, 'latex'),
@@ -409,6 +430,8 @@ HTML;
         ));
         $t->same(1, count($latexRowspanRequirements));
         $t->same(true, $latexRowspanRequirements[0]['rowspanToEnd'] ?? null);
+        $t->same(0, $latexRowspanRequirements[0]['sourceRowspanAttribute'] ?? null);
+        $t->same('to-section-end', $latexRowspanRequirements[0]['sourceRowspanMode'] ?? null);
         $t->same('multirow', $latexRowspanRequirements[0]['requiredFeature'] ?? null);
         $t->contains('<figure class="wp-block-table"><table id="rowspan-zero-grid" data-source="html-reader"><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody id="posts-body"><tr data-row="posts-total"><th rowspan="3" style="text-align:left">Posts</th><td style="text-align:right">42</td></tr><tr data-row="posts-media"><td style="text-align:right">7</td><td>Needs media</td></tr><tr data-row="posts-review"><td style="text-align:right">3</td><td>Review</td></tr></tbody><tbody id="pages-body"><tr data-row="pages-total"><th>Pages</th><td style="text-align:right">5</td><td>Ready</td></tr></tbody></table></figure>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);

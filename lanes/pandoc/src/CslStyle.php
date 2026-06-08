@@ -1582,7 +1582,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isCreator:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, isCircaDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
+     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isCreator:list<string>, isNumeric:list<string>, isDate:list<string>, isUncertainDate:list<string>, isCircaDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
      */
     private static function chooseRenderingElement(\DOMElement $choose, string $scope): array
     {
@@ -1644,7 +1644,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isCreator:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, isCircaDate:list<string>, children:list<array<string, mixed>>}
+     * @return array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isCreator:list<string>, isNumeric:list<string>, isDate:list<string>, isUncertainDate:list<string>, isCircaDate:list<string>, children:list<array<string, mixed>>}
      */
     private static function conditionalRenderingBranch(\DOMElement $branch, string $scope): array
     {
@@ -1677,6 +1677,7 @@ final class CslStyle
             self::spaceSeparatedAttribute($branch, 'is-creator')
         );
         $isNumeric = self::spaceSeparatedAttribute($branch, 'is-numeric');
+        $isDate = self::spaceSeparatedAttribute($branch, 'is-date');
         $isUncertainDate = self::spaceSeparatedAttribute($branch, 'is-uncertain-date');
         $isCircaDate = self::spaceSeparatedAttribute($branch, 'is-circa-date');
         foreach ($locators as $locator) {
@@ -1695,8 +1696,8 @@ final class CslStyle
             }
         }
 
-        if ($variables === [] && $types === [] && $locators === [] && $positions === [] && !$disambiguate && $isCreator === [] && $isNumeric === [] && $isUncertainDate === [] && $isCircaDate === []) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, locator, position, disambiguate, is-creator, is-numeric, is-uncertain-date, or is-circa-date');
+        if ($variables === [] && $types === [] && $locators === [] && $positions === [] && !$disambiguate && $isCreator === [] && $isNumeric === [] && $isDate === [] && $isUncertainDate === [] && $isCircaDate === []) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, locator, position, disambiguate, is-creator, is-numeric, is-date, is-uncertain-date, or is-circa-date');
         }
 
         return [
@@ -1708,6 +1709,7 @@ final class CslStyle
             'disambiguate' => $disambiguate,
             'isCreator' => $isCreator,
             'isNumeric' => $isNumeric,
+            'isDate' => $isDate,
             'isUncertainDate' => $isUncertainDate,
             'isCircaDate' => $isCircaDate,
             'children' => self::renderingElements($branch, $scope),

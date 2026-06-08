@@ -135,6 +135,8 @@ Middle delimiter audit $\left\{p_i \middle| p_i \in P\right\} + \left\langle x \
 
 Extensible arrow audit $\xrightarrow[\text{review}]{\operatorname{publish}} p_i + \xleftarrow{draft} m_i + \overrightarrow{AB}_i$ stays semantic.
 
+Extensible arrow alias audit $\xlongequal{\text{same}} + \xhookrightarrow[\text{map}]{f} + \xtwoheadleftarrow{g} + \xleftharpoonup{\text{pull}} + \xrightharpoondown[low]{high}$ stays semantic.
+
 Tagged equation audit:
 $$p_i + m_i \label{eq:review-flow} \tag{WP-2}$$
 
@@ -245,6 +247,7 @@ $summary = [
     'arrowGroupDelimiterMathml' => $converter->texToMathMl('\\left\\uparrow x_i \\middle\\Updownarrow y_i \\right\\downarrow + \\Bigl\\Uparrow z \\Bigr\\Downarrow + \\lgroup p_i \\rgroup + \\left\\lmoustache a \\right\\rmoustache'),
     'middleDelimiterMathml' => $converter->texToMathMl('\\left\\{p_i \\middle| p_i \\in P\\right\\} + \\left\\langle x \\middle/ y \\right\\rangle'),
     'extensibleArrowMathml' => $converter->texToMathMl('\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i + \\overrightarrow{AB}_i'),
+    'extensibleArrowAliasMathml' => $converter->texToMathMl('\\xlongequal{\\text{same}} + \\xhookrightarrow[\\text{map}]{f} + \\xtwoheadleftarrow{g} + \\xleftharpoonup{\\text{pull}} + \\xrightharpoondown[low]{high}'),
     'taggedEquationMathml' => $converter->texToMathMl('p_i + m_i \\label{eq:review-flow} \\tag{WP-2}', true),
     'equationReferenceMathml' => $converter->texToMathMl('\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}', true),
     'equationReferenceLabels' => $equationReferenceLabels,
@@ -409,6 +412,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\left\\uparrow x_i \\middle\\Updownarrow y_i \\right\\downarrow + \\Bigl\\Uparrow z \\Bigr\\Downarrow + \\lgroup p_i \\rgroup + \\left\\lmoustache a \\right\\rmoustache\\)</span>',
         '<span class="math inline">\\(\\left\\{p_i \\middle| p_i \\in P\\right\\} + \\left\\langle x \\middle/ y \\right\\rangle\\)</span>',
         '<span class="math inline">\\(\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i + \\overrightarrow{AB}_i\\)</span>',
+        '<span class="math inline">\\(\\xlongequal{\\text{same}} + \\xhookrightarrow[\\text{map}]{f} + \\xtwoheadleftarrow{g} + \\xleftharpoonup{\\text{pull}} + \\xrightharpoondown[low]{high}\\)</span>',
         '<span class="math display">\\[p_i + m_i \\label{eq:review-flow} \\tag{WP-2}\\]</span>',
         '<span class="math inline">\\(\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}\\)</span>',
         '<span class="math inline">\\(\\eqref{eq:review-flow} + \\eqref{eq:row-review}\\)</span>',
@@ -611,6 +615,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mo>⟮</mo><msub><mi>p</mi><mi>i</mi></msub><mo>⟯</mo><mo>+</mo><mo fence="true" stretchy="true">⎰</mo><mi>a</mi><mo fence="true" stretchy="true">⎱</mo>',
         '<annotation encoding="application/x-tex">\\left\\uparrow x_i \\middle\\Updownarrow y_i \\right\\downarrow + \\Bigl\\Uparrow z \\Bigr\\Downarrow + \\lgroup p_i \\rgroup + \\left\\lmoustache a \\right\\rmoustache</annotation>',
         '<annotation encoding="application/x-tex">\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i + \\overrightarrow{AB}_i</annotation>',
+        '<mover><mo stretchy="true">=</mo><mtext>same</mtext></mover><mo>+</mo><munderover><mo stretchy="true">↪</mo><mtext>map</mtext><mi>f</mi></munderover><mo>+</mo><mover><mo stretchy="true">↞</mo><mi>g</mi></mover>',
+        '<mover><mo stretchy="true">↼</mo><mtext>pull</mtext></mover><mo>+</mo><munderover><mo stretchy="true">⇁</mo><mrow><mi>l</mi><mi>o</mi><mi>w</mi></mrow><mrow><mi>h</mi><mi>i</mi><mi>g</mi><mi>h</mi></mrow></munderover>',
+        '<annotation encoding="application/x-tex">\\xlongequal{\\text{same}} + \\xhookrightarrow[\\text{map}]{f} + \\xtwoheadleftarrow{g} + \\xleftharpoonup{\\text{pull}} + \\xrightharpoondown[low]{high}</annotation>',
         '<annotation encoding="application/x-tex">p_i + m_i \\label{eq:review-flow} \\tag{WP-2}</annotation>',
         '<annotation encoding="application/x-tex-label">eq:review-flow</annotation>',
         '<mrow id="eq:plain"><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:plain">eq:plain</mtext><mo>)</mo></mrow><mo>+</mo><mtext href="#review-row-2">review row/2</mtext></mrow>',

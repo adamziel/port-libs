@@ -1985,7 +1985,9 @@ final class MarkdownReader
                 continue;
             }
 
-            return strspn($expanded, ' ') >= $requiredIndent;
+            if (strspn($expanded, ' ') < $requiredIndent) {
+                return false;
+            }
         }
 
         return true;

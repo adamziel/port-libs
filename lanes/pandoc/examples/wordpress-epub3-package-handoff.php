@@ -784,6 +784,12 @@ XML;
     if (($result['guide']['items'][1]['manifestId'] ?? null) !== 'cover-image') {
         throw new RuntimeException('Expected EPUB OPF guide cover reference to match the cover manifest item');
     }
+    if (($result['guide']['types'] ?? []) !== ['text', 'cover'] || ($result['guide']['typedItemCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB OPF guide semantic type summary for WordPress review');
+    }
+    if (($result['guide']['itemsByType']['text'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
+        throw new RuntimeException('Expected EPUB OPF guide text reference to be grouped by semantic type');
+    }
     if (($result['collections'][0]['role'] ?? null) !== 'set') {
         throw new RuntimeException('Expected EPUB OPF collection role to be preserved');
     }
@@ -1408,6 +1414,8 @@ echo 'firstPageBreakFragment=' . ($result['pageBreaks']['items'][0]['fragment'] 
 echo 'firstSpinePageBreaks=' . ($result['document']->children[0]->attr('pageBreakCount') ?? 0) . "\n";
 echo 'guideReferences=' . count($result['guide']['items'] ?? []) . "\n";
 echo 'guideTextTarget=' . ($result['guide']['items'][0]['target'] ?? '') . "\n";
+echo 'guideTypes=' . implode(',', $result['guide']['types'] ?? []) . "\n";
+echo 'guideTypedReferences=' . ($result['guide']['typedItemCount'] ?? 0) . "\n";
 echo 'collectionRole=' . ($result['collections'][0]['role'] ?? '') . "\n";
 echo 'collectionTitleLanguage=' . ($result['collections'][0]['metadata']['titleDetails'][0]['language'] ?? '') . "\n";
 echo 'collectionTitleDirection=' . ($result['collections'][0]['metadata']['titleDetails'][0]['direction'] ?? '') . "\n";

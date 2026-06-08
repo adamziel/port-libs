@@ -516,6 +516,20 @@ MARKDOWN;
 $invalidBlockScalarDocument = (new MarkdownReader())->read($invalidBlockScalarMarkdown);
 $invalidBlockScalarBlocks = (new WordPressBlockWriter())->write($invalidBlockScalarDocument);
 
+$lateInvalidBlockScalarMarkdown = <<<'MARKDOWN'
+---
+title: Late invalid block scalar **Packet**
+abstract: |
+  First source line is indented.
+Second source line is not indented relative to the block scalar.
+---
+
+# Late invalid scalar body
+MARKDOWN;
+
+$lateInvalidBlockScalarDocument = (new MarkdownReader())->read($lateInvalidBlockScalarMarkdown);
+$lateInvalidBlockScalarBlocks = (new WordPressBlockWriter())->write($lateInvalidBlockScalarDocument);
+
 $duplicateKeyMarkdown = <<<'MARKDOWN'
 ---
 title: Duplicate key packet
@@ -1594,6 +1608,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($invalidBlockScalarBlocks, 'This source line is not indented relative to the block scalar.</p>')) {
         throw new RuntimeException('YAML metadata self-test failed to keep invalid block scalar body source visible');
+    }
+    if ($lateInvalidBlockScalarDocument->attr('meta') !== null) {
+        throw new RuntimeException('YAML metadata self-test accepted late under-indented block scalar metadata');
+    }
+    if (!str_contains($lateInvalidBlockScalarBlocks, 'First source line is indented.')) {
+        throw new RuntimeException('YAML metadata self-test lost late invalid block scalar first source line');
+    }
+    if (!str_contains($lateInvalidBlockScalarBlocks, 'Second source line is not indented relative to the block scalar.</p>')) {
+        throw new RuntimeException('YAML metadata self-test lost late invalid block scalar under-indented source line');
     }
     if (($duplicateKeyMeta['review']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing duplicate key final review status');

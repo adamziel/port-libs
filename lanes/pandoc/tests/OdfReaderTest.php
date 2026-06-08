@@ -3371,6 +3371,64 @@ XML;
         $t->contains('<span class="odf-field odf-field-page-number" data-odf-field-type="page-number" data-odf-field-style-name="PageDigits">7</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-sender-email" data-odf-field-type="sender-email" data-odf-field-style-name="SenderEmail">desk@example.test</span>', $blocksHtml);
     },
+    'maps ODT field number date and time format metadata into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithFormattedFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Formatted page <text:page-number style:num-format="I" style:num-prefix="p. " style:num-suffix=" / source" style:num-letter-sync="true">IV</text:page-number>, adjusted date <text:date text:fixed="true" text:date-value="2026-06-08" text:date-adjust="P1D" style:data-style-name="ReviewDateFormat">June 9, 2026</text:date>, and adjusted time <text:time text:time-value="PT13H45M00S" text:time-adjust="PT30M" style:data-style-name="ReviewTimeFormat">14:15</text:time>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithFormattedFields));
+        $paragraph = $result['document']->children[0];
+        $page = $paragraph->children[1];
+        $date = $paragraph->children[3];
+        $time = $paragraph->children[5];
+
+        $t->same('Formatted page IV, adjusted date June 9, 2026, and adjusted time 14:15.', $paragraph->attr('text'));
+        $t->same('page-number', $page->attr('fieldType'));
+        $t->same('I', $page->attr('fieldMetadata')['numFormat']);
+        $t->same('p. ', $page->attr('fieldMetadata')['numPrefix']);
+        $t->same(' / source', $page->attr('fieldMetadata')['numSuffix']);
+        $t->same(true, $page->attr('fieldMetadata')['numLetterSync']);
+        $t->same('I', $page->attr('attributes')['data-odf-field-num-format']);
+        $t->same('p. ', $page->attr('attributes')['data-odf-field-num-prefix']);
+        $t->same(' / source', $page->attr('attributes')['data-odf-field-num-suffix']);
+        $t->same('true', $page->attr('attributes')['data-odf-field-num-letter-sync']);
+        $t->same('IV', $page->children[0]->attr('text'));
+
+        $t->same('date', $date->attr('fieldType'));
+        $t->same('2026-06-08', $date->attr('fieldMetadata')['dateValue']);
+        $t->same('P1D', $date->attr('fieldMetadata')['dateAdjust']);
+        $t->same('ReviewDateFormat', $date->attr('fieldMetadata')['styleName']);
+        $t->same(true, $date->attr('fieldMetadata')['fixed']);
+        $t->same('P1D', $date->attr('attributes')['data-odf-field-date-adjust']);
+        $t->same('ReviewDateFormat', $date->attr('attributes')['data-odf-field-style-name']);
+        $t->same('June 9, 2026', $date->children[0]->attr('text'));
+
+        $t->same('time', $time->attr('fieldType'));
+        $t->same('PT13H45M00S', $time->attr('fieldMetadata')['timeValue']);
+        $t->same('PT30M', $time->attr('fieldMetadata')['timeAdjust']);
+        $t->same('ReviewTimeFormat', $time->attr('fieldMetadata')['styleName']);
+        $t->same('PT30M', $time->attr('attributes')['data-odf-field-time-adjust']);
+        $t->same('14:15', $time->children[0]->attr('text'));
+        $t->same(3, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[IV]{.odf-field .odf-field-page-number data-odf-field-type="page-number" data-odf-field-num-format="I" data-odf-field-num-prefix="p. " data-odf-field-num-suffix=" / source" data-odf-field-num-letter-sync="true"}', $markdown);
+        $t->contains('[June 9, 2026]{.odf-field .odf-field-date data-odf-field-type="date" data-odf-field-date-value="2026-06-08" data-odf-field-date-adjust="P1D" data-odf-field-style-name="ReviewDateFormat" data-odf-field-fixed="true"}', $markdown);
+        $t->contains('[14:15]{.odf-field .odf-field-time data-odf-field-type="time" data-odf-field-time-value="PT13H45M00S" data-odf-field-time-adjust="PT30M" data-odf-field-style-name="ReviewTimeFormat"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-page-number" data-odf-field-type="page-number" data-odf-field-num-format="I" data-odf-field-num-prefix="p. " data-odf-field-num-suffix=" / source" data-odf-field-num-letter-sync="true">IV</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-date" data-odf-field-type="date" data-odf-field-date-value="2026-06-08" data-odf-field-date-adjust="P1D" data-odf-field-style-name="ReviewDateFormat" data-odf-field-fixed="true">June 9, 2026</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-time" data-odf-field-type="time" data-odf-field-time-value="PT13H45M00S" data-odf-field-time-adjust="PT30M" data-odf-field-style-name="ReviewTimeFormat">14:15</span>', $blocksHtml);
+    },
     'maps ODT page variable chapter filename and statistic fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPageAndStatisticFields = <<<'XML'
 <office:document-content

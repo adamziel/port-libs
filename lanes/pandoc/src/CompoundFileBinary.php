@@ -670,6 +670,9 @@ final class CompoundFileBinary
         if ($root['name'] !== 'Root Entry') {
             throw new \RuntimeException('CFB root storage name must be Root Entry');
         }
+        if ($root['colorFlag'] !== 1) {
+            throw new \RuntimeException('CFB root storage entry must be black');
+        }
 
         $root['path'] = '';
         $entries = [$root];

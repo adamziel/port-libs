@@ -1212,12 +1212,21 @@ return [
         $converter = new MathTexConverter();
         $xArrowMathml = $converter->texToMathMl('\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i', true);
         $mapArrowMathml = $converter->texToMathMl('A \\xleftrightarrow[n+1]{\\text{sync}} B + C \\xmapsto{f} D');
+        $aliasArrowMathml = $converter->texToMathMl('A \\xlongequal{\\text{same}} B + C \\xhookrightarrow[\\text{map}]{f} D + E \\xtwoheadleftarrow{g} F', true);
+        $harpoonArrowMathml = $converter->texToMathMl('P \\xleftharpoonup{\\text{pull}} Q + R \\xrightharpoondown[low]{high} S');
+        $accessibleAliasMathml = $converter->texToAccessibleMathMl('A \\xhookrightarrow[\\text{map}]{f} B');
         $accentArrowMathml = $converter->texToMathMl('\\overrightarrow{AB}_i + \\underleftarrow{\\operatorname{media}} + \\overleftrightarrow{x+y}');
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $xArrowMathml);
         $t->contains('<munderover><mo stretchy="true">→</mo><mtext>review</mtext><mi>publish</mi></munderover><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><mover><mo stretchy="true">←</mo><mrow><mi>d</mi><mi>r</mi><mi>a</mi><mi>f</mi><mi>t</mi></mrow></mover><msub><mi>m</mi><mi>i</mi></msub>', $xArrowMathml);
         $t->contains('<annotation encoding="application/x-tex">\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i</annotation>', $xArrowMathml);
         $t->contains('<mi>A</mi><munderover><mo stretchy="true">↔</mo><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow><mtext>sync</mtext></munderover><mi>B</mi><mo>+</mo><mi>C</mi><mover><mo stretchy="true">↦</mo><mi>f</mi></mover><mi>D</mi>', $mapArrowMathml);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $aliasArrowMathml);
+        $t->contains('<mi>A</mi><mover><mo stretchy="true">=</mo><mtext>same</mtext></mover><mi>B</mi><mo>+</mo><mi>C</mi><munderover><mo stretchy="true">↪</mo><mtext>map</mtext><mi>f</mi></munderover><mi>D</mi><mo>+</mo><mi>E</mi><mover><mo stretchy="true">↞</mo><mi>g</mi></mover><mi>F</mi>', $aliasArrowMathml);
+        $t->contains('<annotation encoding="application/x-tex">A \\xlongequal{\\text{same}} B + C \\xhookrightarrow[\\text{map}]{f} D + E \\xtwoheadleftarrow{g} F</annotation>', $aliasArrowMathml);
+        $t->contains('<mi>P</mi><mover><mo stretchy="true">↼</mo><mtext>pull</mtext></mover><mi>Q</mi><mo>+</mo><mi>R</mi><munderover><mo stretchy="true">⇁</mo><mrow><mi>l</mi><mi>o</mi><mi>w</mi></mrow><mrow><mi>h</mi><mi>i</mi><mi>g</mi><mi>h</mi></mrow></munderover><mi>S</mi>', $harpoonArrowMathml);
+        $t->contains('alttext="A right hook arrow under map over f B"', $accessibleAliasMathml);
+        $t->contains('intent="row(a,underover(right_hook_arrow,map,f),b)"', $accessibleAliasMathml);
         $t->contains('<msub><mover accent="true"><mrow><mi>A</mi><mi>B</mi></mrow><mo stretchy="true">→</mo></mover><mi>i</mi></msub>', $accentArrowMathml);
         $t->contains('<munder accentunder="true"><mi>media</mi><mo stretchy="true">←</mo></munder><mo>+</mo><mover accent="true"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mo stretchy="true">↔</mo></mover>', $accentArrowMathml);
     },

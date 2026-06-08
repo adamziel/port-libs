@@ -2514,6 +2514,24 @@ $runEffectDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$runMetricDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Run metrics </w:t></w:r>
+      <w:r><w:rPr><w:spacing w:val="40"/><w:w w:val="85"/></w:rPr><w:t>expanded scale</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r><w:rPr><w:spacing w:val="-20"/><w:kern w:val="28"/></w:rPr><w:t>condensed kerning</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r><w:rPr><w:position w:val="12"/></w:rPr><w:t>raised text</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r><w:rPr><w:position w:val="-8"/><w:fitText w:val="1440" w:id="fit-1"/></w:rPr><w:t>lowered fit</w:t></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $runLanguageDirectionDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -3628,6 +3646,14 @@ $buildRunEffectPackage = static function () use ($contentTypesXml, $packageRelat
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $runEffectDocumentXml],
+    ]);
+};
+
+$buildRunMetricPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $runMetricDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $runMetricDocumentXml],
     ]);
 };
 
@@ -7304,6 +7330,58 @@ return [
         $t->contains('<span class="docx-run-effect docx-emphasis-mark docx-emphasis-mark-dot docx-text-effect docx-text-effect-blinkbackground" data-docx-emphasis-mark="dot" data-docx-text-effect="blinkBackground">emphasis mark</span> plain.', $blocks);
         $t->true(!str_contains($markdown, 'data-docx-text-effect="none"'), 'DOCX effect none should not create Markdown run-effect metadata');
         $t->true(!str_contains($blocks, 'data-docx-run-caps="off"'), 'DOCX off caps should not create WordPress run-effect metadata');
+    },
+    'preserves DOCX run typographic metrics as reviewer spans' => static function (TestRunner $t) use ($buildRunMetricPackage): void {
+        $document = (new DocxReader())->readDocument($buildRunMetricPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(9, count($paragraph->children));
+        $t->same('Run metrics ', $paragraph->children[0]->attr('text'));
+
+        $expanded = $paragraph->children[1];
+        $t->same('span', $expanded->type);
+        $t->same(['docx-run-metrics', 'docx-run-spacing', 'docx-run-spacing-expanded', 'docx-run-scale'], $expanded->attr('classes'));
+        $t->same('40', $expanded->attr('attributes')['data-docx-run-spacing-twips']);
+        $t->same('85', $expanded->attr('attributes')['data-docx-run-scale-percent']);
+        $t->same('expanded scale', $expanded->children[0]->attr('text'));
+
+        $t->same(', ', $paragraph->children[2]->attr('text'));
+        $condensed = $paragraph->children[3];
+        $t->same('span', $condensed->type);
+        $t->same(['docx-run-metrics', 'docx-run-spacing', 'docx-run-spacing-condensed', 'docx-run-kern'], $condensed->attr('classes'));
+        $t->same('-20', $condensed->attr('attributes')['data-docx-run-spacing-twips']);
+        $t->same('28', $condensed->attr('attributes')['data-docx-run-kern-half-points']);
+        $t->same('condensed kerning', $condensed->children[0]->attr('text'));
+
+        $t->same(', ', $paragraph->children[4]->attr('text'));
+        $raised = $paragraph->children[5];
+        $t->same('span', $raised->type);
+        $t->same(['docx-run-metrics', 'docx-run-position', 'docx-run-position-raised'], $raised->attr('classes'));
+        $t->same('12', $raised->attr('attributes')['data-docx-run-position-half-points']);
+        $t->same('raised text', $raised->children[0]->attr('text'));
+
+        $t->same(', ', $paragraph->children[6]->attr('text'));
+        $fit = $paragraph->children[7];
+        $t->same('span', $fit->type);
+        $t->same(['docx-run-metrics', 'docx-run-position', 'docx-run-position-lowered', 'docx-run-fit-text'], $fit->attr('classes'));
+        $t->same('-8', $fit->attr('attributes')['data-docx-run-position-half-points']);
+        $t->same('1440', $fit->attr('attributes')['data-docx-fit-text-width-twips']);
+        $t->same('fit-1', $fit->attr('attributes')['data-docx-fit-text-id']);
+        $t->same('lowered fit', $fit->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[8]->attr('text'));
+
+        $t->contains('[expanded scale]{.docx-run-metrics .docx-run-spacing .docx-run-spacing-expanded .docx-run-scale data-docx-run-spacing-twips="40" data-docx-run-scale-percent="85"}', $markdown);
+        $t->contains('[condensed kerning]{.docx-run-metrics .docx-run-spacing .docx-run-spacing-condensed .docx-run-kern data-docx-run-spacing-twips="-20" data-docx-run-kern-half-points="28"}', $markdown);
+        $t->contains('[raised text]{.docx-run-metrics .docx-run-position .docx-run-position-raised data-docx-run-position-half-points="12"}', $markdown);
+        $t->contains('[lowered fit]{.docx-run-metrics .docx-run-position .docx-run-position-lowered .docx-run-fit-text data-docx-run-position-half-points="-8" data-docx-fit-text-width-twips="1440" data-docx-fit-text-id="fit-1"}', $markdown);
+
+        $t->contains('<span class="docx-run-metrics docx-run-spacing docx-run-spacing-expanded docx-run-scale" data-docx-run-spacing-twips="40" data-docx-run-scale-percent="85">expanded scale</span>', $blocks);
+        $t->contains('<span class="docx-run-metrics docx-run-spacing docx-run-spacing-condensed docx-run-kern" data-docx-run-spacing-twips="-20" data-docx-run-kern-half-points="28">condensed kerning</span>', $blocks);
+        $t->contains('<span class="docx-run-metrics docx-run-position docx-run-position-raised" data-docx-run-position-half-points="12">raised text</span>', $blocks);
+        $t->contains('<span class="docx-run-metrics docx-run-position docx-run-position-lowered docx-run-fit-text" data-docx-run-position-half-points="-8" data-docx-fit-text-width-twips="1440" data-docx-fit-text-id="fit-1">lowered fit</span>', $blocks);
     },
     'preserves DOCX run language and RTL metadata as reviewer spans' => static function (TestRunner $t) use ($buildRunLanguageDirectionPackage): void {
         $document = (new DocxReader())->readDocument($buildRunLanguageDirectionPackage());

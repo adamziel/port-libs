@@ -299,6 +299,69 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
         . $packageComment;
 };
 
+$packZip64UInt64 = static function (int $value): string {
+    return pack('VV', $value & 0xffffffff, intdiv($value, 0x100000000));
+};
+
+$buildZip64EndOfCentralDirectoryZip = static function (string $zip) use ($packZip64UInt64): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if (! is_int($eocdOffset)) {
+        throw new \RuntimeException('ZIP fixture is missing an end of central directory record.');
+    }
+
+    $centralDirectorySize = unpack('Vvalue', substr($zip, $eocdOffset + 12, 4));
+    $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4));
+    if (! is_array($centralDirectorySize) || ! is_array($centralDirectoryOffset)) {
+        throw new \RuntimeException('Unable to read ZIP central directory metadata.');
+    }
+
+    $zip64EocdOffset = $eocdOffset;
+    $zip64Eocd = "PK\x06\x06"
+        . $packZip64UInt64(44)
+        . pack('vvVV', 45, 45, 0, 0)
+        . $packZip64UInt64(1)
+        . $packZip64UInt64(1)
+        . $packZip64UInt64((int) $centralDirectorySize['value'])
+        . $packZip64UInt64((int) $centralDirectoryOffset['value']);
+    $zip64Locator = "PK\x06\x07"
+        . pack('V', 0)
+        . $packZip64UInt64($zip64EocdOffset)
+        . pack('V', 1);
+
+    $eocd = substr($zip, $eocdOffset);
+    $eocd = substr_replace($eocd, pack('v', 0xffff), 8, 2);
+    $eocd = substr_replace($eocd, pack('v', 0xffff), 10, 2);
+    $eocd = substr_replace($eocd, pack('V', 0xffffffff), 12, 4);
+    $eocd = substr_replace($eocd, pack('V', 0xffffffff), 16, 4);
+
+    return substr($zip, 0, $eocdOffset) . $zip64Eocd . $zip64Locator . $eocd;
+};
+
+$rewriteZipEndOfCentralDirectory = static function (string $zip, array $fields): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if (! is_int($eocdOffset)) {
+        throw new \RuntimeException('ZIP fixture is missing an end of central directory record.');
+    }
+
+    $fieldOffsets = [
+        'diskEntryCount' => [8, 'v'],
+        'totalEntryCount' => [10, 'v'],
+        'centralDirectorySize' => [12, 'V'],
+        'centralDirectoryOffset' => [16, 'V'],
+    ];
+
+    foreach ($fields as $name => $value) {
+        if (! isset($fieldOffsets[$name])) {
+            throw new \InvalidArgumentException('Unknown ZIP EOCD field: ' . $name);
+        }
+
+        [$offset, $format] = $fieldOffsets[$name];
+        $zip = substr_replace($zip, pack($format, (int) $value), $eocdOffset + $offset, $format === 'v' ? 2 : 4);
+    }
+
+    return $zip;
+};
+
 return [
     'builds and reads bounded tar package fixture entries' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
@@ -3481,6 +3544,155 @@ return [
         $t->throws(
             \RuntimeException::class,
             static fn (): array => ArchiveCompressionStream::inspectZipDataDescriptorIntegrityPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
+    'preflights zip64 end of central directory across archive streams without exposing package entries' => static function (TestRunner $t) use ($zipFixtureBytes, $buildZip64EndOfCentralDirectoryZip, $rewriteZipEndOfCentralDirectory): void {
+        $zipBytes = $buildZip64EndOfCentralDirectoryZip($zipFixtureBytes([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>ZIP64 EOCD archive stream</w:p></w:body></w:document>',
+                'compressionMethod' => 8,
+            ],
+        ], 'zip64 eocd archive stream fixture'));
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-zip64-eocd-package.zip',
+                'comment' => 'zip64 end of central directory preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('zip64 eocd reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        $zip64ExtractionBlocked = false;
+        try {
+            ZipPackage::fromString($zipBytes);
+        } catch (\RuntimeException) {
+            $zip64ExtractionBlocked = true;
+        }
+
+        $t->same(true, $zip64ExtractionBlocked);
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZip64EndOfCentralDirectoryPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(true, $inspection['requiresZip64']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same(true, $inspection['hasZip64EndOfCentralDirectoryLocator']);
+            $t->same(true, $inspection['hasZip64EndOfCentralDirectory']);
+            $t->same(['zip64-end-of-central-directory'], $inspection['issues']);
+            $t->same(44, $inspection['recordPayloadSize']);
+            $t->same(56, $inspection['recordSize']);
+            $t->same(45, $inspection['versionMadeBy']);
+            $t->same(45, $inspection['versionNeededToExtract']);
+            $t->same(0, $inspection['locatorDiskWithEndOfCentralDirectory']);
+            $t->same(1, $inspection['locatorTotalDisks']);
+            $t->same(0, $inspection['diskNumber']);
+            $t->same(0, $inspection['centralDirectoryDisk']);
+            $t->same(1, $inspection['diskEntryCount']);
+            $t->same(1, $inspection['totalEntryCount']);
+            $t->same($inspection['centralDirectoryOffset'] + $inspection['centralDirectorySize'], $inspection['centralDirectoryEnd']);
+            $t->same($inspection['recordOffset'], $inspection['centralDirectoryEnd']);
+            $t->same(true, $inspection['centralDirectoryEndMatchesRecordOffset']);
+            $t->same(true, $inspection['isSingleDisk']);
+            $t->same(0, $inspection['eocdDiskNumber']);
+            $t->same(0, $inspection['eocdCentralDirectoryDisk']);
+            $t->same(0xffff, $inspection['eocdDiskEntryCount']);
+            $t->same(0xffff, $inspection['eocdTotalEntryCount']);
+            $t->same(0xffffffff, $inspection['eocdCentralDirectorySize']);
+            $t->same(0xffffffff, $inspection['eocdCentralDirectoryOffset']);
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZip64EndOfCentralDirectoryPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZip64EndOfCentralDirectoryPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-zip64-eocd-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('zip64 end of central directory preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('zip64 eocd reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+
+        $locatorOffset = $gzipInspection['locatorOffset'];
+        if ($locatorOffset === null) {
+            throw new \RuntimeException('Expected ZIP64 locator offset in fixture.');
+        }
+
+        $mismatchedLocatorZip = substr_replace($zipBytes, pack('V', 2), $locatorOffset + 16, 4);
+        $mismatchedLocatorInspection = ArchiveCompressionStream::inspectZip64EndOfCentralDirectoryPolicy(
+            DeflateStream::build($mismatchedLocatorZip, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP,
+            strlen($mismatchedLocatorZip)
+        );
+        $t->same(2, $mismatchedLocatorInspection['locatorTotalDisks']);
+        $t->same(false, $mismatchedLocatorInspection['isSingleDisk']);
+        $t->same([
+            'zip64-end-of-central-directory',
+            'zip64-split-archive',
+            'zip64-locator-total-disks-mismatch',
+        ], $mismatchedLocatorInspection['issues']);
+
+        $sentinelOnlyZip = $rewriteZipEndOfCentralDirectory($zipFixtureBytes([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>ZIP64 sentinel-only EOCD</w:p></w:body></w:document>',
+                'compressionMethod' => 8,
+            ],
+        ], 'zip64 sentinel-only archive stream fixture'), [
+            'totalEntryCount' => 0xffff,
+            'centralDirectorySize' => 0xffffffff,
+        ]);
+        $sentinelOnlyInspection = ArchiveCompressionStream::inspectZip64EndOfCentralDirectoryPolicy(
+            DeflateStream::build($sentinelOnlyZip, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP,
+            strlen($sentinelOnlyZip)
+        );
+
+        $t->same(true, $sentinelOnlyInspection['requiresZip64']);
+        $t->same(false, $sentinelOnlyInspection['hasZip64EndOfCentralDirectoryLocator']);
+        $t->same(false, $sentinelOnlyInspection['hasZip64EndOfCentralDirectory']);
+        $t->same(false, $sentinelOnlyInspection['isSupportedByBoundedReader']);
+        $t->same(['zip64-end-of-central-directory-required'], $sentinelOnlyInspection['issues']);
+        $t->same(null, $sentinelOnlyInspection['locatorOffset']);
+        $t->same(null, $sentinelOnlyInspection['recordOffset']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($sentinelOnlyZip));
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZip64EndOfCentralDirectoryPolicy(
                 $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
                 ArchiveCompressionStream::FORMAT_GZIP_TAR,
                 strlen($zipBytes)

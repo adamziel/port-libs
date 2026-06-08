@@ -1833,6 +1833,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!is_array($rowspanZeroPacket) || ($rowspanZeroPacket['coverage'][0]['rowspan'] ?? null) !== 3 || ($rowspanZeroPacket['coverage'][0]['rowspanToEnd'] ?? null) !== true) {
         throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero coverage packet');
     }
+    if (
+        ($rowspanZeroPacket['coverage'][0]['sourceRowspanAttribute'] ?? null) !== 0
+        || ($rowspanZeroPacket['coverage'][0]['sourceRowspanMode'] ?? null) !== 'to-section-end'
+        || ($rowspanZeroPacket['summary']['rowspanToEndCellCount'] ?? null) !== 1
+        || ($rowspanZeroPacket['summary']['rowspanToEndSections'] ?? null) !== ['body']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero source provenance packet');
+    }
     if (($rowspanZeroPacket['sections'][1]['summary']['coveredSlotCount'] ?? null) !== 2 || ($rowspanZeroPacket['sections'][2]['summary']['coveredSlotCount'] ?? null) !== 0) {
         throw new RuntimeException('Table geometry self-test let HTML rowspan-zero cross tbody boundaries');
     }

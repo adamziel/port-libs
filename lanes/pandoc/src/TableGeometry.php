@@ -126,7 +126,7 @@ final class TableGeometry
                 $sourceRowspan = max(1, self::cellRowspanForRows($cell, $rowIndex, $rowCount));
                 $sourceRowEnd = $rowIndex + $sourceRowspan;
                 $rowspan = min($sourceRowspan, max(1, $rowCount - $rowIndex));
-                $layoutCells[] = [
+                $layoutCell = [
                     'node' => $cell,
                     'column' => $column,
                     'colspan' => $colspan,
@@ -140,6 +140,11 @@ final class TableGeometry
                     'sourceRowRange' => [$rowIndex, $sourceRowEnd],
                     'sourceRows' => self::integerRange($rowIndex, $sourceRowEnd),
                 ];
+                if ($rowspanToEnd) {
+                    $layoutCell['sourceRowspanAttribute'] = 0;
+                    $layoutCell['sourceRowspanMode'] = 'to-section-end';
+                }
+                $layoutCells[] = $layoutCell;
 
                 if ($rowspan > 1) {
                     self::activateRowspan($activeRowspans, $column, $colspan, $rowspan);
@@ -386,6 +391,8 @@ final class TableGeometry
                     ];
                     if (($cell['rowspanToEnd'] ?? false) === true) {
                         $record['rowspanToEnd'] = true;
+                        $record['sourceRowspanAttribute'] = 0;
+                        $record['sourceRowspanMode'] = 'to-section-end';
                     }
                     if ($hasColumnSources) {
                         $record['columnSources'] = $columnSources;
@@ -2095,14 +2102,23 @@ final class TableGeometry
             'sourceRow',
             'sourceRowEnd',
             'sourceRowspan',
+            'sourceRowspanAttribute',
             'globalRowEnd',
             'anchorSourceRow',
             'anchorSourceRowEnd',
+            'anchorSourceRowspanAttribute',
             'anchorGlobalRow',
             'anchorGlobalRowEnd',
         ] as $attribute) {
             if (isset($slot[$attribute]) && is_numeric($slot[$attribute])) {
                 $record[$attribute] = (int) $slot[$attribute];
+            }
+        }
+
+        foreach (['sourceRowspanMode', 'anchorSourceRowspanMode'] as $attribute) {
+            $value = trim((string) ($slot[$attribute] ?? ''));
+            if ($value !== '') {
+                $record[$attribute] = $value;
             }
         }
 
@@ -2247,14 +2263,23 @@ final class TableGeometry
             'sourceRow',
             'sourceRowEnd',
             'sourceRowspan',
+            'sourceRowspanAttribute',
             'globalRowEnd',
             'anchorSourceRow',
             'anchorSourceRowEnd',
+            'anchorSourceRowspanAttribute',
             'anchorGlobalRow',
             'anchorGlobalRowEnd',
         ] as $attribute) {
             if (is_numeric($slot[$attribute] ?? null)) {
                 $record[$attribute] = (int) $slot[$attribute];
+            }
+        }
+
+        foreach (['sourceRowspanMode', 'anchorSourceRowspanMode'] as $attribute) {
+            $value = trim((string) ($slot[$attribute] ?? ''));
+            if ($value !== '') {
+                $record[$attribute] = $value;
             }
         }
 
@@ -2549,14 +2574,23 @@ final class TableGeometry
             'sourceRow',
             'sourceRowEnd',
             'sourceRowspan',
+            'sourceRowspanAttribute',
             'globalRowEnd',
             'anchorSourceRow',
             'anchorSourceRowEnd',
+            'anchorSourceRowspanAttribute',
             'anchorGlobalRow',
             'anchorGlobalRowEnd',
         ] as $attribute) {
             if (isset($slot[$attribute]) && is_numeric($slot[$attribute])) {
                 $record[$attribute] = (int) $slot[$attribute];
+            }
+        }
+
+        foreach (['sourceRowspanMode', 'anchorSourceRowspanMode'] as $attribute) {
+            $value = trim((string) ($slot[$attribute] ?? ''));
+            if ($value !== '') {
+                $record[$attribute] = $value;
             }
         }
 
@@ -2667,13 +2701,22 @@ final class TableGeometry
             'sourceRow',
             'sourceRowEnd',
             'sourceRowspan',
+            'sourceRowspanAttribute',
             'anchorSourceRow',
             'anchorSourceRowEnd',
+            'anchorSourceRowspanAttribute',
             'anchorGlobalRow',
             'anchorGlobalRowEnd',
         ] as $attribute) {
             if (isset($slot[$attribute]) && is_numeric($slot[$attribute])) {
                 $record[$attribute] = (int) $slot[$attribute];
+            }
+        }
+
+        foreach (['sourceRowspanMode', 'anchorSourceRowspanMode'] as $attribute) {
+            $value = trim((string) ($slot[$attribute] ?? ''));
+            if ($value !== '') {
+                $record[$attribute] = $value;
             }
         }
 
@@ -4361,6 +4404,8 @@ final class TableGeometry
         $blockContentCellCount = 0;
         $multiBlockCellCount = 0;
         $cellBlockTypes = [];
+        $rowspanToEndCellCount = 0;
+        $rowspanToEndSections = [];
         foreach ($coverage as $record) {
             if (($record['headerCell'] ?? false) === true) {
                 $headerCellCount++;
@@ -4368,6 +4413,14 @@ final class TableGeometry
 
             if ((int) ($record['rawColspan'] ?? 1) > 1 || (int) ($record['rawRowspan'] ?? 1) > 1) {
                 $hasSpans = true;
+            }
+
+            if (($record['rowspanToEnd'] ?? false) === true) {
+                $rowspanToEndCellCount++;
+                $section = trim((string) ($record['section'] ?? ''));
+                if ($section !== '') {
+                    $rowspanToEndSections[] = $section;
+                }
             }
 
             $visualShift = abs((int) ($record['visualShift'] ?? 0));
@@ -4545,6 +4598,9 @@ final class TableGeometry
                 is_array($captions['short']['blockTypes'] ?? null) ? $captions['short']['blockTypes'] : []
             )),
             'hasSpans' => $hasSpans,
+            'hasRowspanToEndCells' => $rowspanToEndCellCount > 0,
+            'rowspanToEndCellCount' => $rowspanToEndCellCount,
+            'rowspanToEndSections' => array_values(array_unique($rowspanToEndSections)),
             'hasSourceCoordinateShifts' => $sourceCoordinateShiftCount > 0,
             'sourceCoordinateShiftCount' => $sourceCoordinateShiftCount,
             'maxVisualShift' => $maxVisualShift,
@@ -6679,6 +6735,8 @@ final class TableGeometry
 
         if (($record['rowspanToEnd'] ?? false) === true) {
             $writerRecord['rowspanToEnd'] = true;
+            $writerRecord['sourceRowspanAttribute'] = 0;
+            $writerRecord['sourceRowspanMode'] = 'to-section-end';
         }
 
         return $writerRecord;
@@ -7554,6 +7612,10 @@ final class TableGeometry
         ];
         if (($cell['rowspanToEnd'] ?? false) === true) {
             $slot['rowspanToEnd'] = true;
+            $slot['sourceRowspanAttribute'] = 0;
+            $slot['sourceRowspanMode'] = 'to-section-end';
+            $slot['anchorSourceRowspanAttribute'] = 0;
+            $slot['anchorSourceRowspanMode'] = 'to-section-end';
         }
 
         return $slot;
@@ -7590,6 +7652,10 @@ final class TableGeometry
         ];
         if (($cell['rowspanToEnd'] ?? false) === true) {
             $slot['rowspanToEnd'] = true;
+            $slot['sourceRowspanAttribute'] = 0;
+            $slot['sourceRowspanMode'] = 'to-section-end';
+            $slot['anchorSourceRowspanAttribute'] = 0;
+            $slot['anchorSourceRowspanMode'] = 'to-section-end';
         }
 
         return $slot;
