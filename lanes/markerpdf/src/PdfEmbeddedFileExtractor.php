@@ -136,6 +136,7 @@ final class PdfEmbeddedFileExtractor
             $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files, $portfolioMetadata, $catalogPieceInfo, $encryptionPolicy);
         }
         $this->collectPageAssociatedFiles($this->dictionaryRawValue($catalog, 'Pages'), $objects, $files, $encryptionPolicy);
+        $this->collectAnnotationAssociatedFiles($this->dictionaryRawValue($catalog, 'Pages'), $objects, $files, $encryptionPolicy);
 
         return $this->dedupeEmbeddedFiles($files);
     }
@@ -540,6 +541,60 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
+     * Annotation-level associated files are PDF 2.0 review metadata. Include
+     * them in the attachment inventory without promoting payload bytes into
+     * visible text or executing annotation actions.
+     *
+     * @param array<int, string> $objects
+     * @param list<array<string, mixed>> $files
+     * @param array<string, mixed>|null $encryptionPolicy
+     */
+    private function collectAnnotationAssociatedFiles(?string $pagesValue, array $objects, array &$files, ?array $encryptionPolicy = null): void
+    {
+        if ($pagesValue === null) {
+            return;
+        }
+
+        foreach ($this->annotationAssociatedFileEntries($pagesValue, $objects) as $entry) {
+            $file = $this->embeddedFileFromFileSpecValue(
+                $entry['fileSpecValue'],
+                null,
+                $objects,
+                'annotation_associated_files',
+                [],
+                [],
+                $encryptionPolicy
+            );
+            if ($file === null) {
+                continue;
+            }
+
+            $file['associated_file'] = true;
+            $file['annotation_associated_file'] = true;
+            $file['annotation_associated_file_source'] = 'annotation_af';
+            $file['annotation_associated_file_index'] = $entry['associatedFileIndex'];
+            $file['page_number'] = $entry['pageNumber'];
+            if ($entry['pageObjectId'] !== null) {
+                $file['page_object_id'] = $entry['pageObjectId'];
+            }
+            if ($entry['annotationObjectId'] !== null) {
+                $file['annotation_object_id'] = $entry['annotationObjectId'];
+            }
+            if ($entry['annotationSubtype'] !== null) {
+                $file['annotation_subtype'] = $entry['annotationSubtype'];
+            }
+            if ($entry['contents'] !== null && $entry['contents'] !== '') {
+                $file['annotation_contents'] = $entry['contents'];
+            }
+            if ($entry['rect'] !== []) {
+                $file['annotation_rect'] = $entry['rect'];
+            }
+
+            $files[] = $file;
+        }
+    }
+
+    /**
      * @param array<int, string> $objects
      * @return list<array{pageNumber: int, pageObjectId: int|null, associatedFileIndex: int, fileSpecValue: string}>
      */
@@ -571,6 +626,67 @@ final class PdfEmbeddedFileExtractor
                     'associatedFileIndex' => $associatedFileIndex,
                     'fileSpecValue' => $fileSpecValue,
                 ];
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{pageNumber: int, pageObjectId: int|null, annotationObjectId: int|null, annotationSubtype: string|null, associatedFileIndex: int, contents: string|null, rect: list<float>, fileSpecValue: string}>
+     */
+    private function annotationAssociatedFileEntries(string $pagesValue, array $objects): array
+    {
+        $pages = $this->pageTreePages($pagesValue, $objects);
+        if ($pages === []) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($pages as $pageIndex => $page) {
+            $annotsValue = $this->dictionaryRawValue($page['body'], 'Annots');
+            if ($annotsValue === null) {
+                continue;
+            }
+
+            foreach ($this->arrayItemsFromValue($annotsValue, $objects) as $annotationValue) {
+                $annotation = $this->resolveDictionaryFromValue($annotationValue, $objects);
+                if ($annotation === null) {
+                    continue;
+                }
+                if (
+                    $this->dictionaryHasDuplicateKeys($annotation['body'], self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+                    || $this->dictionaryHasTrailingOperandsAfterKeys($annotation['body'], self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+                ) {
+                    continue;
+                }
+
+                $associatedFilesValue = $this->dictionaryRawValue($annotation['body'], 'AF');
+                if ($associatedFilesValue === null) {
+                    continue;
+                }
+
+                $reference = $this->objectReferenceFromValue($annotationValue);
+                $rect = [];
+                foreach ($this->reviewListFromRaw($this->dictionaryRawValue($annotation['body'], 'Rect'), $objects) as $coordinate) {
+                    if (is_int($coordinate) || is_float($coordinate)) {
+                        $rect[] = (float) $coordinate;
+                    }
+                }
+
+                foreach ($this->arrayItemsFromValue($associatedFilesValue, $objects) as $associatedFileIndex => $fileSpecValue) {
+                    $entries[] = [
+                        'pageNumber' => $pageIndex + 1,
+                        'pageObjectId' => $page['object'],
+                        'annotationObjectId' => $reference['objectNumber'] ?? $annotation['object'],
+                        'annotationSubtype' => $this->dictionaryNameValue($annotation['body'], 'Subtype', $objects),
+                        'associatedFileIndex' => $associatedFileIndex,
+                        'contents' => $this->dictionaryStringValue($annotation['body'], 'Contents', $objects),
+                        'rect' => $rect,
+                        'fileSpecValue' => $fileSpecValue,
+                    ];
+                }
             }
         }
 
@@ -3252,6 +3368,28 @@ final class PdfEmbeddedFileExtractor
             $target['page_associated_file'] = true;
             $target['page_associated_file_source'] = 'page_af';
             foreach (['page_associated_file_index', 'page_number', 'page_object_id'] as $key) {
+                if (array_key_exists($key, $candidate)) {
+                    $target[$key] = $candidate[$key];
+                }
+            }
+        }
+
+        if (
+            ($candidate['annotation_associated_file'] ?? false) === true
+            || $candidateSource === 'annotation_associated_files'
+        ) {
+            $target['associated_file'] = true;
+            $target['annotation_associated_file'] = true;
+            $target['annotation_associated_file_source'] = 'annotation_af';
+            foreach ([
+                'annotation_associated_file_index',
+                'page_number',
+                'page_object_id',
+                'annotation_object_id',
+                'annotation_subtype',
+                'annotation_contents',
+                'annotation_rect',
+            ] as $key) {
                 if (array_key_exists($key, $candidate)) {
                     $target[$key] = $candidate[$key];
                 }

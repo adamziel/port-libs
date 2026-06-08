@@ -224,6 +224,65 @@ final class PdfAttachmentExtractor
             $attachments[] = $attachment;
         }
 
+        foreach ($this->annotationAssociatedFileEntries($objects, $catalogObjectIds) as $entry) {
+            $context = [
+                'associated_file' => true,
+                'annotation_associated_file' => true,
+                'annotation_associated_file_source' => 'annotation_af',
+                'annotation_associated_file_index' => $entry['associatedFileIndex'],
+                'page_number' => $entry['pageNumber'],
+                'page_object_id' => $entry['pageObjectId'],
+                'annotation_object_id' => $entry['annotationObjectId'],
+                'annotation_subtype' => $entry['annotationSubtype'],
+                'annotation_contents' => $entry['contents'],
+                'annotation_rect' => $entry['rect'],
+            ];
+            foreach ([
+                'annotation_flags',
+                'annotation_flag_names',
+                'annotation_visibility',
+                'annotation_visible',
+                'annotation_hidden',
+                'annotation_printable',
+                'annotation_no_view',
+                'annotation_icon',
+                'annotation_icon_label',
+                'annotation_icon_status',
+                'annotation_title',
+                'annotation_subject',
+                'annotation_modified_at',
+                'annotation_name',
+                'annotation_color',
+                'annotation_color_space',
+                'annotation_color_component_count',
+                'annotation_opacity',
+            ] as $annotationReviewKey) {
+                if (array_key_exists($annotationReviewKey, $entry)) {
+                    $context[$annotationReviewKey] = $entry[$annotationReviewKey];
+                }
+            }
+
+            $attachment = $this->attachmentFromFileSpecValue(
+                $entry['fileSpec'],
+                $objects,
+                'annotation-associated-file',
+                $context,
+                $encryptionPolicy,
+                isset($entry['fileSpecRaw']) && is_string($entry['fileSpecRaw']) ? $entry['fileSpecRaw'] : null
+            );
+            if ($attachment === null) {
+                continue;
+            }
+
+            $duplicateIndex = $this->documentAttachmentIndex($attachments, $attachment);
+            if ($duplicateIndex !== null) {
+                $this->applyAnnotationAssociatedFileMirrorMetadata($attachments[$duplicateIndex], $attachment);
+                continue;
+            }
+
+            $attachments[] = $attachment;
+        }
+
         foreach ($this->fileAttachmentAnnotationEntries($objects, $catalogObjectIds) as $entry) {
             $context = [
                 'page_number' => $entry['pageNumber'],
@@ -280,6 +339,49 @@ final class PdfAttachmentExtractor
         }
 
         return $attachments;
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     * @param array<string, mixed> $annotationAttachment
+     */
+    private function applyAnnotationAssociatedFileMirrorMetadata(array &$target, array $annotationAttachment): void
+    {
+        $target['associated_file'] = true;
+        $target['annotation_associated_file'] = true;
+        $target['annotation_associated_file_source'] = 'annotation_af';
+
+        foreach ([
+            'annotation_associated_file_index',
+            'page_number',
+            'page_object_id',
+            'annotation_object_id',
+            'annotation_subtype',
+            'annotation_contents',
+            'annotation_rect',
+            'annotation_flags',
+            'annotation_flag_names',
+            'annotation_visibility',
+            'annotation_visible',
+            'annotation_hidden',
+            'annotation_printable',
+            'annotation_no_view',
+            'annotation_icon',
+            'annotation_icon_label',
+            'annotation_icon_status',
+            'annotation_title',
+            'annotation_subject',
+            'annotation_modified_at',
+            'annotation_name',
+            'annotation_color',
+            'annotation_color_space',
+            'annotation_color_component_count',
+            'annotation_opacity',
+        ] as $key) {
+            if (array_key_exists($key, $annotationAttachment)) {
+                $target[$key] = $annotationAttachment[$key];
+            }
+        }
     }
 
     /**
@@ -357,12 +459,21 @@ final class PdfAttachmentExtractor
             return in_array($candidateSource, [
                 'catalog-associated-file',
                 'page-associated-file',
+                'annotation-associated-file',
                 'file-attachment-annotation',
             ], true);
         }
 
-        if ($attachmentSource === 'page-associated-file' && $candidateSource === 'file-attachment-annotation') {
+        if (
+            $attachmentSource === 'page-associated-file'
+            && in_array($candidateSource, ['annotation-associated-file', 'file-attachment-annotation'], true)
+        ) {
             return ($attachment['page_object_id'] ?? null) === ($candidate['page_object_id'] ?? null);
+        }
+
+        if ($attachmentSource === 'annotation-associated-file' && $candidateSource === 'file-attachment-annotation') {
+            return ($attachment['page_object_id'] ?? null) === ($candidate['page_object_id'] ?? null)
+                && ($attachment['annotation_object_id'] ?? null) === ($candidate['annotation_object_id'] ?? null);
         }
 
         return false;
@@ -1013,6 +1124,76 @@ final class PdfAttachmentExtractor
                 }
 
                 $entries[] = $entry;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<int>|null $catalogObjectIds
+     * @return list<array{pageNumber: int, pageObjectId: int, annotationObjectId: int|null, annotationSubtype: string|null, associatedFileIndex: int, contents: string|null, rect: list<float>, fileSpec: mixed, fileSpecRaw?: string}>
+     */
+    private function annotationAssociatedFileEntries(array $objects, ?array $catalogObjectIds = null): array
+    {
+        $entries = [];
+        foreach ($this->pageObjectIds($objects, $catalogObjectIds) as $pageIndex => $pageObjectId) {
+            if (!isset($objects[$pageObjectId])) {
+                continue;
+            }
+
+            $page = $this->dict($objects[$pageObjectId]['value']);
+            if ($page === null) {
+                continue;
+            }
+
+            foreach ($this->annotationValues($page['Annots'] ?? null, $objects) as $annotation) {
+                $dict = $this->dict($annotation['value']);
+                if ($dict === null) {
+                    continue;
+                }
+
+                $rawAssociatedFiles = [];
+                $annotationDictionaryBody = is_string($annotation['body'] ?? null)
+                    ? $this->topLevelDictionaryBodyFromObjectBody($annotation['body'])
+                    : null;
+                if ($annotationDictionaryBody !== null) {
+                    if (
+                        $this->dictionaryHasDuplicateKeys($annotationDictionaryBody, self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+                        || $this->dictionaryHasTrailingOperandsAfterKeys($annotationDictionaryBody, self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+                    ) {
+                        continue;
+                    }
+
+                    $rawAssociatedFilesValue = $this->rawDictionaryEntryValue($annotationDictionaryBody, 'AF');
+                    if ($rawAssociatedFilesValue !== null) {
+                        $rawAssociatedFiles = $this->rawArrayItemsFromValue($rawAssociatedFilesValue, $objects);
+                    }
+                }
+
+                $associatedFiles = $this->arrayValue($this->resolveValue($dict['AF'] ?? null, $objects));
+                if ($associatedFiles === null) {
+                    continue;
+                }
+
+                foreach ($associatedFiles as $index => $fileSpec) {
+                    $entry = [
+                        'pageNumber' => $pageIndex + 1,
+                        'pageObjectId' => $pageObjectId,
+                        'annotationObjectId' => $annotation['objectId'],
+                        'annotationSubtype' => $this->nameValue($dict['Subtype'] ?? null),
+                        'associatedFileIndex' => $index,
+                        'contents' => $this->stringValue($dict['Contents'] ?? null),
+                        'rect' => $this->numberArray($dict['Rect'] ?? null),
+                        'fileSpec' => $fileSpec,
+                    ] + $this->fileAttachmentAnnotationReview($dict, $objects);
+                    if (isset($rawAssociatedFiles[$index]) && is_string($rawAssociatedFiles[$index])) {
+                        $entry['fileSpecRaw'] = $rawAssociatedFiles[$index];
+                    }
+
+                    $entries[] = $entry;
+                }
             }
         }
 
