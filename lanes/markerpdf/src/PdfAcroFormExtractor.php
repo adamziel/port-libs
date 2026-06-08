@@ -3493,7 +3493,7 @@ final class PdfAcroFormExtractor
                 break;
             }
 
-            if (!$this->isFieldDictionaryCandidate($parentBody) || !$this->fieldParentOwnsChild($parentObject, $candidate, $objects)) {
+            if (!$this->isFieldDictionaryCandidate($parentBody, $objects) || !$this->fieldParentOwnsChild($parentObject, $candidate, $objects)) {
                 break;
             }
 
@@ -3567,7 +3567,7 @@ final class PdfAcroFormExtractor
             return [];
         }
 
-        if (!$this->isFieldDictionaryCandidate($body)) {
+        if (!$this->isFieldDictionaryCandidate($body, $objects)) {
             return [];
         }
 
@@ -3606,12 +3606,12 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            if ($this->isPureWidget($kidBody)) {
+            if ($this->isPureWidget($kidBody, $objects)) {
                 $widgetRefs[] = $kidRef;
                 continue;
             }
 
-            if ($this->isFieldDictionaryCandidate($kidBody)) {
+            if ($this->isFieldDictionaryCandidate($kidBody, $objects)) {
                 $childFieldRefs[] = $kidRef;
             }
         }
@@ -3637,7 +3637,7 @@ final class PdfAcroFormExtractor
             return $fields;
         }
 
-        if ($this->isWidget($body)) {
+        if ($this->isWidget($body, $objects)) {
             array_unshift($widgetRefs, $objectNumber);
         }
         $widgetRefs = $this->widgetReferencesForField($objectNumber, $widgetRefs, $objects, $pageWidgets);
@@ -4481,7 +4481,7 @@ final class PdfAcroFormExtractor
         $body = isset($objects[$objectNumber])
             ? ($this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]))
             : null;
-        $isWidget = is_string($body) && $this->isWidget($body);
+        $isWidget = is_string($body) && $this->isWidget($body, $objects);
         $parentFieldObject = is_string($body) ? $this->lastValidObjectReferenceValueAfterName($body, 'Parent', $objects) : null;
         $fieldObject = $parentFieldObject !== null && isset($fieldNamesByObject[$parentFieldObject])
             ? $parentFieldObject
@@ -6390,7 +6390,7 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            if (!$this->isWidget($body) || $this->lastValidObjectReferenceValueAfterName($body, 'Parent', $objects) !== $fieldObject) {
+            if (!$this->isWidget($body, $objects) || $this->lastValidObjectReferenceValueAfterName($body, 'Parent', $objects) !== $fieldObject) {
                 continue;
             }
             if ($fieldHasExplicitKids && !$this->fieldTreeContainsObject($fieldObject, $widgetObject, $objects)) {
@@ -6506,7 +6506,7 @@ final class PdfAcroFormExtractor
             return;
         }
 
-        if (!$this->isFieldDictionaryCandidate($body)) {
+        if (!$this->isFieldDictionaryCandidate($body, $objects)) {
             return;
         }
 
@@ -6522,7 +6522,7 @@ final class PdfAcroFormExtractor
             || $this->lastPdfStringValueAfterName($body, 'TM', $objects) !== null
             || $this->valueAfterName($body, 'FT') !== null
             || $this->valueAfterName($body, 'Kids') !== null
-            || $this->isWidget($body)
+            || $this->isWidget($body, $objects)
         ) {
             $names[$objectNumber] = $fieldName;
         }
@@ -6541,7 +6541,7 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            if ($this->isPureWidget($kidBody)) {
+            if ($this->isPureWidget($kidBody, $objects)) {
                 $names[$kidRef] = $fieldName;
                 continue;
             }
@@ -9275,7 +9275,7 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            if (!$this->isFieldDictionaryCandidate($body)) {
+            if (!$this->isFieldDictionaryCandidate($body, $objects)) {
                 continue;
             }
 
@@ -9337,7 +9337,7 @@ final class PdfAcroFormExtractor
                     $annotsValue,
                     $objects,
                     $nextSyntheticObject,
-                    fn (string $dictionary): bool => $this->isWidget($dictionary)
+                    fn (string $dictionary): bool => $this->isWidget($dictionary, $objects)
                 );
                 if (!$rewritten['changed']) {
                     continue;
@@ -9362,7 +9362,7 @@ final class PdfAcroFormExtractor
                 $arrayBody,
                 $objects,
                 $nextSyntheticObject,
-                fn (string $dictionary): bool => $this->isWidget($dictionary)
+                fn (string $dictionary): bool => $this->isWidget($dictionary, $objects)
             );
             if (!$materialized['changed']) {
                 continue;
@@ -9412,7 +9412,7 @@ final class PdfAcroFormExtractor
                     continue;
                 }
 
-                if (!$this->isWidget($widgetBody) || !$this->widgetAnnotationBelongsToPage($widgetBody, $objects, $pageObjectNumber)) {
+                if (!$this->isWidget($widgetBody, $objects) || !$this->widgetAnnotationBelongsToPage($widgetBody, $objects, $pageObjectNumber)) {
                     continue;
                 }
 
@@ -9432,7 +9432,7 @@ final class PdfAcroFormExtractor
                     $parentDictionary === null
                     || $dictionaryEnd === null
                     || !$this->hasOnlyPdfWhitespaceOrCommentsAfter($parentValue, $dictionaryEnd)
-                    || !$this->isFieldDictionaryCandidate($parentDictionary)
+                    || !$this->isFieldDictionaryCandidate($parentDictionary, $objects)
                 ) {
                     continue;
                 }
@@ -9591,7 +9591,7 @@ final class PdfAcroFormExtractor
         ?callable $shouldMaterialize = null,
         ?int $syntheticParentObject = null
     ): array {
-        $shouldMaterialize ??= fn (string $dictionary): bool => $this->isFieldDictionaryCandidate($dictionary);
+        $shouldMaterialize ??= fn (string $dictionary): bool => $this->isFieldDictionaryCandidate($dictionary, $objects);
         $rewritten = '';
         $cursor = 0;
         $offset = 0;
@@ -9705,7 +9705,7 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            if (!$this->isWidget($widgetBody)) {
+            if (!$this->isWidget($widgetBody, $objects)) {
                 continue;
             }
 
@@ -9720,7 +9720,7 @@ final class PdfAcroFormExtractor
                 ) {
                     $candidate = null;
                 }
-            } elseif ($this->isFieldWidgetDictionary($widgetBody)) {
+            } elseif ($this->isFieldWidgetDictionary($widgetBody, $objects)) {
                 $candidate = $widgetObject;
             }
 
@@ -9737,7 +9737,7 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            if (!$this->isFieldDictionaryCandidate($candidateBody)) {
+            if (!$this->isFieldDictionaryCandidate($candidateBody, $objects)) {
                 continue;
             }
 
@@ -9766,7 +9766,7 @@ final class PdfAcroFormExtractor
                     continue;
                 }
 
-                if ($this->isPureWidget($body)) {
+                if ($this->isPureWidget($body, $objects)) {
                     $parentObject = $this->lastValidObjectReferenceValueAfterName($body, 'Parent', $objects);
                     $parentField = $parentObject === null ? null : $this->pageWidgetParentFieldCandidate($parentObject, $objects);
                     if (
@@ -9799,7 +9799,7 @@ final class PdfAcroFormExtractor
             return null;
         }
 
-        return $this->isFieldDictionaryCandidate($body) ? $objectNumber : null;
+        return $this->isFieldDictionaryCandidate($body, $objects) ? $objectNumber : null;
     }
 
     /**
@@ -9871,7 +9871,7 @@ final class PdfAcroFormExtractor
             return true;
         }
 
-        return $this->isWidget($childBody)
+        return $this->isWidget($childBody, $objects)
             && isset($this->syntheticDirectFieldParents[$parentObject])
             && $resolvedParent === $this->syntheticDirectFieldParents[$parentObject];
     }
@@ -9950,7 +9950,7 @@ final class PdfAcroFormExtractor
             return false;
         }
 
-        if (!$this->isWidget($leftBody) || !$this->isWidget($rightBody)) {
+        if (!$this->isWidget($leftBody, $objects) || !$this->isWidget($rightBody, $objects)) {
             return false;
         }
 
@@ -9967,7 +9967,7 @@ final class PdfAcroFormExtractor
             return false;
         }
 
-        if (!$this->isWidget($targetBody)) {
+        if (!$this->isWidget($targetBody, $objects)) {
             return false;
         }
 
@@ -10006,7 +10006,7 @@ final class PdfAcroFormExtractor
 
             $parentValue = $this->lastTopLevelValueAfterName($dictionary, 'Parent');
             $ownsParent = $parentValue === null || $this->validObjectReferenceFromValue($parentValue, $objects) === $parentObject;
-            if ($ownsParent && $this->isWidget($dictionary) && $this->canonicalDictionaryComparisonBody($dictionary) === $targetCanonical) {
+            if ($ownsParent && $this->isWidget($dictionary, $objects) && $this->canonicalDictionaryComparisonBody($dictionary) === $targetCanonical) {
                 return true;
             }
 
@@ -10221,9 +10221,9 @@ final class PdfAcroFormExtractor
         return $offset >= strlen($value);
     }
 
-    private function isFieldWidgetDictionary(string $body): bool
+    private function isFieldWidgetDictionary(string $body, array $objects = []): bool
     {
-        return $this->isWidget($body)
+        return $this->isWidget($body, $objects)
             && (
                 $this->valueAfterName($body, 'T') !== null
                 || $this->valueAfterName($body, 'TM') !== null
@@ -10231,9 +10231,9 @@ final class PdfAcroFormExtractor
             );
     }
 
-    private function isFieldDictionaryCandidate(string $body): bool
+    private function isFieldDictionaryCandidate(string $body, array $objects = []): bool
     {
-        if ($this->isNonAcroFormFieldDictionary($body)) {
+        if ($this->isNonAcroFormFieldDictionary($body, $objects)) {
             return false;
         }
 
@@ -10241,16 +10241,16 @@ final class PdfAcroFormExtractor
             || $this->valueAfterName($body, 'TM') !== null
             || $this->valueAfterName($body, 'FT') !== null
             || $this->valueAfterName($body, 'Kids') !== null
-            || $this->isWidget($body);
+            || $this->isWidget($body, $objects);
     }
 
-    private function isNonAcroFormFieldDictionary(string $body): bool
+    private function isNonAcroFormFieldDictionary(string $body, array $objects = []): bool
     {
-        if ($this->isWidget($body)) {
+        if ($this->isWidget($body, $objects)) {
             return false;
         }
 
-        $subtype = $this->pdfNameValueAfterName($body, 'Subtype');
+        $subtype = $this->pdfNameValueAfterNameResolvingObjects($body, 'Subtype', $objects);
         if ($subtype !== null && $subtype !== '') {
             return true;
         }
@@ -10260,7 +10260,7 @@ final class PdfAcroFormExtractor
             return true;
         }
 
-        $type = $this->pdfNameValueAfterName($body, 'Type');
+        $type = $this->pdfNameValueAfterNameResolvingObjects($body, 'Type', $objects);
         if ($type === null || $type === '') {
             return false;
         }
@@ -10268,9 +10268,9 @@ final class PdfAcroFormExtractor
         return in_array($type, ['Catalog', 'Pages', 'Page', 'Annot'], true);
     }
 
-    private function isPureWidget(string $body): bool
+    private function isPureWidget(string $body, array $objects = []): bool
     {
-        if (!$this->isWidget($body)) {
+        if (!$this->isWidget($body, $objects)) {
             return false;
         }
 
@@ -10280,9 +10280,9 @@ final class PdfAcroFormExtractor
             && $this->valueAfterName($body, 'Kids') === null;
     }
 
-    private function isWidget(string $body): bool
+    private function isWidget(string $body, array $objects = []): bool
     {
-        return $this->pdfNameValueAfterName($body, 'Subtype') === 'Widget';
+        return $this->pdfNameValueAfterNameResolvingObjects($body, 'Subtype', $objects) === 'Widget';
     }
 
     /**
@@ -10310,7 +10310,7 @@ final class PdfAcroFormExtractor
                 }
 
                 $annotationBody = $this->dictionaryObjectBody($objects[$annotationRef] ?? '') ?? '';
-                if ($annotationBody === '' || !$this->isWidget($annotationBody)) {
+                if ($annotationBody === '' || !$this->isWidget($annotationBody, $objects)) {
                     continue;
                 }
                 if (!$this->widgetAnnotationBelongsToPage($annotationBody, $objects, $pageObjectNumber)) {
@@ -10611,6 +10611,13 @@ final class PdfAcroFormExtractor
         }
 
         return $this->decodePdfName($value);
+    }
+
+    private function pdfNameValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->valueAfterName($body, $name);
+
+        return $value === null ? null : $this->pdfNameFromValueResolvingObjects($value, $objects);
     }
 
     /**
