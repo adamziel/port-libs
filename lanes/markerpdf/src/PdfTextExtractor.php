@@ -23096,6 +23096,7 @@ final class PdfTextExtractor
         bool $rejectMalformedReferenceTail = true
     ): array {
         $references = [];
+        $malformedReferenceTailByGlyph = [];
         $offset = 0;
         $length = strlen($dictionary);
         while ($offset < $length) {
@@ -23135,11 +23136,18 @@ final class PdfTextExtractor
                     $rejectMalformedReferenceTail
                     && $this->charProcReferenceHasMalformedTail($dictionary, $referenceOffset)
                 ) {
-                    return [];
+                    $malformedReferenceTailByGlyph[$glyphName] = true;
+                    unset($references[$glyphName]);
+                    $offset = $referenceOffset;
+                    continue;
                 }
 
+                unset($malformedReferenceTailByGlyph[$glyphName]);
                 if (!isset($excludedNames[$glyphName])) {
-                    $references[$glyphName] = [
+                    $referenceKey = $rejectMalformedReferenceTail
+                        ? $glyphName
+                        : $glyphName . "\0" . count($references);
+                    $references[$referenceKey] = [
                         'objectNumber' => $reference['objectNumber'],
                         'generation' => $reference['generation'],
                     ];
@@ -23150,6 +23158,10 @@ final class PdfTextExtractor
 
             $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
             $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+        }
+
+        if ($rejectMalformedReferenceTail && $malformedReferenceTailByGlyph !== []) {
+            return [];
         }
 
         return $references;
