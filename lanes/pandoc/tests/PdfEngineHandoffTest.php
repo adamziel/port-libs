@@ -7141,6 +7141,76 @@ MARKDOWN);
         $t->same($expectedConfig, $sequence['finalPdfOptionalContentConfig']);
     },
 
+    'fake runner extracts bounded pdf optional content lock and radio group policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layer-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [10 0 R 11 0 R] /D 12 0 R >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /OCG /Name (Reviewer notes) /Intent /View >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /OCG /Name (Print marks) /Intent /Design >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Name (Layer review policy) /Creator (Pandoc native handoff) /BaseState /ON /ON [10 0 R] /Order [10 0 R 11 0 R] /ListMode /AllPages /Locked [11 0 R] /RBGroups 13 0 R >>',
+            'endobj',
+            '13 0 obj',
+            '[[10 0 R 11 0 R] [11 0 R]]',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/layer-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/layer-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expectedConfig = [
+            'name' => 'Layer review policy',
+            'creator' => 'Pandoc native handoff',
+            'baseState' => 'ON',
+            'listMode' => 'AllPages',
+            'on' => ['10 0 R'],
+            'off' => [],
+            'order' => ['10 0 R', '11 0 R'],
+            'orderLabels' => [],
+            'locked' => ['11 0 R'],
+            'radioButtonGroups' => [
+                ['10 0 R', '11 0 R'],
+                ['11 0 R'],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedConfig, $result['pdfOptionalContentConfig']);
+        $t->contains('pdf-byte-optional-content-config', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-optional-content-locked:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-optional-content-radio-button-groups:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-optional-content-radio-button-members:3', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedConfig, $sequence['finalPdfOptionalContentConfig']);
+    },
+
     'fake runner extracts bounded pdf optional content membership metadata from page resources' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layer-membership.pdf']);

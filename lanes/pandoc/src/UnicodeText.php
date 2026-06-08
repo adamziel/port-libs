@@ -4683,6 +4683,9 @@ final class UnicodeText
         if ($codepoint === 0 || $codepoint < 32 || ($codepoint >= 0x7f && $codepoint < 0xa0)) {
             return 0;
         }
+        if ($codepoint === 0x2028 || $codepoint === 0x2029) {
+            return 0;
+        }
         if (self::isEmojiSkinToneModifier($codepoint)) {
             return 2;
         }

@@ -1423,6 +1423,33 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($gnuDriveLetter));
     },
 
+    'rejects control-byte tar paths from headers pax gnu and link metadata' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $headerControlPath = $rawTarHeader("packet/control\nname.xml", '0', '<w:document/>');
+        $paxControlPath = $rawTarHeader('PaxHeaders/control-path', 'x', $paxPayload([
+            'path' => "packet/control\tname.xml",
+        ]), 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $gnuControlPath = $rawTarHeader('././@LongLink', 'L', "packet/control\x7fname.xml\0", 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $linkControlPath = $rawTarHeader('packet/source.md', '0', '# Source', 0, false)
+            . $rawTarHeader('PaxHeaders/control-link', 'x', $paxPayload([
+                'path' => 'packet/control-link.md',
+                'linkpath' => "packet/media/control\nasset.png",
+            ]), 0, false)
+            . $rawTarHeader('placeholder-link.md', '2', '', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
+            ['name' => "packet/generated\rname.xml", 'data' => '<w:document/>'],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($headerControlPath));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($paxControlPath));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($gnuControlPath));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::linkPolicyPreflight($linkControlPath));
+    },
+
     'rejects tar sparse file metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $gnuSparseType = $rawTarHeader('packet/sparse.bin', 'S', 'sparse map bytes');
         $gnuPaxSparse = $rawTarHeader('PaxHeaders/gnu-sparse', 'x', $paxPayload([

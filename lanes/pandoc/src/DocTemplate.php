@@ -390,7 +390,7 @@ final class DocTemplate
 
     private function defaultTemplateResource(string $path): ?string
     {
-        if (!str_starts_with($path, 'templates/')) {
+        if ($this->isAbsoluteTemplateResourcePath($path)) {
             return null;
         }
 

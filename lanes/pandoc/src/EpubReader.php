@@ -1027,6 +1027,7 @@ final class EpubReader
         $mainTitle = self::firstMetadataTitleByType($titleDetails, 'main') ?? ($titleDetails[0] ?? null);
         $creatorDetails = self::metadataAgentDetails($dc['creator'] ?? [], 'creator');
         $contributorDetails = self::metadataAgentDetails($dc['contributor'] ?? [], 'contributor');
+        $agentDisplayOrder = self::metadataAgentDisplayOrderReport($creatorDetails, $contributorDetails);
 
         $metadata = [
             'title' => $dc['title'][0]['text'] ?? '',
@@ -1044,6 +1045,7 @@ final class EpubReader
             'contributorDetails' => $contributorDetails,
             'contributorsByRole' => self::metadataAgentsByRole($contributorDetails),
             'untypedContributors' => self::metadataAgentsWithoutRoles($contributorDetails),
+            'agentDisplayOrder' => $agentDisplayOrder,
             'language' => $dc['language'][0]['text'] ?? null,
             'identifier' => $uniqueIdentifierReport['value'],
             'uniqueIdentifier' => $uniqueIdentifierReport,
@@ -2409,6 +2411,156 @@ final class EpubReader
     }
 
     /**
+     * @param list<array<string, mixed>> $creatorDetails
+     * @param list<array<string, mixed>> $contributorDetails
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataAgentDisplayOrderReport(array $creatorDetails, array $contributorDetails): array
+    {
+        $items = [];
+        $diagnostics = [];
+        $roles = [];
+        $sequencedCount = 0;
+        $unsequencedCount = 0;
+        $invalidDisplaySeqCount = 0;
+
+        foreach ([
+            'creator' => $creatorDetails,
+            'contributor' => $contributorDetails,
+        ] as $kind => $details) {
+            foreach ($details as $detail) {
+                if (!is_array($detail)) {
+                    continue;
+                }
+
+                $displaySeq = is_string($detail['displaySeq'] ?? null) && trim($detail['displaySeq']) !== ''
+                    ? trim($detail['displaySeq'])
+                    : null;
+                $displaySeqNumber = self::metadataDisplaySeqNumber($displaySeq);
+                $displaySeqValid = $displaySeq === null || $displaySeqNumber !== null;
+                $itemDiagnostics = [];
+                if ($displaySeq !== null && !$displaySeqValid) {
+                    $itemDiagnostics[] = [
+                        'type' => 'invalid-agent-display-seq',
+                        'kind' => $kind,
+                        'id' => is_string($detail['id'] ?? null) ? $detail['id'] : null,
+                        'text' => (string) ($detail['text'] ?? ''),
+                        'displaySeq' => $displaySeq,
+                        'message' => 'EPUB OPF creator/contributor display-seq metadata must be a positive integer for ordered handoff',
+                    ];
+                    ++$invalidDisplaySeqCount;
+                }
+
+                if ($displaySeqNumber !== null) {
+                    ++$sequencedCount;
+                } elseif ($displaySeq === null) {
+                    ++$unsequencedCount;
+                }
+
+                $roleValues = is_array($detail['roleValues'] ?? null) ? array_values($detail['roleValues']) : [];
+                foreach ($roleValues as $role) {
+                    if (!is_string($role) || $role === '') {
+                        continue;
+                    }
+
+                    $roles[$role] = $role;
+                }
+
+                $sourceIndex = (int) ($detail['index'] ?? 0);
+                $item = [
+                    'kind' => $kind,
+                    'sourceIndex' => $sourceIndex,
+                    'id' => is_string($detail['id'] ?? null) ? $detail['id'] : null,
+                    'text' => (string) ($detail['text'] ?? ''),
+                    'fileAs' => is_string($detail['fileAs'] ?? null) ? $detail['fileAs'] : null,
+                    'displaySeq' => $displaySeq,
+                    'displaySeqNumber' => $displaySeqNumber,
+                    'displaySeqValid' => $displaySeqValid,
+                    'sequenced' => $displaySeqNumber !== null,
+                    'unsequenced' => $displaySeq === null,
+                    'roles' => is_array($detail['roles'] ?? null) ? array_values($detail['roles']) : [],
+                    'roleValues' => $roleValues,
+                    'primaryRole' => is_string($detail['primaryRole'] ?? null) ? $detail['primaryRole'] : null,
+                    'language' => is_string($detail['language'] ?? null) ? $detail['language'] : null,
+                    'direction' => is_string($detail['direction'] ?? null) ? $detail['direction'] : null,
+                    'alternateScripts' => is_array($detail['alternateScripts'] ?? null) ? array_values($detail['alternateScripts']) : [],
+                    'linkedResources' => is_array($detail['linkedResources'] ?? null) ? array_values($detail['linkedResources']) : [],
+                    'refinements' => is_array($detail['refinements'] ?? null) ? $detail['refinements'] : [],
+                    'diagnostics' => $itemDiagnostics,
+                    '_sortBucket' => $displaySeqNumber !== null ? 0 : ($displaySeq !== null ? 1 : 2),
+                    '_sortSeq' => $displaySeqNumber ?? PHP_INT_MAX,
+                    '_sortKind' => $kind === 'creator' ? 0 : 1,
+                    '_sortIndex' => $sourceIndex,
+                ];
+
+                foreach ($itemDiagnostics as $diagnostic) {
+                    $diagnostics[] = $diagnostic;
+                }
+
+                $items[] = $item;
+            }
+        }
+
+        usort(
+            $items,
+            static function (array $left, array $right): int {
+                return [$left['_sortBucket'], $left['_sortSeq'], $left['_sortKind'], $left['_sortIndex']]
+                    <=> [$right['_sortBucket'], $right['_sortSeq'], $right['_sortKind'], $right['_sortIndex']];
+            }
+        );
+
+        $byKind = [];
+        $byRole = [];
+        foreach ($items as $index => $item) {
+            unset($item['_sortBucket'], $item['_sortSeq'], $item['_sortKind'], $item['_sortIndex']);
+            $item['displayIndex'] = $index;
+            $items[$index] = $item;
+
+            $kind = is_string($item['kind'] ?? null) ? $item['kind'] : '';
+            if ($kind !== '') {
+                $byKind[$kind][] = $item;
+            }
+
+            foreach (($item['roleValues'] ?? []) as $role) {
+                if (!is_string($role) || $role === '') {
+                    continue;
+                }
+
+                $byRole[$role][] = $item;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'count' => count($items),
+            'sequencedCount' => $sequencedCount,
+            'unsequencedCount' => $unsequencedCount,
+            'invalidDisplaySeqCount' => $invalidDisplaySeqCount,
+            'roleCount' => count($roles),
+            'roles' => array_values($roles),
+            'items' => $items,
+            'byKind' => $byKind,
+            'byRole' => $byRole,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private static function metadataDisplaySeqNumber(?string $displaySeq): ?int
+    {
+        if ($displaySeq === null || $displaySeq === '') {
+            return null;
+        }
+
+        if (preg_match('/^[1-9][0-9]*$/', $displaySeq) !== 1) {
+            return null;
+        }
+
+        return (int) $displaySeq;
+    }
+
+    /**
      * @param array<string, mixed> $metadata
      * @param array<string, array<string, mixed>> $manifestById
      *
@@ -2987,6 +3139,10 @@ final class EpubReader
         );
         $metadata['contributorsByRole'] = self::metadataAgentsByRole($metadata['contributorDetails']);
         $metadata['untypedContributors'] = self::metadataAgentsWithoutRoles($metadata['contributorDetails']);
+        $metadata['agentDisplayOrder'] = self::metadataAgentDisplayOrderReport(
+            $metadata['creatorDetails'],
+            $metadata['contributorDetails']
+        );
 
         if (is_array($metadata['uniqueIdentifier'] ?? null)) {
             $metadata['uniqueIdentifier'] = self::uniqueIdentifierWithLinkedResources(

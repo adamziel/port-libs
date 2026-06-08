@@ -914,6 +914,27 @@ XML;
     if (($result['document']->attr('metadata')['contributorsByRole']['trl'][0]['language'] ?? null) !== 'fr') {
         throw new RuntimeException('Expected WordPress EPUB handoff to expose contributor role metadata');
     }
+    if (($result['metadata']['agentDisplayOrder']['count'] ?? null) !== 3) {
+        throw new RuntimeException('Expected EPUB OPF creator/contributor display order to summarize all review agents');
+    }
+    if (($result['metadata']['agentDisplayOrder']['sequencedCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB OPF display-seq metadata to order sequenced review agents');
+    }
+    if (($result['metadata']['agentDisplayOrder']['unsequencedCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB OPF display order to retain unsequenced review agents');
+    }
+    if (($result['metadata']['agentDisplayOrder']['items'][0]['text'] ?? null) !== 'Migration Desk') {
+        throw new RuntimeException('Expected EPUB OPF creator to lead display-ordered agent handoff');
+    }
+    if (($result['metadata']['agentDisplayOrder']['items'][1]['primaryRole'] ?? null) !== 'edt') {
+        throw new RuntimeException('Expected EPUB OPF contributor role to remain on display-ordered agent handoff');
+    }
+    if (($result['metadata']['agentDisplayOrder']['items'][0]['linkedResources'][0]['id'] ?? null) !== 'creator-voicing') {
+        throw new RuntimeException('Expected EPUB OPF display-ordered creator to expose linked voicing resources');
+    }
+    if (($result['document']->attr('metadata')['agentDisplayOrder']['items'][2]['text'] ?? null) !== 'Translation Desk') {
+        throw new RuntimeException('Expected WordPress EPUB handoff to expose unsequenced agent display metadata');
+    }
     if (($result['package']['id'] ?? null) !== 'source-package' || ($result['package']['refinements']['schema:name'][0]['text'] ?? null) !== 'WordPress source package record') {
         throw new RuntimeException('Expected EPUB OPF package-level refinements to remain reviewable');
     }
@@ -1443,6 +1464,13 @@ echo 'creatorFileAs=' . ($result['metadata']['dc']['creator'][0]['refinements'][
 echo 'creatorRole=' . ($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['text'] ?? '') . "\n";
 echo 'contributors=' . implode(',', $result['metadata']['contributors'] ?? []) . "\n";
 echo 'contributorRoles=' . implode(',', array_keys($result['metadata']['contributorsByRole'] ?? [])) . "\n";
+echo 'agentDisplayOrder=' . implode(',', array_map(
+    static fn (array $item): string => $item['text'],
+    $result['metadata']['agentDisplayOrder']['items'] ?? []
+)) . "\n";
+echo 'agentDisplaySequenced=' . ($result['metadata']['agentDisplayOrder']['sequencedCount'] ?? 0) . "\n";
+echo 'agentDisplayUnsequenced=' . ($result['metadata']['agentDisplayOrder']['unsequencedCount'] ?? 0) . "\n";
+echo 'agentDisplayRoles=' . implode(',', $result['metadata']['agentDisplayOrder']['roles'] ?? []) . "\n";
 echo 'packageRefinement=' . ($result['package']['refinements']['schema:name'][0]['text'] ?? '') . "\n";
 echo 'chapterResourceRefinement=' . ($result['manifest'][1]['refinements']['schema:name'][0]['text'] ?? '') . "\n";
 echo 'spineRefinement=' . ($result['spineProperties']['refinements']['schema:position'][0]['text'] ?? '') . "\n";

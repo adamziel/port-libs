@@ -1462,6 +1462,33 @@ $mathDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$mathNaryDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Bounded n-ary formula </w:t></w:r>
+      <m:oMath>
+        <m:nary>
+          <m:naryPr><m:chr m:val="∑"/></m:naryPr>
+          <m:sub><m:r><m:t>i=1</m:t></m:r></m:sub>
+          <m:sup><m:r><m:t>n</m:t></m:r></m:sup>
+          <m:e><m:r><m:t>a_i</m:t></m:r></m:e>
+        </m:nary>
+        <m:r><m:t xml:space="preserve"> + </m:t></m:r>
+        <m:nary>
+          <m:naryPr><m:chr m:val="∫"/></m:naryPr>
+          <m:sub><m:r><m:t>0</m:t></m:r></m:sub>
+          <m:sup><m:r><m:t>1</m:t></m:r></m:sup>
+          <m:e><m:r><m:t>f(x) dx</m:t></m:r></m:e>
+        </m:nary>
+      </m:oMath>
+      <w:r><w:t xml:space="preserve"> stays native.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $trackedChangesDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -3381,6 +3408,14 @@ $buildMathPackage = static function () use ($contentTypesXml, $packageRelationsh
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $mathDocumentXml],
+    ]);
+};
+
+$buildMathNaryPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $mathNaryDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $mathNaryDocumentXml],
     ]);
 };
 
@@ -5576,6 +5611,25 @@ return [
         $t->contains('$$E = mc^{2}$$', $markdown);
         $t->contains('<p>Formula handoff <span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span> stays native.</p>', $blocks);
         $t->contains('<p><span class="math display">\[E = mc^{2}\]</span></p>', $blocks);
+    },
+    'maps DOCX OMML n-ary operators with limits into math AST nodes' => static function (TestRunner $t) use ($buildMathNaryPackage): void {
+        $document = (new DocxReader())->readDocument($buildMathNaryPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Bounded n-ary formula ', $paragraph->children[0]->attr('text'));
+
+        $math = $paragraph->children[1];
+        $t->same('math', $math->type);
+        $t->same('docx-omml', $math->attr('sourceFormat'));
+        $t->same(false, $math->attr('display'));
+        $t->same('\sum_{i=1}^{n} a_i + \int_{0}^{1} f(x) dx', $math->attr('text'));
+        $t->same(' stays native.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('Bounded n-ary formula $\sum_{i=1}^{n} a_i + \int_{0}^{1} f(x) dx$ stays native.', $markdown);
+        $t->contains('<p>Bounded n-ary formula <span class="math inline">\(\sum_{i=1}^{n} a_i + \int_{0}^{1} f(x) dx\)</span> stays native.</p>', $blocks);
     },
     'preserves accepted DOCX tracked insertions and reports suppressed deletions' => static function (TestRunner $t) use ($buildTrackedChangesPackage): void {
         $reader = new DocxReader();

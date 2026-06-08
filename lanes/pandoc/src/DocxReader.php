@@ -4660,6 +4660,7 @@ final class DocxReader
             'sSubSup' => $this->ommlSubSupText($element),
             'f' => '\\frac{' . $this->ommlRequiredChildText($element, 'num') . '}{' . $this->ommlRequiredChildText($element, 'den') . '}',
             'rad' => $this->ommlRadicalText($element),
+            'nary' => $this->ommlNaryText($element),
             default => $this->ommlChildText($element),
         };
     }
@@ -4689,6 +4690,72 @@ final class DocxReader
         }
 
         return '\\sqrt[' . $degree . ']{' . $body . '}';
+    }
+
+    private function ommlNaryText(\DOMElement $element): string
+    {
+        $body = $this->ommlRequiredChildText($element, 'e');
+        $operator = $this->ommlNaryOperatorText($element);
+        if ($operator === '') {
+            return $body;
+        }
+
+        $text = $operator;
+        if (!$this->ommlNaryLimitHidden($element, 'sub')) {
+            $sub = $this->ommlChildNamedText($element, 'sub');
+            if ($sub !== '') {
+                $text .= '_{' . $sub . '}';
+            }
+        }
+        if (!$this->ommlNaryLimitHidden($element, 'sup')) {
+            $sup = $this->ommlChildNamedText($element, 'sup');
+            if ($sup !== '') {
+                $text .= '^{' . $sup . '}';
+            }
+        }
+
+        return $text . ' ' . $body;
+    }
+
+    private function ommlNaryOperatorText(\DOMElement $element): string
+    {
+        $properties = $this->firstChildElement($element, self::OFFICE_MATH_NS, 'naryPr');
+        $chr = $properties instanceof \DOMElement
+            ? $this->firstChildElement($properties, self::OFFICE_MATH_NS, 'chr')
+            : null;
+        $value = $chr instanceof \DOMElement
+            ? trim((string) ($this->namespacedAttr($chr, self::OFFICE_MATH_NS, 'val') ?? ''))
+            : '';
+
+        return match ($value) {
+            "\u{2211}" => '\\sum',
+            "\u{220f}" => '\\prod',
+            "\u{2210}" => '\\coprod',
+            "\u{222b}" => '\\int',
+            "\u{222e}" => '\\oint',
+            "\u{22c2}" => '\\bigcap',
+            "\u{22c3}" => '\\bigcup',
+            default => $value,
+        };
+    }
+
+    private function ommlNaryLimitHidden(\DOMElement $element, string $limitName): bool
+    {
+        $properties = $this->firstChildElement($element, self::OFFICE_MATH_NS, 'naryPr');
+        if (!$properties instanceof \DOMElement) {
+            return false;
+        }
+
+        $hide = $this->firstChildElement(
+            $properties,
+            self::OFFICE_MATH_NS,
+            $limitName === 'sub' ? 'subHide' : 'supHide'
+        );
+        if (!$hide instanceof \DOMElement) {
+            return false;
+        }
+
+        return $this->onOffStringValue($this->namespacedAttr($hide, self::OFFICE_MATH_NS, 'val')) !== false;
     }
 
     private function ommlRequiredChildText(\DOMElement $element, string $localName): string

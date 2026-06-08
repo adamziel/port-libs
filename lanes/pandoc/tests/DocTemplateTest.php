@@ -3502,6 +3502,36 @@ HTML,
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('${ components/styles.html() }', []));
     },
 
+    'renders pandoc default template resources by basename outside templates directory' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $html = $renderer->renderResource('review-packets/default.html5', [], [
+            'pandoc-version' => '3.7.0',
+            'pagetitle' => 'Basename Fallback Review',
+            'body' => '<p>Basename fallback body.</p>',
+        ]);
+
+        $t->contains('<!DOCTYPE html>', $html);
+        $t->contains('<title>Basename Fallback Review</title>', $html);
+        $t->contains('<p>Basename fallback body.</p>', $html);
+
+        $markdown = $renderer->renderResource('review-packets/default.markdown', [], [
+            'body' => 'Basename Markdown fallback',
+        ]);
+        $t->same("Basename Markdown fallback\n", $markdown);
+
+        $custom = $renderer->renderResource('review-packets/default.html5', [
+            'review-packets/default.html5' => '<article>$body$</article>',
+        ], [
+            'body' => 'Custom basename resource wins',
+        ]);
+        $t->same('<article>Custom basename resource wins</article>', $custom);
+
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->renderResource('/review-packets/default.html5', [], [
+            'body' => 'Absolute paths do not use bundled fallback',
+        ]));
+    },
+
     'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->renderResource('review-packets/review.html', [
             'review-packets/review.html' => <<<'HTML'

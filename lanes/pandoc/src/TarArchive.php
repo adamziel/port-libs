@@ -3209,6 +3209,10 @@ final class TarArchive
 
         self::assertUtf8($path, $label);
 
+        if (preg_match('/[\x00-\x1f\x7f]/', $path) === 1) {
+            throw new \RuntimeException("Unsafe {$label}: path contains control bytes");
+        }
+
         if (str_contains($path, "\0") || str_starts_with($path, '/') || str_contains($path, '\\')) {
             throw new \RuntimeException("Unsafe {$label}: {$path}");
         }

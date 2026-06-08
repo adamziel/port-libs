@@ -3560,6 +3560,83 @@ XML;
         $t->same($metadata['contributorDetails'], $result['importReport']['metadata']['contributorDetails']);
         $t->same($metadata['contributorsByRole'], $result['document']->attr('metadata')['contributorsByRole']);
     },
+    'reports OPF creator contributor display sequence for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithAgentSequence = str_replace(
+            '<dc:creator id="creator">Migration Desk</dc:creator>',
+            '<dc:creator id="creator">Migration Desk</dc:creator>'
+            . '<dc:creator id="illustrator">Illustration Desk</dc:creator>',
+            $opfXml
+        );
+        $opfWithAgentSequence = str_replace(
+            '<dc:language>en</dc:language>',
+            '<dc:contributor id="editor">Review Editor</dc:contributor>'
+            . '<dc:contributor id="translator" xml:lang="fr">Translation Desk</dc:contributor>'
+            . '<dc:contributor>Untyped Reviewer</dc:contributor>'
+            . '<dc:language>en</dc:language>',
+            $opfWithAgentSequence
+        );
+        $opfWithAgentSequence = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#creator" property="role" scheme="marc:relators">aut</meta>'
+            . '<meta refines="#creator" property="display-seq">2</meta>'
+            . '<meta refines="#creator" property="file-as">Desk, Migration</meta>'
+            . '<meta refines="#illustrator" property="role" scheme="marc:relators">ill</meta>'
+            . '<meta refines="#illustrator" property="display-seq">appendix</meta>'
+            . '<meta refines="#editor" property="role" scheme="marc:relators">edt</meta>'
+            . '<meta refines="#editor" property="display-seq">1</meta>'
+            . '<meta refines="#translator" property="role" scheme="marc:relators">trl</meta>'
+            . '<meta refines="#translator" property="display-seq">3</meta>',
+            $opfWithAgentSequence
+        );
+        $opfWithAgentSequence = str_replace(
+            '<meta name="cover" content="cover-image"/>',
+            '<meta name="cover" content="cover-image"/>'
+            . '<link id="editor-record" rel="record" refines="#editor" href="meta/editor.json" media-type="application/json"/>',
+            $opfWithAgentSequence
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithAgentSequence,
+            null,
+            [
+                ['name' => 'OEBPS/meta/editor.json', 'data' => '{"role":"editor"}'],
+            ]
+        ));
+        $metadata = $result['metadata'];
+        $agentOrder = $metadata['agentDisplayOrder'];
+
+        $t->same(true, $agentOrder['present']);
+        $t->same(5, $agentOrder['count']);
+        $t->same(3, $agentOrder['sequencedCount']);
+        $t->same(1, $agentOrder['invalidDisplaySeqCount']);
+        $t->same(1, $agentOrder['unsequencedCount']);
+        $t->same(['Review Editor', 'Migration Desk', 'Translation Desk', 'Illustration Desk', 'Untyped Reviewer'], array_map(
+            static fn (array $item): string => $item['text'],
+            $agentOrder['items']
+        ));
+        $t->same('contributor', $agentOrder['items'][0]['kind']);
+        $t->same(1, $agentOrder['items'][0]['displaySeqNumber']);
+        $t->same('edt', $agentOrder['items'][0]['primaryRole']);
+        $t->same('editor-record', $agentOrder['items'][0]['linkedResources'][0]['id']);
+        $t->same('creator', $agentOrder['items'][1]['kind']);
+        $t->same(2, $agentOrder['items'][1]['displaySeqNumber']);
+        $t->same('Desk, Migration', $agentOrder['items'][1]['fileAs']);
+        $t->same('trl', $agentOrder['items'][2]['primaryRole']);
+        $t->same(null, $agentOrder['items'][3]['displaySeqNumber']);
+        $t->same(false, $agentOrder['items'][3]['displaySeqValid']);
+        $t->same('appendix', $agentOrder['items'][3]['displaySeq']);
+        $t->same('invalid-agent-display-seq', $agentOrder['items'][3]['diagnostics'][0]['type']);
+        $t->same(true, $agentOrder['items'][4]['unsequenced']);
+        $t->same(2, count($agentOrder['byKind']['creator']));
+        $t->same(3, count($agentOrder['byKind']['contributor']));
+        $t->same('Review Editor', $agentOrder['byRole']['edt'][0]['text']);
+        $t->same('Migration Desk', $agentOrder['byRole']['aut'][0]['text']);
+        $t->same('invalid-agent-display-seq', $agentOrder['diagnostics'][0]['type']);
+        $t->same('Illustration Desk', $agentOrder['diagnostics'][0]['text']);
+        $t->same($agentOrder, $result['importReport']['metadata']['agentDisplayOrder']);
+        $t->same($agentOrder, $result['document']->attr('metadata')['agentDisplayOrder']);
+    },
     'attaches OPF metadata refinements to package resources and spine itemrefs' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithResourceRefinements = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',

@@ -472,6 +472,10 @@ $aliasYamlDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['type'] ?? '') === 'yaml-alias'
 ));
+$mergeShadowDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'merge-sequence-shadowed-key'
+));
 $blocks = (new WordPressBlockWriter())->write($document);
 $abstractBlocks = $meta['abstractBlocks'] ?? [];
 $abstractWordPress = $abstractBlocks === []
@@ -1162,6 +1166,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-merge-review']['reviewer'] ?? '') !== 'Flow Desk') {
         throw new RuntimeException('YAML metadata self-test missing flow merge-sequence override');
     }
+    $mergeShadowPaths = array_column($mergeShadowDiagnostics, 'path');
+    foreach (['/merge-sequence-review/status', '/merge-sequence-review/labels', '/merge-sequence-audit/status', '/flow-merge-review/status'] as $expectedPath) {
+        if (!in_array($expectedPath, $mergeShadowPaths, true)) {
+            throw new RuntimeException('YAML metadata self-test missing merge precedence diagnostic path ' . $expectedPath);
+        }
+    }
     if (($meta['merge-tag-review']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing explicit merge-tag block merge');
     }
@@ -1447,7 +1457,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-alias-diagnostics']['owner'] ?? '') !== '*missing_flow_owner') {
         throw new RuntimeException('YAML metadata self-test missing flow unresolved alias audit value');
     }
-    if (count($yamlDiagnostics) !== 8) {
+    if (count($aliasYamlDiagnostics) !== 3) {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostics');
     }
     if (array_column($ambiguousYamlDiagnostics, 'reason') !== ['ambiguous-field-name', 'ambiguous-field-name', 'ambiguous-field-name', 'ambiguous-field-name']) {

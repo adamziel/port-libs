@@ -2239,6 +2239,11 @@ final class OdfReader
             if ($name !== '') {
                 $attrs['attributes']['data-odf-frame-name'] = $name;
             }
+            $frameMetadata = $this->textBoxFrameMetadata($frame);
+            if ($frameMetadata !== []) {
+                $attrs['odfFrameMetadata'] = $frameMetadata;
+                $attrs['attributes'] = $attrs['attributes'] + $this->frameMetadataAttributes($frameMetadata);
+            }
 
             return new AstNode('div', $attrs, $this->blockNodes($textBox, $package, $catalog));
         }
@@ -5328,6 +5333,29 @@ final class OdfReader
         }
 
         return $attributes;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function textBoxFrameMetadata(\DOMElement $frame): array
+    {
+        $metadata = self::withoutEmpty([
+            'name' => self::nullable(self::attr($frame, self::DRAW_NS, 'name')),
+            'styleName' => self::nullable(self::attr($frame, self::DRAW_NS, 'style-name')),
+            'anchorType' => self::nullable(self::attr($frame, self::TEXT_NS, 'anchor-type')),
+            'anchorPageNumber' => self::nullable(self::attr($frame, self::TEXT_NS, 'anchor-page-number')),
+            'x' => self::nullable(self::attr($frame, self::SVG_NS, 'x')),
+            'y' => self::nullable(self::attr($frame, self::SVG_NS, 'y')),
+            'width' => self::nullable(self::attr($frame, self::SVG_NS, 'width')),
+            'height' => self::nullable(self::attr($frame, self::SVG_NS, 'height')),
+            'zIndex' => self::nullable(self::attr($frame, self::DRAW_NS, 'z-index')),
+        ]);
+        if ($metadata === [] || array_keys($metadata) === ['name']) {
+            return [];
+        }
+
+        return array_map(static fn (mixed $value): string => (string) $value, $metadata);
     }
 
     private function frameObjectMathNode(\DOMElement $frame, ?ZipPackage $package): ?AstNode

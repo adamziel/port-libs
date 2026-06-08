@@ -5273,6 +5273,59 @@ XML;
         $t->contains('![Frame metadata alt](Pictures/hero.png "Frame metadata title"){width="4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"}', $markdown);
         $t->contains('<img src="Pictures/hero.png" alt="Frame metadata alt" title="Frame metadata title" width="4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"/>', $blocksHtml);
     },
+    'preserves ODT text box frame anchor metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithAnchoredTextBox = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <draw:frame draw:name="Reviewer aside frame" draw:style-name="AsideFrame" text:anchor-type="paragraph" text:anchor-page-number="3" svg:x="2cm" svg:y="4cm" svg:width="6cm" svg:height="2cm" draw:z-index="9">
+        <draw:text-box>
+          <text:p>Anchored reviewer aside.</text:p>
+        </draw:text-box>
+      </draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithAnchoredTextBox));
+        $textBox = $result['document']->children[0];
+        $metadata = $textBox->attr('odfFrameMetadata');
+        $attributes = $textBox->attr('attributes');
+
+        $t->same('div', $textBox->type);
+        $t->same(['odf-text-box'], $textBox->attr('classes'));
+        $t->same('Anchored reviewer aside.', $textBox->children[0]->attr('text'));
+        $t->same([
+            'name' => 'Reviewer aside frame',
+            'styleName' => 'AsideFrame',
+            'anchorType' => 'paragraph',
+            'anchorPageNumber' => '3',
+            'x' => '2cm',
+            'y' => '4cm',
+            'width' => '6cm',
+            'height' => '2cm',
+            'zIndex' => '9',
+        ], $metadata);
+        $t->same('Reviewer aside frame', $attributes['data-odf-frame-name']);
+        $t->same('AsideFrame', $attributes['data-odf-frame-style-name']);
+        $t->same('paragraph', $attributes['data-odf-frame-anchor-type']);
+        $t->same('3', $attributes['data-odf-frame-anchor-page-number']);
+        $t->same('2cm', $attributes['data-odf-frame-x']);
+        $t->same('4cm', $attributes['data-odf-frame-y']);
+        $t->same('6cm', $attributes['data-odf-frame-width']);
+        $t->same('2cm', $attributes['data-odf-frame-height']);
+        $t->same('9', $attributes['data-odf-frame-z-index']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('::: {.odf-text-box data-odf-frame-name="Reviewer aside frame" data-odf-frame-style-name="AsideFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="3" data-odf-frame-x="2cm" data-odf-frame-y="4cm" data-odf-frame-width="6cm" data-odf-frame-height="2cm" data-odf-frame-z-index="9"}', $markdown);
+        $t->contains('<div class="odf-text-box" data-odf-frame-name="Reviewer aside frame" data-odf-frame-style-name="AsideFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="3" data-odf-frame-x="2cm" data-odf-frame-y="4cm" data-odf-frame-width="6cm" data-odf-frame-height="2cm" data-odf-frame-z-index="9"><p>Anchored reviewer aside.</p></div>', $blocksHtml);
+    },
     'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = (new OdfReader())->readDocument($buildOdtPackage());
         $markdown = (new MarkdownWriter())->write($document);

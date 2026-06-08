@@ -615,6 +615,14 @@ try {
 } catch (RuntimeException) {
     $invalidCharsetBlocked = true;
 }
+$controlPathBlocked = false;
+try {
+    TarArchive::fromString(
+        $rawTarHeader("packet/control\nname.md", '0', "# Control path\n\nHidden filename control byte.\n")
+    );
+} catch (RuntimeException) {
+    $controlPathBlocked = true;
+}
 $duplicatePaxArchiveBytes = $rawTarHeader('PaxHeaders/duplicate-review', 'x', $paxPayload([
     'path' => 'packet/duplicate-pax.md',
     'org.wordpress.import.review' => 'first review state',
@@ -1137,6 +1145,7 @@ if (in_array('--self-test', $argv, true)) {
         'charsetName' => "packet/charset-\u{2603}.md",
         'charsetGlobalHdrcharset' => 'ISO-IR 10646 2000 UTF-8',
         'charsetLocalHdrcharset' => 'BINARY',
+        'controlPathBlocked' => true,
         'duplicatePaxFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'duplicatePaxExtractionPolicy' => 'duplicate-pax-keywords-blocked',
         'duplicatePaxEntryCount' => 1,
@@ -1414,6 +1423,7 @@ if (in_array('--self-test', $argv, true)) {
         || ($charsetInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-pax-hdrcharset.tar'
         || $charsetInspection['archive']->read('/' . $expected['charsetName']) !== $charsetContentBytes
         || !$invalidCharsetBlocked
+        || $controlPathBlocked !== $expected['controlPathBlocked']
         || $duplicatePaxInspection['format'] !== $expected['duplicatePaxFormat']
         || $duplicatePaxInspection['extractionPolicy'] !== $expected['duplicatePaxExtractionPolicy']
         || $duplicatePaxInspection['duplicatePaxEntryCount'] !== $expected['duplicatePaxEntryCount']
@@ -1734,6 +1744,7 @@ echo 'charset.entry=' . $charsetInspection['entryNames'][0] . "\n";
 echo 'charset.globalHdrcharset=' . $charsetInspection['archive']->entry('/' . $charsetInspection['entryNames'][0])->globalPaxHeaders['hdrcharset'] . "\n";
 echo 'charset.localHdrcharset=' . $charsetInspection['archive']->entry('/' . $charsetInspection['entryNames'][0])->localPaxHeaders['hdrcharset'] . "\n";
 echo 'charset.invalidBlocked=' . ($invalidCharsetBlocked ? 'yes' : 'no') . "\n";
+echo 'controlPath.blocked=' . ($controlPathBlocked ? 'yes' : 'no') . "\n";
 echo 'duplicatePax.format=' . $duplicatePaxInspection['format'] . "\n";
 echo 'duplicatePax.extractionPolicy=' . $duplicatePaxInspection['extractionPolicy'] . "\n";
 echo 'duplicatePax.duplicateEntryCount=' . $duplicatePaxInspection['duplicatePaxEntryCount'] . "\n";

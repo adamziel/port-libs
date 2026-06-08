@@ -175,6 +175,15 @@ $unicodeSeparatorAuditLines = UnicodeText::wrapByDisplayWidth(
     10,
     '  '
 );
+$lineBoundarySeparator = "\u{2028}";
+$paragraphBoundarySeparator = "\u{2029}";
+$lineBoundaryText = "A{$lineBoundarySeparator}B{$paragraphBoundarySeparator}\u{9B5A}";
+$lineBoundaryAuditText = str_replace(
+    [$lineBoundarySeparator, $paragraphBoundarySeparator],
+    ['[LS]', '[PS]'],
+    $lineBoundaryText
+);
+$lineBoundaryAuditLines = UnicodeText::wrapByDisplayWidth($lineBoundaryText, 10, '  ');
 $emojiCheckbox = "\u{2611}\u{FE0F}";
 $textVariationSmile = "\u{263A}\u{FE0E}";
 $textVariationCopyright = "\u{00A9}\u{FE0E}";
@@ -325,6 +334,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Unicode separators'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $unicodeSeparatorAuditLines)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $unicodeSeparatorAuditLines))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Line separators'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $lineBoundaryAuditText . ' / ' . implode(' / ', $lineBoundaryAuditLines)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => UnicodeText::displayWidth($lineBoundaryText) . ':' . implode(',', array_map(UnicodeText::displayWidth(...), $lineBoundaryAuditLines))])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Emoji checkbox'])]),
@@ -709,6 +723,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Unicode separators</td><td>CJK /   review /   queue / Hard reset / \u{9B5A}\u{3000}\u{9B5A} /   tail</td><td>3,8,7,10,6,6</td>")) {
         throw new RuntimeException('charset handoff self-test missing Unicode separator wrap audit');
+    }
+    if (!str_contains($blocks, "<td>Line separators</td><td>A[LS]B[PS]\u{9B5A} / A / B / \u{9B5A}</td><td>4:1,1,2</td>")) {
+        throw new RuntimeException('charset handoff self-test missing line separator width audit');
     }
     if (!str_contains($blocks, "<td>Emoji slices</td><td>\u{2611}\u{FE0F} / 1\u{FE0F}\u{20E3} / \u{1F44D}\u{1F3FD} / \u{1F1FA}\u{1F1F8}</td><td>2,2,2,2</td>")) {
         throw new RuntimeException('charset handoff self-test missing emoji display-width audit');

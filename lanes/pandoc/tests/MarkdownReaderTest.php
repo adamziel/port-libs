@@ -2237,6 +2237,53 @@ return [
         $t->same('yaml-merge-sequence-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-merge-sequence-body">YAML merge sequence body</h1>', $blocks);
     },
+    'records pandoc yaml merge sequence shadow diagnostics' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Merge shadow **Packet**',
+            'review-base: &review_base {status: queued, priority: 5, labels: [base, import], reviewer: Base Desk}',
+            'review-override: &review_override {status: approved, labels: [override, review]}',
+            'review:',
+            '  <<: [*review_override, *review_base]',
+            '  priority: 1',
+            'audit:',
+            '  <<:',
+            '    - *review_override',
+            '    - *review_base',
+            '  status: needs-review',
+            'flow-review: {<<: [*review_override, *review_base], reviewer: Flow Desk}',
+            '...',
+            '',
+            '# YAML merge shadow body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = array_values(array_filter(
+            $document->attr('yamlMetadataDiagnostics', []),
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'merge-sequence-shadowed-key'
+        ));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Merge shadow **Packet**', $meta['title']);
+        $t->same('approved', $meta['review']['status']);
+        $t->same(1, $meta['review']['priority']);
+        $t->same(['override', 'review'], $meta['review']['labels']);
+        $t->same('Base Desk', $meta['review']['reviewer']);
+        $t->same('needs-review', $meta['audit']['status']);
+        $t->same(['override', 'review'], $meta['audit']['labels']);
+        $t->same('Flow Desk', $meta['flow-review']['reviewer']);
+        $t->same(6, count($diagnostics));
+        $t->same(array_fill(0, 6, 'yaml-merge'), array_column($diagnostics, 'type'));
+        $t->same(array_fill(0, 6, 'merge-sequence-shadowed-key'), array_column($diagnostics, 'reason'));
+        $t->same(['status', 'labels', 'status', 'labels', 'status', 'labels'], array_column($diagnostics, 'field'));
+        $t->same(['/review/status', '/review/labels', '/audit/status', '/audit/labels', '/flow-review/status', '/flow-review/labels'], array_column($diagnostics, 'path'));
+        $t->same(array_fill(0, 6, '1'), array_column($diagnostics, 'mergeIndex'));
+        $t->same(array_fill(0, 6, '0'), array_column($diagnostics, 'shadowedByMergeIndex'));
+        $t->same(['6', '6', '9', '9', '13', '13'], array_column($diagnostics, 'sourceLine'));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('yaml-merge-shadow-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-merge-shadow-body">YAML merge shadow body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit merge tag keys as merge metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

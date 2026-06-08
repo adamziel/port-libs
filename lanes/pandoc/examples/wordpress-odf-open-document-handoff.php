@@ -252,6 +252,11 @@ $contentXml = <<<'XML'
           <svg:desc>ODT source hero alt</svg:desc>
         </draw:image>
       </draw:frame>
+      <draw:frame draw:name="Reviewer aside" draw:style-name="AsideFrame" text:anchor-type="paragraph" text:anchor-page-number="3" svg:x="2cm" svg:y="5cm" svg:width="7cm" svg:height="2cm" draw:z-index="6">
+        <draw:text-box>
+          <text:p>Anchored text box note for reviewers.</text:p>
+        </draw:text-box>
+      </draw:frame>
       <table:table table:name="Review" table:style-name="ReviewTable" table:template-name="ReviewTemplate" table:protected="true" table:protection-key="opaque-review-key" table:protection-key-digest-algorithm="urn:odf:sha1">
         <table:table-row>
           <table:table-cell><text:p>Item</text:p></table:table-cell>
@@ -811,6 +816,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad" data-odf-frame-name="Source hero" data-odf-frame-style-name="HeroFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="2" data-odf-frame-x="1.2cm" data-odf-frame-y="2.4cm" data-odf-frame-z-index="5"/>')) {
         throw new RuntimeException('Expected ODT image dimensions, xlink metadata, and frame anchor metadata to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<div class="odf-text-box" data-odf-frame-name="Reviewer aside" data-odf-frame-style-name="AsideFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="3" data-odf-frame-x="2cm" data-odf-frame-y="5cm" data-odf-frame-width="7cm" data-odf-frame-height="2cm" data-odf-frame-z-index="6"><p>Anchored text box note for reviewers.</p></div>')) {
+        throw new RuntimeException('Expected ODT text-box frame metadata to render in WordPress blocks');
     }
     if (str_contains($blocks, '../Pictures/source%20hero.png')) {
         throw new RuntimeException('Expected ODT parent-relative image hrefs to normalize before WordPress output');

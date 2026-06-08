@@ -527,6 +527,13 @@ XML],
           <m:num><m:r><m:t>1</m:t></m:r></m:num>
           <m:den><m:rad><m:e><m:r><m:t>n</m:t></m:r></m:e></m:rad></m:den>
         </m:f>
+        <m:r><m:t xml:space="preserve"> + </m:t></m:r>
+        <m:nary>
+          <m:naryPr><m:chr m:val="∑"/></m:naryPr>
+          <m:sub><m:r><m:t>i=1</m:t></m:r></m:sub>
+          <m:sup><m:r><m:t>n</m:t></m:r></m:sup>
+          <m:e><m:r><m:t>a_i</m:t></m:r></m:e>
+        </m:nary>
       </m:oMath>
       <w:r><w:t xml:space="preserve"> stays native.</w:t></w:r>
     </w:p>
@@ -1259,7 +1266,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>',
         '<p>Plain text source note<br/>Second imported line</p>',
         '<p>Final plain-text checkpoint.</p>',
-        '<span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span>',
+        '<span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}} + \sum_{i=1}^{n} a_i\)</span>',
         '<div class="docx-content-control docx-content-control-rich-text" data-docx-sdt-id="99" data-docx-sdt-alias="Review Checklist" data-docx-sdt-tag="review_checklist"',
         'data-docx-sdt-xpath="/packet/review/checklist"',
         'data-docx-sdt-placeholder="ReviewChecklistPlaceholder"',

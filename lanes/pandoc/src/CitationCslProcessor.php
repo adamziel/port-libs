@@ -4740,7 +4740,7 @@ final class CitationCslProcessor
                 }
 
                 $parts = $this->bibliographyDisplayPartsForElement($substituteElement, $item, $macroStack, $substitutedVariables);
-                $this->markSubstituteRenderedVariables($substituteElement, $substitutedVariables, $macroStack);
+                $this->markSubstituteRenderedVariables($substituteElement, $item, 'bibliography', $substitutedVariables, $macroStack);
                 foreach ($branchSubstitutedVariables as $variable => $rendered) {
                     if ($rendered) {
                         $substitutedVariables[$variable] = true;
@@ -5987,41 +5987,65 @@ final class CitationCslProcessor
      * @param array<string, bool> $substitutedVariables
      * @param list<string> $macroStack
      */
-    private function markSubstituteRenderedVariables(array $element, array &$substitutedVariables, array $macroStack = []): void
+    private function markSubstituteRenderedVariables(array $element, array $item, string $scope, array &$substitutedVariables, array $macroStack = [], ?AstNode $citation = null): void
     {
-        foreach ($this->substituteRenderingElementVariables($element, $macroStack) as $variable) {
+        foreach ($this->substituteRenderedElementVariables($element, $item, $scope, $macroStack, $citation, $substitutedVariables) as $variable) {
             $substitutedVariables[$variable] = true;
         }
     }
 
     /**
      * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
      * @param list<string> $macroStack
+     * @param array<string, bool> $substitutedVariables
      * @return list<string>
      */
-    private function substituteRenderingElementVariables(array $element, array $macroStack = []): array
+    private function substituteRenderedElementVariables(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, array $substitutedVariables = []): array
     {
+        if ($this->renderingElementSuppressedBySubstitute($element, $substitutedVariables)) {
+            return [];
+        }
+
         $type = (string) ($element['type'] ?? '');
-        if (in_array($type, ['text', 'date', 'number', 'names', 'label'], true) && isset($element['variable']) && is_string($element['variable'])) {
+        if ($type === 'names') {
+            return $this->substituteRenderedNamesElementVariables($element, $item, $scope, $macroStack, $citation, $substitutedVariables);
+        }
+
+        if (in_array($type, ['text', 'date', 'number', 'label'], true) && isset($element['variable']) && is_string($element['variable'])) {
+            $probeSubstitutedVariables = $substitutedVariables;
+            $bibliographyState = null;
+            $value = $this->renderRenderingElement($element, $item, $scope, $macroStack, $citation, $bibliographyState, $probeSubstitutedVariables);
+
+            if ($value === '') {
+                return [];
+            }
+
             return $this->renderingVariableNames($element['variable']);
         }
 
         if ($type === 'group') {
-            return $this->substituteRenderingElementsVariables(is_array($element['children'] ?? null) ? $element['children'] : [], $macroStack);
+            return $this->substituteRenderedElementsVariables(is_array($element['children'] ?? null) ? $element['children'] : [], $item, $scope, $macroStack, $citation, $substitutedVariables);
         }
 
         if ($type === 'choose') {
-            $variables = [];
             foreach (($element['branches'] ?? []) as $branch) {
-                if (is_array($branch) && isset($branch['children']) && is_array($branch['children'])) {
-                    $variables = [...$variables, ...$this->substituteRenderingElementsVariables($branch['children'], $macroStack)];
+                if (!is_array($branch) || !$this->chooseBranchMatches($branch, $item, $scope, $citation)) {
+                    continue;
                 }
-            }
-            if (isset($element['else']) && is_array($element['else'])) {
-                $variables = [...$variables, ...$this->substituteRenderingElementsVariables($element['else'], $macroStack)];
+
+                $children = $branch['children'] ?? [];
+
+                return is_array($children)
+                    ? $this->substituteRenderedElementsVariables($children, $item, $scope, $macroStack, $citation, $substitutedVariables)
+                    : [];
             }
 
-            return array_values(array_unique($variables));
+            if (isset($element['else']) && is_array($element['else'])) {
+                return $this->substituteRenderedElementsVariables($element['else'], $item, $scope, $macroStack, $citation, $substitutedVariables);
+            }
+
+            return [];
         }
 
         if ($type === 'text' && isset($element['macro']) && is_string($element['macro'])) {
@@ -6033,7 +6057,7 @@ final class CitationCslProcessor
             $elements = $this->style->macroRenderingElements($macro);
 
             return is_array($elements)
-                ? $this->substituteRenderingElementsVariables($elements, [...$macroStack, $macro])
+                ? $this->substituteRenderedElementsVariables($elements, $item, $scope, [...$macroStack, $macro], $citation, $substitutedVariables)
                 : [];
         }
 
@@ -6041,16 +6065,62 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param list<array<string, mixed>> $elements
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
      * @param list<string> $macroStack
+     * @param array<string, bool> $substitutedVariables
      * @return list<string>
      */
-    private function substituteRenderingElementsVariables(array $elements, array $macroStack = []): array
+    private function substituteRenderedNamesElementVariables(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, array $substitutedVariables = []): array
+    {
+        $variable = (string) ($element['variable'] ?? 'author editor');
+        [$names] = $this->namesForRenderingVariableWithSource($item, $variable);
+        if ($names !== []) {
+            $probeSubstitutedVariables = $substitutedVariables;
+            $bibliographyState = null;
+            $value = $this->renderNamesElementValue($element, $item, $scope, false, $bibliographyState, $citation, $probeSubstitutedVariables);
+
+            return $value === '' ? [] : $this->renderingVariableNames($variable);
+        }
+
+        $substitute = $element['substitute'] ?? [];
+        if (!is_array($substitute)) {
+            return [];
+        }
+
+        foreach ($substitute as $substituteElement) {
+            if (!is_array($substituteElement)) {
+                continue;
+            }
+
+            $probeSubstitutedVariables = $substitutedVariables;
+            $bibliographyState = null;
+            $value = ((string) ($substituteElement['type'] ?? '')) === 'names'
+                ? $this->renderNamesElementValue($substituteElement, $item, $scope, false, $bibliographyState, $citation, $probeSubstitutedVariables)
+                : $this->renderRenderingElement($substituteElement, $item, $scope, $macroStack, $citation, $bibliographyState, $probeSubstitutedVariables);
+            if ($value === '') {
+                continue;
+            }
+
+            return $this->substituteRenderedElementVariables($substituteElement, $item, $scope, $macroStack, $citation, $substitutedVariables);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param array<string, mixed> $item
+     * @param list<string> $macroStack
+     * @param array<string, bool> $substitutedVariables
+     * @return list<string>
+     */
+    private function substituteRenderedElementsVariables(array $elements, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, array $substitutedVariables = []): array
     {
         $variables = [];
         foreach ($elements as $element) {
             if (is_array($element)) {
-                $variables = [...$variables, ...$this->substituteRenderingElementVariables($element, $macroStack)];
+                $variables = [...$variables, ...$this->substituteRenderedElementVariables($element, $item, $scope, $macroStack, $citation, $substitutedVariables)];
             }
         }
 
@@ -6595,7 +6665,7 @@ final class CitationCslProcessor
                         ? $this->renderNamesElementValue($substituteElement, $item, $scope, false, $bibliographyState, $citation, $substitutedVariables)
                         : $this->renderRenderingElement($substituteElement, $item, $scope, [], $citation, $bibliographyState, $substitutedVariables);
                     if ($value !== '') {
-                        $this->markSubstituteRenderedVariables($substituteElement, $substitutedVariables);
+                        $this->markSubstituteRenderedVariables($substituteElement, $item, $scope, $substitutedVariables, [], $citation);
 
                         return $value;
                     }

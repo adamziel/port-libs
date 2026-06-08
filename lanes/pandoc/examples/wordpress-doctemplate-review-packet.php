@@ -501,6 +501,22 @@ HTML,
         }
     }
 
+    $basenameDefaultFallback = (new DocTemplate())->renderResource('review-packets/default.html5', [], [
+        'pandoc-version' => '3.7.0',
+        'pagetitle' => 'Basename Fallback Review',
+        'body' => '<p>Basename fallback body.</p>',
+    ]);
+    foreach ([
+        '<!DOCTYPE html>',
+        '<title>Basename Fallback Review</title>',
+        '<p>Basename fallback body.</p>',
+    ] as $needle) {
+        if (!str_contains($basenameDefaultFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate basename default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $defaultFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'lang' => 'en',
         'dir' => 'ltr',

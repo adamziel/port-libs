@@ -328,7 +328,7 @@ final class PdfEngineHandoff
      *     pdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     pdfMarkedContentArtifacts: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
-     *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
+     *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
      *     pdfOptionalContentMemberships: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
@@ -1939,6 +1939,21 @@ final class PdfEngineHandoff
                     if (isset($pdfOptionalContentConfig['order']) && is_array($pdfOptionalContentConfig['order']) && $pdfOptionalContentConfig['order'] !== []) {
                         $diagnostics[] = 'pdf-byte-optional-content-order:' . count($pdfOptionalContentConfig['order']);
                     }
+                    if (isset($pdfOptionalContentConfig['locked']) && is_array($pdfOptionalContentConfig['locked']) && $pdfOptionalContentConfig['locked'] !== []) {
+                        $diagnostics[] = 'pdf-byte-optional-content-locked:' . count($pdfOptionalContentConfig['locked']);
+                    }
+                    if (isset($pdfOptionalContentConfig['radioButtonGroups']) && is_array($pdfOptionalContentConfig['radioButtonGroups']) && $pdfOptionalContentConfig['radioButtonGroups'] !== []) {
+                        $radioButtonMemberCount = 0;
+                        foreach ($pdfOptionalContentConfig['radioButtonGroups'] as $radioButtonGroup) {
+                            if (is_array($radioButtonGroup)) {
+                                $radioButtonMemberCount += count($radioButtonGroup);
+                            }
+                        }
+                        $diagnostics[] = 'pdf-byte-optional-content-radio-button-groups:' . count($pdfOptionalContentConfig['radioButtonGroups']);
+                        if ($radioButtonMemberCount > 0) {
+                            $diagnostics[] = 'pdf-byte-optional-content-radio-button-members:' . $radioButtonMemberCount;
+                        }
+                    }
                 }
                 if ($pdfOptionalContentMemberships !== []) {
                     $diagnostics[] = 'pdf-byte-optional-content-memberships:' . count($pdfOptionalContentMemberships);
@@ -2751,7 +2766,7 @@ final class PdfEngineHandoff
      *     finalPdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     finalPdfMarkedContentArtifacts: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
-     *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
+     *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
      *     finalPdfOptionalContentMemberships: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
@@ -10126,7 +10141,7 @@ final class PdfEngineHandoff
 
     /**
      * @param array<string, string> $objects
-     * @return array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{}
+     * @return array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{}
      */
     private function summarizePdfOptionalContentConfig(string $properties, array $objects): array
     {
@@ -10135,7 +10150,7 @@ final class PdfEngineHandoff
             return [];
         }
 
-        return [
+        $config = [
             'name' => $this->extractPdfStringOrNameValue($configuration, 'Name'),
             'creator' => $this->extractPdfStringOrNameValue($configuration, 'Creator'),
             'baseState' => $this->extractPdfNameToken($configuration, 'BaseState'),
@@ -10145,6 +10160,54 @@ final class PdfEngineHandoff
             'order' => $this->collectPdfReferencesFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Order', $objects)),
             'orderLabels' => $this->collectPdfStringsFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Order', $objects)),
         ];
+
+        $locked = $this->collectPdfReferencesFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Locked', $objects));
+        if ($locked !== []) {
+            $config['locked'] = $locked;
+        }
+
+        $radioButtonGroups = $this->collectPdfReferenceGroupsFromArray(
+            $this->extractPdfArrayOrReferenceValue($configuration, 'RBGroups', $objects),
+            $objects
+        );
+        if ($radioButtonGroups !== []) {
+            $config['radioButtonGroups'] = $radioButtonGroups;
+        }
+
+        return $config;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<list<string>>
+     */
+    private function collectPdfReferenceGroupsFromArray(?string $array, array $objects): array
+    {
+        if ($array === null) {
+            return [];
+        }
+
+        $groups = [];
+        foreach ($this->pdfTopLevelArrayValues($array) as $value) {
+            if ($value['kind'] === 'array') {
+                $references = $this->collectPdfReferencesFromArray($value['value']);
+            } elseif ($value['kind'] === 'reference') {
+                $body = trim($objects[$this->pdfReferenceKey($value['value'])] ?? '');
+                $resolved = $body === '' ? null : $this->parsePdfValueAt($body, 0);
+                $references = $resolved !== null && $resolved['kind'] === 'array'
+                    ? $this->collectPdfReferencesFromArray($resolved['value'])
+                    : [$value['value']];
+            } else {
+                $references = [];
+            }
+
+            $references = $this->uniqueStrings($references);
+            if ($references !== []) {
+                $groups[] = $references;
+            }
+        }
+
+        return $groups;
     }
 
     /**

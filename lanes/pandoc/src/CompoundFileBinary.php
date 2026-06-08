@@ -461,6 +461,19 @@ final class CompoundFileBinary
 
         $markReserved($fatSectorIds, 'FAT');
         $markReserved($difatSectorIds, 'DIFAT');
+        $fatSectorLookup = array_fill_keys($fatSectorIds, true);
+        $difatSectorLookup = array_fill_keys($difatSectorIds, true);
+        $sectorCount = self::sectorCount($this->bytes, $this->sectorSize);
+        for ($sectorId = 0; $sectorId < $sectorCount; $sectorId++) {
+            $fatEntry = $this->fat[$sectorId] ?? self::FREESECT;
+            if ($fatEntry === self::FATSECT && !isset($fatSectorLookup[$sectorId])) {
+                throw new \RuntimeException('CFB FAT marks an unlisted sector as FATSECT');
+            }
+            if ($fatEntry === self::DIFSECT && !isset($difatSectorLookup[$sectorId])) {
+                throw new \RuntimeException('CFB FAT marks an unlisted sector as DIFSECT');
+            }
+        }
+
         $markReserved($this->regularSectorChainIds($this->firstDirectorySector, null, 'directory'), 'directory');
         if (self::isRegularSector($this->firstMiniFatSector) && $this->miniFatSectorCount > 0) {
             $miniFatSectorIds = $this->regularSectorChainIds(

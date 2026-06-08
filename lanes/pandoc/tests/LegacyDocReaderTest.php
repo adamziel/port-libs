@@ -2088,6 +2088,28 @@ return [
         $fatSectorNotMarked = substr_replace($bytes, $u32(0xfffffffe), 512, 4);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($fatSectorNotMarked));
     },
+    'rejects unlisted CFB reserved FAT markers before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+        $sectorSize = 512;
+        $unlistedSector = intdiv(strlen($bytes) - $sectorSize, $sectorSize);
+        if ($unlistedSector >= 128) {
+            throw new RuntimeException('CFB reserved-marker fixture requires the appended sector to be covered by the first FAT sector');
+        }
+
+        $withFreeSector = $bytes . str_repeat("\0", $sectorSize);
+        foreach ([0xfffffffd, 0xfffffffc] as $reservedMarker) {
+            $corrupt = substr_replace(
+                $withFreeSector,
+                $u32($reservedMarker),
+                $sectorSize + ($unlistedSector * 4),
+                4
+            );
+
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corrupt));
+        }
+    },
     'rejects CFB regular stream chains that reuse directory sectors before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Overlapping sector payload should stay opaque\r"),

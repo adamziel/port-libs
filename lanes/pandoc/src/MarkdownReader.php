@@ -4764,6 +4764,7 @@ final class MarkdownReader
         if ($this->isYamlAssociativeArray($mergeValue)) {
             $merged = $mergeValue;
         } elseif (is_array($mergeValue)) {
+            $this->recordYamlMergeSequenceShadowDiagnostics($mergeValue);
             foreach (array_reverse($mergeValue) as $item) {
                 if ($this->isYamlAssociativeArray($item)) {
                     $merged = array_replace($merged, $item);
@@ -4772,6 +4773,42 @@ final class MarkdownReader
         }
 
         return array_replace($merged, $current);
+    }
+
+    /**
+     * @param array<int, mixed> $mergeValue
+     */
+    private function recordYamlMergeSequenceShadowDiagnostics(array $mergeValue): void
+    {
+        $seen = [];
+        foreach ($mergeValue as $index => $item) {
+            if (!$this->isYamlAssociativeArray($item)) {
+                continue;
+            }
+
+            foreach ($item as $field => $_) {
+                if (array_key_exists($field, $seen)) {
+                    $this->recordYamlMergeSequenceShadowDiagnostic($field, $index, $seen[$field]);
+                    continue;
+                }
+
+                $seen[$field] = $index;
+            }
+        }
+    }
+
+    private function recordYamlMergeSequenceShadowDiagnostic(int|string $field, int|string $mergeIndex, int|string $shadowingMergeIndex): void
+    {
+        $diagnostic = [
+            'type' => 'yaml-merge',
+            'reason' => 'merge-sequence-shadowed-key',
+            'field' => (string) $field,
+            'path' => $this->yamlMetadataPathWithSegment($field),
+            'mergeIndex' => (string) $mergeIndex,
+            'shadowedByMergeIndex' => (string) $shadowingMergeIndex,
+        ];
+        $diagnostic += $this->yamlMetadataSourceLineAttrs();
+        $this->yamlMetadataDiagnostics[] = $diagnostic;
     }
 
     private function isYamlMetadataMergeKey(int|string $key): bool

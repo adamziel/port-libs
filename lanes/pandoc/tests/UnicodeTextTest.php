@@ -1755,6 +1755,20 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'Unicode separator wrapped line exceeds requested width');
         }
     },
+    'keeps line and paragraph separators zero width in display accounting' => static function (TestRunner $t): void {
+        $lineSeparator = "\u{2028}";
+        $paragraphSeparator = "\u{2029}";
+        $sample = "A{$lineSeparator}B{$paragraphSeparator}\u{9B5A}";
+
+        $t->same(0, UnicodeText::displayWidth($lineSeparator));
+        $t->same(0, UnicodeText::displayWidth($paragraphSeparator));
+        $t->same(4, UnicodeText::displayWidth($sample));
+        $t->same(['A', "{$lineSeparator}B{$paragraphSeparator}\u{9B5A}"], UnicodeText::splitAtDisplayWidth($sample, 1));
+        $t->same(['A', "{$lineSeparator}B", "{$paragraphSeparator}\u{9B5A}"], UnicodeText::splitByDisplayBreakpoints($sample, [1, 2]));
+        $t->same($sample . '  ', UnicodeText::padDisplay($sample, 6));
+        $t->same(6, UnicodeText::displayWidth(UnicodeText::padDisplay($sample, 6)));
+        $t->same(['A', 'B', "\u{9B5A}"], UnicodeText::wrapByDisplayWidth($sample, 10, '  '));
+    },
     'expands tabs to four column stops for display width accounting' => static function (TestRunner $t): void {
         $tabbed = "A\tB\t\u{9B5A}";
 
