@@ -3081,7 +3081,13 @@ final class PdfActionReviewExtractor
      */
     private function catalogUriBase(array $catalog): ?string
     {
-        $uriDictionary = $this->resolveDictionary($catalog['URI'] ?? null);
+        $resolvedUriValue = $this->resolveValue($catalog['URI'] ?? null);
+        $malformedValueKeys = $this->dictionaryMalformedValueOperandKeySet($resolvedUriValue);
+        if (isset($malformedValueKeys['Base'])) {
+            return null;
+        }
+
+        $uriDictionary = $this->dictionaryItems($resolvedUriValue);
         if ($uriDictionary === null) {
             return null;
         }
