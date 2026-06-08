@@ -7775,6 +7775,8 @@ final class TableRecognizer
             'rectangle',
             'bounds',
             'bounding_box',
+            'geometry',
+            'coordinates',
         ];
     }
 

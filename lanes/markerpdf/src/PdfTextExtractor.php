@@ -41160,6 +41160,10 @@ final class PdfTextExtractor
                 $cidRanges[] = $cidRange;
             }
 
+            if ($cidRanges !== null && ($last - $source + 1) > self::MAX_CMAP_RANGE_ENTRIES) {
+                continue;
+            }
+
             $mappedCount = 0;
             $scannedCount = 0;
             $maxScan = self::MAX_CMAP_RANGE_ENTRIES * 256;
@@ -49212,6 +49216,8 @@ final class PdfTextExtractor
             return null;
         }
 
+        $codeSpaceRanges = $this->nonRedundantCodeSpaceRangesForSourceWidth($codeSpaceRanges, $sourceWidth);
+
         $rankedOffset = $this->singleCodeSpaceSequenceOffsetInCidRange(
             $rangeStart,
             $source,
@@ -49249,6 +49255,103 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     * @return list<array{start: int, end: int, width: int}>
+     */
+    private function nonRedundantCodeSpaceRangesForSourceWidth(array $codeSpaceRanges, int $sourceWidth): array
+    {
+        if ($codeSpaceRanges === [] || $sourceWidth <= 0) {
+            return $codeSpaceRanges;
+        }
+
+        $ranges = [];
+        foreach ($codeSpaceRanges as $range) {
+            if (($range['width'] ?? null) !== $sourceWidth) {
+                continue;
+            }
+            $ranges[] = $range;
+        }
+
+        if (count($ranges) <= 1) {
+            return $ranges;
+        }
+
+        $filtered = [];
+        foreach ($ranges as $index => $range) {
+            $contained = false;
+            foreach ($ranges as $otherIndex => $otherRange) {
+                if ($index === $otherIndex) {
+                    continue;
+                }
+
+                if (
+                    $this->codeSpaceRangeContainsRange($otherRange, $range)
+                    && (
+                        $otherRange['start'] !== $range['start']
+                        || $otherRange['end'] !== $range['end']
+                        || $otherIndex < $index
+                    )
+                ) {
+                    $contained = true;
+                    break;
+                }
+            }
+
+            if (!$contained) {
+                $filtered[] = $range;
+            }
+        }
+
+        return $filtered === [] ? $ranges : $filtered;
+    }
+
+    /**
+     * @param array{start: int, end: int, width: int} $outer
+     * @param array{start: int, end: int, width: int} $inner
+     */
+    private function codeSpaceRangeContainsRange(array $outer, array $inner): bool
+    {
+        $width = $outer['width'] ?? null;
+        if (!is_int($width) || $width <= 0 || ($inner['width'] ?? null) !== $width || $width % 2 !== 0) {
+            return false;
+        }
+
+        $outerStart = str_pad(strtolower(dechex($outer['start'])), $width, '0', STR_PAD_LEFT);
+        $outerEnd = str_pad(strtolower(dechex($outer['end'])), $width, '0', STR_PAD_LEFT);
+        $innerStart = str_pad(strtolower(dechex($inner['start'])), $width, '0', STR_PAD_LEFT);
+        $innerEnd = str_pad(strtolower(dechex($inner['end'])), $width, '0', STR_PAD_LEFT);
+
+        if (
+            strlen($outerStart) !== $width
+            || strlen($outerEnd) !== $width
+            || strlen($innerStart) !== $width
+            || strlen($innerEnd) !== $width
+            || !$this->sourceKeyMatchesCodeSpaceRange($outerStart, $outer)
+            || !$this->sourceKeyMatchesCodeSpaceRange($outerEnd, $outer)
+            || !$this->sourceKeyMatchesCodeSpaceRange($innerStart, $inner)
+            || !$this->sourceKeyMatchesCodeSpaceRange($innerEnd, $inner)
+        ) {
+            return false;
+        }
+
+        $outerStartBytes = array_map('hexdec', str_split($outerStart, 2));
+        $outerEndBytes = array_map('hexdec', str_split($outerEnd, 2));
+        $innerStartBytes = array_map('hexdec', str_split($innerStart, 2));
+        $innerEndBytes = array_map('hexdec', str_split($innerEnd, 2));
+
+        foreach ($innerStartBytes as $index => $innerStartByte) {
+            if (
+                $innerStartByte < ($outerStartBytes[$index] ?? 0)
+                || ($innerEndBytes[$index] ?? -1) > ($outerEndBytes[$index] ?? -1)
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

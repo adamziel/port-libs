@@ -5125,6 +5125,10 @@ final class PdfMetadataExtractor
             'items' => $items,
         ];
 
+        foreach ($this->documentOutlineRootTraversalOperandBoundarySummary($outlineRoot['body']) as $key => $value) {
+            $metadata[$key] = $value;
+        }
+
         $rootMetadataStreamValues = $this->dictionaryTopLevelRawValues($outlineRoot['body'], 'Metadata');
         $rootMetadataStreamReview = $this->documentOutlineMetadataMalformedOperandReview($outlineRoot['body'], true);
         if ($rootMetadataStreamReview === []) {
@@ -5747,6 +5751,188 @@ final class PdfMetadataExtractor
             'duplicate_outline_root_payload_included' => false,
             'outline_root_duplicate_key_review' => $review,
         ];
+    }
+
+    /**
+     * Root traversal keys are a single-value trust boundary. If a selected
+     * `/First`, `/Last`, or `/Count` value has extra top-level operands, keep
+     * the suppressed outline graph reviewable without promoting its rows.
+     *
+     * @return array<string, mixed>
+     */
+    private function documentOutlineRootTraversalOperandBoundarySummary(string $dictionary): array
+    {
+        $entries = [];
+        foreach (['First', 'Last', 'Count'] as $key) {
+            $entry = $this->documentOutlineRootTraversalOperandBoundaryReview($dictionary, $key);
+            if ($entry !== []) {
+                $entries[] = $entry;
+            }
+        }
+
+        if ($entries === []) {
+            return [];
+        }
+
+        $keys = [];
+        $statuses = [];
+        $trailingReferenceObjectNumbers = [];
+        foreach ($entries as $entry) {
+            if (is_string($entry['key'] ?? null)) {
+                $keys[] = $entry['key'];
+            }
+            if (is_string($entry['status'] ?? null)) {
+                $statuses[] = $entry['status'];
+            }
+            foreach ($entry['trailing_reference_object_numbers'] ?? [] as $objectNumber) {
+                if (is_int($objectNumber)) {
+                    $trailingReferenceObjectNumbers[] = $objectNumber;
+                }
+            }
+        }
+
+        $review = [
+            'source' => 'outline_root_traversal_operand_boundary',
+            'review_only' => true,
+            'payload_included' => false,
+            'visible_text_source' => false,
+            'navigation_promoted' => false,
+            'item_traversal_promoted' => false,
+            'selected_entry_policy' => 'last_top_level_entry',
+            'keys' => $this->uniqueStrings($keys),
+            'statuses' => $this->uniqueStrings($statuses),
+            'entries' => $entries,
+        ];
+        if ($trailingReferenceObjectNumbers !== []) {
+            $review['trailing_reference_object_numbers'] = $this->uniqueIntegers($trailingReferenceObjectNumbers);
+        }
+
+        $summary = [
+            'outline_root_traversal_operand_boundary_count' => count($entries),
+            'outline_root_traversal_operand_boundary_keys' => $this->uniqueStrings($keys),
+            'outline_root_traversal_operand_boundary_statuses' => $this->uniqueStrings($statuses),
+            'outline_root_traversal_operand_boundary_review_only' => true,
+            'outline_root_traversal_operand_boundary_payload_included' => false,
+            'outline_root_traversal_operand_boundary_navigation_promoted' => false,
+            'outline_root_traversal_operand_boundary_review' => $review,
+        ];
+        if ($trailingReferenceObjectNumbers !== []) {
+            $summary['outline_root_traversal_operand_boundary_trailing_reference_objects'] = $this->uniqueIntegers($trailingReferenceObjectNumbers);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function documentOutlineRootTraversalOperandBoundaryReview(string $dictionary, string $key): array
+    {
+        if (!in_array($key, ['First', 'Last', 'Count'], true)) {
+            return [];
+        }
+
+        $body = $this->normalizedDictionaryBody($dictionary);
+        $entryIndex = 0;
+        $selectedMalformedReview = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset = $this->skipNonDictionaryKeyToken($body, $offset);
+                continue;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $decodedKey = $this->decodePdfName($match[1]);
+            $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
+            $value = $this->readPdfValueAt($body, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $afterValue = $valueOffset + strlen($value);
+            if ($decodedKey !== $key) {
+                $offset = $afterValue;
+                continue;
+            }
+
+            $trailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
+            if ($trailingOperands === []) {
+                $selectedMalformedReview = [];
+                $entryIndex++;
+                $offset = $afterValue;
+                continue;
+            }
+
+            $review = [
+                'source' => 'outline_root_traversal_operand_boundary',
+                'review_only' => true,
+                'payload_included' => false,
+                'visible_text_source' => false,
+                'navigation_promoted' => false,
+                'item_traversal_promoted' => false,
+                'status' => 'rejected_malformed_outline_root_' . strtolower($key) . '_operand',
+                'key' => $key,
+                'entry_count' => count($this->dictionaryTopLevelRawValues($dictionary, $key)),
+                'selected_entry_index' => $entryIndex,
+                'operand_count' => 1 + count($trailingOperands),
+                'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
+            ];
+
+            $reference = $this->objectReferenceFromValue($value);
+            if ($reference !== null) {
+                $review['object_number'] = $reference['objectNumber'];
+                $review['object_generation'] = $reference['generation'];
+            }
+
+            $trailingObjectNumbers = [];
+            $trailingOperandShapes = [];
+            $trailingOperandNames = [];
+            $trailingOperandPreviews = [];
+            foreach ($trailingOperands as $operand) {
+                $shape = $this->outlineMetadataReferenceOperandShape($operand);
+                $trailingOperandShapes[] = $shape;
+                $trailingOperandPreviews[] = $this->metadataStreamFilterOperandPreview($operand);
+                if ($shape === 'name') {
+                    $name = $this->nameValueAt($operand, 0);
+                    if ($name !== null) {
+                        $trailingOperandNames[] = $name;
+                    }
+                }
+                $reference = $this->objectReferenceFromValue($operand);
+                if ($reference !== null) {
+                    $trailingObjectNumbers[] = $reference['objectNumber'];
+                }
+            }
+            if ($trailingObjectNumbers !== []) {
+                $review['trailing_reference_object_numbers'] = $this->uniqueIntegers($trailingObjectNumbers);
+            }
+            if ($trailingOperandShapes !== []) {
+                $review['trailing_operand_shapes'] = $this->uniqueStrings($trailingOperandShapes);
+            }
+            if ($trailingOperandNames !== []) {
+                $review['trailing_operand_names'] = $this->uniqueStrings($trailingOperandNames);
+            }
+            if ($trailingOperandPreviews !== []) {
+                $review['trailing_operand_previews'] = $this->uniqueStrings($trailingOperandPreviews);
+            }
+
+            $selectedMalformedReview = $review;
+            $entryIndex++;
+            $offset = $afterValue;
+        }
+
+        return $selectedMalformedReview;
     }
 
     /**

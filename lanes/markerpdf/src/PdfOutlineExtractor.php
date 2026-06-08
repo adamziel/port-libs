@@ -1255,7 +1255,10 @@ final class PdfOutlineExtractor
      */
     private function outlineRootDocumentReviewMetadata(array $outline): array
     {
-        if (!is_array($outline['metadata_stream_review'] ?? null)) {
+        if (
+            !is_array($outline['metadata_stream_review'] ?? null)
+            && !is_array($outline['outline_root_traversal_operand_boundary_review'] ?? null)
+        ) {
             return [];
         }
 
@@ -1272,6 +1275,14 @@ final class PdfOutlineExtractor
             'is_collapsed',
             'structure_state',
             'metadata_stream_review',
+            'outline_root_traversal_operand_boundary_count',
+            'outline_root_traversal_operand_boundary_keys',
+            'outline_root_traversal_operand_boundary_statuses',
+            'outline_root_traversal_operand_boundary_trailing_reference_objects',
+            'outline_root_traversal_operand_boundary_review_only',
+            'outline_root_traversal_operand_boundary_payload_included',
+            'outline_root_traversal_operand_boundary_navigation_promoted',
+            'outline_root_traversal_operand_boundary_review',
         ] as $key) {
             if (array_key_exists($key, $outline)) {
                 $context[$key] = $outline[$key];
