@@ -14586,6 +14586,21 @@ final class PdfTextExtractor
      */
     private function isImageStreamDictionary(string $dict, array $objects): bool
     {
+        if ($this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Type') > 0) {
+            return false;
+        }
+
+        $type = $this->topLevelPdfValueAfterNameInDictionaryBody($dict, 'Type');
+        if ($type !== null) {
+            if ($this->topLevelPdfNameHasTrailingTopLevelOperand($dict, 'Type')) {
+                return false;
+            }
+
+            if ($this->pdfNameValueAt($type, 0, $objects) !== 'XObject') {
+                return false;
+            }
+        }
+
         if ($this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Subtype') > 0) {
             return false;
         }
