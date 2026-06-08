@@ -4292,6 +4292,11 @@ final class PdfImageRenderer
                     $value = substr($body, $valueStart, $extraOperandEnd - $valueStart);
                     $nextOffset = $extraOperandEnd;
                 }
+            } elseif ($canonicalKey === '/Decode') {
+                $extraOperandEnd = $this->inlineImageDecodeExtraOperandEndAfterValue($body, $readValue['next']);
+                if ($extraOperandEnd !== null) {
+                    $nextOffset = $extraOperandEnd;
+                }
             } elseif ($canonicalKey === '/DecodeParms') {
                 $extraOperandEnd = $this->imageDecodeParmsExtraOperandEndAfterValue($body, $readValue['next']);
                 if ($extraOperandEnd !== null) {
@@ -4352,6 +4357,32 @@ final class PdfImageRenderer
         }
 
         return false;
+    }
+
+    private function inlineImageDecodeExtraOperandEndAfterValue(string $body, int $offset): ?int
+    {
+        $offset = $this->skipPdfWhitespace($body, $offset);
+        if ($offset >= strlen($body) || substr($body, $offset, 2) === '>>' || ($body[$offset] ?? '') === ']') {
+            return null;
+        }
+
+        if (($body[$offset] ?? '') === '/') {
+            return null;
+        }
+
+        $extra = $this->readPdfValueWithOffset($body, $offset);
+        if ($extra === null || $extra['next'] <= $offset) {
+            $end = $offset + strcspn($body, " \t\r\n\f[]()<>{}/%", $offset);
+
+            return $end > $offset ? $end : $offset + 1;
+        }
+
+        $afterExtra = $this->skipPdfWhitespace($body, $extra['next']);
+        if (preg_match('/\G[+-]?\d+\s+R\b/s', $body, $match, 0, $afterExtra) === 1) {
+            return $afterExtra + strlen($match[0]);
+        }
+
+        return $extra['next'];
     }
 
     private function inlineImageDictionaryHasMalformedTailOperand(string $dictionary): bool
