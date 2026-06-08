@@ -697,6 +697,28 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['pageBreaks']['items'][0]['spineIdref'] ?? null) !== 'chapter' || ($result['document']->children[0]->attr('pageBreakCount') ?? null) !== 1) {
         throw new RuntimeException('Expected WordPress spine block to expose EPUB page-break metadata');
     }
+    $mediaFragmentNav = str_replace(
+        '        <li><a href="https://cdn.example.test/epub/source-note.html">Remote source note</a></li>',
+        "        <li><a href=\"https://cdn.example.test/epub/source-note.html\">Remote source note</a></li>\n        <li><a href=\"audio/chapter.mp3#t=1,4.25\">Audio excerpt</a></li>",
+        $navXhtml
+    );
+    $mediaFragmentResult = $reader->readPackage(ZipPackage::fromParts($withPackagePartData(
+        $packageParts,
+        'EPUB/nav.xhtml',
+        $mediaFragmentNav
+    )));
+    if (($mediaFragmentResult['navigation']['mediaFragmentTargetCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB navigation report to count timed media-fragment targets for WordPress handoff');
+    }
+    if (($mediaFragmentResult['navigation']['mediaFragmentTargets'][0]['fragmentKind'] ?? null) !== 'media-fragment') {
+        throw new RuntimeException('Expected EPUB navigation media fragment to be classified separately from element ID fragments');
+    }
+    if (($mediaFragmentResult['navigation']['mediaFragmentTargets'][0]['mediaFragment']['time']['durationSeconds'] ?? null) !== 3.25) {
+        throw new RuntimeException('Expected EPUB navigation timed media fragment duration to be summarized');
+    }
+    if (($mediaFragmentResult['nav']['primaryNavigationTargetPolicy']['mediaFragmentTargetCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB primary nav policy to expose media-fragment target count');
+    }
     $chapterSemantics = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml'] ?? [];
     if (!in_array('bodymatter', $chapterSemantics['semanticTypes'] ?? [], true) || !in_array('pagebreak', $chapterSemantics['semanticTypes'] ?? [], true)) {
         throw new RuntimeException('Expected EPUB XHTML semantic type annotations to be summarized for package review');

@@ -2020,6 +2020,87 @@ XML;
         $t->same(1, $result['nav']['auxiliaryNavigation']['itemCount']);
         $t->same($policy, $result['importReport']['nav']['primaryNavigationTargetPolicy']);
     },
+    'reports EPUB navigation media fragments for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithMediaFragments = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="media-toc" epub:type="toc">
+      <h1>Media navigation</h1>
+      <ol>
+        <li><a href="audio/chapter1.mp3#t=1.5,4.5">Audio clip</a></li>
+        <li><a href="images/cover.png#xywh=percent:10,20,30,40">Cover crop</a></li>
+      </ol>
+    </nav>
+    <nav id="pages" epub:type="page-list">
+      <h2>Pages</h2>
+      <ol>
+        <li><a epub:type="pagebreak" href="images/cover.png#xywh=pixel:5,10,50,80">Cover crop page</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+        $ncxWithMediaFragments = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="audio-point" playOrder="1">
+      <navLabel><text>Audio clip</text></navLabel>
+      <content src="audio/chapter1.mp3#t=2,6"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'OEBPS/audio/chapter1.mp3', 'data' => 'MP3DATA'],
+            ],
+            $navWithMediaFragments,
+            $ncxWithMediaFragments
+        ));
+
+        $audioTarget = $result['nav']['items'][0];
+        $t->same('media-fragment', $audioTarget['fragmentKind']);
+        $t->same('t=1.5,4.5', $audioTarget['fragment']);
+        $t->same(['t'], $audioTarget['mediaFragment']['dimensionNames']);
+        $t->same(true, $audioTarget['mediaFragment']['valid']);
+        $t->same(1.5, $audioTarget['mediaFragment']['time']['startSeconds']);
+        $t->same(4.5, $audioTarget['mediaFragment']['time']['endSeconds']);
+        $t->same(3.0, $audioTarget['mediaFragment']['time']['durationSeconds']);
+
+        $coverCrop = $result['nav']['items'][1];
+        $t->same('media-fragment', $coverCrop['fragmentKind']);
+        $t->same('percent', $coverCrop['mediaFragment']['xywh']['unit']);
+        $t->same(10.0, $coverCrop['mediaFragment']['xywh']['x']);
+        $t->same(20.0, $coverCrop['mediaFragment']['xywh']['y']);
+        $t->same(30.0, $coverCrop['mediaFragment']['xywh']['width']);
+        $t->same(40.0, $coverCrop['mediaFragment']['xywh']['height']);
+
+        $navigation = $result['navigation'];
+        $t->same(3, $navigation['targetCount']);
+        $t->same(3, $navigation['mediaFragmentTargetCount']);
+        $t->same(3, count($navigation['mediaFragmentTargets']));
+        $t->same(0, $navigation['cfiTargetCount']);
+        $t->same(true, in_array('navigation-media-fragment-target', array_column($navigation['diagnostics'], 'type'), true));
+        $t->same(2.0, $navigation['mediaFragmentTargets'][2]['mediaFragment']['time']['startSeconds']);
+        $t->same(6.0, $navigation['mediaFragmentTargets'][2]['mediaFragment']['time']['endSeconds']);
+
+        $policy = $result['nav']['primaryNavigationTargetPolicy'];
+        $t->same(3, $policy['mediaFragmentTargetCount']);
+        $t->same(true, in_array('primary-nav-media-fragment-target', array_column($policy['diagnostics'], 'type'), true));
+
+        $pageBreaks = $result['pageBreaks'];
+        $t->same('nav-page-list', $pageBreaks['source']);
+        $t->same(1, $pageBreaks['mediaFragmentPageBreakCount']);
+        $t->same('media-fragment', $pageBreaks['items'][0]['fragmentKind']);
+        $t->same('pixel', $pageBreaks['items'][0]['mediaFragment']['xywh']['unit']);
+        $t->same(5.0, $pageBreaks['items'][0]['mediaFragment']['xywh']['x']);
+        $t->same(80.0, $pageBreaks['items'][0]['mediaFragment']['xywh']['height']);
+        $t->same(true, in_array('page-list-media-fragment-target', array_column($pageBreaks['diagnostics'], 'type'), true));
+        $t->same($pageBreaks, $result['document']->attr('pageBreaks'));
+    },
     'builds EPUB page-break report from page-list navigation for WordPress handoff' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $pageListNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

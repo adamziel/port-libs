@@ -332,6 +332,7 @@ final class EpubReader
                 'fragment' => $reference['fragment'],
                 'fragmentKind' => $reference['fragmentKind'],
                 'epubCfi' => $reference['epubCfi'],
+                'mediaFragment' => $reference['mediaFragment'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
                 'byteLength' => $reference['byteLength'],
@@ -363,6 +364,7 @@ final class EpubReader
      *     fragment:?string,
      *     fragmentKind:?string,
      *     epubCfi:?array<string, mixed>,
+     *     mediaFragment:?array<string, mixed>,
      *     external:bool,
      *     exists:bool,
      *     byteLength:?int,
@@ -382,6 +384,7 @@ final class EpubReader
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
                 'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => false,
                 'exists' => false,
                 'byteLength' => null,
@@ -403,6 +406,7 @@ final class EpubReader
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
                 'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => true,
                 'exists' => false,
                 'byteLength' => null,
@@ -425,6 +429,7 @@ final class EpubReader
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
                 'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => false,
                 'exists' => false,
                 'byteLength' => null,
@@ -455,6 +460,7 @@ final class EpubReader
             'fragment' => $fragmentFields['fragment'],
             'fragmentKind' => $fragmentFields['fragmentKind'],
             'epubCfi' => $fragmentFields['epubCfi'],
+            'mediaFragment' => $fragmentFields['mediaFragment'],
             'external' => false,
             'exists' => $exists,
             'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
@@ -2464,6 +2470,7 @@ final class EpubReader
                 'fragment' => $reference['fragment'],
                 'fragmentKind' => $reference['fragmentKind'],
                 'epubCfi' => $reference['epubCfi'],
+                'mediaFragment' => $reference['mediaFragment'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
                 'byteLength' => $reference['byteLength'],
@@ -3728,6 +3735,7 @@ final class EpubReader
                     'fragment' => $fragmentFields['fragment'],
                     'fragmentKind' => $fragmentFields['fragmentKind'],
                     'epubCfi' => $fragmentFields['epubCfi'],
+                    'mediaFragment' => $fragmentFields['mediaFragment'],
                     'external' => true,
                     'mediaType' => $mediaType,
                     'properties' => $properties,
@@ -3765,6 +3773,7 @@ final class EpubReader
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
                 'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => false,
                 'mediaType' => $mediaType,
                 'properties' => $properties,
@@ -6552,6 +6561,7 @@ final class EpubReader
                 'fragment' => $reference['fragment'],
                 'fragmentKind' => $reference['fragmentKind'],
                 'epubCfi' => $reference['epubCfi'],
+                'mediaFragment' => $reference['mediaFragment'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
                 'byteLength' => $reference['byteLength'],
@@ -6796,6 +6806,7 @@ final class EpubReader
             'fragment' => $reference['fragment'],
             'fragmentKind' => $reference['fragmentKind'],
             'epubCfi' => $reference['epubCfi'],
+            'mediaFragment' => $reference['mediaFragment'],
             'external' => $reference['external'],
             'exists' => $reference['exists'],
             'byteLength' => $reference['byteLength'],
@@ -6818,6 +6829,10 @@ final class EpubReader
      * @return array{
      *     target:?string,
      *     part:?string,
+     *     fragment:?string,
+     *     fragmentKind:?string,
+     *     epubCfi:?array<string, mixed>,
+     *     mediaFragment:?array<string, mixed>,
      *     external:bool,
      *     exists:bool,
      *     byteLength:?int,
@@ -6846,6 +6861,7 @@ final class EpubReader
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
                 'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => false,
                 'exists' => false,
                 'byteLength' => null,
@@ -6870,6 +6886,7 @@ final class EpubReader
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
                 'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => true,
                 'exists' => false,
                 'byteLength' => null,
@@ -6897,6 +6914,7 @@ final class EpubReader
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
                 'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => false,
                 'exists' => false,
                 'byteLength' => null,
@@ -6935,6 +6953,7 @@ final class EpubReader
             'fragment' => $fragmentFields['fragment'],
             'fragmentKind' => $fragmentFields['fragmentKind'],
             'epubCfi' => $fragmentFields['epubCfi'],
+            'mediaFragment' => $fragmentFields['mediaFragment'],
             'external' => false,
             'exists' => $exists,
             'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
@@ -6954,6 +6973,7 @@ final class EpubReader
      *     fragment:null,
      *     fragmentKind:null,
      *     epubCfi:null,
+     *     mediaFragment:null,
      *     external:false,
      *     exists:false,
      *     byteLength:null,
@@ -6973,6 +6993,7 @@ final class EpubReader
             'fragment' => null,
             'fragmentKind' => null,
             'epubCfi' => null,
+            'mediaFragment' => null,
             'external' => false,
             'exists' => false,
             'byteLength' => null,
@@ -7327,6 +7348,7 @@ final class EpubReader
         $outsideSpineTargetCount = 0;
         $landmarkCount = 0;
         $landmarkMissingTypeCount = 0;
+        $mediaFragmentTargets = [];
 
         foreach ($sections as $sectionIndex => $section) {
             if (!is_array($section)) {
@@ -7401,6 +7423,9 @@ final class EpubReader
                 if (($item['outsideSpine'] ?? false) === true) {
                     ++$outsideSpineTargetCount;
                 }
+                if (is_array($item['mediaFragment'] ?? null)) {
+                    $mediaFragmentTargets[] = $item;
+                }
                 if ($sectionType === 'landmarks') {
                     ++$landmarkCount;
                     if (($item['missingLandmarkType'] ?? false) === true) {
@@ -7439,6 +7464,7 @@ final class EpubReader
             'missingTargetCount' => $missingTargetCount,
             'missingReferenceCount' => $missingReferenceCount,
             'outsideSpineTargetCount' => $outsideSpineTargetCount,
+            'mediaFragmentTargetCount' => count($mediaFragmentTargets),
             'landmarkCount' => $landmarkCount,
             'landmarkMissingTypeCount' => $landmarkMissingTypeCount,
             'diagnosticCount' => count($diagnostics),
@@ -7446,6 +7472,7 @@ final class EpubReader
             'sections' => $reportedSections,
             'sectionsByType' => $sectionsByType,
             'items' => $items,
+            'mediaFragmentTargets' => $mediaFragmentTargets,
             'itemsBySectionType' => $itemsBySectionType,
             'diagnostics' => $diagnostics,
         ];
@@ -7479,6 +7506,8 @@ final class EpubReader
         $types = is_array($item['types'] ?? null) ? array_values($item['types']) : [];
         $sourceDiagnostics = is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [];
         $diagnostics = [];
+        $fragmentFields = self::targetFragmentFields($target);
+        $mediaFragment = is_array($item['mediaFragment'] ?? null) ? $item['mediaFragment'] : $fragmentFields['mediaFragment'];
 
         if ($external) {
             $diagnostics[] = [
@@ -7513,6 +7542,14 @@ final class EpubReader
                 'message' => 'EPUB landmark navigation item is missing an epub:type value for import handoff classification',
             ];
         }
+        if ($mediaFragment !== null) {
+            $diagnostics[] = [
+                'type' => 'primary-nav-media-fragment-target',
+                'target' => $target,
+                'fragment' => is_string($item['fragment'] ?? null) ? $item['fragment'] : $fragmentFields['fragment'],
+                'message' => 'EPUB primary navigation target uses a W3C media fragment for import handoff metadata',
+            ];
+        }
 
         return [
             'index' => $index,
@@ -7531,8 +7568,9 @@ final class EpubReader
             'target' => $target,
             'part' => $part,
             'fragment' => is_string($item['fragment'] ?? null) ? $item['fragment'] : self::targetFragment($target),
-            'fragmentKind' => is_string($item['fragmentKind'] ?? null) ? $item['fragmentKind'] : self::targetFragmentFields($target)['fragmentKind'],
-            'epubCfi' => is_array($item['epubCfi'] ?? null) ? $item['epubCfi'] : self::targetFragmentFields($target)['epubCfi'],
+            'fragmentKind' => is_string($item['fragmentKind'] ?? null) ? $item['fragmentKind'] : $fragmentFields['fragmentKind'],
+            'epubCfi' => is_array($item['epubCfi'] ?? null) ? $item['epubCfi'] : $fragmentFields['epubCfi'],
+            'mediaFragment' => $mediaFragment,
             'external' => $external,
             'exists' => $exists,
             'outsideSpine' => $target !== null && !$external && $exists && !is_array($spineItem),
@@ -7689,6 +7727,8 @@ final class EpubReader
                 'count' => 0,
                 'cfiPageBreakCount' => 0,
                 'cfiPageBreaks' => [],
+                'mediaFragmentPageBreakCount' => 0,
+                'mediaFragmentPageBreaks' => [],
                 'items' => [],
                 'itemsByPart' => [],
                 'diagnostics' => [],
@@ -7717,6 +7757,8 @@ final class EpubReader
             $spineItem = $part !== null ? ($spineByContentPart[$part] ?? null) : null;
             $sourceDiagnostics = is_array($navItem['diagnostics'] ?? null) ? array_values($navItem['diagnostics']) : [];
             $itemDiagnostics = [];
+            $fragmentFields = self::targetFragmentFields($target);
+            $mediaFragment = is_array($navItem['mediaFragment'] ?? null) ? $navItem['mediaFragment'] : $fragmentFields['mediaFragment'];
 
             if (($navItem['external'] ?? false) === true) {
                 $itemDiagnostics[] = [
@@ -7742,6 +7784,14 @@ final class EpubReader
                     'message' => 'EPUB page-list target exists in the package but is not part of the resolved spine handoff',
                 ];
             }
+            if ($mediaFragment !== null) {
+                $itemDiagnostics[] = [
+                    'type' => 'page-list-media-fragment-target',
+                    'target' => $target,
+                    'fragment' => is_string($navItem['fragment'] ?? null) ? $navItem['fragment'] : $fragmentFields['fragment'],
+                    'message' => 'EPUB page-list target uses a W3C media fragment for import handoff metadata',
+                ];
+            }
 
             foreach ($itemDiagnostics as $diagnostic) {
                 $diagnostics[] = ['index' => $index] + $diagnostic;
@@ -7757,8 +7807,9 @@ final class EpubReader
                 'target' => $target,
                 'part' => $part,
                 'fragment' => is_string($navItem['fragment'] ?? null) ? $navItem['fragment'] : self::targetFragment($target),
-                'fragmentKind' => is_string($navItem['fragmentKind'] ?? null) ? $navItem['fragmentKind'] : self::targetFragmentFields($target)['fragmentKind'],
-                'epubCfi' => is_array($navItem['epubCfi'] ?? null) ? $navItem['epubCfi'] : self::targetFragmentFields($target)['epubCfi'],
+                'fragmentKind' => is_string($navItem['fragmentKind'] ?? null) ? $navItem['fragmentKind'] : $fragmentFields['fragmentKind'],
+                'epubCfi' => is_array($navItem['epubCfi'] ?? null) ? $navItem['epubCfi'] : $fragmentFields['epubCfi'],
+                'mediaFragment' => $mediaFragment,
                 'external' => (bool) ($navItem['external'] ?? false),
                 'exists' => (bool) ($navItem['exists'] ?? false),
                 'type' => is_string($navItem['type'] ?? null) ? $navItem['type'] : null,
@@ -7799,6 +7850,10 @@ final class EpubReader
             $items,
             static fn (array $item): bool => ($item['fragmentKind'] ?? null) === 'epub-cfi',
         ));
+        $mediaFragmentItems = array_values(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['fragmentKind'] ?? null) === 'media-fragment',
+        ));
 
         return [
             'present' => $items !== [],
@@ -7806,6 +7861,8 @@ final class EpubReader
             'count' => count($items),
             'cfiPageBreakCount' => count($cfiItems),
             'cfiPageBreaks' => $cfiItems,
+            'mediaFragmentPageBreakCount' => count($mediaFragmentItems),
+            'mediaFragmentPageBreaks' => $mediaFragmentItems,
             'items' => $items,
             'itemsByPart' => $itemsByPart,
             'diagnostics' => $diagnostics,
@@ -7844,7 +7901,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>}
+     * @return array{fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>, mediaFragment:?array<string, mixed>}
      */
     private static function targetFragmentFields(?string $target): array
     {
@@ -7853,6 +7910,7 @@ final class EpubReader
                 'fragment' => null,
                 'fragmentKind' => null,
                 'epubCfi' => null,
+                'mediaFragment' => null,
             ];
         }
 
@@ -7862,6 +7920,7 @@ final class EpubReader
                 'fragment' => null,
                 'fragmentKind' => null,
                 'epubCfi' => null,
+                'mediaFragment' => null,
             ];
         }
 
@@ -7872,15 +7931,18 @@ final class EpubReader
                 'fragment' => null,
                 'fragmentKind' => null,
                 'epubCfi' => null,
+                'mediaFragment' => null,
             ];
         }
 
         $epubCfi = self::epubCfiFragmentReport($fragment);
+        $mediaFragment = $epubCfi === null ? self::mediaFragmentReport($fragment) : null;
 
         return [
             'fragment' => $fragment,
-            'fragmentKind' => $epubCfi === null ? 'id' : 'epub-cfi',
+            'fragmentKind' => $epubCfi !== null ? 'epub-cfi' : ($mediaFragment !== null ? 'media-fragment' : 'id'),
             'epubCfi' => $epubCfi,
+            'mediaFragment' => $mediaFragment,
         ];
     }
 
@@ -7932,6 +7994,284 @@ final class EpubReader
     }
 
     /**
+     * @return ?array<string, mixed>
+     */
+    private static function mediaFragmentReport(string $fragment): ?array
+    {
+        $rawComponents = preg_split('/[&;]/', $fragment) ?: [];
+        $components = [];
+        $hasMediaDimension = false;
+        $recognizedNames = [
+            't' => true,
+            'xywh' => true,
+            'track' => true,
+            'id' => true,
+        ];
+
+        foreach ($rawComponents as $index => $component) {
+            if ($component === '') {
+                continue;
+            }
+
+            $separator = strpos($component, '=');
+            if ($separator === false) {
+                continue;
+            }
+
+            $name = strtolower(rawurldecode(substr($component, 0, $separator)));
+            $rawValue = substr($component, $separator + 1);
+            $value = rawurldecode($rawValue);
+            $components[] = [
+                'index' => $index,
+                'name' => $name,
+                'rawValue' => $rawValue,
+                'value' => $value,
+            ];
+
+            if (in_array($name, ['t', 'xywh', 'track'], true)) {
+                $hasMediaDimension = true;
+            }
+        }
+
+        if (!$hasMediaDimension) {
+            return null;
+        }
+
+        $dimensions = [];
+        $byName = [];
+        $diagnostics = [];
+
+        foreach ($components as $component) {
+            $name = (string) $component['name'];
+            $dimensionDiagnostics = [];
+            if (!isset($recognizedNames[$name])) {
+                $dimensionDiagnostics[] = [
+                    'type' => 'unsupported-media-fragment-dimension',
+                    'name' => $name,
+                    'message' => 'EPUB target media fragment includes a dimension that is not interpreted by this bounded handoff',
+                ];
+            }
+            if (isset($byName[$name])) {
+                $dimensionDiagnostics[] = [
+                    'type' => 'duplicate-media-fragment-dimension',
+                    'name' => $name,
+                    'message' => 'EPUB target media fragment repeats a dimension; values are preserved in source order',
+                ];
+            }
+
+            $dimension = [
+                'index' => (int) $component['index'],
+                'name' => $name,
+                'rawValue' => (string) $component['rawValue'],
+                'value' => (string) $component['value'],
+                'valid' => $dimensionDiagnostics === [],
+                'diagnostics' => $dimensionDiagnostics,
+            ];
+
+            $details = [];
+            if ($name === 't') {
+                $details = self::mediaFragmentTimeDimension((string) $component['value']);
+            } elseif ($name === 'xywh') {
+                $details = self::mediaFragmentXywhDimension((string) $component['value']);
+            } elseif ($name === 'track' && trim((string) $component['value']) === '') {
+                $dimension['valid'] = false;
+                $dimension['diagnostics'][] = [
+                    'type' => 'invalid-media-fragment-track',
+                    'message' => 'EPUB target media fragment track dimension must not be empty',
+                ];
+            }
+            if ($details !== []) {
+                $detailDiagnostics = is_array($details['diagnostics'] ?? null) ? $details['diagnostics'] : [];
+                $dimension = array_replace($dimension, $details);
+                $dimension['diagnostics'] = array_merge($dimensionDiagnostics, $detailDiagnostics);
+                $dimension['valid'] = $dimension['diagnostics'] === [];
+            }
+
+            if (($dimension['valid'] ?? true) !== true) {
+                foreach ($dimension['diagnostics'] as $diagnostic) {
+                    $diagnostics[] = [
+                        'dimension' => $name,
+                        'index' => (int) $component['index'],
+                    ] + $diagnostic;
+                }
+            }
+
+            $dimensions[] = $dimension;
+            $byName[$name][] = $dimension;
+        }
+
+        return [
+            'present' => true,
+            'raw' => $fragment,
+            'valid' => $diagnostics === [],
+            'dimensionCount' => count($dimensions),
+            'dimensionNames' => array_keys($byName),
+            'dimensions' => $dimensions,
+            'byName' => $byName,
+            'time' => $byName['t'][0] ?? null,
+            'xywh' => $byName['xywh'][0] ?? null,
+            'track' => $byName['track'][0] ?? null,
+            'id' => $byName['id'][0] ?? null,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaFragmentTimeDimension(string $value): array
+    {
+        $scheme = null;
+        $spec = trim($value);
+        if (str_starts_with(strtolower($spec), 'npt:')) {
+            $scheme = 'npt';
+            $spec = substr($spec, 4);
+        }
+
+        $parts = explode(',', $spec);
+        $diagnostics = [];
+        if (count($parts) > 2) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-fragment-time',
+                'value' => $value,
+                'message' => 'EPUB target time media fragment must be a start/end pair',
+            ];
+            $parts = array_slice($parts, 0, 2);
+        }
+
+        $startText = isset($parts[0]) && trim($parts[0]) !== '' ? trim($parts[0]) : null;
+        $endText = isset($parts[1]) && trim($parts[1]) !== '' ? trim($parts[1]) : null;
+        $startSeconds = $startText === null ? null : self::mediaFragmentClockSeconds($startText);
+        $endSeconds = $endText === null ? null : self::mediaFragmentClockSeconds($endText);
+
+        if ($startText === null && $endText === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-fragment-time',
+                'value' => $value,
+                'message' => 'EPUB target time media fragment must include a start or end time',
+            ];
+        }
+        if ($startText !== null && $startSeconds === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-fragment-time-start',
+                'value' => $startText,
+                'message' => 'EPUB target time media fragment start must be a non-negative normal play time',
+            ];
+        }
+        if ($endText !== null && $endSeconds === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-fragment-time-end',
+                'value' => $endText,
+                'message' => 'EPUB target time media fragment end must be a non-negative normal play time',
+            ];
+        }
+        if ($startSeconds !== null && $endSeconds !== null && $endSeconds < $startSeconds) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-fragment-time-range',
+                'startSeconds' => $startSeconds,
+                'endSeconds' => $endSeconds,
+                'message' => 'EPUB target time media fragment end must not be earlier than the start',
+            ];
+        }
+
+        return [
+            'scheme' => $scheme,
+            'start' => $startText,
+            'end' => $endText,
+            'startSeconds' => $startSeconds,
+            'endSeconds' => $endSeconds,
+            'durationSeconds' => $startSeconds !== null && $endSeconds !== null && $endSeconds >= $startSeconds
+                ? $endSeconds - $startSeconds
+                : null,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private static function mediaFragmentClockSeconds(string $value): ?float
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+        if (preg_match('/^\d+(?:\.\d+)?$/', $value) === 1) {
+            return (float) $value;
+        }
+        if (preg_match('/^(\d+):([0-5]\d(?:\.\d+)?)$/', $value, $matches) === 1) {
+            return ((float) $matches[1] * 60.0) + (float) $matches[2];
+        }
+        if (preg_match('/^(\d+):([0-5]\d):([0-5]\d(?:\.\d+)?)$/', $value, $matches) === 1) {
+            return ((float) $matches[1] * 3600.0) + ((float) $matches[2] * 60.0) + (float) $matches[3];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaFragmentXywhDimension(string $value): array
+    {
+        $unit = 'pixel';
+        $spec = trim($value);
+        $lower = strtolower($spec);
+        if (str_starts_with($lower, 'pixel:')) {
+            $unit = 'pixel';
+            $spec = substr($spec, 6);
+        } elseif (str_starts_with($lower, 'percent:')) {
+            $unit = 'percent';
+            $spec = substr($spec, 8);
+        }
+
+        $parts = array_map('trim', explode(',', $spec));
+        $diagnostics = [];
+        $numbers = [];
+        if (count($parts) !== 4) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-fragment-xywh',
+                'value' => $value,
+                'message' => 'EPUB target spatial media fragment must include x,y,width,height',
+            ];
+        }
+
+        foreach (array_slice($parts, 0, 4) as $part) {
+            if (preg_match('/^-?\d+(?:\.\d+)?$/', $part) !== 1) {
+                $numbers[] = null;
+            } else {
+                $numbers[] = (float) $part;
+            }
+        }
+        while (count($numbers) < 4) {
+            $numbers[] = null;
+        }
+
+        [$x, $y, $width, $height] = $numbers;
+        if ($x === null || $y === null || $width === null || $height === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-fragment-xywh-number',
+                'value' => $value,
+                'message' => 'EPUB target spatial media fragment coordinates must be numeric',
+            ];
+        } elseif ($x < 0.0 || $y < 0.0 || $width <= 0.0 || $height <= 0.0) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-fragment-xywh-bounds',
+                'value' => $value,
+                'message' => 'EPUB target spatial media fragment x/y must be non-negative and width/height must be positive',
+            ];
+        }
+
+        return [
+            'unit' => $unit,
+            'x' => $x,
+            'y' => $y,
+            'width' => $width,
+            'height' => $height,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private function readNavList(ZipPackage $package, \DOMElement $list, string $navPart): array
@@ -7975,6 +8315,7 @@ final class EpubReader
                 'fragment' => $reference['fragment'],
                 'fragmentKind' => $reference['fragmentKind'],
                 'epubCfi' => $reference['epubCfi'],
+                'mediaFragment' => $reference['mediaFragment'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
                 'diagnostics' => $reference['diagnostics'],
@@ -8215,6 +8556,7 @@ final class EpubReader
                 'fragment' => $reference['fragment'],
                 'fragmentKind' => $reference['fragmentKind'],
                 'epubCfi' => $reference['epubCfi'],
+                'mediaFragment' => $reference['mediaFragment'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
                 'diagnostics' => $reference['diagnostics'],
@@ -8310,6 +8652,7 @@ final class EpubReader
                 'fragment' => $reference['fragment'],
                 'fragmentKind' => $reference['fragmentKind'],
                 'epubCfi' => $reference['epubCfi'],
+                'mediaFragment' => $reference['mediaFragment'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
                 'byteLength' => $reference['byteLength'],
@@ -8357,6 +8700,7 @@ final class EpubReader
                 'fragment' => $reference['fragment'],
                 'fragmentKind' => $reference['fragmentKind'],
                 'epubCfi' => $reference['epubCfi'],
+                'mediaFragment' => $reference['mediaFragment'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
                 'byteLength' => $reference['byteLength'],
@@ -8519,6 +8863,10 @@ final class EpubReader
             $items,
             static fn (array $item): bool => ($item['fragmentKind'] ?? null) === 'epub-cfi',
         ));
+        $mediaFragmentTargets = array_values(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['fragmentKind'] ?? null) === 'media-fragment',
+        ));
 
         return [
             'present' => $navTocCount > 0 || $ncxCount > 0,
@@ -8527,6 +8875,7 @@ final class EpubReader
             'ncxCount' => $ncxCount,
             'targetCount' => count($items),
             'cfiTargetCount' => count($cfiTargets),
+            'mediaFragmentTargetCount' => count($mediaFragmentTargets),
             'mappedSpineTargetCount' => $mappedCount,
             'outsideSpineTargetCount' => $outsideSpineCount,
             'missingTargetCount' => $missingCount,
@@ -8534,6 +8883,7 @@ final class EpubReader
             'uncoveredLinearSpineItemCount' => count($uncoveredLinearSpineItems),
             'items' => $items,
             'cfiTargets' => $cfiTargets,
+            'mediaFragmentTargets' => $mediaFragmentTargets,
             'spineCoverage' => array_values($spineCoverage),
             'uncoveredLinearSpineItems' => $uncoveredLinearSpineItems,
             'diagnostics' => $diagnostics,
@@ -8560,6 +8910,8 @@ final class EpubReader
         $spineItem = $part !== null ? ($spineByContentPart[$part] ?? null) : null;
         $sourceDiagnostics = is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [];
         $diagnostics = [];
+        $fragmentFields = self::targetFragmentFields($target);
+        $mediaFragment = is_array($item['mediaFragment'] ?? null) ? $item['mediaFragment'] : $fragmentFields['mediaFragment'];
 
         if (($item['external'] ?? false) === true) {
             $diagnostics[] = [
@@ -8589,6 +8941,15 @@ final class EpubReader
                 'message' => 'EPUB navigation target exists in the package but is not part of the resolved spine handoff',
             ];
         }
+        if ($mediaFragment !== null) {
+            $diagnostics[] = [
+                'type' => 'navigation-media-fragment-target',
+                'source' => $source,
+                'target' => $target,
+                'fragment' => is_string($item['fragment'] ?? null) ? $item['fragment'] : $fragmentFields['fragment'],
+                'message' => 'EPUB navigation target uses a W3C media fragment for import handoff metadata',
+            ];
+        }
 
         return [
             'index' => $index,
@@ -8602,8 +8963,9 @@ final class EpubReader
             'target' => $target,
             'part' => $part,
             'fragment' => is_string($item['fragment'] ?? null) ? $item['fragment'] : self::targetFragment($target),
-            'fragmentKind' => is_string($item['fragmentKind'] ?? null) ? $item['fragmentKind'] : self::targetFragmentFields($target)['fragmentKind'],
-            'epubCfi' => is_array($item['epubCfi'] ?? null) ? $item['epubCfi'] : self::targetFragmentFields($target)['epubCfi'],
+            'fragmentKind' => is_string($item['fragmentKind'] ?? null) ? $item['fragmentKind'] : $fragmentFields['fragmentKind'],
+            'epubCfi' => is_array($item['epubCfi'] ?? null) ? $item['epubCfi'] : $fragmentFields['epubCfi'],
+            'mediaFragment' => $mediaFragment,
             'external' => (bool) ($item['external'] ?? false),
             'exists' => (bool) ($item['exists'] ?? false),
             'type' => is_string($item['type'] ?? null) ? $item['type'] : null,
@@ -8839,6 +9201,7 @@ final class EpubReader
             'textRefFragment' => $textRefReference['fragment'] ?? null,
             'textRefFragmentKind' => $textRefReference['fragmentKind'] ?? null,
             'textRefEpubCfi' => $textRefReference['epubCfi'] ?? null,
+            'textRefMediaFragment' => $textRefReference['mediaFragment'] ?? null,
             'textRefExternal' => $textRefReference['external'] ?? false,
             'textRefDiagnostics' => $textRefReference['diagnostics'] ?? [],
             'items' => $items,
@@ -8901,6 +9264,7 @@ final class EpubReader
             'textFragment' => $textReference['fragment'],
             'textFragmentKind' => $textReference['fragmentKind'],
             'textEpubCfi' => $textReference['epubCfi'],
+            'textMediaFragment' => $textReference['mediaFragment'],
             'textExternal' => $textReference['external'],
             'textExists' => $textReference['exists'],
             'audioSrc' => $audioSrc,
@@ -8909,6 +9273,7 @@ final class EpubReader
             'audioFragment' => $audioReference['fragment'],
             'audioFragmentKind' => $audioReference['fragmentKind'],
             'audioEpubCfi' => $audioReference['epubCfi'],
+            'audioMediaFragment' => $audioReference['mediaFragment'],
             'audioExternal' => $audioReference['external'],
             'audioExists' => $audioReference['exists'],
             'audioByteLength' => $audioReference['byteLength'],
@@ -8975,7 +9340,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{target:?string, part:?string, fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>, external:bool, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
+     * @return array{target:?string, part:?string, fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>, mediaFragment:?array<string, mixed>, external:bool, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
      */
     private function smilReference(ZipPackage $package, string $basePart, ?string $src): array
     {
@@ -8993,6 +9358,7 @@ final class EpubReader
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
                 'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => true,
                 'exists' => false,
                 'byteLength' => null,
@@ -9016,6 +9382,7 @@ final class EpubReader
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
                 'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => false,
                 'exists' => false,
                 'byteLength' => null,
@@ -9039,6 +9406,7 @@ final class EpubReader
             'fragment' => $fragmentFields['fragment'],
             'fragmentKind' => $fragmentFields['fragmentKind'],
             'epubCfi' => $fragmentFields['epubCfi'],
+            'mediaFragment' => $fragmentFields['mediaFragment'],
             'external' => false,
             'exists' => $exists,
             'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
@@ -9053,7 +9421,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{target:?string, part:?string, fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>, external:bool, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
+     * @return array{target:?string, part:?string, fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>, mediaFragment:?array<string, mixed>, external:bool, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
      */
     private static function emptySmilReference(?string $target): array
     {
@@ -9066,6 +9434,7 @@ final class EpubReader
             'fragment' => $fragmentFields['fragment'],
             'fragmentKind' => $fragmentFields['fragmentKind'],
             'epubCfi' => $fragmentFields['epubCfi'],
+            'mediaFragment' => $fragmentFields['mediaFragment'],
             'external' => $external,
             'exists' => false,
             'byteLength' => null,
@@ -9513,6 +9882,7 @@ final class EpubReader
                 'fragment' => $reference['fragment'],
                 'fragmentKind' => $reference['fragmentKind'],
                 'epubCfi' => $reference['epubCfi'],
+                'mediaFragment' => $reference['mediaFragment'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
                 'byteLength' => $reference['byteLength'],
@@ -9930,6 +10300,7 @@ final class EpubReader
         $missingReferences = [];
         $encryptedReferences = [];
         $cfiReferences = [];
+        $mediaFragmentReferences = [];
         $diagnostics = [];
         $mathmlAssetCount = 0;
         $svgAssetCount = 0;
@@ -10028,6 +10399,9 @@ final class EpubReader
                 if (($reference['fragmentKind'] ?? null) === 'epub-cfi') {
                     $cfiReferences[] = $reference;
                 }
+                if (($reference['fragmentKind'] ?? null) === 'media-fragment') {
+                    $mediaFragmentReferences[] = $reference;
+                }
             }
 
             foreach ($item['diagnostics'] as $diagnostic) {
@@ -10055,6 +10429,7 @@ final class EpubReader
             'missingReferenceCount' => count($missingReferences),
             'encryptedReferenceCount' => count($encryptedReferences),
             'cfiReferenceCount' => count($cfiReferences),
+            'mediaFragmentReferenceCount' => count($mediaFragmentReferences),
             'mathmlAssetCount' => $mathmlAssetCount,
             'svgAssetCount' => $svgAssetCount,
             'scriptedAssetCount' => $scriptedAssetCount,
@@ -10079,6 +10454,7 @@ final class EpubReader
             'missingReferences' => $missingReferences,
             'encryptedReferences' => $encryptedReferences,
             'cfiReferences' => $cfiReferences,
+            'mediaFragmentReferences' => $mediaFragmentReferences,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -10291,6 +10667,7 @@ final class EpubReader
                 'fragment' => null,
                 'fragmentKind' => null,
                 'epubCfi' => null,
+                'mediaFragment' => null,
                 'external' => false,
                 'exists' => true,
                 'byteLength' => null,
@@ -10633,6 +11010,7 @@ final class EpubReader
             'fragment' => is_array($reference) ? $reference['fragment'] : null,
             'fragmentKind' => is_array($reference) ? $reference['fragmentKind'] : null,
             'epubCfi' => is_array($reference) ? $reference['epubCfi'] : null,
+            'mediaFragment' => is_array($reference) ? $reference['mediaFragment'] : null,
             'fragmentExists' => null,
             'external' => is_array($reference) ? $reference['external'] : false,
             'exists' => is_array($reference) ? $reference['exists'] : null,
@@ -10666,6 +11044,7 @@ final class EpubReader
                 || $part !== $sourcePart
                 || ($semantic['external'] ?? false) === true
                 || ($semantic['fragmentKind'] ?? null) === 'epub-cfi'
+                || ($semantic['fragmentKind'] ?? null) === 'media-fragment'
             ) {
                 continue;
             }
@@ -10775,6 +11154,7 @@ final class EpubReader
             'fragment' => $reference['fragment'],
             'fragmentKind' => $reference['fragmentKind'],
             'epubCfi' => $reference['epubCfi'],
+            'mediaFragment' => $reference['mediaFragment'],
             'external' => $reference['external'],
             'exists' => $reference['exists'],
             'byteLength' => $reference['byteLength'],
