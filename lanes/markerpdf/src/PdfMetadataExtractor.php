@@ -11015,6 +11015,10 @@ final class PdfMetadataExtractor
         $printMinimumRevision = 2;
         $printBitSet = ($unsigned & $printMask) !== 0;
         $printAllowed = $effectiveRevision >= $printMinimumRevision && $printBitSet;
+        $annotationMask = 32;
+        $annotationMinimumRevision = 2;
+        $annotationBitSet = ($unsigned & $annotationMask) !== 0;
+        $annotationAllowed = $effectiveRevision >= $annotationMinimumRevision && $annotationBitSet;
 
         foreach (self::STANDARD_PERMISSION_FLAGS as $flag) {
             $mask = (int) $flag['mask'];
@@ -11025,6 +11029,8 @@ final class PdfMetadataExtractor
             $denied = $applicable && !$bitSet;
             $dependencyStatus = null;
             $denialReason = null;
+            $grantedByPermissionName = null;
+            $grantedByPermissionBitSet = null;
 
             if ($flag['name'] === 'high_quality_print' && $applicable) {
                 if (!$bitSet) {
@@ -11036,6 +11042,18 @@ final class PdfMetadataExtractor
                     $denialReason = $dependencyStatus;
                 } else {
                     $dependencyStatus = 'required_print_permission_allowed';
+                }
+            }
+
+            if ($flag['name'] === 'fill_form_fields' && $applicable) {
+                if (!$bitSet && $annotationAllowed) {
+                    $allowed = true;
+                    $denied = false;
+                    $grantedByPermissionName = 'add_or_modify_annotations';
+                    $grantedByPermissionBitSet = $annotationBitSet;
+                    $dependencyStatus = 'allowed_by_add_or_modify_annotations_permission';
+                } elseif (!$bitSet) {
+                    $dependencyStatus = 'permission_bit_not_set';
                 }
             }
 
@@ -11064,6 +11082,18 @@ final class PdfMetadataExtractor
 
                 if ($denialReason !== null) {
                     $row['denial_reason'] = $denialReason;
+                }
+            }
+
+            if ($flag['name'] === 'fill_form_fields' && $applicable) {
+                $row['alternative_permission_name'] = 'add_or_modify_annotations';
+                $row['alternative_permission_allowed'] = $annotationAllowed;
+                $row['alternative_permission_bit_set'] = $annotationBitSet;
+                $row['dependency_status'] = $dependencyStatus;
+
+                if ($grantedByPermissionName !== null) {
+                    $row['granted_by_permission_name'] = $grantedByPermissionName;
+                    $row['granted_by_permission_bit_set'] = $grantedByPermissionBitSet;
                 }
             }
 
