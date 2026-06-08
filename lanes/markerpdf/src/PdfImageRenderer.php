@@ -4285,7 +4285,14 @@ final class PdfImageRenderer
             $canonicalKey = $this->canonicalInlineImageKey($readKey['value']);
             $value = $readValue['value'];
             $nextOffset = $readValue['next'];
-            if ($canonicalKey === '/DecodeParms') {
+            if ($canonicalKey === '/Filter') {
+                $extraOperandEnd = $this->imageDirectFilterExtraOperandEndAfterValue($body, $readValue['next']);
+                if ($extraOperandEnd !== null) {
+                    $valueStart = $this->skipPdfWhitespace($body, $readKey['next']);
+                    $value = substr($body, $valueStart, $extraOperandEnd - $valueStart);
+                    $nextOffset = $extraOperandEnd;
+                }
+            } elseif ($canonicalKey === '/DecodeParms') {
                 $extraOperandEnd = $this->imageDecodeParmsExtraOperandEndAfterValue($body, $readValue['next']);
                 if ($extraOperandEnd !== null) {
                     $valueStart = $this->skipPdfWhitespace($body, $readKey['next']);
