@@ -12967,6 +12967,21 @@ final class PdfMetadataExtractor
             $metadata['language'] = $languages[0];
         }
 
+        foreach ([
+            'contributors' => 'contributor',
+            'publishers' => 'publisher',
+            'identifiers' => 'identifier',
+            'relations' => 'relation',
+            'source_documents' => 'source',
+            'types' => 'type',
+            'coverage' => 'coverage',
+        ] as $field => $localName) {
+            $values = $this->xmpListValuesPreservingText($document, self::NS_DC, $localName);
+            if ($values !== []) {
+                $metadata[$field] = $values;
+            }
+        }
+
         $dublinCore = $this->xmpDublinCoreReviewMetadata($metadata);
         if ($dublinCore !== []) {
             $metadata['dublin_core'] = $dublinCore;
@@ -13029,6 +13044,26 @@ final class PdfMetadataExtractor
             if ($datesUtc !== []) {
                 $row['dates_utc'] = $datesUtc;
             }
+        }
+
+        foreach ([
+            'contributors' => 'contributor_count',
+            'publishers' => 'publisher_count',
+            'identifiers' => 'identifier_count',
+            'relations' => 'relation_count',
+            'source_documents' => 'source_document_count',
+            'types' => 'type_count',
+            'coverage' => 'coverage_count',
+        ] as $field => $countField) {
+            $values = is_array($metadata[$field] ?? null)
+                ? $this->cleanList($metadata[$field])
+                : [];
+            if ($values === []) {
+                continue;
+            }
+
+            $row[$field] = $values;
+            $row[$countField] = count($values);
         }
 
         return count($row) > 3 ? $row : [];
@@ -15058,6 +15093,38 @@ final class PdfMetadataExtractor
                         return $keywords === [] ? [$value] : $keywords;
                     }
 
+                    return [$value];
+                }
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xmpListValuesPreservingText(DOMDocument $document, string $namespace, string $localName): array
+    {
+        foreach ($this->xmpTopLevelDescriptions($document) as $description) {
+            if ($description->hasAttributeNS($namespace, $localName)) {
+                $value = $this->cleanText($description->getAttributeNS($namespace, $localName));
+                if ($value !== null) {
+                    return [$value];
+                }
+            }
+
+            foreach ($this->xmpChildElements($description, $namespace, $localName) as $element) {
+                $values = $this->xmpRdfCollectionTextValues($element);
+                if ($values !== []) {
+                    $cleanValues = $this->cleanList($values);
+                    if ($cleanValues !== []) {
+                        return $cleanValues;
+                    }
+                }
+
+                $value = $this->xmpQualifiedTextValue($element);
+                if ($value !== null) {
                     return [$value];
                 }
             }
@@ -20217,6 +20284,11 @@ final class PdfMetadataExtractor
             }
         }
 
+        $redactedFields = ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords', 'format', 'rights', 'languages'];
+        if ($dublinCore !== []) {
+            $redactedFields[] = 'dublin_core';
+        }
+
         $summary = [
             'source' => 'xmp_packet_review',
             'field_names' => $fieldNames,
@@ -20227,7 +20299,7 @@ final class PdfMetadataExtractor
             'packet_encoding' => $parsed['packet_encoding'] ?? 'unknown',
             'payload_included' => false,
             'text_values_redacted' => true,
-            'redacted_fields' => ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords', 'format', 'rights', 'languages'],
+            'redacted_fields' => $redactedFields,
         ];
 
         if (($parsed['decoded_to_utf8'] ?? false) === true) {
