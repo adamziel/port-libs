@@ -35637,6 +35637,10 @@ final class PdfTextExtractor
             return 0;
         }
 
+        if ($this->hasAmbiguousSingletonDecodeParmsForFilterStack($filters, $decodeParms)) {
+            return 1;
+        }
+
         $appliedDecodeParmsIndexes = [];
         foreach ($filters as $filterIndex => $filter) {
             if (!is_string($filter)) {
@@ -35664,6 +35668,31 @@ final class PdfTextExtractor
         }
 
         return $count;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     */
+    private function hasAmbiguousSingletonDecodeParmsForFilterStack(array $filters, array $decodeParms): bool
+    {
+        if (count($decodeParms) !== 1) {
+            return false;
+        }
+
+        $value = reset($decodeParms);
+        if ($value === null || trim($value) === '') {
+            return false;
+        }
+
+        $parameterizedFilterCount = 0;
+        foreach ($filters as $filter) {
+            if ($this->streamFilterCanCarryDecodeParms($filter)) {
+                $parameterizedFilterCount++;
+            }
+        }
+
+        return $parameterizedFilterCount > 1;
     }
 
     /**

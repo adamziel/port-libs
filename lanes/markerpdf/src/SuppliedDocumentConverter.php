@@ -409,7 +409,15 @@ final class SuppliedDocumentConverter
             $sharedImageBboxSource = $this->pageResultSharedImageBboxSource($tableOrPageResult);
 
             $firstFlattenedIndex = count($tables);
-            $tableCount = max(count($cellsByTable), count($rowsColsByTable), count($tableBboxes), count($imageBboxes), count($tableImages));
+            $tableCount = count($cellsByTable);
+            $surplusRowsColsCount = max(0, count($rowsColsByTable) - $tableCount);
+            $surplusTableBboxCount = max(0, count($tableBboxes) - $tableCount);
+            $surplusImageBboxCount = max(0, count($imageBboxes) - $tableCount);
+            $surplusTableImageCount = max(0, count($tableImages) - $tableCount);
+            $ghostTableRecordsSuppressed = $surplusRowsColsCount > 0
+                || $surplusTableBboxCount > 0
+                || $surplusImageBboxCount > 0
+                || $surplusTableImageCount > 0;
             $rowAliases = [];
             $colAliases = [];
             for ($tableIndex = 0; $tableIndex < $tableCount; $tableIndex++) {
@@ -491,6 +499,12 @@ final class SuppliedDocumentConverter
                 'image_bbox_count' => count($imageBboxes),
                 'table_image_count' => count($tableImages),
                 'table_image_source' => $tableImagesSource,
+                'authoritative_table_count_source' => $cellsSource === null ? null : 'ExtractPageResult.' . $cellsSource,
+                'surplus_rows_cols_count' => $surplusRowsColsCount,
+                'surplus_table_bbox_count' => $surplusTableBboxCount,
+                'surplus_image_bbox_count' => $surplusImageBboxCount,
+                'surplus_table_image_count' => $surplusTableImageCount,
+                'ghost_table_records_suppressed' => $ghostTableRecordsSuppressed,
                 'rows_cols_row_aliases' => $rowAliases,
                 'rows_cols_col_aliases' => $colAliases,
                 'shared_image_bbox_source' => $sharedImageBboxSource,

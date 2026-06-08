@@ -554,7 +554,7 @@ final class PdfActionReviewExtractor
                 $file,
                 $operation,
                 null,
-                is_bool($action['NewWindow'] ?? null) ? $action['NewWindow'] : null
+                $this->boolValue($action['NewWindow'] ?? null)
             );
         }
 
@@ -811,7 +811,7 @@ final class PdfActionReviewExtractor
             'view_mode' => $destination['view_mode'],
             'view_position' => $destination['view_position'],
             'view_parameters' => $destination['view_parameters'],
-            'new_window' => is_bool($action['NewWindow'] ?? null) ? $action['NewWindow'] : null,
+            'new_window' => $this->boolValue($action['NewWindow'] ?? null),
         ];
     }
 
