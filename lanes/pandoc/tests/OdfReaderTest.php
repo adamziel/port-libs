@@ -878,6 +878,84 @@ XML;
         $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="date" data-odf-cell-date-value="2026-06-05"><p>Review date</p></td>', $blocksHtml);
         $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="boolean" data-odf-cell-boolean-value="true"><p>Ready</p></td>', $blocksHtml);
     },
+    'maps ODT table cell style properties into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithCellProperties = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="BaseProtectedCell" style:family="table-cell">
+      <style:table-cell-properties style:cell-protect="protected" style:print-content="false"/>
+    </style:style>
+    <style:style style:name="ReviewStatusCell" style:family="table-cell" style:parent-style-name="BaseProtectedCell">
+      <style:table-cell-properties
+        fo:background-color="#fff4cc"
+        fo:border="0.5pt solid #999999"
+        fo:padding-left="3pt"
+        style:vertical-align="middle"
+        style:writing-mode="tb-rl"
+        style:repeat-content="false"
+        style:shrink-to-fit="true"/>
+    </style:style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithStyledCells = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="Cell Style Review">
+        <table:table-row>
+          <table:table-cell table:style-name="ReviewStatusCell"><text:p>Source note</text:p></table:table-cell>
+          <table:table-cell><text:p>Plain cell</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithStyledCells, null, $stylesWithCellProperties));
+        $table = $result['document']->children[0];
+        $cell = $table->children[0]->children[0]->children[0];
+        $plainCell = $table->children[0]->children[0]->children[1];
+        $geometry = $table->attr('tableGeometry');
+        $coverage = is_array($geometry) ? ($geometry['coverage'] ?? []) : [];
+
+        $t->same('ReviewStatusCell', $cell->attr('styleName'));
+        $t->same('BaseProtectedCell', $cell->attr('style')['parentName']);
+        $t->same('protected', $cell->attr('style')['tableCellProperties']['cellProtect']);
+        $t->same('#fff4cc', $cell->attr('odfCellStyleProperties')['backgroundColor']);
+        $t->same('middle', $cell->attr('odfCellStyleProperties')['verticalAlign']);
+        $t->same('tb-rl', $cell->attr('odfCellStyleProperties')['writingMode']);
+        $t->same(false, $cell->attr('odfCellStyleProperties')['printContent']);
+        $t->same(false, $cell->attr('odfCellStyleProperties')['repeatContent']);
+        $t->same(true, $cell->attr('odfCellStyleProperties')['shrinkToFit']);
+        $t->same(
+            ['odf-table-cell-style', 'odf-table-cell-background', 'odf-table-cell-protected', 'odf-table-cell-print-hidden', 'odf-table-cell-vertical-align-middle'],
+            $cell->attr('classes')
+        );
+        $t->same('ReviewStatusCell', $cell->attr('htmlAttributes')['data-odf-cell-style-name']);
+        $t->same('#fff4cc', $cell->attr('htmlAttributes')['data-odf-cell-background-color']);
+        $t->same('middle', $cell->attr('htmlAttributes')['data-odf-cell-vertical-align']);
+        $t->same('tb-rl', $cell->attr('htmlAttributes')['data-odf-cell-writing-mode']);
+        $t->same('protected', $cell->attr('htmlAttributes')['data-odf-cell-protect']);
+        $t->same('false', $cell->attr('htmlAttributes')['data-odf-cell-print-content']);
+        $t->same('background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt', $cell->attr('htmlAttributes')['style']);
+        $t->same(null, $plainCell->attr('odfCellStyleProperties'));
+        $t->same(1, $result['importReport']['content']['tableStyledCellCount']);
+        $t->same(1, $result['importReport']['content']['tableProtectedCellCount']);
+        $t->same(1, $result['importReport']['content']['tablePrintHiddenCellCount']);
+        $t->same('ReviewStatusCell', $coverage[0]['sourceAttributes']['htmlAttributes']['data-odf-cell-style-name'] ?? null);
+        $t->same('background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt', $coverage[0]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<td class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle" data-odf-cell-style-name="ReviewStatusCell" data-odf-cell-background-color="#fff4cc" data-odf-cell-vertical-align="middle" data-odf-cell-writing-mode="tb-rl" data-odf-cell-protect="protected" data-odf-cell-print-content="false" data-odf-cell-repeat-content="false" data-odf-cell-shrink-to-fit="true" style="background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt"><p>Source note</p></td>', $blocksHtml);
+    },
     'maps ODT table templates into table review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithTableTemplate = <<<'XML'
 <office:document-styles

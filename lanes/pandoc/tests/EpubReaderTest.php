@@ -2740,6 +2740,41 @@ XML;
         $t->same(2, count($result['document']->children));
         $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
     },
+    'reports duplicate OPF manifest package parts for import preflight' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithDuplicateTargets = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="chapter-review-copy" href="text/chapter1.xhtml#wp-review" media-type="application/xhtml+xml"/>'
+            . '<item id="cover-review-copy" href="images/cover.png?review=1" media-type="image/png"/>'
+            . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithDuplicateTargets));
+        $manifestReport = $result['importReport']['manifest'];
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+
+        $t->same(8, $manifestReport['count']);
+        $t->same(2, $manifestReport['duplicatePackagePartCount']);
+        $t->same(4, $manifestReport['duplicatePackageItemCount']);
+        $t->same(['/OEBPS/images/cover.png', '/OEBPS/text/chapter1.xhtml'], $manifestReport['duplicatePackageParts']);
+        $t->same('/OEBPS/images/cover.png', $manifestReport['duplicatePackagePartItems'][0]['part']);
+        $t->same(['cover-image', 'cover-review-copy'], $manifestReport['duplicatePackagePartItems'][0]['ids']);
+        $t->same(['images/cover.png', 'images/cover.png?review=1'], $manifestReport['duplicatePackagePartItems'][0]['hrefs']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $manifestReport['duplicatePackagePartItems'][1]['part']);
+        $t->same(['chapter-1', 'chapter-review-copy'], $manifestReport['duplicatePackagePartItems'][1]['ids']);
+        $t->same(['text/chapter1.xhtml', 'text/chapter1.xhtml#wp-review'], $manifestReport['duplicatePackagePartItems'][1]['hrefs']);
+        $t->same('duplicate-manifest-package-part', $manifestReport['diagnostics'][0]['type']);
+        $t->same('/OEBPS/images/cover.png', $manifestReport['diagnostics'][0]['part']);
+        $t->same('duplicate-manifest-package-part', $manifestById['chapter-1']['diagnostics'][0]['type']);
+        $t->same(['chapter-1', 'chapter-review-copy'], $manifestById['chapter-review-copy']['duplicatePackagePartIds']);
+        $t->same(true, $manifestById['cover-review-copy']['duplicatePackagePart']);
+        $t->same([], $manifestReport['missingItems']);
+        $t->same(2, count($result['document']->children));
+        $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
+    },
     'classifies OPF manifest core media and foreign resource fallback coverage' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $widgetFallbackXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">

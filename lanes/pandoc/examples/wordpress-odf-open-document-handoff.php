@@ -51,6 +51,12 @@ $stylesXml = <<<'XML'
     <style:style style:name="Preformatted_20_Text" style:family="paragraph" style:display-name="Preformatted Text"/>
     <style:style style:name="SourceCode" style:family="paragraph" style:parent-style-name="Preformatted_20_Text" style:display-name="Source Code"/>
     <style:style style:name="Table" style:family="paragraph" style:display-name="Table"/>
+    <style:style style:name="BaseProtectedCell" style:family="table-cell">
+      <style:table-cell-properties style:cell-protect="protected" style:print-content="false"/>
+    </style:style>
+    <style:style style:name="ReviewStatusCell" style:family="table-cell" style:parent-style-name="BaseProtectedCell">
+      <style:table-cell-properties fo:background-color="#fff4cc" fo:border="0.5pt solid #999999" fo:padding-left="3pt" style:vertical-align="middle" style:writing-mode="tb-rl" style:repeat-content="false" style:shrink-to-fit="true"/>
+    </style:style>
     <style:style style:name="StrongSource" style:family="text">
       <style:text-properties fo:font-weight="bold" fo:font-style="italic"/>
     </style:style>
@@ -230,7 +236,7 @@ $contentXml = <<<'XML'
       <table:table table:name="Review" table:style-name="ReviewTable" table:template-name="ReviewTemplate" table:protected="true" table:protection-key="opaque-review-key" table:protection-key-digest-algorithm="urn:odf:sha1">
         <table:table-row>
           <table:table-cell><text:p>Item</text:p></table:table-cell>
-          <table:table-cell><text:p>Status</text:p></table:table-cell>
+          <table:table-cell table:style-name="ReviewStatusCell"><text:p>Status</text:p></table:table-cell>
         </table:table-row>
         <table:table-row>
           <table:table-cell table:number-columns-spanned="2" table:formula="of:=COUNT([.A2:.B2])" office:value-type="float" office:value="2"><text:p>Ready for block import review</text:p></table:table-cell>
@@ -761,6 +767,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<td class="odf-table-cell-value odf-table-cell-formula" data-odf-cell-formula="of:=COUNT([.A2:.B2])" data-odf-cell-value-type="float" data-odf-cell-value="2" colspan="2"><p>Ready for block import review</p></td>')) {
         throw new RuntimeException('Expected ODT calculated table colspan metadata to survive WordPress table handoff');
     }
+    if (($result['importReport']['content']['tableStyledCellCount'] ?? 0) !== 1
+        || ($result['importReport']['content']['tableProtectedCellCount'] ?? 0) !== 1
+        || ($result['importReport']['content']['tablePrintHiddenCellCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT styled/protected/print-hidden table cell metadata to be counted in the import report');
+    }
+    if (($result['styles']['ReviewStatusCell']['tableCellProperties']['backgroundColor'] ?? '') !== '#fff4cc') {
+        throw new RuntimeException('Expected ODT table-cell background style to survive style parsing');
+    }
     $reviewTable = null;
     foreach ($result['document']->children as $block) {
         if ($block instanceof \PortLibs\Pandoc\AstNode && $block->type === 'table') {
@@ -776,9 +790,18 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Expected following ODT table-caption paragraph provenance on table geometry review packets');
     }
     $reviewCoverage = $reviewTable->attr('tableGeometry')['coverage'] ?? [];
+    $statusCellAttributes = $reviewCoverage[1]['sourceAttributes']['htmlAttributes'] ?? [];
+    if (($statusCellAttributes['data-odf-cell-style-name'] ?? '') !== 'ReviewStatusCell'
+        || ($statusCellAttributes['data-odf-cell-background-color'] ?? '') !== '#fff4cc'
+        || ($statusCellAttributes['data-odf-cell-protect'] ?? '') !== 'protected') {
+        throw new RuntimeException('Expected ODT styled cell metadata to survive table geometry review packets');
+    }
     $calculatedCellAttributes = $reviewCoverage[2]['sourceAttributes']['htmlAttributes'] ?? [];
     if (($calculatedCellAttributes['data-odf-cell-formula'] ?? '') !== 'of:=COUNT([.A2:.B2])' || ($calculatedCellAttributes['data-odf-cell-value'] ?? '') !== '2') {
         throw new RuntimeException('Expected ODT calculated cell metadata to survive table geometry review packets');
+    }
+    if (!str_contains($blocks, '<td class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle" data-odf-cell-style-name="ReviewStatusCell" data-odf-cell-background-color="#fff4cc" data-odf-cell-vertical-align="middle" data-odf-cell-writing-mode="tb-rl" data-odf-cell-protect="protected" data-odf-cell-print-content="false" data-odf-cell-repeat-content="false" data-odf-cell-shrink-to-fit="true" style="background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt"><p>Status</p></td>')) {
+        throw new RuntimeException('Expected ODT styled table cell metadata to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<table class="odf-table-template" data-odf-table-name="Review" data-odf-table-style-name="ReviewTable" data-odf-table-template-name="ReviewTemplate" data-odf-table-template-exists="true" data-odf-table-template-style-count="9" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">')) {
         throw new RuntimeException('Expected ODT named protected table metadata to render in WordPress blocks');

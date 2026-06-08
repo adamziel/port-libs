@@ -458,6 +458,7 @@ $yamlDirectiveProvenance = $document->attr('yamlMetadataDirectiveProvenance', []
 $yamlCommentProvenance = $document->attr('yamlMetadataCommentProvenance', []);
 $yamlAnchorProvenance = $document->attr('yamlMetadataAnchorProvenance', []);
 $yamlScalarProvenance = $document->attr('yamlMetadataScalarProvenance', []);
+$yamlCollectionProvenance = $document->attr('yamlMetadataCollectionProvenance', []);
 $yamlStreamProvenance = $document->attr('yamlMetadataStreamProvenance', []);
 $invalidTagDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
@@ -858,6 +859,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_key_exists('__yamlMetadataScalarProvenance', $meta)) {
         throw new RuntimeException('YAML metadata self-test leaked scalar provenance into plain metadata');
     }
+    if (array_key_exists('__yamlMetadataCollectionProvenance', $meta)) {
+        throw new RuntimeException('YAML metadata self-test leaked collection provenance into plain metadata');
+    }
     $yamlPlainScalarPaths = [];
     foreach ($yamlScalarProvenance as $entry) {
         if (($entry['type'] ?? '') === 'yaml-plain-scalar') {
@@ -932,6 +936,37 @@ if (($argv[1] ?? '') === '--self-test') {
         if (($entry['style'] ?? '') !== $expectedStyle || ($entry['sourceLineCount'] ?? '') !== $expectedLineCount) {
             throw new RuntimeException('YAML metadata self-test has wrong quoted scalar provenance ' . $expectedQuotedPath);
         }
+    }
+    $yamlCollectionPairs = [];
+    foreach ($yamlCollectionProvenance as $entry) {
+        $yamlCollectionPairs[] = ($entry['path'] ?? '') . "\0" . ($entry['kind'] ?? '') . "\0" . ($entry['style'] ?? '') . "\0" . ($entry['memberCount'] ?? '');
+    }
+    foreach ([
+        '/plain-continuation-review' . "\0" . 'mapping' . "\0" . 'block' . "\0" . '4',
+        '/plain-continuation-review/steps' . "\0" . 'sequence' . "\0" . 'block' . "\0" . '2',
+        '/sequence-explicit-review-items' . "\0" . 'sequence' . "\0" . 'block' . "\0" . '3',
+        '/sequence-explicit-review-items/0' . "\0" . 'mapping' . "\0" . 'block' . "\0" . '3',
+        '/references' . "\0" . 'sequence' . "\0" . 'block' . "\0" . '1',
+        '/references/0' . "\0" . 'mapping' . "\0" . 'block' . "\0" . '4',
+        '/flow-document-review' . "\0" . 'mapping' . "\0" . 'flow' . "\0" . '3',
+        '/flow-document-review/labels' . "\0" . 'sequence' . "\0" . 'flow' . "\0" . '2',
+    ] as $expectedCollectionPair) {
+        if (!in_array($expectedCollectionPair, $yamlCollectionPairs, true)) {
+            throw new RuntimeException('YAML metadata self-test missing collection provenance ' . str_replace("\0", ' ', $expectedCollectionPair));
+        }
+    }
+    $foundPlainReviewCollectionRange = false;
+    foreach ($yamlCollectionProvenance as $entry) {
+        if (($entry['path'] ?? '') !== '/plain-continuation-review') {
+            continue;
+        }
+
+        $foundPlainReviewCollectionRange = (($entry['contentStartLine'] ?? '') !== '')
+            && (($entry['contentEndLine'] ?? '') !== '')
+            && ((int) ($entry['contentEndLine'] ?? '0') > (int) ($entry['contentStartLine'] ?? '0'));
+    }
+    if (!$foundPlainReviewCollectionRange) {
+        throw new RuntimeException('YAML metadata self-test missing block collection line range');
     }
     if (count($yamlStreamProvenance) !== 3) {
         throw new RuntimeException('YAML metadata self-test missing stream provenance records');
@@ -1650,6 +1685,8 @@ echo 'YAML comment provenance: ' . count($yamlCommentProvenance) . "\n";
 echo 'YAML comment provenance paths: ' . implode(', ', array_filter(array_column($yamlCommentProvenance, 'path'))) . "\n";
 echo 'YAML anchor provenance: ' . count($yamlAnchorProvenance) . "\n";
 echo 'YAML anchor provenance paths: ' . implode(', ', array_filter(array_column($yamlAnchorProvenance, 'path'))) . "\n";
+echo 'YAML collection provenance: ' . count($yamlCollectionProvenance) . "\n";
+echo 'YAML collection provenance paths: ' . implode(', ', array_filter(array_column($yamlCollectionProvenance, 'path'))) . "\n";
 echo 'YAML stream provenance: ' . count($yamlStreamProvenance) . "\n";
 echo 'YAML stream provenance fields: ' . implode(' | ', array_column($yamlStreamProvenance, 'fields')) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";

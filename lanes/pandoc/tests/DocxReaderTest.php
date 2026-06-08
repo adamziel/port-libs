@@ -700,6 +700,68 @@ $stylesNumberingDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$numberingLevelOverrideDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:numPr><w:ilvl w:val="0"/><w:numId w:val="13"/></w:numPr>
+      </w:pPr>
+      <w:r><w:t>Escalated legal review</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:numPr><w:ilvl w:val="0"/><w:numId w:val="13"/></w:numPr>
+      </w:pPr>
+      <w:r><w:t>Final approval</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:numPr><w:ilvl w:val="0"/><w:numId w:val="14"/></w:numPr>
+      </w:pPr>
+      <w:r><w:t>Suppressed checklist marker remains body text.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
+$numberingLevelOverrideXml = <<<'XML'
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="50">
+    <w:lvl w:ilvl="0">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="decimal"/>
+      <w:lvlText w:val="%1."/>
+    </w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="60">
+    <w:lvl w:ilvl="0">
+      <w:numFmt w:val="bullet"/>
+      <w:lvlText w:val="-"/>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="13">
+    <w:abstractNumId w:val="50"/>
+    <w:lvlOverride w:ilvl="0">
+      <w:lvl w:ilvl="0">
+        <w:start w:val="5"/>
+        <w:numFmt w:val="upperRoman"/>
+        <w:lvlText w:val="%1)"/>
+      </w:lvl>
+    </w:lvlOverride>
+  </w:num>
+  <w:num w:numId="14">
+    <w:abstractNumId w:val="60"/>
+    <w:lvlOverride w:ilvl="0">
+      <w:lvl w:ilvl="0">
+        <w:numFmt w:val="none"/>
+        <w:lvlText w:val=""/>
+      </w:lvl>
+    </w:lvlOverride>
+  </w:num>
+</w:numbering>
+XML;
+
 $multilevelNumberingXml = <<<'XML'
 <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:abstractNum w:abstractNumId="30">
@@ -2886,6 +2948,24 @@ $buildStylesNumberingPackage = static function () use (
     ]);
 };
 
+$buildNumberingLevelOverridePackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $numberingLevelOverrideDocumentXml,
+    $stylesXml,
+    $numberingLevelOverrideXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $numberingLevelOverrideDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $stylesXml],
+        ['name' => 'word/numbering.xml', 'data' => $numberingLevelOverrideXml],
+    ]);
+};
+
 $buildNestedNumberingPackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -4060,6 +4140,35 @@ return [
         $t->contains('<ul><li>Confirm media map</li><li>Preserve footnotes</li></ul>', $blocks);
         $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
         $t->contains('<ol start="3" type="a"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
+    },
+    'applies full DOCX numbering level overrides from num instances' => static function (TestRunner $t) use ($buildNumberingLevelOverridePackage): void {
+        $document = (new DocxReader())->readDocument($buildNumberingLevelOverridePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+
+        $orderedList = $document->children[0];
+        $t->same('ordered_list', $orderedList->type);
+        $t->same('13', $orderedList->attr('numId'));
+        $t->same(0, $orderedList->attr('level'));
+        $t->same('upper_roman', $orderedList->attr('style'));
+        $t->same('one_paren', $orderedList->attr('delimiter'));
+        $t->same(5, $orderedList->attr('start'));
+        $t->same(2, count($orderedList->children));
+        $t->same('Escalated legal review', $orderedList->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Final approval', $orderedList->children[1]->children[0]->children[0]->attr('text'));
+
+        $paragraph = $document->children[1];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Suppressed checklist marker remains body text.', $paragraph->children[0]->attr('text'));
+
+        $t->contains("V)  Escalated legal review\nVI) Final approval", $markdown);
+        $t->contains('Suppressed checklist marker remains body text.', $markdown);
+        $t->contains('<!-- wp:list {"ordered":true,"start":5} -->', $blocks);
+        $t->contains('<ol start="5" type="I"><li>Escalated legal review</li><li>Final approval</li></ol>', $blocks);
+        $t->contains('<p>Suppressed checklist marker remains body text.</p>', $blocks);
+        $t->true(!str_contains($blocks, '<ul><li>Suppressed checklist marker remains body text.</li></ul>'), 'numFmt none override should suppress inherited bullet list output');
     },
     'preserves DOCX paragraph style inherited layout metadata as reviewer spans' => static function (TestRunner $t) use ($buildParagraphStyleMetadataPackage): void {
         $document = (new DocxReader())->readDocument($buildParagraphStyleMetadataPackage());

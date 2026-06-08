@@ -159,19 +159,7 @@ final class EpubReader
                 'container' => $container,
                 'metadata' => $opf['metadata'],
                 'package' => $opf['package'],
-                'manifest' => [
-                    'count' => count($opf['manifest']),
-                    'items' => $opf['manifest'],
-                    'missingItems' => array_values(array_filter(
-                        $opf['manifest'],
-                        static fn (array $item): bool => ($item['exists'] ?? false) !== true
-                            && ($item['external'] ?? false) !== true,
-                    )),
-                    'externalItems' => array_values(array_filter(
-                        $opf['manifest'],
-                        static fn (array $item): bool => ($item['external'] ?? false) === true,
-                    )),
-                ],
+                'manifest' => self::importManifestReport($opf['manifest']),
                 'spine' => [
                     'count' => count($opf['spine']),
                     'items' => $opf['spine'],
@@ -533,6 +521,7 @@ final class EpubReader
         $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
         $packageId = self::nullableAttribute($root, 'id');
         $manifestById = $this->readManifest($package, $opfPart, $manifestElement, $refinementsById);
+        $manifestById = self::attachManifestPackagePartDiagnostics($manifestById);
         $encryption = $this->readEncryption($package, $manifestById);
         $manifestById = $this->attachEncryptionToManifest($manifestById, $encryption);
         $metadata = $this->resolveMetadataLinks($package, $opfPart, $metadata, $manifestById);
@@ -3794,6 +3783,180 @@ final class EpubReader
         }
 
         return $manifest;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function attachManifestPackagePartDiagnostics(array $manifestById): array
+    {
+        foreach ($manifestById as $id => $item) {
+            $manifestById[$id]['duplicatePackagePart'] = false;
+            $manifestById[$id]['duplicatePackagePartIds'] = [];
+            $manifestById[$id]['duplicatePackagePartHrefs'] = [];
+            $manifestById[$id]['duplicatePackagePartTargets'] = [];
+        }
+
+        foreach (self::duplicateManifestPackagePartGroups($manifestById) as $group) {
+            $diagnostic = self::duplicateManifestPackagePartDiagnostic($group);
+            foreach ($group['ids'] as $id) {
+                if (!is_string($id) || !isset($manifestById[$id])) {
+                    continue;
+                }
+
+                $manifestById[$id]['duplicatePackagePart'] = true;
+                $manifestById[$id]['duplicatePackagePartIds'] = $group['ids'];
+                $manifestById[$id]['duplicatePackagePartHrefs'] = $group['hrefs'];
+                $manifestById[$id]['duplicatePackagePartTargets'] = $group['targets'];
+                $manifestById[$id]['diagnostics'][] = $diagnostic;
+            }
+        }
+
+        return $manifestById;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     *
+     * @return array<string, mixed>
+     */
+    private static function importManifestReport(array $manifest): array
+    {
+        $missingItems = [];
+        $externalItems = [];
+        $itemsByPart = [];
+        foreach ($manifest as $item) {
+            if (($item['external'] ?? false) === true) {
+                $externalItems[] = $item;
+            } elseif (($item['exists'] ?? false) !== true) {
+                $missingItems[] = $item;
+            }
+
+            $part = $item['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $itemsByPart[$part][] = $item;
+            }
+        }
+
+        ksort($itemsByPart, SORT_STRING);
+
+        $duplicateGroups = self::duplicateManifestPackagePartGroups($manifest);
+        $duplicateItemCount = 0;
+        $diagnostics = [];
+        foreach ($duplicateGroups as $group) {
+            $duplicateItemCount += $group['itemCount'];
+            $diagnostics[] = self::duplicateManifestPackagePartDiagnostic($group);
+        }
+
+        return [
+            'count' => count($manifest),
+            'items' => $manifest,
+            'itemsByPart' => $itemsByPart,
+            'missingItems' => $missingItems,
+            'externalItems' => $externalItems,
+            'duplicatePackagePartCount' => count($duplicateGroups),
+            'duplicatePackageItemCount' => $duplicateItemCount,
+            'duplicatePackageParts' => array_values(array_map(
+                static fn (array $group): string => (string) $group['part'],
+                $duplicateGroups,
+            )),
+            'duplicatePackagePartItems' => $duplicateGroups,
+            'diagnostics' => $diagnostics,
+            'diagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
+     * @param iterable<array<string, mixed>> $manifest
+     *
+     * @return list<array{
+     *     part:string,
+     *     itemCount:int,
+     *     ids:list<string>,
+     *     hrefs:list<string>,
+     *     targets:list<string>,
+     *     items:list<array<string, mixed>>
+     * }>
+     */
+    private static function duplicateManifestPackagePartGroups(iterable $manifest): array
+    {
+        $itemsByPart = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '') {
+                continue;
+            }
+
+            $itemsByPart[$part][] = $item;
+        }
+
+        ksort($itemsByPart, SORT_STRING);
+
+        $groups = [];
+        foreach ($itemsByPart as $part => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $ids = [];
+            $hrefs = [];
+            $targets = [];
+            $summaries = [];
+            foreach ($items as $item) {
+                $id = (string) ($item['id'] ?? '');
+                $href = (string) ($item['href'] ?? '');
+                $target = (string) ($item['target'] ?? '');
+                $ids[] = $id;
+                $hrefs[] = $href;
+                $targets[] = $target;
+                $summaries[] = [
+                    'id' => $id,
+                    'href' => $href,
+                    'target' => $target,
+                    'part' => $part,
+                    'mediaType' => (string) ($item['mediaType'] ?? ''),
+                    'exists' => ($item['exists'] ?? false) === true,
+                ];
+            }
+
+            $groups[] = [
+                'part' => $part,
+                'itemCount' => count($items),
+                'ids' => $ids,
+                'hrefs' => $hrefs,
+                'targets' => $targets,
+                'items' => $summaries,
+            ];
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param array{
+     *     part:string,
+     *     itemCount:int,
+     *     ids:list<string>,
+     *     hrefs:list<string>,
+     *     targets:list<string>,
+     *     items:list<array<string, mixed>>
+     * } $group
+     *
+     * @return array<string, mixed>
+     */
+    private static function duplicateManifestPackagePartDiagnostic(array $group): array
+    {
+        return [
+            'type' => 'duplicate-manifest-package-part',
+            'part' => $group['part'],
+            'itemCount' => $group['itemCount'],
+            'ids' => $group['ids'],
+            'hrefs' => $group['hrefs'],
+            'targets' => $group['targets'],
+            'message' => 'EPUB OPF manifest contains multiple item ids for the same package part',
+        ];
     }
 
     /**

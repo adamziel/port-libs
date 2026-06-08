@@ -4313,6 +4313,93 @@ return [
         $t->same('quoted-scalar-provenance-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="quoted-scalar-provenance-yaml-body">Quoted scalar provenance YAML body</h1>', $blocks);
     },
+    'records pandoc yaml collection source provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Collection provenance **Packet**',
+            'review:',
+            '  labels: [front-matter, wordpress]',
+            '  checklist:',
+            '    - Collect source metadata',
+            '    - Review block output',
+            '  nested:',
+            '    status: queued',
+            '    owners:',
+            '      - Import Desk',
+            '      - QA Desk',
+            'flow-review: {status: queued, labels: [flow, metadata], nested: {owner: Flow Desk}}',
+            'references:',
+            '  - id: collection-provenance-ref',
+            '    metadata: {status: queued, labels: [source, review]}',
+            '...',
+            '',
+            '# Collection provenance YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataCollectionProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Collection provenance **Packet**', $meta['title']);
+        $t->same(['front-matter', 'wordpress'], $meta['review']['labels']);
+        $t->same(['Collect source metadata', 'Review block output'], $meta['review']['checklist']);
+        $t->same(['Import Desk', 'QA Desk'], $meta['review']['nested']['owners']);
+        $t->same(['flow', 'metadata'], $meta['flow-review']['labels']);
+        $t->same('Flow Desk', $meta['flow-review']['nested']['owner']);
+        $t->same(['source', 'review'], $meta['references'][0]['metadata']['labels']);
+        $t->same(false, array_key_exists('__yamlMetadataCollectionProvenance', $meta));
+
+        $collections = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') !== 'yaml-collection') {
+                continue;
+            }
+            $collections[$entry['path'] ?? ''] = $entry;
+        }
+
+        $t->true(count($collections) >= 11, 'expected collection provenance records for nested YAML maps and sequences');
+        $t->same('mapping', $collections['']['kind'] ?? null);
+        $t->same('block', $collections['']['style'] ?? null);
+        $t->same('4', $collections['']['memberCount'] ?? null);
+        $t->same('2', $collections['']['sourceLine'] ?? null);
+        $t->same('16', $collections['']['contentEndLine'] ?? null);
+        $t->same('mapping', $collections['/review']['kind'] ?? null);
+        $t->same('block', $collections['/review']['style'] ?? null);
+        $t->same('3', $collections['/review']['memberCount'] ?? null);
+        $t->same('4', $collections['/review']['contentStartLine'] ?? null);
+        $t->same('12', $collections['/review']['contentEndLine'] ?? null);
+        $t->same('sequence', $collections['/review/labels']['kind'] ?? null);
+        $t->same('flow', $collections['/review/labels']['style'] ?? null);
+        $t->same('2', $collections['/review/labels']['memberCount'] ?? null);
+        $t->same('4', $collections['/review/labels']['sourceLine'] ?? null);
+        $t->same('sequence', $collections['/review/checklist']['kind'] ?? null);
+        $t->same('block', $collections['/review/checklist']['style'] ?? null);
+        $t->same('2', $collections['/review/checklist']['memberCount'] ?? null);
+        $t->same('6', $collections['/review/checklist']['contentStartLine'] ?? null);
+        $t->same('7', $collections['/review/checklist']['contentEndLine'] ?? null);
+        $t->same('mapping', $collections['/review/nested']['kind'] ?? null);
+        $t->same('2', $collections['/review/nested']['memberCount'] ?? null);
+        $t->same('sequence', $collections['/review/nested/owners']['kind'] ?? null);
+        $t->same('2', $collections['/review/nested/owners']['memberCount'] ?? null);
+        $t->same('mapping', $collections['/flow-review']['kind'] ?? null);
+        $t->same('flow', $collections['/flow-review']['style'] ?? null);
+        $t->same('3', $collections['/flow-review']['memberCount'] ?? null);
+        $t->same('13', $collections['/flow-review']['sourceLine'] ?? null);
+        $t->same('sequence', $collections['/flow-review/labels']['kind'] ?? null);
+        $t->same('flow', $collections['/flow-review/labels']['style'] ?? null);
+        $t->same('mapping', $collections['/flow-review/nested']['kind'] ?? null);
+        $t->same('flow', $collections['/flow-review/nested']['style'] ?? null);
+        $t->same('sequence', $collections['/references']['kind'] ?? null);
+        $t->same('block', $collections['/references']['style'] ?? null);
+        $t->same('mapping', $collections['/references/0']['kind'] ?? null);
+        $t->same('block', $collections['/references/0']['style'] ?? null);
+        $t->same('mapping', $collections['/references/0/metadata']['kind'] ?? null);
+        $t->same('flow', $collections['/references/0/metadata']['style'] ?? null);
+        $t->same('sequence', $collections['/references/0/metadata/labels']['kind'] ?? null);
+        $t->same('flow', $collections['/references/0/metadata/labels']['style'] ?? null);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('collection-provenance-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="collection-provenance-yaml-body">Collection provenance YAML body</h1>', $blocks);
+    },
     'records pandoc yaml ambiguous top-level field names as diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

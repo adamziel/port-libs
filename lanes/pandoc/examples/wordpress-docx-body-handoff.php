@@ -99,6 +99,8 @@ XML],
     <w:p><w:pPr><w:pStyle w:val="ChecklistBullet"/></w:pPr><w:r><w:t>Preserve alt text</w:t></w:r></w:p>
     <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="12"/></w:numPr></w:pPr><w:r><w:t>Confirm source URL</w:t></w:r></w:p>
     <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="12"/></w:numPr></w:pPr><w:r><w:t>Publish packet</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="13"/></w:numPr></w:pPr><w:r><w:t>Escalate legal review</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="13"/></w:numPr></w:pPr><w:r><w:t>Final archive signoff</w:t></w:r></w:p>
     <w:p>
       <w:r><w:t xml:space="preserve">Jump to </w:t></w:r>
       <w:hyperlink w:anchor="source_packet_anchor"><w:r><w:t>source packet anchor</w:t></w:r></w:hyperlink>
@@ -784,6 +786,8 @@ XML],
   <w:num w:numId="11"><w:abstractNumId w:val="10"/></w:num>
   <w:abstractNum w:abstractNumId="20"><w:lvl w:ilvl="0"><w:start w:val="3"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%1)"/></w:lvl></w:abstractNum>
   <w:num w:numId="12"><w:abstractNumId w:val="20"/></w:num>
+  <w:abstractNum w:abstractNumId="30"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum>
+  <w:num w:numId="13"><w:abstractNumId w:val="30"/><w:lvlOverride w:ilvl="0"><w:lvl w:ilvl="0"><w:start w:val="5"/><w:numFmt w:val="upperRoman"/><w:lvlText w:val="%1)"/></w:lvl></w:lvlOverride></w:num>
 </w:numbering>
 XML],
     ['name' => 'word/footnotes.xml', 'data' => <<<'XML'
@@ -1156,6 +1160,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-keep-next" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-keep-next="true">Styled source packet note remains labeled.</span></p>',
         '<ul><li>Match media IDs<ul><li>Map hero attachment</li></ul></li><li>Preserve alt text</li></ul>',
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
+        '<ol start="5" type="I"><li>Escalate legal review</li><li>Final archive signoff</li></ol>',
         '<a href="#source_packet_anchor">source packet anchor</a>',
         '<a href="https://example.test/field-link?post=42" title="Field link title">field-coded source</a>',
         '<span class="docx-field docx-field-ref docx-field-hyperlink" data-docx-field="ref" data-docx-field-instruction="REF &quot;source_packet_anchor&quot; \h \* MERGEFORMAT" data-docx-field-target="source_packet_anchor" data-docx-field-format="MERGEFORMAT" data-docx-field-hyperlink="true">source packet anchor</span>',

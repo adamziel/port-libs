@@ -3871,6 +3871,7 @@ final class CitationCslProcessor
         }
 
         $bibliographyState = null;
+        $substitutedVariables = [];
         $value = $this->renderRenderingElementsWithMacroStack(
             $elements,
             $item,
@@ -3878,7 +3879,8 @@ final class CitationCslProcessor
             '',
             [$macro],
             null,
-            $bibliographyState
+            $bibliographyState,
+            $substitutedVariables
         );
 
         return $this->normalizeSortText($value);
@@ -4586,16 +4588,19 @@ final class CitationCslProcessor
      */
     private function bibliographyDisplayParts(array $item): array
     {
-        return $this->bibliographyDisplayPartsForElements($this->style->bibliographyRenderingElements(), $item);
+        $substitutedVariables = [];
+
+        return $this->bibliographyDisplayPartsForElements($this->style->bibliographyRenderingElements(), $item, [], $substitutedVariables);
     }
 
     /**
      * @param list<array<string, mixed>> $elements
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
+     * @param array<string, bool> $substitutedVariables
      * @return list<array{display:string, text:string, formatting?:array<string, string>}>
      */
-    private function bibliographyDisplayPartsForElements(array $elements, array $item, array $macroStack = []): array
+    private function bibliographyDisplayPartsForElements(array $elements, array $item, array $macroStack = [], array &$substitutedVariables = []): array
     {
         $parts = [];
         foreach ($elements as $element) {
@@ -4603,7 +4608,7 @@ final class CitationCslProcessor
                 continue;
             }
 
-            foreach ($this->bibliographyDisplayPartsForElement($element, $item, $macroStack) as $part) {
+            foreach ($this->bibliographyDisplayPartsForElement($element, $item, $macroStack, $substitutedVariables) as $part) {
                 $parts[] = $part;
             }
         }
@@ -4615,13 +4620,19 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
+     * @param array<string, bool> $substitutedVariables
      * @return list<array{display:string, text:string, formatting?:array<string, string>}>
      */
-    private function bibliographyDisplayPartsForElement(array $element, array $item, array $macroStack = []): array
+    private function bibliographyDisplayPartsForElement(array $element, array $item, array $macroStack = [], array &$substitutedVariables = []): array
     {
+        if ($this->renderingElementSuppressedBySubstitute($element, $substitutedVariables)) {
+            return [];
+        }
+
         $display = $this->renderingDisplay($element);
         if ($display !== '') {
-            $value = $this->renderRenderingElement($element, $item, 'bibliography', $macroStack);
+            $bibliographyState = null;
+            $value = $this->renderRenderingElement($element, $item, 'bibliography', $macroStack, null, $bibliographyState, $substitutedVariables);
 
             if ($value === '') {
                 return [];
@@ -4641,7 +4652,7 @@ final class CitationCslProcessor
             $children = $element['children'] ?? [];
 
             return is_array($children)
-                ? $this->bibliographyDisplayPartsForElements($children, $item, $macroStack)
+                ? $this->bibliographyDisplayPartsForElements($children, $item, $macroStack, $substitutedVariables)
                 : [];
         }
 
@@ -4654,7 +4665,7 @@ final class CitationCslProcessor
             $children = $this->style->macroRenderingElements($name);
 
             return is_array($children)
-                ? $this->bibliographyDisplayPartsForElements($children, $item, [...$macroStack, $name])
+                ? $this->bibliographyDisplayPartsForElements($children, $item, [...$macroStack, $name], $substitutedVariables)
                 : [];
         }
 
@@ -4677,14 +4688,24 @@ final class CitationCslProcessor
                     continue;
                 }
 
+                $branchSubstitutedVariables = $substitutedVariables;
+                $bibliographyState = null;
                 $value = ((string) ($substituteElement['type'] ?? '')) === 'names'
-                    ? $this->renderNamesElementValue($substituteElement, $item, 'bibliography', false)
-                    : $this->renderRenderingElement($substituteElement, $item, 'bibliography', $macroStack);
+                    ? $this->renderNamesElementValue($substituteElement, $item, 'bibliography', false, $bibliographyState, null, $branchSubstitutedVariables)
+                    : $this->renderRenderingElement($substituteElement, $item, 'bibliography', $macroStack, null, $bibliographyState, $branchSubstitutedVariables);
                 if ($value === '') {
                     continue;
                 }
 
-                return $this->bibliographyDisplayPartsForElement($substituteElement, $item, $macroStack);
+                $parts = $this->bibliographyDisplayPartsForElement($substituteElement, $item, $macroStack, $substitutedVariables);
+                $this->markSubstituteRenderedVariables($substituteElement, $substitutedVariables, $macroStack);
+                foreach ($branchSubstitutedVariables as $variable => $rendered) {
+                    if ($rendered) {
+                        $substitutedVariables[$variable] = true;
+                    }
+                }
+
+                return $parts;
             }
         }
 
@@ -4697,14 +4718,14 @@ final class CitationCslProcessor
                 $children = $branch['children'] ?? [];
 
                 return is_array($children)
-                    ? $this->bibliographyDisplayPartsForElements($children, $item, $macroStack)
+                    ? $this->bibliographyDisplayPartsForElements($children, $item, $macroStack, $substitutedVariables)
                     : [];
             }
 
             $children = $element['else'] ?? [];
 
             return is_array($children)
-                ? $this->bibliographyDisplayPartsForElements($children, $item, $macroStack)
+                ? $this->bibliographyDisplayPartsForElements($children, $item, $macroStack, $substitutedVariables)
                 : [];
         }
 
@@ -5752,19 +5773,9 @@ final class CitationCslProcessor
      */
     private function renderRenderingElements(array $elements, array $item, string $scope, string $delimiter, ?AstNode $citation = null, ?array &$bibliographyState = null): string
     {
-        $rendered = [];
-        foreach ($elements as $element) {
-            if (!is_array($element)) {
-                continue;
-            }
+        $substitutedVariables = [];
 
-            $value = $this->renderRenderingElement($element, $item, $scope, [], $citation, $bibliographyState);
-            if ($value !== '') {
-                $rendered[] = $value;
-            }
-        }
-
-        return $this->joinRenderedElements($rendered, $delimiter);
+        return $this->renderRenderingElementsWithMacroStack($elements, $item, $scope, $delimiter, [], $citation, $bibliographyState, $substitutedVariables);
     }
 
     /**
@@ -5799,20 +5810,183 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array<string, mixed> $element
+     * @param list<array<string, mixed>> $elements
      * @param array<string, mixed> $item
+     * @param list<string> $macroStack
+     * @param array<string, bool> $substitutedVariables
      */
-    private function renderRenderingElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, ?array &$bibliographyState = null): string
+    private function renderRenderingElementsWithMacroStack(array $elements, array $item, string $scope, string $delimiter, array $macroStack, ?AstNode $citation = null, ?array &$bibliographyState = null, array &$substitutedVariables = []): string
+    {
+        $rendered = [];
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $value = $this->renderRenderingElement($element, $item, $scope, $macroStack, $citation, $bibliographyState, $substitutedVariables);
+            if ($value !== '') {
+                $rendered[] = $value;
+            }
+        }
+
+        return $this->joinRenderedElements($rendered, $delimiter);
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, bool> $substitutedVariables
+     */
+    private function renderingElementSuppressedBySubstitute(array $element, array $substitutedVariables): bool
+    {
+        if ($substitutedVariables === []) {
+            return false;
+        }
+
+        $type = (string) ($element['type'] ?? '');
+        if (!in_array($type, ['text', 'date', 'number', 'names', 'label'], true)) {
+            return false;
+        }
+
+        if (!isset($element['variable']) || !is_string($element['variable'])) {
+            return false;
+        }
+
+        return $this->renderingVariableIsSuppressedBySubstitute($element['variable'], $substitutedVariables);
+    }
+
+    /**
+     * @param array<string, bool> $substitutedVariables
+     */
+    private function renderingVariableIsSuppressedBySubstitute(string $variable, array $substitutedVariables): bool
+    {
+        $variables = $this->renderingVariableNames($variable);
+        if ($variables === []) {
+            return false;
+        }
+
+        foreach ($variables as $name) {
+            if (!isset($substitutedVariables[$name])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderingVariableNames(string $variable): array
+    {
+        return array_values(array_unique(array_filter(
+            array_map(
+                fn (string $part): string => $this->normalizedRenderingVariableName($part),
+                preg_split('/\s+/', trim($variable)) ?: []
+            ),
+            static fn (string $part): bool => $part !== ''
+        )));
+    }
+
+    private function normalizedRenderingVariableName(string $variable): string
+    {
+        return str_replace('_', '-', strtolower(trim($variable)));
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, bool> $substitutedVariables
+     * @param list<string> $macroStack
+     */
+    private function markSubstituteRenderedVariables(array $element, array &$substitutedVariables, array $macroStack = []): void
+    {
+        foreach ($this->substituteRenderingElementVariables($element, $macroStack) as $variable) {
+            $substitutedVariables[$variable] = true;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param list<string> $macroStack
+     * @return list<string>
+     */
+    private function substituteRenderingElementVariables(array $element, array $macroStack = []): array
     {
         $type = (string) ($element['type'] ?? '');
+        if (in_array($type, ['text', 'date', 'number', 'names', 'label'], true) && isset($element['variable']) && is_string($element['variable'])) {
+            return $this->renderingVariableNames($element['variable']);
+        }
+
+        if ($type === 'group') {
+            return $this->substituteRenderingElementsVariables(is_array($element['children'] ?? null) ? $element['children'] : [], $macroStack);
+        }
+
+        if ($type === 'choose') {
+            $variables = [];
+            foreach (($element['branches'] ?? []) as $branch) {
+                if (is_array($branch) && isset($branch['children']) && is_array($branch['children'])) {
+                    $variables = [...$variables, ...$this->substituteRenderingElementsVariables($branch['children'], $macroStack)];
+                }
+            }
+            if (isset($element['else']) && is_array($element['else'])) {
+                $variables = [...$variables, ...$this->substituteRenderingElementsVariables($element['else'], $macroStack)];
+            }
+
+            return array_values(array_unique($variables));
+        }
+
+        if ($type === 'text' && isset($element['macro']) && is_string($element['macro'])) {
+            $macro = $element['macro'];
+            if (in_array($macro, $macroStack, true)) {
+                return [];
+            }
+
+            $elements = $this->style->macroRenderingElements($macro);
+
+            return is_array($elements)
+                ? $this->substituteRenderingElementsVariables($elements, [...$macroStack, $macro])
+                : [];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param list<string> $macroStack
+     * @return list<string>
+     */
+    private function substituteRenderingElementsVariables(array $elements, array $macroStack = []): array
+    {
+        $variables = [];
+        foreach ($elements as $element) {
+            if (is_array($element)) {
+                $variables = [...$variables, ...$this->substituteRenderingElementVariables($element, $macroStack)];
+            }
+        }
+
+        return array_values(array_unique($variables));
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     * @param array<string, bool> $substitutedVariables
+     */
+    private function renderRenderingElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, ?array &$bibliographyState = null, array &$substitutedVariables = []): string
+    {
+        if ($this->renderingElementSuppressedBySubstitute($element, $substitutedVariables)) {
+            return '';
+        }
+
+        $type = (string) ($element['type'] ?? '');
         $value = match ($type) {
-            'group' => $this->renderGroupElement($element, $item, $scope, $macroStack, $citation, $bibliographyState),
-            'text' => $this->renderTextElement($element, $item, $scope, $macroStack, $citation, $bibliographyState),
+            'group' => $this->renderGroupElement($element, $item, $scope, $macroStack, $citation, $bibliographyState, $substitutedVariables),
+            'text' => $this->renderTextElement($element, $item, $scope, $macroStack, $citation, $bibliographyState, $substitutedVariables),
             'date' => $this->renderDateElement($element, $item, $scope),
             'number' => $this->renderNumberElement($element, $item, $scope, $citation),
-            'names' => $this->renderNamesElement($element, $item, $scope, $bibliographyState, $citation),
+            'names' => $this->renderNamesElement($element, $item, $scope, $bibliographyState, $citation, $substitutedVariables),
             'label' => $this->renderLabelElement($element, $item, $scope, $citation),
-            'choose' => $this->renderChooseElement($element, $item, $scope, $macroStack, $citation, $bibliographyState),
+            'choose' => $this->renderChooseElement($element, $item, $scope, $macroStack, $citation, $bibliographyState, $substitutedVariables),
             default => '',
         };
 
@@ -5826,8 +6000,9 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
+     * @param array<string, bool> $substitutedVariables
      */
-    private function renderGroupElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, ?array &$bibliographyState = null): string
+    private function renderGroupElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, ?array &$bibliographyState = null, array &$substitutedVariables = []): string
     {
         $children = $element['children'] ?? [];
         if (!is_array($children)) {
@@ -5844,7 +6019,7 @@ final class CitationCslProcessor
 
             $isVariableChild = $this->isVariableRenderingElement($child);
             $hasVariableChild = $hasVariableChild || $isVariableChild;
-            $value = $this->renderRenderingElement($child, $item, $scope, $macroStack, $citation, $bibliographyState);
+            $value = $this->renderRenderingElement($child, $item, $scope, $macroStack, $citation, $bibliographyState, $substitutedVariables);
             if ($value === '') {
                 continue;
             }
@@ -5959,11 +6134,12 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
+     * @param array<string, bool> $substitutedVariables
      */
-    private function renderTextElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, ?array &$bibliographyState = null): string
+    private function renderTextElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, ?array &$bibliographyState = null, array &$substitutedVariables = []): string
     {
         if (array_key_exists('macro', $element)) {
-            return $this->renderMacroReference((string) $element['macro'], $item, $scope, $macroStack, $citation, $bibliographyState);
+            return $this->renderMacroReference((string) $element['macro'], $item, $scope, $macroStack, $citation, $bibliographyState, $substitutedVariables);
         }
 
         if (array_key_exists('variable', $element)) {
@@ -5990,8 +6166,9 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
+     * @param array<string, bool> $substitutedVariables
      */
-    private function renderMacroReference(string $name, array $item, string $scope, array $macroStack, ?AstNode $citation = null, ?array &$bibliographyState = null): string
+    private function renderMacroReference(string $name, array $item, string $scope, array $macroStack, ?AstNode $citation = null, ?array &$bibliographyState = null, array &$substitutedVariables = []): string
     {
         $elements = $this->style->macroRenderingElements($name);
         if ($elements === null) {
@@ -6002,37 +6179,16 @@ final class CitationCslProcessor
             throw new \InvalidArgumentException('CSL macro recursion detected: ' . implode(' -> ', [...$macroStack, $name]));
         }
 
-        return $this->renderRenderingElementsWithMacroStack($elements, $item, $scope, '', [...$macroStack, $name], $citation, $bibliographyState);
-    }
-
-    /**
-     * @param list<array<string, mixed>> $elements
-     * @param array<string, mixed> $item
-     * @param list<string> $macroStack
-     */
-    private function renderRenderingElementsWithMacroStack(array $elements, array $item, string $scope, string $delimiter, array $macroStack, ?AstNode $citation = null, ?array &$bibliographyState = null): string
-    {
-        $rendered = [];
-        foreach ($elements as $element) {
-            if (!is_array($element)) {
-                continue;
-            }
-
-            $value = $this->renderRenderingElement($element, $item, $scope, $macroStack, $citation, $bibliographyState);
-            if ($value !== '') {
-                $rendered[] = $value;
-            }
-        }
-
-        return $this->joinRenderedElements($rendered, $delimiter);
+        return $this->renderRenderingElementsWithMacroStack($elements, $item, $scope, '', [...$macroStack, $name], $citation, $bibliographyState, $substitutedVariables);
     }
 
     /**
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
+     * @param array<string, bool> $substitutedVariables
      */
-    private function renderChooseElement(array $element, array $item, string $scope, array $macroStack, ?AstNode $citation = null, ?array &$bibliographyState = null): string
+    private function renderChooseElement(array $element, array $item, string $scope, array $macroStack, ?AstNode $citation = null, ?array &$bibliographyState = null, array &$substitutedVariables = []): string
     {
         foreach (($element['branches'] ?? []) as $branch) {
             if (!is_array($branch) || !$this->chooseBranchMatches($branch, $item, $scope, $citation)) {
@@ -6042,14 +6198,14 @@ final class CitationCslProcessor
             $children = $branch['children'] ?? [];
 
             return is_array($children)
-                ? $this->renderRenderingElementsWithMacroStack($children, $item, $scope, '', $macroStack, $citation, $bibliographyState)
+                ? $this->renderRenderingElementsWithMacroStack($children, $item, $scope, '', $macroStack, $citation, $bibliographyState, $substitutedVariables)
                 : '';
         }
 
         $else = $element['else'] ?? [];
 
         return is_array($else)
-            ? $this->renderRenderingElementsWithMacroStack($else, $item, $scope, '', $macroStack, $citation, $bibliographyState)
+            ? $this->renderRenderingElementsWithMacroStack($else, $item, $scope, '', $macroStack, $citation, $bibliographyState, $substitutedVariables)
             : '';
     }
 
@@ -6297,17 +6453,19 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
+     * @param array<string, bool> $substitutedVariables
      */
-    private function renderNamesElement(array $element, array $item, string $scope, ?array &$bibliographyState = null, ?AstNode $citation = null): string
+    private function renderNamesElement(array $element, array $item, string $scope, ?array &$bibliographyState = null, ?AstNode $citation = null, array &$substitutedVariables = []): string
     {
-        return $this->renderNamesElementValue($element, $item, $scope, true, $bibliographyState, $citation);
+        return $this->renderNamesElementValue($element, $item, $scope, true, $bibliographyState, $citation, $substitutedVariables);
     }
 
     /**
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
+     * @param array<string, bool> $substitutedVariables
      */
-    private function renderNamesElementValue(array $element, array $item, string $scope, bool $allowImplicitTitleFallback, ?array &$bibliographyState = null, ?AstNode $citation = null): string
+    private function renderNamesElementValue(array $element, array $item, string $scope, bool $allowImplicitTitleFallback, ?array &$bibliographyState = null, ?AstNode $citation = null, array &$substitutedVariables = []): string
     {
         $variable = (string) ($element['variable'] ?? 'author editor');
         [$names, $selectedVariable] = $this->namesForRenderingVariableWithSource($item, $variable);
@@ -6320,9 +6478,11 @@ final class CitationCslProcessor
                     }
 
                     $value = ((string) ($substituteElement['type'] ?? '')) === 'names'
-                        ? $this->renderNamesElementValue($substituteElement, $item, $scope, false, $bibliographyState, $citation)
-                        : $this->renderRenderingElement($substituteElement, $item, $scope, [], $citation, $bibliographyState);
+                        ? $this->renderNamesElementValue($substituteElement, $item, $scope, false, $bibliographyState, $citation, $substitutedVariables)
+                        : $this->renderRenderingElement($substituteElement, $item, $scope, [], $citation, $bibliographyState, $substitutedVariables);
                     if ($value !== '') {
+                        $this->markSubstituteRenderedVariables($substituteElement, $substitutedVariables);
+
                         return $value;
                     }
                 }

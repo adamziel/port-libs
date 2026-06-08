@@ -8443,6 +8443,11 @@ final class DocxReader
                 }
 
                 $level = $this->intWordAttr($override, 'ilvl', 0);
+                $overrideLevel = $this->firstChildElement($override, self::WORDPROCESSINGML_NS, 'lvl');
+                if ($overrideLevel instanceof \DOMElement) {
+                    $levels[$level] = $this->numberingLevelDefinition($overrideLevel);
+                }
+
                 $startOverride = $this->firstChildElement($override, self::WORDPROCESSINGML_NS, 'startOverride');
                 if ($startOverride instanceof \DOMElement) {
                     $existing = $levels[$level] ?? [

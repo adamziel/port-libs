@@ -100,6 +100,7 @@ $opfXml = <<<'XML'
     <item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
     <item id="legacy-cover" href="images/legacy-cover.jpg" media-type="image/jpeg"/>
     <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="toc-alias" href="toc.ncx#review" media-type="application/x-dtbncx+xml"/>
   </manifest>
   <spine id="source-spine" toc="toc" page-progression-direction="rtl">
     <itemref id="chapter-spine" idref="chapter" linear="maybe" properties="rendition:page-spread-right page-spread-right rendition:flow-paginated rendition:align-x-center rendition:layout-pre-paginated rendition:orientation-landscape rendition:spread-none"/>
@@ -947,7 +948,7 @@ XML;
     if (($result['document']->children[1]->attr('resourceReviewFlags') ?? []) !== ['scripted']) {
         throw new RuntimeException('Expected WordPress fallback handoff block to expose scripted resource review flag');
     }
-    if (($result['mediaTypes']['manifestItemCount'] ?? null) !== 14 || ($result['mediaTypes']['coreMediaTypeCount'] ?? null) !== 12) {
+    if (($result['mediaTypes']['manifestItemCount'] ?? null) !== 15 || ($result['mediaTypes']['coreMediaTypeCount'] ?? null) !== 13) {
         throw new RuntimeException('Expected EPUB OPF media-type report to count core manifest resources');
     }
     if (($result['mediaTypes']['foreignResourceCount'] ?? null) !== 2 || ($result['mediaTypes']['foreignResourceWithoutFallbackCount'] ?? null) !== 0) {
@@ -1206,6 +1207,18 @@ XML;
     if (($result['importReport']['manifest']['missingItems'] ?? null) !== []) {
         throw new RuntimeException('Expected remote EPUB manifest resource not to be counted as a missing package item');
     }
+    if (($result['importReport']['manifest']['duplicatePackagePartCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected duplicate OPF package-part references to be summarized for import preflight');
+    }
+    if (($result['importReport']['manifest']['duplicatePackagePartItems'][0]['ids'] ?? null) !== ['toc', 'toc-alias']) {
+        throw new RuntimeException('Expected duplicate OPF package-part report to retain both manifest item ids');
+    }
+    if (($result['importReport']['manifest']['itemsByPart']['/EPUB/toc.ncx'][1]['id'] ?? null) !== 'toc-alias') {
+        throw new RuntimeException('Expected manifest itemsByPart report to preserve the aliasing NCX item');
+    }
+    if (($result['importReport']['manifest']['diagnostics'][0]['type'] ?? null) !== 'duplicate-manifest-package-part') {
+        throw new RuntimeException('Expected duplicate OPF package-part diagnostic in manifest import report');
+    }
     $foundEncryptedFont = false;
     $foundRemoteAudio = false;
     foreach ($result['assets'] as $asset) {
@@ -1427,6 +1440,8 @@ echo 'manifestMediaOverlayPart=' . ($result['manifest'][1]['mediaOverlayReferenc
 echo 'manifestMediaOverlayItems=' . ($result['manifest'][1]['mediaOverlayReference']['itemCount'] ?? 0) . "\n";
 echo 'spineMediaOverlayDuration=' . ($result['spine'][0]['mediaOverlayReference']['duration'] ?? '') . "\n";
 echo 'remoteManifestResources=' . count($result['importReport']['manifest']['externalItems'] ?? []) . "\n";
+echo 'manifestDuplicatePackageParts=' . implode(',', $result['importReport']['manifest']['duplicatePackageParts'] ?? []) . "\n";
+echo 'manifestDuplicatePackageDiagnostics=' . ($result['importReport']['manifest']['diagnosticCount'] ?? 0) . "\n";
 echo 'assets=' . count($result['assets']) . "\n";
 echo 'assetFallbacks=' . ($result['importReport']['assets']['fallbackCount'] ?? 0) . "\n";
 echo 'coverAttachment=' . ($result['importReport']['assets']['coverImage']['part'] ?? '') . "\n";

@@ -225,6 +225,9 @@ final class OdfReader
                     'hiddenTableRowCount' => $contentStats['hiddenTableRowCount'],
                     'repeatedTableRowCount' => $contentStats['repeatedTableRowCount'],
                     'truncatedTableRowRepeatCount' => $contentStats['truncatedTableRowRepeatCount'],
+                    'tableStyledCellCount' => $contentStats['tableStyledCellCount'],
+                    'tableProtectedCellCount' => $contentStats['tableProtectedCellCount'],
+                    'tablePrintHiddenCellCount' => $contentStats['tablePrintHiddenCellCount'],
                     'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
                     'namedExpressionCount' => (int) ($content['contentDeclarations']['namedExpressionCount'] ?? 0),
                     'namedRangeCount' => (int) ($content['contentDeclarations']['namedRangeCount'] ?? 0),
@@ -1765,6 +1768,7 @@ final class OdfReader
         $colspan = self::intAttr($cell, self::TABLE_NS, 'number-columns-spanned', 1);
         $rowspan = self::intAttr($cell, self::TABLE_NS, 'number-rows-spanned', 1);
         $styleName = self::attr($cell, self::TABLE_NS, 'style-name');
+        $style = $this->resolveStyle($styleName, $catalog);
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
         }
@@ -1773,21 +1777,39 @@ final class OdfReader
         }
         if ($styleName !== '') {
             $attrs['styleName'] = $styleName;
+            if ($style !== []) {
+                $attrs['style'] = $style;
+            }
         }
+        $htmlAttributes = [];
+        $classes = [];
         $metadata = $this->tableCellMetadata($cell);
         if ($metadata !== []) {
             $attrs['odfCellMetadata'] = $metadata;
-            $attrs['htmlAttributes'] = $this->tableCellMetadataHtmlAttributes($metadata);
-            $classes = [];
+            $htmlAttributes = $this->tableCellMetadataHtmlAttributes($metadata);
             if ($this->tableCellMetadataHasTypedValue($metadata)) {
                 $classes[] = 'odf-table-cell-value';
             }
             if (isset($metadata['formula'])) {
                 $classes[] = 'odf-table-cell-formula';
             }
-            if ($classes !== []) {
-                $attrs['classes'] = $classes;
-            }
+        }
+
+        $styleProperties = is_array($style['tableCellProperties'] ?? null) ? $style['tableCellProperties'] : [];
+        if ($styleProperties !== []) {
+            $attrs['odfCellStyleProperties'] = $styleProperties;
+            $htmlAttributes = array_merge(
+                $htmlAttributes,
+                $this->tableCellStyleHtmlAttributes($styleName, $styleProperties),
+            );
+            array_push($classes, ...$this->tableCellStyleClasses($styleProperties));
+        }
+
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+        if ($classes !== []) {
+            $attrs['classes'] = array_values(array_unique($classes));
         }
 
         return new AstNode('table_cell', $attrs, $blocks);
@@ -1852,6 +1874,160 @@ final class OdfReader
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $properties
+     * @return array<string, string>
+     */
+    private function tableCellStyleHtmlAttributes(string $styleName, array $properties): array
+    {
+        $attributes = [];
+        if ($styleName !== '') {
+            $attributes['data-odf-cell-style-name'] = $styleName;
+        }
+
+        foreach ([
+            'backgroundColor' => 'data-odf-cell-background-color',
+            'verticalAlign' => 'data-odf-cell-vertical-align',
+            'writingMode' => 'data-odf-cell-writing-mode',
+            'cellProtect' => 'data-odf-cell-protect',
+            'printContent' => 'data-odf-cell-print-content',
+            'repeatContent' => 'data-odf-cell-repeat-content',
+            'shrinkToFit' => 'data-odf-cell-shrink-to-fit',
+        ] as $source => $target) {
+            if (!array_key_exists($source, $properties)) {
+                continue;
+            }
+
+            $value = $properties[$source];
+            if (is_bool($value)) {
+                $attributes[$target] = $value ? 'true' : 'false';
+                continue;
+            }
+            if (is_scalar($value)) {
+                $attributes[$target] = (string) $value;
+            }
+        }
+
+        $style = $this->tableCellStyleCss($properties);
+        if ($style !== '') {
+            $attributes['style'] = $style;
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param array<string, mixed> $properties
+     * @return list<string>
+     */
+    private function tableCellStyleClasses(array $properties): array
+    {
+        $classes = ['odf-table-cell-style'];
+        $background = (string) ($properties['backgroundColor'] ?? '');
+        if ($background !== '') {
+            $classes[] = 'odf-table-cell-background';
+        }
+        if ((string) ($properties['cellProtect'] ?? '') !== '') {
+            $classes[] = 'odf-table-cell-protected';
+        }
+        if (($properties['printContent'] ?? null) === false) {
+            $classes[] = 'odf-table-cell-print-hidden';
+        }
+
+        $verticalAlign = strtolower((string) ($properties['verticalAlign'] ?? ''));
+        if (in_array($verticalAlign, ['baseline', 'top', 'middle', 'bottom'], true)) {
+            $classes[] = 'odf-table-cell-vertical-align-' . $verticalAlign;
+        }
+
+        return $classes;
+    }
+
+    /**
+     * @param array<string, mixed> $properties
+     */
+    private function tableCellStyleCss(array $properties): string
+    {
+        $styles = [];
+        $backgroundColor = (string) ($properties['backgroundColor'] ?? '');
+        if ($this->isSafeCssColor($backgroundColor)) {
+            $styles[] = 'background-color:' . $backgroundColor;
+        }
+
+        $verticalAlign = strtolower((string) ($properties['verticalAlign'] ?? ''));
+        if (in_array($verticalAlign, ['baseline', 'top', 'middle', 'bottom'], true)) {
+            $styles[] = 'vertical-align:' . $verticalAlign;
+        }
+
+        $border = (string) ($properties['border'] ?? '');
+        if ($this->isSafeCssBorder($border)) {
+            $styles[] = 'border:' . $border;
+        }
+
+        foreach ([
+            'padding' => 'padding',
+            'paddingTop' => 'padding-top',
+            'paddingRight' => 'padding-right',
+            'paddingBottom' => 'padding-bottom',
+            'paddingLeft' => 'padding-left',
+        ] as $source => $target) {
+            $value = (string) ($properties[$source] ?? '');
+            if ($this->isSafeCssLength($value)) {
+                $styles[] = $target . ':' . $value;
+            }
+        }
+
+        return implode('; ', $styles);
+    }
+
+    private function isSafeCssColor(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        return strtolower($value) === 'transparent'
+            || preg_match('/^#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?(?:[0-9A-Fa-f]{2})?$/', $value) === 1;
+    }
+
+    private function isSafeCssLength(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        return preg_match('/^(?:0|[0-9]+(?:\.[0-9]+)?(?:cm|mm|in|pt|pc|px|em|rem|%)?)$/i', $value) === 1;
+    }
+
+    private function isSafeCssBorder(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        $parts = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($parts === [] || count($parts) > 3) {
+            return false;
+        }
+
+        $allowedStyles = ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'];
+        foreach ($parts as $part) {
+            $normalized = strtolower($part);
+            if (in_array($normalized, $allowedStyles, true)
+                || $this->isSafeCssLength($part)
+                || $this->isSafeCssColor($part)
+            ) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -5354,6 +5530,7 @@ final class OdfReader
             'textProperties' => [],
             'paragraphProperties' => [],
             'tableColumnProperties' => [],
+            'tableCellProperties' => [],
         ];
 
         $textProperties = self::firstChildElement($style, 'text-properties', self::STYLE_NS);
@@ -5375,7 +5552,34 @@ final class OdfReader
             ]);
         }
 
+        $cellProperties = self::firstChildElement($style, 'table-cell-properties', self::STYLE_NS);
+        if ($cellProperties instanceof \DOMElement) {
+            $definition['tableCellProperties'] = $this->tableCellProperties($cellProperties);
+        }
+
         return $definition;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableCellProperties(\DOMElement $properties): array
+    {
+        return self::withoutEmpty([
+            'backgroundColor' => self::nullable(self::attr($properties, self::FO_NS, 'background-color')),
+            'border' => self::nullable(self::attr($properties, self::FO_NS, 'border')),
+            'padding' => self::nullable(self::attr($properties, self::FO_NS, 'padding')),
+            'paddingTop' => self::nullable(self::attr($properties, self::FO_NS, 'padding-top')),
+            'paddingRight' => self::nullable(self::attr($properties, self::FO_NS, 'padding-right')),
+            'paddingBottom' => self::nullable(self::attr($properties, self::FO_NS, 'padding-bottom')),
+            'paddingLeft' => self::nullable(self::attr($properties, self::FO_NS, 'padding-left')),
+            'verticalAlign' => self::nullable(strtolower(self::attr($properties, self::STYLE_NS, 'vertical-align'))),
+            'writingMode' => self::nullable(self::attr($properties, self::STYLE_NS, 'writing-mode')),
+            'cellProtect' => self::nullable(self::attr($properties, self::STYLE_NS, 'cell-protect')),
+            'printContent' => self::nullableBool(self::attr($properties, self::STYLE_NS, 'print-content')),
+            'repeatContent' => self::nullableBool(self::attr($properties, self::STYLE_NS, 'repeat-content')),
+            'shrinkToFit' => self::nullableBool(self::attr($properties, self::STYLE_NS, 'shrink-to-fit')),
+        ]);
     }
 
     /**
@@ -5999,6 +6203,9 @@ final class OdfReader
             'hiddenTableRowCount' => 0,
             'repeatedTableRowCount' => 0,
             'truncatedTableRowRepeatCount' => 0,
+            'tableStyledCellCount' => 0,
+            'tableProtectedCellCount' => 0,
+            'tablePrintHiddenCellCount' => 0,
         ];
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
@@ -6061,6 +6268,16 @@ final class OdfReader
                 }
                 if ($node->attr('repeatTruncated') === true) {
                     $stats['truncatedTableRowRepeatCount']++;
+                }
+            }
+            if ($node->type === 'table_cell' && $node->attr('odfCellStyleProperties', []) !== []) {
+                $stats['tableStyledCellCount']++;
+                $properties = $node->attr('odfCellStyleProperties', []);
+                if (is_array($properties) && (string) ($properties['cellProtect'] ?? '') !== '') {
+                    $stats['tableProtectedCellCount']++;
+                }
+                if (is_array($properties) && ($properties['printContent'] ?? null) === false) {
+                    $stats['tablePrintHiddenCellCount']++;
                 }
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-bookmark')) {

@@ -91,7 +91,7 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<p>The review packet cites Diaz (2026) and Title Only Packet (2025) before bibliography import.</p>',
         '<dt>Diaz 2026</dt><dd><div class="csl-entry"><div class="csl-right-inline">Named Source Packet. 2026.</div></div></dd>',
-        '<dt>Title Only Packet 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">Title Only Packet</div><div class="csl-right-inline">Title Only Packet. 2025.</div></div></dd>',
+        '<dt>Title Only Packet 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">Title Only Packet</div><div class="csl-right-inline">2025.</div></div></dd>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
             throw new RuntimeException('CSL substitute display handoff self-test missing expected snippet: ' . $snippet);

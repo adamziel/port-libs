@@ -11577,7 +11577,7 @@ XML
         $t->same('right-inline', $summary['bibliographyRendering'][0]['substitute'][1]['display'] ?? null);
 
         $t->same('Diaz, R. Named Source Packet. 2026.', $processor->renderBibliographyEntry('named-source'));
-        $t->same('Title Only Packet Title Only Packet. 2025.', $processor->renderBibliographyEntry('title-source'));
+        $t->same('Title Only Packet 2025.', $processor->renderBibliographyEntry('title-source'));
 
         $document = (new MarkdownReader())->read('Review cites @named-source and @title-source for substitute display output.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
@@ -11590,13 +11590,85 @@ XML
         ], $namedItem->attr('cslDisplayParts'));
         $t->same([
             ['display' => 'left-margin', 'text' => 'Title Only Packet', 'formatting' => ['fontWeight' => 'bold']],
-            ['display' => 'right-inline', 'text' => 'Title Only Packet. 2025.'],
+            ['display' => 'right-inline', 'text' => '2025.'],
         ], $titleOnlyItem->attr('cslDisplayParts'));
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites Diaz (2026) and Title Only Packet (2025) for substitute display output.</p>', $blocks);
         $t->contains('<dt>Diaz 2026</dt><dd><div class="csl-entry"><div class="csl-right-inline">Named Source Packet. 2026.</div></div></dd>', $blocks);
-        $t->contains('<dt>Title Only Packet 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">Title Only Packet</div><div class="csl-right-inline">Title Only Packet. 2025.</div></div></dd>', $blocks);
+        $t->contains('<dt>Title Only Packet 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">Title Only Packet</div><div class="csl-right-inline">2025.</div></div></dd>', $blocks);
+    },
+    'suppresses bounded csl variables rendered through names substitutes' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'named-source',
+                'type' => 'report',
+                'title' => 'Named Source Packet',
+                'author' => [
+                    ['family' => 'Diaz', 'given' => 'Rosa'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'title-source',
+                'type' => 'webpage',
+                'title' => 'Title Only Packet',
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/title-source',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Substitute Suppression Review</title>
+    <id>https://example.test/styles/bounded-substitute-suppression-review</id>
+    <updated>2026-06-08T14:00:35+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author">
+          <substitute>
+            <text variable="title"/>
+          </substitute>
+        </names>
+        <text variable="title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <substitute>
+          <text variable="title"/>
+        </substitute>
+      </names>
+      <text variable="title"/>
+      <date variable="issued"><date-part name="year"/></date>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Substitute Suppression Review', $summary['title'] ?? null);
+        $t->same('title', $summary['citationRendering'][0]['children'][0]['substitute'][0]['variable'] ?? null);
+        $t->same('title', $summary['bibliographyRendering'][0]['substitute'][0]['variable'] ?? null);
+
+        $t->same('(Diaz | Named Source Packet | 2026; Title Only Packet | 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'named-source', 'text' => '[@named-source]']),
+            new AstNode('citation', ['id' => 'title-source', 'text' => '[@title-source]']),
+        ]));
+        $t->same('Diaz, R. :: Named Source Packet :: 2026', $processor->renderBibliographyEntry('named-source'));
+        $t->same('Title Only Packet :: 2025', $processor->renderBibliographyEntry('title-source'));
+
+        $document = (new MarkdownReader())->read('Substitute suppression cites [@named-source; @title-source] before review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Substitute suppression cites (Diaz | Named Source Packet | 2026; Title Only Packet | 2025) before review.</p>', $blocks);
+        $t->contains('<dt>Diaz 2026</dt><dd>Diaz, R. :: Named Source Packet :: 2026</dd>', $blocks);
+        $t->contains('<dt>Title Only Packet 2025</dt><dd>Title Only Packet :: 2025</dd>', $blocks);
     },
     'applies bounded csl year suffix disambiguation for ambiguous author dates' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
