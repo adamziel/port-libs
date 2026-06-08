@@ -4935,7 +4935,7 @@ final class PdfAcroFormExtractor
         $effective = $inherited;
         foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'TI', 'MaxLen', 'AA'] as $name) {
             $span = $this->lastTopLevelValueSpanAfterName($body, $name);
-            if ($span === null || $this->directChoiceArrayAttributeHasTrailingOperand($name, $body, $span)) {
+            if ($span === null || $this->topLevelValueSpanHasTrailingOperand($body, $span)) {
                 continue;
             }
 
@@ -4947,23 +4947,6 @@ final class PdfAcroFormExtractor
         }
 
         return $effective;
-    }
-
-    /**
-     * @param array{start: int, end: int, value: string} $span
-     */
-    private function directChoiceArrayAttributeHasTrailingOperand(string $name, string $body, array $span): bool
-    {
-        if (!in_array($name, ['V', 'DV', 'Opt', 'I'], true)) {
-            return false;
-        }
-
-        $value = ltrim($span['value']);
-        if ($value === '' || $value[0] !== '[') {
-            return false;
-        }
-
-        return $this->topLevelValueSpanHasTrailingOperand($body, $span);
     }
 
     /**

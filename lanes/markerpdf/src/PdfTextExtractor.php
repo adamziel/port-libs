@@ -22529,11 +22529,21 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, true> $seen
      */
-    private function decodeParmsIntegerTokenAt(string $value, int $offset, array $objects, array $seen = []): ?int
+    private function decodeParmsIntegerTokenAt(
+        string $value,
+        int $offset,
+        array $objects,
+        array $seen = [],
+        bool $requireStandalone = false
+    ): ?int
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
         $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
         if ($reference !== null) {
+            if ($requireStandalone && $this->skipPdfWhitespace($value, $reference['endOffset']) !== strlen($value)) {
+                return null;
+            }
+
             $objectNumber = $reference['objectNumber'];
             $generation = $reference['generation'];
             $objectKey = $objectNumber . ':' . $generation;
@@ -22547,12 +22557,15 @@ final class PdfTextExtractor
             }
 
             $seen[$objectKey] = true;
-            return $this->decodeParmsIntegerTokenAt(trim($body), 0, $objects, $seen);
+            return $this->decodeParmsIntegerTokenAt(trim($body), 0, $objects, $seen, true);
         }
 
         if (preg_match('/\G([+-]?\d+)/s', $value, $match, 0, $offset) === 1) {
             $endOffset = $offset + strlen($match[1]);
             if ($endOffset < strlen($value) && !$this->isBareTokenDelimiter($value[$endOffset])) {
+                return null;
+            }
+            if ($requireStandalone && $this->skipPdfWhitespace($value, $endOffset) !== strlen($value)) {
                 return null;
             }
 
@@ -22566,11 +22579,21 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, true> $seen
      */
-    private function decodeParmsBooleanTokenAt(string $value, int $offset, array $objects, array $seen = []): ?bool
+    private function decodeParmsBooleanTokenAt(
+        string $value,
+        int $offset,
+        array $objects,
+        array $seen = [],
+        bool $requireStandalone = false
+    ): ?bool
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
         $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
         if ($reference !== null) {
+            if ($requireStandalone && $this->skipPdfWhitespace($value, $reference['endOffset']) !== strlen($value)) {
+                return null;
+            }
+
             $objectNumber = $reference['objectNumber'];
             $generation = $reference['generation'];
             $objectKey = $objectNumber . ':' . $generation;
@@ -22584,14 +22607,22 @@ final class PdfTextExtractor
             }
 
             $seen[$objectKey] = true;
-            return $this->decodeParmsBooleanTokenAt(trim($body), 0, $objects, $seen);
+            return $this->decodeParmsBooleanTokenAt(trim($body), 0, $objects, $seen, true);
         }
 
         if (preg_match('/\Gtrue\b/s', $value, $match, 0, $offset) === 1) {
+            if ($requireStandalone && $this->skipPdfWhitespace($value, $offset + strlen($match[0])) !== strlen($value)) {
+                return null;
+            }
+
             return true;
         }
 
         if (preg_match('/\Gfalse\b/s', $value, $match, 0, $offset) === 1) {
+            if ($requireStandalone && $this->skipPdfWhitespace($value, $offset + strlen($match[0])) !== strlen($value)) {
+                return null;
+            }
+
             return false;
         }
 

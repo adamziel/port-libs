@@ -775,12 +775,62 @@ final class PdfXrefFreeObjectMap
 
         $entries = $section['entries'];
         $previousOffset = self::previousXrefOffsetForSectionBody($pdfBytes, $section['trailer'], $offset);
+        $entries = self::repairCurrentUpdateOffsetOwnerRows($pdfBytes, $entries, $previousOffset, $offset);
         if ($previousOffset !== null && $previousOffset >= 0) {
             foreach (self::xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $seenOffsets) as $objectNumber => $entry) {
                 if (!isset($entries[$objectNumber])) {
                     $entries[$objectNumber] = $entry;
                 }
             }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, array{state: string, generation: int, offset: int}> $entries
+     * @return array<int, array{state: string, generation: int, offset: int}>
+     */
+    private static function repairCurrentUpdateOffsetOwnerRows(
+        string $pdfBytes,
+        array $entries,
+        ?int $previousOffset,
+        int $currentOffset
+    ): array {
+        if ($previousOffset === null || $previousOffset < 0 || $previousOffset >= $currentOffset) {
+            return $entries;
+        }
+
+        foreach ($entries as $objectNumber => $entry) {
+            if (($entry['state'] ?? null) !== 'n') {
+                continue;
+            }
+
+            $offset = $entry['offset'] ?? null;
+            if (!is_int($offset)) {
+                continue;
+            }
+
+            $owner = self::directObjectAtOffset($pdfBytes, $offset);
+            if (
+                $owner === null
+                || $owner['offset'] <= $previousOffset
+                || $owner['offset'] >= $currentOffset
+            ) {
+                continue;
+            }
+
+            $generation = (int) ($entry['generation'] ?? 0);
+            if ($owner['object'] === (int) $objectNumber && $owner['generation'] === $generation) {
+                continue;
+            }
+
+            unset($entries[$objectNumber]);
+            $entries[$owner['object']] ??= [
+                'state' => 'n',
+                'generation' => $owner['generation'],
+                'offset' => $owner['offset'],
+            ];
         }
 
         return $entries;

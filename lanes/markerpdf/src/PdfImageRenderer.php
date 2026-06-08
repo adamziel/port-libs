@@ -9311,6 +9311,9 @@ final class PdfImageRenderer
         if (preg_match('/^[+-]?\d+/', $resolved, $match) !== 1) {
             return null;
         }
+        if ($this->skipPdfWhitespace($resolved, strlen($match[0])) !== strlen($resolved)) {
+            return null;
+        }
 
         return $this->boundedPdfIntegerToken($match[0]);
     }
