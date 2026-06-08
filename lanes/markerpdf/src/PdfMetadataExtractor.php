@@ -1288,6 +1288,7 @@ final class PdfMetadataExtractor
         $subtypeRawValues = $this->dictionaryTopLevelRawValues($dictionary, 'Subtype');
         $typeValues = $this->dictionaryTopLevelNameValues($dictionary, 'Type', $objects);
         $subtypeValues = $this->dictionaryTopLevelNameValues($dictionary, 'Subtype', $objects);
+        $tailedRoleOperands = $this->metadataStreamDictionaryTailedRoleOperandReviews($dictionary, $objects);
         $duplicateKeys = [];
         if (count($typeRawValues) > 1) {
             $duplicateKeys[] = 'Type';
@@ -1297,6 +1298,31 @@ final class PdfMetadataExtractor
         }
 
         if ($duplicateKeys === []) {
+            if ($tailedRoleOperands !== []) {
+                $review = [
+                    'status' => 'rejected_tailed_metadata_stream_role_operand',
+                    'tailed_role_operand_count' => count($tailedRoleOperands),
+                    'tailed_role_keys' => $this->uniqueStrings(array_map(
+                        static fn (array $operand): string => (string) $operand['key'],
+                        $tailedRoleOperands
+                    )),
+                    'type_entry_count' => count($typeRawValues),
+                    'subtype_entry_count' => count($subtypeRawValues),
+                    'role_operands' => $tailedRoleOperands,
+                ];
+
+                if ($typeValues !== []) {
+                    $review['type'] = $typeValues[count($typeValues) - 1];
+                    $review['type_values'] = $this->uniqueStrings($typeValues);
+                }
+                if ($subtypeValues !== []) {
+                    $review['subtype'] = $subtypeValues[count($subtypeValues) - 1];
+                    $review['subtype_values'] = $this->uniqueStrings($subtypeValues);
+                }
+
+                return $review;
+            }
+
             if ($typeRawValues === []) {
                 $review = [
                     'status' => 'rejected_missing_metadata_stream_type',
@@ -1348,6 +1374,94 @@ final class PdfMetadataExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * Catalog document-XMP stream role names may be indirect, but the helper
+     * object must contain exactly one name token. Otherwise `/Subtype 7 0 R`
+     * with helper body `/XML /EmbeddedFile` would promote the first token while
+     * hiding the trailing role/action-looking operand at the trust boundary.
+     *
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function metadataStreamDictionaryTailedRoleOperandReviews(string $dictionary, array $objects): array
+    {
+        $reviews = [];
+
+        foreach (['Type', 'Subtype'] as $key) {
+            foreach ($this->dictionaryTopLevelValueReviews($dictionary, $key) as $index => $valueReview) {
+                $value = is_string($valueReview['value'] ?? null) ? $valueReview['value'] : '';
+                $reference = $this->objectReferenceFromValue($value);
+                $resolved = $reference === null
+                    ? $value
+                    : $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+                if ($resolved === null) {
+                    continue;
+                }
+
+                $token = $this->firstPdfValueToken($resolved);
+                if ($token === '' || !str_starts_with($this->trimPdfWhitespaceAndComments($token), '/')) {
+                    continue;
+                }
+
+                $hasTrailing = ($valueReview['trailing_operand'] ?? false) === true
+                    || !$this->pdfValueIsSingleToken($resolved, $token);
+                if (!$hasTrailing) {
+                    continue;
+                }
+
+                $review = [
+                    'key' => $key,
+                    'index' => $index,
+                    'kind' => $reference === null ? 'direct' : 'indirect',
+                    'token_type' => $this->metadataStreamFilterOperandTokenType($token),
+                    'value_preview' => $this->metadataStreamFilterOperandPreview($value),
+                    'resolved_preview' => $this->metadataStreamFilterOperandPreview($resolved),
+                    'single_name_token' => false,
+                ];
+
+                $name = $this->nameValueAt($token, 0);
+                if ($name !== null) {
+                    $review['name'] = $name;
+                }
+
+                if ($reference !== null) {
+                    $review['object_number'] = $reference['objectNumber'];
+                    $review['generation'] = $reference['generation'];
+                }
+
+                if (($valueReview['trailing_operand'] ?? false) === true) {
+                    foreach ($this->topLevelTrailingOperandReviewFromValueReview($valueReview) as $reviewKey => $reviewValue) {
+                        $review[$reviewKey] = $reviewValue;
+                    }
+                } else {
+                    $review['trailing_operand'] = true;
+                    $review['trailing_operand_shape'] = 'helper_extra_operand';
+                    $review['trailing_operand_preview'] = $this->metadataStreamRoleHelperTrailingPreview($resolved, $token);
+                }
+
+                $reviews[] = $review;
+            }
+        }
+
+        return $reviews;
+    }
+
+    private function metadataStreamRoleHelperTrailingPreview(string $resolved, string $firstToken): string
+    {
+        $offset = $this->skipPdfWhitespace($resolved, 0);
+        $after = $this->skipPdfWhitespace($resolved, $offset + strlen($firstToken));
+        if ($after >= strlen($resolved)) {
+            return '';
+        }
+
+        $operand = $this->readPdfValueAt($resolved, $after);
+        if ($operand === null || $operand === '') {
+            return 'malformed_top_level_token';
+        }
+
+        return $this->metadataStreamFilterOperandPreview($operand);
     }
 
     /**
