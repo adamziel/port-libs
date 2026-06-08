@@ -1663,9 +1663,26 @@ return [
         $t->same(2, UnicodeText::displayWidth("A{$arabicNumber}{$arabicEnd}B"));
         $t->same(2, UnicodeText::displayWidth("A{$arabicPound}{$kaithiNumberJoiner}B"));
         $t->same(["{$arabicNumber}ر", 'ق', 'م'], UnicodeText::splitByDisplayBreakpoints("{$arabicNumber}رقم", [1, 2]));
-        $t->same(["A{$arabicPound}", 'B'], UnicodeText::splitAtDisplayWidth("A{$arabicPound}B", 1));
+        $t->same(['A', "{$arabicPound}B"], UnicodeText::splitAtDisplayWidth("A{$arabicPound}B", 1));
         $t->same(["Audit {$arabicNumber}رقم", '  tail'], UnicodeText::wrapByDisplayWidth("Audit {$arabicNumber}رقم tail", 9, '  '));
         $t->same(" {$arabicNumber}رقم", UnicodeText::padDisplay("{$arabicNumber}رقم", 4, 'right'));
+    },
+    'keeps prepended format controls attached to following display clusters' => static function (TestRunner $t): void {
+        $arabicNumber = "\u{0600}";
+        $syriacAbbrev = "\u{070F}";
+        $kaithiNumber = "\u{110BD}";
+        $egyptianHieroglyph = "\u{13430}";
+        $sample = "A{$arabicNumber}رق{$syriacAbbrev}ܣ{$kaithiNumber}ka";
+        $trailingPrepend = "A{$arabicNumber}";
+
+        $t->same(6, UnicodeText::displayWidth($sample));
+        $t->same(['A', "{$arabicNumber}ر"], UnicodeText::splitAtDisplayWidth("A{$arabicNumber}ر", 1));
+        $t->same(['A', "{$arabicNumber}ر", 'ق', "{$syriacAbbrev}ܣ", "{$kaithiNumber}k", 'a'], UnicodeText::graphemes($sample));
+        $t->same(['A', "{$arabicNumber}ر", 'ق', "{$syriacAbbrev}ܣ", "{$kaithiNumber}k", 'a'], UnicodeText::splitByDisplayBreakpoints($sample, [1, 2, 3, 4, 5]));
+        $t->same(['X', "{$egyptianHieroglyph}Y"], UnicodeText::splitAtDisplayWidth("X{$egyptianHieroglyph}Y", 1));
+        $t->same(["A{$arabicNumber}"], UnicodeText::graphemes($trailingPrepend));
+        $t->same(["A{$arabicNumber}", ''], UnicodeText::splitAtDisplayWidth($trailingPrepend, 1));
+        $t->same("  {$kaithiNumber}ka", UnicodeText::padDisplay("{$kaithiNumber}ka", 4, 'right'));
     },
     'writes markdown pipe table padding with unicode display widths' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [

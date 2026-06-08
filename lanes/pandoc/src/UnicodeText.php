@@ -2295,14 +2295,35 @@ final class UnicodeText
         $joinNext = false;
         $indicViramaJoinNext = false;
         $regionalIndicatorRun = 0;
+        $prependPrefix = '';
         foreach (self::characters($text) as $char) {
             $codepoint = self::codepoint($char);
+            if (self::isBoundedPrependedFormatControl($codepoint)) {
+                $prependPrefix .= $char;
+                $joinNext = false;
+                $indicViramaJoinNext = false;
+                $regionalIndicatorRun = 0;
+                continue;
+            }
+
             $combiningOrZeroWidth = self::isCombiningOrZeroWidth($codepoint);
             $emojiSkinToneModifier = self::isEmojiSkinToneModifier($codepoint);
             $clusterExtender = $combiningOrZeroWidth || self::isBoundedGraphemeSpacingMark($codepoint);
+            if ($prependPrefix !== '' && $clusterExtender) {
+                $prependPrefix .= $char;
+                $joinNext = false;
+                $indicViramaJoinNext = false;
+                $regionalIndicatorRun = 0;
+                continue;
+            }
+
             $regionalIndicator = self::isRegionalIndicator($codepoint);
             $indicConsonant = self::isBoundedIndicConsonant($codepoint);
-            $append = $clusters !== []
+            $hasPrependPrefix = $prependPrefix !== '';
+            $clusterText = $hasPrependPrefix ? $prependPrefix . $char : $char;
+            $prependPrefix = '';
+            $append = !$hasPrependPrefix
+                && $clusters !== []
                 && (
                     $joinNext
                     || $clusterExtender
@@ -2313,10 +2334,10 @@ final class UnicodeText
             $hadIndicViramaJoinNext = $indicViramaJoinNext;
 
             if (!$append) {
-                $clusters[] = $char;
+                $clusters[] = $clusterText;
                 $regionalIndicatorRun = $regionalIndicator ? 1 : 0;
             } else {
-                $clusters[count($clusters) - 1] .= $char;
+                $clusters[count($clusters) - 1] .= $clusterText;
                 if ($regionalIndicator) {
                     $regionalIndicatorRun = min(2, $regionalIndicatorRun + 1);
                 } elseif (!$clusterExtender && $codepoint !== 0x200d) {
@@ -2326,6 +2347,13 @@ final class UnicodeText
             $joinNext = $codepoint === 0x200d;
             $indicViramaJoinNext = self::isBoundedIndicVirama($codepoint)
                 || ($codepoint === 0x200d && $hadIndicViramaJoinNext);
+        }
+        if ($prependPrefix !== '') {
+            if ($clusters === []) {
+                $clusters[] = $prependPrefix;
+            } else {
+                $clusters[count($clusters) - 1] .= $prependPrefix;
+            }
         }
 
         return $clusters;
@@ -4310,6 +4338,18 @@ final class UnicodeText
         }
 
         return self::isBoundedZeroWidthFormatControl($codepoint);
+    }
+
+    private static function isBoundedPrependedFormatControl(int $codepoint): bool
+    {
+        return ($codepoint >= 0x0600 && $codepoint <= 0x0605)
+            || $codepoint === 0x06dd
+            || $codepoint === 0x070f
+            || ($codepoint >= 0x0890 && $codepoint <= 0x0891)
+            || $codepoint === 0x08e2
+            || $codepoint === 0x110bd
+            || $codepoint === 0x110cd
+            || ($codepoint >= 0x13430 && $codepoint <= 0x1343f);
     }
 
     private static function isBoundedZeroWidthFormatControl(int $codepoint): bool
