@@ -10448,7 +10448,7 @@ final class PdfAcroFormExtractor
 
     private function isWidget(string $body, array $objects = []): bool
     {
-        return $this->pdfNameValueAfterNameResolvingObjects($body, 'Subtype', $objects) === 'Widget';
+        return $this->lastPdfNameValueAfterNameResolvingObjects($body, 'Subtype', $objects) === 'Widget';
     }
 
     /**
@@ -10790,6 +10790,13 @@ final class PdfAcroFormExtractor
     private function pdfNameValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?string
     {
         $value = $this->valueAfterName($body, $name);
+
+        return $value === null ? null : $this->pdfNameFromValueResolvingObjects($value, $objects);
+    }
+
+    private function lastPdfNameValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->lastTopLevelValueAfterName($body, $name);
 
         return $value === null ? null : $this->pdfNameFromValueResolvingObjects($value, $objects);
     }

@@ -98,6 +98,10 @@ final class PdfSecurityPreflight
             'standard_permission_operation_review' => is_array($permissionPreflight['standard_permission_operation_review'] ?? null)
                 ? $permissionPreflight['standard_permission_operation_review']
                 : [],
+            'standard_permission_print_quality_review_count' => (int) ($permissionPreflight['standard_permission_print_quality_review_count'] ?? 0),
+            'standard_permission_print_quality_review' => is_array($permissionPreflight['standard_permission_print_quality_review'] ?? null)
+                ? $permissionPreflight['standard_permission_print_quality_review']
+                : [],
             'permission_handler_review' => is_array($permissionPreflight['permission_handler_review'] ?? null)
                 ? $permissionPreflight['permission_handler_review']
                 : [],
@@ -269,6 +273,14 @@ final class PdfSecurityPreflight
             $permissionBits,
             $permissionBitsReliable,
             $permissionAuthenticationTrustReview
+        );
+        $standardPermissionPrintQualityReview = $this->standardPermissionPrintQualityReview(
+            $permissionBits,
+            $permissionBitsReliable,
+            $permissionAuthenticationTrustReview,
+            $permissionBitsReliable && is_string($permissions['print_quality'] ?? null)
+                ? $permissions['print_quality']
+                : null
         );
 
         if ($securityHandlerDeclarationFailClosed) {
@@ -477,6 +489,8 @@ final class PdfSecurityPreflight
                 ? $standardPermissionOperationReview['operation_statuses']
                 : [],
             'standard_permission_operation_review' => $standardPermissionOperationReview,
+            'standard_permission_print_quality_review_count' => ($standardPermissionPrintQualityReview['present'] ?? false) === true ? 1 : 0,
+            'standard_permission_print_quality_review' => $standardPermissionPrintQualityReview,
             'copy_or_extract_allowed' => $copyAllowed,
             'accessibility_extract_allowed' => $accessibilityAllowed,
             'print_quality' => $permissionBitsReliable ? ($permissions['print_quality'] ?? null) : null,
@@ -1076,6 +1090,129 @@ final class PdfSecurityPreflight
             'executes_permission_enforcement' => false,
             'executes_decryption' => false,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $permissionBits
+     * @return array<string, mixed>
+     */
+    private function standardPermissionPrintQualityReview(
+        array $permissionBits,
+        bool $permissionBitsReliable,
+        array $permissionAuthenticationTrustReview,
+        ?string $printQuality
+    ): array {
+        $base = [
+            'source' => 'standard_permission_print_quality_review',
+            'present' => false,
+            'permission_bits_reliable' => $permissionBitsReliable,
+            'print_quality' => null,
+            'print_allowed' => null,
+            'high_quality_print_allowed' => null,
+            'limited_to_low_resolution' => null,
+            'operation_names' => [],
+            'operation_statuses' => [],
+            'print_operation' => [],
+            'high_quality_print_operation' => [],
+            'status' => 'standard_permission_print_quality_unavailable_or_unreliable',
+            'permission_boundary' => $permissionAuthenticationTrustReview['trust_boundary'] ?? 'blocked_by_unreliable_standard_permission_bits',
+            'wordpress_import_policy' => 'blocked_by_unreliable_permission_bits',
+            'native_import_allowed_now' => false,
+            'password_validation_performed' => (bool) (
+                $permissionAuthenticationTrustReview['password_validation_performed'] ?? false
+            ),
+            'permissions_authenticated' => (bool) ($permissionAuthenticationTrustReview['permissions_authenticated'] ?? false),
+            'authenticated_permission_bits_reliable' => (bool) (
+                $permissionAuthenticationTrustReview['authenticated_permission_bits_reliable'] ?? false
+            ),
+            'review_only' => true,
+            'executes_permission_enforcement' => false,
+            'executes_decryption' => false,
+        ];
+
+        if (!$permissionBitsReliable || $permissionBits === []) {
+            return $base;
+        }
+
+        $printBit = $this->standardPermissionBitByName($permissionBits, 'print');
+        $highQualityBit = $this->standardPermissionBitByName($permissionBits, 'high_quality_print');
+        if ($printBit === null || $highQualityBit === null) {
+            return $base;
+        }
+
+        $printOperation = $this->standardPermissionOperationRow($printBit, $permissionAuthenticationTrustReview);
+        $highQualityOperation = $this->standardPermissionOperationRow($highQualityBit, $permissionAuthenticationTrustReview);
+        $printApplicable = (bool) ($printBit['applicable'] ?? false);
+        $printAllowed = (bool) ($printBit['allowed'] ?? false);
+        $highQualityAllowed = (bool) ($highQualityBit['allowed'] ?? false);
+        $effectivePrintQuality = $printQuality;
+        if ($effectivePrintQuality === null && $printApplicable) {
+            $effectivePrintQuality = $printAllowed
+                ? ($highQualityAllowed ? 'high_resolution' : 'low_resolution')
+                : 'disallowed';
+        }
+
+        if (!$printApplicable) {
+            $status = 'print_not_applicable_for_revision';
+            $boundary = 'not_defined_for_standard_security_handler_revision';
+            $wordpressPolicy = 'not_applicable_for_security_handler_revision';
+        } elseif (!$printAllowed) {
+            $status = 'print_denied_by_permission_bit';
+            $boundary = 'blocked_by_standard_permission_bit';
+            $wordpressPolicy = 'blocked_by_standard_permission_denial';
+        } else {
+            $qualityPrefix = $effectivePrintQuality === 'low_resolution'
+                ? 'low_resolution_print'
+                : 'high_resolution_print';
+            $operationStatus = is_string($printOperation['effective_status'] ?? null)
+                ? $printOperation['effective_status']
+                : null;
+            if ($operationStatus === 'allowed_by_permission_bit_pending_authentication') {
+                $status = "{$qualityPrefix}_pending_authentication";
+            } elseif (($printOperation['native_import_allowed_now'] ?? false) === true) {
+                $status = "{$qualityPrefix}_native_allowed";
+            } else {
+                $status = "{$qualityPrefix}_review";
+            }
+            $boundary = $printOperation['permission_boundary'] ?? null;
+            $wordpressPolicy = is_string($printOperation['wordpress_import_policy'] ?? null)
+                ? $printOperation['wordpress_import_policy']
+                : 'review_only_until_password_validation_and_decryption';
+        }
+
+        return array_merge($base, [
+            'present' => true,
+            'print_quality' => $effectivePrintQuality,
+            'print_allowed' => $printAllowed,
+            'high_quality_print_allowed' => $highQualityAllowed,
+            'limited_to_low_resolution' => $effectivePrintQuality === 'low_resolution',
+            'operation_names' => ['print', 'high_quality_print'],
+            'operation_statuses' => array_values(array_unique(array_values(array_filter([
+                $printOperation['effective_status'] ?? null,
+                $highQualityOperation['effective_status'] ?? null,
+            ], static fn (mixed $status): bool => is_string($status))))),
+            'print_operation' => $printOperation,
+            'high_quality_print_operation' => $highQualityOperation,
+            'status' => $status,
+            'permission_boundary' => $boundary,
+            'wordpress_import_policy' => $wordpressPolicy,
+            'native_import_allowed_now' => (bool) ($printOperation['native_import_allowed_now'] ?? false),
+        ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $permissionBits
+     * @return array<string, mixed>|null
+     */
+    private function standardPermissionBitByName(array $permissionBits, string $name): ?array
+    {
+        foreach ($permissionBits as $bit) {
+            if (is_array($bit) && ($bit['name'] ?? null) === $name) {
+                return $bit;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -6119,6 +6256,14 @@ final class PdfSecurityPreflight
             $permissionBitsReliable,
             $permissionAuthenticationTrustReview
         );
+        $standardPermissionPrintQualityReview = $this->standardPermissionPrintQualityReview(
+            $permissionBits,
+            $permissionBitsReliable,
+            $permissionAuthenticationTrustReview,
+            $permissionBitsReliable && is_string($permissions['print_quality'] ?? null)
+                ? $permissions['print_quality']
+                : null
+        );
 
         return [
             'is_encrypted' => true,
@@ -6238,6 +6383,8 @@ final class PdfSecurityPreflight
                 ? $standardPermissionOperationReview['operation_statuses']
                 : [],
             'standard_permission_operation_review' => $standardPermissionOperationReview,
+            'standard_permission_print_quality_review_count' => ($standardPermissionPrintQualityReview['present'] ?? false) === true ? 1 : 0,
+            'standard_permission_print_quality_review' => $standardPermissionPrintQualityReview,
             'copy_or_extract_allowed' => $permissionBitsReliable
                 ? in_array('copy_or_extract', $allowed, true)
                 : null,

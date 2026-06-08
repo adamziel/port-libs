@@ -2794,6 +2794,12 @@ final class MarkerAppPreview
             return $decoded === false ? '' : $decoded;
         }
 
+        if (str_starts_with($bytes, "\xEF\xBB\xBF")) {
+            $utf8 = substr($bytes, 3);
+
+            return mb_check_encoding($utf8, 'UTF-8') ? $utf8 : '';
+        }
+
         return $this->decodePdfDocEncoding($bytes);
     }
 

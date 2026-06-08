@@ -10636,13 +10636,20 @@ final class PdfTextExtractor
         }
 
         $soiOffset = $this->dctPreviewSoiOffset($reviewStream);
+        $laterSoiOffset = null;
+        if ($soiOffset === null) {
+            $laterSoiOffset = $this->dctPreviewLaterSoiOffset($reviewStream, $start + 1);
+        }
         $hasSoi = $soiOffset !== null && $soiOffset === $start;
+        $hasPreSoiBytes = !$hasSoi && $laterSoiOffset !== null;
         if ($hasSoi) {
             $start = $soiOffset;
+        } elseif ($hasPreSoiBytes) {
+            $start = $laterSoiOffset;
         }
         $eoiEnd = null;
         $paddingEnd = null;
-        if ($hasSoi) {
+        if ($hasSoi || $hasPreSoiBytes) {
             foreach ($this->dctPreviewEoiEndOffsets($reviewStream, $start) as $candidateEnd) {
                 $eoiEnd = $candidateEnd;
                 $paddingEnd = $this->skipDctPreviewPadding($reviewStream, $candidateEnd);
@@ -10650,21 +10657,28 @@ final class PdfTextExtractor
             }
         }
 
-        $invalidReason = !$hasSoi
+        $invalidReason = $hasPreSoiBytes
+            ? 'pre_jpeg_soi_non_padding_bytes'
+            : (!$hasSoi
             ? 'missing_jpeg_soi'
-            : ($eoiEnd === null ? 'missing_jpeg_eoi' : 'post_jpeg_eoi_non_padding_bytes');
+            : ($eoiEnd === null ? 'missing_jpeg_eoi' : 'post_jpeg_eoi_non_padding_bytes'));
+        $preSoiBytes = $start > 0 ? substr($reviewStream, 0, $start) : '';
 
         return [
             'source' => 'dctdecode_jpeg_marker_boundary_unverified',
             'valid_jpeg_marker_boundary' => false,
             'invalid_reason' => $invalidReason,
-            'jpeg_soi_offset' => $hasSoi ? $start : null,
-            'jpeg_marker_fill_byte_count' => $hasSoi ? $this->dctPreviewMarkerFillByteCount($reviewStream, $start) : 0,
+            'jpeg_soi_offset' => ($hasSoi || $hasPreSoiBytes) ? $start : null,
+            'jpeg_marker_fill_byte_count' => ($hasSoi || $hasPreSoiBytes) ? $this->dctPreviewMarkerFillByteCount($reviewStream, $start) : 0,
             'jpeg_eoi_end_offset' => $eoiEnd,
             'raw_stream_length' => strlen($stream),
             'review_stream_length' => strlen($reviewStream),
             'padding_byte_count' => $eoiEnd === null || $paddingEnd === null ? 0 : max(0, $paddingEnd - $eoiEnd),
             'stream_trimmed_to_jpeg_eoi' => false,
+            'stream_trimmed_to_jpeg_soi' => false,
+            'pre_jpeg_soi_byte_count' => strlen($preSoiBytes),
+            'pre_jpeg_soi_sha256' => $preSoiBytes === '' ? null : hash('sha256', $preSoiBytes),
+            'pre_jpeg_soi_payload_in_visible_text' => false,
             ...($decodedFromNativePrefix ? [
                 'review_stream_decoded_from_native_prefix' => true,
                 'native_prefix_filters' => $nativePrefixFilters,
@@ -10678,6 +10692,21 @@ final class PdfTextExtractor
             'review_only' => true,
             'native_raster_decode' => false,
         ];
+    }
+
+    private function dctPreviewLaterSoiOffset(string $bytes, int $startOffset): ?int
+    {
+        $offset = max(0, $startOffset);
+        while (($candidate = strpos($bytes, "\xff", $offset)) !== false) {
+            $soiOffset = $this->dctPreviewSoiOffset($bytes, $candidate);
+            if ($soiOffset !== null) {
+                return $soiOffset;
+            }
+
+            $offset = $candidate + 1;
+        }
+
+        return null;
     }
 
     /**
