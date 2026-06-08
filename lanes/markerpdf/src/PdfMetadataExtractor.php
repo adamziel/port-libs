@@ -12922,6 +12922,11 @@ final class PdfMetadataExtractor
             $result['xmp_media_management'] = $xmpMediaManagement;
         }
 
+        $xmpResourceReferenceBoundary = $xmp['resource_reference_boundary'] ?? null;
+        if (is_array($xmpResourceReferenceBoundary) && $xmpResourceReferenceBoundary !== []) {
+            $result['xmp_resource_reference_boundary'] = $xmpResourceReferenceBoundary;
+        }
+
         foreach (['language', 'mark_info', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'document_name_trees', 'structure_tree', 'document_destinations', 'document_outline', 'document_outline_boundary_review', 'document_security_store'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
@@ -13545,6 +13550,11 @@ final class PdfMetadataExtractor
             $metadata['media_management'] = $mediaManagement;
         }
 
+        $resourceReferenceBoundary = $this->xmpResourceReferenceBoundaryMetadata($document);
+        if ($resourceReferenceBoundary !== []) {
+            $metadata['resource_reference_boundary'] = $resourceReferenceBoundary;
+        }
+
         return $metadata;
     }
 
@@ -13656,6 +13666,78 @@ final class PdfMetadataExtractor
         }
 
         return count($row) > 3 ? $row : [];
+    }
+
+    /**
+     * Same-packet RDF resource references are resolved only when the target is
+     * unique. Duplicate target IDs or blank node IDs remain review-only so stale
+     * repair nodes cannot silently overwrite current document metadata.
+     *
+     * @return array<string, mixed>
+     */
+    private function xmpResourceReferenceBoundaryMetadata(DOMDocument $document): array
+    {
+        $rows = [];
+        $resourceIds = [];
+        $nodeIds = [];
+
+        foreach ($this->xmpDocumentLevelRdfElements($document) as $rdf) {
+            foreach ($this->xmpRdfDescendantElements($rdf) as $element) {
+                if ($this->xmpElementIsRdfNodeElement($element)) {
+                    continue;
+                }
+
+                if ($element->hasAttributeNS(self::NS_RDF, 'resource')) {
+                    $id = $this->xmpFragmentResourceId($element->getAttributeNS(self::NS_RDF, 'resource'));
+                    if ($id !== null) {
+                        $targetCount = count($this->xmpDocumentLevelReferencedTargetElements($element, $id, false));
+                        if ($targetCount > 1) {
+                            $resourceIds[] = $id;
+                            $rows[] = [
+                                'kind' => 'rdf_resource',
+                                'id' => $id,
+                                'property' => $element->localName,
+                                'namespace_uri' => $element->namespaceURI ?? '',
+                                'target_count' => $targetCount,
+                                'policy' => 'ambiguous_reference_not_resolved',
+                            ];
+                        }
+                    }
+                }
+
+                if ($element->hasAttributeNS(self::NS_RDF, 'nodeID')) {
+                    $id = $this->xmpBlankNodeId($element->getAttributeNS(self::NS_RDF, 'nodeID'));
+                    if ($id !== null) {
+                        $targetCount = count($this->xmpDocumentLevelReferencedTargetElements($element, $id, true));
+                        if ($targetCount > 1) {
+                            $nodeIds[] = $id;
+                            $rows[] = [
+                                'kind' => 'rdf_node_id',
+                                'id' => $id,
+                                'property' => $element->localName,
+                                'namespace_uri' => $element->namespaceURI ?? '',
+                                'target_count' => $targetCount,
+                                'policy' => 'ambiguous_reference_not_resolved',
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($rows === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'xmp_resource_reference_boundary',
+            'review_only' => true,
+            'payload_included' => false,
+            'ambiguous_reference_count' => count($rows),
+            'ambiguous_resource_ids' => $this->uniqueStrings($resourceIds),
+            'ambiguous_node_ids' => $this->uniqueStrings($nodeIds),
+            'ambiguous_references' => $rows,
+        ];
     }
 
     /**
@@ -14235,27 +14317,41 @@ final class PdfMetadataExtractor
 
     private function xmpDocumentLevelReferencedTargetElement(DOMElement $source, string $id, bool $nodeId): ?DOMElement
     {
+        $targets = $this->xmpDocumentLevelReferencedTargetElements($source, $id, $nodeId);
+
+        return count($targets) === 1 ? $targets[0] : null;
+    }
+
+    /**
+     * @return list<DOMElement>
+     */
+    private function xmpDocumentLevelReferencedTargetElements(DOMElement $source, string $id, bool $nodeId): array
+    {
         $document = $source->ownerDocument;
         if (!$document instanceof DOMDocument) {
-            return null;
+            return [];
         }
 
+        $targets = [];
         foreach ($this->xmpDocumentLevelRdfElements($document) as $rdf) {
-            $target = $this->xmpRdfDescendantReferencedTargetElement($rdf, $source, $id, $nodeId);
-            if ($target !== null) {
-                return $target;
+            foreach ($this->xmpRdfDescendantReferencedTargetElements($rdf, $source, $id, $nodeId) as $target) {
+                $targets[] = $target;
             }
         }
 
-        return null;
+        return $targets;
     }
 
-    private function xmpRdfDescendantReferencedTargetElement(
+    /**
+     * @return list<DOMElement>
+     */
+    private function xmpRdfDescendantReferencedTargetElements(
         DOMElement $element,
         DOMElement $source,
         string $id,
         bool $nodeId
-    ): ?DOMElement {
+    ): array {
+        $targets = [];
         foreach ($element->childNodes as $child) {
             if (!$child instanceof DOMElement) {
                 continue;
@@ -14269,16 +14365,48 @@ final class PdfMetadataExtractor
                 !$child->isSameNode($source)
                 && $this->xmpElementMatchesReferencedTarget($child, $id, $nodeId)
             ) {
-                return $child;
+                $targets[] = $child;
             }
 
-            $target = $this->xmpRdfDescendantReferencedTargetElement($child, $source, $id, $nodeId);
-            if ($target !== null) {
-                return $target;
+            foreach ($this->xmpRdfDescendantReferencedTargetElements($child, $source, $id, $nodeId) as $target) {
+                $targets[] = $target;
             }
         }
 
-        return null;
+        return $targets;
+    }
+
+    /**
+     * @return list<DOMElement>
+     */
+    private function xmpRdfDescendantElements(DOMElement $element): array
+    {
+        $elements = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof DOMElement) {
+                continue;
+            }
+
+            if ($child->namespaceURI === self::NS_RDF && $child->localName === 'RDF') {
+                continue;
+            }
+
+            $elements[] = $child;
+            foreach ($this->xmpRdfDescendantElements($child) as $descendant) {
+                $elements[] = $descendant;
+            }
+        }
+
+        return $elements;
+    }
+
+    private function xmpElementIsRdfNodeElement(DOMElement $element): bool
+    {
+        $parent = $element->parentNode;
+
+        return $parent instanceof DOMElement
+            && $parent->namespaceURI === self::NS_RDF
+            && $parent->localName === 'RDF';
     }
 
     private function xmpElementMatchesReferencedTarget(DOMElement $element, string $id, bool $nodeId): bool
@@ -21014,6 +21142,13 @@ final class PdfMetadataExtractor
             $fieldNames[] = 'media_management';
         }
 
+        $resourceReferenceBoundary = is_array($parsed['resource_reference_boundary'] ?? null)
+            ? $parsed['resource_reference_boundary']
+            : [];
+        if ($resourceReferenceBoundary !== []) {
+            $fieldNames[] = 'resource_reference_boundary';
+        }
+
         $datesUtc = [];
         foreach (['created_at', 'modified_at', 'metadata_date'] as $field) {
             $value = $parsed[$field] ?? null;
@@ -21030,6 +21165,9 @@ final class PdfMetadataExtractor
         $redactedFields = ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords', 'format', 'rights', 'languages'];
         if ($dublinCore !== []) {
             $redactedFields[] = 'dublin_core';
+        }
+        if ($resourceReferenceBoundary !== []) {
+            $redactedFields[] = 'resource_reference_boundary';
         }
 
         $summary = [
@@ -21076,6 +21214,19 @@ final class PdfMetadataExtractor
             if (isset($mediaManagement['derived_from']) && is_array($mediaManagement['derived_from'])) {
                 $summary['has_media_management_derived_from'] = true;
             }
+        }
+        if ($resourceReferenceBoundary !== []) {
+            $summary['resource_reference_boundary'] = [
+                'source' => $resourceReferenceBoundary['source'] ?? 'xmp_resource_reference_boundary',
+                'ambiguous_reference_count' => $resourceReferenceBoundary['ambiguous_reference_count'] ?? 0,
+                'ambiguous_resource_ids' => is_array($resourceReferenceBoundary['ambiguous_resource_ids'] ?? null)
+                    ? array_values($resourceReferenceBoundary['ambiguous_resource_ids'])
+                    : [],
+                'ambiguous_node_ids' => is_array($resourceReferenceBoundary['ambiguous_node_ids'] ?? null)
+                    ? array_values($resourceReferenceBoundary['ambiguous_node_ids'])
+                    : [],
+                'payload_included' => false,
+            ];
         }
 
         return $summary;
