@@ -1507,8 +1507,6 @@ final class DocxReader
         array $numbering
     ): array
     {
-        $blocks = [];
-        $pendingListParagraphs = [];
         $activeCommentRangeId = null;
         $activeProofError = null;
         $activeProofErrorNodes = [];
@@ -1516,6 +1514,54 @@ final class DocxReader
         $activePermissionRangeNodes = [];
         $activeMoveRange = null;
         $activeMoveRangeNodes = [];
+
+        return $this->blockContainerChildrenWithRanges(
+            $container,
+            $package,
+            $relationships,
+            $referencedNotes,
+            $styles,
+            $numbering,
+            $activeCommentRangeId,
+            $activeProofError,
+            $activeProofErrorNodes,
+            $activePermissionRange,
+            $activePermissionRangeNodes,
+            $activeMoveRange,
+            $activeMoveRangeNodes
+        );
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @param array{kind:string, startType:string}|null $activeProofError
+     * @param list<AstNode> $activeProofErrorNodes
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $activePermissionRange
+     * @param list<AstNode> $activePermissionRangeNodes
+     * @param array{type:string, classes:list<string>, attributes:array<string, string>}|null $activeMoveRange
+     * @param list<AstNode> $activeMoveRangeNodes
+     * @return list<AstNode>
+     */
+    private function blockContainerChildrenWithRanges(
+        \DOMElement $container,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering,
+        ?string &$activeCommentRangeId,
+        ?array &$activeProofError,
+        array &$activeProofErrorNodes,
+        ?array &$activePermissionRange,
+        array &$activePermissionRangeNodes,
+        ?array &$activeMoveRange,
+        array &$activeMoveRangeNodes
+    ): array
+    {
+        $blocks = [];
+        $pendingListParagraphs = [];
         $sectionNotePolicies = $this->isWordElement($container, 'body') ? $this->bodyNoteNumberingPolicySequence($container) : [];
         $sectionNotePolicyIndex = 0;
         if ($sectionNotePolicies !== []) {
@@ -1607,7 +1653,21 @@ final class DocxReader
 
             if ($this->isWordElement($child, 'tbl')) {
                 $this->appendListParagraphs($blocks, $pendingListParagraphs);
-                $blocks[] = $this->tableNode($child, $package, $relationships, $referencedNotes, $styles, $numbering);
+                $blocks[] = $this->tableNode(
+                    $child,
+                    $package,
+                    $relationships,
+                    $referencedNotes,
+                    $styles,
+                    $numbering,
+                    $activeCommentRangeId,
+                    $activeProofError,
+                    $activeProofErrorNodes,
+                    $activePermissionRange,
+                    $activePermissionRangeNodes,
+                    $activeMoveRange,
+                    $activeMoveRangeNodes
+                );
                 continue;
             }
 
@@ -6219,14 +6279,27 @@ final class DocxReader
      * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @param array{kind:string, startType:string}|null $activeProofError
+     * @param list<AstNode> $activeProofErrorNodes
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $activePermissionRange
+     * @param list<AstNode> $activePermissionRangeNodes
+     * @param array{type:string, classes:list<string>, attributes:array<string, string>}|null $activeMoveRange
+     * @param list<AstNode> $activeMoveRangeNodes
      */
     private function tableNode(
         \DOMElement $table,
         ZipPackage $package,
         ?OpcRelationships $relationships,
         array $referencedNotes,
-        array $styles = [],
-        array $numbering = []
+        array $styles,
+        array $numbering,
+        ?string &$activeCommentRangeId,
+        ?array &$activeProofError,
+        array &$activeProofErrorNodes,
+        ?array &$activePermissionRange,
+        array &$activePermissionRangeNodes,
+        ?array &$activeMoveRange,
+        array &$activeMoveRangeNodes
     ): AstNode
     {
         $rows = [];
@@ -6262,7 +6335,21 @@ final class DocxReader
                 if ($colspan > 1) {
                     $attrs['colspan'] = $colspan;
                 }
-                $cellBlocks = $this->tableCellBlocks($cellElement, $package, $relationships, $referencedNotes, $styles, $numbering);
+                $cellBlocks = $this->tableCellBlocks(
+                    $cellElement,
+                    $package,
+                    $relationships,
+                    $referencedNotes,
+                    $styles,
+                    $numbering,
+                    $activeCommentRangeId,
+                    $activeProofError,
+                    $activeProofErrorNodes,
+                    $activePermissionRange,
+                    $activePermissionRangeNodes,
+                    $activeMoveRange,
+                    $activeMoveRangeNodes
+                );
                 $attrs['text'] = $this->plainBlockText($cellBlocks);
 
                 $cells[] = new AstNode('table_cell', $attrs, $cellBlocks);
@@ -7384,6 +7471,12 @@ final class DocxReader
      * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @param array{kind:string, startType:string}|null $activeProofError
+     * @param list<AstNode> $activeProofErrorNodes
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $activePermissionRange
+     * @param list<AstNode> $activePermissionRangeNodes
+     * @param array{type:string, classes:list<string>, attributes:array<string, string>}|null $activeMoveRange
+     * @param list<AstNode> $activeMoveRangeNodes
      * @return list<AstNode>
      */
     private function tableCellBlocks(
@@ -7391,11 +7484,32 @@ final class DocxReader
         ZipPackage $package,
         ?OpcRelationships $relationships,
         array $referencedNotes,
-        array $styles = [],
-        array $numbering = []
+        array $styles,
+        array $numbering,
+        ?string &$activeCommentRangeId,
+        ?array &$activeProofError,
+        array &$activeProofErrorNodes,
+        ?array &$activePermissionRange,
+        array &$activePermissionRangeNodes,
+        ?array &$activeMoveRange,
+        array &$activeMoveRangeNodes
     ): array
     {
-        return $this->blockContainerChildren($cell, $package, $relationships, $referencedNotes, $styles, $numbering);
+        return $this->blockContainerChildrenWithRanges(
+            $cell,
+            $package,
+            $relationships,
+            $referencedNotes,
+            $styles,
+            $numbering,
+            $activeCommentRangeId,
+            $activeProofError,
+            $activeProofErrorNodes,
+            $activePermissionRange,
+            $activePermissionRangeNodes,
+            $activeMoveRange,
+            $activeMoveRangeNodes
+        );
     }
 
     private function tableCellGridSpan(\DOMElement $cell): int

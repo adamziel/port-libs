@@ -1683,6 +1683,61 @@ $crossParagraphProofPermissionRangeDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$crossTableReviewerRangeDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Table proof </w:t></w:r>
+      <w:proofErr w:type="spellStart"/>
+      <w:r><w:t>migraton before table</w:t></w:r>
+    </w:p>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:p>
+            <w:r><w:t>closes inside cell</w:t></w:r>
+            <w:proofErr w:type="spellEnd"/>
+            <w:r><w:t xml:space="preserve"> after proof.</w:t></w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Table permission </w:t></w:r>
+      <w:permStart w:id="91" w:user="reviewer@example.test"/>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>starts before table</w:t></w:r>
+    </w:p>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:p>
+            <w:r><w:t>continues in cell</w:t></w:r>
+            <w:permEnd w:id="91"/>
+            <w:r><w:t xml:space="preserve"> after permission.</w:t></w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Table move destination </w:t></w:r>
+      <w:moveToRangeStart w:id="92" w:author="Migration Editor" w:date="2026-06-08T12:43:39Z" w:name="table_move_destination"/>
+      <w:r><w:t>starts accepted before table</w:t></w:r>
+    </w:p>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:p>
+            <w:r><w:t>continues accepted in cell</w:t></w:r>
+            <w:moveToRangeEnd w:id="92"/>
+            <w:r><w:t xml:space="preserve"> after move.</w:t></w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $structuredDocumentTagXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -3109,6 +3164,14 @@ $buildCrossParagraphProofPermissionRangePackage = static function () use ($conte
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $crossParagraphProofPermissionRangeDocumentXml],
+    ]);
+};
+
+$buildCrossTableReviewerRangePackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $crossTableReviewerRangeDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $crossTableReviewerRangeDocumentXml],
     ]);
 };
 
@@ -5846,6 +5909,99 @@ return [
         $t->contains('<p><span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd">and closes here</span> after proof.</p>', $blocks);
         $t->contains('<p>Permission <span class="docx-permission-range docx-permission-group" data-docx-permission-id="70" data-docx-permission-group="everyone"><strong>starts here</strong></span></p>', $blocks);
         $t->contains('<p><span class="docx-permission-range docx-permission-group" data-docx-permission-id="70" data-docx-permission-group="everyone">continues here</span> after permission.</p>', $blocks);
+    },
+    'keeps DOCX reviewer ranges active across table cell boundaries' => static function (TestRunner $t) use ($buildCrossTableReviewerRangePackage): void {
+        $document = (new DocxReader())->readDocument($buildCrossTableReviewerRangePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(6, count($document->children));
+
+        $proofStartParagraph = $document->children[0];
+        $t->same('paragraph', $proofStartParagraph->type);
+        $t->same('Table proof ', $proofStartParagraph->children[0]->attr('text'));
+        $proofStart = $proofStartParagraph->children[1];
+        $t->same('span', $proofStart->type);
+        $t->same(['docx-proof-error', 'docx-proof-spelling'], $proofStart->attr('classes'));
+        $proofStartAttrs = $proofStart->attr('attributes');
+        $t->same('spelling', $proofStartAttrs['data-docx-proof-error']);
+        $t->same('spellStart', $proofStartAttrs['data-docx-proof-start']);
+        $t->same(null, $proofStartAttrs['data-docx-proof-end'] ?? null);
+        $t->same('migraton before table', $proofStart->children[0]->attr('text'));
+
+        $proofCellParagraph = $document->children[1]->children[0]->children[0]->children[0]->children[0];
+        $t->same('paragraph', $proofCellParagraph->type);
+        $proofEnd = $proofCellParagraph->children[0];
+        $t->same('span', $proofEnd->type);
+        $t->same(['docx-proof-error', 'docx-proof-spelling'], $proofEnd->attr('classes'));
+        $proofEndAttrs = $proofEnd->attr('attributes');
+        $t->same('spelling', $proofEndAttrs['data-docx-proof-error']);
+        $t->same('spellStart', $proofEndAttrs['data-docx-proof-start']);
+        $t->same('spellEnd', $proofEndAttrs['data-docx-proof-end']);
+        $t->same('closes inside cell', $proofEnd->children[0]->attr('text'));
+        $t->same(' after proof.', $proofCellParagraph->children[1]->attr('text'));
+
+        $permissionStartParagraph = $document->children[2];
+        $t->same('paragraph', $permissionStartParagraph->type);
+        $t->same('Table permission ', $permissionStartParagraph->children[0]->attr('text'));
+        $permissionStart = $permissionStartParagraph->children[1];
+        $t->same('span', $permissionStart->type);
+        $t->same(['docx-permission-range', 'docx-permission-user'], $permissionStart->attr('classes'));
+        $permissionStartAttrs = $permissionStart->attr('attributes');
+        $t->same('91', $permissionStartAttrs['data-docx-permission-id']);
+        $t->same('reviewer@example.test', $permissionStartAttrs['data-docx-permission-user']);
+        $t->same('strong', $permissionStart->children[0]->type);
+        $t->same('starts before table', $permissionStart->children[0]->children[0]->attr('text'));
+
+        $permissionCellParagraph = $document->children[3]->children[0]->children[0]->children[0]->children[0];
+        $t->same('paragraph', $permissionCellParagraph->type);
+        $permissionEnd = $permissionCellParagraph->children[0];
+        $t->same('span', $permissionEnd->type);
+        $t->same(['docx-permission-range', 'docx-permission-user'], $permissionEnd->attr('classes'));
+        $permissionEndAttrs = $permissionEnd->attr('attributes');
+        $t->same('91', $permissionEndAttrs['data-docx-permission-id']);
+        $t->same('reviewer@example.test', $permissionEndAttrs['data-docx-permission-user']);
+        $t->same('continues in cell', $permissionEnd->children[0]->attr('text'));
+        $t->same(' after permission.', $permissionCellParagraph->children[1]->attr('text'));
+
+        $moveStartParagraph = $document->children[4];
+        $t->same('paragraph', $moveStartParagraph->type);
+        $t->same('Table move destination ', $moveStartParagraph->children[0]->attr('text'));
+        $moveStart = $moveStartParagraph->children[1];
+        $t->same('span', $moveStart->type);
+        $t->same(['docx-move-to-range'], $moveStart->attr('classes'));
+        $moveStartAttrs = $moveStart->attr('attributes');
+        $t->same('move-to-range', $moveStartAttrs['data-docx-change']);
+        $t->same('92', $moveStartAttrs['data-docx-change-id']);
+        $t->same('Migration Editor', $moveStartAttrs['data-docx-author']);
+        $t->same('2026-06-08T12:43:39Z', $moveStartAttrs['data-docx-date']);
+        $t->same('table_move_destination', $moveStartAttrs['data-docx-move-range-name']);
+        $t->same('starts accepted before table', $moveStart->children[0]->attr('text'));
+
+        $moveCellParagraph = $document->children[5]->children[0]->children[0]->children[0]->children[0];
+        $t->same('paragraph', $moveCellParagraph->type);
+        $moveEnd = $moveCellParagraph->children[0];
+        $t->same('span', $moveEnd->type);
+        $t->same(['docx-move-to-range'], $moveEnd->attr('classes'));
+        $moveEndAttrs = $moveEnd->attr('attributes');
+        $t->same('move-to-range', $moveEndAttrs['data-docx-change']);
+        $t->same('92', $moveEndAttrs['data-docx-change-id']);
+        $t->same('Migration Editor', $moveEndAttrs['data-docx-author']);
+        $t->same('2026-06-08T12:43:39Z', $moveEndAttrs['data-docx-date']);
+        $t->same('table_move_destination', $moveEndAttrs['data-docx-move-range-name']);
+        $t->same('continues accepted in cell', $moveEnd->children[0]->attr('text'));
+        $t->same(' after move.', $moveCellParagraph->children[1]->attr('text'));
+
+        $t->contains('Table proof [migraton before table]{.docx-proof-error .docx-proof-spelling data-docx-proof-error="spelling" data-docx-proof-start="spellStart"}', $markdown);
+        $t->contains('[closes inside cell]{.docx-proof-error .docx-proof-spelling data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd"} after proof.', $markdown);
+        $t->contains('Table permission [**starts before table**]{.docx-permission-range .docx-permission-user data-docx-permission-id="91" data-docx-permission-user="reviewer@example.test"}', $markdown);
+        $t->contains('[continues in cell]{.docx-permission-range .docx-permission-user data-docx-permission-id="91" data-docx-permission-user="reviewer@example.test"} after permission.', $markdown);
+        $t->contains('Table move destination [starts accepted before table]{.docx-move-to-range data-docx-change="move-to-range" data-docx-change-id="92" data-docx-author="Migration Editor" data-docx-date="2026-06-08T12:43:39Z" data-docx-move-range-name="table_move_destination"}', $markdown);
+        $t->contains('[continues accepted in cell]{.docx-move-to-range data-docx-change="move-to-range" data-docx-change-id="92" data-docx-author="Migration Editor" data-docx-date="2026-06-08T12:43:39Z" data-docx-move-range-name="table_move_destination"} after move.', $markdown);
+
+        $t->contains('<td><p><span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd">closes inside cell</span> after proof.</p></td>', $blocks);
+        $t->contains('<td><p><span class="docx-permission-range docx-permission-user" data-docx-permission-id="91" data-docx-permission-user="reviewer@example.test">continues in cell</span> after permission.</p></td>', $blocks);
+        $t->contains('<td><p><span class="docx-move-to-range" data-docx-change="move-to-range" data-docx-change-id="92" data-docx-author="Migration Editor" data-docx-date="2026-06-08T12:43:39Z" data-docx-move-range-name="table_move_destination">continues accepted in cell</span> after move.</p></td>', $blocks);
     },
     'preserves DOCX structured document tag content controls with reviewer metadata' => static function (TestRunner $t) use ($buildStructuredDocumentTagPackage): void {
         $document = (new DocxReader())->readDocument($buildStructuredDocumentTagPackage());
