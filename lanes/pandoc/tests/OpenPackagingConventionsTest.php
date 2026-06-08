@@ -5258,6 +5258,113 @@ XML;
         $t->same(false, $documentInventory[OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['policyValid']);
         $t->same(['multiple-thumbnail-relationships-for-source'], $documentInventory[OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['policyIssues']);
     },
+    'classifies fixed WordprocessingML support relationships as source scoped singletons' => static function (TestRunner $t): void {
+        $stylesType = OpcRelationshipGraph::WORDPROCESSING_STYLES_RELATIONSHIP_TYPE;
+        $numberingType = OpcRelationshipGraph::WORDPROCESSING_NUMBERING_RELATIONSHIP_TYPE;
+        $settingsType = OpcRelationshipGraph::WORDPROCESSING_SETTINGS_RELATIONSHIP_TYPE;
+        $hyperlinkType = OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE;
+
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/alternate-styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/word/settings-copy.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="{$stylesType}" Target="styles.xml"/>
+  <Relationship Id="rIdStylesDuplicate" Type="{$stylesType}" Target="alternate-styles.xml"/>
+  <Relationship Id="rIdNumbering" Type="{$numberingType}" Target="numbering.xml"/>
+  <Relationship Id="rIdSettings" Type="{$settingsType}" Target="settings.xml"/>
+  <Relationship Id="rIdSettingsDuplicate" Type="{$settingsType}" Target="settings-copy.xml"/>
+  <Relationship Id="rIdSourceLinkA" Type="{$hyperlinkType}" Target="https://example.test/a" TargetMode="External"/>
+  <Relationship Id="rIdSourceLinkB" Type="{$hyperlinkType}" Target="https://example.test/b" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentStyles" Type="{$stylesType}" Target="styles.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles/>'],
+            ['name' => 'word/alternate-styles.xml', 'data' => '<w:styles/>'],
+            ['name' => 'word/numbering.xml', 'data' => '<w:numbering/>'],
+            ['name' => 'word/settings.xml', 'data' => '<w:settings/>'],
+            ['name' => 'word/settings-copy.xml', 'data' => '<w:settings/>'],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+        ]));
+
+        $inventory = [];
+        foreach ($graph->relationshipTypeInventory() as $type) {
+            $inventory[$type['type']] = $type;
+        }
+
+        $styles = $inventory[$stylesType];
+        $numbering = $inventory[$numberingType];
+        $settings = $inventory[$settingsType];
+        $hyperlinks = $inventory[$hyperlinkType];
+
+        $t->same('styles', $styles['knownRole']);
+        $t->same('any-source', $styles['sourceScope']);
+        $t->same('source', $styles['singletonScope']);
+        $t->same(false, $styles['policyValid']);
+        $t->same(['multiple-styles-relationships-for-source'], $styles['policyIssues']);
+        $t->same(3, $styles['relationshipCount']);
+        $t->same(2, $styles['sourceCount']);
+        $t->same(['/word/comments.xml', '/word/document.xml'], $styles['sources']);
+        $t->same(['rIdCommentStyles'], $styles['idsBySource']['/word/comments.xml']);
+        $t->same(['rIdStyles', 'rIdStylesDuplicate'], $styles['idsBySource']['/word/document.xml']);
+
+        $t->same('numbering', $numbering['knownRole']);
+        $t->same('source', $numbering['singletonScope']);
+        $t->same(true, $numbering['policyValid']);
+        $t->same([], $numbering['policyIssues']);
+
+        $t->same('settings', $settings['knownRole']);
+        $t->same('source', $settings['singletonScope']);
+        $t->same(false, $settings['policyValid']);
+        $t->same(['multiple-settings-relationships-for-source'], $settings['policyIssues']);
+        $t->same(['rIdSettings', 'rIdSettingsDuplicate'], $settings['idsBySource']['/word/document.xml']);
+
+        $t->same(null, $hyperlinks['knownRole']);
+        $t->same(null, $hyperlinks['singletonScope']);
+        $t->same(true, $hyperlinks['policyValid']);
+        $t->same([], $hyperlinks['policyIssues']);
+
+        $consistency = $graph->preflightPackageConsistency();
+        $policies = [];
+        foreach ($consistency['relationshipTypePolicies'] as $policy) {
+            $policies[$policy['type']] = $policy;
+        }
+
+        $t->same(false, $consistency['relationshipTypePoliciesValid']);
+        $t->same(false, $policies[$stylesType]['policyValid']);
+        $t->same(true, $policies[$numberingType]['policyValid']);
+        $t->same(false, $policies[$settingsType]['policyValid']);
+        $t->same(false, isset($policies[$hyperlinkType]));
+    },
     'preflights OPC relationship type policies in package consistency' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

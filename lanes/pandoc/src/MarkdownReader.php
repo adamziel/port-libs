@@ -713,6 +713,12 @@ final class MarkdownReader
         $nextStreams = $this->yamlMetadataStreamProvenanceList($next['__yamlMetadataStreamProvenance'] ?? []);
         $currentFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($current['__yamlMetadataFieldQuoteMap'] ?? []);
         $nextFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($next['__yamlMetadataFieldQuoteMap'] ?? []);
+        $streamOverrideDiagnostics = $this->yamlMetadataStreamOverrideDiagnostics(
+            $this->yamlMetadataUserFields($current),
+            $this->yamlMetadataUserFields($next),
+            $currentStreams,
+            $nextStreams
+        );
         unset(
             $current['__yamlMetadataDiagnostics'],
             $next['__yamlMetadataDiagnostics'],
@@ -735,7 +741,7 @@ final class MarkdownReader
         );
 
         $merged = array_replace($current, $next);
-        $diagnostics = array_merge($currentDiagnostics, $nextDiagnostics);
+        $diagnostics = array_merge($currentDiagnostics, $nextDiagnostics, $streamOverrideDiagnostics);
         if ($diagnostics !== []) {
             $merged['__yamlMetadataDiagnostics'] = $diagnostics;
         }
@@ -773,6 +779,123 @@ final class MarkdownReader
         }
 
         return $merged;
+    }
+
+    /**
+     * @param array<string, true> $currentFields
+     * @param array<string, true> $nextFields
+     * @param list<array<string, string>> $currentStreams
+     * @param list<array<string, string>> $nextStreams
+     * @return list<array<string, string>>
+     */
+    private function yamlMetadataStreamOverrideDiagnostics(
+        array $currentFields,
+        array $nextFields,
+        array $currentStreams,
+        array $nextStreams
+    ): array {
+        if ($currentFields === [] || $nextFields === [] || $currentStreams === [] || $nextStreams === []) {
+            return [];
+        }
+
+        $diagnostics = [];
+        foreach (array_keys($nextFields) as $field) {
+            if (!array_key_exists($field, $currentFields)) {
+                continue;
+            }
+
+            $currentStream = $this->yamlMetadataLatestStreamForField($currentStreams, $field);
+            $nextStream = $this->yamlMetadataLatestStreamForField($nextStreams, $field);
+            if ($currentStream === null || $nextStream === null) {
+                continue;
+            }
+
+            $diagnostic = [
+                'type' => 'yaml-stream',
+                'reason' => 'stream-field-overridden',
+                'field' => $field,
+                'path' => $this->yamlMetadataTopLevelPath($field),
+                'previousDocumentIndex' => $currentStream['documentIndex'] ?? '',
+                'documentIndex' => $nextStream['documentIndex'] ?? '',
+                'previousSource' => $currentStream['source'] ?? '',
+                'source' => $nextStream['source'] ?? '',
+            ];
+            foreach ([
+                'startLine' => 'previousStartLine',
+                'endLine' => 'previousEndLine',
+            ] as $streamKey => $diagnosticKey) {
+                if (($currentStream[$streamKey] ?? '') !== '') {
+                    $diagnostic[$diagnosticKey] = $currentStream[$streamKey];
+                }
+            }
+            foreach (['startLine', 'endLine'] as $streamKey) {
+                if (($nextStream[$streamKey] ?? '') !== '') {
+                    $diagnostic[$streamKey] = $nextStream[$streamKey];
+                }
+            }
+
+            $diagnostics[] = $diagnostic;
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, true>
+     */
+    private function yamlMetadataUserFields(array $metadata): array
+    {
+        $fields = [];
+        foreach (array_keys($metadata) as $field) {
+            $fieldName = (string) $field;
+            if ($fieldName === '' || str_starts_with($fieldName, '__yamlMetadata')) {
+                continue;
+            }
+
+            $fields[$fieldName] = true;
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param list<array<string, string>> $streams
+     * @return array<string, string>|null
+     */
+    private function yamlMetadataLatestStreamForField(array $streams, string $field): ?array
+    {
+        for ($index = count($streams) - 1; $index >= 0; $index--) {
+            if ($this->yamlMetadataStreamHasField($streams[$index], $field)) {
+                return $streams[$index];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $stream
+     */
+    private function yamlMetadataStreamHasField(array $stream, string $field): bool
+    {
+        $decoded = json_decode($stream['fields'] ?? '[]', true);
+        if (!is_array($decoded)) {
+            return false;
+        }
+
+        foreach ($decoded as $candidate) {
+            if ((string) $candidate === $field) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function yamlMetadataTopLevelPath(string $field): string
+    {
+        return '/' . str_replace(['~', '/'], ['~0', '~1'], $field);
     }
 
     private function recordYamlDuplicateKeyDiagnostic(int|string $key): void

@@ -512,6 +512,10 @@ $mergeShadowDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'merge-sequence-shadowed-key'
 ));
+$streamOverrideDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'stream-field-overridden'
+));
 $flowNullKeyDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'flow-key-only-null'
@@ -682,6 +686,15 @@ $lateDirectiveBlocks = (new WordPressBlockWriter())->write($lateDirectiveDocumen
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
+    }
+    if (
+        count($streamOverrideDiagnostics) !== 1
+        || ($streamOverrideDiagnostics[0]['field'] ?? '') !== 'review'
+        || ($streamOverrideDiagnostics[0]['path'] ?? '') !== '/review'
+        || ($streamOverrideDiagnostics[0]['previousDocumentIndex'] ?? '') !== '1'
+        || ($streamOverrideDiagnostics[0]['documentIndex'] ?? '') !== '2'
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing stream override diagnostics');
     }
     if (!in_array('1.2', array_column($yamlDirectiveProvenance, 'version'), true)) {
         throw new RuntimeException('YAML metadata self-test missing YAML directive version provenance');

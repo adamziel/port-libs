@@ -4225,7 +4225,7 @@ final class OpcRelationshipGraph
      */
     private static function relationshipTypePolicyDefinitions(): array
     {
-        return [
+        $definitions = [
             self::OFFICE_DOCUMENT_RELATIONSHIP_TYPE => [
                 'role' => 'office-document',
                 'sourceScope' => 'package-root',
@@ -4274,6 +4274,38 @@ final class OpcRelationshipGraph
                 'singletonScope' => 'source',
                 'multipleIssue' => 'multiple-thumbnail-relationships-for-source',
             ],
+        ];
+
+        foreach (self::wordprocessingSourceSingletonRelationshipRoles() as $relationshipType => $role) {
+            $definitions[$relationshipType] = [
+                'role' => $role,
+                'sourceScope' => 'any-source',
+                'singletonScope' => 'source',
+                'multipleIssue' => 'multiple-' . $role . '-relationships-for-source',
+            ];
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function wordprocessingSourceSingletonRelationshipRoles(): array
+    {
+        return [
+            self::WORDPROCESSING_STYLES_RELATIONSHIP_TYPE => 'styles',
+            self::WORDPROCESSING_NUMBERING_RELATIONSHIP_TYPE => 'numbering',
+            self::WORDPROCESSING_FOOTNOTES_RELATIONSHIP_TYPE => 'footnotes',
+            self::WORDPROCESSING_ENDNOTES_RELATIONSHIP_TYPE => 'endnotes',
+            self::WORDPROCESSING_COMMENTS_RELATIONSHIP_TYPE => 'comments',
+            self::WORDPROCESSING_SETTINGS_RELATIONSHIP_TYPE => 'settings',
+            self::WORDPROCESSING_THEME_RELATIONSHIP_TYPE => 'theme',
+            self::WORDPROCESSING_FONT_TABLE_RELATIONSHIP_TYPE => 'font-table',
+            self::WORDPROCESSING_WEB_SETTINGS_RELATIONSHIP_TYPE => 'web-settings',
+            self::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE => 'custom-xml-properties',
+            self::WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE => 'comments-extended',
+            self::WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE => 'glossary-document',
         ];
     }
 

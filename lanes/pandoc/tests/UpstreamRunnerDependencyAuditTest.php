@@ -5416,4 +5416,73 @@ return [
         $t->contains('no unexpected pandoc-lua-engine library file artifact globs', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks lua engine library mixins and build tools before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            implode("\n", [
+                'library',
+                '  import: test-options',
+                '  hs-source-dirs: src',
+                '  exposed-modules: Text.Pandoc.Lua',
+            ]),
+            implode("\n", [
+                'library',
+                '  import: test-options',
+                '  hs-source-dirs: src',
+                '  mixins:',
+                '    hslua-module-path (HsLua.Module.Path as HsLua.Module.Path.RunnerAudit)',
+                '  build-tool-depends:',
+                '    hsc2hs:hsc2hs >= 0.68,',
+                '    happy:happy >= 1.20',
+                '  build-tools: alex, doctest',
+                '  exposed-modules: Text.Pandoc.Lua',
+            ]),
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExtraSourceFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExtraDocFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExtraTmpFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDataFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedConditionalBranches']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedNativeSystemFields']);
+        $t->same([
+            'hslua-module-path (HsLua.Module.Path as HsLua.Module.Path.RunnerAudit)',
+        ], $audit['luaEngineLibraryClosure']['presentMixins']);
+        $t->same($audit['luaEngineLibraryClosure']['presentMixins'], $audit['luaEngineLibraryClosure']['unexpectedMixins']);
+        $t->same([
+            'hsc2hs:hsc2hs >= 0.68',
+            'happy:happy >= 1.20',
+        ], $audit['luaEngineLibraryClosure']['presentBuildToolDepends']);
+        $t->same([
+            'alex',
+            'doctest',
+        ], $audit['luaEngineLibraryClosure']['presentBuildTools']);
+        $t->same([
+            'build-tool-depends: hsc2hs:hsc2hs >= 0.68',
+            'build-tool-depends: happy:happy >= 1.20',
+            'build-tools: alex',
+            'build-tools: doctest',
+        ], $audit['luaEngineLibraryClosure']['unexpectedBuildTools']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected pandoc-lua-engine library mixins: hslua-module-path (HsLua.Module.Path as HsLua.Module.Path.RunnerAudit)', $blocked);
+        $t->contains('unexpected pandoc-lua-engine library build-tool dependencies: build-tool-depends: hsc2hs:hsc2hs >= 0.68, build-tool-depends: happy:happy >= 1.20, build-tools: alex, build-tools: doctest', $blocked);
+        $t->contains('no unexpected pandoc-lua-engine library mixins or build-tool dependencies', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
 ];

@@ -1371,6 +1371,41 @@ return [
         $t->same(['4', '11'], array_column($streamProvenance, 'endLine'));
         $t->same(['["title","review"]', '["title","review","references"]'], array_column($streamProvenance, 'fields'));
     },
+    'records pandoc yaml stream field override diagnostics' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Draft stream **Packet**',
+            'review: {status: queued, priority: 4, labels: [draft]}',
+            '...',
+            '---',
+            'title: Final stream **Packet**',
+            'review: {status: approved, owner: Stream Desk}',
+            'date: 2026-06-08',
+            '...',
+            '',
+            '# Stream override body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = array_values(array_filter(
+            $document->attr('yamlMetadataDiagnostics', []),
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'stream-field-overridden'
+        ));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Final stream **Packet**', $meta['title']);
+        $t->same(['status' => 'approved', 'owner' => 'Stream Desk'], $meta['review']);
+        $t->same('2026-06-08', $meta['date']);
+        $t->same(2, count($diagnostics));
+        $t->same(['title', 'review'], array_column($diagnostics, 'field'));
+        $t->same(['/title', '/review'], array_column($diagnostics, 'path'));
+        $t->same(['1', '1'], array_column($diagnostics, 'previousDocumentIndex'));
+        $t->same(['2', '2'], array_column($diagnostics, 'documentIndex'));
+        $t->same(['1', '1'], array_column($diagnostics, 'previousStartLine'));
+        $t->same(['5', '5'], array_column($diagnostics, 'startLine'));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same('stream-override-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="stream-override-body">Stream override body</h1>', $blocks);
+    },
     'maps pandoc yaml metadata from json object documents' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
