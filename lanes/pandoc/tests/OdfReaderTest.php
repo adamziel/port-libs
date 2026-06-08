@@ -2592,6 +2592,90 @@ XML;
         $t->contains('<span class="odf-field odf-field-database-next" data-odf-field-type="database-next" data-odf-field-condition="Status == &quot;ready&quot;" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts">next record</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-database-name" data-odf-field-type="database-name" data-odf-field-database-name="ImportDS">ImportDS</span>', $blocksHtml);
     },
+    'maps ODT database range policy metadata into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithDatabaseRanges = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:database-ranges>
+        <table:database-range
+          table:name="ReadyPosts"
+          table:target-range-address="Review.A1:Review.C12"
+          table:contains-header="true"
+          table:display-filter-buttons="true"
+          table:on-update-keep-styles="true"
+          table:on-update-keep-size="false"
+          table:has-persistent-data="false"
+          table:orientation="row">
+          <table:database-source-sql table:database-name="ImportDS" table:sql-statement="SELECT post_title,status FROM wp_posts" table:parse-sql-statement="true"/>
+          <table:filter table:target-range-address="Review.A1:Review.C12" table:condition-source-range-address="Criteria.A1:Criteria.B2" table:display-duplicates="false">
+            <table:filter-and>
+              <table:filter-condition table:field-number="2" table:data-type="text" table:value="ready" table:operator="="/>
+              <table:filter-condition table:field-number="3" table:data-type="number" table:value="1" table:operator="&gt;="/>
+            </table:filter-and>
+          </table:filter>
+          <table:sort table:case-sensitive="false" table:language="en" table:country="US" table:algorithm="alphanumeric">
+            <table:sort-by table:field-number="1" table:data-type="text" table:order="ascending"/>
+            <table:sort-by table:field-number="2" table:data-type="text" table:order="descending"/>
+          </table:sort>
+        </table:database-range>
+        <table:database-range table:name="ArchiveLookup" table:target-range-address="Archive.A1:Archive.B8" table:is-selection="true">
+          <table:database-source-table table:database-name="ArchiveDS" table:table-name="wp_postmeta"/>
+        </table:database-range>
+      </table:database-ranges>
+      <text:p>Database ranges stay metadata-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDatabaseRanges));
+        $declarations = $result['contentDeclarations'];
+        $ranges = is_array($declarations['databaseRanges'] ?? null) ? $declarations['databaseRanges'] : [];
+        $rangesByName = is_array($declarations['databaseRangesByName'] ?? null) ? $declarations['databaseRangesByName'] : [];
+        $ready = is_array($rangesByName['ReadyPosts'] ?? null) ? $rangesByName['ReadyPosts'] : [];
+        $archive = is_array($rangesByName['ArchiveLookup'] ?? null) ? $rangesByName['ArchiveLookup'] : [];
+        $filterGroup = is_array($ready['filter']['conditions'][0] ?? null) ? $ready['filter']['conditions'][0] : [];
+        $filterConditions = is_array($filterGroup['conditions'] ?? null) ? $filterGroup['conditions'] : [];
+
+        $t->same(2, $declarations['databaseRangeCount'] ?? null);
+        $t->same(2, count($ranges));
+        $t->same('ReadyPosts', $ready['name'] ?? null);
+        $t->same('Review.A1:Review.C12', $ready['targetRangeAddress'] ?? null);
+        $t->same(true, $ready['containsHeader'] ?? null);
+        $t->same(true, $ready['displayFilterButtons'] ?? null);
+        $t->same(true, $ready['onUpdateKeepStyles'] ?? null);
+        $t->same(false, $ready['onUpdateKeepSize'] ?? null);
+        $t->same(false, $ready['hasPersistentData'] ?? null);
+        $t->same('row', $ready['orientation'] ?? null);
+        $t->same('sql', $ready['source']['type'] ?? null);
+        $t->same('ImportDS', $ready['source']['databaseName'] ?? null);
+        $t->same('SELECT post_title,status FROM wp_posts', $ready['source']['sqlStatement'] ?? null);
+        $t->same(true, $ready['source']['parseSqlStatement'] ?? null);
+        $t->same('Review.A1:Review.C12', $ready['filter']['targetRangeAddress'] ?? null);
+        $t->same('Criteria.A1:Criteria.B2', $ready['filter']['conditionSourceRangeAddress'] ?? null);
+        $t->same(false, $ready['filter']['displayDuplicates'] ?? null);
+        $t->same('and', $filterGroup['type'] ?? null);
+        $t->same(2, count($filterConditions));
+        $t->same(2, $filterConditions[0]['fieldNumber'] ?? null);
+        $t->same('ready', $filterConditions[0]['value'] ?? null);
+        $t->same('>=', $filterConditions[1]['operator'] ?? null);
+        $t->same(false, $ready['sort']['caseSensitive'] ?? null);
+        $t->same('alphanumeric', $ready['sort']['algorithm'] ?? null);
+        $t->same(2, count($ready['sort']['sortBy'] ?? []));
+        $t->same('descending', $ready['sort']['sortBy'][1]['order'] ?? null);
+        $t->same(true, $archive['isSelection'] ?? null);
+        $t->same('table', $archive['source']['type'] ?? null);
+        $t->same('ArchiveDS', $archive['source']['databaseName'] ?? null);
+        $t->same('wp_postmeta', $archive['source']['tableName'] ?? null);
+        $t->same($declarations, $result['document']->attr('contentDeclarations'));
+        $t->same(2, $result['importReport']['contentDeclarations']['databaseRangeCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['databaseRangeCount'] ?? null);
+        $t->same('Database ranges stay metadata-only.', $result['document']->children[0]->attr('text'));
+    },
     'maps ODT source metadata fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSourceMetadataFields = <<<'XML'
 <office:document-content

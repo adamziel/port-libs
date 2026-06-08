@@ -9358,8 +9358,18 @@ final class PdfImageRenderer
 
         $start = 0;
         $length = strlen($reviewStream);
-        while ($start < $length && str_contains("\x00\t\n\f\r ", $reviewStream[$start])) {
-            $start++;
+        while ($start < $length) {
+            if (str_contains("\x00\t\n\f\r ", $reviewStream[$start])) {
+                $start++;
+                continue;
+            }
+
+            if ($start + 3 <= $length && substr($reviewStream, $start, 3) === "\xef\xbb\xbf") {
+                $start += 3;
+                continue;
+            }
+
+            break;
         }
         if ($start >= $length) {
             return null;
@@ -9511,8 +9521,18 @@ final class PdfImageRenderer
     {
         $limit = min($limitOffset ?? strlen($bytes), strlen($bytes));
         $start = $startOffset;
-        while ($start < $limit && str_contains("\x00\t\n\f\r ", $bytes[$start])) {
-            $start++;
+        while ($start < $limit) {
+            if (str_contains("\x00\t\n\f\r ", $bytes[$start])) {
+                $start++;
+                continue;
+            }
+
+            if ($start + 3 <= $limit && substr($bytes, $start, 3) === "\xef\xbb\xbf") {
+                $start += 3;
+                continue;
+            }
+
+            break;
         }
         if ($start >= $limit || $bytes[$start] !== "\xff") {
             return null;

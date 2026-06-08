@@ -1023,6 +1023,7 @@ final class EpubReader
         $uniqueIdentifierReport = self::uniqueIdentifierReportWithIdentifierDetails($uniqueIdentifierReport, $identifierDetails);
         $dateDetails = self::metadataDateDetails($dc['date'] ?? []);
         $sourceDetails = self::metadataSourceDetails($dc['source'] ?? []);
+        $bibliographicDetails = self::metadataBibliographicDetails($dc);
         $titleDetails = self::metadataTitleDetails($dc['title'] ?? []);
         $titlesByType = self::metadataTitlesByType($titleDetails);
         $mainTitle = self::firstMetadataTitleByType($titleDetails, 'main') ?? ($titleDetails[0] ?? null);
@@ -1065,6 +1066,9 @@ final class EpubReader
             'sourceDetails' => $sourceDetails,
             'sourcesBySourceOf' => self::metadataSourceDetailsBySourceOf($sourceDetails),
             'sourceSummary' => self::metadataSourceSummary($sourceDetails),
+            'bibliographicDetails' => $bibliographicDetails,
+            'bibliographicDetailsByKind' => self::metadataBibliographicDetailsByKind($bibliographicDetails),
+            'bibliographicSummary' => self::metadataBibliographicSummary($bibliographicDetails),
             'modified' => $metaProperties['dcterms:modified'][0]['text'] ?? null,
             'coverItemId' => $metaNames['cover'][0]['content'] ?? null,
             'dc' => $dc,
@@ -1783,6 +1787,128 @@ final class EpubReader
     }
 
     /**
+     * @param array<string, list<array<string, mixed>>> $dc
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataBibliographicDetails(array $dc): array
+    {
+        $kinds = [
+            'description',
+            'publisher',
+            'rights',
+            'type',
+            'format',
+            'relation',
+            'coverage',
+        ];
+        $details = [];
+
+        foreach ($kinds as $kind) {
+            foreach (($dc[$kind] ?? []) as $index => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+                $authorityEntries = self::metadataRefinementEntries($refinements, 'authority');
+                $termEntries = self::metadataRefinementEntries($refinements, 'term');
+
+                $details[] = [
+                    'kind' => $kind,
+                    'index' => (int) $index,
+                    'text' => (string) ($entry['text'] ?? ''),
+                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                    'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                    'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                    'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                    'fileAs' => self::firstMetadataRefinementValue($refinements, 'file-as'),
+                    'alternateScripts' => self::metadataRefinementEntries($refinements, 'alternate-script'),
+                    'authority' => is_array($authorityEntries[0] ?? null) ? (string) $authorityEntries[0]['value'] : null,
+                    'authorityEntries' => $authorityEntries,
+                    'term' => is_array($termEntries[0] ?? null) ? (string) $termEntries[0]['value'] : null,
+                    'termEntries' => $termEntries,
+                    'linkedResources' => [],
+                    'refinements' => $refinements,
+                ];
+            }
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataBibliographicDetailsByKind(array $details): array
+    {
+        $byKind = [];
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $kind = is_string($detail['kind'] ?? null) ? $detail['kind'] : '';
+            if ($kind === '') {
+                continue;
+            }
+
+            $byKind[$kind][] = $detail;
+        }
+
+        return $byKind;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array{present:bool, count:int, kindCount:int, kinds:list<string>, kindCounts:array<string, int>, authorityCount:int, termCount:int, linkedResourceCount:int, diagnostics:list<array<string, mixed>>}
+     */
+    private static function metadataBibliographicSummary(array $details): array
+    {
+        $kindCounts = [];
+        $authorityCount = 0;
+        $termCount = 0;
+        $linkedResourceCount = 0;
+
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $kind = is_string($detail['kind'] ?? null) ? $detail['kind'] : '';
+            if ($kind !== '') {
+                $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            }
+
+            if (is_string($detail['authority'] ?? null) && $detail['authority'] !== '') {
+                ++$authorityCount;
+            }
+            if (is_string($detail['term'] ?? null) && $detail['term'] !== '') {
+                ++$termCount;
+            }
+
+            $linkedResources = is_array($detail['linkedResources'] ?? null) ? $detail['linkedResources'] : [];
+            $linkedResourceCount += count($linkedResources);
+        }
+
+        return [
+            'present' => $details !== [],
+            'count' => count($details),
+            'kindCount' => count($kindCounts),
+            'kinds' => array_keys($kindCounts),
+            'kindCounts' => $kindCounts,
+            'authorityCount' => $authorityCount,
+            'termCount' => $termCount,
+            'linkedResourceCount' => $linkedResourceCount,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
      * @param array<string, list<array<string, mixed>>> $metaProperties
      *
      * @return array<string, array<string, list<array<string, mixed>>>>
@@ -2493,6 +2619,12 @@ final class EpubReader
         );
         $metadata['sourcesBySourceOf'] = self::metadataSourceDetailsBySourceOf($metadata['sourceDetails']);
         $metadata['sourceSummary'] = self::metadataSourceSummary($metadata['sourceDetails']);
+        $metadata['bibliographicDetails'] = self::metadataDetailsWithLinkedResources(
+            is_array($metadata['bibliographicDetails'] ?? null) ? $metadata['bibliographicDetails'] : [],
+            $linksByRefinedId
+        );
+        $metadata['bibliographicDetailsByKind'] = self::metadataBibliographicDetailsByKind($metadata['bibliographicDetails']);
+        $metadata['bibliographicSummary'] = self::metadataBibliographicSummary($metadata['bibliographicDetails']);
 
         return $metadata;
     }

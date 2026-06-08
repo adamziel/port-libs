@@ -1963,6 +1963,7 @@ final class MarkerAppPreview
 
             $section = $this->parsePageLabelDictionary($sectionValue, $objects, $seen);
             if ($section === null) {
+                $index = $valueIndex;
                 continue;
             }
 

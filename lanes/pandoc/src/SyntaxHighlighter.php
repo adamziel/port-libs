@@ -61,6 +61,10 @@ final class SyntaxHighlighter
         'csharp' => 'csharp',
         'csx' => 'csharp',
         'cxx' => 'cpp',
+        'clj' => 'clojure',
+        'cljc' => 'clojure',
+        'cljs' => 'clojure',
+        'clojure' => 'clojure',
         'cmake' => 'cmake',
         'cmake-in' => 'cmake',
         'cmakelists' => 'cmake',
@@ -74,6 +78,7 @@ final class SyntaxHighlighter
         'docker' => 'dockerfile',
         'dockerfile' => 'dockerfile',
         'dot' => 'dot',
+        'edn' => 'clojure',
         'elm' => 'elm',
         'elm-module' => 'elm',
         'elm-source' => 'elm',
@@ -663,6 +668,7 @@ final class SyntaxHighlighter
             'asciidoc' => $this->tokenizeAsciiDoc($code),
             'bash' => $this->tokenizeBash($code),
             'c', 'cpp' => $this->tokenizeC($code),
+            'clojure' => $this->tokenizeClojure($code),
             'cmake' => $this->tokenizeCMake($code),
             'csharp' => $this->tokenizeCSharp($code),
             'css' => $this->tokenizeCss($code),
@@ -2234,6 +2240,30 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*(?:\\(|::<))/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:::|->|=>|==|!=|<=|>=|&&|\\|\\||\\.\\.|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeClojure(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^;[^\\n]*/'],
+            ['string', '/^#"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['attribute', '/^:{1,2}[A-Za-z*!?+<>=_.$%&-][A-Za-z0-9*!?+<>=_.$%&\\/:-]*/'],
+            ['attribute', '/^\\^[A-Za-z0-9*!?+<>=_.$%&\\/:-]+/'],
+            ['constant', '/^\\\\(?:newline|return|space|tab|u[0-9A-Fa-f]{4}|o[0-7]{1,3}|.)/'],
+            ['preprocessor', '/^#_/'],
+            ['preprocessor', '/^#\\?(?:@)?/'],
+            ['keyword', '/^\\b(?:as|case|catch|cond|def|defmacro|defmethod|defmulti|defn|defonce|defprotocol|defrecord|deftype|do|doseq|dotimes|else|extend-protocol|finally|fn|for|if|if-let|if-not|import|in-ns|let|letfn|loop|monitor-enter|monitor-exit|ns|proxy|quote|recur|require|set!|throw|try|use|when|when-let|when-not|while)\\b/'],
+            ['constant', '/^\\b(?:false|nil|true)\\b/'],
+            ['function', '/^\\b(?:edn\\/read-string|str\\/blank\\?|str\\/join|str\\/trim|assoc|conj|contains\\?|count|filter|first|get|into|map|or|println|reduce|seq|slurp|str|vec)(?=$|[^A-Za-z0-9_])/'],
+            ['number', '/^-?(?:0[xX][0-9A-Fa-f]+|\\d+\\/\\d+|(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?[MN]?)(?=$|[^A-Za-z0-9_])/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_.]*(?:\\/[A-Z][A-Za-z0-9_.]*)?\\b/'],
+            ['variable', '/^[A-Za-z*!?+<>=_.$%&-][A-Za-z0-9*!?+<>=_.$%&\\/:-]*/'],
+            ['operator', '/^(?:#\\{|#\\(|#\\[|~@|->>|->|::?|[{}()[\\]\'`~@^.,])/'],
         ]);
     }
 

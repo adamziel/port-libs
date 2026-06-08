@@ -349,6 +349,26 @@ return [
         $t->contains('<h1 id="україна">Україна</h1>', $blocks);
         $t->contains('<p>Редактор Київ; їжак і ґанок; ЄІЇҐ.</p>', $blocks);
     },
+    'decodes ibm866 dos cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \x88\xAC\xAF\xAE\xE0\xE2\n\n\x90\xA5\xA4\xA0\xAA\xE2\xAE\xE0 \xAF\xE0\xA8\xA2\xA5\xE2; \xF0\xAB\xAA\xA0 \xFC 7; \xB3\xC4\xDA.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp866');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm866');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xB3\xC4\xDA\xF0\xF1\xF2\xF3\xF4\xF5\xF6\xF7\xF8\xF9\xFA\xFB\xFC\xFD\xFE\xFF", '866');
+
+        $t->same('ibm866', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Импорт\n\nРедактор привет; Ёлка № 7; │─┌.", $decoded['text']);
+        $t->same("│─┌ЁёЄєЇїЎў°∙·√№¤■\u{00A0}", $specials['text']);
+        $t->same('ibm866', $specials['encoding']);
+        $t->same(['encoding' => 'ibm866', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Импорт', $document->children[0]->attr('text'));
+        $t->same('Редактор привет; Ёлка № 7; │─┌.', $document->children[1]->attr('text'));
+        $t->same(31, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(53, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
+        $t->contains('<p>Редактор привет; Ёлка № 7; │─┌.</p>', $blocks);
+    },
     'decodes iso 8859 5 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xB8\xDC\xDF\xDE\xE0\xE2\n\n\xC0\xD5\xD4\xD0\xDA\xE2\xDE\xE0 \xDF\xE0\xD8\xD2\xD5\xE2; \xA1\xDB\xDA\xD0 \xF0 7.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-144');

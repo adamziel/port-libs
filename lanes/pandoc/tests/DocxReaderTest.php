@@ -892,19 +892,24 @@ $tableRowPropertiesDocumentXml = <<<'XML'
   <w:body>
     <w:tbl>
       <w:tr>
-        <w:trPr><w:tblHeader/><w:cantSplit w:val="false"/></w:trPr>
+        <w:trPr><w:tblHeader/><w:cantSplit w:val="false"/><w:trHeight w:val="420" w:hRule="exact"/></w:trPr>
         <w:tc><w:p><w:r><w:t>Reviewer field</w:t></w:r></w:p></w:tc>
         <w:tc><w:p><w:r><w:t>Status</w:t></w:r></w:p></w:tc>
       </w:tr>
       <w:tr>
-        <w:trPr><w:cantSplit/></w:trPr>
+        <w:trPr><w:cantSplit/><w:trHeight w:val="360" w:hRule="atLeast"/></w:trPr>
         <w:tc><w:p><w:r><w:t>Long source note</w:t></w:r></w:p></w:tc>
         <w:tc><w:p><w:r><w:t>Keep with row</w:t></w:r></w:p></w:tc>
       </w:tr>
       <w:tr>
-        <w:trPr><w:tblHeader w:val="off"/><w:cantSplit w:val="0"/></w:trPr>
+        <w:trPr><w:tblHeader w:val="off"/><w:cantSplit w:val="0"/><w:trHeight w:val="480" w:hRule="auto"/></w:trPr>
         <w:tc><w:p><w:r><w:t>Plain continuation</w:t></w:r></w:p></w:tc>
         <w:tc><w:p><w:r><w:t>Can split</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr><w:trHeight w:val="600" w:hRule="unsupported"/></w:trPr>
+        <w:tc><w:p><w:r><w:t>Unsupported height</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Fallback row</w:t></w:r></w:p></w:tc>
       </w:tr>
     </w:tbl>
   </w:body>
@@ -4243,7 +4248,7 @@ return [
         $t->contains('data-docx-cell-border-tl2br-color="00AEEF" data-docx-cell-border-tl2br-size-eighth-points="10" data-docx-cell-border-tl2br-width-points="1.25" style="border-top:0.75pt dotted #999999"><p>Theme border review cell</p></td>', $blocks);
         $t->contains('<td><p>No border fallback</p></td><td><p>Plain borderless cell</p></td>', $blocks);
     },
-    'preserves DOCX table row repeat-header and cant-split metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableRowPropertiesPackage): void {
+    'preserves DOCX table row repeat-header cant-split and height metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableRowPropertiesPackage): void {
         $document = (new DocxReader())->readDocument($buildTableRowPropertiesPackage());
         $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
@@ -4254,34 +4259,54 @@ return [
         $repeatHeader = $body->children[0];
         $cantSplit = $body->children[1];
         $plain = $body->children[2];
+        $unsupported = $body->children[3];
 
-        $t->same(['docx-table-row-repeat-header'], $repeatHeader->attr('classes'));
+        $t->same(['docx-table-row-repeat-header', 'docx-table-row-height', 'docx-table-row-height-exact'], $repeatHeader->attr('classes'));
         $t->same('true', $repeatHeader->attr('attributes')['data-docx-table-row-repeat-header']);
+        $t->same('exact', $repeatHeader->attr('attributes')['data-docx-table-row-height-rule']);
+        $t->same('420', $repeatHeader->attr('attributes')['data-docx-table-row-height-value']);
+        $t->same('21', $repeatHeader->attr('attributes')['data-docx-table-row-height-points']);
         $t->same('true', $repeatHeader->attr('htmlAttributes')['data-docx-table-row-repeat-header']);
+        $t->same('height:21pt', $repeatHeader->attr('htmlAttributes')['style']);
         $t->true(!isset($repeatHeader->attr('attributes', [])['data-docx-table-row-cant-split']), 'Explicit false cantSplit should not create DOCX row metadata');
 
-        $t->same(['docx-table-row-cant-split'], $cantSplit->attr('classes'));
+        $t->same(['docx-table-row-cant-split', 'docx-table-row-height', 'docx-table-row-height-at-least'], $cantSplit->attr('classes'));
         $t->same('true', $cantSplit->attr('attributes')['data-docx-table-row-cant-split']);
+        $t->same('atLeast', $cantSplit->attr('attributes')['data-docx-table-row-height-rule']);
+        $t->same('360', $cantSplit->attr('attributes')['data-docx-table-row-height-value']);
+        $t->same('18', $cantSplit->attr('attributes')['data-docx-table-row-height-points']);
         $t->same('true', $cantSplit->attr('htmlAttributes')['data-docx-table-row-cant-split']);
+        $t->same('min-height:18pt', $cantSplit->attr('htmlAttributes')['style']);
 
+        $t->same(['docx-table-row-height', 'docx-table-row-height-auto'], $plain->attr('classes'));
         $t->true(!isset($plain->attr('attributes', [])['data-docx-table-row-repeat-header']), 'Explicit off tblHeader should not create DOCX row metadata');
         $t->true(!isset($plain->attr('attributes', [])['data-docx-table-row-cant-split']), 'Explicit 0 cantSplit should not create DOCX row metadata');
+        $t->same('auto', $plain->attr('attributes')['data-docx-table-row-height-rule']);
+        $t->same('480', $plain->attr('attributes')['data-docx-table-row-height-value']);
+        $t->same('24', $plain->attr('attributes')['data-docx-table-row-height-points']);
+        $t->true(!isset($plain->attr('htmlAttributes', [])['style']), 'Auto DOCX row height should not force a visual row height style');
+        $t->same([], $unsupported->attr('attributes', []));
+        $t->same([], $unsupported->attr('classes', []));
 
         $geometry = $table->attr('tableGeometry');
         $t->same(true, is_array($geometry));
         $geometry = is_array($geometry) ? $geometry : [];
         $t->same('true', $geometry['sections'][0]['rows'][0]['sourceAttributes']['attributes']['data-docx-table-row-repeat-header'] ?? null);
-        $t->same(['docx-table-row-repeat-header'], $geometry['sections'][0]['rows'][0]['sourceAttributes']['classes'] ?? null);
+        $t->same(['docx-table-row-repeat-header', 'docx-table-row-height', 'docx-table-row-height-exact'], $geometry['sections'][0]['rows'][0]['sourceAttributes']['classes'] ?? null);
+        $t->same('21', $geometry['sections'][0]['rows'][0]['sourceAttributes']['attributes']['data-docx-table-row-height-points'] ?? null);
         $t->same('true', $geometry['sections'][0]['rows'][1]['sourceAttributes']['attributes']['data-docx-table-row-cant-split'] ?? null);
-        $t->true(!isset($geometry['sections'][0]['rows'][2]['sourceAttributes']), 'Disabled DOCX row properties should not appear in the geometry source-attribute packet');
+        $t->same('atLeast', $geometry['sections'][0]['rows'][1]['sourceAttributes']['attributes']['data-docx-table-row-height-rule'] ?? null);
+        $t->same('auto', $geometry['sections'][0]['rows'][2]['sourceAttributes']['attributes']['data-docx-table-row-height-rule'] ?? null);
+        $t->true(!isset($geometry['sections'][0]['rows'][3]['sourceAttributes']), 'Unsupported DOCX row-height rules should not appear in the geometry source-attribute packet');
 
         $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
         $t->contains('| Reviewer field | Status |', $normalizedMarkdown);
         $t->contains('| Long source note | Keep with row |', $normalizedMarkdown);
         $t->true(!str_contains($markdown, 'data-docx-table-row'), 'Pipe-table Markdown handoff should not leak DOCX table-row metadata');
-        $t->contains('<tr class="docx-table-row-repeat-header" data-docx-table-row-repeat-header="true"><td><p>Reviewer field</p></td><td><p>Status</p></td></tr>', $blocks);
-        $t->contains('<tr class="docx-table-row-cant-split" data-docx-table-row-cant-split="true"><td><p>Long source note</p></td><td><p>Keep with row</p></td></tr>', $blocks);
-        $t->contains('<tr><td><p>Plain continuation</p></td><td><p>Can split</p></td></tr>', $blocks);
+        $t->contains('<tr class="docx-table-row-repeat-header docx-table-row-height docx-table-row-height-exact" data-docx-table-row-repeat-header="true" data-docx-table-row-height-rule="exact" data-docx-table-row-height-value="420" data-docx-table-row-height-points="21" style="height:21pt"><td><p>Reviewer field</p></td><td><p>Status</p></td></tr>', $blocks);
+        $t->contains('<tr class="docx-table-row-cant-split docx-table-row-height docx-table-row-height-at-least" data-docx-table-row-cant-split="true" data-docx-table-row-height-rule="atLeast" data-docx-table-row-height-value="360" data-docx-table-row-height-points="18" style="min-height:18pt"><td><p>Long source note</p></td><td><p>Keep with row</p></td></tr>', $blocks);
+        $t->contains('<tr class="docx-table-row-height docx-table-row-height-auto" data-docx-table-row-height-rule="auto" data-docx-table-row-height-value="480" data-docx-table-row-height-points="24"><td><p>Plain continuation</p></td><td><p>Can split</p></td></tr>', $blocks);
+        $t->contains('<tr><td><p>Unsupported height</p></td><td><p>Fallback row</p></td></tr>', $blocks);
     },
     'maps DOCX endnotes and comments into note AST nodes' => static function (TestRunner $t) use ($buildNotesPackage): void {
         $document = (new DocxReader())->readDocument($buildNotesPackage());

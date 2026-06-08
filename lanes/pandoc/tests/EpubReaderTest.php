@@ -901,6 +901,113 @@ XML;
         $t->same($sourceDetails, $result['document']->attr('metadata')['sourceDetails']);
         $t->same($metadata['sourceSummary'], $result['document']->attr('metadata')['sourceSummary']);
     },
+    'summarizes OPF bibliographic Dublin Core metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $rightsRecord = '{"license":"CC-BY-SA-4.0","source":"wordpress-epub"}';
+        $relationRecord = '{"kind":"source-post","id":42}';
+        $opfWithBibliographicMetadata = str_replace(
+            '<dc:language>en</dc:language>',
+            '<dc:description id="summary" xml:lang="en" dir="ltr">Importer review summary.</dc:description>'
+            . '<dc:publisher id="publisher">Migration Publisher</dc:publisher>'
+            . '<dc:rights id="license" xml:lang="en">Creative Commons Attribution-ShareAlike 4.0</dc:rights>'
+            . '<dc:type id="resource-type" scheme="dcterms:DCMIType">Text</dc:type>'
+            . '<dc:format id="format" scheme="IANA">application/epub+zip</dc:format>'
+            . '<dc:relation id="source-post">https://example.test/posts/42</dc:relation>'
+            . '<dc:coverage id="coverage">Global migration packet</dc:coverage>'
+            . '<dc:language>en</dc:language>',
+            $opfXml
+        );
+        $opfWithBibliographicMetadata = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#license" property="authority">Creative Commons</meta>'
+            . '<meta refines="#license" property="term">CC-BY-SA-4.0</meta>'
+            . '<meta refines="#resource-type" property="authority">DCMI Type Vocabulary</meta>'
+            . '<meta refines="#resource-type" property="term">Text</meta>'
+            . '<meta refines="#source-post" property="display-seq">1</meta>'
+            . '<meta refines="#source-post" property="file-as">Post 42</meta>'
+            . '<meta refines="#coverage" property="alternate-script" xml:lang="fr">Dossier de migration mondial</meta>',
+            $opfWithBibliographicMetadata
+        );
+        $opfWithBibliographicMetadata = str_replace(
+            '<meta name="cover" content="cover-image"/>',
+            '<meta name="cover" content="cover-image"/>'
+            . '<link id="license-record" rel="license record" refines="#license" href="meta/license.json" media-type="application/ld+json"/>'
+            . '<link id="source-post-record" rel="record" refines="#source-post" href="meta/source-post.json" media-type="application/json"/>',
+            $opfWithBibliographicMetadata
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithBibliographicMetadata,
+            null,
+            [
+                ['name' => 'OEBPS/meta/license.json', 'data' => $rightsRecord],
+                ['name' => 'OEBPS/meta/source-post.json', 'data' => $relationRecord],
+            ],
+        ));
+        $metadata = $result['metadata'];
+        $details = $metadata['bibliographicDetails'];
+        $byKind = $metadata['bibliographicDetailsByKind'];
+        $summary = $metadata['bibliographicSummary'];
+
+        $t->same('Importer review summary.', $metadata['description']);
+        $t->same('Migration Publisher', $metadata['publisher']);
+        $t->same(7, count($details));
+        $t->same(['description', 'publisher', 'rights', 'type', 'format', 'relation', 'coverage'], $summary['kinds']);
+        $t->same(7, $summary['count']);
+        $t->same(7, $summary['kindCount']);
+        $t->same(2, $summary['authorityCount']);
+        $t->same(2, $summary['termCount']);
+        $t->same(2, $summary['linkedResourceCount']);
+        $t->same(1, $summary['kindCounts']['rights']);
+        $t->same(1, $summary['kindCounts']['relation']);
+        $t->same([], $summary['diagnostics']);
+
+        $description = $byKind['description'][0];
+        $t->same('description', $description['kind']);
+        $t->same('summary', $description['id']);
+        $t->same('Importer review summary.', $description['text']);
+        $t->same('en', $description['language']);
+        $t->same('ltr', $description['direction']);
+
+        $rights = $byKind['rights'][0];
+        $t->same('license', $rights['id']);
+        $t->same('Creative Commons Attribution-ShareAlike 4.0', $rights['text']);
+        $t->same('Creative Commons', $rights['authority']);
+        $t->same('CC-BY-SA-4.0', $rights['term']);
+        $t->same('Creative Commons', $rights['authorityEntries'][0]['text']);
+        $t->same('CC-BY-SA-4.0', $rights['termEntries'][0]['value']);
+        $t->same('license-record', $rights['linkedResources'][0]['id']);
+        $t->same(['license', 'record'], $rights['linkedResources'][0]['rel']);
+        $t->same('/OEBPS/meta/license.json', $rights['linkedResources'][0]['target']);
+        $t->same(hash('sha256', $rightsRecord), $rights['linkedResources'][0]['byteSha256']);
+
+        $type = $byKind['type'][0];
+        $t->same('resource-type', $type['id']);
+        $t->same('dcterms:DCMIType', $type['scheme']);
+        $t->same('DCMI Type Vocabulary', $type['authority']);
+        $t->same('Text', $type['term']);
+
+        $format = $byKind['format'][0];
+        $t->same('IANA', $format['scheme']);
+        $t->same('application/epub+zip', $format['text']);
+
+        $relation = $byKind['relation'][0];
+        $t->same('source-post', $relation['id']);
+        $t->same('https://example.test/posts/42', $relation['text']);
+        $t->same('1', $relation['displaySeq']);
+        $t->same('Post 42', $relation['fileAs']);
+        $t->same('source-post-record', $relation['linkedResources'][0]['id']);
+        $t->same(hash('sha256', $relationRecord), $relation['linkedResources'][0]['byteSha256']);
+
+        $coverage = $byKind['coverage'][0];
+        $t->same('Global migration packet', $coverage['text']);
+        $t->same('Dossier de migration mondial', $coverage['alternateScripts'][0]['text']);
+        $t->same('fr', $coverage['alternateScripts'][0]['language']);
+
+        $t->same($details, $result['importReport']['metadata']['bibliographicDetails']);
+        $t->same($byKind, $result['document']->attr('metadata')['bibliographicDetailsByKind']);
+        $t->same($summary, $result['document']->attr('metadata')['bibliographicSummary']);
+    },
     'reports OPF spine page progression direction and itemref spread properties' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithReadingOrder = str_replace(
             '<spine toc="toc">',

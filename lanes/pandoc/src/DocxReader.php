@@ -6224,28 +6224,113 @@ final class DocxReader
 
         $classes = [];
         $attributes = [];
+        $htmlAttributes = [];
 
         $header = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tblHeader');
         if ($header instanceof \DOMElement && $this->onOffWordAttr($header, 'val', true)) {
             $classes[] = 'docx-table-row-repeat-header';
-            $attributes['data-docx-table-row-repeat-header'] = 'true';
+            $this->appendTableRowDataAttr($attributes, $htmlAttributes, 'data-docx-table-row-repeat-header', 'true');
         }
 
         $cantSplit = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'cantSplit');
         if ($cantSplit instanceof \DOMElement && $this->onOffWordAttr($cantSplit, 'val', true)) {
             $classes[] = 'docx-table-row-cant-split';
-            $attributes['data-docx-table-row-cant-split'] = 'true';
+            $this->appendTableRowDataAttr($attributes, $htmlAttributes, 'data-docx-table-row-cant-split', 'true');
         }
 
-        if ($attributes === []) {
+        $this->appendTableRowHeightAttrs($properties, $classes, $attributes, $htmlAttributes);
+
+        if ($classes === [] && $attributes === [] && $htmlAttributes === []) {
             return [];
         }
 
-        return [
-            'classes' => array_values(array_unique($classes)),
-            'attributes' => $attributes,
-            'htmlAttributes' => $attributes,
-        ];
+        $attrs = [];
+        if ($classes !== []) {
+            $attrs['classes'] = array_values(array_unique($classes));
+        }
+        if ($attributes !== []) {
+            $attrs['attributes'] = $attributes;
+        }
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     * @param array<string, string> $htmlAttributes
+     */
+    private function appendTableRowHeightAttrs(
+        \DOMElement $properties,
+        array &$classes,
+        array &$attributes,
+        array &$htmlAttributes
+    ): void {
+        $height = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'trHeight');
+        if (!$height instanceof \DOMElement) {
+            return;
+        }
+
+        $sourceRule = trim((string) ($this->wordAttr($height, 'hRule') ?? 'auto'));
+        $rule = match (strtolower($sourceRule)) {
+            '', 'auto' => 'auto',
+            'atleast' => 'atLeast',
+            'exact' => 'exact',
+            default => null,
+        };
+        if ($rule === null) {
+            return;
+        }
+
+        $classes[] = 'docx-table-row-height';
+        $classes[] = 'docx-table-row-height-' . ($rule === 'atLeast' ? 'at-least' : $rule);
+        $this->appendTableRowDataAttr($attributes, $htmlAttributes, 'data-docx-table-row-height-rule', $rule);
+
+        $value = trim((string) ($this->wordAttr($height, 'val') ?? ''));
+        if ($value === '') {
+            return;
+        }
+
+        $this->appendTableRowDataAttr($attributes, $htmlAttributes, 'data-docx-table-row-height-value', $value);
+        if (preg_match('/^\d+(?:\.\d+)?$/D', $value) !== 1) {
+            return;
+        }
+
+        $numericValue = (float) $value;
+        if ($numericValue <= 0.0) {
+            return;
+        }
+
+        $points = $this->formatOpenXmlCssNumber($numericValue / 20.0);
+        $this->appendTableRowDataAttr($attributes, $htmlAttributes, 'data-docx-table-row-height-points', $points);
+        if ($rule === 'exact') {
+            $htmlAttributes['style'] = $this->appendCssStyle($htmlAttributes['style'] ?? '', 'height:' . $points . 'pt');
+        } elseif ($rule === 'atLeast') {
+            $htmlAttributes['style'] = $this->appendCssStyle($htmlAttributes['style'] ?? '', 'min-height:' . $points . 'pt');
+        }
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, string> $htmlAttributes
+     */
+    private function appendTableRowDataAttr(array &$attributes, array &$htmlAttributes, string $name, string $value): void
+    {
+        $attributes[$name] = $value;
+        $htmlAttributes[$name] = $value;
+    }
+
+    private function appendCssStyle(string $existing, string $declaration): string
+    {
+        $existing = trim($existing);
+        if ($existing === '') {
+            return $declaration;
+        }
+
+        return rtrim($existing, ';') . '; ' . ltrim($declaration);
     }
 
     /**

@@ -21,6 +21,7 @@ final class PdfNamedDestinationExtractor
 
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
     private const DESTINATION_DICTIONARY_BOUNDARY_KEYS = ['D', 'S'];
+    private const PARSED_DICTIONARY_DUPLICATE_KEYS = "\0pdf_duplicate_keys";
 
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
@@ -112,6 +113,9 @@ final class PdfNamedDestinationExtractor
         $legacyDests = $this->resolve($legacyDestsValue, $objects, $cache);
         if ($this->isDictionary($legacyDests)) {
             foreach ($legacyDests as $name => $value) {
+                if ($name === self::PARSED_DICTIONARY_DUPLICATE_KEYS) {
+                    continue;
+                }
                 if (isset($legacyDuplicateNames[(string) $name])) {
                     continue;
                 }
@@ -2264,6 +2268,10 @@ final class PdfNamedDestinationExtractor
      */
     private function valueDictionaryHasDuplicateKeys(mixed $value, array $objects, array $keys): bool
     {
+        if ($this->parsedDictionaryHasDuplicateKeys($value, $keys)) {
+            return true;
+        }
+
         $objectId = $this->validRefObjectId($value, $objects);
         if ($objectId === null) {
             return false;
@@ -2279,6 +2287,10 @@ final class PdfNamedDestinationExtractor
      */
     private function nameTreeNodeHasDuplicateBoundaryKeys(mixed $node, array $objects): bool
     {
+        if ($this->parsedDictionaryHasDuplicateKeys($node, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
+            return true;
+        }
+
         $objectId = $this->validRefObjectId($node, $objects);
         if ($objectId === null) {
             return false;
@@ -2287,6 +2299,29 @@ final class PdfNamedDestinationExtractor
         $body = $this->objectBody($objectId, $objects, $this->refGeneration($node));
 
         return $body !== null && $this->dictionaryBodyHasDuplicateKeys($body, self::NAME_TREE_NODE_BOUNDARY_KEYS);
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    private function parsedDictionaryHasDuplicateKeys(mixed $value, array $keys): bool
+    {
+        if (!$this->isDictionary($value)) {
+            return false;
+        }
+
+        $duplicates = $value[self::PARSED_DICTIONARY_DUPLICATE_KEYS] ?? null;
+        if (!is_array($duplicates)) {
+            return false;
+        }
+
+        foreach ($keys as $key) {
+            if (isset($duplicates[$key])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2594,6 +2629,7 @@ final class PdfNamedDestinationExtractor
     private function parseDictionary(array $tokens, int &$index): array
     {
         $dictionary = [];
+        $counts = [];
         while (isset($tokens[$index]) && $tokens[$index]['type'] !== 'dict-end') {
             $key = $tokens[$index];
             $index++;
@@ -2601,11 +2637,23 @@ final class PdfNamedDestinationExtractor
                 continue;
             }
 
-            $dictionary[(string) $key['value']] = $this->parseValue($tokens, $index);
+            $name = (string) $key['value'];
+            $counts[$name] = ($counts[$name] ?? 0) + 1;
+            $dictionary[$name] = $this->parseValue($tokens, $index);
         }
 
         if (($tokens[$index]['type'] ?? null) === 'dict-end') {
             $index++;
+        }
+
+        $duplicates = [];
+        foreach ($counts as $name => $count) {
+            if ($count > 1) {
+                $duplicates[$name] = true;
+            }
+        }
+        if ($duplicates !== []) {
+            $dictionary[self::PARSED_DICTIONARY_DUPLICATE_KEYS] = $duplicates;
         }
 
         return $dictionary;

@@ -737,6 +737,7 @@ final class CitationCslProcessor
             'citationLabel' => self::firstStringField($item, ['citation-label', 'citationLabel', 'shorthand', 'label']),
             'shorthand' => self::firstStringField($item, ['shorthand']),
             'shorthandIntro' => self::firstStringField($item, ['shorthand-intro', 'shorthandIntro', 'shorthandintro']),
+            'presort' => self::firstStringField($item, ['presort']),
             'sortKey' => self::firstStringField($item, ['sort-key', 'sortKey', 'sortkey']),
             'sortName' => self::firstStringField($item, ['sort-name', 'sortName', 'sortname']),
             'sortTitle' => self::firstStringField($item, ['sort-title', 'sortTitle', 'sorttitle']),
@@ -3216,6 +3217,7 @@ final class CitationCslProcessor
         $variable = $this->sortVariable($key);
 
         return match ($variable) {
+            'presort' => $this->normalizeSortText((string) ($item['presort'] ?? '')),
             'sort-key' => $this->normalizeSortText((string) ($item['sortKey'] ?? '')),
             'sort-name' => $this->normalizeSortText((string) ($item['sortName'] ?? '')),
             'sort-title' => $this->normalizeSortText((string) ($item['sortTitle'] ?? '')),
@@ -4677,6 +4679,7 @@ final class CitationCslProcessor
             ['reviewedTitle', 'Reviewed title'],
             ['reprintTitle', 'Reprint title'],
             ['translatedTitle', 'Translated title'],
+            ['presort', 'Presort'],
             ['references', 'References'],
             ['dimensions', 'Dimensions'],
             ['scale', 'Scale'],
@@ -6169,6 +6172,7 @@ final class CitationCslProcessor
             'citation-label' => (string) $item['citationLabel'],
             'shorthand' => (string) $item['shorthand'],
             'shorthand-intro' => (string) $item['shorthandIntro'],
+            'presort' => (string) ($item['presort'] ?? ''),
             'sort-key' => (string) $item['sortKey'],
             'sort-name' => (string) $item['sortName'],
             'sort-title' => (string) $item['sortTitle'],

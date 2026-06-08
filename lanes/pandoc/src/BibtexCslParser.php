@@ -589,6 +589,7 @@ final class BibtexCslParser
             'label' => self::firstField($fields, ['label']),
             'shorthand' => self::firstField($fields, ['shorthand']),
             'shorthand-intro' => self::firstField($fields, ['shorthandintro', 'shorthand-intro']),
+            'presort' => self::firstField($fields, ['presort']),
             'sort-key' => self::firstField($fields, ['sortkey', 'sort-key']),
             'sort-name' => self::firstField($fields, ['sortname', 'sort-name']),
             'sort-title' => self::firstField($fields, ['sorttitle', 'sort-title']),

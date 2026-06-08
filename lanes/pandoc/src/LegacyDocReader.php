@@ -102,6 +102,7 @@ final class LegacyDocReader
     private const FIELD_TYPE_NAMES = [
         0x03 => 'ref',
         0x05 => 'noteref',
+        0x06 => 'set',
         0x0c => 'seq',
         0x0d => 'toc',
         0x15 => 'createdate',
@@ -1236,6 +1237,11 @@ final class LegacyDocReader
     {
         $resultNodes = $this->plainInlineNodes($field['result']);
         if ($resultNodes === []) {
+            $attrs = $this->fieldSpanAttrs($field['instruction'], $field['result']);
+            if ($attrs !== null && ($attrs['attributes']['data-legacy-doc-field'] ?? '') === 'set') {
+                return [new AstNode('span', $attrs, [])];
+            }
+
             return [];
         }
 
@@ -1349,6 +1355,11 @@ final class LegacyDocReader
         $crossReferenceAttrs = $this->crossReferenceFieldAttrs($fieldName, $tokens, $instruction);
         if ($crossReferenceAttrs !== null) {
             return $crossReferenceAttrs;
+        }
+
+        $setFieldAttrs = $this->setFieldAttrs($fieldName, $tokens, $instruction);
+        if ($setFieldAttrs !== null) {
+            return $setFieldAttrs;
         }
 
         $dataFieldAttrs = $this->dataFieldAttrs($fieldName, $tokens, $instruction);
@@ -1525,6 +1536,107 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-cross-reference', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function setFieldAttrs(string $fieldName, array $tokens, string $instruction): ?array
+    {
+        if ($fieldName !== 'SET') {
+            return null;
+        }
+
+        $arguments = [];
+        $switches = [];
+        $switchValues = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (!str_starts_with($token, '\\')) {
+                $arguments[] = $token;
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if ($switch === '') {
+                continue;
+            }
+            if (($switch === '*' || $switch === '@' || $switch === '#') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                continue;
+            }
+
+            $switches[] = $switch;
+            if (isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                $switchValues[$switch][] = $tokens[$index];
+            } else {
+                $switchValues[$switch] ??= [];
+            }
+        }
+
+        $name = array_shift($arguments);
+        if ($name === null || $name === '') {
+            return null;
+        }
+
+        $value = implode(' ', $arguments);
+        $isSignatureAssignment = $value !== '' && $this->isSignatureDocumentVariableName($name);
+        $attributes = [
+            'data-legacy-doc-field' => 'set',
+            'data-legacy-doc-field-instruction' => $isSignatureAssignment
+                ? 'SET ' . $name . ' [redacted]'
+                : $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-set-field-type' => 'document-variable-assignment',
+            'data-legacy-doc-set-field-name' => $name,
+        ];
+        if ($isSignatureAssignment) {
+            $attributes['data-legacy-doc-field-instruction-redacted'] = 'true';
+        }
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+
+        if ($value !== '') {
+            $attributes['data-legacy-doc-set-field-value-character-count'] = (string) count($this->unicodeCharacters($value));
+            if ($isSignatureAssignment) {
+                $attributes['data-legacy-doc-set-field-redacted'] = 'true';
+                $attributes['data-legacy-doc-set-field-policy'] = 'signature-blob-metadata-only';
+            } else {
+                $attributes['data-legacy-doc-set-field-value'] = $value;
+            }
+        }
+
+        if ($switches !== []) {
+            $switches = array_values(array_unique($switches));
+            $attributes['data-legacy-doc-set-field-switches'] = implode(' ', $switches);
+            foreach ($switches as $switch) {
+                $attributeSwitch = preg_replace('/[^a-z0-9-]/', '', $switch);
+                if (!is_string($attributeSwitch) || $attributeSwitch === '') {
+                    continue;
+                }
+
+                $values = array_values(array_unique(array_map(
+                    static fn (mixed $value): string => (string) $value,
+                    $switchValues[$switch] ?? []
+                )));
+                $attributes['data-legacy-doc-set-field-switch-' . $attributeSwitch] = $values === []
+                    ? 'true'
+                    : implode('; ', $values);
+            }
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-set-field', 'legacy-doc-field-set'],
             'attributes' => $attributes,
         ];
     }

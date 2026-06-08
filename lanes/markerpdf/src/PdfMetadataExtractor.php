@@ -984,6 +984,26 @@ final class PdfMetadataExtractor
 
                 return $review;
             }
+            if (($xmpSummary['status'] ?? null) === 'rejected_malformed_first_xmp_packet') {
+                $review = $base + [
+                    'status' => 'rejected_malformed_document_xmp_packet',
+                    'object_number' => $objectNumber,
+                    'bytes' => strlen($stream['content']),
+                    'sha256' => hash('sha256', $stream['content']),
+                    'xmp_summary' => $xmpSummary,
+                ];
+
+                foreach ($this->metadataStreamDictionaryLabels($stream['dictionary'], $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
+                }
+
+                $filters = $this->streamFilters($stream['dictionary'], $objects);
+                if ($filters !== []) {
+                    $review['filters'] = $filters;
+                }
+
+                return $review;
+            }
 
             return [];
         }
@@ -8364,18 +8384,21 @@ final class PdfMetadataExtractor
         $metadata['encrypt_metadata_status'] = $encryptMetadataReview['status'];
         $metadata['encrypt_metadata_declaration_review'] = $encryptMetadataReview;
 
+        $declaredCryptFilterRoleKeys = [];
         foreach ([
             'StmF' => 'stream_filter',
             'StrF' => 'string_filter',
             'EFF' => 'embedded_file_filter',
         ] as $pdfName => $key) {
-            $value = $this->dictionaryNameValue($dictionary, $pdfName, $objects)
-                ?? $this->dictionaryStringValue($dictionary, $pdfName);
+            if ($this->dictionaryTopLevelRawValues($dictionary, $pdfName) !== []) {
+                $declaredCryptFilterRoleKeys[$key] = true;
+            }
+            $value = $this->cryptFilterRoleNameValue($dictionary, $pdfName, $objects);
             if ($value !== null) {
                 $metadata[$key] = $value;
             }
         }
-        $this->applyCryptFilterDefaults($metadata, $version);
+        $this->applyCryptFilterDefaults($metadata, $version, $declaredCryptFilterRoleKeys);
 
         $cryptFilterDictionaryReview = $this->cryptFilterDictionaryDeclarationReview($dictionary, $objects);
         if ($cryptFilterDictionaryReview !== []) {
@@ -8440,30 +8463,84 @@ final class PdfMetadataExtractor
      * review paths make the same import decision.
      *
      * @param array<string, mixed> $metadata
+     * @param array<string, true> $declaredRoleKeys
      */
-    private function applyCryptFilterDefaults(array &$metadata, ?int $version): void
+    private function applyCryptFilterDefaults(array &$metadata, ?int $version, array $declaredRoleKeys = []): void
     {
         if (!in_array($version, [4, 5], true)) {
             return;
         }
 
-        if (!is_string($metadata['stream_filter'] ?? null) || $metadata['stream_filter'] === '') {
+        if (
+            !isset($declaredRoleKeys['stream_filter'])
+            && (!is_string($metadata['stream_filter'] ?? null) || $metadata['stream_filter'] === '')
+        ) {
             $metadata['stream_filter'] = 'Identity';
             $metadata['stream_filter_defaulted'] = true;
             $metadata['stream_filter_source'] = 'pdf_default_identity';
         }
 
-        if (!is_string($metadata['string_filter'] ?? null) || $metadata['string_filter'] === '') {
+        if (
+            !isset($declaredRoleKeys['string_filter'])
+            && (!is_string($metadata['string_filter'] ?? null) || $metadata['string_filter'] === '')
+        ) {
             $metadata['string_filter'] = 'Identity';
             $metadata['string_filter_defaulted'] = true;
             $metadata['string_filter_source'] = 'pdf_default_identity';
         }
 
-        if (!is_string($metadata['embedded_file_filter'] ?? null) || $metadata['embedded_file_filter'] === '') {
+        if (
+            !isset($declaredRoleKeys['embedded_file_filter'])
+            && (!is_string($metadata['embedded_file_filter'] ?? null) || $metadata['embedded_file_filter'] === '')
+            && is_string($metadata['stream_filter'] ?? null)
+            && $metadata['stream_filter'] !== ''
+        ) {
             $metadata['embedded_file_filter'] = $metadata['stream_filter'];
             $metadata['embedded_file_filter_defaulted_from_stream_filter'] = true;
             $metadata['embedded_file_filter_source'] = 'pdf_default_stream_filter';
         }
+    }
+
+    /**
+     * Crypt-filter content roles must be a single name object. A name followed
+     * by another top-level operand is ambiguous security metadata, so callers
+     * should leave it unset and let the declaration review fail closed.
+     *
+     * @param array<int, string> $objects
+     */
+    private function cryptFilterRoleNameValue(string $dictionary, string $pdfName, array $objects): ?string
+    {
+        $valueReviews = $this->dictionaryTopLevelValueReviews($dictionary, $pdfName);
+        if ($valueReviews === []) {
+            return null;
+        }
+
+        $valueReview = $valueReviews[count($valueReviews) - 1];
+        if (($valueReview['single_value'] ?? true) !== true) {
+            return null;
+        }
+
+        $value = is_string($valueReview['value'] ?? null) ? $valueReview['value'] : '';
+        $resolvedValue = $this->resolvePdfValue($value, $objects);
+        if ($resolvedValue === null) {
+            return null;
+        }
+
+        $resolvedValue = $this->trimPdfWhitespaceAndComments($resolvedValue);
+        $firstToken = $this->firstPdfValueToken($resolvedValue);
+        if (!$this->pdfValueIsSingleToken($resolvedValue, $firstToken)) {
+            return null;
+        }
+
+        if ($firstToken === '' || $firstToken[0] !== '/') {
+            return null;
+        }
+
+        if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $firstToken, $match) !== 1) {
+            return null;
+        }
+
+        return $this->decodePdfName($match[1]);
     }
 
     /**
@@ -8749,16 +8826,18 @@ final class PdfMetadataExtractor
 
         $roles = [];
         foreach ($definitions as $definition) {
-            $rawValues = $this->dictionaryTopLevelRawValues($dictionary, $definition['pdf_name']);
+            $valueReviews = $this->dictionaryTopLevelValueReviews($dictionary, $definition['pdf_name']);
             $entries = [];
-            foreach ($rawValues as $index => $rawValue) {
+            foreach ($valueReviews as $index => $valueReview) {
+                $rawValue = is_string($valueReview['value'] ?? null) ? $valueReview['value'] : '';
                 $entries[] = $this->cryptFilterRoleDeclarationEntryReview(
                     $rawValue,
                     $objects,
                     $definition['role'],
                     $definition['pdf_name'],
                     $definition['metadata_key'],
-                    $index
+                    $index,
+                    $valueReview
                 );
             }
 
@@ -8776,7 +8855,7 @@ final class PdfMetadataExtractor
                 ),
                 static fn (mixed $filterName): bool => is_string($filterName) && $filterName !== ''
             )));
-            $declaredEntryCount = count($rawValues);
+            $declaredEntryCount = count($valueReviews);
             $duplicateEntries = $declaredEntryCount > 1;
             $malformedEntries = array_values(array_filter(
                 $entries,
@@ -8881,10 +8960,14 @@ final class PdfMetadataExtractor
         string $role,
         string $pdfName,
         string $metadataKey,
-        int $index
+        int $index,
+        array $valueReview = []
     ): array {
         $resolved = $this->resolvePdfValue($rawValue, $objects);
         $value = $this->trimPdfWhitespaceAndComments($resolved ?? $rawValue);
+        $firstToken = $this->firstPdfValueToken($value);
+        $singleValue = ($valueReview['single_value'] ?? true) === true
+            && $this->pdfValueIsSingleToken($value, $firstToken);
         $entry = [
             'source' => 'crypt_filter_role_declaration_entry_review',
             'role' => $role,
@@ -8892,13 +8975,29 @@ final class PdfMetadataExtractor
             'metadata_key' => $metadataKey,
             'index' => $index,
             'resolved' => $resolved !== null,
-            'operand_shape' => $this->cryptFilterRoleOperandShape($value),
+            'operand_shape' => $this->cryptFilterRoleOperandShape($firstToken !== '' ? $firstToken : $value),
+            'single_value' => $singleValue,
             'review_only' => true,
         ];
 
-        if ($value !== '' && $value[0] === '/' && preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $value, $match) === 1) {
-            return $entry + [
+        if ($firstToken !== '' && $firstToken[0] === '/' && preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $firstToken, $match) === 1) {
+            $entry += [
                 'filter_name' => $this->decodePdfName($match[1]),
+            ];
+        }
+
+        if (!$singleValue) {
+            return array_merge(
+                $entry,
+                ($valueReview['single_value'] ?? true) !== true
+                    ? $this->topLevelTrailingOperandReviewFromValueReview($valueReview)
+                    : $this->topLevelTrailingOperandReview($value, $firstToken),
+                ['status' => 'crypt_filter_role_trailing_operand_review']
+            );
+        }
+
+        if (isset($entry['filter_name'])) {
+            return $entry + [
                 'status' => 'crypt_filter_role_entry_name',
             ];
         }
@@ -13763,6 +13862,10 @@ final class PdfMetadataExtractor
             return;
         }
 
+        if ($this->xmpHasMalformedFirstNonEmptyPacket($xml) || $this->xmpHasUnboundedAdobeXmpmetaRoot($xml)) {
+            return;
+        }
+
         foreach ($this->boundedXmpXmlRootCandidates($xml) as $boundedXml) {
             $this->addXmpXmlCandidate($candidates, $boundedXml, $packetEncoding, $encodingFallback, $decodedToUtf8, true);
         }
@@ -13784,6 +13887,10 @@ final class PdfMetadataExtractor
     ): void
     {
         $this->addXmpXmlCandidate($candidates, $xml, $packetEncoding, $encodingFallback, $decodedToUtf8, true);
+
+        if ($this->xmpHasUnboundedAdobeXmpmetaRoot($xml)) {
+            return;
+        }
 
         foreach ($this->boundedXmpXmlRootCandidatesFromXml($xml) as $boundedXml) {
             $this->addXmpXmlCandidate($candidates, $boundedXml, $packetEncoding, $encodingFallback, $decodedToUtf8, true);
@@ -14004,6 +14111,116 @@ final class PdfMetadataExtractor
         }
 
         return $candidates;
+    }
+
+    private function xmpHasMalformedFirstNonEmptyPacket(string $xml): bool
+    {
+        return $this->xmpMalformedFirstPacketReviewSummary($xml) !== [];
+    }
+
+    /**
+     * A catalog Metadata stream is one XMP packet boundary. Empty wrapper
+     * packets are legacy padding, but a malformed first non-empty packet must
+     * fail closed instead of letting later appended bytes replace document XMP.
+     *
+     * @return array<string, mixed>
+     */
+    private function xmpMalformedFirstPacketReviewSummary(string $xml): array
+    {
+        foreach ($this->xmpPacketContentCandidates($xml) as $index => $packetXml) {
+            if ($this->xmpHasUnboundedAdobeXmpmetaRoot($packetXml)) {
+                $declaredEncoding = $this->declaredXmlEncoding($packetXml);
+
+                return [
+                    'source' => 'xmp_packet_review',
+                    'status' => 'rejected_malformed_first_xmp_packet',
+                    'malformed_packet_index' => $index,
+                    'malformed_packet_reason' => 'unbounded_adobe_xmpmeta_root',
+                    'field_names' => [],
+                    'field_count' => 0,
+                    'author_count' => 0,
+                    'keyword_count' => 0,
+                    'packet_encoding' => $this->canonicalXmlEncodingLabel($declaredEncoding ?? 'UTF-8'),
+                    'packet_boundary_applied' => true,
+                    'payload_included' => false,
+                    'text_values_redacted' => true,
+                    'redacted_fields' => ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords'],
+                ];
+            }
+
+            if ($this->xmpHasCompleteNonAdobeXmpmetaRoot($packetXml)) {
+                continue;
+            }
+
+            $rootCandidates = $this->boundedXmpXmlRootCandidatesFromXml($packetXml);
+            if ($this->xmpXmlRootCandidatesAreOnlyEmptyXmpmetaWrappers($rootCandidates)) {
+                continue;
+            }
+
+            if ($rootCandidates === []) {
+                $declaredEncoding = $this->declaredXmlEncoding($packetXml);
+
+                return [
+                    'source' => 'xmp_packet_review',
+                    'status' => 'rejected_malformed_first_xmp_packet',
+                    'malformed_packet_index' => $index,
+                    'malformed_packet_reason' => 'no_bounded_xmp_or_rdf_root',
+                    'field_names' => [],
+                    'field_count' => 0,
+                    'author_count' => 0,
+                    'keyword_count' => 0,
+                    'packet_encoding' => $this->canonicalXmlEncodingLabel($declaredEncoding ?? 'UTF-8'),
+                    'packet_boundary_applied' => true,
+                    'payload_included' => false,
+                    'text_values_redacted' => true,
+                    'redacted_fields' => ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords'],
+                ];
+            }
+
+            return [];
+        }
+
+        return [];
+    }
+
+    private function xmpHasUnboundedAdobeXmpmetaRoot(string $xml): bool
+    {
+        $root = $this->xmlRootStartForLocalName($xml, 'xmpmeta');
+        if ($root === null) {
+            return false;
+        }
+
+        return $this->xmpmetaRootDeclaresAdobeNamespace(substr($xml, $root['offset']))
+            && !$this->xmpmetaRootHasMatchingClose($xml, $root);
+    }
+
+    private function xmpHasCompleteNonAdobeXmpmetaRoot(string $xml): bool
+    {
+        $root = $this->xmlRootStartForLocalName($xml, 'xmpmeta');
+        if ($root === null) {
+            return false;
+        }
+
+        return !$this->xmpmetaRootDeclaresAdobeNamespace(substr($xml, $root['offset']))
+            && $this->xmpmetaRootHasMatchingClose($xml, $root);
+    }
+
+    /**
+     * @param array{offset: int, tag_name: string} $root
+     */
+    private function xmpmetaRootHasMatchingClose(string $xml, array $root): bool
+    {
+        $openEnd = $this->xmlTagEndOffset($xml, $root['offset']);
+        if ($openEnd === null) {
+            return false;
+        }
+
+        $openTag = substr($xml, $root['offset'], $openEnd - $root['offset']);
+        if (str_ends_with(rtrim($openTag), '/>')) {
+            return true;
+        }
+
+        return strpos($xml, '</' . $root['tag_name'] . '>', $openEnd) !== false;
     }
 
     private function xmpPacketInstructionInsideBoundedXmlRoot(
@@ -16254,7 +16471,7 @@ final class PdfMetadataExtractor
         foreach (array_keys($carrierObjectNumbers) as $objectNumber) {
             $entry = $entries[$objectNumber] ?? null;
             if ($entry === null) {
-                $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                $definition = $this->uniqueDirectObjectStreamDefinitionBetweenOffsets(
                     $definitions[$objectNumber] ?? [],
                     $previousOffset ?? -1,
                     $currentXrefOffset
@@ -16280,7 +16497,7 @@ final class PdfMetadataExtractor
                 continue;
             }
 
-            $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+            $definition = $this->uniqueDirectObjectStreamDefinitionBetweenOffsets(
                 $definitions[$objectNumber] ?? [],
                 $previousOffset ?? -1,
                 $currentXrefOffset
@@ -16298,6 +16515,30 @@ final class PdfMetadataExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * A damaged carrier xref row can be repaired only when the current
+     * revision window contains exactly one same-number direct definition and
+     * that definition is an object-stream carrier.
+     *
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function uniqueDirectObjectStreamDefinitionBetweenOffsets(array $definitions, int $afterOffset, int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['offset'] > $afterOffset && $definition['offset'] < $beforeOffset) {
+                $candidates[] = $definition;
+            }
+        }
+
+        if (count($candidates) !== 1) {
+            return null;
+        }
+
+        return $this->objectBodyHasTypeName($candidates[0]['body'], 'ObjStm') ? $candidates[0] : null;
     }
 
     /**
@@ -19786,6 +20027,11 @@ final class PdfMetadataExtractor
     {
         $parsed = $this->parseXmpPacket($xml);
         if ($parsed === []) {
+            $malformedPacket = $this->xmpMalformedFirstPacketReviewSummary($xml);
+            if ($malformedPacket !== []) {
+                return $malformedPacket;
+            }
+
             return $this->xmpPacketSafetyReviewSummary($xml);
         }
 

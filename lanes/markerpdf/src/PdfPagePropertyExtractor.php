@@ -1588,7 +1588,13 @@ final class PdfPagePropertyExtractor
         }
 
         $names = [];
+        $duplicateReferenceNames = $this->duplicateResourceSubdictionaryReferenceNames($subdictionary['body']);
         foreach ($this->resourceSubdictionaryEntries($subdictionary['body']) as $name => $entry) {
+            if (isset($duplicateReferenceNames[$name])) {
+                unset($names[$name]);
+                continue;
+            }
+
             if (
                 !$entry['malformed_tail']
                 && $this->resourceSubdictionaryEntryIsResolvable($entry['value'], $objects, $key)
@@ -1642,6 +1648,52 @@ final class PdfPagePropertyExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function duplicateResourceSubdictionaryReferenceNames(string $dictionary): array
+    {
+        $counts = [];
+        for ($offset = 0, $length = strlen($dictionary); $offset < $length;) {
+            $offset = $this->skipWhitespace($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($dictionary[$offset] ?? '') !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $remaining = substr($dictionary, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $value = $this->readPdfValueAt($dictionary, $offset + strlen($match[0]));
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if ($this->objectReferenceFromValue($value['raw']) !== null) {
+                $name = $this->decodePdfName($match[1]);
+                $counts[$name] = ($counts[$name] ?? 0) + 1;
+            }
+            $offset = $value['end'];
+        }
+
+        $duplicates = [];
+        foreach ($counts as $name => $count) {
+            if ($count > 1) {
+                $duplicates[$name] = true;
+            }
+        }
+
+        return $duplicates;
     }
 
     /**

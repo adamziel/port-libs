@@ -223,6 +223,7 @@ final class OdfReader
                     'repeatedTableRowCount' => $contentStats['repeatedTableRowCount'],
                     'truncatedTableRowRepeatCount' => $contentStats['truncatedTableRowRepeatCount'],
                     'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
+                    'databaseRangeCount' => (int) ($content['contentDeclarations']['databaseRangeCount'] ?? 0),
                 ],
             ],
         ];
@@ -2248,6 +2249,15 @@ final class OdfReader
             }
         }
 
+        $databaseRanges = $this->databaseRangesFromText($text);
+        $databaseRangesByName = [];
+        foreach ($databaseRanges as $range) {
+            $name = (string) ($range['name'] ?? '');
+            if ($name !== '') {
+                $databaseRangesByName[$name] = $range;
+            }
+        }
+
         return [
             'noteConfigurationCount' => count($noteConfigurations),
             'noteConfigurations' => $noteConfigurations,
@@ -2258,7 +2268,191 @@ final class OdfReader
             'variableDeclarations' => $variableDeclarations,
             'userFieldDeclarationCount' => count($userFieldDeclarations),
             'userFieldDeclarations' => $userFieldDeclarations,
+            'databaseRangeCount' => count($databaseRanges),
+            'databaseRanges' => $databaseRanges,
+            'databaseRangesByName' => $databaseRangesByName,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function databaseRangesFromText(\DOMElement $text): array
+    {
+        $ranges = [];
+        foreach (self::childElements($text, 'database-ranges', self::TABLE_NS) as $container) {
+            foreach (self::childElements($container, 'database-range', self::TABLE_NS) as $rangeElement) {
+                $range = $this->databaseRangeDefinition($rangeElement);
+                if ($range !== []) {
+                    $ranges[] = $range;
+                }
+            }
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function databaseRangeDefinition(\DOMElement $range): array
+    {
+        $definition = self::withoutEmpty([
+            'name' => self::nullable(self::attr($range, self::TABLE_NS, 'name')),
+            'targetRangeAddress' => self::nullable(self::attr($range, self::TABLE_NS, 'target-range-address')),
+            'containsHeader' => self::nullableBool(self::attr($range, self::TABLE_NS, 'contains-header')),
+            'displayFilterButtons' => self::nullableBool(self::attr($range, self::TABLE_NS, 'display-filter-buttons')),
+            'isSelection' => self::nullableBool(self::attr($range, self::TABLE_NS, 'is-selection')),
+            'onUpdateKeepStyles' => self::nullableBool(self::attr($range, self::TABLE_NS, 'on-update-keep-styles')),
+            'onUpdateKeepSize' => self::nullableBool(self::attr($range, self::TABLE_NS, 'on-update-keep-size')),
+            'hasPersistentData' => self::nullableBool(self::attr($range, self::TABLE_NS, 'has-persistent-data')),
+            'orientation' => self::nullable(self::attr($range, self::TABLE_NS, 'orientation')),
+            'refreshDelay' => self::nullable(self::attr($range, self::TABLE_NS, 'refresh-delay')),
+        ]);
+
+        $source = $this->databaseRangeSource($range);
+        if ($source !== []) {
+            $definition['source'] = $source;
+        }
+
+        $filter = self::firstChildElement($range, 'filter', self::TABLE_NS);
+        if ($filter instanceof \DOMElement) {
+            $filterMetadata = $this->databaseFilterDefinition($filter);
+            if ($filterMetadata !== []) {
+                $definition['filter'] = $filterMetadata;
+            }
+        }
+
+        $sort = self::firstChildElement($range, 'sort', self::TABLE_NS);
+        if ($sort instanceof \DOMElement) {
+            $sortMetadata = $this->databaseSortDefinition($sort);
+            if ($sortMetadata !== []) {
+                $definition['sort'] = $sortMetadata;
+            }
+        }
+
+        return self::withoutEmpty($definition);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function databaseRangeSource(\DOMElement $range): array
+    {
+        foreach (self::childElements($range) as $child) {
+            if ($child->namespaceURI !== self::TABLE_NS) {
+                continue;
+            }
+
+            if ($child->localName === 'database-source-table') {
+                return self::withoutEmpty([
+                    'type' => 'table',
+                    'databaseName' => self::nullable(self::attr($child, self::TABLE_NS, 'database-name')),
+                    'tableName' => self::nullable(self::attr($child, self::TABLE_NS, 'table-name')),
+                ]);
+            }
+
+            if ($child->localName === 'database-source-query') {
+                return self::withoutEmpty([
+                    'type' => 'query',
+                    'databaseName' => self::nullable(self::attr($child, self::TABLE_NS, 'database-name')),
+                    'queryName' => self::nullable(self::attr($child, self::TABLE_NS, 'query-name')),
+                ]);
+            }
+
+            if ($child->localName === 'database-source-sql') {
+                return self::withoutEmpty([
+                    'type' => 'sql',
+                    'databaseName' => self::nullable(self::attr($child, self::TABLE_NS, 'database-name')),
+                    'sqlStatement' => self::nullable(self::attr($child, self::TABLE_NS, 'sql-statement')),
+                    'parseSqlStatement' => self::nullableBool(self::attr($child, self::TABLE_NS, 'parse-sql-statement')),
+                ]);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function databaseFilterDefinition(\DOMElement $filter): array
+    {
+        $conditions = [];
+        foreach (self::childElements($filter) as $child) {
+            $condition = $this->databaseFilterExpression($child);
+            if ($condition !== []) {
+                $conditions[] = $condition;
+            }
+        }
+
+        return self::withoutEmpty([
+            'targetRangeAddress' => self::nullable(self::attr($filter, self::TABLE_NS, 'target-range-address')),
+            'conditionSourceRangeAddress' => self::nullable(self::attr($filter, self::TABLE_NS, 'condition-source-range-address')),
+            'displayDuplicates' => self::nullableBool(self::attr($filter, self::TABLE_NS, 'display-duplicates')),
+            'conditions' => $conditions,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function databaseFilterExpression(\DOMElement $element): array
+    {
+        if ($element->namespaceURI !== self::TABLE_NS) {
+            return [];
+        }
+
+        if ($element->localName === 'filter-condition') {
+            return self::withoutEmpty([
+                'type' => 'condition',
+                'fieldNumber' => self::nullableInt(self::attr($element, self::TABLE_NS, 'field-number')),
+                'caseSensitive' => self::nullableBool(self::attr($element, self::TABLE_NS, 'case-sensitive')),
+                'dataType' => self::nullable(self::attr($element, self::TABLE_NS, 'data-type')),
+                'value' => self::nullable(self::attr($element, self::TABLE_NS, 'value')),
+                'operator' => self::nullable(self::attr($element, self::TABLE_NS, 'operator')),
+            ]);
+        }
+
+        if ($element->localName === 'filter-and' || $element->localName === 'filter-or') {
+            $conditions = [];
+            foreach (self::childElements($element) as $child) {
+                $condition = $this->databaseFilterExpression($child);
+                if ($condition !== []) {
+                    $conditions[] = $condition;
+                }
+            }
+
+            return self::withoutEmpty([
+                'type' => $element->localName === 'filter-and' ? 'and' : 'or',
+                'conditions' => $conditions,
+            ]);
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function databaseSortDefinition(\DOMElement $sort): array
+    {
+        $sortBy = [];
+        foreach (self::childElements($sort, 'sort-by', self::TABLE_NS) as $sortByElement) {
+            $sortBy[] = self::withoutEmpty([
+                'fieldNumber' => self::nullableInt(self::attr($sortByElement, self::TABLE_NS, 'field-number')),
+                'dataType' => self::nullable(self::attr($sortByElement, self::TABLE_NS, 'data-type')),
+                'order' => self::nullable(self::attr($sortByElement, self::TABLE_NS, 'order')),
+            ]);
+        }
+
+        return self::withoutEmpty([
+            'caseSensitive' => self::nullableBool(self::attr($sort, self::TABLE_NS, 'case-sensitive')),
+            'language' => self::nullable(self::attr($sort, self::TABLE_NS, 'language')),
+            'country' => self::nullable(self::attr($sort, self::TABLE_NS, 'country')),
+            'algorithm' => self::nullable(self::attr($sort, self::TABLE_NS, 'algorithm')),
+            'sortBy' => $sortBy,
+        ]);
     }
 
     /**

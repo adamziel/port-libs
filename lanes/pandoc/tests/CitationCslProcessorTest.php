@@ -11334,6 +11334,90 @@ XML);
         $t->same('2020', $manual['sortYear'] ?? null);
         $t->same('manual-001', $manual['sortKey'] ?? null);
     },
+    'maps bounded biblatex presort fields into csl sort metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{priority-zed,
+  author  = {Zed, Zoe},
+  title   = {Priority Zed Source},
+  date    = {2026},
+  presort = {aa},
+  sortkey = {900-priority-zed}
+}
+
+@book{priority-adams,
+  author  = {Adams, Ada},
+  title   = {Priority Adams Source},
+  date    = {2026},
+  presort = {zz},
+  sortkey = {001-priority-adams}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('aa', $items[0]['presort'] ?? null);
+        $t->same('zz', $items[1]['presort'] ?? null);
+        $t->same('aa', $items[0]['rawBibtex']['fields']['presort'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $zed = $processor->item('priority-zed');
+        $adams = $processor->item('priority-adams');
+        $t->same('aa', $zed['presort'] ?? null);
+        $t->same('zz', $adams['presort'] ?? null);
+        $t->same('900-priority-zed', $zed['sortKey'] ?? null);
+        $t->same('Zed, Zoe. Priority Zed Source. 2026. Presort: aa.', $processor->renderBibliographyEntry('priority-zed'));
+        $t->same('Adams, Ada. Priority Adams Source. 2026. Presort: zz.', $processor->renderBibliographyEntry('priority-adams'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort>
+      <key variable="presort"/>
+      <key variable="sort-key"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="presort"/>
+        <text variable="sort-key"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="presort"/>
+      <key variable="sort-key"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="presort"/>
+      <text variable="sort-key"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $cluster = [
+            $citation('priority-adams', '[@priority-adams]'),
+            $citation('priority-zed', '[@priority-zed]'),
+        ];
+        $t->same('[Priority Zed Source | aa | 900-priority-zed; Priority Adams Source | zz | 001-priority-adams]', $styled->renderCitationCluster($cluster));
+        $t->same('Priority Zed Source :: aa :: 900-priority-zed', $styled->renderBibliographyEntry('priority-zed'));
+
+        $document = (new MarkdownReader())->read('Presort source [@priority-adams; @priority-zed] keeps import queue buckets visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Presort source [Priority Zed Source | aa | 900-priority-zed; Priority Adams Source | zz | 001-priority-adams] keeps import queue buckets visible.</p>', $blocks);
+        $zedPosition = strpos($blocks, '<dt>Zed 2026</dt><dd>Priority Zed Source :: aa :: 900-priority-zed</dd>');
+        $adamsPosition = strpos($blocks, '<dt>Adams 2026</dt><dd>Priority Adams Source :: zz :: 001-priority-adams</dd>');
+        $t->true(is_int($zedPosition) && is_int($adamsPosition) && $zedPosition < $adamsPosition, 'Presort should order bibliography entries before ordinary sort-key values');
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-presort',
+            'title' => 'Manual Presort Packet',
+            'presort' => 'mm',
+        ]])->item('manual-presort');
+        $t->same('mm', $direct['presort'] ?? null);
+    },
     'maps bounded biblatex pagination fields into csl page labels' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{column-source,

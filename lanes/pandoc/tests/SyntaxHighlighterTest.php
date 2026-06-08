@@ -96,6 +96,12 @@ return [
         $t->same('csharp', SyntaxHighlighter::normalizeLanguage('C#'));
         $t->same('csharp', SyntaxHighlighter::normalizeLanguage('csx'));
         $t->same('csharp', SyntaxHighlighter::normalizeLanguage('language-cs'));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('clojure'));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('clj'));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('cljc'));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('cljs'));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('edn'));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('language-clj'));
         $t->same('cmake', SyntaxHighlighter::normalizeLanguage('cmake'));
         $t->same('cmake', SyntaxHighlighter::normalizeLanguage('CMakeLists.txt'));
         $t->same('cmake', SyntaxHighlighter::normalizeLanguage('language-cmake'));
@@ -1668,6 +1674,59 @@ return [
         $t->same('swift-source', $directSwift['requestedLanguage']);
         $t->contains('<span class="kw">let</span> <span class="va">title</span><span class="op">:</span> <span class="dt">String</span><span class="op">?</span> <span class="op">=</span> <span class="cn">nil</span>', $directSwift['html']);
         $t->contains('<span class="dt">Text</span><span class="op">(</span><span class="va">title</span> <span class="op">??</span> <span class="st">&quot;Untitled&quot;</span><span class="op">)</span>', $directSwift['html']);
+    },
+    'highlights clojure and edn review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[57] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Clojure code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'monochrome');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'monochrome');
+        $directEdn = $highlighter->highlight(
+            '{:post/title "Imported" :published? true :blocks #{"core/paragraph"}}',
+            'edn'
+        );
+
+        $t->same('clj', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('clojure'));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('clj'));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('cljs'));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('cljc'));
+        $t->same('clojure', SyntaxHighlighter::normalizeLanguage('edn'));
+        $t->same('clojure', $highlighted['language']);
+        $t->same('clj', $highlighted['requestedLanguage']);
+        $t->same('monochrome', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(780, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource clj numberLines"><code class="sourceCode clojure" style="counter-reset: source-line 779;">', $highlighted['html']);
+        $t->contains('<span id="clojure-review-780"><a href="#clojure-review-780"></a><span class="co">;; Babashka WordPress import review</span></span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">ns</span> <span class="va">importer.review</span>', $highlighted['html']);
+        $t->contains('<span class="ot">:require</span> <span class="op">[</span><span class="va">clojure.edn</span> <span class="ot">:as</span> <span class="va">edn</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">defn</span> <span class="va">normalize-title</span> <span class="op">[</span><span class="va">packet</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="op">[</span><span class="va">title</span> <span class="op">(</span><span class="fu">str/trim</span>', $highlighted['html']);
+        $t->contains('<span class="ot">:post/title</span> <span class="va">packet</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="fu">str/blank?</span> <span class="va">title</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">str</span> <span class="st">&quot;Import &quot;</span> <span class="op">(</span><span class="ot">:source/id</span> <span class="va">packet</span>', $highlighted['html']);
+        $t->contains('<span class="kw">def</span> <span class="va">review-packet</span>', $highlighted['html']);
+        $t->contains('<span class="ot">:source/id</span> <span class="dv">42</span>', $highlighted['html']);
+        $t->contains('<span class="ot">:media/items</span> <span class="op">[{</span><span class="ot">:url</span> <span class="st">&quot;uploads/hero.jpg&quot;</span> <span class="ot">:alt</span> <span class="cn">nil</span><span class="op">}]</span>', $highlighted['html']);
+        $t->contains('<span class="pp">#_</span><span class="op">(</span><span class="fu">println</span> <span class="st">&quot;discarded debug&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="fu">map</span> <span class="va">normalize-title</span> <span class="op">[</span><span class="va">review-packet</span><span class="op">])</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="monochrome">', $wordpressBlock);
+        $t->contains('<span class="fu">map</span> <span class="va">normalize-title</span>', $wordpressBlock);
+        $t->same('clojure', $directEdn['language']);
+        $t->same('edn', $directEdn['requestedLanguage']);
+        $t->contains('<span class="ot">:post/title</span> <span class="st">&quot;Imported&quot;</span>', $directEdn['html']);
+        $t->contains('<span class="ot">:published?</span> <span class="cn">true</span>', $directEdn['html']);
+        $t->contains('<span class="ot">:blocks</span> <span class="op">#{</span><span class="st">&quot;core/paragraph&quot;</span>', $directEdn['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

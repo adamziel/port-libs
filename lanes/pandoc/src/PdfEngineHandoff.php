@@ -6112,8 +6112,7 @@ final class PdfEngineHandoff
         }
 
         if ($type === 'Launch') {
-            $values = $this->extractPdfNamedStrings($dictionary, 'F');
-            $target = $values === [] ? null : trim($values[0]);
+            $target = $this->pdfLaunchActionTarget($dictionary);
 
             return $target === null || $target === ''
                 ? ['type' => 'Launch']
@@ -7189,7 +7188,7 @@ final class PdfEngineHandoff
         return [
             'source' => $source,
             'type' => $type,
-            'target' => $this->pdfActiveActionTarget($dictionary, $type, $nameHint),
+            'target' => $this->pdfActiveActionTarget($dictionary, $type, $objects, $nameHint),
             'scriptBytes' => $script === null ? null : strlen($script),
             'scriptSha256' => $script === null ? null : hash('sha256', $script),
         ];
@@ -7258,7 +7257,10 @@ final class PdfEngineHandoff
         return null;
     }
 
-    private function pdfActiveActionTarget(string $dictionary, string $type, ?string $nameHint): ?string
+    /**
+     * @param array<string, string> $objects
+     */
+    private function pdfActiveActionTarget(string $dictionary, string $type, array $objects, ?string $nameHint): ?string
     {
         if ($type === 'JavaScript') {
             return $nameHint;
@@ -7266,7 +7268,10 @@ final class PdfEngineHandoff
         if ($type === 'Named') {
             return $this->extractPdfStringOrNameValue($dictionary, 'N');
         }
-        if (in_array($type, ['Launch', 'SubmitForm', 'GoToR', 'ImportData'], true)) {
+        if ($type === 'Launch') {
+            return $this->pdfLaunchActionTarget($dictionary, $objects);
+        }
+        if (in_array($type, ['SubmitForm', 'GoToR', 'ImportData'], true)) {
             return $this->extractPdfStringOrNameValue($dictionary, 'F');
         }
         if ($type === 'Hide') {
@@ -7274,6 +7279,176 @@ final class PdfEngineHandoff
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     */
+    private function pdfLaunchActionTarget(string $dictionary, array $objects = []): ?string
+    {
+        $platformTargets = [];
+        foreach (['Win', 'Unix', 'Mac'] as $platform) {
+            $platformDictionary = $this->pdfDictionaryValueForName($dictionary, $platform, $objects);
+            if ($platformDictionary === null) {
+                continue;
+            }
+
+            $target = $this->pdfLaunchPlatformTarget($platform, $platformDictionary, $objects);
+            if ($target !== null && $target !== '') {
+                $platformTargets[] = $target;
+            }
+        }
+
+        if ($platformTargets !== []) {
+            return implode('|', $platformTargets);
+        }
+
+        return $this->pdfLaunchFileTargetFromValue($this->extractPdfValueForName($dictionary, 'F'), $objects);
+    }
+
+    /**
+     * @param array<string, string> $objects
+     */
+    private function pdfDictionaryValueForName(string $dictionary, string $name, array $objects): ?string
+    {
+        $value = $this->extractPdfValueForName($dictionary, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfDictionaryFromValue($value, $objects);
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     */
+    private function pdfDictionaryFromValue(array $value, array $objects, int $depth = 0): ?string
+    {
+        if ($depth > 8) {
+            return null;
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $value['value'];
+        }
+
+        if ($value['kind'] !== 'reference') {
+            return null;
+        }
+
+        $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        if ($body === null) {
+            return null;
+        }
+
+        $resolved = $this->parsePdfValueAt($body, 0);
+        if ($resolved === null) {
+            return str_starts_with(ltrim($body), '<<') ? $body : null;
+        }
+
+        return $this->pdfDictionaryFromValue($resolved, $objects, $depth + 1);
+    }
+
+    /**
+     * @param array<string, string> $objects
+     */
+    private function pdfLaunchPlatformTarget(string $platform, string $dictionary, array $objects): ?string
+    {
+        $components = [];
+        foreach (['F', 'D', 'O', 'P'] as $key) {
+            $value = $key === 'F'
+                ? $this->pdfLaunchFileTargetFromValue($this->extractPdfValueForName($dictionary, $key), $objects)
+                : $this->pdfScalarTargetFromValue($this->extractPdfValueForName($dictionary, $key), $objects);
+            if ($value === null || trim($value) === '') {
+                continue;
+            }
+
+            $components[] = $key . '=' . $this->normalizePdfActionTargetComponent($value);
+        }
+
+        return $components === [] ? null : $platform . ':' . implode(';', $components);
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int}|null $value
+     * @param array<string, string> $objects
+     */
+    private function pdfLaunchFileTargetFromValue(?array $value, array $objects, int $depth = 0): ?string
+    {
+        if ($value === null || $depth > 8) {
+            return null;
+        }
+
+        if (in_array($value['kind'], ['literal', 'hex', 'name', 'number'], true)) {
+            $target = trim($value['value']);
+
+            return $target === '' ? null : $target;
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            $target = $this->extractPdfStringOrNameValue($value['value'], 'UF')
+                ?? $this->extractPdfStringOrNameValue($value['value'], 'F');
+            $target = $target === null ? null : trim($target);
+
+            return $target === '' ? null : $target;
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return null;
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved === null) {
+                return null;
+            }
+
+            return $this->pdfLaunchFileTargetFromValue($resolved, $objects, $depth + 1);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int}|null $value
+     * @param array<string, string> $objects
+     */
+    private function pdfScalarTargetFromValue(?array $value, array $objects, int $depth = 0): ?string
+    {
+        if ($value === null || $depth > 8) {
+            return null;
+        }
+
+        if (in_array($value['kind'], ['literal', 'hex', 'name', 'number', 'keyword'], true)) {
+            $target = trim($value['value']);
+
+            return $target === '' ? null : $target;
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return null;
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved === null) {
+                return null;
+            }
+
+            return $this->pdfScalarTargetFromValue($resolved, $objects, $depth + 1);
+        }
+
+        return null;
+    }
+
+    private function normalizePdfActionTargetComponent(string $value): string
+    {
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+
+        return str_replace(['|', ';'], ['/', ','], $value);
     }
 
     private function pdfActionSourceToken(string $value): string

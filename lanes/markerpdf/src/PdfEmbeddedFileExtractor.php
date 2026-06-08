@@ -2310,7 +2310,10 @@ final class PdfEmbeddedFileExtractor
         $params = $this->resolveDictionaryFromValue($this->dictionaryRawValue($streamDictionary, 'Params'), $objects);
 
         return $params !== null
-            && $this->dictionaryHasDuplicateKeys($params['body'], self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS);
+            && (
+                $this->dictionaryHasDuplicateKeys($params['body'], self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS)
+                || $this->dictionaryHasTrailingOperandsAfterKeys($params['body'], self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS)
+            );
     }
 
     /**
@@ -4289,7 +4292,7 @@ final class PdfEmbeddedFileExtractor
         foreach (array_keys($carrierObjectNumbers) as $objectNumber) {
             $entry = $entries[$objectNumber] ?? null;
             if ($entry === null) {
-                $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                $definition = $this->uniqueDirectObjectStreamDefinitionBetweenOffsets(
                     $definitions[$objectNumber] ?? [],
                     $previousOffset ?? -1,
                     $currentXrefOffset
@@ -4315,7 +4318,7 @@ final class PdfEmbeddedFileExtractor
                 continue;
             }
 
-            $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+            $definition = $this->uniqueDirectObjectStreamDefinitionBetweenOffsets(
                 $definitions[$objectNumber] ?? [],
                 $previousOffset ?? -1,
                 $currentXrefOffset
@@ -4333,6 +4336,30 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * A damaged carrier xref row can be repaired only when the current
+     * revision window contains exactly one same-number direct definition and
+     * that definition is an object-stream carrier.
+     *
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function uniqueDirectObjectStreamDefinitionBetweenOffsets(array $definitions, int $afterOffset, int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['offset'] > $afterOffset && $definition['offset'] < $beforeOffset) {
+                $candidates[] = $definition;
+            }
+        }
+
+        if (count($candidates) !== 1) {
+            return null;
+        }
+
+        return $this->objectBodyHasTypeName($candidates[0]['body'], 'ObjStm') ? $candidates[0] : null;
     }
 
     /**

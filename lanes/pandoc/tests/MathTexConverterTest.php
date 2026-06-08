@@ -51,6 +51,26 @@ return [
         $t->contains('alttext="p sub i over audit plus square root of x"', $accessibleMathml);
         $t->contains('intent="row(over(subscript(p,i),audit),plus,sqrt(x))"', $accessibleMathml);
     },
+    'converts bounded texmath command table aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $greekMathml = $converter->texToMathMl('\\Gamma + \\Delta + \\varepsilon + \\varphi + \\vartheta + \\xi + \\zeta', true);
+        $operatorMathml = $converter->texToMathMl('\\limsup_{n} a_n + \\liminf_{m} b_m + \\min x + \\max y + \\det A + \\gcd(m,n)');
+        $relationMathml = $converter->texToMathMl('A \\preceq B + C \\succeq D + x \\sim y + p \\models q + u \\mid v');
+        $arrowDotMathml = $converter->texToMathMl('x \\longrightarrow y + a \\Longleftrightarrow b + \\dots + \\dotsb + \\vdots + \\therefore q');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\Gamma + x \\preceq y + \\therefore z');
+        $combinedMathml = $greekMathml . $operatorMathml . $relationMathml . $arrowDotMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $greekMathml);
+        $t->contains('<mi>Γ</mi><mo>+</mo><mi>Δ</mi><mo>+</mo><mi>ε</mi><mo>+</mo><mi>φ</mi><mo>+</mo><mi>ϑ</mi><mo>+</mo><mi>ξ</mi><mo>+</mo><mi>ζ</mi>', $greekMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\Gamma + \\Delta + \\varepsilon + \\varphi + \\vartheta + \\xi + \\zeta</annotation>', $greekMathml);
+        $t->contains('<msub><mi>limsup</mi><mi>n</mi></msub><msub><mi>a</mi><mi>n</mi></msub><mo>+</mo><msub><mi>liminf</mi><mi>m</mi></msub><msub><mi>b</mi><mi>m</mi></msub>', $operatorMathml);
+        $t->contains('<mi>min</mi><mi>x</mi><mo>+</mo><mi>max</mi><mi>y</mi><mo>+</mo><mi>det</mi><mi>A</mi><mo>+</mo><mi>gcd</mi><mo>(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>)</mo>', $operatorMathml);
+        $t->contains('<mi>A</mi><mo>≼</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>≽</mo><mi>D</mi><mo>+</mo><mi>x</mi><mo>∼</mo><mi>y</mi><mo>+</mo><mi>p</mi><mo>⊨</mo><mi>q</mi><mo>+</mo><mi>u</mi><mo>∣</mo><mi>v</mi>', $relationMathml);
+        $t->contains('<mi>x</mi><mo>→</mo><mi>y</mi><mo>+</mo><mi>a</mi><mo>⇔</mo><mi>b</mi><mo>+</mo><mo>…</mo><mo>+</mo><mo>⋯</mo><mo>+</mo><mo>⋮</mo><mo>+</mo><mo>∴</mo><mi>q</mi>', $arrowDotMathml);
+        $t->contains('alttext="gamma plus x precedes or equal y plus therefore z"', $accessibleMathml);
+        $t->contains('intent="row(gamma,plus,x,precedes_or_equal,y,plus,therefore,z)"', $accessibleMathml);
+        $t->true(!str_contains($combinedMathml, '<mi>\\Gamma</mi>') && !str_contains($combinedMathml, '<mi>\\limsup</mi>') && !str_contains($combinedMathml, '<mi>\\preceq</mi>') && !str_contains($combinedMathml, '<mi>\\therefore</mi>'));
+    },
     'unwraps bounded tex hyperref wrappers for mathml handoff' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $mathml = $converter->texToMathMl('\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}', true);

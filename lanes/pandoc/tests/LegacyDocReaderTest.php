@@ -4153,6 +4153,109 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC data field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC SET field assignments as hidden handoff metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Variables '
+            . $fieldBegin . ' SET "MigrationBatch" "legacy-doc-42" \* MERGEFORMAT ' . $fieldEnd
+            . ' '
+            . $fieldBegin . ' SET Sign "opaque signature bytes" ' . $fieldEnd
+            . ' show '
+            . $fieldBegin . ' DOCVARIABLE MigrationBatch ' . $fieldSeparator . 'legacy-doc-42' . $fieldEnd
+            . ".\r";
+
+        $firstBegin = strpos($text, $fieldBegin);
+        $firstEnd = strpos($text, $fieldEnd, (int) $firstBegin);
+        $secondBegin = strpos($text, $fieldBegin, (int) $firstEnd + 1);
+        $secondEnd = strpos($text, $fieldEnd, (int) $secondBegin);
+        $thirdBegin = strpos($text, $fieldBegin, (int) $secondEnd + 1);
+        $thirdSeparator = strpos($text, $fieldSeparator, (int) $thirdBegin);
+        $thirdEnd = strpos($text, $fieldEnd, (int) $thirdSeparator);
+        foreach ([$firstBegin, $firstEnd, $secondBegin, $secondEnd, $thirdBegin, $thirdSeparator, $thirdEnd] as $cp) {
+            if (!is_int($cp)) {
+                throw new RuntimeException('Unable to locate legacy DOC SET field fixture');
+            }
+        }
+
+        $fieldTable = $plcfldMom([
+            ['cp' => $firstBegin, 'character' => 0x13, 'typeCode' => 0x06],
+            ['cp' => $firstEnd, 'character' => 0x15],
+            ['cp' => $secondBegin, 'character' => 0x13, 'typeCode' => 0x06],
+            ['cp' => $secondEnd, 'character' => 0x15],
+            ['cp' => $thirdBegin, 'character' => 0x13, 'typeCode' => 0x40],
+            ['cp' => $thirdSeparator, 'character' => 0x14],
+            ['cp' => $thirdEnd, 'character' => 0x15],
+        ], strlen($text));
+        $wordDocument = $buildSimpleWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $fieldTable,
+        ]));
+        $document = $result['document'];
+        $paragraph = $document->children[0];
+        $fields = $result['fields'];
+        $fieldCharacters = $result['fieldCharacters'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(7, $result['metadata']['fieldCharacterCount']);
+        $t->same(3, $result['metadata']['fieldCount']);
+        $t->same($fields, $result['metadata']['fields']);
+        $t->same($fields, $document->attr('fields'));
+        $t->same('set', $fields[0]['type']);
+        $t->same(0x06, $fields[0]['typeCode']);
+        $t->same(false, $fields[0]['hasResult']);
+        $t->same($firstBegin, $fields[0]['beginCp']);
+        $t->same($firstEnd, $fields[0]['endCp']);
+        $t->same($firstEnd, $fields[0]['instructionEndCp']);
+        $t->same('set', $fields[1]['type']);
+        $t->same(0x06, $fieldCharacters[0]['typeCode']);
+        $t->same('set', $fieldCharacters[0]['type']);
+        $t->same('docvariable', $fields[2]['type']);
+
+        $set = $paragraph->children[1];
+        $t->same('span', $set->type);
+        $t->same([], $set->children);
+        $t->same(['legacy-doc-field', 'legacy-doc-set-field', 'legacy-doc-field-set'], $set->attr('classes'));
+        $t->same('set', $set->attr('attributes')['data-legacy-doc-field']);
+        $t->same('SET "MigrationBatch" "legacy-doc-42" \* MERGEFORMAT', $set->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('document-variable-assignment', $set->attr('attributes')['data-legacy-doc-set-field-type']);
+        $t->same('MigrationBatch', $set->attr('attributes')['data-legacy-doc-set-field-name']);
+        $t->same('MERGEFORMAT', $set->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('13', $set->attr('attributes')['data-legacy-doc-set-field-value-character-count']);
+        $t->same('legacy-doc-42', $set->attr('attributes')['data-legacy-doc-set-field-value']);
+
+        $signatureSet = $paragraph->children[3];
+        $t->same('span', $signatureSet->type);
+        $t->same([], $signatureSet->children);
+        $t->same('SET Sign [redacted]', $signatureSet->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('Sign', $signatureSet->attr('attributes')['data-legacy-doc-set-field-name']);
+        $t->same('true', $signatureSet->attr('attributes')['data-legacy-doc-field-instruction-redacted']);
+        $t->same('true', $signatureSet->attr('attributes')['data-legacy-doc-set-field-redacted']);
+        $t->same('signature-blob-metadata-only', $signatureSet->attr('attributes')['data-legacy-doc-set-field-policy']);
+        $t->same('22', $signatureSet->attr('attributes')['data-legacy-doc-set-field-value-character-count']);
+        $t->true(!isset($signatureSet->attr('attributes')['data-legacy-doc-set-field-value']), 'Signature SET field values should stay redacted');
+
+        $docVariable = $paragraph->children[5];
+        $t->same('span', $docVariable->type);
+        $t->same('docvariable', $docVariable->attr('attributes')['data-legacy-doc-field']);
+        $t->same('MigrationBatch', $docVariable->attr('attributes')['data-legacy-doc-data-field-name']);
+        $t->same('legacy-doc-42', $docVariable->children[0]->attr('text'));
+
+        $t->contains('[]{.legacy-doc-field .legacy-doc-set-field .legacy-doc-field-set data-legacy-doc-field="set"', $markdown);
+        $t->contains('data-legacy-doc-set-field-name="MigrationBatch"', $markdown);
+        $t->contains('data-legacy-doc-set-field-policy="signature-blob-metadata-only"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-set-field legacy-doc-field-set" data-legacy-doc-field="set" data-legacy-doc-field-instruction="SET &quot;MigrationBatch&quot; &quot;legacy-doc-42&quot; \* MERGEFORMAT" data-legacy-doc-set-field-type="document-variable-assignment" data-legacy-doc-set-field-name="MigrationBatch" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-set-field-value-character-count="13" data-legacy-doc-set-field-value="legacy-doc-42"></span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-set-field legacy-doc-field-set" data-legacy-doc-field="set" data-legacy-doc-field-instruction="SET Sign [redacted]" data-legacy-doc-set-field-type="document-variable-assignment" data-legacy-doc-set-field-name="Sign" data-legacy-doc-field-instruction-redacted="true" data-legacy-doc-set-field-value-character-count="22" data-legacy-doc-set-field-redacted="true" data-legacy-doc-set-field-policy="signature-blob-metadata-only"></span>', $blocks);
+        $t->true(!str_contains(strip_tags($blocks), 'SET'), 'Legacy DOC SET field instructions should not render as visible text');
+        $t->true(!str_contains(strip_tags($blocks), 'MigrationBatch'), 'Legacy DOC SET field names should not render as visible text');
+        $t->true(!str_contains($blocks, 'opaque signature bytes'), 'Legacy DOC signature SET values should not render in WordPress blocks');
+        $t->true(!str_contains($markdown, 'opaque signature bytes'), 'Legacy DOC signature SET values should not render in Markdown');
+    },
     'preserves legacy DOC prompt field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";

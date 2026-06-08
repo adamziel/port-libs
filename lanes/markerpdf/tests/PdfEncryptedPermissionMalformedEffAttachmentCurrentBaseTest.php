@@ -74,9 +74,9 @@ return [
 
         $t->same('identity_filters_review_only_encrypted_document_boundary', $review['text_content_policy']);
         $t->same('malformed_crypt_filter_role_entry_fail_closed', $review['embedded_file_payload_policy']);
-        $t->same(['document_streams', 'document_strings', 'embedded_file_streams'], $review['identity_role_names']);
+        $t->same(['document_streams', 'document_strings'], $review['identity_role_names']);
         $t->same(['embedded_file_streams'], $review['fail_closed_role_names']);
-        $t->same(['ClearStreams'], $review['fail_closed_filter_names']);
+        $t->same([], $review['fail_closed_filter_names']);
         $t->same(['embedded_file_streams'], $review['role_declaration_fail_closed_role_names']);
         $t->same(['EFF'], $review['role_declaration_fail_closed_pdf_names']);
 
@@ -84,7 +84,7 @@ return [
         $t->same(true, $permission['crypt_filter_embedded_file_fail_closed']);
         $t->same('blocked_by_malformed_embedded_file_crypt_filter_role', $permission['crypt_filter_embedded_file_boundary']);
         $t->same(['embedded_file_streams'], $permission['crypt_filter_fail_closed_role_names']);
-        $t->same(['ClearStreams'], $permission['crypt_filter_fail_closed_filter_names']);
+        $t->same([], $permission['crypt_filter_fail_closed_filter_names']);
 
         $t->same(1, $summary['attachment_count']);
         $t->same('malformed-eff.xml', $attachment['filename']);

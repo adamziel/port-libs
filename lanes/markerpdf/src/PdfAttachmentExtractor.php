@@ -2964,8 +2964,9 @@ final class PdfAttachmentExtractor
 
     /**
      * EmbeddedFile stream /Params carries Size, CheckSum, dates, and Mac
-     * resource-fork review metadata. Duplicate entries are ambiguous, so skip
-     * the stream before importing stale or conflicting attachment metadata.
+     * resource-fork review metadata. Duplicate entries or unkeyed trailing
+     * operands are ambiguous, so skip the stream before importing stale or
+     * conflicting attachment metadata.
      *
      * @param array{generation: int, body: string, value: mixed, stream: string|null} $streamObject
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
@@ -2989,7 +2990,10 @@ final class PdfAttachmentExtractor
         $paramsBody = $this->rawDictionaryBodyFromValue($paramsValue, $objects);
 
         return $paramsBody !== null
-            && $this->dictionaryHasDuplicateKeys($paramsBody, self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS);
+            && (
+                $this->dictionaryHasDuplicateKeys($paramsBody, self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS)
+                || $this->dictionaryHasTrailingOperandsAfterKeys($paramsBody, self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS)
+            );
     }
 
     /**
@@ -6139,7 +6143,7 @@ final class PdfAttachmentExtractor
         foreach (array_keys($carrierObjectNumbers) as $objectNumber) {
             $entry = $entries[$objectNumber] ?? null;
             if ($entry === null) {
-                $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                $definition = $this->uniqueDirectObjectStreamDefinitionBetweenOffsets(
                     $definitions[$objectNumber] ?? [],
                     $previousOffset ?? -1,
                     $currentXrefOffset
@@ -6165,7 +6169,7 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
-            $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+            $definition = $this->uniqueDirectObjectStreamDefinitionBetweenOffsets(
                 $definitions[$objectNumber] ?? [],
                 $previousOffset ?? -1,
                 $currentXrefOffset
@@ -6322,6 +6326,30 @@ final class PdfAttachmentExtractor
         }
 
         return true;
+    }
+
+    /**
+     * A damaged carrier xref row can be repaired only when the current
+     * revision window contains exactly one same-number direct definition and
+     * that definition is an object-stream carrier.
+     *
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function uniqueDirectObjectStreamDefinitionBetweenOffsets(array $definitions, int $afterOffset, int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['offset'] > $afterOffset && $definition['offset'] < $beforeOffset) {
+                $candidates[] = $definition;
+            }
+        }
+
+        if (count($candidates) !== 1) {
+            return null;
+        }
+
+        return $this->objectBodyHasTypeName($candidates[0]['body'], 'ObjStm') ? $candidates[0] : null;
     }
 
     /**

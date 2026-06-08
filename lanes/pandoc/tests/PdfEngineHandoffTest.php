@@ -5752,6 +5752,82 @@ MARKDOWN);
         $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
     },
 
+    'fake runner extracts bounded pdf platform launch action targets from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/platform-launch.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OpenAction << /S /Launch /Win << /F (tools/open-review.exe) /D (C:/review) /O (open) /P (--packet packets/platform-launch.pdf) >> >> /AA << /WS 8 0 R /DS 9 0 R >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /S /Launch /Win << /F (tools/review-helper.exe) /D (C:/review) /O (open) /P (--packet packets/platform-launch.pdf) >> >>',
+            'endobj',
+            '9 0 obj',
+            '<< /S /Launch /Unix << /F (/usr/bin/xdg-open) /P (packets/platform-launch.pdf) >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/platform-launch.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/platform-launch.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expectedActions = [
+            [
+                'source' => 'catalog.AA.DS',
+                'type' => 'Launch',
+                'target' => 'Unix:F=/usr/bin/xdg-open;P=packets/platform-launch.pdf',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.AA.WS',
+                'type' => 'Launch',
+                'target' => 'Win:F=tools/review-helper.exe;D=C:/review;O=open;P=--packet packets/platform-launch.pdf',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.OpenAction',
+                'type' => 'Launch',
+                'target' => 'Win:F=tools/open-review.exe;D=C:/review;O=open;P=--packet packets/platform-launch.pdf',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same([
+            'type' => 'Launch',
+            'target' => 'Win:F=tools/open-review.exe;D=C:/review;O=open;P=--packet packets/platform-launch.pdf',
+        ], $result['pdfOpenAction']);
+        $t->same($expectedActions, $result['pdfActiveActions']);
+        $t->same(['Launch' => 3], $result['pdfActiveActionTypes']);
+        $t->contains('pdf-byte-active-actions:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-type:Launch:3', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedActions, $sequence['finalPdfActiveActions']);
+        $t->same($result['pdfOpenAction'], $sequence['finalPdfOpenAction']);
+    },
+
     'fake runner extracts bounded pdf optional content layer metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layers.pdf']);

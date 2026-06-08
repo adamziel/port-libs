@@ -9958,8 +9958,18 @@ final class PdfTextExtractor
 
         $start = 0;
         $length = strlen($reviewStream);
-        while ($start < $length && str_contains("\x00\t\n\f\r ", $reviewStream[$start])) {
-            $start++;
+        while ($start < $length) {
+            if (str_contains("\x00\t\n\f\r ", $reviewStream[$start])) {
+                $start++;
+                continue;
+            }
+
+            if ($start + 3 <= $length && substr($reviewStream, $start, 3) === "\xef\xbb\xbf") {
+                $start += 3;
+                continue;
+            }
+
+            break;
         }
         if ($start >= $length) {
             return null;
@@ -14868,6 +14878,7 @@ final class PdfTextExtractor
 
             $labelDictionary = $this->pageLabelDictionaryFromValue($labelValue, $objects);
             if ($labelDictionary === null) {
+                $index = $valueIndex;
                 continue;
             }
             if ($this->pageLabelDictionaryHasNumberTreeKeys($labelDictionary)) {
@@ -18216,8 +18227,18 @@ final class PdfTextExtractor
     {
         $limit = min($limitOffset ?? strlen($bytes), strlen($bytes));
         $start = $startOffset;
-        while ($start < $limit && str_contains("\x00\t\n\f\r ", $bytes[$start])) {
-            $start++;
+        while ($start < $limit) {
+            if (str_contains("\x00\t\n\f\r ", $bytes[$start])) {
+                $start++;
+                continue;
+            }
+
+            if ($start + 3 <= $limit && substr($bytes, $start, 3) === "\xef\xbb\xbf") {
+                $start += 3;
+                continue;
+            }
+
+            break;
         }
 
         if ($start >= $limit || $bytes[$start] !== "\xff") {
@@ -21461,7 +21482,12 @@ final class PdfTextExtractor
 
         $maps = [];
         $namedCMapBodies = $this->namedCMapBodies($objects);
+        $duplicateResourceNames = $this->duplicateTopLevelResourceReferenceNames($fontDictionary);
         foreach ($this->topLevelResourceReferenceEntries($fontDictionary, true) as $resourceName => $resource) {
+            if (isset($duplicateResourceNames[$resourceName])) {
+                continue;
+            }
+
             $resolved = $this->resolvedResourceObjectBody(
                 $objects,
                 $resource['objectNumber'],
@@ -21482,7 +21508,7 @@ final class PdfTextExtractor
         }
 
         foreach ($this->directFontResourceDictionaries($fontDictionary) as $name => $fontBody) {
-            if (isset($maps[$name])) {
+            if (isset($maps[$name]) || isset($duplicateResourceNames[$name])) {
                 continue;
             }
 
@@ -21591,6 +21617,7 @@ final class PdfTextExtractor
         }
 
         $properties = [];
+        $duplicateResourceNames = $this->duplicateTopLevelResourceReferenceNames($propertiesDictionary);
         $offset = 0;
         $length = strlen($propertiesDictionary);
         while ($offset < $length) {
@@ -21624,6 +21651,12 @@ final class PdfTextExtractor
             }
 
             $dictionary = null;
+            if (isset($duplicateResourceNames[$name])) {
+                $next = $this->skipPdfValueAt($propertiesDictionary, $valueOffset);
+                $offset = $next > $valueOffset ? $next : $valueOffset + 1;
+                continue;
+            }
+
             $referenceOffset = $valueOffset;
             $reference = $this->readPdfIndirectReferenceToken($propertiesDictionary, $referenceOffset);
             if ($reference !== null) {
@@ -30992,9 +31025,10 @@ final class PdfTextExtractor
 
     /**
      * A damaged carrier xref row can be repaired only when the current
-     * revision window contains one possible direct object-stream carrier.
-     * Multiple same-number /ObjStm candidates are ambiguous without a valid
-     * direct carrier row, so fail closed instead of guessing by file order.
+     * revision window contains exactly one same-number direct definition and
+     * that definition is an object-stream carrier. A non-/ObjStm direct body
+     * for the carrier number is also ambiguous without a valid carrier row, so
+     * fail closed instead of guessing by file order.
      *
      * @param list<array{generation: int, offset: int, body: string}> $definitions
      * @return array{generation: int, offset: int, body: string}|null
@@ -31006,13 +31040,16 @@ final class PdfTextExtractor
             if (
                 $definition['offset'] > $afterOffset
                 && $definition['offset'] < $beforeOffset
-                && $this->objectBodyHasTypeName($definition['body'], 'ObjStm')
             ) {
                 $candidates[] = $definition;
             }
         }
 
-        return count($candidates) === 1 ? $candidates[0] : null;
+        if (count($candidates) !== 1) {
+            return null;
+        }
+
+        return $this->objectBodyHasTypeName($candidates[0]['body'], 'ObjStm') ? $candidates[0] : null;
     }
 
     /**

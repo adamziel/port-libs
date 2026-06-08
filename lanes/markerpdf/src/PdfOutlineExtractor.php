@@ -28,6 +28,13 @@ final class PdfOutlineExtractor
      */
     private array $objectSingleTopLevelValues = [];
 
+    /**
+     * @var array{object: int, generation: int}|null
+     */
+    private ?array $trailerRootReference = null;
+
+    private bool $trailerRootReferencePresent = false;
+
     private const VALID_DESTINATION_VIEW_NAMES = [
         'Fit' => true,
         'FitB' => true,
@@ -2285,6 +2292,8 @@ final class PdfOutlineExtractor
         $this->objectBodies = [];
         $this->objectSelectionHasXref = false;
         $this->objectSingleTopLevelValues = [];
+        $this->trailerRootReference = null;
+        $this->trailerRootReferencePresent = false;
         $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
         if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
             return $values;
@@ -2355,7 +2364,10 @@ final class PdfOutlineExtractor
 
         $values = $this->withObjectStreamParsedValues($values, $selectedBodies);
 
-        $rootReference = $this->currentTrailerRootReference($pdfBytes);
+        $rootSelection = $this->trailerRootReferenceSelection($pdfBytes);
+        $this->trailerRootReferencePresent = $rootSelection['present'];
+        $this->trailerRootReference = $rootSelection['reference'];
+        $rootReference = $this->trailerRootReference;
         if (
             $rootReference !== null
             && isset($values[$rootReference['object']])
@@ -2367,6 +2379,76 @@ final class PdfOutlineExtractor
         }
 
         return $values;
+    }
+
+    /**
+     * @return array{present: bool, reference: array{object: int, generation: int}|null}
+     */
+    private function trailerRootReferenceSelection(string $pdfBytes): array
+    {
+        if (preg_match('/\bstartxref\s+[+-]?\d+/s', $pdfBytes) === 1) {
+            $reference = $this->currentTrailerRootReference($pdfBytes);
+
+            return [
+                'present' => $reference !== null,
+                'reference' => $reference,
+            ];
+        }
+
+        $trailer = $this->latestTrailerDictionary($pdfBytes);
+        if ($trailer === null || !array_key_exists('Root', $trailer)) {
+            return [
+                'present' => false,
+                'reference' => null,
+            ];
+        }
+
+        $root = $trailer['Root'];
+        if (!$this->isReferenceValue($root)) {
+            return [
+                'present' => true,
+                'reference' => null,
+            ];
+        }
+
+        return [
+            'present' => true,
+            'reference' => [
+                'object' => (int) $root['object'],
+                'generation' => $this->referenceGeneration($root),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function latestTrailerDictionary(string $pdfBytes): ?array
+    {
+        if (preg_match_all('/\btrailer\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $trailerOffset = $matches[0][$index][1];
+            $dictionaryOffset = strpos($pdfBytes, '<<', $trailerOffset + strlen($matches[0][$index][0]));
+            if ($dictionaryOffset === false) {
+                continue;
+            }
+
+            $tokens = $this->tokens(substr($pdfBytes, $dictionaryOffset, 4096));
+            if ($tokens === []) {
+                continue;
+            }
+
+            $tokenIndex = 0;
+            $dictionary = $this->dictionaryItems($this->parseValue($tokens, $tokenIndex));
+            if ($dictionary !== null) {
+                return $dictionary;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -3386,10 +3468,40 @@ final class PdfOutlineExtractor
      */
     private function catalogDictionary(array $objects): ?array
     {
-        foreach ($objects as $value) {
+        $objectNumber = $this->catalogObjectNumber($objects);
+        if ($objectNumber === null || !array_key_exists($objectNumber, $objects)) {
+            return null;
+        }
+
+        $dict = $this->dictionaryItems($this->objectValueForCatalogObject($objects, $objectNumber));
+
+        return $dict !== null && $this->nameValue($dict['Type'] ?? null) === 'Catalog' ? $dict : null;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function catalogObjectNumber(array $objects): ?int
+    {
+        if ($this->trailerRootReferencePresent) {
+            if ($this->trailerRootReference === null) {
+                return null;
+            }
+
+            $objectNumber = $this->trailerRootReference['object'];
+            $dict = $this->dictionaryItems($this->objectValueForReference(
+                $objects,
+                $objectNumber,
+                $this->trailerRootReference['generation']
+            ));
+
+            return $dict !== null && $this->nameValue($dict['Type'] ?? null) === 'Catalog' ? $objectNumber : null;
+        }
+
+        foreach ($objects as $objectNumber => $value) {
             $dict = $this->dictionaryItems($value);
             if ($dict !== null && $this->nameValue($dict['Type'] ?? null) === 'Catalog') {
-                return $dict;
+                return (int) $objectNumber;
             }
         }
 
@@ -3398,20 +3510,38 @@ final class PdfOutlineExtractor
 
     /**
      * @param array<int, mixed> $objects
+     */
+    private function objectValueForCatalogObject(array $objects, int $objectNumber): mixed
+    {
+        if (
+            $this->trailerRootReferencePresent
+            && $this->trailerRootReference !== null
+            && $this->trailerRootReference['object'] === $objectNumber
+        ) {
+            return $this->objectValueForReference(
+                $objects,
+                $objectNumber,
+                $this->trailerRootReference['generation']
+            );
+        }
+
+        return $objects[$objectNumber] ?? null;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
      * @param list<string> $keys
      */
     private function catalogDictionaryHasDuplicateKeys(array $objects, array $keys): bool
     {
-        foreach ($objects as $value) {
-            $dict = $this->dictionaryItems($value);
-            if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'Catalog') {
-                continue;
-            }
-
-            return $this->dictionaryHasDuplicateBoundaryKeys($value, $keys);
+        $objectNumber = $this->catalogObjectNumber($objects);
+        if ($objectNumber === null) {
+            return false;
         }
 
-        return false;
+        $value = $this->objectValueForCatalogObject($objects, $objectNumber);
+
+        return $value !== null && $this->dictionaryHasDuplicateBoundaryKeys($value, $keys);
     }
 
     /**
@@ -3433,21 +3563,17 @@ final class PdfOutlineExtractor
      */
     private function catalogHasMalformedOutlinesOperand(array $objects): bool
     {
-        foreach ($objects as $objectNumber => $value) {
-            $dict = $this->dictionaryItems($value);
-            if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'Catalog') {
-                continue;
-            }
-
-            $body = $this->objectBodies[$objectNumber] ?? null;
-            if ($body === null) {
-                return false;
-            }
-
-            return $this->dictionaryNameHasTrailingTopLevelOperand($body, 'Outlines');
+        $objectNumber = $this->catalogObjectNumber($objects);
+        if ($objectNumber === null) {
+            return false;
         }
 
-        return false;
+        $body = $this->objectBodies[$objectNumber] ?? null;
+        if ($body === null) {
+            return false;
+        }
+
+        return $this->dictionaryNameHasTrailingTopLevelOperand($body, 'Outlines');
     }
 
     private function dictionaryNameHasTrailingTopLevelOperand(string $body, string $name): bool

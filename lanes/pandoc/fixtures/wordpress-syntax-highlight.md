@@ -987,3 +987,25 @@ struct ImportReviewCard: View {
     }
 }
 ```
+
+``` {.clj #clojure-review .numberLines startFrom=780}
+;; Babashka WordPress import review
+(ns importer.review
+  (:require [clojure.edn :as edn]
+            [clojure.string :as str]))
+
+(defn normalize-title [packet]
+  (let [title (str/trim (or (:post/title packet) "Untitled"))]
+    (if (str/blank? title)
+      (str "Import " (:source/id packet))
+      title)))
+
+(def review-packet
+  {:source/id 42
+   :post/title "Migrated block"
+   :media/items [{:url "uploads/hero.jpg" :alt nil}]
+   :blocks #{"core/paragraph" "core/image"}})
+
+#_(println "discarded debug")
+(map normalize-title [review-packet])
+```
