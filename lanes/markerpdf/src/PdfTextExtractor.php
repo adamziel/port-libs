@@ -39474,6 +39474,10 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($blockMatch['declaredCount'] < 0) {
+                return true;
+            }
+
             $declaredCount = max(0, $blockMatch['declaredCount']);
             if ($declaredCount === 0) {
                 continue;

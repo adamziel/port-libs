@@ -517,6 +517,10 @@ final class PdfLinkAnnotationExtractor
             }
 
             $trimmedObjectBody = trim($objectBody);
+            if ($this->topLevelValueHasTrailingOperand($trimmedObjectBody)) {
+                return [];
+            }
+
             if (str_starts_with($trimmedObjectBody, '[')) {
                 if ($this->arrayValueHasTrailingOperand($trimmedObjectBody)) {
                     return [];

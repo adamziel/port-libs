@@ -939,7 +939,7 @@ final class PdfEmbeddedFileExtractor
             return null;
         }
 
-        $ef = $this->resolveDictionaryFromValue($this->dictionaryRawValue($body, 'EF'), $objects);
+        $ef = $this->resolveExactDictionaryFromValue($this->dictionaryRawValue($body, 'EF'), $objects);
         if ($ef === null) {
             return null;
         }
@@ -7243,6 +7243,31 @@ final class PdfEmbeddedFileExtractor
 
         $dictionary = $this->readPdfDictionaryAt($resolved, 0);
         return $dictionary === null ? null : ['body' => $dictionary['body'], 'object' => null];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null}|null
+     */
+    private function resolveExactDictionaryFromValue(?string $value, array $objects): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        $resolved = $this->resolveRawValue($value, $objects);
+        if ($resolved === null) {
+            return null;
+        }
+
+        $resolved = trim($resolved);
+        $dictionary = $this->readPdfDictionaryAt($resolved, 0);
+        if ($dictionary === null || $this->skipWhitespace($resolved, $dictionary['end']) !== strlen($resolved)) {
+            return null;
+        }
+
+        return ['body' => $dictionary['body'], 'object' => $objectNumber];
     }
 
     /**

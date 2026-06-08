@@ -3509,7 +3509,7 @@ final class PdfAttachmentExtractor
      */
     private function embeddedFileStreamReference(mixed $efValue, array $objects, string $preferredKey): ?array
     {
-        $ef = $this->dict($this->resolveValue($efValue, $objects));
+        $ef = $this->exactDictionaryValue($efValue, $objects);
         if ($ef === null) {
             return null;
         }
@@ -3532,6 +3532,29 @@ final class PdfAttachmentExtractor
         }
 
         return null;
+    }
+
+    /**
+     * Referenced FileSpec /EF values must resolve to exactly one dictionary.
+     * A dictionary prefix followed by a top-level reference is ambiguous and is
+     * rejected before any embedded-file stream is trusted.
+     *
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>|null
+     */
+    private function exactDictionaryValue(mixed $value, array $objects): ?array
+    {
+        $reference = $this->refObjectReference($value);
+        if ($reference === null) {
+            return $this->dict($value);
+        }
+
+        $object = $this->objectForReference($value, $objects);
+        if ($object === null || $this->topLevelExactDictionaryBodyFromObjectBody($object['body']) === null) {
+            return null;
+        }
+
+        return $this->dict($object['value']);
     }
 
     /**
@@ -8375,6 +8398,23 @@ final class PdfAttachmentExtractor
 
         $raw = trim($raw);
         if (!str_starts_with($raw, '<<') || !str_ends_with($raw, '>>')) {
+            return null;
+        }
+
+        return substr($raw, 2, -2);
+    }
+
+    private function topLevelExactDictionaryBodyFromObjectBody(string $body): ?string
+    {
+        $index = 0;
+        $raw = $this->rawValueAt($body, $index);
+        if ($raw === null) {
+            return null;
+        }
+
+        $this->skipWhitespaceAndComments($body, $index);
+        $raw = trim($raw);
+        if ($index !== strlen($body) || !str_starts_with($raw, '<<') || !str_ends_with($raw, '>>')) {
             return null;
         }
 
