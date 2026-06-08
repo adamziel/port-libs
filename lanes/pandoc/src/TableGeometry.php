@@ -448,6 +448,9 @@ final class TableGeometry
                         'rowspan' => max(1, (int) ($slot['rowspan'] ?? 1)),
                         'scope' => $scope,
                     ];
+                    if ($sourceScope !== '') {
+                        $record['sourceScope'] = $sourceScope;
+                    }
                     $headers[] = $record;
                     $attributes[$key] = [
                         'id' => $id,
@@ -484,7 +487,8 @@ final class TableGeometry
                             $applies = (int) $rowIndex === (int) $header['row'];
                         } elseif ($scope === 'rowgroup' && $header['section'] === $section) {
                             $headerRow = (int) $header['row'];
-                            $applies = (int) $rowIndex >= $headerRow && (int) $rowIndex < $headerRow + (int) $header['rowspan'];
+                            $applies = ($header['sourceScope'] ?? '') === 'rowgroup'
+                                || ((int) $rowIndex >= $headerRow && (int) $rowIndex < $headerRow + (int) $header['rowspan']);
                         }
 
                         if ($applies) {
@@ -2322,9 +2326,13 @@ final class TableGeometry
                     $scope = (string) ($header['scope'] ?? '');
                     $headerRow = (int) ($header['row'] ?? -1);
                     $rowspan = max(1, (int) ($header['rowspan'] ?? 1));
-                    $applies = $scope === 'row'
-                        ? $headerRow === (int) $rowIndex
-                        : (int) $rowIndex >= $headerRow && (int) $rowIndex < $headerRow + $rowspan;
+                    if ($scope === 'row') {
+                        $applies = $headerRow === (int) $rowIndex;
+                    } elseif (($header['sourceScope'] ?? '') === 'rowgroup') {
+                        $applies = true;
+                    } else {
+                        $applies = (int) $rowIndex >= $headerRow && (int) $rowIndex < $headerRow + $rowspan;
+                    }
                     if (!$applies) {
                         continue;
                     }
@@ -2405,6 +2413,7 @@ final class TableGeometry
             'id',
             'text',
             'scope',
+            'sourceScope',
             'section',
             'rowRole',
             'abbr',
@@ -2654,6 +2663,11 @@ final class TableGeometry
         $sourceAttributes = self::sourceAttributeSummary($node);
         if ($sourceAttributes !== []) {
             $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        $sourceScope = self::cellSourceHtmlScope($node);
+        if ($sourceScope !== '') {
+            $record['sourceScope'] = $sourceScope;
         }
 
         return $record;

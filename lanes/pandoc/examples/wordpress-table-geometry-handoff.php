@@ -463,6 +463,68 @@ $astAttributeTable = new AstNode('table', [
     ]),
 ]);
 
+$sourceRowgroupScopeTable = new AstNode('table', [
+    'caption' => 'Source rowgroup accessibility grid',
+    'alignments' => ['left', 'right', 'center'],
+    'accessibilityHeaders' => true,
+    'accessibilityIdPrefix' => 'Source Rowgroup Grid',
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Scope',
+                'header' => true,
+                'htmlAttributes' => [
+                    'id' => 'source-rg-scope',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'Scope'])]),
+            new AstNode('table_cell', [
+                'text' => 'Count',
+                'header' => true,
+                'htmlAttributes' => [
+                    'id' => 'source-rg-count',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'Count'])]),
+            new AstNode('table_cell', [
+                'text' => 'State',
+                'header' => true,
+                'htmlAttributes' => [
+                    'id' => 'source-rg-state',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', ['htmlAttributes' => ['id' => 'media-body']], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Media',
+                'header' => true,
+                'htmlAttributes' => [
+                    'id' => 'source-media-group',
+                    'scope' => 'rowgroup',
+                ],
+            ], [new AstNode('text', ['text' => 'Media'])]),
+            new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+            new AstNode('table_cell', ['text' => 'Needs alt'], [new AstNode('text', ['text' => 'Needs alt'])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Images'], [new AstNode('text', ['text' => 'Images'])]),
+            new AstNode('table_cell', ['text' => '3'], [new AstNode('text', ['text' => '3'])]),
+            new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+        ]),
+    ]),
+    new AstNode('table_body', ['htmlAttributes' => ['id' => 'pages-body']], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Pages'], [new AstNode('text', ['text' => 'Pages'])]),
+            new AstNode('table_cell', ['text' => '5'], [new AstNode('text', ['text' => '5'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $abbreviatedHeaderTable = new AstNode('table', [
     'caption' => 'Abbreviated header review',
     'alignments' => ['left', 'right'],
@@ -887,6 +949,7 @@ $document = new AstNode('document', [], [
     $latexRequirementTable,
     $latexFooterTable,
     $astAttributeTable,
+    $sourceRowgroupScopeTable,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -1386,6 +1449,31 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<tr><td headers="source-count" style="text-align:right">7</td><td headers="source-state" style="text-align:center">Review</td></tr>')) {
         throw new RuntimeException('Table geometry self-test missing source scoped second-row headers output');
     }
+
+    $sourceRowgroupAccessibility = TableGeometry::accessibilityAttributes($sourceRowgroupScopeTable, 'Source Rowgroup Grid');
+    if (($sourceRowgroupAccessibility['body:1:0:0']['headers'] ?? null) !== ['source-rg-scope', 'source-media-group']) {
+        throw new RuntimeException('Table geometry self-test missing source rowgroup header on later tbody row');
+    }
+    if (in_array('source-media-group', $sourceRowgroupAccessibility['body1:0:0:0']['headers'] ?? [], true)) {
+        throw new RuntimeException('Table geometry self-test allowed source rowgroup header to cross tbody boundary');
+    }
+    $sourceRowgroupPacket = TableGeometry::reviewPacket($sourceRowgroupScopeTable, ['idPrefix' => 'Source Rowgroup Grid']);
+    if (
+        ($sourceRowgroupPacket['headerAssociations']['summary']['associationCount'] ?? null) !== 13
+        || ($sourceRowgroupPacket['rowHeaderMap']['summary']['labeledDataRowCount'] ?? null) !== 2
+        || ($sourceRowgroupPacket['rowHeaderMap']['summary']['unlabeledDataRowCount'] ?? null) !== 1
+        || ($sourceRowgroupPacket['rowHeaderMap']['summary']['hasRowspanRowHeaders'] ?? null) !== false
+        || ($sourceRowgroupPacket['headerAssociations']['headerCells'][3]['sourceScope'] ?? null) !== 'rowgroup'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source rowgroup review-packet associations');
+    }
+    if (!str_contains($blocks, '<tbody id="media-body"><tr><th id="source-media-group" scope="rowgroup" style="text-align:left">Media</th><td headers="source-rg-count source-media-group" style="text-align:right">7</td><td headers="source-rg-state source-media-group" style="text-align:center">Needs alt</td></tr><tr><td headers="source-rg-scope source-media-group" style="text-align:left">Images</td><td headers="source-rg-count source-media-group" style="text-align:right">3</td><td headers="source-rg-state source-media-group" style="text-align:center">Review</td></tr></tbody>')) {
+        throw new RuntimeException('Table geometry self-test missing source rowgroup WordPress header relationships');
+    }
+    if (!str_contains($blocks, '<tbody id="pages-body"><tr><td headers="source-rg-scope" style="text-align:left">Pages</td><td headers="source-rg-count" style="text-align:right">5</td><td headers="source-rg-state" style="text-align:center">Ready</td></tr></tbody>')) {
+        throw new RuntimeException('Table geometry self-test missing isolated second tbody source rowgroup output');
+    }
+    json_encode($sourceRowgroupPacket, JSON_THROW_ON_ERROR);
 
     $duplicateHeaderPacket = TableGeometry::reviewPacket($duplicateHeaderTable, [
         'idPrefix' => 'Duplicate Header Grid',

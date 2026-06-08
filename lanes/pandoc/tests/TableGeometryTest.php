@@ -535,6 +535,80 @@ $buildSourceScopedHeaderDocument = static function (): AstNode {
     ]);
 };
 
+$buildSourceRowgroupHeaderDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Source rowgroup accessibility grid',
+            'alignments' => ['left', 'right', 'center'],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Source Rowgroup Grid',
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Scope',
+                        'header' => true,
+                        'htmlAttributes' => [
+                            'id' => 'source-rg-scope',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Count',
+                        'header' => true,
+                        'htmlAttributes' => [
+                            'id' => 'source-rg-count',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Count'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'State',
+                        'header' => true,
+                        'htmlAttributes' => [
+                            'id' => 'source-rg-state',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'htmlAttributes' => [
+                    'id' => 'media-body',
+                ],
+            ], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Media',
+                        'header' => true,
+                        'htmlAttributes' => [
+                            'id' => 'source-media-group',
+                            'scope' => 'rowgroup',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Media'])]),
+                    new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                    new AstNode('table_cell', ['text' => 'Needs alt'], [new AstNode('text', ['text' => 'Needs alt'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Images'], [new AstNode('text', ['text' => 'Images'])]),
+                    new AstNode('table_cell', ['text' => '3'], [new AstNode('text', ['text' => '3'])]),
+                    new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'htmlAttributes' => [
+                    'id' => 'pages-body',
+                ],
+            ], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Pages'], [new AstNode('text', ['text' => 'Pages'])]),
+                    new AstNode('table_cell', ['text' => '5'], [new AstNode('text', ['text' => '5'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildDuplicateSourceHeaderDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -2320,6 +2394,63 @@ return [
         $t->same('row', $packet['accessibility']['body:0:0:0']['scope'] ?? null);
         $t->contains('<th id="source-posts" scope="row" rowspan="2" style="text-align:left">Posts</th><td headers="legacy-count source-posts" style="text-align:right">42</td><td headers="source-state source-posts" style="text-align:center">Ready</td>', $blocks);
         $t->contains('<tr><td headers="source-count" style="text-align:right">7</td><td headers="source-state" style="text-align:center">Review</td></tr>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'applies explicit source rowgroup headers across the current row group only' => static function (TestRunner $t) use ($buildSourceRowgroupHeaderDocument): void {
+        $document = $buildSourceRowgroupHeaderDocument();
+        $table = $document->children[0];
+        $accessibility = TableGeometry::accessibilityAttributes($table, 'Source Rowgroup Grid');
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Source Rowgroup Grid']);
+        $associations = $packet['headerAssociations'] ?? [];
+        $rowHeaderMap = $packet['rowHeaderMap'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('rowgroup', $accessibility['body:0:0:0']['scope'] ?? null);
+        $t->same([], $accessibility['body:0:0:0']['headers'] ?? null);
+        $t->same(['source-rg-count', 'source-media-group'], $accessibility['body:0:1:1']['headers'] ?? null);
+        $t->same(['source-rg-state', 'source-media-group'], $accessibility['body:0:2:2']['headers'] ?? null);
+        $t->same(['source-rg-scope', 'source-media-group'], $accessibility['body:1:0:0']['headers'] ?? null);
+        $t->same(['source-rg-count', 'source-media-group'], $accessibility['body:1:1:1']['headers'] ?? null);
+        $t->same(['source-rg-state', 'source-media-group'], $accessibility['body:1:2:2']['headers'] ?? null);
+        $t->same(['source-rg-scope'], $accessibility['body1:0:0:0']['headers'] ?? null);
+        $t->same(['source-rg-count'], $accessibility['body1:0:1:1']['headers'] ?? null);
+        $t->same(['source-rg-state'], $accessibility['body1:0:2:2']['headers'] ?? null);
+        $t->true(!in_array('source-media-group', $accessibility['body1:0:0:0']['headers'] ?? [], true), 'Source scope=rowgroup must not cross tbody boundaries');
+
+        $t->same(4, $associations['summary']['headerCellCount'] ?? null);
+        $t->same(8, $associations['summary']['dataCellCount'] ?? null);
+        $t->same(8, $associations['summary']['associatedDataCellCount'] ?? null);
+        $t->same(13, $associations['summary']['associationCount'] ?? null);
+        $t->same(['col', 'rowgroup'], $associations['summary']['headerScopes'] ?? null);
+        $t->same('rowgroup', $associations['headerCells'][3]['scope'] ?? null);
+        $t->same('rowgroup', $associations['headerCells'][3]['sourceScope'] ?? null);
+        $t->same(['source-rg-scope', 'source-media-group'], $associations['dataCells'][2]['headers'] ?? null);
+        $t->same(['source-rg-state', 'source-media-group'], $associations['dataCells'][4]['headers'] ?? null);
+        $t->same(['source-rg-scope'], $associations['dataCells'][5]['headers'] ?? null);
+
+        $t->same(3, $rowHeaderMap['summary']['dataRowCount'] ?? null);
+        $t->same(2, $rowHeaderMap['summary']['labeledDataRowCount'] ?? null);
+        $t->same(1, $rowHeaderMap['summary']['unlabeledDataRowCount'] ?? null);
+        $t->same(1, $rowHeaderMap['summary']['rowHeaderCellCount'] ?? null);
+        $t->same(2, $rowHeaderMap['summary']['rowHeaderReferenceCount'] ?? null);
+        $t->same(['rowgroup'], $rowHeaderMap['summary']['rowHeaderScopes'] ?? null);
+        $t->same(false, $rowHeaderMap['summary']['hasRowspanRowHeaders'] ?? null);
+        $t->same(0, $rowHeaderMap['summary']['rowspannedRowHeaderReferenceCount'] ?? null);
+        $t->same(['source-media-group'], $rowHeaderMap['rows'][0]['headerIds'] ?? null);
+        $t->same(['source-media-group'], $rowHeaderMap['rows'][1]['headerIds'] ?? null);
+        $t->same([], $rowHeaderMap['rows'][2]['headerIds'] ?? null);
+        $t->same(true, $rowHeaderMap['rows'][2]['unlabeled'] ?? null);
+        $t->same('rowgroup', $rowHeaderMap['rows'][0]['headers'][0]['sourceScope'] ?? null);
+
+        $t->same(13, $packet['summary']['headerAssociationCount'] ?? null);
+        $t->same(8, $packet['summary']['associatedDataCellCount'] ?? null);
+        $t->same(2, $packet['summary']['rowHeaderLabeledDataRowCount'] ?? null);
+        $t->same(1, $packet['summary']['rowHeaderUnlabeledDataRowCount'] ?? null);
+        $t->same(false, $packet['summary']['hasRowspanRowHeaders'] ?? null);
+        $t->same(['rowgroup'], $packet['summary']['rowHeaderScopes'] ?? null);
+
+        $t->contains('<tbody id="media-body"><tr><th id="source-media-group" scope="rowgroup" style="text-align:left">Media</th><td headers="source-rg-count source-media-group" style="text-align:right">7</td><td headers="source-rg-state source-media-group" style="text-align:center">Needs alt</td></tr><tr><td headers="source-rg-scope source-media-group" style="text-align:left">Images</td><td headers="source-rg-count source-media-group" style="text-align:right">3</td><td headers="source-rg-state source-media-group" style="text-align:center">Review</td></tr></tbody>', $blocks);
+        $t->contains('<tbody id="pages-body"><tr><td headers="source-rg-scope" style="text-align:left">Pages</td><td headers="source-rg-count" style="text-align:right">5</td><td headers="source-rg-state" style="text-align:center">Ready</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'resolves explicit source header references for reviewer audits' => static function (TestRunner $t) use ($buildSourceScopedHeaderDocument): void {
