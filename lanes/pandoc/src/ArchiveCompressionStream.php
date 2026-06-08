@@ -284,6 +284,90 @@ final class ArchiveCompressionStream
 
     /**
      * @return array{
+     *     type:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     memberCount:int,
+     *     textHintMemberCount:int,
+     *     binaryTextHintMemberCount:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     members:list<array<string, mixed>>
+     * }
+     */
+    public static function inspectGzipTextHintPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_GZIP_TAR && $format !== self::FORMAT_GZIP_ZIP) {
+            throw new \RuntimeException("GZIP text-hint policy requires a GZIP archive stream format: {$format}");
+        }
+
+        $inspection = GzipStream::inspect($bytes, $maxUncompressedBytes);
+        $members = [];
+        $textHintMemberCount = 0;
+        $binaryTextHintMemberCount = 0;
+
+        foreach ($inspection['members'] as $index => $member) {
+            $data = $member['data'];
+            $probe = substr($data, 0, 4096);
+            $payloadDiagnostics = self::gzipTextHintPayloadDiagnostics($probe);
+            $payloadLooksBinary = $payloadDiagnostics !== [];
+            $textHint = (bool) $member['textHint'];
+            if ($textHint) {
+                $textHintMemberCount++;
+            }
+
+            $diagnostics = [];
+            if ($textHint && $payloadLooksBinary) {
+                $diagnostics = array_merge(['gzip-text-hint-binary-payload'], $payloadDiagnostics);
+                $binaryTextHintMemberCount++;
+            }
+
+            $members[] = [
+                'memberIndex' => $index,
+                'filename' => $member['filename'],
+                'filenameText' => $member['filenameText'],
+                'filenameEncoding' => $member['filenameEncoding'],
+                'comment' => $member['comment'],
+                'commentText' => $member['commentText'],
+                'commentEncoding' => $member['commentEncoding'],
+                'textHint' => $textHint,
+                'flags' => $member['flags'],
+                'uncompressedSize' => $member['uncompressedSize'],
+                'compressedSize' => $member['compressedSize'],
+                'decodedDataOffset' => $member['decodedDataOffset'],
+                'decodedDataEndOffset' => $member['decodedDataEndOffset'],
+                'memberOffset' => $member['memberOffset'],
+                'nextMemberOffset' => $member['nextMemberOffset'],
+                'payloadLooksBinary' => $payloadLooksBinary,
+                'payloadProbeBytes' => strlen($probe),
+                'policy' => $diagnostics === [] ? 'metadata' : 'review',
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        return [
+            'type' => 'gzip-text-hint-policy',
+            'format' => $format,
+            'compressedSize' => strlen($bytes),
+            'uncompressedSize' => $inspection['uncompressedSize'],
+            'memberCount' => $inspection['memberCount'],
+            'textHintMemberCount' => $textHintMemberCount,
+            'binaryTextHintMemberCount' => $binaryTextHintMemberCount,
+            'handoffPolicy' => $binaryTextHintMemberCount === 0 ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'diagnostics' => $binaryTextHintMemberCount === 0 ? [] : ['gzip-text-hint-binary-payload'],
+            'members' => $members,
+        ];
+    }
+
+    /**
+     * @return array{
      *     kind:string,
      *     format:string,
      *     compressedSize:int,
@@ -2000,6 +2084,28 @@ final class ArchiveCompressionStream
             'trailingPaddingBytes' => $inspection['trailingPaddingBytes'],
             'members' => $members,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function gzipTextHintPayloadDiagnostics(string $probe): array
+    {
+        $diagnostics = [];
+        if (str_contains($probe, "\0")) {
+            $diagnostics[] = 'gzip-text-hint-payload-contains-nul';
+        }
+
+        $length = strlen($probe);
+        for ($index = 0; $index < $length; $index++) {
+            $byte = ord($probe[$index]);
+            if (($byte >= 1 && $byte <= 8) || $byte === 11 || $byte === 12 || ($byte >= 14 && $byte <= 31)) {
+                $diagnostics[] = 'gzip-text-hint-payload-contains-control-bytes';
+                break;
+            }
+        }
+
+        return $diagnostics;
     }
 
     /**

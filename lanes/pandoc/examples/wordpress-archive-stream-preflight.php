@@ -312,6 +312,16 @@ $inspection = ArchiveCompressionStream::inspectPackageStreamAuto(
     strlen($archive->bytes()),
     strlen($manifestBytes) + strlen($contentBytes)
 );
+$textHintPolicyGzip = GzipStream::build($archive->bytes(), [
+    'filename' => 'wordpress-text-hint-review.tar',
+    'comment' => 'claimed text but contains tar bytes',
+    'textHint' => true,
+]);
+$textHintPolicyInspection = ArchiveCompressionStream::inspectGzipTextHintPolicy(
+    $textHintPolicyGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($archive->bytes())
+);
 
 $legacyContiguousArchiveBytes = $rawTarHeader(
     'packet/legacy-contiguous.md',
@@ -905,6 +915,12 @@ if (in_array('--self-test', $argv, true)) {
         'trailingZeroBytes' => 1024,
         'gzipFilename' => 'wordpress-archive-stream.tar',
         'gzipMemberOffset' => 0,
+        'gzipTextHintFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'gzipTextHintPolicy' => 'review-before-conversion',
+        'gzipTextHintExtractionPolicy' => 'metadata-only-no-extraction',
+        'gzipTextHintBinaryCount' => 1,
+        'gzipTextHintFilename' => 'wordpress-text-hint-review.tar',
+        'gzipTextHintDiagnostics' => ['gzip-text-hint-binary-payload'],
         'content' => $contentBytes,
         'contentCreatedAt' => 1780479062,
         'contentSourceType' => 'gzip-member',
@@ -1060,6 +1076,16 @@ if (in_array('--self-test', $argv, true)) {
         || ($inspection['stream']['members'][0]['compressedDataOffset'] ?? 0) <= ($inspection['stream']['members'][0]['memberOffset'] ?? 0)
         || ($inspection['stream']['members'][0]['trailerOffset'] ?? 0) <= ($inspection['stream']['members'][0]['compressedDataOffset'] ?? 0)
         || ($inspection['stream']['members'][0]['nextMemberOffset'] ?? null) !== ($inspection['stream']['members'][0]['memberSize'] ?? null)
+        || $textHintPolicyInspection['format'] !== $expected['gzipTextHintFormat']
+        || $textHintPolicyInspection['handoffPolicy'] !== $expected['gzipTextHintPolicy']
+        || $textHintPolicyInspection['extractionPolicy'] !== $expected['gzipTextHintExtractionPolicy']
+        || $textHintPolicyInspection['binaryTextHintMemberCount'] !== $expected['gzipTextHintBinaryCount']
+        || $textHintPolicyInspection['diagnostics'] !== $expected['gzipTextHintDiagnostics']
+        || ($textHintPolicyInspection['members'][0]['filename'] ?? null) !== $expected['gzipTextHintFilename']
+        || ($textHintPolicyInspection['members'][0]['payloadLooksBinary'] ?? false) !== true
+        || ($textHintPolicyInspection['members'][0]['policy'] ?? null) !== 'review'
+        || ($textHintPolicyInspection['members'][0]['diagnostics'][0] ?? null) !== 'gzip-text-hint-binary-payload'
+        || isset($textHintPolicyInspection['members'][0]['data'])
         || $inspection['archive']->read('/packet/content.md') !== $expected['content']
         || ($inspection['entryLayouts'][2]['paxHeaderKeys'] ?? []) !== ['LIBARCHIVE.creationtime', 'atime', 'ctime']
         || ($inspection['entryLayouts'][2]['createdAt'] ?? null) !== $expected['contentCreatedAt']
@@ -1317,6 +1343,10 @@ echo 'gzip.comment=' . $inspection['stream']['members'][0]['comment'] . "\n";
 echo 'gzip.memberOffset=' . $inspection['stream']['members'][0]['memberOffset'] . "\n";
 echo 'gzip.compressedDataOffset=' . $inspection['stream']['members'][0]['compressedDataOffset'] . "\n";
 echo 'gzip.trailerOffset=' . $inspection['stream']['members'][0]['trailerOffset'] . "\n";
+echo 'gzipTextHint.handoffPolicy=' . $textHintPolicyInspection['handoffPolicy'] . "\n";
+echo 'gzipTextHint.binaryTextHintMemberCount=' . $textHintPolicyInspection['binaryTextHintMemberCount'] . "\n";
+echo 'gzipTextHint.filename=' . $textHintPolicyInspection['members'][0]['filename'] . "\n";
+echo 'gzipTextHint.diagnostics=' . implode(',', $textHintPolicyInspection['diagnostics']) . "\n";
 echo 'tar.layout=' . implode(',', $layoutSummary) . "\n";
 echo 'tar.contentSource=' . $inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceType'] . ':' . $inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceLabel'] . "\n";
 echo 'content.md=' . $inspection['archive']->read('/packet/content.md') . "\n";

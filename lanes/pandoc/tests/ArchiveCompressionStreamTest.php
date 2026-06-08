@@ -2202,6 +2202,111 @@ return [
         $t->same("# GZIP text hint provenance\n\nReady for review.\n", $textHintInspection['archive']->read('/packet/content.md'));
     },
 
+    'preflights gzip text hint policy for binary package payloads' => static function (TestRunner $t): void {
+        $tarArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-text-hint-policy","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP text-hint policy\n\nReady for binary review.\n",
+            ],
+        ]);
+        $tarBytes = $tarArchive->bytes();
+        $zipBytes = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>GZIP text hint ZIP policy</w:p></w:body></w:document>',
+            ],
+        ])->bytes();
+        $gzipTar = GzipStream::build($tarBytes, [
+            'filename' => 'wordpress-text-hint-packet.tar',
+            'comment' => 'claimed text but contains tar bytes',
+            'textHint' => true,
+        ]);
+        $gzipZip = GzipStream::build($zipBytes, [
+            'filename' => 'wordpress-text-hint-package.zip',
+            'textHint' => true,
+        ]);
+        $plainTextGzip = GzipStream::build("Plain text review packet\n", [
+            'filename' => 'wordpress-text-review.txt',
+            'textHint' => true,
+        ]);
+
+        $tarPolicy = ArchiveCompressionStream::inspectGzipTextHintPolicy(
+            $gzipTar,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+        $zipPolicy = ArchiveCompressionStream::inspectGzipTextHintPolicy(
+            $gzipZip,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $textPolicy = ArchiveCompressionStream::inspectGzipTextHintPolicy(
+            $plainTextGzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen("Plain text review packet\n")
+        );
+        $tarInspection = ArchiveCompressionStream::inspectTarStream(
+            $gzipTar,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+
+        $t->same('gzip-text-hint-policy', $tarPolicy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $tarPolicy['format']);
+        $t->same(strlen($gzipTar), $tarPolicy['compressedSize']);
+        $t->same(strlen($tarBytes), $tarPolicy['uncompressedSize']);
+        $t->same(1, $tarPolicy['memberCount']);
+        $t->same(1, $tarPolicy['textHintMemberCount']);
+        $t->same(1, $tarPolicy['binaryTextHintMemberCount']);
+        $t->same('review-before-conversion', $tarPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $tarPolicy['extractionPolicy']);
+        $t->same(['gzip-text-hint-binary-payload'], $tarPolicy['diagnostics']);
+        $t->same(false, isset($tarPolicy['archive']));
+        $t->same(false, isset($tarPolicy['tarBytes']));
+        $t->same(false, isset($tarPolicy['members'][0]['data']));
+        $t->same('wordpress-text-hint-packet.tar', $tarPolicy['members'][0]['filename']);
+        $t->same('claimed text but contains tar bytes', $tarPolicy['members'][0]['commentText']);
+        $t->same(true, $tarPolicy['members'][0]['textHint']);
+        $t->same(true, $tarPolicy['members'][0]['payloadLooksBinary']);
+        $t->same(strlen($tarBytes), $tarPolicy['members'][0]['uncompressedSize']);
+        $t->same(min(strlen($tarBytes), 4096), $tarPolicy['members'][0]['payloadProbeBytes']);
+        $t->same('review', $tarPolicy['members'][0]['policy']);
+        $t->same([
+            'gzip-text-hint-binary-payload',
+            'gzip-text-hint-payload-contains-nul',
+        ], $tarPolicy['members'][0]['diagnostics']);
+        $t->same($tarArchive->read('/packet/content.md'), $tarInspection['archive']->read('/packet/content.md'));
+
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $zipPolicy['format']);
+        $t->same(strlen($zipBytes), $zipPolicy['uncompressedSize']);
+        $t->same(1, $zipPolicy['binaryTextHintMemberCount']);
+        $t->same('review-before-conversion', $zipPolicy['handoffPolicy']);
+        $t->same('wordpress-text-hint-package.zip', $zipPolicy['members'][0]['filename']);
+        $t->same(true, $zipPolicy['members'][0]['payloadLooksBinary']);
+        $t->same(['gzip-text-hint-binary-payload'], array_slice($zipPolicy['members'][0]['diagnostics'], 0, 1));
+
+        $t->same(1, $textPolicy['textHintMemberCount']);
+        $t->same(0, $textPolicy['binaryTextHintMemberCount']);
+        $t->same('within-thresholds', $textPolicy['handoffPolicy']);
+        $t->same([], $textPolicy['diagnostics']);
+        $t->same(false, $textPolicy['members'][0]['payloadLooksBinary']);
+        $t->same(strlen("Plain text review packet\n"), $textPolicy['members'][0]['payloadProbeBytes']);
+        $t->same('metadata', $textPolicy['members'][0]['policy']);
+        $t->same([], $textPolicy['members'][0]['diagnostics']);
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipTextHintPolicy(
+            $tarBytes,
+            ArchiveCompressionStream::FORMAT_TAR
+        ));
+    },
+
     'labels gzip timestamp compression and platform provenance for review packets' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [
