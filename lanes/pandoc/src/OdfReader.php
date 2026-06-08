@@ -3456,6 +3456,10 @@ final class OdfReader
         if ($currentValue === '') {
             $currentValue = self::attr($field, self::OFFICE_NS, 'current-value');
         }
+        $styleName = self::attr($field, self::TEXT_NS, 'style-name');
+        if ($styleName === '') {
+            $styleName = self::attr($field, self::STYLE_NS, 'data-style-name');
+        }
 
         $metadata = self::withoutEmpty([
             'name' => self::nullable(self::attr($field, self::TEXT_NS, 'name')),
@@ -3482,7 +3486,7 @@ final class OdfReader
             'pageAdjust' => self::nullable(self::attr($field, self::TEXT_NS, 'page-adjust')),
             'numFormat' => self::nullable(self::attr($field, self::STYLE_NS, 'num-format')),
             'formatSource' => self::nullable(self::attr($field, self::TEXT_NS, 'format-source')),
-            'styleName' => self::nullable(self::attr($field, self::STYLE_NS, 'data-style-name')),
+            'styleName' => self::nullable($styleName),
         ]);
 
         if ($this->isElement($field, self::TEXT_NS, 'drop-down')) {

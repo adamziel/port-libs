@@ -2878,6 +2878,54 @@ XML;
         $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M00S">09:30</span>', $blocksHtml);
     },
+    'maps ODT field style names into review span metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithStyledFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Styled fields <text:author-name text:style-name="ReviewerField" text:fixed="true">Migration Desk</text:author-name>, page <text:page-number style:data-style-name="PageDigits">7</text:page-number>, and email <text:sender-email text:style-name="SenderEmail">desk@example.test</text:sender-email>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithStyledFields));
+        $paragraph = $result['document']->children[0];
+        $author = $paragraph->children[1];
+        $page = $paragraph->children[3];
+        $email = $paragraph->children[5];
+
+        $t->same('Styled fields Migration Desk, page 7, and email desk@example.test.', $paragraph->attr('text'));
+        $t->same('author-name', $author->attr('fieldType'));
+        $t->same('ReviewerField', $author->attr('fieldMetadata')['styleName']);
+        $t->same(true, $author->attr('fieldMetadata')['fixed']);
+        $t->same('ReviewerField', $author->attr('attributes')['data-odf-field-style-name']);
+        $t->same('true', $author->attr('attributes')['data-odf-field-fixed']);
+        $t->same('Migration Desk', $author->children[0]->attr('text'));
+
+        $t->same('page-number', $page->attr('fieldType'));
+        $t->same('PageDigits', $page->attr('fieldMetadata')['styleName']);
+        $t->same('PageDigits', $page->attr('attributes')['data-odf-field-style-name']);
+        $t->same('7', $page->children[0]->attr('text'));
+
+        $t->same('sender-email', $email->attr('fieldType'));
+        $t->same('SenderEmail', $email->attr('fieldMetadata')['styleName']);
+        $t->same('SenderEmail', $email->attr('attributes')['data-odf-field-style-name']);
+        $t->same('desk@example.test', $email->children[0]->attr('text'));
+        $t->same(3, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Migration Desk]{.odf-field .odf-field-author-name data-odf-field-type="author-name" data-odf-field-style-name="ReviewerField" data-odf-field-fixed="true"}', $markdown);
+        $t->contains('[7]{.odf-field .odf-field-page-number data-odf-field-type="page-number" data-odf-field-style-name="PageDigits"}', $markdown);
+        $t->contains('[desk@example.test]{.odf-field .odf-field-sender-email data-odf-field-type="sender-email" data-odf-field-style-name="SenderEmail"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-style-name="ReviewerField" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-page-number" data-odf-field-type="page-number" data-odf-field-style-name="PageDigits">7</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-sender-email" data-odf-field-type="sender-email" data-odf-field-style-name="SenderEmail">desk@example.test</span>', $blocksHtml);
+    },
     'maps ODT page variable chapter filename and statistic fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPageAndStatisticFields = <<<'XML'
 <office:document-content
