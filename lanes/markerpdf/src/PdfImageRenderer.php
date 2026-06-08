@@ -4887,9 +4887,14 @@ final class PdfImageRenderer
         }
 
         if (str_starts_with($resolved, '[')) {
+            $array = $this->readBalancedArray($resolved, 0);
+            if ($array === null || $this->skipPdfWhitespace($resolved, $array['next']) !== strlen($resolved)) {
+                return [$value];
+            }
+
             return array_map(
                 static fn (string $entry): ?string => trim($entry) === 'null' ? null : $entry,
-                $this->pdfArrayValues($resolved)
+                $this->pdfArrayValues($array['value'])
             );
         }
 
