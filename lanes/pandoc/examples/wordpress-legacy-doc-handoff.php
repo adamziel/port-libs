@@ -2672,6 +2672,19 @@ if (($argv[1] ?? '') === '--self-test') {
         $directoryFieldOffset($wordDocumentDirectoryId, 64),
         2
     );
+    $malformedUtf16DirectoryName = $utf16le('Wo') . "\0\xd8" . $utf16le('rdDocument');
+    $malformedUtf16ActiveDirectoryName = substr_replace(
+        $docBytes,
+        str_pad($malformedUtf16DirectoryName . "\0\0", 64, "\0"),
+        $directoryFieldOffset($wordDocumentDirectoryId, 0),
+        64
+    );
+    $malformedUtf16ActiveDirectoryName = substr_replace(
+        $malformedUtf16ActiveDirectoryName,
+        $u16(strlen($malformedUtf16DirectoryName) + 2),
+        $directoryFieldOffset($wordDocumentDirectoryId, 64),
+        2
+    );
     $smallRegularWordDocument = str_repeat("\0", 512) . "Small regular stream must stay guarded\r";
     $smallRegularWordDocument = substr_replace($smallRegularWordDocument, $u16(0xa5ec), 0, 2);
     $smallRegularWordDocument = substr_replace($smallRegularWordDocument, $u16(0x00c1), 2, 2);
@@ -2744,6 +2757,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'CFB active directory name missing UTF-16 terminator' => substr_replace($docBytes, "X\0", $directoryFieldOffset($wordDocumentDirectoryId, 24), 2),
         'CFB active directory name must not be empty' => $emptyActiveDirectoryName,
         'CFB active directory name contains embedded null' => $embeddedNullActiveDirectoryName,
+        'CFB active directory name invalid UTF-16LE' => $malformedUtf16ActiveDirectoryName,
         'small CFB stream without MiniFAT metadata' => $smallRegularStreamWithoutMiniFat,
         'invalid CFB root storage name' => substr_replace($docBytes, "X\0", $directoryFieldOffset(0, 0), 2),
         'complex DOC missing CLX piece table' => substr_replace($docBytes, $u32(0), $wordDocumentStreamOffset + 0x01a6, 4),

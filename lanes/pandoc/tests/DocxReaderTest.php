@@ -189,7 +189,9 @@ $captionedDrawingDocumentXml = <<<'XML'
     </w:p>
     <w:p>
       <w:pPr><w:pStyle w:val="FigureCaption"/></w:pPr>
-      <w:r><w:t>Figure 1: Workflow diagram for review.</w:t></w:r>
+      <w:r><w:t xml:space="preserve">Figure </w:t></w:r>
+      <w:fldSimple w:instr='SEQ Figure \* ARABIC'><w:r><w:t>1</w:t></w:r></w:fldSimple>
+      <w:r><w:t>: Workflow diagram for review.</w:t></w:r>
     </w:p>
     <w:p><w:r><w:t>After figure copy.</w:t></w:r></w:p>
     <w:p>
@@ -4351,7 +4353,20 @@ return [
         $t->same('FigureCaption', $figureAttributes['data-docx-caption-style']);
         $t->same('Figure Caption Review', $figureAttributes['data-docx-caption-style-name']);
         $t->same('after-drawing', $figureAttributes['data-docx-caption-placement']);
-        $t->same(1, count($figure->attr('captionInlines')));
+        $t->same('Figure', $figureAttributes['data-docx-caption-sequence']);
+        $t->same('1', $figureAttributes['data-docx-caption-number']);
+        $t->same('SEQ Figure \* ARABIC', $figureAttributes['data-docx-caption-field-instruction']);
+        $t->same('ARABIC', $figureAttributes['data-docx-caption-field-format']);
+        $t->same('Figure', $captionSource['sequence']['name']);
+        $t->same('1', $captionSource['sequence']['result']);
+        $t->same('SEQ Figure \* ARABIC', $captionSource['sequence']['instruction']);
+        $t->same('ARABIC', $captionSource['sequence']['format']);
+        $t->same(3, count($figure->attr('captionInlines')));
+        $captionField = $figure->attr('captionInlines')[1];
+        $t->same('span', $captionField->type);
+        $t->same('seq', $captionField->attr('attributes')['data-docx-field']);
+        $t->same('Figure', $captionField->attr('attributes')['data-docx-field-sequence']);
+        $t->same('1', $captionField->children[0]->attr('text'));
 
         $image = $figure->children[0];
         $t->same('image', $image->type);
@@ -4372,8 +4387,9 @@ return [
 
         $t->contains('![Figure 1: Workflow diagram for review.](word/media/workflow.png "Workflow title")', $markdown);
         $t->contains('{.docx-captioned-figure alt="Workflow diagram alt" data-docx-caption-style="FigureCaption"', $markdown);
+        $t->contains('data-docx-caption-sequence="Figure" data-docx-caption-number="1" data-docx-caption-field-instruction="SEQ Figure \\\\* ARABIC" data-docx-caption-field-format="ARABIC"', $markdown);
         $t->contains('alt="Workflow diagram alt"', $markdown);
-        $t->contains('<figure class="wp-block-image docx-captioned-figure"><img src="word/media/workflow.png" alt="Workflow diagram alt" title="Workflow title"/><figcaption>Figure 1: Workflow diagram for review.</figcaption></figure>', $blocks);
+        $t->contains('<figure class="wp-block-image docx-captioned-figure" data-docx-caption-style="FigureCaption" data-docx-caption-placement="after-drawing" data-docx-caption-style-name="Figure Caption Review" data-docx-caption-based-on="Caption" data-docx-caption-sequence="Figure" data-docx-caption-number="1" data-docx-caption-field-instruction="SEQ Figure \* ARABIC" data-docx-caption-field-format="ARABIC"><img src="word/media/workflow.png" alt="Workflow diagram alt" title="Workflow title"/><figcaption>Figure 1: Workflow diagram for review.</figcaption></figure>', $blocks);
         $t->contains('<p>After figure copy.</p>', $blocks);
         $t->contains('<p>Orphan caption remains body text.</p>', $blocks);
 

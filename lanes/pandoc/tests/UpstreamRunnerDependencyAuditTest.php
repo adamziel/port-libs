@@ -196,7 +196,10 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
         '',
         'library',
         '  import: test-options',
+        '  hs-source-dirs: src',
         '  exposed-modules: Text.Pandoc.Lua',
+        '  other-modules:',
+        '    ' . implode(",\n    ", UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryOtherModules()),
         '  build-depends:',
         '    ' . implode(",\n    ", $libraryDependencies),
         '',
@@ -432,6 +435,15 @@ $runnerArtifacts = static function (): array {
     return $files;
 };
 
+$luaLibraryArtifacts = static function (): array {
+    $files = [];
+    foreach (UpstreamRunnerDependencyAudit::expectedLuaEngineLibrarySourceArtifacts() as $relativePath) {
+        $files[$relativePath] = 'module fixture present for ' . $relativePath;
+    }
+
+    return $files;
+};
+
 $benchmarkArtifacts = static function () use ($benchmarkEntryPoint): array {
     $files = [];
     foreach (UpstreamRunnerDependencyAudit::expectedBenchmarkArtifacts() as $relativePath => $kind) {
@@ -447,7 +459,7 @@ $benchmarkArtifacts = static function () use ($benchmarkEntryPoint): array {
     return $files;
 };
 
-$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true) use ($pandocCabal, $luaCabal, $runnerArtifacts, $benchmarkArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
+$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true) use ($pandocCabal, $luaCabal, $runnerArtifacts, $luaLibraryArtifacts, $benchmarkArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
     $files = [
         'cabal.project' => $project,
         'pandoc.cabal' => $pandocPackage ?? $pandocCabal(),
@@ -455,6 +467,8 @@ $requiredFiles = static function (string $project, ?string $pandocPackage = null
         'test/test-pandoc.hs' => $testPandocEntryPoint(),
         'pandoc-lua-engine/test/test-pandoc-lua-engine.hs' => $luaEntryPoint(),
     ];
+
+    $files = array_merge($files, $luaLibraryArtifacts());
 
     if ($includeRunnerArtifacts) {
         $files = array_merge($files, $runnerArtifacts(), $benchmarkArtifacts());
@@ -625,6 +639,21 @@ return [
         $t->same(['Text.Pandoc.Lua'], $audit['luaEngineLibraryClosure']['presentExposedModules']);
         $t->same([], $audit['luaEngineLibraryClosure']['missingExposedModules']);
         $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExposedModules']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibrarySourceDirectories(), $audit['luaEngineLibraryClosure']['expectedSourceDirectories']);
+        $t->same(['src'], $audit['luaEngineLibraryClosure']['presentSourceDirectories']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingSourceDirectories']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedSourceDirectories']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryOtherModules(), $audit['luaEngineLibraryClosure']['expectedOtherModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingOtherModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedOtherModules']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibrarySourceArtifacts(), $audit['luaEngineLibraryClosure']['expectedSourceArtifacts']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingSourceArtifacts']);
+        $t->same([], $audit['luaEngineLibraryClosure']['wrongTypeSourceArtifacts']);
+        $t->same([], $audit['luaEngineLibraryClosure']['emptySourceArtifacts']);
+        foreach (UpstreamRunnerDependencyAudit::expectedLuaEngineLibrarySourceArtifacts() as $relativePath) {
+            $t->same(true, isset($audit['luaEngineLibraryClosure']['sourceArtifactProvenance'][$relativePath]));
+            $t->same(true, $audit['luaEngineLibraryClosure']['sourceArtifactProvenance'][$relativePath]['bytes'] > 0);
+        }
         $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDefaultLanguage(), $audit['luaEngineLibraryClosure']['expectedDefaultLanguage']);
         $t->same('Haskell2010', $audit['luaEngineLibraryClosure']['presentDefaultLanguage']);
         $t->same(null, $audit['luaEngineLibraryClosure']['mismatchedDefaultLanguage']);
@@ -714,6 +743,8 @@ return [
         $t->contains('test-suite type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal custom-setup/setup-depends, no unexpected common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, and exact other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
         $t->contains('exact library exposed-modules closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('exact library source directory and other-modules closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('library source artifact hashes', $audit['nonMutatingPlan'][2]);
         $t->contains('Haskell2010 library default-language', $audit['nonMutatingPlan'][2]);
         $t->contains('benchmark:benchmark-pandoc type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
@@ -2329,6 +2360,96 @@ return [
         $t->contains('missing pandoc-lua-engine library exposed-modules: Text.Pandoc.Lua', $blocked);
         $t->contains('unexpected pandoc-lua-engine library exposed-modules: Text.Pandoc.Lua.Generated', $blocked);
         $t->contains('exact pandoc-lua-engine library exposed-modules closure', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks lua engine library other-module drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
+        $luaPackage = str_replace(
+            "    Text.Pandoc.Lua.Engine,\n",
+            '',
+            $luaCabal()
+        );
+        $luaPackage = str_replace(
+            'Text.Pandoc.Lua.Writer.Scaffolding',
+            'Text.Pandoc.Lua.Generated.Runner',
+            $luaPackage
+        );
+
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            null,
+            $luaPackage
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingExposedModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExposedModules']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryOtherModules(), $audit['luaEngineLibraryClosure']['expectedOtherModules']);
+        $t->same(false, in_array('Text.Pandoc.Lua.Engine', $audit['luaEngineLibraryClosure']['presentOtherModules'], true));
+        $t->same(true, in_array('Text.Pandoc.Lua.Generated.Runner', $audit['luaEngineLibraryClosure']['presentOtherModules'], true));
+        $t->same([
+            'Text.Pandoc.Lua.Engine',
+            'Text.Pandoc.Lua.Writer.Scaffolding',
+        ], $audit['luaEngineLibraryClosure']['missingOtherModules']);
+        $t->same([
+            'Text.Pandoc.Lua.Generated.Runner',
+        ], $audit['luaEngineLibraryClosure']['unexpectedOtherModules']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing pandoc-lua-engine library other-modules: Text.Pandoc.Lua.Engine, Text.Pandoc.Lua.Writer.Scaffolding', $blocked);
+        $t->contains('unexpected pandoc-lua-engine library other-modules: Text.Pandoc.Lua.Generated.Runner', $blocked);
+        $t->contains('exact pandoc-lua-engine library other-modules closure', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks lua engine library source artifact drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        unset($files['pandoc-lua-engine/src/Text/Pandoc/Lua/Engine.hs']);
+        unset($files['pandoc-lua-engine/src/Text/Pandoc/Lua/Writer/Classic.hs']);
+        $files['pandoc-lua-engine/src/Text/Pandoc/Lua/Marshal/Template.hs'] = '';
+        $files['pandoc-lua-engine/src/Text/Pandoc/Lua/Writer/Classic.hs/.audit-keep'] = 'wrong source artifact type';
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingOtherModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedOtherModules']);
+        $t->same(['pandoc-lua-engine/src/Text/Pandoc/Lua/Engine.hs'], $audit['luaEngineLibraryClosure']['missingSourceArtifacts']);
+        $t->same([
+            'expected' => 'file',
+            'actual' => 'directory',
+        ], $audit['luaEngineLibraryClosure']['wrongTypeSourceArtifacts']['pandoc-lua-engine/src/Text/Pandoc/Lua/Writer/Classic.hs']);
+        $t->same(['pandoc-lua-engine/src/Text/Pandoc/Lua/Marshal/Template.hs'], $audit['luaEngineLibraryClosure']['emptySourceArtifacts']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing pandoc-lua-engine library source artifacts: pandoc-lua-engine/src/Text/Pandoc/Lua/Engine.hs', $blocked);
+        $t->contains('mismatched pandoc-lua-engine library source artifact types: pandoc-lua-engine/src/Text/Pandoc/Lua/Writer/Classic.hs expected file, found directory', $blocked);
+        $t->contains('empty pandoc-lua-engine library source artifacts: pandoc-lua-engine/src/Text/Pandoc/Lua/Marshal/Template.hs', $blocked);
+        $t->contains('non-empty pandoc-lua-engine library source artifacts with artifact hashes', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks unexpected lua engine library extension drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
@@ -5103,12 +5224,15 @@ return [
     },
     'blocks lua engine library file artifact globs before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
+        $libraryOtherModules = '  other-modules:' . "\n    " . implode(",\n    ", UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryOtherModules());
         $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
-            "library\n  import: test-options\n  exposed-modules: Text.Pandoc.Lua\n  build-depends:",
+            "library\n  import: test-options\n  hs-source-dirs: src\n  exposed-modules: Text.Pandoc.Lua\n" . $libraryOtherModules . "\n  build-depends:",
             implode("\n", [
                 'library',
                 '  import: test-options',
+                '  hs-source-dirs: src',
                 '  exposed-modules: Text.Pandoc.Lua',
+                $libraryOtherModules,
                 '  extra-source-files: cbits/lua-runner.c',
                 '  extra-doc-files: docs/lua-runner.md',
                 '  extra-tmp-files: dist/lua-runner.tmp',

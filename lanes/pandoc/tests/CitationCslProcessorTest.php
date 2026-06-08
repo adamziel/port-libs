@@ -8541,6 +8541,103 @@ XML
 XML
         ));
     },
+    'applies bounded csl localized symbol and term for name joins' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'symbol-source',
+                'type' => 'report',
+                'title' => 'Symbol Join Source Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'default-symbol-source',
+                'type' => 'report',
+                'title' => 'Default Symbol Join Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                    ['family' => 'Patel', 'given' => 'Ira'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ]);
+
+        $localized = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Symbol And Term Review Style</title>
+    <id>https://example.test/styles/bounded-symbol-and-term-review</id>
+    <updated>2026-06-08T21:34:49+00:00</updated>
+  </info>
+  <locale>
+    <terms>
+      <term name="and" form="symbol">+</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", ">
+          <name and="symbol"/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author" delimiter=", " delimiter-precedes-last="always">
+        <name initialize-with=". " name-as-sort-order="all" and="symbol"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $localized->cslStyleSummary();
+        $t->same('symbol', $summary['citationRendering'][0]['children'][0]['nameRendering']['and'] ?? null);
+        $t->same('symbol', $summary['bibliographyRendering'][0]['nameRendering']['and'] ?? null);
+        $t->same('(Smith + Ng 2026; Roe + Patel 2025)', $localized->renderCitationCluster([
+            new AstNode('citation', ['id' => 'symbol-source', 'text' => '[@symbol-source]']),
+            new AstNode('citation', ['id' => 'default-symbol-source', 'text' => '[@default-symbol-source]']),
+        ]));
+        $t->same('Smith, A., + Ng, N. :: Symbol Join Source Packet', $localized->renderBibliographyEntry('symbol-source'));
+
+        $default = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <names variable="author"><name and="symbol"/></names>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <names variable="author" delimiter=", " delimiter-precedes-last="always"><name initialize-with=". " name-as-sort-order="all" and="symbol"/></names>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+        $t->same('[Smith & Ng 2026]', $default->renderCitationCluster([
+            new AstNode('citation', ['id' => 'symbol-source', 'text' => '[@symbol-source]']),
+        ]));
+        $t->same('Smith, A., & Ng, N. Symbol Join Source Packet. 2026.', $default->renderBibliographyEntry('symbol-source'));
+
+        $document = (new MarkdownReader())->read('Localized symbol source [@symbol-source; @default-symbol-source] keeps source names joined.');
+        $blocks = (new WordPressBlockWriter())->write($localized->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Localized symbol source (Smith + Ng 2026; Roe + Patel 2025) keeps source names joined.</p>', $blocks);
+        $t->contains('<dt>Smith + Ng 2026</dt><dd>Smith, A., + Ng, N. :: Symbol Join Source Packet</dd>', $blocks);
+        $t->contains('<dt>Roe + Patel 2025</dt><dd>Roe, P., + Patel, I. :: Default Symbol Join Packet</dd>', $blocks);
+    },
     'applies bounded csl et al element term formatting and delimiter policy' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

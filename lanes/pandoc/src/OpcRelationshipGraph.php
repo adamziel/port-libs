@@ -13,6 +13,7 @@ final class OpcRelationshipGraph
     public const THUMBNAIL_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     public const DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     public const DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+    public const ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package';
     public const WORDPROCESSING_STYLES_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     public const WORDPROCESSING_NUMBERING_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     public const WORDPROCESSING_FOOTNOTES_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
@@ -55,6 +56,7 @@ final class OpcRelationshipGraph
     private const CUSTOM_PROPERTIES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.custom-properties+xml';
     private const DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-origin';
     private const DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
+    private const ENCRYPTED_PACKAGE_CONTENT_TYPE = 'application/vnd.openxmlformats-package.encrypted-package';
     private const EMBEDDED_PACKAGE_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.package';
     private const EMBEDDED_OBJECT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.oleObject';
     private const WORDPROCESSING_STYLES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml';
@@ -2243,6 +2245,72 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{source:string, id:string, role:string, type:string, target:string, targetPart:?string, contentType:?string, expectedSource:string, sourceAllowed:bool, expectedContentType:string, expectedExternal:bool, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
+     */
+    public function preflightEncryptedPackages(?string $sourcePartName = null): array
+    {
+        $sources = $sourcePartName === null
+            ? $this->sourcePartNames()
+            : [$this->relationshipSourceNameForEquivalent($sourcePartName)];
+
+        $preflight = [];
+        foreach ($sources as $source) {
+            foreach ($this->preflightTargetsForSource($source, self::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE) as $target) {
+                $sourceAllowed = $source === '/';
+                $issues = $target['issues'];
+
+                if (!$sourceAllowed) {
+                    $issues[] = 'encrypted-package-source-not-package-root';
+                }
+
+                if ($target['external']) {
+                    $issues[] = 'external-encrypted-package-target';
+                }
+
+                if (
+                    !$target['external']
+                    && $target['contentType'] !== null
+                    && !self::contentTypeMatches($target['contentType'], self::ENCRYPTED_PACKAGE_CONTENT_TYPE)
+                ) {
+                    $issues[] = 'invalid-encrypted-package-content-type';
+                }
+
+                $issues = array_values(array_unique($issues));
+                $preflight[] = [
+                    'source' => $source,
+                    'id' => $target['id'],
+                    'role' => 'encrypted-package',
+                    'type' => $target['type'],
+                    'target' => $target['target'],
+                    'targetPart' => self::targetPartFromPreflightTarget($target),
+                    'contentType' => $target['contentType'],
+                    'expectedSource' => '/',
+                    'sourceAllowed' => $sourceAllowed,
+                    'expectedContentType' => self::ENCRYPTED_PACKAGE_CONTENT_TYPE,
+                    'expectedExternal' => false,
+                    'external' => $target['external'],
+                    'exists' => $target['exists'],
+                    'relationshipPartTarget' => $target['relationshipPartTarget'],
+                    'relationshipTypeKind' => $target['relationshipTypeKind'],
+                    'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                    'relationshipTypeValid' => $target['relationshipTypeValid'],
+                    'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                    'externalTargetKind' => $target['externalTargetKind'],
+                    'externalTargetScheme' => $target['externalTargetScheme'],
+                    'externalTargetAllowed' => $target['externalTargetAllowed'],
+                    'externalTargetRequiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+                    'externalTargetRewriteBasePart' => $target['externalTargetRewriteBasePart'],
+                    'externalTargetRewriteReason' => $target['externalTargetRewriteReason'],
+                    'valid' => $issues === [],
+                    'issues' => $issues,
+                ];
+            }
+        }
+
+        return $preflight;
+    }
+
+    /**
      * @return list<array{source:string, id:string, type:string, kind:string, target:string, targetPart:?string, contentType:?string, expectedContentType:string, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function preflightEmbeddedPackages(string $sourcePartName = '/'): array
@@ -4192,6 +4260,13 @@ final class OpcRelationshipGraph
                 'singletonScope' => 'package',
                 'sourceIssue' => 'digital-signature-origin-source-not-package-root',
                 'multipleIssue' => 'multiple-digital-signature-origins',
+            ],
+            self::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE => [
+                'role' => 'encrypted-package',
+                'sourceScope' => 'package-root',
+                'singletonScope' => 'package',
+                'sourceIssue' => 'encrypted-package-source-not-package-root',
+                'multipleIssue' => 'multiple-encrypted-package-relationships',
             ],
             self::THUMBNAIL_RELATIONSHIP_TYPE => [
                 'role' => 'thumbnail',

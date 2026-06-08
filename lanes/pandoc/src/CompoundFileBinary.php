@@ -1004,12 +1004,12 @@ final class CompoundFileBinary
             return '';
         }
 
-        $decoded = iconv('UTF-16LE', 'UTF-8//IGNORE', $bytes);
-        if (is_string($decoded)) {
-            return $decoded;
+        $decoded = @iconv('UTF-16LE', 'UTF-8', $bytes);
+        if (!is_string($decoded)) {
+            throw new \RuntimeException('CFB active directory entry name is not valid UTF-16LE');
         }
 
-        return '';
+        return $decoded;
     }
 
     private static function readClsid(string $bytes, int $offset): ?string

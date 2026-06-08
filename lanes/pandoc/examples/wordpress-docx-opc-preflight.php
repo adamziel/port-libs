@@ -33,6 +33,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
   <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>
   <Override PartName="/docProps/thumbnail.png" ContentType="image/png"/>
+  <Override PartName="/EncryptedPackage" ContentType="application/vnd.openxmlformats-package.encrypted-package"/>
   <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
   <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-selector-shape.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
@@ -55,6 +56,7 @@ $packageRelationshipsXml = <<<'XML'
   <Relationship Id="rIdCustomProperties" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>
   <Relationship Id="rIdThumbnail" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="docProps/thumbnail.png"/>
   <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+  <Relationship Id="rIdEncryptedPackage" Type="http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package" Target="EncryptedPackage"/>
 </Relationships>
 XML;
 
@@ -372,6 +374,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'docProps/app.xml', 'data' => '<Properties/>'],
     ['name' => 'docProps/custom.xml', 'data' => '<Properties/>'],
     ['name' => 'docProps/thumbnail.png', 'data' => 'PNG'],
+    ['name' => 'EncryptedPackage', 'data' => 'encrypted package bytes'],
     ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
     ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
     ['name' => '_xmlsignatures/sig1.xml', 'data' => $signatureXml],
@@ -1741,6 +1744,7 @@ $digitalSignatures = $graph->preflightDigitalSignatures();
 $digitalSignatureRelationshipRoles = $graph->preflightDigitalSignatureRelationshipRoles();
 $digitalSignatureMetadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig1.xml');
 $digitalSignatureSignedInfoReferences = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig1.xml');
+$encryptedPackages = $graph->preflightEncryptedPackages();
 $embeddedPackages = $graph->preflightEmbeddedPackages($documentPart);
 $embeddedPackageGraphs = $graph->preflightEmbeddedPackageGraphs($documentPart);
 $embeddedPackageParts = [];
@@ -2039,6 +2043,7 @@ $summary = [
     'digitalSignatureRelationshipRoles' => $digitalSignatureRelationshipRoles,
     'digitalSignatureMetadata' => $digitalSignatureMetadata,
     'digitalSignatureSignedInfoReferences' => $digitalSignatureSignedInfoReferences,
+    'encryptedPackages' => $encryptedPackages,
     'embeddedPackages' => $embeddedPackages,
     'embeddedPackageGraphs' => $embeddedPackageGraphs,
     'packageConsistency' => [
@@ -2227,6 +2232,19 @@ $summary = [
                 'issues' => $reference['issues'],
             ],
             $digitalSignatureSignedInfoReferences
+        )),
+        'encryptedPackages' => array_values(array_map(
+            static fn (array $encryptedPackage): array => [
+                'id' => $encryptedPackage['id'],
+                'source' => $encryptedPackage['source'],
+                'targetPart' => $encryptedPackage['targetPart'],
+                'contentType' => $encryptedPackage['contentType'],
+                'expectedContentType' => $encryptedPackage['expectedContentType'],
+                'sourceAllowed' => $encryptedPackage['sourceAllowed'],
+                'valid' => $encryptedPackage['valid'],
+                'issues' => $encryptedPackage['issues'],
+            ],
+            $encryptedPackages
         )),
         'embeddedPackageParts' => $embeddedPackageParts,
         'embeddedObjectParts' => $embeddedObjectParts,
@@ -2508,6 +2526,23 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['valid'] ?? null) !== true
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['issues'] ?? null) !== []
+        || ($summary['encryptedPackages'][0]['id'] ?? null) !== 'rIdEncryptedPackage'
+        || ($summary['encryptedPackages'][0]['role'] ?? null) !== 'encrypted-package'
+        || ($summary['encryptedPackages'][0]['source'] ?? null) !== '/'
+        || ($summary['encryptedPackages'][0]['targetPart'] ?? null) !== '/EncryptedPackage'
+        || ($summary['encryptedPackages'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.encrypted-package'
+        || ($summary['encryptedPackages'][0]['expectedContentType'] ?? null) !== 'application/vnd.openxmlformats-package.encrypted-package'
+        || ($summary['encryptedPackages'][0]['expectedExternal'] ?? null) !== false
+        || ($summary['encryptedPackages'][0]['sourceAllowed'] ?? null) !== true
+        || ($summary['encryptedPackages'][0]['valid'] ?? null) !== true
+        || ($summary['encryptedPackages'][0]['issues'] ?? null) !== []
+        || ($summary['wordpressImport']['encryptedPackages'][0]['id'] ?? null) !== 'rIdEncryptedPackage'
+        || ($summary['wordpressImport']['encryptedPackages'][0]['targetPart'] ?? null) !== '/EncryptedPackage'
+        || ($summary['wordpressImport']['encryptedPackages'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.encrypted-package'
+        || ($summary['wordpressImport']['encryptedPackages'][0]['expectedContentType'] ?? null) !== 'application/vnd.openxmlformats-package.encrypted-package'
+        || ($summary['wordpressImport']['encryptedPackages'][0]['sourceAllowed'] ?? null) !== true
+        || ($summary['wordpressImport']['encryptedPackages'][0]['valid'] ?? null) !== true
+        || ($summary['wordpressImport']['encryptedPackages'][0]['issues'] ?? null) !== []
         || ($summary['integrity']['emptySignatureOriginGuard']['id'] ?? null) !== 'rIdSignatureOrigin'
         || ($summary['integrity']['emptySignatureOriginGuard']['targetPart'] ?? null) !== '/_xmlsignatures/origin.sigs'
         || ($summary['integrity']['emptySignatureOriginGuard']['relationshipPartName'] ?? null) !== '/_xmlsignatures/_rels/origin.sigs.rels'
@@ -2530,6 +2565,10 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['knownRole'] ?? null) !== 'office-document'
         || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyValid'] ?? null) !== true
         || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyIssues'] ?? null) !== []
+        || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['knownRole'] ?? null) !== 'encrypted-package'
+        || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['relationshipCount'] ?? null) !== 1
+        || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['policyValid'] ?? null) !== true
+        || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['policyIssues'] ?? null) !== []
         || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['knownRole'] ?? null) !== 'thumbnail'
         || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['relationshipCount'] ?? null) !== 1
         || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['policyValid'] ?? null) !== true
@@ -2597,7 +2636,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipPartLoads']['/_rels/.rels']['loaded'] ?? null) !== true
         || ($summary['relationshipPartLoads']['/_rels/.rels']['loadAction'] ?? null) !== 'loaded'
         || ($summary['relationshipPartLoads']['/_rels/.rels']['loadReason'] ?? null) !== 'loaded'
-        || ($summary['relationshipPartLoads']['/_rels/.rels']['relationshipCount'] ?? null) !== 6
+        || ($summary['relationshipPartLoads']['/_rels/.rels']['relationshipCount'] ?? null) !== 7
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['relationshipSource'] ?? null) !== '/word/document.xml'
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loaded'] ?? null) !== true
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loadAction'] ?? null) !== 'loaded'
@@ -2903,6 +2942,14 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['singletonScope'] ?? null) !== 'package'
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyValid'] ?? null) !== true
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyIssues'] ?? null) !== []
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['relationshipCount'] ?? null) !== 1
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['targetParts'] ?? null) !== ['/EncryptedPackage']
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['contentTypes'] ?? null) !== ['application/vnd.openxmlformats-package.encrypted-package']
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['knownRole'] ?? null) !== 'encrypted-package'
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['sourceScope'] ?? null) !== 'package-root'
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['singletonScope'] ?? null) !== 'package'
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['policyValid'] ?? null) !== true
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE]['policyIssues'] ?? null) !== []
         || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeValid'] ?? null) !== false
         || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeIssues'] ?? null) !== ['relationship-type-not-absolute-uri']
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE]['relationshipCount'] ?? null) !== 1

@@ -18,6 +18,7 @@ final class CslStyle
     /** @var array<string, array{single:string, multiple:string, match?:string, gender?:string}> */
     private const DEFAULT_TERMS = [
         'and|long' => ['single' => 'and', 'multiple' => 'and'],
+        'and|symbol' => ['single' => '&', 'multiple' => '&'],
         'et-al|long' => ['single' => 'et al.', 'multiple' => 'et al.'],
         'and others|long' => ['single' => 'and others', 'multiple' => 'and others'],
         'ellipsis|long' => ['single' => "\u{2026}", 'multiple' => "\u{2026}"],

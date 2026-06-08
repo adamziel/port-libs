@@ -2754,6 +2754,109 @@ XML;
         $t->same(false, $rolesById['rIdMisplacedSignature']['valid']);
         $t->same(['digital-signature-signature-source-not-origin'], $rolesById['rIdMisplacedSignature']['issues']);
     },
+    'preflights OPC encrypted package relationship policy' => static function (TestRunner $t): void {
+        $encryptedRelationshipType = OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE;
+        $encryptedContentType = 'application/vnd.openxmlformats-package.encrypted-package';
+        $contentTypesXml = <<<XML
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/EncryptedPackage" ContentType="{$encryptedContentType}"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdEncryptedPackage" Type="{$encryptedRelationshipType}" Target="EncryptedPackage"/>
+  <Relationship Id="rIdExternalEncryptedPackage" Type="{$encryptedRelationshipType}" Target="https://example.test/encrypted.docx" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdNestedEncryptedPackage" Type="{$encryptedRelationshipType}" Target="encrypted-review.bin"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'EncryptedPackage', 'data' => 'encrypted package bytes'],
+            ['name' => 'word/encrypted-review.bin', 'data' => 'not an encrypted package'],
+        ]));
+
+        $encryptedPackages = [];
+        foreach ($graph->preflightEncryptedPackages() as $row) {
+            $encryptedPackages[$row['id']] = $row;
+        }
+
+        $t->same([
+            'rIdEncryptedPackage',
+            'rIdExternalEncryptedPackage',
+            'rIdNestedEncryptedPackage',
+        ], array_keys($encryptedPackages));
+
+        $t->same('encrypted-package', $encryptedPackages['rIdEncryptedPackage']['role']);
+        $t->same('/', $encryptedPackages['rIdEncryptedPackage']['source']);
+        $t->same('/EncryptedPackage', $encryptedPackages['rIdEncryptedPackage']['targetPart']);
+        $t->same($encryptedContentType, $encryptedPackages['rIdEncryptedPackage']['contentType']);
+        $t->same($encryptedContentType, $encryptedPackages['rIdEncryptedPackage']['expectedContentType']);
+        $t->same('/', $encryptedPackages['rIdEncryptedPackage']['expectedSource']);
+        $t->same(false, $encryptedPackages['rIdEncryptedPackage']['expectedExternal']);
+        $t->same(true, $encryptedPackages['rIdEncryptedPackage']['sourceAllowed']);
+        $t->same(true, $encryptedPackages['rIdEncryptedPackage']['exists']);
+        $t->same(true, $encryptedPackages['rIdEncryptedPackage']['valid']);
+        $t->same([], $encryptedPackages['rIdEncryptedPackage']['issues']);
+
+        $t->same(true, $encryptedPackages['rIdExternalEncryptedPackage']['external']);
+        $t->same(null, $encryptedPackages['rIdExternalEncryptedPackage']['targetPart']);
+        $t->same(false, $encryptedPackages['rIdExternalEncryptedPackage']['valid']);
+        $t->same(['external-encrypted-package-target'], $encryptedPackages['rIdExternalEncryptedPackage']['issues']);
+
+        $t->same('/word/document.xml', $encryptedPackages['rIdNestedEncryptedPackage']['source']);
+        $t->same('/word/encrypted-review.bin', $encryptedPackages['rIdNestedEncryptedPackage']['targetPart']);
+        $t->same(false, $encryptedPackages['rIdNestedEncryptedPackage']['sourceAllowed']);
+        $t->same('application/octet-stream', $encryptedPackages['rIdNestedEncryptedPackage']['contentType']);
+        $t->same(false, $encryptedPackages['rIdNestedEncryptedPackage']['valid']);
+        $t->same([
+            'encrypted-package-source-not-package-root',
+            'invalid-encrypted-package-content-type',
+        ], $encryptedPackages['rIdNestedEncryptedPackage']['issues']);
+
+        $documentOnly = $graph->preflightEncryptedPackages('/word/document.xml');
+        $t->same(1, count($documentOnly));
+        $t->same('rIdNestedEncryptedPackage', $documentOnly[0]['id']);
+
+        $typeInventory = [];
+        foreach ($graph->relationshipTypeInventory() as $relationshipType) {
+            $typeInventory[$relationshipType['type']] = $relationshipType;
+        }
+        $encryptedInventory = $typeInventory[$encryptedRelationshipType];
+        $t->same('encrypted-package', $encryptedInventory['knownRole']);
+        $t->same('package-root', $encryptedInventory['sourceScope']);
+        $t->same('package', $encryptedInventory['singletonScope']);
+        $t->same(false, $encryptedInventory['policyValid']);
+        $t->same([
+            'encrypted-package-source-not-package-root',
+            'multiple-encrypted-package-relationships',
+        ], $encryptedInventory['policyIssues']);
+
+        $consistency = $graph->preflightPackageConsistency();
+        $t->same(false, $consistency['relationshipTypePoliciesValid']);
+        $policyByType = [];
+        foreach ($consistency['relationshipTypePolicies'] as $policy) {
+            $policyByType[$policy['type']] = $policy;
+        }
+        $t->same([
+            'encrypted-package-source-not-package-root',
+            'multiple-encrypted-package-relationships',
+        ], $policyByType[$encryptedRelationshipType]['policyIssues']);
+    },
     'preflights OPC embedded package and object relationships' => static function (TestRunner $t): void {
         $embeddedContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

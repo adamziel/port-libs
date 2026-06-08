@@ -59,7 +59,9 @@ XML],
     </w:p>
     <w:p>
       <w:pPr><w:pStyle w:val="FigureCaption"/></w:pPr>
-      <w:r><w:t>Figure 1: Workflow diagram for review.</w:t></w:r>
+      <w:r><w:t xml:space="preserve">Figure </w:t></w:r>
+      <w:fldSimple w:instr='SEQ Figure \* ARABIC'><w:r><w:t>1</w:t></w:r></w:fldSimple>
+      <w:r><w:t>: Workflow diagram for review.</w:t></w:r>
     </w:p>
     <w:p><w:r><w:t>After figure copy.</w:t></w:r></w:p>
   </w:body>
@@ -83,8 +85,17 @@ if (in_array('--self-test', $argv, true)) {
     if (($figure->attr('captionSource')['style'] ?? null) !== 'FigureCaption') {
         throw new RuntimeException('DOCX captioned drawing did not preserve caption style provenance');
     }
+    if (($figure->attr('captionSource')['sequence']['name'] ?? null) !== 'Figure') {
+        throw new RuntimeException('DOCX captioned drawing did not preserve caption sequence provenance');
+    }
+    if (($figure->attr('attributes')['data-docx-caption-number'] ?? null) !== '1') {
+        throw new RuntimeException('DOCX captioned drawing did not preserve caption sequence result');
+    }
     if (!str_contains($blocks, '<figcaption>Figure 1: Workflow diagram for review.</figcaption>')) {
         throw new RuntimeException('DOCX captioned drawing did not render a WordPress figure caption');
+    }
+    if (!str_contains($blocks, 'data-docx-caption-sequence="Figure" data-docx-caption-number="1"')) {
+        throw new RuntimeException('DOCX captioned drawing did not render caption sequence metadata');
     }
     if (!str_contains($blocks, '<img src="word/media/workflow.png" alt="Workflow diagram alt" title="Workflow title"/>')) {
         throw new RuntimeException('DOCX captioned drawing did not render the image metadata into WordPress blocks');

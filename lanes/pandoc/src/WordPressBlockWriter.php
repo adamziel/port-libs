@@ -1660,6 +1660,19 @@ final class WordPressBlockWriter
         }
 
         $attributes = $node->attr('attributes', []);
+        if (is_array($attributes)) {
+            foreach ($attributes as $name => $value) {
+                $name = strtolower(trim((string) $name));
+                if (
+                    !preg_match('/\Adata-docx-caption-[a-z0-9._:-]+\z/', $name)
+                    || !is_scalar($value)
+                ) {
+                    continue;
+                }
+
+                $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+            }
+        }
         if (is_array($attributes) && isset($attributes['latex-placement'])) {
             $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $attributes['latex-placement']) . '"';
         }

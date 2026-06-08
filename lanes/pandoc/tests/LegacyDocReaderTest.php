@@ -2202,6 +2202,11 @@ return [
         $embeddedNullActiveName = substr_replace($bytes, str_pad($embeddedNullName . "\0\0", 64, "\0"), $directorySectorOffset + 128, 64);
         $embeddedNullActiveName = substr_replace($embeddedNullActiveName, $u16(strlen($embeddedNullName) + 2), $directorySectorOffset + 128 + 64, 2);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($embeddedNullActiveName));
+
+        $malformedUtf16Name = $utf16le('Wo') . "\0\xd8" . $utf16le('rdDocument');
+        $malformedUtf16ActiveName = substr_replace($bytes, str_pad($malformedUtf16Name . "\0\0", 64, "\0"), $directorySectorOffset + 128, 64);
+        $malformedUtf16ActiveName = substr_replace($malformedUtf16ActiveName, $u16(strlen($malformedUtf16Name) + 2), $directorySectorOffset + 128 + 64, 2);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($malformedUtf16ActiveName));
     },
     'rejects red CFB directory sibling-tree roots before stream lookup' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([

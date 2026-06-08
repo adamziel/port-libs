@@ -9612,7 +9612,7 @@ final class CitationCslProcessor
     private function andJoiner(array $options): string
     {
         return match ($options['and']) {
-            'symbol' => '&',
+            'symbol' => $this->style->term('and', 'symbol'),
             'none' => '',
             default => $this->style->term('and'),
         };

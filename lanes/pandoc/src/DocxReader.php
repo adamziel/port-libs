@@ -1959,20 +1959,110 @@ final class DocxReader
             $attributes['data-docx-caption-based-on'] = $caption['basedOn'];
         }
 
+        $captionSource = [
+            'kind' => 'docx-caption-paragraph',
+            'placement' => 'after-drawing',
+            'style' => $caption['style'],
+            'styleName' => $caption['styleName'],
+            'basedOn' => $caption['basedOn'],
+        ];
+        $sequence = $this->captionSequenceMetadata($caption['inlines']);
+        if ($sequence !== null) {
+            $captionSource['sequence'] = $sequence;
+            foreach ([
+                'name' => 'data-docx-caption-sequence',
+                'result' => 'data-docx-caption-number',
+                'instruction' => 'data-docx-caption-field-instruction',
+                'format' => 'data-docx-caption-field-format',
+                'currentSequence' => 'data-docx-caption-current-sequence',
+                'nextSequence' => 'data-docx-caption-next-sequence',
+                'hidden' => 'data-docx-caption-hidden',
+                'resetNumber' => 'data-docx-caption-reset-number',
+                'resetHeadingLevel' => 'data-docx-caption-reset-heading-level',
+            ] as $source => $target) {
+                if (isset($sequence[$source]) && is_string($sequence[$source]) && $sequence[$source] !== '') {
+                    $attributes[$target] = $sequence[$source];
+                }
+            }
+        }
+
         return [
             'caption' => $caption['text'],
             'captionText' => $caption['text'],
             'captionInlines' => $caption['inlines'],
-            'captionSource' => [
-                'kind' => 'docx-caption-paragraph',
-                'placement' => 'after-drawing',
-                'style' => $caption['style'],
-                'styleName' => $caption['styleName'],
-                'basedOn' => $caption['basedOn'],
-            ],
+            'captionSource' => $captionSource,
             'classes' => ['docx-captioned-figure'],
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return array{name?:string, result?:string, instruction?:string, format?:string, currentSequence?:string, nextSequence?:string, hidden?:string, resetNumber?:string, resetHeadingLevel?:string}|null
+     */
+    private function captionSequenceMetadata(array $inlines): ?array
+    {
+        $field = $this->firstSequenceFieldNode($inlines);
+        if (!$field instanceof AstNode) {
+            return null;
+        }
+
+        $fieldAttributes = $field->attr('attributes', []);
+        if (!is_array($fieldAttributes)) {
+            return null;
+        }
+
+        $metadata = [];
+        foreach ([
+            'data-docx-field-sequence' => 'name',
+            'data-docx-field-instruction' => 'instruction',
+            'data-docx-field-format' => 'format',
+            'data-docx-field-current-sequence' => 'currentSequence',
+            'data-docx-field-next-sequence' => 'nextSequence',
+            'data-docx-field-hidden' => 'hidden',
+            'data-docx-field-reset-number' => 'resetNumber',
+            'data-docx-field-reset-heading-level' => 'resetHeadingLevel',
+        ] as $source => $target) {
+            $value = $fieldAttributes[$source] ?? null;
+            if (is_string($value) && $value !== '') {
+                $metadata[$target] = $value;
+            }
+        }
+
+        $result = trim($this->plainInlineText($field->children));
+        if ($result !== '') {
+            $metadata['result'] = $result;
+        }
+
+        return $metadata === [] ? null : $metadata;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function firstSequenceFieldNode(array $nodes): ?AstNode
+    {
+        foreach ($nodes as $node) {
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            $attributes = $node->attr('attributes', []);
+            if (
+                $node->type === 'span'
+                && is_array($attributes)
+                && ($attributes['data-docx-field'] ?? null) === 'seq'
+            ) {
+                return $node;
+            }
+
+            $nested = $this->firstSequenceFieldNode($node->children);
+            if ($nested instanceof AstNode) {
+                return $nested;
+            }
+        }
+
+        return null;
     }
 
     /**
