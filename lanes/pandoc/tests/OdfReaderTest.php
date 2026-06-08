@@ -2910,6 +2910,62 @@ XML;
         $t->same(2, $result['importReport']['content']['databaseSubtotalFieldCount'] ?? null);
         $t->same('Database ranges stay metadata-only.', $result['document']->children[0]->attr('text'));
     },
+    'maps ODT named ranges and expressions into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithNamedExpressions = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:named-expressions>
+        <table:named-range table:name="ImportRows" table:cell-range-address="Review.A2:Review.D42" table:base-cell-address="Review.A1" table:range-usable-as="print-range filter"/>
+        <table:named-expression table:name="ReadyPostCount" table:expression="of:=COUNTIF([.B2:.B42];&quot;ready&quot;)" table:base-cell-address="Review.A1"/>
+        <table:named-range table:name="SourceTitles" table:cell-range-address="Review.A2:Review.A42"/>
+        <table:named-expression table:expression="of:=SUM([.D2:.D42])"/>
+      </table:named-expressions>
+      <text:p>Named expressions stay metadata-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithNamedExpressions));
+        $declarations = $result['contentDeclarations'];
+        $byName = is_array($declarations['namedExpressionsByName'] ?? null) ? $declarations['namedExpressionsByName'] : [];
+        $rows = $byName['ImportRows'] ?? [];
+        $ready = $byName['ReadyPostCount'] ?? [];
+        $titles = $byName['SourceTitles'] ?? [];
+
+        $t->same(3, $declarations['namedExpressionCount']);
+        $t->same(2, $declarations['namedRangeCount']);
+        $t->same(1, $declarations['namedFormulaExpressionCount']);
+        $t->same(['ImportRows', 'ReadyPostCount', 'SourceTitles'], array_column($declarations['namedExpressions'], 'name'));
+        $t->same('range', $rows['type'] ?? null);
+        $t->same('named-range', $rows['element'] ?? null);
+        $t->same('Review.A2:Review.D42', $rows['cellRangeAddress'] ?? null);
+        $t->same('Review.A1', $rows['baseCellAddress'] ?? null);
+        $t->same('print-range filter', $rows['rangeUsableAs'] ?? null);
+        $t->same('expression', $ready['type'] ?? null);
+        $t->same('named-expression', $ready['element'] ?? null);
+        $t->same('of:=COUNTIF([.B2:.B42];"ready")', $ready['expression'] ?? null);
+        $t->same('Review.A1', $ready['baseCellAddress'] ?? null);
+        $t->same('Review.A2:Review.A42', $titles['cellRangeAddress'] ?? null);
+        $t->true(!isset($byName['']), 'Unnamed ODT named-expression entries should be skipped');
+        $t->same($declarations, $result['document']->attr('contentDeclarations'));
+        $t->same(3, $result['importReport']['contentDeclarations']['namedExpressionCount'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['namedRangeCount'] ?? null);
+        $t->same(1, $result['importReport']['contentDeclarations']['namedFormulaExpressionCount'] ?? null);
+        $t->same(3, $result['importReport']['content']['namedExpressionCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['namedRangeCount'] ?? null);
+        $t->same(1, $result['importReport']['content']['namedFormulaExpressionCount'] ?? null);
+        $t->same('Named expressions stay metadata-only.', $result['document']->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Named expressions stay metadata-only.', $markdown);
+        $t->contains('<p>Named expressions stay metadata-only.</p>', $blocksHtml);
+    },
     'maps ODT source metadata fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSourceMetadataFields = <<<'XML'
 <office:document-content

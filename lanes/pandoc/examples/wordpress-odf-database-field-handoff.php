@@ -44,6 +44,10 @@ $contentXml = <<<'XML'
           </table:subtotal-rules>
         </table:database-range>
       </table:database-ranges>
+      <table:named-expressions>
+        <table:named-range table:name="ReadyPostRows" table:cell-range-address="Review.A2:Review.D12" table:base-cell-address="Review.A1" table:range-usable-as="filter"/>
+        <table:named-expression table:name="ReadyPostCount" table:expression="of:=COUNTIF([.B2:.B12];&quot;ready&quot;)" table:base-cell-address="Review.A1"/>
+      </table:named-expressions>
       <text:p>Import source <text:database-display text:database-name="ImportDS" text:table-name="wp_posts" text:table-type="table" text:column-name="post_title">Imported post title</text:database-display> moved to row <text:database-row-number text:database-name="ImportDS" text:table-name="wp_posts" text:row-number="12"/>.</text:p>
     </office:text>
   </office:body>
@@ -94,6 +98,24 @@ if (in_array('--self-test', $argv, true)) {
     }
     if (($declarations['databaseSubtotalFieldCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT subtotal fields to be counted in the import report');
+    }
+    if (($declarations['namedExpressionCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT named ranges and expressions to be counted in the import report');
+    }
+    if (($declarations['namedRangeCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT named range count to be preserved');
+    }
+    if (($declarations['namedFormulaExpressionCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT named formula expression count to be preserved');
+    }
+    $namedExpressions = $result['document']->attr('contentDeclarations')['namedExpressionsByName'] ?? [];
+    $readyRows = is_array($namedExpressions) ? ($namedExpressions['ReadyPostRows'] ?? null) : null;
+    $readyCount = is_array($namedExpressions) ? ($namedExpressions['ReadyPostCount'] ?? null) : null;
+    if (!is_array($readyRows) || ($readyRows['cellRangeAddress'] ?? '') !== 'Review.A2:Review.D12') {
+        throw new RuntimeException('Expected ODT named range cell address metadata to be preserved');
+    }
+    if (!is_array($readyCount) || ($readyCount['expression'] ?? '') !== 'of:=COUNTIF([.B2:.B12];"ready")') {
+        throw new RuntimeException('Expected ODT named expression formula metadata to be preserved');
     }
     if (($subtotalRules['sortGroups']['sortBy'][0]['fieldNumber'] ?? null) !== 2) {
         throw new RuntimeException('Expected ODT subtotal sort group field metadata to be preserved');

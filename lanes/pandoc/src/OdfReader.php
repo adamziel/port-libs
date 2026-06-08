@@ -225,6 +225,9 @@ final class OdfReader
                     'repeatedTableRowCount' => $contentStats['repeatedTableRowCount'],
                     'truncatedTableRowRepeatCount' => $contentStats['truncatedTableRowRepeatCount'],
                     'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
+                    'namedExpressionCount' => (int) ($content['contentDeclarations']['namedExpressionCount'] ?? 0),
+                    'namedRangeCount' => (int) ($content['contentDeclarations']['namedRangeCount'] ?? 0),
+                    'namedFormulaExpressionCount' => (int) ($content['contentDeclarations']['namedFormulaExpressionCount'] ?? 0),
                     'databaseRangeCount' => (int) ($content['contentDeclarations']['databaseRangeCount'] ?? 0),
                     'databaseSubtotalRuleCount' => (int) ($content['contentDeclarations']['databaseSubtotalRuleCount'] ?? 0),
                     'databaseSubtotalFieldCount' => (int) ($content['contentDeclarations']['databaseSubtotalFieldCount'] ?? 0),
@@ -2328,6 +2331,22 @@ final class OdfReader
             }
         }
 
+        $namedExpressions = $this->namedExpressionsFromText($text);
+        $namedExpressionsByName = [];
+        $namedRangeCount = 0;
+        $namedFormulaExpressionCount = 0;
+        foreach ($namedExpressions as $expression) {
+            $name = (string) ($expression['name'] ?? '');
+            if ($name !== '') {
+                $namedExpressionsByName[$name] = $expression;
+            }
+            if (($expression['type'] ?? '') === 'range') {
+                $namedRangeCount++;
+            } elseif (($expression['type'] ?? '') === 'expression') {
+                $namedFormulaExpressionCount++;
+            }
+        }
+
         $databaseRanges = $this->databaseRangesFromText($text);
         $databaseRangesByName = [];
         $databaseSubtotalRuleCount = 0;
@@ -2356,12 +2375,85 @@ final class OdfReader
             'variableDeclarations' => $variableDeclarations,
             'userFieldDeclarationCount' => count($userFieldDeclarations),
             'userFieldDeclarations' => $userFieldDeclarations,
+            'namedExpressionCount' => count($namedExpressions),
+            'namedRangeCount' => $namedRangeCount,
+            'namedFormulaExpressionCount' => $namedFormulaExpressionCount,
+            'namedExpressions' => $namedExpressions,
+            'namedExpressionsByName' => $namedExpressionsByName,
             'databaseRangeCount' => count($databaseRanges),
             'databaseRanges' => $databaseRanges,
             'databaseRangesByName' => $databaseRangesByName,
             'databaseSubtotalRuleCount' => $databaseSubtotalRuleCount,
             'databaseSubtotalFieldCount' => $databaseSubtotalFieldCount,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function namedExpressionsFromText(\DOMElement $text): array
+    {
+        $expressions = [];
+        foreach (self::childElements($text, 'named-expressions', self::TABLE_NS) as $container) {
+            foreach (self::childElements($container) as $entry) {
+                if ($entry->namespaceURI !== self::TABLE_NS) {
+                    continue;
+                }
+
+                if ($entry->localName === 'named-range') {
+                    $definition = $this->namedRangeDefinition($entry);
+                } elseif ($entry->localName === 'named-expression') {
+                    $definition = $this->namedExpressionDefinition($entry);
+                } else {
+                    continue;
+                }
+
+                if ($definition !== []) {
+                    $expressions[] = $definition;
+                }
+            }
+        }
+
+        return $expressions;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function namedRangeDefinition(\DOMElement $range): array
+    {
+        $name = self::attr($range, self::TABLE_NS, 'name');
+        if ($name === '') {
+            return [];
+        }
+
+        return self::withoutEmpty([
+            'type' => 'range',
+            'element' => 'named-range',
+            'name' => $name,
+            'cellRangeAddress' => self::nullable(self::attr($range, self::TABLE_NS, 'cell-range-address')),
+            'baseCellAddress' => self::nullable(self::attr($range, self::TABLE_NS, 'base-cell-address')),
+            'rangeUsableAs' => self::nullable(self::attr($range, self::TABLE_NS, 'range-usable-as')),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function namedExpressionDefinition(\DOMElement $expression): array
+    {
+        $name = self::attr($expression, self::TABLE_NS, 'name');
+        if ($name === '') {
+            return [];
+        }
+
+        return self::withoutEmpty([
+            'type' => 'expression',
+            'element' => 'named-expression',
+            'name' => $name,
+            'expression' => self::nullable(self::attr($expression, self::TABLE_NS, 'expression')),
+            'baseCellAddress' => self::nullable(self::attr($expression, self::TABLE_NS, 'base-cell-address')),
+        ]);
     }
 
     /**
