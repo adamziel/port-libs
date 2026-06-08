@@ -10288,13 +10288,18 @@ final class PdfAcroFormExtractor
 
     private function acroFormDictionaryBody(string $catalog, array $objects): ?string
     {
-        $value = $this->lastTopLevelValueAfterName($catalog, 'AcroForm');
-        if ($value === null) {
+        $span = $this->lastTopLevelValueSpanAfterName($catalog, 'AcroForm');
+        if ($span === null) {
             return null;
         }
 
+        $value = $span['value'];
         $value = trim($value);
         if (str_starts_with($value, '<<')) {
+            if ($this->topLevelValueSpanHasTrailingOperand($catalog, $span)) {
+                return null;
+            }
+
             return $this->readPdfDictionaryAt($value, 0);
         }
 
@@ -10308,6 +10313,21 @@ final class PdfAcroFormExtractor
         }
 
         return null;
+    }
+
+    /**
+     * Direct catalog dictionary values are complete PDF objects. If a scalar or
+     * reference appears before the next dictionary key, fail closed rather than
+     * treating the first dictionary as a valid AcroForm root.
+     *
+     * @param array{start: int, end: int, value: string} $span
+     */
+    private function topLevelValueSpanHasTrailingOperand(string $dictionaryBody, array $span): bool
+    {
+        $offset = $span['end'];
+        $this->skipWhitespace($dictionaryBody, $offset);
+
+        return $offset < strlen($dictionaryBody) && $dictionaryBody[$offset] !== '/';
     }
 
     private function completeDictionaryObjectBody(string $objectBody): ?string
