@@ -36431,8 +36431,24 @@ final class PdfTextExtractor
         }
 
         $offset = $this->codeSpaceSequenceOffsetInCidRange($source, $last, $sourceWidth, $codeSpaceRanges);
+        if ($offset !== null) {
+            return $offset + 1;
+        }
 
-        return $offset === null ? null : $offset + 1;
+        $count = 0;
+        $scanned = 0;
+        $maxScan = self::MAX_CMAP_RANGE_ENTRIES * 256;
+        $candidate = $source;
+        while ($candidate <= $last && $scanned < $maxScan) {
+            $sourceKey = str_pad(strtolower(dechex($candidate)), $sourceWidth, '0', STR_PAD_LEFT);
+            if ($this->sourceKeyMatchesAnyCodeSpaceRange($sourceKey, $codeSpaceRanges)) {
+                $count++;
+            }
+            $candidate++;
+            $scanned++;
+        }
+
+        return $candidate > $last ? $count : null;
     }
 
     /**
