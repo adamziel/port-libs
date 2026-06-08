@@ -2508,8 +2508,12 @@ final class SuppliedDocumentConverter
         if (!is_array($options[$key])) {
             throw new InvalidArgumentException("markerPDF supplied document option {$key} must be an array.");
         }
-        if (!array_is_list($options[$key]) && !$this->isSourcePageKeyedArtifactMap($options[$key])) {
-            throw new InvalidArgumentException("markerPDF supplied document option {$key} must be a list or source-page keyed map.");
+        if (
+            !array_is_list($options[$key])
+            && !$this->isSourcePageKeyedArtifactMap($options[$key])
+            && !$this->isPageArtifactEnvelopeOption($options[$key])
+        ) {
+            throw new InvalidArgumentException("markerPDF supplied document option {$key} must be a list, source-page keyed map, or artifact page-list envelope.");
         }
 
         return $options[$key];
@@ -2540,6 +2544,36 @@ final class SuppliedDocumentConverter
         }
 
         return $hasArtifact;
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function isPageArtifactEnvelopeOption(array $value): bool
+    {
+        if ($value === [] || array_is_list($value)) {
+            return false;
+        }
+
+        $hasEnvelopeKey = false;
+        foreach (['pages', 'dictionary_output', 'pdftext', 'page_map', 'pageMap'] as $envelopeKey) {
+            if (array_key_exists($envelopeKey, $value)) {
+                $hasEnvelopeKey = true;
+                break;
+            }
+        }
+        if (!$hasEnvelopeKey) {
+            return false;
+        }
+
+        foreach (PdfPageArtifactSelector::normalizeSuppliedArtifacts($value) as $artifact) {
+            $artifact = $this->normalizeSourcePageArtifactMapCandidateValue($artifact);
+            if (is_array($artifact) && !array_is_list($artifact) && $this->hasSelectablePageArtifactPayload($artifact)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2588,6 +2622,36 @@ final class SuppliedDocumentConverter
         foreach ([
             'blocks',
             'bbox',
+            ...$this->selectablePageArtifactPayloadKeys(),
+        ] as $key) {
+            if (array_key_exists($key, $value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function hasSelectablePageArtifactPayload(array $value): bool
+    {
+        foreach ($this->selectablePageArtifactPayloadKeys() as $key) {
+            if (array_key_exists($key, $value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function selectablePageArtifactPayloadKeys(): array
+    {
+        return [
             'bboxes',
             'image',
             'image_bbox',
@@ -2601,13 +2665,7 @@ final class SuppliedDocumentConverter
             'output',
             'page_data',
             'page_result',
-        ] as $key) {
-            if (array_key_exists($key, $value)) {
-                return true;
-            }
-        }
-
-        return false;
+        ];
     }
 
     private function isIntegerArrayKey(int|string $key): bool

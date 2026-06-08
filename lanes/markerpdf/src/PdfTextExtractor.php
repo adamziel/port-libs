@@ -42845,10 +42845,12 @@ final class PdfTextExtractor
         $insideTextObject = false;
         $textObjectHasText = false;
         $closedTextObject = false;
+        $closedReplacementOnlyMarkedContent = false;
         $graphicsStateDepth = max(0, (int) ($initialOpenScopes['graphics_state'] ?? 0));
         $markedContentDepth = max(0, (int) ($initialOpenScopes['marked_content'] ?? 0));
         $compatibilityDepth = max(0, (int) ($initialOpenScopes['compatibility'] ?? 0));
         $outsideTextOperands = [];
+        $markedContentStack = [];
         $strokingColorSpace = null;
         $nonstrokingColorSpace = null;
 
@@ -43071,6 +43073,10 @@ final class PdfTextExtractor
                         return false;
                     }
 
+                    $replacementIndex = $this->contentSegmentActiveMarkedContentReplacementIndex($markedContentStack);
+                    if ($replacementIndex !== null) {
+                        $markedContentStack[$replacementIndex]['has_image_xobject'] = true;
+                    }
                     $outsideTextOperands = [];
                     continue;
                 }
@@ -43106,6 +43112,11 @@ final class PdfTextExtractor
 
                     $outsideTextOperands = [];
                     $markedContentDepth++;
+                    $markedContentStack[] = [
+                        'replacement' => false,
+                        'has_text' => false,
+                        'has_image_xobject' => false,
+                    ];
                     continue;
                 }
 
@@ -43114,6 +43125,11 @@ final class PdfTextExtractor
                         return false;
                     }
 
+                    $markedContentStack[] = [
+                        'replacement' => $this->markedContentOperandsHaveDirectReplacement($outsideTextOperands),
+                        'has_text' => false,
+                        'has_image_xobject' => false,
+                    ];
                     $outsideTextOperands = [];
                     $markedContentDepth++;
                     continue;
@@ -43140,6 +43156,16 @@ final class PdfTextExtractor
 
                 if ($token === 'EMC' && $markedContentDepth > 0) {
                     $markedContentDepth--;
+                    $closedMarkedContent = array_pop($markedContentStack);
+                    if (
+                        is_array($closedMarkedContent)
+                        && $closedMarkedContent['replacement']
+                        && !$closedMarkedContent['has_text']
+                        && !$closedMarkedContent['has_image_xobject']
+                        && $this->contentSegmentActiveMarkedContentReplacementIndex($markedContentStack) === null
+                    ) {
+                        $closedReplacementOnlyMarkedContent = true;
+                    }
                     continue;
                 }
 
@@ -43178,10 +43204,18 @@ final class PdfTextExtractor
 
             if ($this->isTextShowingOperator($token)) {
                 $textObjectHasText = true;
+                $replacementIndex = $this->contentSegmentActiveMarkedContentReplacementIndex($markedContentStack);
+                if ($replacementIndex !== null) {
+                    $markedContentStack[$replacementIndex]['has_text'] = true;
+                }
             }
         }
 
-        if (!$closedTextObject || $insideTextObject || $outsideTextOperands !== []) {
+        if (
+            (!$closedTextObject && !$closedReplacementOnlyMarkedContent)
+            || $insideTextObject
+            || $outsideTextOperands !== []
+        ) {
             return false;
         }
 
@@ -43442,6 +43476,46 @@ final class PdfTextExtractor
             $operands[2],
             $operands[3]
         );
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function markedContentOperandsHaveDirectReplacement(array $operands): bool
+    {
+        if (
+            count($operands) !== 2
+            || !$this->markedContentTagOperand($operands[0])
+        ) {
+            return false;
+        }
+
+        $propertyOperand = trim($operands[1]);
+        if (!str_starts_with($propertyOperand, '<<')) {
+            return false;
+        }
+
+        $dictionary = $this->readPdfDictionaryAt($propertyOperand, 0);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        return $this->pdfOptionalStringValueAfterName($dictionary, 'ActualText', []) !== null
+            || $this->pdfOptionalStringValueAfterName($dictionary, 'Alt', []) !== null;
+    }
+
+    /**
+     * @param list<array{replacement: bool, has_text: bool, has_image_xobject: bool}> $markedContentStack
+     */
+    private function contentSegmentActiveMarkedContentReplacementIndex(array $markedContentStack): ?int
+    {
+        foreach ($markedContentStack as $index => $markedContent) {
+            if ($markedContent['replacement']) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     private function markedContentIndirectPropertyReferenceOperandsAreSafe(
