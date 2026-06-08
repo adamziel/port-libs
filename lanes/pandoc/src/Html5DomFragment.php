@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'value-metadata-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'value-metadata-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -3528,6 +3528,19 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlFocusNavigationAttribute($name)) {
+                $focusNavigationMetadata = self::normalizeHtmlFocusNavigationAttribute(
+                    $name,
+                    $value,
+                    $tagName,
+                    $diagnostics
+                );
+                foreach ($focusNavigationMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isHtmlRevisionMetadataAttribute($tagName, $name)) {
                 $revisionMetadata = self::normalizeHtmlRevisionMetadataAttribute(
                     $name,
@@ -4043,6 +4056,155 @@ final class Html5DomFragment
         ];
 
         return $state;
+    }
+
+    private static function isHtmlFocusNavigationAttribute(string $name): bool
+    {
+        return in_array(strtolower($name), ['accesskey', 'autofocus', 'tabindex'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlFocusNavigationAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): array {
+        $attribute = strtolower($name);
+        if ($attribute === 'autofocus') {
+            self::addHtmlFocusNavigationDiagnostic(
+                $diagnostics,
+                $tagName,
+                $attribute,
+                'data-pandoc-autofocus-state'
+            );
+
+            return ['data-pandoc-autofocus-state' => 'true'];
+        }
+
+        if ($attribute === 'tabindex') {
+            $tabIndex = self::normalizeHtmlTabIndexAttribute($value);
+            if ($tabIndex === null) {
+                self::addHtmlInvalidFocusNavigationDiagnostic($diagnostics, $tagName, $attribute);
+
+                return [];
+            }
+
+            self::addHtmlFocusNavigationDiagnostic($diagnostics, $tagName, $attribute, 'data-pandoc-tabindex');
+
+            return ['data-pandoc-tabindex' => $tabIndex];
+        }
+
+        $accessKeys = self::normalizeHtmlAccessKeyAttribute($value, $tagName, $diagnostics);
+        if ($accessKeys === null) {
+            return [];
+        }
+
+        self::addHtmlFocusNavigationDiagnostic($diagnostics, $tagName, $attribute, 'data-pandoc-accesskey');
+
+        return ['data-pandoc-accesskey' => $accessKeys];
+    }
+
+    private static function normalizeHtmlTabIndexAttribute(string $value): ?string
+    {
+        $value = self::cleanHtmlMetadataAttribute($value);
+        if ($value === '' || strlen($value) > 8 || preg_match('/^[+-]?[0-9]+$/', $value) !== 1) {
+            return null;
+        }
+
+        $integer = (int) $value;
+        if ($integer < -32768 || $integer > 32767) {
+            return null;
+        }
+
+        return (string) $integer;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlAccessKeyAttribute(
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): ?string {
+        $tokens = self::splitHtmlSemanticTokens($value);
+        if ($tokens === []) {
+            self::addHtmlInvalidFocusNavigationDiagnostic($diagnostics, $tagName, 'accesskey');
+
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            if (!self::isSafeHtmlAccessKeyToken($token)) {
+                self::addHtmlInvalidFocusNavigationDiagnostic($diagnostics, $tagName, 'accesskey', $token);
+                continue;
+            }
+
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        return $normalized === [] ? null : implode(' ', $normalized);
+    }
+
+    private static function isSafeHtmlAccessKeyToken(string $token): bool
+    {
+        if ($token === '' || preg_match('/[<>"\'`{}]/u', $token) === 1) {
+            return false;
+        }
+        if (preg_match('/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) === 1) {
+            return false;
+        }
+
+        $count = preg_match_all('/./us', $token);
+
+        return $count === 1;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlFocusNavigationDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        string $attributeName,
+        string $metadataAttribute
+    ): void {
+        $diagnostics[] = [
+            'code' => 'focus-navigation-review',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'focus-navigation-preserved-as-review-metadata',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlInvalidFocusNavigationDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        string $attributeName,
+        ?string $token = null
+    ): void {
+        $diagnostic = [
+            'code' => 'unsafe-attribute',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'reason' => 'invalid-focus-navigation-metadata',
+        ];
+        if ($token !== null) {
+            $diagnostic['token'] = $token;
+        }
+
+        $diagnostics[] = $diagnostic;
     }
 
     private static function isHtmlRevisionMetadataAttribute(string $tagName, string $name): bool

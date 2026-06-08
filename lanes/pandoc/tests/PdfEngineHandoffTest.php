@@ -5041,13 +5041,14 @@ MARKDOWN);
         $imageBytes = "jpeg image bytes\n";
         $formBytes = "filtered form xobject bytes\n";
         $appearanceBytes = "jpx appearance bytes\n";
+        $embeddedBytes = "encrypted reviewer attachment bytes\n";
         $xrefBytes = "filtered xref stream bytes\n";
         $objectStreamHeader = "20 0\n";
         $objectStreamBytes = $objectStreamHeader . "<< /Title (Compressed object) >>\n";
         $pdfBytes = implode("\n", [
             '%PDF-1.7',
             '1 0 obj',
-            '<< /Type /Catalog /Pages 2 0 R >>',
+            '<< /Type /Catalog /Pages 2 0 R /AF [13 0 R] >>',
             'endobj',
             '2 0 obj',
             '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
@@ -5092,6 +5093,15 @@ MARKDOWN);
             '<< /Type /ObjStm /N 1 /First ' . strlen($objectStreamHeader) . ' /Filter /LZWDecode /Length ' . strlen($objectStreamBytes) . ' >>',
             'stream',
             $objectStreamBytes,
+            'endstream',
+            'endobj',
+            '13 0 obj',
+            '<< /Type /Filespec /F (review-source.bin) /AFRelationship /Source /EF << /F 14 0 R >> >>',
+            'endobj',
+            '14 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /application#2Fzip /Filter /Crypt /Length ' . strlen($embeddedBytes) . ' >>',
+            'stream',
+            $embeddedBytes,
             'endstream',
             'endobj',
             'trailer',
@@ -5169,12 +5179,22 @@ MARKDOWN);
                 'streamBytes' => strlen($appearanceBytes),
                 'streamSkipped' => null,
             ],
+            [
+                'surface' => 'embedded-file',
+                'source' => 'embedded-file:catalog.AF:review-source.bin',
+                'object' => '14 0 R',
+                'filters' => ['Crypt'],
+                'action' => 'requires-decryption',
+                'streamBytes' => strlen($embeddedBytes),
+                'streamSkipped' => 'filtered',
+            ],
         ];
         $expected = [
-            'streamCount' => 6,
-            'filterCount' => 7,
+            'streamCount' => 7,
+            'filterCount' => 8,
             'filters' => [
                 'ASCII85Decode' => 1,
+                'Crypt' => 1,
                 'DCTDecode' => 1,
                 'FlateDecode' => 3,
                 'JPXDecode' => 1,
@@ -5182,6 +5202,7 @@ MARKDOWN);
             ],
             'surfaces' => [
                 'annotation-appearance' => 1,
+                'embedded-file' => 1,
                 'form-xobject' => 1,
                 'image-xobject' => 1,
                 'object-stream' => 1,
@@ -5191,16 +5212,20 @@ MARKDOWN);
             'actions' => [
                 'deferred-decode' => 4,
                 'image-codec-review' => 2,
+                'requires-decryption' => 1,
             ],
             'streams' => $expectedStreams,
         ];
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfStreamFilterPolicy'] ?? null);
-        $t->contains('pdf-byte-stream-filter-policy:6', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter-policy:7', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter:Crypt:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-stream-filter:FlateDecode:3', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-stream-filter-action:deferred-decode:4', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-stream-filter-action:image-codec-review:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter-action:requires-decryption:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter-surface:embedded-file:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-stream-filter-surface:page-content:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfStreamFilterPolicy'] ?? null);

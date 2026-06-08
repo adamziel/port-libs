@@ -97,6 +97,7 @@ $opfXml = <<<'XML'
     <item id="audio-chapter" href="audio/chapter.mp3" media-type="audio/mpeg"/>
     <item id="remote-audio-note" href="https://cdn.example.test/audio/source-note.mp3" media-type="audio/mpeg"/>
     <item id="style" href="styles/review.css" media-type="text/css"/>
+    <item id="review-submit" href="meta/review-submit.xhtml" media-type="application/xhtml+xml"/>
     <item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>
     <item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
     <item id="legacy-cover" href="images/legacy-cover.jpg" media-type="image/jpeg"/>
@@ -200,6 +201,11 @@ $chapterXhtml = <<<'XML'
     <p>EPUB XHTML content is preserved for WordPress import review.</p>
     <p>Remote media marker: <img src="https://cdn.example.test/images/source.png" alt="remote source"/></p>
     <p>Responsive cover candidate: <img src="../images/cover.png" srcset="../images/cover.png 1x, ../images/legacy-cover.jpg 2x" alt="responsive cover"/></p>
+    <form id="source-review-form" action="https://forms.example.test/epub/source-review" method="post">
+      <input id="source-reviewer" name="reviewer" type="text" value="Migration Desk"/>
+      <button id="source-review-submit" type="submit" formaction="../meta/review-submit.xhtml#draft">Save review draft</button>
+    </form>
+    <p><a id="source-ping-link" href="#source" ping="https://analytics.example.test/epub/source ../meta/missing-ping.xhtml">Track source review</a></p>
     <p><span id="source-play" role="button" tabindex="0">Play source audio</span></p>
     <audio id="source-audio" src="../audio/chapter.mp3"/>
     <epub:trigger id="source-audio-trigger" ev:observer="source-play" ev:event="click" action="play" ref="source-audio"/>
@@ -375,6 +381,7 @@ $packageParts = [
     ['name' => 'EPUB/package.opf', 'data' => $opfXml],
     ['name' => 'EPUB/fixed/package.opf', 'data' => $alternateOpfXml],
     ['name' => 'EPUB/meta/review-record.json', 'data' => '{"@context":"https://schema.org","name":"WordPress EPUB review record"}'],
+    ['name' => 'EPUB/meta/review-submit.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p id="draft">Review draft target</p></body></html>'],
     ['name' => 'EPUB/meta/accessibility.json', 'data' => '{"@context":"https://schema.org","accessibilitySummary":"Reviewer accessibility record"}'],
     ['name' => 'EPUB/nav.xhtml', 'data' => $navXhtml],
     ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapterXhtml],
@@ -1013,7 +1020,7 @@ XML;
     if (($result['document']->children[1]->attr('resourceReviewFlags') ?? []) !== ['scripted']) {
         throw new RuntimeException('Expected WordPress fallback handoff block to expose scripted resource review flag');
     }
-    if (($result['mediaTypes']['manifestItemCount'] ?? null) !== 16 || ($result['mediaTypes']['coreMediaTypeCount'] ?? null) !== 13) {
+    if (($result['mediaTypes']['manifestItemCount'] ?? null) !== 17 || ($result['mediaTypes']['coreMediaTypeCount'] ?? null) !== 14) {
         throw new RuntimeException('Expected EPUB OPF media-type report to count core manifest resources');
     }
     if (($result['mediaTypes']['foreignResourceCount'] ?? null) !== 3 || ($result['mediaTypes']['foreignResourceWithoutFallbackCount'] ?? null) !== 1) {
@@ -1071,6 +1078,12 @@ XML;
     if (($result['xhtmlResourceReport']['refreshAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['refreshCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB XHTML content scan to identify inert meta refresh target metadata');
     }
+    if (($result['xhtmlResourceReport']['sideEffectAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['sideEffectCount'] ?? null) !== 3) {
+        throw new RuntimeException('Expected EPUB XHTML content scan to identify inert form and ping side effects');
+    }
+    if (($result['xhtmlResourceReport']['sideEffectReferenceCount'] ?? null) !== 4 || ($result['xhtmlResourceReport']['externalSideEffectReferenceCount'] ?? null) !== 2 || ($result['xhtmlResourceReport']['missingSideEffectReferenceCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB XHTML side-effect targets to count external and missing targets without loading them');
+    }
     $chapterRefreshes = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['refreshes'] ?? [];
     if (($chapterRefreshes[0]['id'] ?? null) !== 'source-refresh' || ($chapterRefreshes[0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB XHTML meta refresh target to resolve against the source chapter');
@@ -1085,10 +1098,23 @@ XML;
     if (($chapterLinks[0]['byteSha256'] ?? null) !== hash('sha256', $reviewCss) || ($chapterLinks[0]['diagnostics'][0]['type'] ?? null) !== 'active-xhtml-link-resource') {
         throw new RuntimeException('Expected EPUB XHTML stylesheet link bytes and inert active-resource diagnostic');
     }
-    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'linked-resources', 'switch', 'trigger', 'remote-resources']) {
+    $chapterSideEffects = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['sideEffects'] ?? [];
+    if (($chapterSideEffects[0]['kind'] ?? null) !== 'form' || ($chapterSideEffects[0]['action'] ?? null) !== 'https://forms.example.test/epub/source-review') {
+        throw new RuntimeException('Expected EPUB XHTML form side-effect action to stay inert and reviewable');
+    }
+    if (($chapterSideEffects[1]['id'] ?? null) !== 'source-review-submit' || ($chapterSideEffects[1]['target'] ?? null) !== '/EPUB/meta/review-submit.xhtml#draft') {
+        throw new RuntimeException('Expected EPUB XHTML submit formaction side effect to resolve to local package content');
+    }
+    if (($chapterSideEffects[2]['kind'] ?? null) !== 'anchor-ping' || ($chapterSideEffects[2]['externalPingCount'] ?? null) !== 1 || ($chapterSideEffects[2]['missingPingCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB XHTML anchor ping side effects to count external and missing ping targets');
+    }
+    if (($result['document']->children[0]->attr('contentSideEffects')[0]['id'] ?? null) !== 'source-review-form') {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML side-effect metadata');
+    }
+    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'linked-resources', 'switch', 'trigger', 'side-effects', 'remote-resources']) {
         throw new RuntimeException('Expected EPUB XHTML content review flags for the source chapter');
     }
-    if (($result['document']->children[0]->attr('contentResourceReviewFlags') ?? []) !== ['mathml', 'svg', 'linked-resources', 'switch', 'trigger', 'remote-resources']) {
+    if (($result['document']->children[0]->attr('contentResourceReviewFlags') ?? []) !== ['mathml', 'svg', 'linked-resources', 'switch', 'trigger', 'side-effects', 'remote-resources']) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML content review flags');
     }
     if (($result['document']->children[0]->attr('contentLinks')[0]['id'] ?? null) !== 'chapter-style-link') {
@@ -1602,6 +1628,13 @@ echo 'xhtmlLinks=' . ($result['xhtmlResourceReport']['linkCount'] ?? 0) . "\n";
 echo 'chapterLinkPolicy=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['links'][0]['policy'] ?? '') . "\n";
 echo 'xhtmlRefreshes=' . ($result['xhtmlResourceReport']['refreshCount'] ?? 0) . "\n";
 echo 'chapterRefreshTarget=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['refreshes'][0]['target'] ?? '') . "\n";
+echo 'xhtmlSideEffectAssets=' . ($result['xhtmlResourceReport']['sideEffectAssetCount'] ?? 0) . "\n";
+echo 'xhtmlSideEffects=' . ($result['xhtmlResourceReport']['sideEffectCount'] ?? 0) . "\n";
+echo 'xhtmlSideEffectReferences=' . ($result['xhtmlResourceReport']['sideEffectReferenceCount'] ?? 0) . "\n";
+echo 'chapterSideEffectKinds=' . implode(',', array_map(
+    static fn (array $item): string => (string) ($item['kind'] ?? ''),
+    $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['sideEffects'] ?? []
+)) . "\n";
 echo 'xhtmlViewportAssets=' . ($result['xhtmlResourceReport']['viewportAssetCount'] ?? 0) . "\n";
 echo 'chapterViewport=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['raw'] ?? '') . "\n";
 echo 'chapterLanguage=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['language'] ?? '') . "\n";

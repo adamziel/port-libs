@@ -4442,6 +4442,147 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB XHTML form and ping side effects for static review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $sideEffectXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <form id="comment-form" class="review-form" action="https://forms.example.test/submit" method="post" enctype="multipart/form-data" target="_blank">
+      <input id="author-field" name="author" type="text" value="Migration Desk" required="required"/>
+      <input id="draft-submit" name="draft" type="submit" value="Save draft" formaction="../forms/draft.xhtml#review"/>
+      <button id="remote-submit" type="submit" formaction="https://forms.example.test/button-submit">Send remote</button>
+      <button id="plain-button" type="button">No submit</button>
+    </form>
+    <p><a id="ping-link" href="chapter1.xhtml#intro" ping="https://analytics.example.test/ping ../forms/missing-ping.xhtml">Tracked local chapter</a></p>
+  </body>
+</html>
+XML;
+        $opfWithSideEffects = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="side-effect-content" href="text/side-effects.xhtml" media-type="application/xhtml+xml"/>'
+                . '<item id="draft-target" href="forms/draft.xhtml" media-type="application/xhtml+xml"/>'
+                . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithSideEffects = str_replace(
+            '</spine>',
+            '<itemref idref="side-effect-content"/></spine>',
+            $opfWithSideEffects
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithSideEffects,
+            null,
+            [
+                ['name' => 'OEBPS/text/side-effects.xhtml', 'data' => $sideEffectXhtml],
+                ['name' => 'OEBPS/forms/draft.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p id="review">Draft target</p></body></html>'],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/side-effects.xhtml'];
+
+        $t->same(1, $report['sideEffectAssetCount'] ?? null);
+        $t->same(4, $report['sideEffectCount'] ?? null);
+        $t->same(5, $report['sideEffectReferenceCount'] ?? null);
+        $t->same(3, $report['externalSideEffectReferenceCount'] ?? null);
+        $t->same(1, $report['missingSideEffectReferenceCount'] ?? null);
+        $t->same(0, $report['encryptedSideEffectReferenceCount'] ?? null);
+        $t->same(4, $report['sideEffectReviewRequiredCount'] ?? null);
+        $t->same(1, $asset['referenceCount']);
+        $t->same(4, $asset['sideEffectCount']);
+        $t->same(5, $asset['sideEffectReferenceCount']);
+        $t->same(3, $asset['externalSideEffectReferenceCount']);
+        $t->same(1, $asset['missingSideEffectReferenceCount']);
+        $t->same(['side-effects'], $asset['reviewFlags']);
+        $t->same(true, $asset['flags']['sideEffects']);
+        $t->same(false, $asset['flags']['remoteResources']);
+        $t->same(false, $asset['flags']['missingReferences']);
+
+        $form = $asset['sideEffects'][0];
+        $t->same('form', $form['kind']);
+        $t->same('comment-form', $form['id']);
+        $t->same('post', $form['method']);
+        $t->same('multipart/form-data', $form['enctype']);
+        $t->same('_blank', $form['targetFrame']);
+        $t->same('https://forms.example.test/submit', $form['action']);
+        $t->same(true, $form['external']);
+        $t->same(4, $form['controlCount']);
+        $t->same(2, $form['submitControlCount']);
+        $t->same('input', $form['controls'][0]['element']);
+        $t->same('author', $form['controls'][0]['name']);
+        $t->same('text', $form['controls'][0]['type']);
+        $t->same(true, $form['controls'][0]['required']);
+        $t->same('submit', $form['controls'][1]['type']);
+        $t->same(true, $form['controls'][1]['submit']);
+        $t->same('../forms/draft.xhtml#review', $form['controls'][1]['formAction']);
+        $t->same('button', $form['controls'][2]['element']);
+        $t->same('button', $form['controls'][3]['type']);
+        $t->same(false, $form['controls'][3]['submit']);
+        $t->same(['active-xhtml-form-submission', 'external-xhtml-form-action-reference'], array_column($form['diagnostics'], 'type'));
+
+        $draftSubmit = $asset['sideEffects'][1];
+        $t->same('form-control', $draftSubmit['kind']);
+        $t->same('draft-submit', $draftSubmit['id']);
+        $t->same('input', $draftSubmit['controlElement']);
+        $t->same('submit', $draftSubmit['type']);
+        $t->same('../forms/draft.xhtml#review', $draftSubmit['formAction']);
+        $t->same('/OEBPS/forms/draft.xhtml#review', $draftSubmit['target']);
+        $t->same('/OEBPS/forms/draft.xhtml', $draftSubmit['part']);
+        $t->same('review', $draftSubmit['fragment']);
+        $t->same('draft-target', $draftSubmit['manifestId']);
+        $t->same(false, $draftSubmit['external']);
+        $t->same(true, $draftSubmit['exists']);
+        $t->same(['active-xhtml-form-control-submission'], array_column($draftSubmit['diagnostics'], 'type'));
+
+        $remoteSubmit = $asset['sideEffects'][2];
+        $t->same('remote-submit', $remoteSubmit['id']);
+        $t->same('button', $remoteSubmit['controlElement']);
+        $t->same('https://forms.example.test/button-submit', $remoteSubmit['formAction']);
+        $t->same(true, $remoteSubmit['external']);
+        $t->same('external-xhtml-form-control-action-reference', $remoteSubmit['diagnostics'][1]['type']);
+
+        $ping = $asset['sideEffects'][3];
+        $t->same('anchor-ping', $ping['kind']);
+        $t->same('ping-link', $ping['id']);
+        $t->same('chapter1.xhtml#intro', $ping['href']);
+        $t->same(2, $ping['pingCount']);
+        $t->same(1, $ping['externalPingCount']);
+        $t->same(1, $ping['missingPingCount']);
+        $t->same('https://analytics.example.test/ping', $ping['pings'][0]['target']);
+        $t->same(true, $ping['pings'][0]['external']);
+        $t->same('external-xhtml-anchor-ping-reference', $ping['pings'][0]['diagnostics'][0]['type']);
+        $t->same('/OEBPS/forms/missing-ping.xhtml', $ping['pings'][1]['part']);
+        $t->same(false, $ping['pings'][1]['exists']);
+        $t->same('missing-xhtml-anchor-ping-reference', $ping['pings'][1]['diagnostics'][0]['type']);
+        $t->same([
+            'active-xhtml-anchor-ping',
+            'external-xhtml-anchor-ping-reference',
+            'missing-xhtml-anchor-ping-reference',
+        ], array_column($ping['diagnostics'], 'type'));
+
+        $t->same(4, count($report['sideEffectItems']));
+        $t->same(8, count($report['sideEffectDiagnostics']));
+        $t->same('active-xhtml-form-submission', $report['sideEffectDiagnostics'][0]['type']);
+        $t->same('external-xhtml-form-action-reference', $report['sideEffectDiagnostics'][1]['type']);
+        $t->same('active-xhtml-form-control-submission', $report['sideEffectDiagnostics'][2]['type']);
+        $t->same('external-xhtml-form-control-action-reference', $report['sideEffectDiagnostics'][4]['type']);
+        $t->same('active-xhtml-anchor-ping', $report['sideEffectDiagnostics'][5]['type']);
+        $t->same('missing-xhtml-anchor-ping-reference', $report['sideEffectDiagnostics'][7]['type']);
+
+        $remoteResources = $result['remoteResources'];
+        $t->same(0, $remoteResources['observedAssetCount']);
+        $t->same(0, $remoteResources['remoteReferenceCount']);
+        $t->same(0, $remoteResources['xhtmlExternalReferenceCount']);
+
+        $scanBlock = $result['document']->children[2];
+        $t->same('/OEBPS/text/side-effects.xhtml', $scanBlock->attr('part'));
+        $t->same($asset['sideEffects'], $scanBlock->attr('contentSideEffects'));
+        $t->same($asset['sideEffectDiagnostics'], $scanBlock->attr('contentSideEffectDiagnostics'));
+        $t->same($asset['references'], $scanBlock->attr('contentReferences'));
+        $t->same($asset['reviewFlags'], $scanBlock->attr('contentResourceReviewFlags'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reports EPUB stylesheet resource references for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithCssAssets = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

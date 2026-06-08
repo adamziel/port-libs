@@ -2718,6 +2718,69 @@ return [
         }
         $t->true(!str_contains($blocks, ' translate='), 'Expected WordPress blocks to omit source translate attributes');
     },
+    'converts focus and keyboard shortcut attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article tabindex=" 0003 " accesskey="s S ?" autofocus data-pandoc-tabindex="source-spoof" data-pandoc-accesskey="source-spoof" data-pandoc-autofocus-state="source-spoof">'
+            . '<h2 tabindex="-01">Focusable heading</h2>'
+            . '<a href="./packet.html" accesskey="k k" tabindex="+5">packet</a>'
+            . '<p tabindex="bad" accesskey="save bad&lt;tag">bad controls</p>'
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/focus-keyboard-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article data-pandoc-tabindex="3" data-pandoc-accesskey="s S ?" data-pandoc-autofocus-state="true">'
+            . '<h2 data-pandoc-tabindex="-1">Focusable heading</h2>'
+            . '<a href="https://source.example.test/import/posts/packet.html" data-pandoc-accesskey="k" data-pandoc-tabindex="5">packet</a>'
+            . '<p>bad controls</p></article>';
+        $policyDiagnostics = array_count_values(array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        )));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Focusable headingpacketbad controls', $fragment->textContent());
+        $t->same(['a', 'article', 'h2', 'p'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([
+            'accesskey',
+            'autofocus',
+            'data-pandoc-accesskey',
+            'data-pandoc-autofocus-state',
+            'data-pandoc-tabindex',
+            'tabindex',
+        ], $summary['filteredAttributes']);
+        $t->same(6, $policyDiagnostics['focus-navigation-review'] ?? 0);
+        $t->same(6, $policyDiagnostics['unsafe-attribute'] ?? 0);
+        $t->same([
+            'data-pandoc-tabindex' => '3',
+            'data-pandoc-accesskey' => 's S ?',
+            'data-pandoc-autofocus-state' => 'true',
+        ], $nodes[0]['attrs']);
+        $t->same(['data-pandoc-tabindex' => '-1'], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/packet.html',
+            'data-pandoc-accesskey' => 'k',
+            'data-pandoc-tabindex' => '5',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same([], $nodes[0]['children'][2]['attrs']);
+        $t->same('/migration/focus-keyboard-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' tabindex=', ' accesskey=', ' autofocus', 'source-spoof', 'save', 'bad&lt;tag'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected live focus or shortcut metadata to be stripped or converted: ' . $blocked);
+        }
+        $t->true(!str_contains($blocks, ' tabindex='), 'Expected WordPress blocks to omit live tabindex attributes');
+        $t->true(!str_contains($blocks, ' accesskey='), 'Expected WordPress blocks to omit live accesskey attributes');
+        $t->true(!str_contains($blocks, ' autofocus'), 'Expected WordPress blocks to omit live autofocus attributes');
+    },
     'converts aria roles and states into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<section role="region bad-role button" aria-label=" Import status " aria-describedby="status-note other_note bad&lt;id" aria-expanded="true" aria-current="PAGE" aria-sort="descending" aria-level="2" aria-valuenow=" 42.500 " aria-busy="maybe" aria-unsupported="source" data-pandoc-aria-label="source-spoof">'

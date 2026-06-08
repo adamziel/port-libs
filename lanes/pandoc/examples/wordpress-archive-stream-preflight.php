@@ -804,6 +804,43 @@ try {
 } catch (RuntimeException) {
     $splitZipExtractionBlocked = true;
 }
+$archiveExtraZipBytesBase = $zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Archive extra ZIP source</w:p></w:body></w:document>',
+        'compressionMethod' => 8,
+    ],
+], 'archive extra data record review fixture');
+$archiveExtraZipEocdOffset = strrpos($archiveExtraZipBytesBase, "PK\x05\x06");
+if (!is_int($archiveExtraZipEocdOffset)) {
+    throw new RuntimeException('ZIP archive extra fixture is missing EOCD.');
+}
+$archiveExtraZipRecordData = 'wordpress-archive-extra-data';
+$archiveExtraZipRecord = "PK\x06\x08" . pack('V', strlen($archiveExtraZipRecordData)) . $archiveExtraZipRecordData;
+$archiveExtraZipBytes = substr($archiveExtraZipBytesBase, 0, $archiveExtraZipEocdOffset)
+    . $archiveExtraZipRecord
+    . substr($archiveExtraZipBytesBase, $archiveExtraZipEocdOffset);
+$archiveExtraZipGzip = GzipStream::build($archiveExtraZipBytes, [
+    'filename' => 'wordpress-archive-extra-package.zip',
+    'comment' => 'ZIP archive extra data record preflight fixture',
+    'headerCrc' => true,
+]);
+$archiveExtraZipInspection = ArchiveCompressionStream::inspectZipArchiveExtraDataRecordPolicy(
+    $archiveExtraZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($archiveExtraZipBytes)
+);
+$archiveExtraZipExtractionBlocked = false;
+try {
+    ZipPackage::fromString($archiveExtraZipBytes);
+} catch (RuntimeException) {
+    $archiveExtraZipExtractionBlocked = true;
+}
 $generalPurposeZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -1395,6 +1432,15 @@ if (in_array('--self-test', $argv, true)) {
         'zipSplitEntryNames' => ['[Content_Types].xml', 'word/document.xml', 'word/media/split.png'],
         'zipSplitEntryDisks' => [0, 0, 2],
         'zipSplitGzipFilename' => 'wordpress-split-package.zip',
+        'zipArchiveExtraFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipArchiveExtraEntryCount' => 2,
+        'zipArchiveExtraRecordCount' => 1,
+        'zipArchiveExtraSupportedByBoundedReader' => false,
+        'zipArchiveExtraRecordLocation' => 'between-central-directory-and-eocd',
+        'zipArchiveExtraRecordIssues' => ['archive-extra-data-record'],
+        'zipArchiveExtraRecordData' => $archiveExtraZipRecordData,
+        'zipArchiveExtraEntryNames' => ['[Content_Types].xml', 'word/document.xml'],
+        'zipArchiveExtraGzipFilename' => 'wordpress-archive-extra-package.zip',
         'zipGeneralPurposeFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipGeneralPurposeEntryCount' => 4,
         'zipGeneralPurposeSupportedCount' => 4,
@@ -1779,6 +1825,24 @@ if (in_array('--self-test', $argv, true)) {
         || array_column($splitZipInspection['entries'], 'diskStart') !== $expected['zipSplitEntryDisks']
         || ($splitZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipSplitGzipFilename']
         || !$splitZipExtractionBlocked
+        || $archiveExtraZipInspection['format'] !== $expected['zipArchiveExtraFormat']
+        || $archiveExtraZipInspection['zipBytes'] !== $archiveExtraZipBytes
+        || $archiveExtraZipInspection['packageByteSize'] !== strlen($archiveExtraZipBytes)
+        || $archiveExtraZipInspection['entryCount'] !== $expected['zipArchiveExtraEntryCount']
+        || $archiveExtraZipInspection['archiveExtraDataRecordCount'] !== $expected['zipArchiveExtraRecordCount']
+        || $archiveExtraZipInspection['hasArchiveExtraDataRecord'] !== true
+        || $archiveExtraZipInspection['isSupportedByBoundedReader'] !== $expected['zipArchiveExtraSupportedByBoundedReader']
+        || array_column($archiveExtraZipInspection['entries'], 'name') !== $expected['zipArchiveExtraEntryNames']
+        || ($archiveExtraZipInspection['archiveExtraDataRecords'][0]['location'] ?? null) !== $expected['zipArchiveExtraRecordLocation']
+        || ($archiveExtraZipInspection['archiveExtraDataRecords'][0]['issues'] ?? []) !== $expected['zipArchiveExtraRecordIssues']
+        || substr(
+            $archiveExtraZipInspection['zipBytes'],
+            $archiveExtraZipInspection['archiveExtraDataRecords'][0]['dataOffset'] ?? 0,
+            $archiveExtraZipInspection['archiveExtraDataRecords'][0]['dataLength'] ?? 0
+        ) !== $expected['zipArchiveExtraRecordData']
+        || ($archiveExtraZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipArchiveExtraGzipFilename']
+        || isset($archiveExtraZipInspection['package'])
+        || !$archiveExtraZipExtractionBlocked
         || $generalPurposeZipInspection['format'] !== $expected['zipGeneralPurposeFormat']
         || $generalPurposeZipInspection['zipBytes'] !== $generalPurposeZipBytes
         || $generalPurposeZipInspection['packageByteSize'] !== strlen($generalPurposeZipBytes)
@@ -2129,6 +2193,13 @@ echo 'zipSplit.issues=' . implode(',', $splitZipInspection['issues']) . "\n";
 echo 'zipSplit.entryDisks=' . implode(',', array_column($splitZipInspection['entries'], 'diskStart')) . "\n";
 echo 'zipSplit.gzipFilename=' . $splitZipInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipSplit.extractionBlocked=' . ($splitZipExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zipArchiveExtra.format=' . $archiveExtraZipInspection['format'] . "\n";
+echo 'zipArchiveExtra.entryCount=' . $archiveExtraZipInspection['entryCount'] . "\n";
+echo 'zipArchiveExtra.recordCount=' . $archiveExtraZipInspection['archiveExtraDataRecordCount'] . "\n";
+echo 'zipArchiveExtra.location=' . ($archiveExtraZipInspection['archiveExtraDataRecords'][0]['location'] ?? 'none') . "\n";
+echo 'zipArchiveExtra.issues=' . implode(',', $archiveExtraZipInspection['archiveExtraDataRecords'][0]['issues'] ?? []) . "\n";
+echo 'zipArchiveExtra.gzipFilename=' . $archiveExtraZipInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipArchiveExtra.extractionBlocked=' . ($archiveExtraZipExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'zipGeneralPurpose.format=' . $generalPurposeZipInspection['format'] . "\n";
 echo 'zipGeneralPurpose.entryCount=' . $generalPurposeZipInspection['entryCount'] . "\n";
 echo 'zipGeneralPurpose.supportedCount=' . $generalPurposeZipInspection['supportedEntryCount'] . "\n";

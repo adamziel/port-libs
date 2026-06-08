@@ -10204,6 +10204,8 @@ final class EpubReader
                 'contentLinkDiagnostics' => $contentReport['linkDiagnostics'],
                 'contentRefreshes' => $contentReport['refreshes'],
                 'contentRefreshDiagnostics' => $contentReport['refreshDiagnostics'],
+                'contentSideEffects' => $contentReport['sideEffects'],
+                'contentSideEffectDiagnostics' => $contentReport['sideEffectDiagnostics'],
                 'contentScripts' => $contentReport['scripts'],
                 'contentScriptEventHandlers' => $contentReport['scriptEventHandlers'],
                 'contentJavascriptReferences' => $contentReport['javascriptReferences'],
@@ -12183,6 +12185,15 @@ final class EpubReader
         $missingRefreshCount = 0;
         $refreshItems = [];
         $refreshDiagnostics = [];
+        $sideEffectAssetCount = 0;
+        $sideEffectCount = 0;
+        $sideEffectReferenceCount = 0;
+        $externalSideEffectReferenceCount = 0;
+        $missingSideEffectReferenceCount = 0;
+        $encryptedSideEffectReferenceCount = 0;
+        $sideEffectReviewRequiredCount = 0;
+        $sideEffectItems = [];
+        $sideEffectDiagnostics = [];
         $scriptEventHandlerCount = 0;
         $javascriptReferenceCount = 0;
         $scriptItems = [];
@@ -12202,6 +12213,32 @@ final class EpubReader
             $metadata = is_array($report['metadata'] ?? null)
                 ? $report['metadata']
                 : self::emptyXhtmlContentMetadataReport($part);
+            $assetSideEffects = [];
+            foreach (is_array($report['sideEffects'] ?? null) ? $report['sideEffects'] : [] as $sideEffect) {
+                if (is_array($sideEffect)) {
+                    $assetSideEffects[] = $sideEffect;
+                }
+            }
+            $assetSideEffectDiagnostics = [];
+            foreach (is_array($report['sideEffectDiagnostics'] ?? null) ? $report['sideEffectDiagnostics'] : [] as $diagnostic) {
+                if (is_array($diagnostic)) {
+                    $assetSideEffectDiagnostics[] = $diagnostic;
+                }
+            }
+            $assetSideEffectReferenceCount = 0;
+            $assetExternalSideEffectReferenceCount = 0;
+            $assetMissingSideEffectReferenceCount = 0;
+            $assetEncryptedSideEffectReferenceCount = 0;
+            $assetSideEffectReviewRequiredCount = 0;
+            foreach ($assetSideEffects as $sideEffect) {
+                $assetSideEffectReferenceCount += is_int($sideEffect['referenceCount'] ?? null) ? $sideEffect['referenceCount'] : 0;
+                $assetExternalSideEffectReferenceCount += is_int($sideEffect['externalReferenceCount'] ?? null) ? $sideEffect['externalReferenceCount'] : 0;
+                $assetMissingSideEffectReferenceCount += is_int($sideEffect['missingReferenceCount'] ?? null) ? $sideEffect['missingReferenceCount'] : 0;
+                $assetEncryptedSideEffectReferenceCount += is_int($sideEffect['encryptedReferenceCount'] ?? null) ? $sideEffect['encryptedReferenceCount'] : 0;
+                if (($sideEffect['requiresReview'] ?? false) === true) {
+                    ++$assetSideEffectReviewRequiredCount;
+                }
+            }
             $item = [
                 'id' => (string) ($asset['id'] ?? ''),
                 'part' => $part,
@@ -12261,6 +12298,15 @@ final class EpubReader
                 )),
                 'refreshDiagnosticCount' => count(is_array($report['refreshDiagnostics'] ?? null) ? $report['refreshDiagnostics'] : []),
                 'refreshDiagnostics' => is_array($report['refreshDiagnostics'] ?? null) ? array_values($report['refreshDiagnostics']) : [],
+                'sideEffectCount' => count($assetSideEffects),
+                'sideEffects' => $assetSideEffects,
+                'sideEffectReferenceCount' => $assetSideEffectReferenceCount,
+                'externalSideEffectReferenceCount' => $assetExternalSideEffectReferenceCount,
+                'missingSideEffectReferenceCount' => $assetMissingSideEffectReferenceCount,
+                'encryptedSideEffectReferenceCount' => $assetEncryptedSideEffectReferenceCount,
+                'sideEffectReviewRequiredCount' => $assetSideEffectReviewRequiredCount,
+                'sideEffectDiagnosticCount' => count($assetSideEffectDiagnostics),
+                'sideEffectDiagnostics' => $assetSideEffectDiagnostics,
                 'scriptCount' => count(is_array($report['scripts'] ?? null) ? $report['scripts'] : []),
                 'scripts' => is_array($report['scripts'] ?? null) ? array_values($report['scripts']) : [],
                 'scriptEventHandlerCount' => count(is_array($report['scriptEventHandlers'] ?? null) ? $report['scriptEventHandlers'] : []),
@@ -12305,6 +12351,16 @@ final class EpubReader
                 ++$refreshAssetCount;
                 array_push($refreshItems, ...$item['refreshes']);
             }
+            $sideEffectCount += $item['sideEffectCount'];
+            $sideEffectReferenceCount += $item['sideEffectReferenceCount'];
+            $externalSideEffectReferenceCount += $item['externalSideEffectReferenceCount'];
+            $missingSideEffectReferenceCount += $item['missingSideEffectReferenceCount'];
+            $encryptedSideEffectReferenceCount += $item['encryptedSideEffectReferenceCount'];
+            $sideEffectReviewRequiredCount += $item['sideEffectReviewRequiredCount'];
+            if ($item['sideEffectCount'] > 0) {
+                ++$sideEffectAssetCount;
+                array_push($sideEffectItems, ...$item['sideEffects']);
+            }
             $scriptCount += $item['scriptCount'];
             $scriptEventHandlerCount += $item['scriptEventHandlerCount'];
             $javascriptReferenceCount += $item['javascriptReferenceCount'];
@@ -12343,6 +12399,9 @@ final class EpubReader
             }
             if (($item['flags']['trigger'] ?? false) === true) {
                 ++$triggerAssetCount;
+            }
+            if (($item['flags']['sideEffects'] ?? false) === true && $item['sideEffectCount'] === 0) {
+                ++$sideEffectAssetCount;
             }
             if ($item['reviewFlags'] !== []) {
                 ++$reviewRequiredCount;
@@ -12391,6 +12450,11 @@ final class EpubReader
                     'part' => $part,
                 ] + $diagnostic;
             }
+            foreach ($item['sideEffectDiagnostics'] as $diagnostic) {
+                $sideEffectDiagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
             foreach ($item['metadataDiagnostics'] as $diagnostic) {
                 $viewportDiagnostics[] = [
                     'part' => $part,
@@ -12429,6 +12493,15 @@ final class EpubReader
             'missingRefreshCount' => $missingRefreshCount,
             'refreshItems' => $refreshItems,
             'refreshDiagnostics' => $refreshDiagnostics,
+            'sideEffectAssetCount' => $sideEffectAssetCount,
+            'sideEffectCount' => $sideEffectCount,
+            'sideEffectReferenceCount' => $sideEffectReferenceCount,
+            'externalSideEffectReferenceCount' => $externalSideEffectReferenceCount,
+            'missingSideEffectReferenceCount' => $missingSideEffectReferenceCount,
+            'encryptedSideEffectReferenceCount' => $encryptedSideEffectReferenceCount,
+            'sideEffectReviewRequiredCount' => $sideEffectReviewRequiredCount,
+            'sideEffectItems' => $sideEffectItems,
+            'sideEffectDiagnostics' => $sideEffectDiagnostics,
             'scriptCount' => $scriptCount,
             'scriptEventHandlerCount' => $scriptEventHandlerCount,
             'javascriptReferenceCount' => $javascriptReferenceCount,
@@ -12484,6 +12557,7 @@ final class EpubReader
         $scripts = [];
         $links = [];
         $refreshes = [];
+        $sideEffects = [];
         $scriptEventHandlers = [];
         $javascriptReferences = [];
         $switches = [];
@@ -12505,6 +12579,8 @@ final class EpubReader
                 'linkDiagnostics' => [],
                 'refreshes' => [],
                 'refreshDiagnostics' => [],
+                'sideEffects' => [],
+                'sideEffectDiagnostics' => [],
                 'scripts' => [],
                 'scriptEventHandlers' => [],
                 'javascriptReferences' => [],
@@ -12541,6 +12617,7 @@ final class EpubReader
                 $references,
                 $links,
                 $refreshes,
+                $sideEffects,
                 $scripts,
                 $scriptEventHandlers,
                 $javascriptReferences,
@@ -12585,6 +12662,17 @@ final class EpubReader
             }
         }
         array_push($diagnostics, ...$refreshDiagnostics);
+        $sideEffectDiagnostics = [];
+        foreach ($sideEffects as $sideEffect) {
+            foreach ($sideEffect['diagnostics'] as $diagnostic) {
+                $sideEffectDiagnostics[] = [
+                    'sideEffectIndex' => $sideEffect['index'],
+                    'sideEffectKind' => $sideEffect['kind'],
+                    'sideEffectId' => $sideEffect['id'],
+                ] + $diagnostic;
+            }
+        }
+        array_push($diagnostics, ...$sideEffectDiagnostics);
         foreach ($scripts as $script) {
             foreach ($script['diagnostics'] as $diagnostic) {
                 $scriptDiagnostics[] = [
@@ -12655,6 +12743,8 @@ final class EpubReader
             'linkDiagnostics' => $linkDiagnostics,
             'refreshes' => $refreshes,
             'refreshDiagnostics' => $refreshDiagnostics,
+            'sideEffects' => $sideEffects,
+            'sideEffectDiagnostics' => $sideEffectDiagnostics,
             'scripts' => $scripts,
             'scriptEventHandlers' => $scriptEventHandlers,
             'javascriptReferences' => $javascriptReferences,
@@ -12980,6 +13070,7 @@ final class EpubReader
      * @param list<array<string, mixed>> $references
      * @param list<array<string, mixed>> $links
      * @param list<array<string, mixed>> $refreshes
+     * @param list<array<string, mixed>> $sideEffects
      * @param list<array<string, mixed>> $scripts
      * @param list<array<string, mixed>> $scriptEventHandlers
      * @param list<array<string, mixed>> $javascriptReferences
@@ -12997,6 +13088,7 @@ final class EpubReader
         array &$references,
         array &$links,
         array &$refreshes,
+        array &$sideEffects,
         array &$scripts,
         array &$scriptEventHandlers,
         array &$javascriptReferences,
@@ -13078,6 +13170,42 @@ final class EpubReader
                     $references[] = $reference;
                 }
                 $refreshes[] = $refresh;
+            }
+        }
+        if ($namespace === self::XHTML_NS && $localName === 'form') {
+            $flags['sideEffects'] = true;
+            $sideEffects[] = $this->xhtmlFormSideEffectReport(
+                $package,
+                $part,
+                $element,
+                $manifestByPart,
+                count($sideEffects)
+            );
+        }
+        if ($namespace === self::XHTML_NS && ($localName === 'input' || $localName === 'button')) {
+            $controlSideEffect = $this->xhtmlFormControlSideEffectReport(
+                $package,
+                $part,
+                $element,
+                $manifestByPart,
+                count($sideEffects)
+            );
+            if (is_array($controlSideEffect)) {
+                $flags['sideEffects'] = true;
+                $sideEffects[] = $controlSideEffect;
+            }
+        }
+        if ($namespace === self::XHTML_NS && $localName === 'a') {
+            $pingSideEffect = $this->xhtmlAnchorPingSideEffectReport(
+                $package,
+                $part,
+                $element,
+                $manifestByPart,
+                count($sideEffects)
+            );
+            if (is_array($pingSideEffect)) {
+                $flags['sideEffects'] = true;
+                $sideEffects[] = $pingSideEffect;
             }
         }
         if ($namespace === self::EPUB_OPS_NS && $localName === 'switch') {
@@ -13190,6 +13318,7 @@ final class EpubReader
                 $references,
                 $links,
                 $refreshes,
+                $sideEffects,
                 $scripts,
                 $scriptEventHandlers,
                 $javascriptReferences,
@@ -13199,6 +13328,426 @@ final class EpubReader
                 $elementIds
             );
         }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function xhtmlFormSideEffectReport(
+        ZipPackage $package,
+        string $part,
+        \DOMElement $element,
+        array $manifestByPart,
+        int $index
+    ): array {
+        $action = self::nullableAttribute($element, 'action');
+        $methodRaw = self::nullableAttribute($element, 'method');
+        $method = self::xhtmlFormMethod($methodRaw);
+        $reference = null;
+        $referenceDiagnostics = [];
+        if ($action !== null && trim($action) !== '') {
+            $reference = $this->xhtmlSideEffectReferenceReport(
+                $package,
+                $part,
+                $action,
+                $manifestByPart,
+                'xhtml-form-action'
+            );
+            $referenceDiagnostics = $reference['diagnostics'];
+        }
+
+        $controls = self::xhtmlFormControls($element);
+        $diagnostics = [[
+            'type' => 'active-xhtml-form-submission',
+            'message' => 'EPUB XHTML form submission remains inert and requires side-effect target review',
+        ]];
+        if (
+            $methodRaw !== null
+            && trim($methodRaw) !== ''
+            && !in_array(strtolower(trim($methodRaw)), ['get', 'post', 'dialog'], true)
+        ) {
+            $diagnostics[] = [
+                'type' => 'invalid-xhtml-form-method',
+                'method' => $methodRaw,
+                'message' => 'EPUB XHTML form method is preserved but not a standard get, post, or dialog method',
+            ];
+        }
+        array_push($diagnostics, ...$referenceDiagnostics);
+        $summary = self::xhtmlSideEffectReferenceSummary($reference === null ? [] : [$reference]);
+
+        return [
+            'index' => $index,
+            'kind' => 'form',
+            'sourcePart' => $part,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'name' => self::nullableAttribute($element, 'name'),
+            'method' => $method,
+            'methodRaw' => $methodRaw,
+            'action' => $action,
+            'targetFrame' => self::nullableAttribute($element, 'target'),
+            'enctype' => self::nullableAttribute($element, 'enctype'),
+            'autocomplete' => self::nullableAttribute($element, 'autocomplete'),
+            'novalidate' => $element->hasAttribute('novalidate'),
+            'target' => is_array($reference) ? $reference['target'] : null,
+            'part' => is_array($reference) ? $reference['part'] : null,
+            'fragment' => is_array($reference) ? $reference['fragment'] : null,
+            'fragmentKind' => is_array($reference) ? $reference['fragmentKind'] : null,
+            'epubCfi' => is_array($reference) ? $reference['epubCfi'] : null,
+            'mediaFragment' => is_array($reference) ? $reference['mediaFragment'] : null,
+            'external' => is_array($reference) ? $reference['external'] : false,
+            'exists' => is_array($reference) ? $reference['exists'] : null,
+            'byteLength' => is_array($reference) ? $reference['byteLength'] : null,
+            'crc32' => is_array($reference) ? $reference['crc32'] : null,
+            'manifestId' => is_array($reference) ? $reference['manifestId'] : null,
+            'mediaType' => is_array($reference) ? $reference['mediaType'] : null,
+            'encrypted' => is_array($reference) ? $reference['encrypted'] : false,
+            'canExposeBytes' => is_array($reference) ? $reference['canExposeBytes'] : null,
+            'controlCount' => count($controls),
+            'submitControlCount' => count(array_filter(
+                $controls,
+                static fn (array $control): bool => ($control['submit'] ?? false) === true,
+            )),
+            'controls' => $controls,
+            'references' => is_array($reference) ? [$reference] : [],
+            'referenceCount' => $summary['referenceCount'],
+            'externalReferenceCount' => $summary['externalReferenceCount'],
+            'missingReferenceCount' => $summary['missingReferenceCount'],
+            'encryptedReferenceCount' => $summary['encryptedReferenceCount'],
+            'requiresReview' => true,
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return ?array<string, mixed>
+     */
+    private function xhtmlFormControlSideEffectReport(
+        ZipPackage $package,
+        string $part,
+        \DOMElement $element,
+        array $manifestByPart,
+        int $index
+    ): ?array {
+        $control = self::xhtmlFormControlReport($element, 0);
+        if (($control['submit'] ?? false) !== true) {
+            return null;
+        }
+
+        $formAction = is_string($control['formAction'] ?? null) ? $control['formAction'] : null;
+        if ($formAction === null || trim($formAction) === '') {
+            return null;
+        }
+
+        $reference = null;
+        $referenceDiagnostics = [];
+        $reference = $this->xhtmlSideEffectReferenceReport(
+            $package,
+            $part,
+            $formAction,
+            $manifestByPart,
+            'xhtml-form-control-action'
+        );
+        $referenceDiagnostics = $reference['diagnostics'];
+
+        $diagnostics = [[
+            'type' => 'active-xhtml-form-control-submission',
+            'message' => 'EPUB XHTML submit control remains inert and requires side-effect target review',
+        ]];
+        array_push($diagnostics, ...$referenceDiagnostics);
+        $summary = self::xhtmlSideEffectReferenceSummary($reference === null ? [] : [$reference]);
+
+        return [
+            'index' => $index,
+            'kind' => 'form-control',
+            'sourcePart' => $part,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'control' => $control,
+            'controlElement' => $control['element'],
+            'name' => $control['name'],
+            'type' => $control['type'],
+            'typeRaw' => $control['typeRaw'],
+            'value' => $control['value'],
+            'form' => $control['form'],
+            'formAction' => $formAction,
+            'target' => is_array($reference) ? $reference['target'] : null,
+            'part' => is_array($reference) ? $reference['part'] : null,
+            'fragment' => is_array($reference) ? $reference['fragment'] : null,
+            'fragmentKind' => is_array($reference) ? $reference['fragmentKind'] : null,
+            'epubCfi' => is_array($reference) ? $reference['epubCfi'] : null,
+            'mediaFragment' => is_array($reference) ? $reference['mediaFragment'] : null,
+            'external' => is_array($reference) ? $reference['external'] : false,
+            'exists' => is_array($reference) ? $reference['exists'] : null,
+            'byteLength' => is_array($reference) ? $reference['byteLength'] : null,
+            'crc32' => is_array($reference) ? $reference['crc32'] : null,
+            'manifestId' => is_array($reference) ? $reference['manifestId'] : null,
+            'mediaType' => is_array($reference) ? $reference['mediaType'] : null,
+            'encrypted' => is_array($reference) ? $reference['encrypted'] : false,
+            'canExposeBytes' => is_array($reference) ? $reference['canExposeBytes'] : null,
+            'references' => is_array($reference) ? [$reference] : [],
+            'referenceCount' => $summary['referenceCount'],
+            'externalReferenceCount' => $summary['externalReferenceCount'],
+            'missingReferenceCount' => $summary['missingReferenceCount'],
+            'encryptedReferenceCount' => $summary['encryptedReferenceCount'],
+            'requiresReview' => true,
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return ?array<string, mixed>
+     */
+    private function xhtmlAnchorPingSideEffectReport(
+        ZipPackage $package,
+        string $part,
+        \DOMElement $element,
+        array $manifestByPart,
+        int $index
+    ): ?array {
+        $pingRaw = self::nullableAttribute($element, 'ping');
+        if ($pingRaw === null || trim($pingRaw) === '') {
+            return null;
+        }
+
+        $pings = [];
+        $diagnostics = [[
+            'type' => 'active-xhtml-anchor-ping',
+            'message' => 'EPUB XHTML anchor ping targets remain inert and require side-effect target review',
+        ]];
+        foreach (self::spaceDelimited($pingRaw) as $pingIndex => $pingHref) {
+            $reference = $this->xhtmlSideEffectReferenceReport(
+                $package,
+                $part,
+                $pingHref,
+                $manifestByPart,
+                'xhtml-anchor-ping'
+            );
+            $reference['pingIndex'] = $pingIndex;
+            $pings[] = $reference;
+            foreach ($reference['diagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'pingIndex' => $pingIndex,
+                    'ping' => $pingHref,
+                ] + $diagnostic;
+            }
+        }
+        if ($pings === []) {
+            return null;
+        }
+
+        $summary = self::xhtmlSideEffectReferenceSummary($pings);
+
+        return [
+            'index' => $index,
+            'kind' => 'anchor-ping',
+            'sourcePart' => $part,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'href' => self::nullableAttribute($element, 'href'),
+            'pingRaw' => $pingRaw,
+            'pingCount' => count($pings),
+            'externalPingCount' => $summary['externalReferenceCount'],
+            'missingPingCount' => $summary['missingReferenceCount'],
+            'encryptedPingCount' => $summary['encryptedReferenceCount'],
+            'pings' => $pings,
+            'references' => $pings,
+            'referenceCount' => $summary['referenceCount'],
+            'externalReferenceCount' => $summary['externalReferenceCount'],
+            'missingReferenceCount' => $summary['missingReferenceCount'],
+            'encryptedReferenceCount' => $summary['encryptedReferenceCount'],
+            'requiresReview' => true,
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function xhtmlSideEffectReferenceReport(
+        ZipPackage $package,
+        string $part,
+        string $href,
+        array $manifestByPart,
+        string $context
+    ): array {
+        $reference = $this->packageReference($package, $part, $href, $manifestByPart, $context);
+        $diagnostics = $reference['diagnostics'];
+        if (($reference['encrypted'] ?? false) === true) {
+            $diagnostics[] = [
+                'type' => 'encrypted-' . $context . '-reference',
+                'part' => $reference['part'],
+                'message' => 'EPUB XHTML side-effect target references an encrypted package part that cannot be exposed directly',
+            ];
+        }
+
+        return [
+            'href' => $href,
+            'target' => $reference['target'],
+            'part' => $reference['part'],
+            'fragment' => $reference['fragment'],
+            'fragmentKind' => $reference['fragmentKind'],
+            'epubCfi' => $reference['epubCfi'],
+            'mediaFragment' => $reference['mediaFragment'],
+            'external' => $reference['external'],
+            'exists' => $reference['exists'],
+            'byteLength' => $reference['byteLength'],
+            'crc32' => $reference['crc32'],
+            'manifestId' => $reference['manifestId'],
+            'mediaType' => $reference['mediaType'],
+            'encrypted' => $reference['encrypted'],
+            'canExposeBytes' => $reference['canExposeBytes'],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     *
+     * @return array{referenceCount:int, externalReferenceCount:int, missingReferenceCount:int, encryptedReferenceCount:int}
+     */
+    private static function xhtmlSideEffectReferenceSummary(array $references): array
+    {
+        $externalReferenceCount = 0;
+        $missingReferenceCount = 0;
+        $encryptedReferenceCount = 0;
+        foreach ($references as $reference) {
+            if (($reference['external'] ?? false) === true) {
+                ++$externalReferenceCount;
+            }
+            if (($reference['exists'] ?? true) !== true && ($reference['external'] ?? false) !== true) {
+                ++$missingReferenceCount;
+            }
+            if (($reference['encrypted'] ?? false) === true) {
+                ++$encryptedReferenceCount;
+            }
+        }
+
+        return [
+            'referenceCount' => count($references),
+            'externalReferenceCount' => $externalReferenceCount,
+            'missingReferenceCount' => $missingReferenceCount,
+            'encryptedReferenceCount' => $encryptedReferenceCount,
+        ];
+    }
+
+    private static function xhtmlFormMethod(?string $methodRaw): string
+    {
+        $method = strtolower(trim((string) $methodRaw));
+        if (in_array($method, ['get', 'post', 'dialog'], true)) {
+            return $method;
+        }
+
+        return 'get';
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function xhtmlFormControls(\DOMElement $form): array
+    {
+        $controls = [];
+        foreach ($form->getElementsByTagName('*') as $control) {
+            if (!$control instanceof \DOMElement || (string) $control->namespaceURI !== self::XHTML_NS) {
+                continue;
+            }
+            $localName = strtolower($control->localName);
+            if (!in_array($localName, ['button', 'input', 'select', 'textarea'], true)) {
+                continue;
+            }
+
+            $controls[] = self::xhtmlFormControlReport($control, count($controls));
+        }
+
+        return $controls;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlFormControlReport(\DOMElement $element, int $index): array
+    {
+        $typeRaw = self::nullableAttribute($element, 'type');
+        $type = self::xhtmlFormControlType($element);
+
+        return [
+            'index' => $index,
+            'element' => strtolower($element->localName),
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'name' => self::nullableAttribute($element, 'name'),
+            'type' => $type,
+            'typeRaw' => $typeRaw,
+            'value' => self::nullableAttribute($element, 'value'),
+            'text' => strtolower($element->localName) === 'button' ? self::normalizedText($element) : null,
+            'form' => self::nullableAttribute($element, 'form'),
+            'formAction' => self::nullableAttribute($element, 'formaction'),
+            'disabled' => $element->hasAttribute('disabled'),
+            'required' => $element->hasAttribute('required'),
+            'checked' => $element->hasAttribute('checked'),
+            'readonly' => $element->hasAttribute('readonly'),
+            'multiple' => $element->hasAttribute('multiple'),
+            'submit' => self::xhtmlFormControlSubmits($element),
+            'attributes' => self::elementAttributes($element),
+        ];
+    }
+
+    private static function xhtmlFormControlType(\DOMElement $element): string
+    {
+        $localName = strtolower($element->localName);
+        if ($localName === 'button') {
+            $type = strtolower(trim($element->getAttribute('type')));
+
+            return $type === '' ? 'submit' : $type;
+        }
+        if ($localName === 'input') {
+            $type = strtolower(trim($element->getAttribute('type')));
+
+            return $type === '' ? 'text' : $type;
+        }
+
+        return $localName;
+    }
+
+    private static function xhtmlFormControlSubmits(\DOMElement $element): bool
+    {
+        $localName = strtolower($element->localName);
+        $type = self::xhtmlFormControlType($element);
+        if ($localName === 'button') {
+            return $type === 'submit';
+        }
+        if ($localName === 'input') {
+            return in_array($type, ['image', 'submit'], true);
+        }
+
+        return false;
     }
 
     /**
@@ -14117,7 +14666,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{mathml:bool, svg:bool, scripted:bool, linkedResources:bool, switch:bool, trigger:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
+     * @return array{mathml:bool, svg:bool, scripted:bool, linkedResources:bool, switch:bool, trigger:bool, sideEffects:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
      */
     private static function emptyXhtmlContentResourceFlags(): array
     {
@@ -14128,6 +14677,7 @@ final class EpubReader
             'linkedResources' => false,
             'switch' => false,
             'trigger' => false,
+            'sideEffects' => false,
             'remoteResources' => false,
             'missingReferences' => false,
             'encryptedReferences' => false,
@@ -14149,6 +14699,7 @@ final class EpubReader
             'linkedResources' => 'linked-resources',
             'switch' => 'switch',
             'trigger' => 'trigger',
+            'sideEffects' => 'side-effects',
             'remoteResources' => 'remote-resources',
             'missingReferences' => 'missing-references',
             'encryptedReferences' => 'encrypted-references',
@@ -15204,6 +15755,8 @@ final class EpubReader
                 'contentLinkDiagnostics' => $asset['contentLinkDiagnostics'] ?? [],
                 'contentRefreshes' => $asset['contentRefreshes'] ?? [],
                 'contentRefreshDiagnostics' => $asset['contentRefreshDiagnostics'] ?? [],
+                'contentSideEffects' => $asset['contentSideEffects'] ?? [],
+                'contentSideEffectDiagnostics' => $asset['contentSideEffectDiagnostics'] ?? [],
                 'contentScripts' => $asset['contentScripts'] ?? [],
                 'contentScriptEventHandlers' => $asset['contentScriptEventHandlers'] ?? [],
                 'contentJavascriptReferences' => $asset['contentJavascriptReferences'] ?? [],

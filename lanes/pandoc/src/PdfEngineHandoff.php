@@ -4395,15 +4395,16 @@ final class PdfEngineHandoff
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
         $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
         $annotationAppearances = $this->extractPdfAnnotationAppearances($pdfBytes, $catalog);
+        $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $streamFilterPolicy = $this->summarizePdfStreamFilterPolicy(
             $xrefStreams,
             $objectStreams,
             $pageContentStreams,
             $images,
             $formXObjects,
-            $annotationAppearances
+            $annotationAppearances,
+            $this->extractPdfEmbeddedFileStreamFilterPolicyEntries($embeddedFiles, $pdfBytes)
         );
-        $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $documentInfo = $this->extractPdfDocumentInfo($pdfBytes);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
         foreach ($embeddedFiles as $embeddedFile) {
@@ -4806,6 +4807,7 @@ final class PdfEngineHandoff
      * @param list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $images
      * @param list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $formXObjects
      * @param list<array{source:string, appearanceObject:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $annotationAppearances
+     * @param list<array{source:string, object:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $embeddedFileStreams
      * @return array{streamCount:int, filterCount:int, filters:array<string, int>, surfaces:array<string, int>, actions:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, action:string, streamBytes:int|null, streamSkipped:string|null}>}|array{}
      */
     private function summarizePdfStreamFilterPolicy(
@@ -4814,7 +4816,8 @@ final class PdfEngineHandoff
         array $pageContentStreams,
         array $images,
         array $formXObjects,
-        array $annotationAppearances
+        array $annotationAppearances,
+        array $embeddedFileStreams
     ): array {
         $streams = [];
 
@@ -4895,6 +4898,18 @@ final class PdfEngineHandoff
                 $appearance['filters'] ?? [],
                 $appearance['streamBytes'] ?? null,
                 $appearance['streamSkipped'] ?? null
+            );
+        }
+
+        foreach ($embeddedFileStreams as $embeddedFileStream) {
+            $this->addPdfStreamFilterPolicyEntry(
+                $streams,
+                'embedded-file',
+                is_string($embeddedFileStream['source'] ?? null) ? $embeddedFileStream['source'] : 'embedded-file:unknown',
+                is_string($embeddedFileStream['object'] ?? null) ? $embeddedFileStream['object'] : null,
+                $embeddedFileStream['filters'] ?? [],
+                $embeddedFileStream['streamBytes'] ?? null,
+                $embeddedFileStream['streamSkipped'] ?? null
             );
         }
 
@@ -17494,6 +17509,51 @@ final class PdfEngineHandoff
         }
 
         return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array{name:string, embeddedFile:string|null, streamBytes:int|null, streamSkipped:string|null, source:string}> $embeddedFiles
+     * @return list<array{source:string, object:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}>
+     */
+    private function extractPdfEmbeddedFileStreamFilterPolicyEntries(array $embeddedFiles, string $pdfBytes): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $entries = [];
+
+        foreach ($embeddedFiles as $embeddedFile) {
+            $object = is_string($embeddedFile['embeddedFile'] ?? null) ? $embeddedFile['embeddedFile'] : null;
+            if ($object === null || preg_match('/\A(\d+\s+\d+)\s+R\z/', $object, $matches) !== 1) {
+                continue;
+            }
+
+            $dictionary = $objects[$matches[1]] ?? null;
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $filters = $this->extractPdfFilterNames($dictionary, $objects);
+            if ($filters === []) {
+                continue;
+            }
+
+            $source = 'embedded-file:';
+            $source .= is_string($embeddedFile['source'] ?? null) && $embeddedFile['source'] !== ''
+                ? $embeddedFile['source']
+                : 'unknown';
+            if (is_string($embeddedFile['name'] ?? null) && $embeddedFile['name'] !== '') {
+                $source .= ':' . $embeddedFile['name'];
+            }
+
+            $entries[] = [
+                'source' => $source,
+                'object' => $object,
+                'filters' => $filters,
+                'streamBytes' => is_int($embeddedFile['streamBytes'] ?? null) ? $embeddedFile['streamBytes'] : null,
+                'streamSkipped' => is_string($embeddedFile['streamSkipped'] ?? null) ? $embeddedFile['streamSkipped'] : null,
+            ];
+        }
+
+        return $entries;
     }
 
     /**

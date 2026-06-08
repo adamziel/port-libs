@@ -4024,6 +4024,103 @@ return [
         );
     },
 
+    'preflights zip archive extra data records across archive streams before package exposure' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $documentXml = '<w:document><w:body><w:p>Archive extra data record stream policy</w:p></w:body></w:document>';
+        $archiveExtraData = 'archive-extra-stream-review-metadata';
+        $archiveExtraRecord = "PK\x06\x08" . pack('V', strlen($archiveExtraData)) . $archiveExtraData;
+        $baseZipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'compressionMethod' => 8,
+            ],
+        ], 'archive extra data stream fixture');
+        $eocdOffset = strrpos($baseZipBytes, "PK\x05\x06");
+        if (!is_int($eocdOffset)) {
+            throw new RuntimeException('Expected archive-extra ZIP fixture EOCD.');
+        }
+        $zipBytes = substr($baseZipBytes, 0, $eocdOffset)
+            . $archiveExtraRecord
+            . substr($baseZipBytes, $eocdOffset);
+
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-archive-extra-package.zip',
+                'comment' => 'zip archive extra data record policy fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('archive extra data reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipArchiveExtraDataRecordPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same($format, $inspection['format']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(2, $inspection['entryCount']);
+            $t->same(1, $inspection['archiveExtraDataRecordCount']);
+            $t->same(true, $inspection['hasArchiveExtraDataRecord']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same(['[Content_Types].xml', 'word/document.xml'], array_column($inspection['entries'], 'name'));
+            $t->same('between-central-directory-and-eocd', $inspection['archiveExtraDataRecords'][0]['location']);
+            $t->same($archiveExtraData, substr(
+                $inspection['zipBytes'],
+                $inspection['archiveExtraDataRecords'][0]['dataOffset'],
+                $inspection['archiveExtraDataRecords'][0]['dataLength']
+            ));
+            $t->same(strlen($archiveExtraData), $inspection['archiveExtraDataRecords'][0]['dataLength']);
+            $t->same(['archive-extra-data-record'], $inspection['archiveExtraDataRecords'][0]['issues']);
+            $t->same(false, array_key_exists('package', $inspection));
+            $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zipBytes));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipArchiveExtraDataRecordPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipArchiveExtraDataRecordPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-archive-extra-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('zip archive extra data record policy fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('archive extra data reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipArchiveExtraDataRecordPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
     'preflights encrypted zip package streams without exposing entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
         $utf8 = 0x0800;
         $winZipAesExtra = pack('vvv', 0x9901, 7, 2) . 'AE' . "\x03" . pack('v', 8);

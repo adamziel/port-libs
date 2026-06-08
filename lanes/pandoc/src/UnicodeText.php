@@ -1170,6 +1170,28 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const IBM857_REPLACEMENTS = [
+        0x8d => 0x0131,
+        0x98 => 0x0130,
+        0x9e => 0x015e,
+        0x9f => 0x015f,
+        0xa6 => 0x011e,
+        0xa7 => 0x011f,
+        0xd0 => 0x00ba,
+        0xd1 => 0x00aa,
+        0xe8 => 0x00d7,
+        0xec => 0x00ec,
+        0xed => 0x00ff,
+    ];
+
+    /** @var array<int, true> */
+    private const IBM857_UNDEFINED = [
+        0xd5 => true,
+        0xe7 => true,
+        0xf2 => true,
+    ];
+
+    /** @var array<int, int> */
     private const IBM852_REPLACEMENTS = [
         0x80 => 0x00c7,
         0x81 => 0x00fc,
@@ -3138,6 +3160,7 @@ final class UnicodeText
             || $normalized === 'koi8-u'
             || $normalized === 'ibm437'
             || $normalized === 'ibm850'
+            || $normalized === 'ibm857'
             || $normalized === 'ibm852'
             || $normalized === 'ibm860'
             || $normalized === 'ibm861'
@@ -3775,6 +3798,7 @@ final class UnicodeText
             'koi8u', 'cskoi8u' => 'koi8-u',
             '437', 'cp437', 'ibm437', 'dos437', 'xcp437', 'oem437', 'cspc8codepage437', 'csibm437' => 'ibm437',
             '850', 'cp850', 'ibm850', 'dos850', 'xcp850', 'oem850', 'cspc850multilingual', 'csibm850' => 'ibm850',
+            '857', 'cp857', 'ibm857', 'dos857', 'xcp857', 'oem857', 'csibm857' => 'ibm857',
             '852', 'cp852', 'ibm852', 'dos852', 'xcp852', 'oem852', 'cspc852', 'cspcp852', 'csibm852' => 'ibm852',
             '860', 'cp860', 'ibm860', 'dos860', 'xcp860', 'oem860', 'csibm860' => 'ibm860',
             '861', 'cp861', 'ibm861', 'dos861', 'xcp861', 'oem861', 'cpis', 'csibm861' => 'ibm861',
@@ -4443,6 +4467,16 @@ final class UnicodeText
             }
             if ($encoding === 'ibm850' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::IBM850_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'ibm857' && $byte >= 0x80) {
+                if (isset(self::IBM857_UNDEFINED[$byte])) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $out .= self::fromCodepoint(self::IBM857_REPLACEMENTS[$byte] ?? self::IBM850_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'ibm852' && $byte >= 0x80) {
