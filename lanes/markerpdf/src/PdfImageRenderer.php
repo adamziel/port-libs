@@ -8178,7 +8178,12 @@ final class PdfImageRenderer
 
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
-                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+                'ASCII85Decode', 'A85' => (
+                    $recordPreviewOnlyPrefix
+                    && $this->nativeFilterPrefixStopsBeforeDct($filters, $index)
+                )
+                    ? $this->decodeDctAscii85NativePrefixStream($stream)
+                    : $this->decodeAscii85Stream($stream),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $resolvedDecodeParms, $objects),
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $resolvedDecodeParms, $objects),
@@ -8225,6 +8230,30 @@ final class PdfImageRenderer
             }
 
             if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+                return true;
+            }
+
+            if ($this->isPreviewOnlyStreamFilter($filter)) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string|null> $filters
+     */
+    private function nativeFilterPrefixStopsBeforeDct(array $filters, int $index): bool
+    {
+        $count = count($filters);
+        for ($next = $index + 1; $next < $count; $next++) {
+            $filter = $filters[$next];
+            if (!is_string($filter)) {
+                continue;
+            }
+
+            if ($filter === 'DCTDecode' || $filter === 'DCT') {
                 return true;
             }
 
@@ -10105,7 +10134,7 @@ final class PdfImageRenderer
 
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
-                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+                'ASCII85Decode', 'A85' => $this->decodeDctAscii85NativePrefixStream($stream),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $resolvedDecodeParms, $objects),
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $resolvedDecodeParms, $objects),
@@ -10120,6 +10149,21 @@ final class PdfImageRenderer
         }
 
         return $stream;
+    }
+
+    private function decodeDctAscii85NativePrefixStream(string $stream): ?string
+    {
+        $decoded = $this->decodeAscii85Stream($stream);
+        if ($decoded !== null) {
+            return $decoded;
+        }
+
+        $body = trim($stream, "\0\t\n\f\r ");
+        if (!str_starts_with($body, "\xef\xbb\xbf<~")) {
+            return null;
+        }
+
+        return $this->decodeAscii85Stream(substr($body, 3));
     }
 
     /**
@@ -10154,7 +10198,7 @@ final class PdfImageRenderer
 
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
-                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+                'ASCII85Decode', 'A85' => $this->decodeDctAscii85NativePrefixStream($stream),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $resolvedDecodeParms, $objects),
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $resolvedDecodeParms, $objects),

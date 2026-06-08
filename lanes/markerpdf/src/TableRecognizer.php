@@ -2365,7 +2365,7 @@ final class TableRecognizer
             return $table;
         }
 
-        $source = $this->singleRowsColsGeometryContainer($rowsCols);
+        $source = $this->singleRowsColsGeometryContainer($rowsCols, $table);
         if ($source === null) {
             return $table;
         }
@@ -2399,7 +2399,7 @@ final class TableRecognizer
      * @param array<string|int, mixed> $rowsCols
      * @return array{container: array<string, mixed>, prefix: string}|null
      */
-    private function singleRowsColsGeometryContainer(array $rowsCols): ?array
+    private function singleRowsColsGeometryContainer(array $rowsCols, ?array $table = null): ?array
     {
         if ($this->rowsColsGeometryContainerHasRecords($rowsCols)) {
             /** @var array<string, mixed> $rowsCols */
@@ -2410,19 +2410,50 @@ final class TableRecognizer
         }
 
         $first = $rowsCols[0] ?? null;
-        if (!array_is_list($rowsCols) || count($rowsCols) !== 1 || !is_array($first)) {
+        if (!array_is_list($rowsCols)) {
             return null;
         }
 
-        if (!$this->rowsColsGeometryContainerHasRecords($first)) {
+        if (count($rowsCols) === 1 && is_array($first) && $this->rowsColsGeometryContainerHasRecords($first)) {
+            /** @var array<string, mixed> $first */
+            return [
+                'container' => $first,
+                'prefix' => 'rows_cols.0',
+            ];
+        }
+
+        $selectedIndex = $table === null ? null : $this->rowsColsGeometryContainerIndexFromTable($table);
+        if ($selectedIndex === null) {
             return null;
         }
 
-        /** @var array<string, mixed> $first */
+        $selected = $rowsCols[$selectedIndex] ?? null;
+        if (!is_array($selected) || !$this->rowsColsGeometryContainerHasRecords($selected)) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $selected */
         return [
-            'container' => $first,
-            'prefix' => 'rows_cols.0',
+            'container' => $selected,
+            'prefix' => 'rows_cols.' . $selectedIndex,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     */
+    private function rowsColsGeometryContainerIndexFromTable(array $table): ?int
+    {
+        if (!array_key_exists('tnum', $table)) {
+            return null;
+        }
+
+        $tableNumber = $this->nullableInteger($table['tnum']);
+        if ($tableNumber === null || $tableNumber < 0) {
+            return null;
+        }
+
+        return $tableNumber;
     }
 
     /**
@@ -2842,7 +2873,7 @@ final class TableRecognizer
             return null;
         }
 
-        $rowsColsContainer = $this->singleRowsColsGeometryContainer($rowsCols);
+        $rowsColsContainer = $this->singleRowsColsGeometryContainer($rowsCols, $table);
         if ($rowsColsContainer === null) {
             return null;
         }

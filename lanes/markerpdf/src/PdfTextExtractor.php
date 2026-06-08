@@ -8040,7 +8040,10 @@ final class PdfTextExtractor
         $imageMask = $this->topLevelPdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'ImageMask', $objects) === true;
         $metadataStream = $this->imageXObjectMetadataStreamReview($stream['dict'], $objects);
         $opiProxyReview = $this->imageXObjectOpiProxyReview($stream['dict'], $objects);
-        $alternateImages = $this->imageXObjectAlternateImageReviews($stream['dict'], $objects);
+        $alternatesOperandBoundary = $this->imageXObjectAlternatesOperandBoundaryReview($stream['dict'], $objects);
+        $alternateImages = $alternatesOperandBoundary === null
+            ? $this->imageXObjectAlternateImageReviews($stream['dict'], $objects)
+            : [];
         $jpxSoftMaskInData = $this->imageXObjectJpxSoftMaskInDataReview($stream['dict'], $resolvedFilters, $objects);
         $jpxEmbeddedSoftMaskPresent = is_array($jpxSoftMaskInData)
             && ($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true;
@@ -8419,7 +8422,10 @@ final class PdfTextExtractor
             'opi_proxy_review_only' => $opiProxyReview !== null,
             'alternate_image_count' => count($alternateImages),
             'alternate_images' => $alternateImages,
-            'alternates_review_only' => $alternateImages !== [],
+            ...($alternatesOperandBoundary === null ? [] : [
+                'alternates_operand_boundary' => $alternatesOperandBoundary,
+            ]),
+            'alternates_review_only' => $alternateImages !== [] || $alternatesOperandBoundary !== null,
             'soft_mask_object' => $softMaskObject,
             'soft_mask_generation' => $softMaskGeneration,
             'soft_mask_review' => $softMaskReview,
@@ -9960,6 +9966,64 @@ final class PdfTextExtractor
         }
 
         return $reviews;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function imageXObjectAlternatesOperandBoundaryReview(string $imageDictionary, array $objects): ?array
+    {
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($imageDictionary, 'Alternates');
+        if ($value === null) {
+            return null;
+        }
+
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($imageDictionary, 'Alternates')) {
+            return [
+                'name' => 'Alternates',
+                'present' => true,
+                'resolved' => true,
+                'valid_array_operand' => false,
+                'trailing_top_level_operand' => true,
+                'value_preview' => $this->imageXObjectOperandPreview($value),
+                'native_raster_decode_blocked' => false,
+                'reason' => 'trailing_top_level_operand',
+                'policy' => 'reject_malformed_image_alternates_operand',
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        $indirectBoundary = $this->imageXObjectIndirectArrayOperandBoundaryReview(
+            'Alternates',
+            $value,
+            $objects,
+            false
+        );
+        if ($indirectBoundary !== null) {
+            return [
+                ...$indirectBoundary,
+                'policy' => 'reject_malformed_image_alternates_operand',
+            ];
+        }
+
+        if ($this->pdfSingleArrayFromValue($value, $objects) === null) {
+            return [
+                'name' => 'Alternates',
+                'present' => true,
+                'resolved' => $this->pdfIndirectReferenceValue($value) === null,
+                'valid_array_operand' => false,
+                'value_preview' => $this->imageXObjectOperandPreview($value),
+                'native_raster_decode_blocked' => false,
+                'reason' => 'malformed_array_operand',
+                'policy' => 'reject_malformed_image_alternates_operand',
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        return null;
     }
 
     /**
