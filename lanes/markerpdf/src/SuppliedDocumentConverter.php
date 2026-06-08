@@ -389,8 +389,9 @@ final class SuppliedDocumentConverter
             $rowsColsByTable = isset($tableOrPageResult['rows_cols']) && is_array($tableOrPageResult['rows_cols'])
                 ? array_values($tableOrPageResult['rows_cols'])
                 : [];
-            $tableBboxes = isset($tableOrPageResult['bboxes']) && is_array($tableOrPageResult['bboxes'])
-                ? array_values($tableOrPageResult['bboxes'])
+            $tableBboxesSource = $this->pageResultTableBboxesSource($tableOrPageResult);
+            $tableBboxes = $tableBboxesSource !== null && isset($tableOrPageResult[$tableBboxesSource]) && is_array($tableOrPageResult[$tableBboxesSource])
+                ? array_values($tableOrPageResult[$tableBboxesSource])
                 : [];
             $imageBboxes = isset($tableOrPageResult['image_bboxes']) && is_array($tableOrPageResult['image_bboxes'])
                 ? array_values($tableOrPageResult['image_bboxes'])
@@ -429,8 +430,13 @@ final class SuppliedDocumentConverter
                 $tableBboxEntry = $tableBboxes[$tableIndex] ?? null;
                 $bbox = $this->pageResultBboxValue($tableBboxEntry);
                 if ($bbox !== null) {
-                    $table['bbox'] = $bbox;
-                    $table = $this->withPageResultBboxEntryMetadata($table, $tableBboxEntry);
+                    if ($tableBboxesSource !== null && $tableBboxesSource !== 'bboxes') {
+                        $table['table_bbox'] = $this->pageResultTableBboxAliasValue($tableBboxEntry) ?? $bbox;
+                        $table['table_bbox_source'] = 'ExtractPageResult.' . $tableBboxesSource;
+                    } else {
+                        $table['bbox'] = $bbox;
+                    }
+                    $table = $this->withPageResultBboxEntryMetadata($table, $tableBboxEntry, $tableBboxesSource ?? 'bboxes');
                 }
 
                 $imageBbox = $this->pageResultBboxValue($imageBboxes[$tableIndex] ?? null);
@@ -469,6 +475,7 @@ final class SuppliedDocumentConverter
                 'cells_table_count' => count($cellsByTable),
                 'rows_cols_table_count' => count($rowsColsByTable),
                 'table_bbox_count' => count($tableBboxes),
+                'table_bbox_source' => $tableBboxesSource,
                 'image_bbox_count' => count($imageBboxes),
                 'table_image_count' => count($tableImages),
                 'table_image_source' => $tableImagesSource,
@@ -768,6 +775,20 @@ final class SuppliedDocumentConverter
         ];
     }
 
+    /**
+     * @param array<string, mixed> $pageResult
+     */
+    private function pageResultTableBboxesSource(array $pageResult): ?string
+    {
+        foreach (['bboxes', 'table_bboxes', 'table_boxes', 'table_bounds', 'table_regions'] as $key) {
+            if (isset($pageResult[$key]) && is_array($pageResult[$key])) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
     private function pageResultBboxValue(mixed $value): mixed
     {
         if (!is_array($value)) {
@@ -789,7 +810,7 @@ final class SuppliedDocumentConverter
      * @param array<string, mixed> $table
      * @return array<string, mixed>
      */
-    private function withPageResultBboxEntryMetadata(array $table, mixed $bboxEntry): array
+    private function withPageResultBboxEntryMetadata(array $table, mixed $bboxEntry, string $sourceKey = 'bboxes'): array
     {
         if (!is_array($bboxEntry) || array_is_list($bboxEntry) || !$this->pageResultBboxEntryHasTableMetadata($bboxEntry)) {
             return $table;
@@ -798,7 +819,7 @@ final class SuppliedDocumentConverter
         $orderedBbox = $this->pageResultOrderedBboxValue($bboxEntry);
         if ($orderedBbox !== null) {
             $table['table_bbox'] = $orderedBbox;
-            $table['table_bbox_source'] = 'ExtractPageResult.bboxes';
+            $table['table_bbox_source'] = 'ExtractPageResult.' . $sourceKey;
         }
 
         foreach (['table_bbox_coordinate_space', 'bbox_coordinate_space', 'geometry_coordinate_space', 'coordinate_space', 'geometry_space'] as $key) {
@@ -820,6 +841,23 @@ final class SuppliedDocumentConverter
         }
 
         return $table;
+    }
+
+    /**
+     * @return list<float>|array<mixed>|null
+     */
+    private function pageResultTableBboxAliasValue(mixed $bboxEntry): mixed
+    {
+        if (!is_array($bboxEntry) || array_is_list($bboxEntry)) {
+            return $this->pageResultBboxValue($bboxEntry);
+        }
+
+        $ordered = $this->pageResultOrderedBboxValue($bboxEntry);
+        if ($ordered !== null) {
+            return $ordered;
+        }
+
+        return $this->pageResultBboxValue($bboxEntry);
     }
 
     /**
