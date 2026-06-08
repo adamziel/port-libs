@@ -4151,6 +4151,8 @@ final class ZipPackage
      *     zip64EndOfCentralDirectory:?array<string, mixed>,
      *     splitArchive:?array<string, mixed>,
      *     centralDirectoryInventory:?array<string, mixed>,
+     *     localHeaderNames:?array<string, mixed>,
+     *     localHeaderMetadata:?array<string, mixed>,
      *     archiveExtraDataRecords:?array<string, mixed>,
      *     encryption:?array<string, mixed>,
      *     compressionMethods:?array<string, mixed>,
@@ -4229,6 +4231,8 @@ final class ZipPackage
                 'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
                 'splitArchive' => null,
                 'centralDirectoryInventory' => null,
+                'localHeaderNames' => null,
+                'localHeaderMetadata' => null,
                 'archiveExtraDataRecords' => null,
                 'encryption' => null,
                 'compressionMethods' => null,
@@ -4249,6 +4253,8 @@ final class ZipPackage
 
         $splitArchive = null;
         $centralDirectoryInventory = null;
+        $localHeaderNames = null;
+        $localHeaderMetadata = null;
         $archiveExtraDataRecords = null;
         $encryption = null;
         $compressionMethods = null;
@@ -4274,6 +4280,24 @@ final class ZipPackage
             if ($centralDirectoryInventory !== null && !$centralDirectoryInventory['isSupportedByBoundedReader']) {
                 $addDiagnostic('central-directory-inventory-issues');
                 $addDiagnostics($centralDirectoryInventory['issues']);
+            }
+
+            $localHeaderNames = $runPreflight(
+                'local-header-names',
+                static fn (): array => self::localHeaderNamePreflight($bytes)
+            );
+            if ($localHeaderNames !== null && !$localHeaderNames['isSupportedByBoundedReader']) {
+                $addDiagnostic('local-header-name-issues');
+                $addDiagnostics($localHeaderNames['issues']);
+            }
+
+            $localHeaderMetadata = $runPreflight(
+                'local-header-metadata',
+                static fn (): array => self::localHeaderMetadataPreflight($bytes)
+            );
+            if ($localHeaderMetadata !== null && !$localHeaderMetadata['isSupportedByBoundedReader']) {
+                $addDiagnostic('local-header-metadata-issues');
+                $addDiagnostics($localHeaderMetadata['issues']);
             }
 
             $archiveExtraDataRecords = $runPreflight(
@@ -4339,6 +4363,8 @@ final class ZipPackage
         $entryCount = (int) (
             $strictImport['entryCount']
             ?? $centralDirectoryInventory['entryCount']
+            ?? $localHeaderNames['entryCount']
+            ?? $localHeaderMetadata['entryCount']
             ?? $splitArchive['entryCount']
             ?? $encryption['entryCount']
             ?? $compressionMethods['entryCount']
@@ -4363,6 +4389,8 @@ final class ZipPackage
             'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
             'splitArchive' => $splitArchive,
             'centralDirectoryInventory' => $centralDirectoryInventory,
+            'localHeaderNames' => $localHeaderNames,
+            'localHeaderMetadata' => $localHeaderMetadata,
             'archiveExtraDataRecords' => $archiveExtraDataRecords,
             'encryption' => $encryption,
             'compressionMethods' => $compressionMethods,

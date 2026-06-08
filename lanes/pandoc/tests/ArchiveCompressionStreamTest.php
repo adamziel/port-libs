@@ -3836,6 +3836,66 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy('not a compressed archive', 'notes.txt'));
     },
 
+    'preflights unsupported zstandard archive streams without exposing package bytes' => static function (TestRunner $t): void {
+        $zstandardTarUpload = "\x28\xb5\x2f\xfd" . "\x20"
+            . 'compressed tar payload bytes stay opaque to the native preflight';
+        $zstandardZipUpload = "\x28\xb5\x2f\xfd" . "\x04"
+            . 'compressed zip payload bytes stay opaque to the native preflight';
+
+        $zstandardPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            $zstandardTarUpload,
+            'wordpress-review-packet.tar.zst'
+        );
+        $zstandardZipPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            $zstandardZipUpload,
+            'wordpress-documents.zip.zstd'
+        );
+        $zstandardNameOnlyPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            '',
+            'offline-review-packet.tzst'
+        );
+        $mismatchPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            $zstandardTarUpload,
+            'wrong-extension.tar.xz'
+        );
+
+        $t->same('unsupported-archive-compression-stream', $zstandardPolicy['type']);
+        $t->same('zstandard', $zstandardPolicy['format']);
+        $t->same('wordpress-review-packet.tar.zst', $zstandardPolicy['sourceName']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $zstandardPolicy['candidateKind']);
+        $t->same('zstandard-tar', $zstandardPolicy['candidateFormat']);
+        $t->same(strlen($zstandardTarUpload), $zstandardPolicy['compressedSize']);
+        $t->same(true, $zstandardPolicy['signatureMatched']);
+        $t->same('zstandard', $zstandardPolicy['signatureName']);
+        $t->same('28b52ffd', $zstandardPolicy['signatureBytesHex']);
+        $t->same(5, $zstandardPolicy['streamHeaderSize']);
+        $t->same('20', $zstandardPolicy['streamFlagsHex']);
+        $t->same(null, $zstandardPolicy['blockSize100k']);
+        $t->same('review-before-conversion', $zstandardPolicy['handoffPolicy']);
+        $t->same('unsupported-compression-stream-blocked', $zstandardPolicy['extractionPolicy']);
+        $t->same([
+            'archive-compression-format-unsupported',
+            'archive-compression-format-zstandard-not-decoded',
+            'archive-external-decompressor-not-run',
+            'archive-package-bytes-not-exposed',
+        ], $zstandardPolicy['diagnostics']);
+
+        $t->same('zstandard', $zstandardZipPolicy['format']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $zstandardZipPolicy['candidateKind']);
+        $t->same('zstandard-zip', $zstandardZipPolicy['candidateFormat']);
+        $t->same('04', $zstandardZipPolicy['streamFlagsHex']);
+        $t->same('zstandard', $zstandardNameOnlyPolicy['format']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $zstandardNameOnlyPolicy['candidateKind']);
+        $t->same('zstandard-tar', $zstandardNameOnlyPolicy['candidateFormat']);
+        $t->same(false, $zstandardNameOnlyPolicy['signatureMatched']);
+        $t->same('archive-compression-signature-unverified', $zstandardNameOnlyPolicy['diagnostics'][4] ?? null);
+        $t->same('zstandard', $mismatchPolicy['format']);
+        $t->same('zstandard-tar', $mismatchPolicy['candidateFormat']);
+        $t->same('archive-compression-signature-source-name-mismatch', $mismatchPolicy['diagnostics'][4] ?? null);
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::detectPackageKindAuto($zstandardTarUpload));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamAuto($zstandardZipUpload));
+    },
+
     'auto-detects bounded zip package fixture compression streams' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             [

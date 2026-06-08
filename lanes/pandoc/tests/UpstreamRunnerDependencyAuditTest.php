@@ -616,8 +616,14 @@ return [
         $t->same([], $audit['benchmarkDependencyClosure']['unexpectedDataFiles']);
         $t->same([], $audit['benchmarkDependencyClosure']['unexpectedConditionalBranches']);
         $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDependencies(), $audit['luaEngineLibraryClosure']['expectedDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDefaultExtensions(), $audit['luaEngineLibraryClosure']['expectedDefaultExtensions']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryOtherExtensions(), $audit['luaEngineLibraryClosure']['expectedOtherExtensions']);
         $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
         $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['presentDefaultExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['presentOtherExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedOtherExtensions']);
         $t->same(true, in_array('hslua-module-zip', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
         $t->same(true, in_array('pandoc-lua-marshal', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['type']);
@@ -2176,6 +2182,73 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('unexpected pandoc-lua-engine library Lua support build-depends: hslua-module-runner-audit >= 0.1 && < 0.2, pandoc-lua-generated', $blocked);
         $t->contains('no unexpected pandoc-lua-engine library Lua support build-depends', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks unexpected lua engine library extension drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
+        $luaPackage = str_replace(
+            "library\n  import: test-options",
+            implode("\n", [
+                'library',
+                '  import: test-options',
+                '  default-extensions:',
+                '    LambdaCase,',
+                '    OverloadedStrings',
+                '  extensions: TypeApplications',
+                '  other-extensions: DeriveGeneric FlexibleContexts',
+            ]),
+            $luaCabal()
+        );
+
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            null,
+            $luaPackage
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDefaultExtensions(), $audit['luaEngineLibraryClosure']['expectedDefaultExtensions']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryOtherExtensions(), $audit['luaEngineLibraryClosure']['expectedOtherExtensions']);
+        $t->same([
+            'LambdaCase',
+            'OverloadedStrings',
+            'TypeApplications',
+        ], $audit['luaEngineLibraryClosure']['presentDefaultExtensions']);
+        $t->same([
+            'DeriveGeneric',
+            'FlexibleContexts',
+        ], $audit['luaEngineLibraryClosure']['presentOtherExtensions']);
+        $t->same($audit['luaEngineLibraryClosure']['presentDefaultExtensions'], $audit['luaEngineLibraryClosure']['unexpectedDefaultExtensions']);
+        $t->same($audit['luaEngineLibraryClosure']['presentOtherExtensions'], $audit['luaEngineLibraryClosure']['unexpectedOtherExtensions']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected pandoc-lua-engine library default-extensions: LambdaCase, OverloadedStrings, TypeApplications', $blocked);
+        $t->contains('unexpected pandoc-lua-engine library other-extensions: DeriveGeneric, FlexibleContexts', $blocked);
+        $t->contains('no unexpected pandoc-lua-engine library default/other extensions', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks unexpected lua engine library conditional branches before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {

@@ -927,6 +927,8 @@ $archiveBombInspection = ArchiveCompressionStream::inspectArchiveBombPolicyAuto(
 $unsupportedBzip2Upload = 'BZh9' . 'compressed tar payload bytes stay opaque to WordPress preflight';
 $unsupportedXzUpload = "\xfd" . '7zXZ' . "\0" . "\0\x04" . "\0\0\0\0"
     . 'compressed zip payload bytes stay opaque to WordPress preflight';
+$unsupportedZstandardUpload = "\x28\xb5\x2f\xfd" . "\x20"
+    . 'compressed tar payload bytes stay opaque to WordPress preflight';
 $unsupportedBzip2Inspection = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
     $unsupportedBzip2Upload,
     'wordpress-review-packet.tar.bz2'
@@ -934,6 +936,10 @@ $unsupportedBzip2Inspection = ArchiveCompressionStream::inspectUnsupportedCompre
 $unsupportedXzInspection = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
     $unsupportedXzUpload,
     'wordpress-documents.zip.xz'
+);
+$unsupportedZstandardInspection = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+    $unsupportedZstandardUpload,
+    'wordpress-review-packet.tar.zst'
 );
 $sourceNamePolicyInspection = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
     $gzip,
@@ -1122,6 +1128,10 @@ if (in_array('--self-test', $argv, true)) {
         'unsupportedXzKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
         'unsupportedXzCandidateFormat' => 'xz-zip',
         'unsupportedXzFlags' => '0004',
+        'unsupportedZstandardFormat' => 'zstandard',
+        'unsupportedZstandardKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
+        'unsupportedZstandardCandidateFormat' => 'zstandard-tar',
+        'unsupportedZstandardFlags' => '20',
         'unsupportedPolicy' => 'unsupported-compression-stream-blocked',
         'sourceNamePolicyExpectedKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
         'sourceNamePolicyExpectedFormat' => ArchiveCompressionStream::FORMAT_ZIP,
@@ -1412,6 +1422,12 @@ if (in_array('--self-test', $argv, true)) {
         || $unsupportedXzInspection['streamFlagsHex'] !== $expected['unsupportedXzFlags']
         || $unsupportedXzInspection['extractionPolicy'] !== $expected['unsupportedPolicy']
         || ($unsupportedXzInspection['diagnostics'][1] ?? null) !== 'archive-compression-format-xz-not-decoded'
+        || $unsupportedZstandardInspection['format'] !== $expected['unsupportedZstandardFormat']
+        || $unsupportedZstandardInspection['candidateKind'] !== $expected['unsupportedZstandardKind']
+        || $unsupportedZstandardInspection['candidateFormat'] !== $expected['unsupportedZstandardCandidateFormat']
+        || $unsupportedZstandardInspection['streamFlagsHex'] !== $expected['unsupportedZstandardFlags']
+        || $unsupportedZstandardInspection['extractionPolicy'] !== $expected['unsupportedPolicy']
+        || ($unsupportedZstandardInspection['diagnostics'][1] ?? null) !== 'archive-compression-format-zstandard-not-decoded'
         || $sourceNamePolicyInspection['sourceName'] !== 'wordpress-review-packet.docx'
         || $sourceNamePolicyInspection['sourceNameReason'] !== $expected['sourceNamePolicyReason']
         || $sourceNamePolicyInspection['expectedKind'] !== $expected['sourceNamePolicyExpectedKind']
@@ -1579,6 +1595,10 @@ echo 'unsupportedXz.format=' . $unsupportedXzInspection['format'] . "\n";
 echo 'unsupportedXz.candidateFormat=' . $unsupportedXzInspection['candidateFormat'] . "\n";
 echo 'unsupportedXz.extractionPolicy=' . $unsupportedXzInspection['extractionPolicy'] . "\n";
 echo 'unsupportedXz.diagnostics=' . implode(',', $unsupportedXzInspection['diagnostics']) . "\n";
+echo 'unsupportedZstandard.format=' . $unsupportedZstandardInspection['format'] . "\n";
+echo 'unsupportedZstandard.candidateFormat=' . $unsupportedZstandardInspection['candidateFormat'] . "\n";
+echo 'unsupportedZstandard.extractionPolicy=' . $unsupportedZstandardInspection['extractionPolicy'] . "\n";
+echo 'unsupportedZstandard.diagnostics=' . implode(',', $unsupportedZstandardInspection['diagnostics']) . "\n";
 echo 'sourceNamePolicy.sourceName=' . $sourceNamePolicyInspection['sourceName'] . "\n";
 echo 'sourceNamePolicy.expected=' . $sourceNamePolicyInspection['expectedKind'] . '/' . $sourceNamePolicyInspection['expectedFormat'] . "\n";
 echo 'sourceNamePolicy.detected=' . $sourceNamePolicyInspection['detectedKind'] . '/' . $sourceNamePolicyInspection['detectedFormat'] . "\n";

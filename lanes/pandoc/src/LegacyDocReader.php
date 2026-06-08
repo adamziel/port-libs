@@ -51,6 +51,8 @@ final class LegacyDocReader
     private const FIB_LCB_ROUTE_SLIP = 0x02ce;
     private const FIB_FC_STTB_SAVED_BY = 0x02d2;
     private const FIB_LCB_STTB_SAVED_BY = 0x02d6;
+    private const FIB_FC_STTB_FNM = 0x02da;
+    private const FIB_LCB_STTB_FNM = 0x02de;
     private const FIB_FC_GRPXST_ATN_OWNERS = 0x01ba;
     private const FIB_LCB_GRPXST_ATN_OWNERS = 0x01be;
     private const FIB_FC_PLCFEND_REF = 0x020a;
@@ -142,7 +144,7 @@ final class LegacyDocReader
     ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
     public function readBytes(string $bytes): array
     {
@@ -150,7 +152,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -231,6 +233,12 @@ final class LegacyDocReader
             $metadata['latestSavedBy'] = $latestSaveHistory['author'];
             $metadata['latestSavedPath'] = $latestSaveHistory['path'];
             $metadata['latestSavedName'] = $latestSaveHistory['basename'];
+        }
+        $externalFileReferences = $this->externalFileReferenceReport($wordDocument, $tableStream);
+        if ($externalFileReferences !== []) {
+            $metadata['externalFileReferenceCount'] = count($externalFileReferences);
+            $metadata['externalFileReferencePolicy'] = 'metadata-only-native-review';
+            $metadata['externalFileReferences'] = $externalFileReferences;
         }
         $routeSlip = $this->routeSlipReport($wordDocument, $tableStream);
         if ($routeSlip !== []) {
@@ -418,6 +426,7 @@ final class LegacyDocReader
             'documentProperties' => $documentProperties,
             'documentVariables' => $documentVariables,
             'saveHistory' => $saveHistory,
+            'externalFileReferences' => $externalFileReferences,
             'routeSlip' => $routeSlip,
         ];
 
@@ -457,6 +466,7 @@ final class LegacyDocReader
             'documentProperties' => $documentProperties,
             'documentVariables' => $documentVariables,
             'saveHistory' => $saveHistory,
+            'externalFileReferences' => $externalFileReferences,
             'routeSlip' => $routeSlip,
         ];
     }
@@ -3316,6 +3326,181 @@ final class LegacyDocReader
         }
 
         return $history;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function externalFileReferenceReport(string $wordDocument, ?string $tableStream): array
+    {
+        if (strlen($wordDocument) < self::FIB_LCB_STTB_FNM + 4) {
+            return [];
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_STTB_FNM);
+        if ($length === 0) {
+            return [];
+        }
+        if ($tableStream === null) {
+            throw new \RuntimeException('Legacy DOC external filename metadata requires the selected table stream');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_STTB_FNM);
+
+        return $this->parseSttbFnm(
+            $this->tableStreamSlice($tableStream, $offset, $length, 'SttbFnm external filename table')
+        );
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parseSttbFnm(string $bytes): array
+    {
+        $length = strlen($bytes);
+        if ($length < 6) {
+            throw new \RuntimeException('Legacy DOC external filename table is truncated');
+        }
+        if (self::u16($bytes, 0) !== 0xffff) {
+            throw new \RuntimeException('Legacy DOC external filename table must use extended strings');
+        }
+
+        $count = self::u16($bytes, 2);
+        if ($count > 1024) {
+            throw new \RuntimeException('Legacy DOC external filename table contains too many references');
+        }
+        if (self::u16($bytes, 4) !== 8) {
+            throw new \RuntimeException('Legacy DOC external filename table must contain 8-byte FNIF records');
+        }
+
+        $references = [];
+        $cursor = 6;
+        for ($index = 0; $index < $count; $index++) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC external filename table string length is truncated');
+            }
+
+            $characters = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if ($characters === 0) {
+                throw new \RuntimeException('Legacy DOC external filename table contains an empty filename');
+            }
+            if ($characters > 2048) {
+                throw new \RuntimeException('Legacy DOC external filename length exceeds the bounded native reader limit');
+            }
+
+            $byteLength = $characters * 2;
+            if ($cursor + $byteLength > $length) {
+                throw new \RuntimeException('Legacy DOC external filename table points outside its string data');
+            }
+
+            $path = $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
+            $cursor += $byteLength;
+            if ($cursor + 8 > $length) {
+                throw new \RuntimeException('Legacy DOC external filename table is truncated before its FNIF record');
+            }
+
+            $fnpi = self::u16($bytes, $cursor);
+            $referenceTypeCode = $fnpi & 0x000f;
+            $documentIndex = ($fnpi >> 4) & 0x0fff;
+            $ichRelative = ord($bytes[$cursor + 2]);
+            $fnfb = ord($bytes[$cursor + 3]);
+            $cursor += 8;
+
+            if (!in_array($referenceTypeCode, [3, 5], true)) {
+                throw new \RuntimeException('Legacy DOC external filename table contains an invalid FNPI reference type');
+            }
+            if ($documentIndex === 0x0fff) {
+                throw new \RuntimeException('Legacy DOC external filename table contains an invalid FNPI document identifier');
+            }
+
+            $fileSystemFlags = $this->legacyDocFnfbFileSystemFlags($fnfb);
+            $hasFat = in_array('fat', $fileSystemFlags, true);
+            $hasNtfs = in_array('ntfs', $fileSystemFlags, true);
+            $hasNonFileSystem = in_array('non-file-system', $fileSystemFlags, true);
+            if ($hasNonFileSystem && ($hasFat || $hasNtfs)) {
+                throw new \RuntimeException('Legacy DOC external filename table combines non-file-system and file-system flags');
+            }
+
+            $pathCharacters = $this->unicodeCharacters($path);
+            $record = [
+                'index' => $index,
+                'sourceTable' => 'SttbFnm',
+                'path' => $path,
+                'pathCharacterCount' => count($pathCharacters),
+                'basename' => $this->legacyPathBasename($path),
+                'fnpi' => $fnpi,
+                'referenceTypeCode' => $referenceTypeCode,
+                'referenceType' => $this->legacyDocExternalFileReferenceType($referenceTypeCode),
+                'documentIndex' => $documentIndex,
+                'ichRelative' => $ichRelative,
+                'fnfb' => $fnfb,
+                'fileSystemFlags' => $fileSystemFlags,
+                'fileSystem' => $this->legacyDocFnfbFileSystem($fileSystemFlags),
+                'canExposeBytes' => false,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ];
+            if ($ichRelative !== 0xff) {
+                if ($ichRelative >= count($pathCharacters)) {
+                    throw new \RuntimeException('Legacy DOC external filename relative path offset points outside the filename');
+                }
+                $record['relativePath'] = $this->charactersToString(array_slice($pathCharacters, $ichRelative));
+            }
+
+            $references[] = $record;
+        }
+
+        if ($cursor !== $length) {
+            throw new \RuntimeException('Legacy DOC external filename table contains trailing bytes');
+        }
+
+        return $references;
+    }
+
+    private function legacyDocExternalFileReferenceType(int $referenceTypeCode): string
+    {
+        return match ($referenceTypeCode) {
+            3 => 'mail-merge-data-source',
+            5 => 'subdocument',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function legacyDocFnfbFileSystemFlags(int $fnfb): array
+    {
+        $flags = [];
+        if (($fnfb & 0x01) !== 0) {
+            $flags[] = 'fat';
+        }
+        if (($fnfb & 0x08) !== 0) {
+            $flags[] = 'ntfs';
+        }
+        if (($fnfb & 0x10) !== 0) {
+            $flags[] = 'non-file-system';
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @param list<string> $flags
+     */
+    private function legacyDocFnfbFileSystem(array $flags): string
+    {
+        if (in_array('non-file-system', $flags, true)) {
+            return 'non-file-system';
+        }
+        if (in_array('ntfs', $flags, true)) {
+            return in_array('fat', $flags, true) ? 'fat+ntfs' : 'ntfs';
+        }
+        if (in_array('fat', $flags, true)) {
+            return 'fat';
+        }
+
+        return $flags === [] ? 'unspecified' : 'unknown';
     }
 
     /**

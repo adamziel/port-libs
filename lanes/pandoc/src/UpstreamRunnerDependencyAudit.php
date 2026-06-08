@@ -654,6 +654,10 @@ final class UpstreamRunnerDependencyAudit
         'library default: if flag(repl)',
     ];
 
+    private const LUA_ENGINE_LIBRARY_EXPECTED_DEFAULT_EXTENSIONS = [];
+
+    private const LUA_ENGINE_LIBRARY_EXPECTED_OTHER_EXTENSIONS = [];
+
     /**
      * @param array<string, string|array{available?: bool, version?: string|null}> $tools
      * @return array{
@@ -680,7 +684,7 @@ final class UpstreamRunnerDependencyAudit
      *   projectUnconditionalFieldClosure:array{expectedFields:list<string>, presentFields:list<string>, present:array<string, string>, unexpectedFields:list<string>},
      *   runnerDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedSourceDirectories:array<string, list<string>>, expectedMixins:array<string, list<string>>, expectedBuildTools:array<string, list<string>>, expectedTestOptions:array<string, list<string>>, expectedDefaultExtensions:array<string, list<string>>, expectedOtherExtensions:array<string, list<string>>, expectedCppOptions:array<string, list<string>>, expectedAutogenModules:array<string, list<string>>, expectedReexportedModules:array<string, list<string>>, expectedExtraSourceFiles:array<string, list<string>>, expectedExtraDocFiles:array<string, list<string>>, expectedExtraTmpFiles:array<string, list<string>>, expectedDataFiles:array<string, list<string>>, expectedNativeSystemFields:array<string, array<string, list<string>>>, expectedOtherModules:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, cppOptions:list<string>, autogenModules:list<string>, reexportedModules:list<string>, extraSourceFiles:list<string>, extraDocFiles:list<string>, extraTmpFiles:list<string>, dataFiles:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, testOptions:list<string>, defaultExtensions:list<string>, otherExtensions:list<string>, otherModules:list<string>, nativeSystemFields:array<string, list<string>>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, unexpectedDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, unexpectedExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedSourceDirectories:array<string, list<string>>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedTestOptions:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedExtraDocFiles:array<string, list<string>>, unexpectedExtraTmpFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>, missingOtherModules:array<string, list<string>>, unexpectedOtherModules:array<string, list<string>>},
      *   benchmarkDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedSourceDirectories:array<string, list<string>>, expectedMixins:array<string, list<string>>, expectedBuildTools:array<string, list<string>>, expectedBenchmarkOptions:array<string, list<string>>, expectedDefaultExtensions:array<string, list<string>>, expectedOtherExtensions:array<string, list<string>>, expectedCppOptions:array<string, list<string>>, expectedAutogenModules:array<string, list<string>>, expectedReexportedModules:array<string, list<string>>, expectedOtherModules:array<string, list<string>>, expectedExtraSourceFiles:array<string, list<string>>, expectedExtraDocFiles:array<string, list<string>>, expectedExtraTmpFiles:array<string, list<string>>, expectedDataFiles:array<string, list<string>>, expectedNativeSystemFields:array<string, array<string, list<string>>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, cppOptions:list<string>, autogenModules:list<string>, reexportedModules:list<string>, otherModules:list<string>, extraSourceFiles:list<string>, extraDocFiles:list<string>, extraTmpFiles:list<string>, dataFiles:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, benchmarkOptions:list<string>, defaultExtensions:list<string>, otherExtensions:list<string>, nativeSystemFields:array<string, list<string>>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, unexpectedDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, unexpectedExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedSourceDirectories:array<string, list<string>>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedBenchmarkOptions:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedOtherModules:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedExtraDocFiles:array<string, list<string>>, unexpectedExtraTmpFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>},
-     *   luaEngineLibraryClosure:array{packageFile:string, expectedDependencies:list<string>, presentDependencies:list<string>, dependencyConstraints:array<string, string>, missingDependencies:list<string>, unexpectedDependencies:list<string>, allowedConditionalBranches:list<string>, presentConditionalBranches:list<string>, unexpectedConditionalBranches:list<string>},
+     *   luaEngineLibraryClosure:array{packageFile:string, expectedDependencies:list<string>, presentDependencies:list<string>, dependencyConstraints:array<string, string>, missingDependencies:list<string>, unexpectedDependencies:list<string>, expectedDefaultExtensions:list<string>, presentDefaultExtensions:list<string>, unexpectedDefaultExtensions:list<string>, expectedOtherExtensions:list<string>, presentOtherExtensions:list<string>, unexpectedOtherExtensions:list<string>, allowedConditionalBranches:list<string>, presentConditionalBranches:list<string>, unexpectedConditionalBranches:list<string>},
      *   runnerEntrySourceClosure:array{expected:array<string, array{entryFile:string, requiredSnippets:array<string, string>}>, present:array<string, array{entryFile:string, matchedSnippets:list<string>}>, missingTargets:list<string>, missingSemantics:array<string, list<string>>},
      *   runnerArtifactClosure:array{expected:array<string, string>, present:list<string>, missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>, fileProvenance:array<string, array{sha256:string, bytes:int}>},
      *   benchmarkArtifactClosure:array{expected:array<string, string>, present:list<string>, missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>, fileProvenance:array<string, array{sha256:string, bytes:int}>},
@@ -973,6 +977,12 @@ final class UpstreamRunnerDependencyAudit
         if ($luaEngineLibraryClosure['unexpectedDependencies'] !== []) {
             $blockedReasons[] = 'unexpected pandoc-lua-engine library Lua support build-depends: ' . implode(', ', $luaEngineLibraryClosure['unexpectedDependencies']);
         }
+        if ($luaEngineLibraryClosure['unexpectedDefaultExtensions'] !== []) {
+            $blockedReasons[] = 'unexpected pandoc-lua-engine library default-extensions: ' . implode(', ', $luaEngineLibraryClosure['unexpectedDefaultExtensions']);
+        }
+        if ($luaEngineLibraryClosure['unexpectedOtherExtensions'] !== []) {
+            $blockedReasons[] = 'unexpected pandoc-lua-engine library other-extensions: ' . implode(', ', $luaEngineLibraryClosure['unexpectedOtherExtensions']);
+        }
         if ($luaEngineLibraryClosure['unexpectedConditionalBranches'] !== []) {
             $blockedReasons[] = 'unexpected pandoc-lua-engine library conditional branches: ' . implode(', ', $luaEngineLibraryClosure['unexpectedConditionalBranches']);
         }
@@ -1043,7 +1053,7 @@ final class UpstreamRunnerDependencyAudit
             'nonMutatingPlan' => $ready ? [
                 'record Cabal package identity/version headers, package flag definitions for cabal.project flags, pandoc.cabal tested-with GHC matrix, cabal.project package/flag closure plus source-repository type/location/tag closure, no unexpected cabal.project package/source-repository entries, flags, or source-repository fields, no unexpected cabal.project unconditional plan fields, non-empty runner source/golden fixture artifacts, runner source/golden artifact hashes, runner entry-point semantics including command-emulation parser/error handling plus full Tasty group dispatch, and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options, plus no unexpected cabal.project solver constraints or unconditional plan fields before any solver/build command',
-                'record test-suite type, buildable state, default-language, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal custom-setup/setup-depends, no unexpected common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, and exact other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus no unexpected test-options, native/system dependency fields, exact pandoc-lua-engine library HsLua module dependency closure, no unexpected pandoc-lua-engine library Lua support build-depends, and no unexpected pandoc-lua-engine library conditional branches',
+                'record test-suite type, buildable state, default-language, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal custom-setup/setup-depends, no unexpected common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, and exact other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus no unexpected test-options, native/system dependency fields, exact pandoc-lua-engine library HsLua module dependency closure, no unexpected pandoc-lua-engine library Lua support build-depends, no unexpected pandoc-lua-engine library default/other extensions, and no unexpected pandoc-lua-engine library conditional branches',
                 'record benchmark:benchmark-pandoc type, buildable state, default-language, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, plus no unexpected benchmark-options or native/system dependency fields, non-empty source/data artifact closure, benchmark source/data artifact hashes, and entry-source semantics before any benchmark execution',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
@@ -1498,6 +1508,22 @@ final class UpstreamRunnerDependencyAudit
     public static function allowedLuaEngineLibraryConditionalBranches(): array
     {
         return self::LUA_ENGINE_LIBRARY_ALLOWED_CONDITIONAL_BRANCHES;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function expectedLuaEngineLibraryDefaultExtensions(): array
+    {
+        return self::LUA_ENGINE_LIBRARY_EXPECTED_DEFAULT_EXTENSIONS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function expectedLuaEngineLibraryOtherExtensions(): array
+    {
+        return self::LUA_ENGINE_LIBRARY_EXPECTED_OTHER_EXTENSIONS;
     }
 
     /**
@@ -2057,7 +2083,7 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
-     * @return array<string, array{buildDepends:list<string>, dependencyConstraints:array<string, string>, conditionalBranches:list<string>}>
+     * @return array<string, array{buildDepends:list<string>, dependencyConstraints:array<string, string>, defaultExtensions:list<string>, otherExtensions:list<string>, conditionalBranches:list<string>}>
      */
     public static function parseCabalLibraries(string $contents): array
     {
@@ -2073,6 +2099,10 @@ final class UpstreamRunnerDependencyAudit
             $libraries[$stanza['name']] = [
                 'buildDepends' => self::extractCabalDependencyNames($fields['build-depends'] ?? ''),
                 'dependencyConstraints' => self::extractCabalDependencyConstraints($fields['build-depends'] ?? ''),
+                'defaultExtensions' => self::extractCabalDefaultExtensions(
+                    self::joinCabalFieldValues($fields['default-extensions'] ?? '', $fields['extensions'] ?? '')
+                ),
+                'otherExtensions' => self::extractCabalDefaultExtensions($fields['other-extensions'] ?? ''),
                 'conditionalBranches' => self::resolveCabalStanzaConditionals($key, $stanzas),
             ];
         }
@@ -3134,7 +3164,7 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
-     * @return array{packageFile:string, expectedDependencies:list<string>, presentDependencies:list<string>, dependencyConstraints:array<string, string>, missingDependencies:list<string>, unexpectedDependencies:list<string>, allowedConditionalBranches:list<string>, presentConditionalBranches:list<string>, unexpectedConditionalBranches:list<string>}
+     * @return array{packageFile:string, expectedDependencies:list<string>, presentDependencies:list<string>, dependencyConstraints:array<string, string>, missingDependencies:list<string>, unexpectedDependencies:list<string>, expectedDefaultExtensions:list<string>, presentDefaultExtensions:list<string>, unexpectedDefaultExtensions:list<string>, expectedOtherExtensions:list<string>, presentOtherExtensions:list<string>, unexpectedOtherExtensions:list<string>, allowedConditionalBranches:list<string>, presentConditionalBranches:list<string>, unexpectedConditionalBranches:list<string>}
      */
     private static function auditLuaEngineLibraryClosure(string $root): array
     {
@@ -3142,12 +3172,16 @@ final class UpstreamRunnerDependencyAudit
         $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $packageFile);
         $presentDependencies = [];
         $dependencyConstraints = [];
+        $presentDefaultExtensions = [];
+        $presentOtherExtensions = [];
         $presentConditionalBranches = [];
 
         if (is_file($path)) {
             $libraries = self::parseCabalLibraries((string) file_get_contents($path));
             $presentDependencies = $libraries['default']['buildDepends'] ?? [];
             $dependencyConstraints = $libraries['default']['dependencyConstraints'] ?? [];
+            $presentDefaultExtensions = $libraries['default']['defaultExtensions'] ?? [];
+            $presentOtherExtensions = $libraries['default']['otherExtensions'] ?? [];
             $presentConditionalBranches = $libraries['default']['conditionalBranches'] ?? [];
         }
 
@@ -3165,6 +3199,20 @@ final class UpstreamRunnerDependencyAudit
             }
         }
 
+        $unexpectedDefaultExtensions = [];
+        foreach ($presentDefaultExtensions as $extension) {
+            if (!in_array($extension, self::LUA_ENGINE_LIBRARY_EXPECTED_DEFAULT_EXTENSIONS, true)) {
+                $unexpectedDefaultExtensions[] = $extension;
+            }
+        }
+
+        $unexpectedOtherExtensions = [];
+        foreach ($presentOtherExtensions as $extension) {
+            if (!in_array($extension, self::LUA_ENGINE_LIBRARY_EXPECTED_OTHER_EXTENSIONS, true)) {
+                $unexpectedOtherExtensions[] = $extension;
+            }
+        }
+
         $unexpectedConditionalBranches = [];
         foreach ($presentConditionalBranches as $branch) {
             if (!in_array($branch, self::LUA_ENGINE_LIBRARY_ALLOWED_CONDITIONAL_BRANCHES, true)) {
@@ -3179,6 +3227,12 @@ final class UpstreamRunnerDependencyAudit
             'dependencyConstraints' => $dependencyConstraints,
             'missingDependencies' => $missingDependencies,
             'unexpectedDependencies' => $unexpectedDependencies,
+            'expectedDefaultExtensions' => self::LUA_ENGINE_LIBRARY_EXPECTED_DEFAULT_EXTENSIONS,
+            'presentDefaultExtensions' => $presentDefaultExtensions,
+            'unexpectedDefaultExtensions' => $unexpectedDefaultExtensions,
+            'expectedOtherExtensions' => self::LUA_ENGINE_LIBRARY_EXPECTED_OTHER_EXTENSIONS,
+            'presentOtherExtensions' => $presentOtherExtensions,
+            'unexpectedOtherExtensions' => $unexpectedOtherExtensions,
             'allowedConditionalBranches' => self::LUA_ENGINE_LIBRARY_ALLOWED_CONDITIONAL_BRANCHES,
             'presentConditionalBranches' => $presentConditionalBranches,
             'unexpectedConditionalBranches' => $unexpectedConditionalBranches,
@@ -4401,7 +4455,7 @@ final class UpstreamRunnerDependencyAudit
      * @param array{unexpectedFields:list<string>} $projectUnconditionalFieldClosure
      * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, unexpectedDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, unexpectedExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedSourceDirectories:array<string, list<string>>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedTestOptions:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedExtraDocFiles:array<string, list<string>>, unexpectedExtraTmpFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>, unexpectedConditionalBranches:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>, missingOtherModules:array<string, list<string>>, unexpectedOtherModules:array<string, list<string>>} $runnerDependencyClosure
      * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, unexpectedDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, unexpectedExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedSourceDirectories:array<string, list<string>>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedBenchmarkOptions:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedOtherModules:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedExtraDocFiles:array<string, list<string>>, unexpectedExtraTmpFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>, unexpectedConditionalBranches:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>} $benchmarkDependencyClosure
-     * @param array{missingDependencies:list<string>, unexpectedDependencies:list<string>, unexpectedConditionalBranches:list<string>} $luaEngineLibraryClosure
+     * @param array{missingDependencies:list<string>, unexpectedDependencies:list<string>, unexpectedDefaultExtensions:list<string>, unexpectedOtherExtensions:list<string>, unexpectedConditionalBranches:list<string>} $luaEngineLibraryClosure
      * @param array{missingTargets:list<string>, missingSemantics:array<string, list<string>>} $runnerEntrySourceClosure
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>} $runnerArtifactClosure
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>} $benchmarkArtifactClosure
@@ -4491,6 +4545,8 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkDependencyClosure['unexpectedNativeSystemFields'] === []
             && $luaEngineLibraryClosure['missingDependencies'] === []
             && $luaEngineLibraryClosure['unexpectedDependencies'] === []
+            && $luaEngineLibraryClosure['unexpectedDefaultExtensions'] === []
+            && $luaEngineLibraryClosure['unexpectedOtherExtensions'] === []
             && $luaEngineLibraryClosure['unexpectedConditionalBranches'] === []
             && $runnerEntrySourceClosure['missingTargets'] === []
             && $runnerEntrySourceClosure['missingSemantics'] === []
@@ -4503,10 +4559,10 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkEntrySourceClosure['missingTargets'] === []
             && $benchmarkEntrySourceClosure['missingSemantics'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, package flag definitions for cabal.project flags, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, non-empty runner source/golden fixtures with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, direct build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, Haskell2010 default-language closure, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure with no unexpected pandoc-lua-engine library Lua support build-depends or unexpected library conditional branches, non-empty benchmark component dependency/artifact closure with artifact hashes, benchmark entry-point source semantics, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, package flag definitions for cabal.project flags, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, non-empty runner source/golden fixtures with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, direct build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, Haskell2010 default-language closure, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure with no unexpected pandoc-lua-engine library Lua support build-depends, default/other extensions, or unexpected library conditional branches, non-empty benchmark component dependency/artifact closure with artifact hashes, benchmark entry-point source semantics, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with Cabal package identity/version headers, package flag definitions for cabal.project flags, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures with artifact hashes, non-empty benchmark source/data artifacts with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure, no unexpected pandoc-lua-engine library Lua support build-depends, no unexpected pandoc-lua-engine library conditional branches, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with Cabal package identity/version headers, package flag definitions for cabal.project flags, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures with artifact hashes, non-empty benchmark source/data artifacts with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure, no unexpected pandoc-lua-engine library Lua support build-depends, no unexpected pandoc-lua-engine library default/other extensions, no unexpected pandoc-lua-engine library conditional branches, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }

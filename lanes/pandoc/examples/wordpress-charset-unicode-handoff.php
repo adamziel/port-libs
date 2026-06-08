@@ -119,6 +119,9 @@ $gbkText = (string) $gbkSource->children[1]->attr('text');
 $gb18030Bytes = "# GB18030\n\nEmoji \x94\x39\xFC\x36 CJK \x95\x32\x82\x36 Latin \x81\x30\x8B\x38 Euro \xA2\xE3.";
 $gb18030Source = (new MarkdownReader())->readBytes($gb18030Bytes, 'gb18030');
 $gb18030Text = (string) $gb18030Source->children[1]->attr('text');
+$gb18030RangeBytes = "# GB18030 Ranges\n\nRange \x81\x30\xA4\x38 \x81\x30\xD3\x32 \x82\x35\x8F\x33 \x84\x31\x82\x36 \x90\x30\x81\x30 \x81\x35\xF4\x37.";
+$gb18030RangeSource = (new MarkdownReader())->readBytes($gb18030RangeBytes, 'gb18030');
+$gb18030RangeText = (string) $gb18030RangeSource->children[1]->attr('text');
 $eucKrBytes = (string) hex2bin('2320c7d1b1db0a0ac7d1b1db204555432d4b5220c5d7bdbac6ae2c20bcadbfef2e');
 $eucKrSource = (new MarkdownReader())->readBytes($eucKrBytes, 'ks_c_5601-1987');
 $eucKrText = (string) $eucKrSource->children[1]->attr('text');
@@ -565,6 +568,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gb18030Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gb18030Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'GB18030 ranges'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $gb18030RangeText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gb18030RangeSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gb18030RangeText)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'EUC-KR source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $eucKrText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucKrSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucKrText)])]),
@@ -915,6 +923,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>GB18030 source</td><td>Emoji \u{1F600} CJK \u{20000} Latin \u{0100} Euro \u{20AC}.</td><td>gb18030:31</td>")) {
         throw new RuntimeException('charset handoff self-test missing GB18030 four-byte decode audit row');
+    }
+    if (($gb18030RangeSource->attr('sourceEncoding')['encoding'] ?? '') !== 'gb18030') {
+        throw new RuntimeException('charset handoff self-test missing GB18030 range source encoding');
+    }
+    if (!str_contains($blocks, "<td>GB18030 ranges</td><td>Range \u{020B} \u{0454} \u{9FA6} \u{FE10} \u{10000} \u{E7C7}.</td><td>gb18030:20</td>")) {
+        throw new RuntimeException('charset handoff self-test missing GB18030 range-pointer decode audit row');
     }
     if (($eucKrSource->attr('sourceEncoding')['encoding'] ?? '') !== 'euc-kr') {
         throw new RuntimeException('charset handoff self-test missing EUC-KR source encoding');

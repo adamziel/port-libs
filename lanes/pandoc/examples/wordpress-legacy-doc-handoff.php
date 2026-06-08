@@ -330,6 +330,24 @@ $sttbSavedBy = static function (array $pairs) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$sttbFnm = static function (array $references) use ($u16, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(count($references)) . $u16(8);
+    foreach ($references as $reference) {
+        $path = (string) $reference['path'];
+        $encoded = $utf16le($path);
+        $referenceTypeCode = (int) ($reference['referenceTypeCode'] ?? 5);
+        $documentIndex = (int) ($reference['documentIndex'] ?? 0);
+        $fnpi = (($documentIndex & 0x0fff) << 4) | ($referenceTypeCode & 0x000f);
+        $bytes .= $u16(intdiv(strlen($encoded), 2))
+            . $encoded
+            . $u16($fnpi)
+            . chr(((int) ($reference['ichRelative'] ?? 0xff)) & 0xff)
+            . chr(((int) ($reference['fnfb'] ?? 0)) & 0xff)
+            . str_repeat("\0", 4);
+    }
+
+    return $bytes;
+};
 $routeSlip = static function (array $recipients, array $options = []) use ($u16): string {
     $ansi = static function (string $value) use ($u16): string {
         return $u16(strlen($value)) . $value;
@@ -926,6 +944,22 @@ $saveHistoryTable = $sttbSavedBy([
     ['author' => 'Migration Desk', 'path' => 'C:\Legacy\packet-draft.doc'],
     ['author' => 'Review Lead', 'path' => 'D:\Archive\legacy-doc-42-final.doc'],
 ]);
+$externalFileTable = $sttbFnm([
+    [
+        'path' => 'C:\Legacy\Subdocs\appendix-a.doc',
+        'referenceTypeCode' => 5,
+        'documentIndex' => 3,
+        'ichRelative' => 10,
+        'fnfb' => 0x08,
+    ],
+    [
+        'path' => 'https://example.test/merge/source.csv',
+        'referenceTypeCode' => 3,
+        'documentIndex' => 4,
+        'ichRelative' => 0xff,
+        'fnfb' => 0x10,
+    ],
+]);
 $routeSlipTable = $routeSlip([
     [
         'entryId' => "entry-id-001",
@@ -957,7 +991,8 @@ $fcPlcfHdd = $fcPlcfFldHdrTxbx + strlen($plcfldHdrTxbx);
 $fcSttbfAssoc = $fcPlcfHdd + strlen($plcfHdd);
 $fcStwUser = $fcSttbfAssoc + strlen($associatedStringsTable);
 $fcSttbSavedBy = $fcStwUser + strlen($documentVariablesTable);
-$fcRouteSlip = $fcSttbSavedBy + strlen($saveHistoryTable);
+$fcSttbFnm = $fcSttbSavedBy + strlen($saveHistoryTable);
+$fcRouteSlip = $fcSttbFnm + strlen($externalFileTable);
 $fcSttbfBkmk = $fcRouteSlip + strlen($routeSlipTable);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
@@ -974,7 +1009,7 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $routeSlipTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $externalFileTable . $routeSlipTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfHdd), 0x00f2, 4);
@@ -1007,6 +1042,8 @@ $wordDocument = substr_replace($wordDocument, $u32($fcStwUser), 0x027a, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($documentVariablesTable)), 0x027e, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbSavedBy), 0x02d2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($saveHistoryTable)), 0x02d6, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcSttbFnm), 0x02da, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($externalFileTable)), 0x02de, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcRouteSlip), 0x02ca, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($routeSlipTable)), 0x02ce, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfBkmk), 0x0142, 4);
@@ -1508,6 +1545,7 @@ $summary = [
     'documentProperties' => $result['documentProperties'],
     'documentVariables' => $result['documentVariables'],
     'saveHistory' => $result['saveHistory'],
+    'externalFileReferences' => $result['externalFileReferences'],
     'routeSlip' => $result['routeSlip'],
     'difatSector' => $difatSector,
     'blockCount' => count($result['document']->children),
@@ -1578,6 +1616,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($summary['wordpressBlocks'], 'packet-draft.doc') || str_contains($summary['wordpressBlocks'], 'Review Lead')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered SttbSavedBy metadata into blocks');
+    }
+    if (($summary['metadata']['externalFileReferenceCount'] ?? null) !== 2 || count($summary['externalFileReferences'] ?? []) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm external-file inventory');
+    }
+    if (($summary['metadata']['externalFileReferencePolicy'] ?? '') !== 'metadata-only-native-review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm metadata-only policy');
+    }
+    if (($summary['externalFileReferences'][0]['path'] ?? '') !== 'C:\Legacy\Subdocs\appendix-a.doc' || ($summary['externalFileReferences'][0]['relativePath'] ?? '') !== 'Subdocs\appendix-a.doc') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm subdocument path metadata');
+    }
+    if (($summary['externalFileReferences'][0]['referenceType'] ?? '') !== 'subdocument' || ($summary['externalFileReferences'][0]['fileSystem'] ?? '') !== 'ntfs') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm subdocument FNIF metadata');
+    }
+    if (($summary['externalFileReferences'][1]['path'] ?? '') !== 'https://example.test/merge/source.csv' || ($summary['externalFileReferences'][1]['referenceType'] ?? '') !== 'mail-merge-data-source' || ($summary['externalFileReferences'][1]['fileSystem'] ?? '') !== 'non-file-system') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm external source metadata');
+    }
+    if (str_contains($summary['wordpressBlocks'], 'appendix-a.doc') || str_contains($summary['wordpressBlocks'], 'source.csv')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered SttbFnm metadata into blocks');
     }
     if (($summary['metadata']['routeSlipRecipientCount'] ?? null) !== 2 || count($summary['routeSlip']['recipients'] ?? []) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing RouteSlip recipient inventory');

@@ -3962,6 +3962,126 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfStructureElements']);
     },
 
+    'fake runner extracts bounded pdf structure attribute metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/struct-attributes.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R 11 0 R] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /Figure /P 9 0 R /Pg 3 0 R /A [12 0 R << /O /Table /RowSpan 2 /ColSpan 3 /Scope /Both /Headers [14 0 R 15 0 R] >>] /K 0 /Alt (Migration chart) >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /StructElem /S /LBody /P 9 0 R /Pg 3 0 R /A << /O /List /ListNumbering /LowerRoman >> /K 1 >>',
+            'endobj',
+            '12 0 obj',
+            '<< /O /Layout /Placement /Block /WritingMode /LrTb /TextAlign /Center /BlockAlign /Middle /InlineAlign /Center /BBox [72 648 540 720] /R 4 >>',
+            'endobj',
+            '14 0 obj',
+            '<< /Type /StructElem /S /TH /P 9 0 R >>',
+            'endobj',
+            '15 0 obj',
+            '<< /Type /StructElem /S /TH /P 9 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/struct-attributes.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/struct-attributes.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'object' => '10 0 R',
+                'type' => 'Figure',
+                'attributeObject' => '12 0 R',
+                'owner' => 'Layout',
+                'revision' => 4,
+                'placement' => 'Block',
+                'writingMode' => 'LrTb',
+                'textAlign' => 'Center',
+                'blockAlign' => 'Middle',
+                'inlineAlign' => 'Center',
+                'listNumbering' => null,
+                'bbox' => [72.0, 648.0, 540.0, 720.0],
+                'rowSpan' => null,
+                'colSpan' => null,
+                'scope' => null,
+                'headers' => [],
+            ],
+            [
+                'object' => '10 0 R',
+                'type' => 'Figure',
+                'attributeObject' => 'inline',
+                'owner' => 'Table',
+                'revision' => null,
+                'placement' => null,
+                'writingMode' => null,
+                'textAlign' => null,
+                'blockAlign' => null,
+                'inlineAlign' => null,
+                'listNumbering' => null,
+                'bbox' => null,
+                'rowSpan' => 2,
+                'colSpan' => 3,
+                'scope' => 'Both',
+                'headers' => ['14 0 R', '15 0 R'],
+            ],
+            [
+                'object' => '11 0 R',
+                'type' => 'LBody',
+                'attributeObject' => 'inline',
+                'owner' => 'List',
+                'revision' => null,
+                'placement' => null,
+                'writingMode' => null,
+                'textAlign' => null,
+                'blockAlign' => null,
+                'inlineAlign' => null,
+                'listNumbering' => 'LowerRoman',
+                'bbox' => null,
+                'rowSpan' => null,
+                'colSpan' => null,
+                'scope' => null,
+                'headers' => [],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureAttributes']);
+        $t->contains('pdf-byte-structure-attributes:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-attribute-owner:Layout:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-attribute-owner:List:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-attribute-owner:Table:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-attribute-bbox:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-attribute-table-cells:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureAttributes']);
+    },
+
     'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);

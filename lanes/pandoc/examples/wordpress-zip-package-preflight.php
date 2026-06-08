@@ -2714,6 +2714,7 @@ $rawStrictSplitZipPreflight = ZipPackage::rawStrictImportPreflight($splitZipByte
 $rawStrictArchiveExtraDataRecordPreflight = ZipPackage::rawStrictImportPreflight($archiveExtraDataRecordBytes, 4096, 100.0, 4096);
 $rawStrictZip64EocdPreflight = ZipPackage::rawStrictImportPreflight($zip64EocdBytes, 4096, 100.0, 4096);
 $rawStrictZip64LocatorPreflight = ZipPackage::rawStrictImportPreflight($zip64LocatorBytes, 4096, 100.0, 4096);
+$rawStrictLocalHeaderNamePreflight = ZipPackage::rawStrictImportPreflight($buildLocalHeaderNameMismatchBackedPackage(), 4096, 100.0, 4096);
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $descriptorDataDescriptorPreflight = $descriptorPackage->dataDescriptorPreflight();
@@ -4870,6 +4871,18 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP local header name mismatches to be rejected before media import');
     }
 
+    if (
+        ($rawStrictLocalHeaderNamePreflight['isValid'] ?? null) !== false
+        || ($rawStrictLocalHeaderNamePreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictLocalHeaderNamePreflight['localHeaderNames']['mismatchedEntryCount'] ?? null) !== 1
+        || ($rawStrictLocalHeaderNamePreflight['localHeaderNames']['mismatchedEntries'][0]['centralName'] ?? null) !== 'word/document.xml'
+        || ($rawStrictLocalHeaderNamePreflight['localHeaderNames']['mismatchedEntries'][0]['localName'] ?? null) !== 'word/other.xml'
+        || !in_array('local-header-name-issues', $rawStrictLocalHeaderNamePreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawStrictLocalHeaderNamePreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP preflight to report local header name mismatches');
+    }
+
     if (!$localEntrySlackRejected) {
         throw new RuntimeException('Expected hidden ZIP local entry bytes to be rejected before media import');
     }
@@ -5040,6 +5053,9 @@ echo 'zipRawStrictImportPolicy=' . ($rawStrictImportPreflight['isValid'] ? 'acce
 echo 'zipRawStrictImportCanInstantiate=' . ($rawStrictImportPreflight['canInstantiate'] ? 'true' : 'false') . "\n";
 echo 'zipRawStrictImportDiagnostics=' . implode(',', $rawStrictImportPreflight['diagnostics']) . "\n";
 echo 'zipRawStrictImportPreflightErrors=' . count($rawStrictImportPreflight['preflightErrors']) . "\n";
+echo 'zipRawStrictLocalHeaderNamePolicy=' . ($rawStrictLocalHeaderNamePreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictLocalHeaderNameIssues=' . implode(',', $rawStrictLocalHeaderNamePreflight['localHeaderNames']['issues'] ?? []) . "\n";
+echo 'zipRawStrictLocalHeaderNameMismatchCount=' . ($rawStrictLocalHeaderNamePreflight['localHeaderNames']['mismatchedEntryCount'] ?? 0) . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPreflight['diagnostics']) . "\n";
 echo 'zipInvalidDosTimestampPolicy=' . ($invalidDosTimestampRejected ? 'rejected' : 'not-rejected') . "\n";

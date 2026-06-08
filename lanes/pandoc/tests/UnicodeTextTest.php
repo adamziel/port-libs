@@ -873,7 +873,7 @@ return [
         $document = (new MarkdownReader())->readBytes($bytes, 'gb-18030');
         $blocks = (new WordPressBlockWriter())->write($document);
         $malformedFourByte = UnicodeText::decodeBytes("\x94\x39\"A", 'gb18030');
-        $unsupportedFourByte = UnicodeText::decodeBytes("\x81\x30\x81\x30A", 'gb18030');
+        $firstRangeFourByte = UnicodeText::decodeBytes("\x81\x30\x81\x30A", 'gb18030');
 
         $t->same('gb18030', $decoded['encoding']);
         $t->same(0, $decoded['repairs']);
@@ -886,8 +886,33 @@ return [
         $t->contains("<p>Emoji \u{1F600} CJK \u{20000} Latin \u{0100} Euro \u{20AC}.</p>", $blocks);
         $t->same("\u{FFFD}9\"A", $malformedFourByte['text']);
         $t->same(1, $malformedFourByte['repairs']);
-        $t->same("\u{FFFD}A", $unsupportedFourByte['text']);
-        $t->same(1, $unsupportedFourByte['repairs']);
+        $t->same("\u{0080}A", $firstRangeFourByte['text']);
+        $t->same(0, $firstRangeFourByte['repairs']);
+        $t->same(1, UnicodeText::displayWidth($firstRangeFourByte['text']));
+    },
+    'decodes gb18030 four byte range pointers into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# GB18030 Ranges\n\nRange \x81\x30\xA4\x38 \x81\x30\xD3\x32 \x82\x35\x8F\x33 \x84\x31\x82\x36 \x90\x30\x81\x30 \x81\x35\xF4\x37.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'gb18030');
+        $document = (new MarkdownReader())->readBytes($bytes, 'gb18030');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $gap = UnicodeText::decodeBytes("\x84\x31\xA5\x30", 'gb18030');
+        $beyondUnicode = UnicodeText::decodeBytes("\xE3\x32\x9A\x36", 'gb18030');
+        $text = "Range \u{020B} \u{0454} \u{9FA6} \u{FE10} \u{10000} \u{E7C7}.";
+
+        $t->same('gb18030', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# GB18030 Ranges\n\n{$text}", $decoded['text']);
+        $t->same(['encoding' => 'gb18030', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('GB18030 Ranges', $document->children[0]->attr('text'));
+        $t->same($text, $document->children[1]->attr('text'));
+        $t->same(20, UnicodeText::displayWidth($text));
+        $t->same(21, UnicodeText::displayWidth($text, 'wide'));
+        $t->contains('<h1 id="gb18030-ranges">GB18030 Ranges</h1>', $blocks);
+        $t->contains("<p>{$text}</p>", $blocks);
+        $t->same("\u{FFFD}", $gap['text']);
+        $t->same(1, $gap['repairs']);
+        $t->same("\u{FFFD}", $beyondUnicode['text']);
+        $t->same(1, $beyondUnicode['repairs']);
     },
     'decodes bounded euc kr korean source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('2320c7d1b1db0a0ac7d1b1db204555432d4b5220c5d7bdbac6ae2c20bcadbfef2e');

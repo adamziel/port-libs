@@ -4894,6 +4894,10 @@ return [
         $t->same(512, $safeRaw['maxEntryUncompressedBytes']);
         $t->same(true, $safeRaw['archive']['isArchiveLayoutSupported']);
         $t->same(3, $safeRaw['centralDirectoryInventory']['entryCount']);
+        $t->same(0, $safeRaw['localHeaderNames']['mismatchedEntryCount']);
+        $t->same(true, $safeRaw['localHeaderNames']['isSupportedByBoundedReader']);
+        $t->same(0, $safeRaw['localHeaderMetadata']['mismatchedEntryCount']);
+        $t->same(true, $safeRaw['localHeaderMetadata']['isSupportedByBoundedReader']);
         $t->same(true, $safeRaw['compressionMethods']['isSupportedByBoundedReader']);
         $t->same(false, $safeRaw['encryption']['hasEncryptedEntries']);
         $t->same(0, $safeRaw['archiveExtraDataRecords']['archiveExtraDataRecordCount']);
@@ -4918,6 +4922,58 @@ return [
         $t->same(1, $unsupportedRaw['strictImport']['readIntegrity']['failedEntryCount']);
         $t->contains('unsupported-compression-methods', implode(',', $unsupportedRaw['diagnostics']));
         $t->contains('unreadable-entries', implode(',', $unsupportedRaw['diagnostics']));
+
+        $localNameMismatchRaw = ZipPackage::rawStrictImportPreflight($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'localName' => 'word/other.xml',
+                'data' => '<w:document><w:p>raw local name spoof</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]), 512, 20.0, 512);
+
+        $t->same(false, $localNameMismatchRaw['isValid']);
+        $t->same(false, $localNameMismatchRaw['canInstantiate']);
+        $t->same(1, $localNameMismatchRaw['entryCount']);
+        $t->same(1, $localNameMismatchRaw['localHeaderNames']['mismatchedEntryCount']);
+        $t->same(false, $localNameMismatchRaw['localHeaderNames']['isSupportedByBoundedReader']);
+        $t->same('word/document.xml', $localNameMismatchRaw['localHeaderNames']['mismatchedEntries'][0]['centralName']);
+        $t->same('word/other.xml', $localNameMismatchRaw['localHeaderNames']['mismatchedEntries'][0]['localName']);
+        $t->same(['local-header-name-mismatch', 'local-header-decoded-name-mismatch'], $localNameMismatchRaw['localHeaderNames']['issues']);
+        $t->same(0, $localNameMismatchRaw['localHeaderMetadata']['mismatchedEntryCount']);
+        $t->contains('local-header-name-issues', implode(',', $localNameMismatchRaw['diagnostics']));
+        $t->contains('local-header-name-mismatch', implode(',', $localNameMismatchRaw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $localNameMismatchRaw['diagnostics']));
+
+        $localMetadataMismatchRaw = ZipPackage::rawStrictImportPreflight($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>raw local metadata spoof</w:p></w:document>',
+                'method' => 8,
+                'localMethod' => 0,
+                'localCrc' => 0,
+                'localCompressedSize' => 1,
+                'localUncompressedSize' => 2,
+            ],
+        ]), 512, 20.0, 512);
+
+        $t->same(false, $localMetadataMismatchRaw['isValid']);
+        $t->same(false, $localMetadataMismatchRaw['canInstantiate']);
+        $t->same(1, $localMetadataMismatchRaw['entryCount']);
+        $t->same(0, $localMetadataMismatchRaw['localHeaderNames']['mismatchedEntryCount']);
+        $t->same(1, $localMetadataMismatchRaw['localHeaderMetadata']['mismatchedEntryCount']);
+        $t->same(false, $localMetadataMismatchRaw['localHeaderMetadata']['isSupportedByBoundedReader']);
+        $t->same('word/document.xml', $localMetadataMismatchRaw['localHeaderMetadata']['mismatchedEntries'][0]['centralName']);
+        $t->same([
+            'local-header-compression-method-mismatch',
+            'local-header-crc32-mismatch',
+            'local-header-compressed-size-mismatch',
+            'local-header-uncompressed-size-mismatch',
+        ], $localMetadataMismatchRaw['localHeaderMetadata']['issues']);
+        $t->contains('local-header-metadata-issues', implode(',', $localMetadataMismatchRaw['diagnostics']));
+        $t->contains('local-header-compression-method-mismatch', implode(',', $localMetadataMismatchRaw['diagnostics']));
+        $t->contains('local-header-crc32-mismatch', implode(',', $localMetadataMismatchRaw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $localMetadataMismatchRaw['diagnostics']));
 
         $splitZip = $rewriteEndOfCentralDirectory($buildZipPackage([
             [
@@ -4976,6 +5032,8 @@ return [
         $t->same(true, $zip64Raw['archive']['requiresZip64']);
         $t->same(true, $zip64Raw['zip64EndOfCentralDirectory']['requiresZip64']);
         $t->same(null, $zip64Raw['centralDirectoryInventory']);
+        $t->same(null, $zip64Raw['localHeaderNames']);
+        $t->same(null, $zip64Raw['localHeaderMetadata']);
         $t->contains('unsupported-archive-layout', implode(',', $zip64Raw['diagnostics']));
         $t->contains('zip64-end-of-central-directory', implode(',', $zip64Raw['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $zip64Raw['diagnostics']));

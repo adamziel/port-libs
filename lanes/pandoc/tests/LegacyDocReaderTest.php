@@ -701,6 +701,26 @@ $sttbSavedBy = static function (array $pairs) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$sttbFnm = static function (array $references) use ($u16, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(count($references)) . $u16(8);
+    foreach ($references as $reference) {
+        $path = (string) $reference['path'];
+        $encoded = $utf16le($path);
+        $referenceTypeCode = (int) ($reference['referenceTypeCode'] ?? 5);
+        $documentIndex = (int) ($reference['documentIndex'] ?? 0);
+        $fnpi = (($documentIndex & 0x0fff) << 4) | ($referenceTypeCode & 0x000f);
+        $ichRelative = (int) ($reference['ichRelative'] ?? 0xff);
+        $fnfb = (int) ($reference['fnfb'] ?? 0);
+        $bytes .= $u16(intdiv(strlen($encoded), 2))
+            . $encoded
+            . $u16($fnpi)
+            . chr($ichRelative & 0xff)
+            . chr($fnfb & 0xff)
+            . str_repeat("\0", 4);
+    }
+
+    return $bytes;
+};
 $routeSlip = static function (array $recipients, array $options = []) use ($u16): string {
     $ansi = static function (string $value) use ($u16): string {
         return $u16(strlen($value)) . $value;
@@ -2576,6 +2596,135 @@ return [
         $missingTableWordDocument = $buildExtendedFibWordDocument("Missing save history table stream packet\r");
         $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(0), 0x02d2, 4);
         $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(strlen($saveHistoryTable)), 0x02d6, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $missingTableWordDocument,
+        ])));
+    },
+    'extracts legacy DOC SttbFnm external file references as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbFnm, $u16, $u32): void {
+        $subdocumentPath = 'C:\Legacy\Subdocs\chapter1.doc';
+        $mailMergeSource = 'https://example.test/mailmerge.csv';
+        $externalFileTable = $sttbFnm([
+            [
+                'path' => $subdocumentPath,
+                'referenceTypeCode' => 5,
+                'documentIndex' => 2,
+                'ichRelative' => 10,
+                'fnfb' => 0x08,
+            ],
+            [
+                'path' => $mailMergeSource,
+                'referenceTypeCode' => 3,
+                'documentIndex' => 7,
+                'ichRelative' => 0xff,
+                'fnfb' => 0x10,
+            ],
+        ]);
+        $wordDocument = $buildExtendedFibWordDocument("External filename review packet\r");
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x02da, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($externalFileTable)), 0x02de, 4);
+        $docBytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $externalFileTable,
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+        $externalFileReferences = $result['externalFileReferences'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $markdown = (new MarkdownWriter())->write($result['document']);
+
+        $t->same(2, count($externalFileReferences));
+        $t->same(2, $metadata['externalFileReferenceCount']);
+        $t->same('metadata-only-native-review', $metadata['externalFileReferencePolicy']);
+        $t->same($externalFileReferences, $metadata['externalFileReferences']);
+        $t->same($externalFileReferences, $result['document']->attr('externalFileReferences'));
+        $t->same($externalFileReferences, $result['document']->attr('meta')['externalFileReferences']);
+        $t->same(0, $externalFileReferences[0]['index']);
+        $t->same('SttbFnm', $externalFileReferences[0]['sourceTable']);
+        $t->same($subdocumentPath, $externalFileReferences[0]['path']);
+        $t->same(strlen($subdocumentPath), $externalFileReferences[0]['pathCharacterCount']);
+        $t->same('chapter1.doc', $externalFileReferences[0]['basename']);
+        $t->same(0x0025, $externalFileReferences[0]['fnpi']);
+        $t->same(5, $externalFileReferences[0]['referenceTypeCode']);
+        $t->same('subdocument', $externalFileReferences[0]['referenceType']);
+        $t->same(2, $externalFileReferences[0]['documentIndex']);
+        $t->same(10, $externalFileReferences[0]['ichRelative']);
+        $t->same('Subdocs\chapter1.doc', $externalFileReferences[0]['relativePath']);
+        $t->same(0x08, $externalFileReferences[0]['fnfb']);
+        $t->same(['ntfs'], $externalFileReferences[0]['fileSystemFlags']);
+        $t->same('ntfs', $externalFileReferences[0]['fileSystem']);
+        $t->same(false, $externalFileReferences[0]['canExposeBytes']);
+        $t->same('metadata-only-native-review', $externalFileReferences[0]['extractionPolicy']);
+        $t->same(1, $externalFileReferences[1]['index']);
+        $t->same($mailMergeSource, $externalFileReferences[1]['path']);
+        $t->same('mailmerge.csv', $externalFileReferences[1]['basename']);
+        $t->same(0x0073, $externalFileReferences[1]['fnpi']);
+        $t->same(3, $externalFileReferences[1]['referenceTypeCode']);
+        $t->same('mail-merge-data-source', $externalFileReferences[1]['referenceType']);
+        $t->same(7, $externalFileReferences[1]['documentIndex']);
+        $t->same(0xff, $externalFileReferences[1]['ichRelative']);
+        $t->true(!array_key_exists('relativePath', $externalFileReferences[1]));
+        $t->same(0x10, $externalFileReferences[1]['fnfb']);
+        $t->same(['non-file-system'], $externalFileReferences[1]['fileSystemFlags']);
+        $t->same('non-file-system', $externalFileReferences[1]['fileSystem']);
+        $t->contains('<p>External filename review packet</p>', $blocks);
+        $t->contains('External filename review packet', $markdown);
+        $t->true(!str_contains($blocks, 'chapter1.doc'));
+        $t->true(!str_contains($blocks, 'mailmerge.csv'));
+        $t->true(!str_contains($markdown, 'Subdocs'));
+
+        $buildDocBytes = static function (string $table) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
+            $wordDocument = $buildExtendedFibWordDocument("Malformed external filename packet\r");
+            $wordDocument = substr_replace($wordDocument, $u32(0), 0x02da, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($table)), 0x02de, 4);
+
+            return $buildCfb([
+                'WordDocument' => $wordDocument,
+                '0Table' => $table,
+            ]);
+        };
+        $emptyFilenameTable = $u16(0xffff) . $u16(1) . $u16(8) . $u16(0) . str_repeat("\0", 8);
+        foreach ([
+            'wrong extended marker' => substr_replace($externalFileTable, $u16(0), 0, 2),
+            'wrong extra bytes' => substr_replace($externalFileTable, $u16(0), 4, 2),
+            'empty filename' => $emptyFilenameTable,
+            'relative path offset outside filename' => $sttbFnm([[
+                'path' => 'short.doc',
+                'referenceTypeCode' => 5,
+                'documentIndex' => 1,
+                'ichRelative' => 20,
+                'fnfb' => 0x01,
+            ]]),
+            'invalid reference type' => $sttbFnm([[
+                'path' => 'C:\Legacy\bad.doc',
+                'referenceTypeCode' => 2,
+                'documentIndex' => 1,
+                'ichRelative' => 0xff,
+                'fnfb' => 0x08,
+            ]]),
+            'invalid document identifier' => $sttbFnm([[
+                'path' => 'C:\Legacy\bad.doc',
+                'referenceTypeCode' => 5,
+                'documentIndex' => 0x0fff,
+                'ichRelative' => 0xff,
+                'fnfb' => 0x08,
+            ]]),
+            'non-file-system combined with FAT' => $sttbFnm([[
+                'path' => 'https://example.test/bad.doc',
+                'referenceTypeCode' => 3,
+                'documentIndex' => 1,
+                'ichRelative' => 0xff,
+                'fnfb' => 0x11,
+            ]]),
+            'truncated FNIF' => substr($externalFileTable, 0, -1),
+            'trailing bytes' => $externalFileTable . "\0",
+        ] as $table) {
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes($table)));
+        }
+
+        $missingTableWordDocument = $buildExtendedFibWordDocument("Missing external filename table stream packet\r");
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(0), 0x02da, 4);
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(strlen($externalFileTable)), 0x02de, 4);
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
             'WordDocument' => $missingTableWordDocument,
         ])));

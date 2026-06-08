@@ -611,7 +611,7 @@ final class ArchiveCompressionStream
         $nameCandidate = $sourceName === null ? null : self::unsupportedCompressionNameCandidate($sourceName);
 
         if ($signature === null && $nameCandidate === null) {
-            throw new \RuntimeException('Unsupported archive compression policy requires a BZip2 or XZ stream signature or source name');
+            throw new \RuntimeException('Unsupported archive compression policy requires a BZip2, XZ, or Zstandard stream signature or source name');
         }
 
         $format = $signature['format'] ?? $nameCandidate['format'];
@@ -2928,6 +2928,17 @@ final class ArchiveCompressionStream
             ];
         }
 
+        if (str_starts_with($bytes, "\x28\xb5\x2f\xfd")) {
+            return [
+                'format' => 'zstandard',
+                'name' => 'zstandard',
+                'signatureBytesHex' => bin2hex(substr($bytes, 0, 4)),
+                'streamHeaderSize' => 5,
+                'streamFlagsHex' => strlen($bytes) >= 5 ? bin2hex($bytes[4]) : null,
+                'blockSize100k' => null,
+            ];
+        }
+
         return null;
     }
 
@@ -2986,8 +2997,15 @@ final class ArchiveCompressionStream
             '.tar.xz' => ['xz', self::PACKAGE_KIND_TAR],
             '.txz' => ['xz', self::PACKAGE_KIND_TAR],
             '.zip.xz' => ['xz', self::PACKAGE_KIND_ZIP],
+            '.tar.zst' => ['zstandard', self::PACKAGE_KIND_TAR],
+            '.tar.zstd' => ['zstandard', self::PACKAGE_KIND_TAR],
+            '.tzst' => ['zstandard', self::PACKAGE_KIND_TAR],
+            '.zip.zst' => ['zstandard', self::PACKAGE_KIND_ZIP],
+            '.zip.zstd' => ['zstandard', self::PACKAGE_KIND_ZIP],
             '.bz2' => ['bzip2', null],
             '.xz' => ['xz', null],
+            '.zst' => ['zstandard', null],
+            '.zstd' => ['zstandard', null],
         ];
 
         foreach ($compressedSuffixes as $suffix => [$format, $kind]) {
