@@ -111,8 +111,9 @@ final class PdfTextDocumentExtractor
      * Some callers cache pdftext.dictionary_output alongside adapter metadata.
      * The upstream markerPDF boundary only consumes the ordered page list, so
      * unwrap that list before slicing and keep envelope payloads out of pages.
-     * Explicit dictionary_output wins first, pdftext cache envelopes are next,
-     * and legacy adapter pages/page maps stay a fallback.
+     * Explicit dictionary_output wins first, nested explicit caches stay inside
+     * that boundary, pdftext cache envelopes are next, and legacy adapter
+     * pages/page maps stay a fallback.
      *
      * @param array<mixed> $pdftextPages
      * @return list<mixed>
@@ -348,6 +349,17 @@ final class PdfTextDocumentExtractor
 
         if (array_key_exists('blocks', $value)) {
             return [$value];
+        }
+
+        foreach (['dictionary_output', 'pdftext'] as $nestedPageListKey) {
+            if (!array_key_exists($nestedPageListKey, $value)) {
+                continue;
+            }
+
+            $nestedPageList = $this->pageListFromExplicitDictionaryEnvelope($value[$nestedPageListKey]);
+            if ($nestedPageList !== null) {
+                return $nestedPageList;
+            }
         }
 
         if (array_key_exists('pages', $value)) {

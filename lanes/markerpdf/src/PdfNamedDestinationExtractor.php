@@ -1509,6 +1509,51 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     * @param list<string> $seen
+     */
+    private function valueHasTrailingOperandAfterResolution(
+        mixed $value,
+        array $objects,
+        array &$cache,
+        array $seen = []
+    ): bool {
+        $objectId = $this->validRefObjectId($value, $objects);
+        if ($this->isRefValue($value) && $objectId === null) {
+            return true;
+        }
+        if ($objectId === null) {
+            return false;
+        }
+
+        $generation = $this->refGeneration($value);
+        $seenKey = $this->objectGenerationKey($objectId, $generation);
+        if (in_array($seenKey, $seen, true)) {
+            return true;
+        }
+
+        $body = $this->objectBody($objectId, $objects, $generation);
+        if ($body === null || !$this->objectBodyIsSingleTopLevelValue($body)) {
+            return true;
+        }
+
+        $seen[] = $seenKey;
+        $resolved = $this->objectValue($objectId, $objects, $cache, $generation);
+
+        return $this->valueHasTrailingOperandAfterResolution($resolved, $objects, $cache, $seen);
+    }
+
+    private function objectBodyIsSingleTopLevelValue(string $body): bool
+    {
+        $tokens = $this->tokens($body);
+        $index = 0;
+        $this->parseValue($tokens, $index);
+
+        return $index === count($tokens);
+    }
+
+    /**
      * @param array<string, mixed> $node
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
@@ -1718,6 +1763,9 @@ final class PdfNamedDestinationExtractor
         if ($this->destinationValueIsStreamCarrier($value, $objects, $cache)) {
             return null;
         }
+        if ($this->valueHasTrailingOperandAfterResolution($value, $objects, $cache)) {
+            return null;
+        }
 
         $unwrapped = $this->unwrappedGoToDestinationValue($value, $objects, $cache);
         if ($unwrapped === null) {
@@ -1725,6 +1773,10 @@ final class PdfNamedDestinationExtractor
         }
 
         $destinationValue = $unwrapped['value'];
+        if ($this->valueHasTrailingOperandAfterResolution($destinationValue, $objects, $cache)) {
+            return null;
+        }
+
         $destination = $unwrapped['destination'];
         $aliasName = $this->destinationAliasName($destinationValue, $objects, $cache);
         if ($aliasName !== null) {
@@ -1768,6 +1820,9 @@ final class PdfNamedDestinationExtractor
         }
 
         $fit = $this->nameValue($this->resolve($destination[1] ?? null, $objects, $cache));
+        if ($this->valueHasTrailingOperandAfterResolution($destination[1] ?? null, $objects, $cache)) {
+            return null;
+        }
         if ($fit === null || !isset(self::VALID_DESTINATION_VIEW_NAMES[$fit])) {
             return null;
         }
@@ -1811,6 +1866,10 @@ final class PdfNamedDestinationExtractor
             }
 
             if (in_array($key, $seen, true)) {
+                return null;
+            }
+
+            if ($this->valueHasTrailingOperandAfterResolution($value, $objects, $cache)) {
                 return null;
             }
 
@@ -1858,6 +1917,9 @@ final class PdfNamedDestinationExtractor
             }
 
             $value = $destination[$index];
+            if ($this->valueHasTrailingOperandAfterResolution($value, $objects, $cache)) {
+                return false;
+            }
             if ($this->isRefValue($value) && $this->validRefObjectId($value, $objects) === null) {
                 return false;
             }
@@ -1891,6 +1953,9 @@ final class PdfNamedDestinationExtractor
      */
     private function destinationSurplusOperandIsBenign(mixed $value, array $objects, array &$cache): bool
     {
+        if ($this->valueHasTrailingOperandAfterResolution($value, $objects, $cache)) {
+            return false;
+        }
         if ($this->isRefValue($value) && $this->validRefObjectId($value, $objects) === null) {
             return false;
         }
@@ -2275,6 +2340,10 @@ final class PdfNamedDestinationExtractor
      */
     private function destinationAliasName(mixed $value, array $objects, array &$cache): ?string
     {
+        if ($this->valueHasTrailingOperandAfterResolution($value, $objects, $cache)) {
+            return null;
+        }
+
         $resolved = $this->resolve($value, $objects, $cache);
         $string = $this->pdfStringDetails($resolved);
         if ($string !== null && $string['text'] !== '') {
@@ -2313,6 +2382,9 @@ final class PdfNamedDestinationExtractor
         int $depth = 0
     ): ?array {
         if ($depth > 20) {
+            return null;
+        }
+        if ($this->valueHasTrailingOperandAfterResolution($value, $objects, $cache)) {
             return null;
         }
 

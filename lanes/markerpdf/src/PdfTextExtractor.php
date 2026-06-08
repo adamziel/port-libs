@@ -2868,9 +2868,6 @@ final class PdfTextExtractor
 
         if ($streams !== []) {
             $resourceOwnerBody = $this->pageResourceDictionaryBody($pageObjectNumber, $objects);
-            if ($resourceOwnerBody === null && !$this->pageResourceDictionaryBlocksFallback($pageObjectNumber, $objects)) {
-                $resourceOwnerBody = $objects[$pageObjectNumber];
-            }
 
             if ($resourceOwnerBody !== null) {
                 $expanded['imageXObjectResourceNames'] = $this->imageXObjectResourceNamesForResourceOwnerBody(

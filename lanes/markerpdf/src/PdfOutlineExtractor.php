@@ -6495,6 +6495,10 @@ final class PdfOutlineExtractor
         ?string $destinationName = null,
         array $seenNames = []
     ): ?array {
+        if ($this->isReferenceValue($destination) && !$this->referenceTargetsSingleTopLevelValue($destination, $objects)) {
+            return null;
+        }
+
         $pageObjectNumber = $this->validReferenceObjectNumber($destination, $objects);
         if ($pageObjectNumber !== null && isset($pageIndexes[$pageObjectNumber])) {
             return [
@@ -6622,6 +6626,10 @@ final class PdfOutlineExtractor
      */
     private function destinationPageFromValue(mixed $value, array $objects, array $pageIndexes): ?int
     {
+        if ($this->isReferenceValue($value) && !$this->referenceTargetsSingleTopLevelValue($value, $objects)) {
+            return null;
+        }
+
         $pageObjectNumber = $this->validReferenceObjectNumber($value, $objects);
         if ($pageObjectNumber !== null) {
             return $pageIndexes[$pageObjectNumber] ?? null;
@@ -6714,6 +6722,10 @@ final class PdfOutlineExtractor
         array $destinations,
         array $seenNames = []
     ): ?int {
+        if ($this->isReferenceValue($destination) && !$this->referenceTargetsSingleTopLevelValue($destination, $objects)) {
+            return null;
+        }
+
         $pageObjectNumber = $this->validReferenceObjectNumber($destination, $objects);
         if ($pageObjectNumber !== null && isset($pageIndexes[$pageObjectNumber])) {
             return $pageIndexes[$pageObjectNumber];
@@ -6776,6 +6788,10 @@ final class PdfOutlineExtractor
             return true;
         }
 
+        if ($this->isReferenceValue($array[1] ?? null) && !$this->referenceTargetsSingleTopLevelValue($array[1], $objects)) {
+            return false;
+        }
+
         $viewMode = $this->nameValue($this->resolveValue($array[1] ?? null, $objects));
 
         return $viewMode !== null
@@ -6798,6 +6814,10 @@ final class PdfOutlineExtractor
 
         foreach ($requiredOperands as $index => $allowsNull) {
             if (!array_key_exists($index, $array)) {
+                return false;
+            }
+
+            if ($this->isReferenceValue($array[$index]) && !$this->referenceTargetsSingleTopLevelValue($array[$index], $objects)) {
                 return false;
             }
 
@@ -6829,6 +6849,10 @@ final class PdfOutlineExtractor
      */
     private function destinationSurplusOperandIsBenign(mixed $value, array $objects): bool
     {
+        if ($this->isReferenceValue($value) && !$this->referenceTargetsSingleTopLevelValue($value, $objects)) {
+            return false;
+        }
+
         if ($this->isReferenceValue($value) && $this->validReferenceObjectNumber($value, $objects) === null) {
             return false;
         }

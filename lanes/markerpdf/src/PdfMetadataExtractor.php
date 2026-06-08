@@ -8429,6 +8429,9 @@ final class PdfMetadataExtractor
         if ($this->destinationValueIsStreamCarrier($trimmed, $objects)) {
             return null;
         }
+        if ($this->destinationValueHasTrailingOperandAfterResolution($trimmed, $objects)) {
+            return null;
+        }
 
         $referenceKey = $this->destinationReferenceKey($trimmed, $objects);
         if ($referenceKey !== null) {
@@ -8539,6 +8542,10 @@ final class PdfMetadataExtractor
             return null;
         }
 
+        if (isset($items[1]) && $this->destinationValueHasTrailingOperandAfterResolution($items[1], $objects)) {
+            return null;
+        }
+
         $viewMode = isset($items[1]) ? $this->destinationNameFromRaw($items[1], $objects) : null;
         if ($viewMode !== null && !isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode])) {
             return null;
@@ -8568,6 +8575,10 @@ final class PdfMetadataExtractor
     {
         if (count($items) < 2) {
             return true;
+        }
+
+        if ($this->destinationValueHasTrailingOperandAfterResolution($items[1], $objects)) {
+            return false;
         }
 
         $viewMode = $this->destinationNameFromRaw($items[1], $objects);
@@ -8606,6 +8617,10 @@ final class PdfMetadataExtractor
      */
     private function documentDestinationCoordinateOperandIsValid(string $value, array $objects, bool $allowsNull): bool
     {
+        if ($this->destinationValueHasTrailingOperandAfterResolution($value, $objects)) {
+            return false;
+        }
+
         if ($this->objectNumberFromReference($value) !== null && $this->validObjectNumberFromReference($value, $objects) === null) {
             return false;
         }
@@ -8665,6 +8680,9 @@ final class PdfMetadataExtractor
         if ($trimmed === '') {
             return null;
         }
+        if ($this->destinationValueHasTrailingOperandAfterResolution($trimmed, $objects)) {
+            return null;
+        }
 
         $objectNumber = $this->validObjectNumberFromReference($trimmed, $objects);
         if ($objectNumber !== null && isset($pageIndexes[$objectNumber])) {
@@ -8698,6 +8716,10 @@ final class PdfMetadataExtractor
      */
     private function destinationNameFromRaw(string $value, array $objects): ?string
     {
+        if ($this->destinationValueHasTrailingOperandAfterResolution($value, $objects)) {
+            return null;
+        }
+
         $resolved = $this->reviewValueFromRaw($value, $objects);
 
         return is_string($resolved) && $resolved !== '' ? $resolved : null;
@@ -8748,12 +8770,47 @@ final class PdfMetadataExtractor
      */
     private function destinationNumericValue(string $value, array $objects): ?float
     {
+        if ($this->destinationValueHasTrailingOperandAfterResolution($value, $objects)) {
+            return null;
+        }
+
         $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($value, $objects) ?? $value);
         if ($resolved === '' || $resolved === 'null') {
             return null;
         }
 
         return is_numeric($resolved) ? (float) $resolved : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function destinationValueHasTrailingOperandAfterResolution(
+        string $value,
+        array $objects,
+        array $seen = []
+    ): bool {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference === null) {
+            return false;
+        }
+
+        $objectBody = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+        if ($objectBody === null || !$this->objectBodyHasSingleTopLevelValue($objectBody)) {
+            return true;
+        }
+
+        $seenKey = $reference['objectNumber'] . ':' . $reference['generation'];
+        if (isset($seen[$seenKey])) {
+            return true;
+        }
+        $seen[$seenKey] = true;
+
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($trimmed, $objects) ?? '');
+
+        return $resolved !== '' && $this->destinationValueHasTrailingOperandAfterResolution($resolved, $objects, $seen);
     }
 
     /**
