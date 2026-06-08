@@ -282,6 +282,7 @@ final class PdfEngineHandoff
      *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     pdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pdfPageContentResourceUsage: array<string, int>,
@@ -732,6 +733,7 @@ final class PdfEngineHandoff
         $pdfPageDisplayMetadata = [];
         $pdfPageLabels = [];
         $pdfPageTimings = [];
+        $pdfPageActions = [];
         $pdfPageViewports = [];
         $pdfPageContentStreams = [];
         $pdfPageContentResourceUsage = [];
@@ -840,6 +842,7 @@ final class PdfEngineHandoff
                 $pdfPageDisplayMetadata = $pdfInspection['pageDisplayMetadata'];
                 $pdfPageLabels = $pdfInspection['pageLabels'];
                 $pdfPageTimings = $pdfInspection['pageTimings'];
+                $pdfPageActions = $pdfInspection['pageActions'];
                 $pdfPageViewports = $pdfInspection['pageViewports'];
                 $pdfPageContentStreams = $pdfInspection['pageContentStreams'];
                 $pdfPageContentResourceUsage = $pdfInspection['pageContentResourceUsage'];
@@ -1055,6 +1058,38 @@ final class PdfEngineHandoff
                     }
                     foreach ($this->summarizePdfPageTransitionDirectionLabels($pdfPageTimings) as $directionLabel => $directionCount) {
                         $diagnostics[] = 'pdf-byte-page-transition-direction:' . $directionLabel . ':' . $directionCount;
+                    }
+                }
+                if ($pdfPageActions !== []) {
+                    $diagnostics[] = 'pdf-byte-page-actions:' . count($pdfPageActions);
+                    $pageActionScripts = 0;
+                    $pageActionTriggers = [];
+                    $pageActionTypes = [];
+                    foreach ($pdfPageActions as $pageAction) {
+                        $trigger = is_string($pageAction['trigger'] ?? null) ? $pageAction['trigger'] : '';
+                        if ($trigger !== '') {
+                            $pageActionTriggers[$trigger] = ($pageActionTriggers[$trigger] ?? 0) + 1;
+                        }
+
+                        $type = is_string($pageAction['actionType'] ?? null) ? $pageAction['actionType'] : '';
+                        if ($type !== '') {
+                            $pageActionTypes[$type] = ($pageActionTypes[$type] ?? 0) + 1;
+                        }
+
+                        if (($pageAction['scriptBytes'] ?? null) !== null) {
+                            $pageActionScripts++;
+                        }
+                    }
+                    ksort($pageActionTriggers);
+                    foreach ($pageActionTriggers as $trigger => $triggerCount) {
+                        $diagnostics[] = 'pdf-byte-page-action-trigger:' . $trigger . ':' . $triggerCount;
+                    }
+                    ksort($pageActionTypes);
+                    foreach ($pageActionTypes as $type => $typeCount) {
+                        $diagnostics[] = 'pdf-byte-page-action-type:' . $type . ':' . $typeCount;
+                    }
+                    if ($pageActionScripts > 0) {
+                        $diagnostics[] = 'pdf-byte-page-action-scripts:' . $pageActionScripts;
                     }
                 }
                 if ($pdfPageViewports !== []) {
@@ -2710,6 +2745,7 @@ final class PdfEngineHandoff
             'pdfPageDisplayMetadata' => $pdfPageDisplayMetadata,
             'pdfPageLabels' => $pdfPageLabels,
             'pdfPageTimings' => $pdfPageTimings,
+            'pdfPageActions' => $pdfPageActions,
             'pdfPageViewports' => $pdfPageViewports,
             'pdfPageContentStreams' => $pdfPageContentStreams,
             'pdfPageContentResourceUsage' => $pdfPageContentResourceUsage,
@@ -2831,6 +2867,7 @@ final class PdfEngineHandoff
      *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     finalPdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     finalPdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     finalPdfPageContentResourceUsage: array<string, int>,
@@ -3074,6 +3111,7 @@ final class PdfEngineHandoff
             'finalPdfPageDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayMetadata'] ?? null) ? $finalRun['pdfPageDisplayMetadata'] : [],
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
             'finalPdfPageTimings' => is_array($finalRun) && is_array($finalRun['pdfPageTimings'] ?? null) ? $finalRun['pdfPageTimings'] : [],
+            'finalPdfPageActions' => is_array($finalRun) && is_array($finalRun['pdfPageActions'] ?? null) ? $finalRun['pdfPageActions'] : [],
             'finalPdfPageViewports' => is_array($finalRun) && is_array($finalRun['pdfPageViewports'] ?? null) ? $finalRun['pdfPageViewports'] : [],
             'finalPdfPageContentStreams' => is_array($finalRun) && is_array($finalRun['pdfPageContentStreams'] ?? null) ? $finalRun['pdfPageContentStreams'] : [],
             'finalPdfPageContentResourceUsage' => is_array($finalRun) && is_array($finalRun['pdfPageContentResourceUsage'] ?? null) ? $finalRun['pdfPageContentResourceUsage'] : [],
@@ -4304,6 +4342,7 @@ final class PdfEngineHandoff
         $pageProductionMetadata = $this->extractPdfPageProductionMetadata($pdfBytes, $catalog);
         $pageDisplayMetadata = $this->extractPdfPageDisplayMetadata($pdfBytes, $catalog);
         $pageTimings = $this->extractPdfPageTimings($pdfBytes, $catalog);
+        $pageActions = $this->extractPdfPageActions($pdfBytes, $catalog);
         $pageViewports = $this->extractPdfPageViewports($pdfBytes, $catalog);
         $pageContentStreams = $this->extractPdfPageContentStreams($pdfBytes, $catalog);
         $pageResourceSources = $this->extractPdfPageResourceSources($pdfBytes, $catalog);
@@ -4355,6 +4394,7 @@ final class PdfEngineHandoff
             'pageDisplayMetadata' => $pageDisplayMetadata,
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
             'pageTimings' => $pageTimings,
+            'pageActions' => $pageActions,
             'pageViewports' => $pageViewports,
             'pageContentStreams' => $pageContentStreams,
             'pageContentResourceUsage' => $this->summarizePdfPageContentResourceUsage($pageContentStreams),
@@ -13120,6 +13160,163 @@ final class PdfEngineHandoff
         }
 
         return false;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>
+     */
+    private function extractPdfPageActions(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $actions = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageActionsFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $actions,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($actions !== []) {
+            return $actions;
+        }
+
+        foreach ($objects as $reference => $body) {
+            if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                continue;
+            }
+
+            $pageNumber++;
+            $this->collectPdfPageActionsFromPage($body, $reference, $pageNumber, $objects, $actions);
+        }
+
+        return $actions;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     */
+    private function collectPdfPageActionsFromTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$actions,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $this->collectPdfPageActionsFromPage($body, $reference, $pageNumber, $objects, $actions);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageActionsFromTree(
+                $objects,
+                $this->pdfReferenceKey($kidReference),
+                $visited,
+                $actions,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     */
+    private function collectPdfPageActionsFromPage(
+        string $pageDictionary,
+        string $pageReference,
+        int $pageNumber,
+        array $objects,
+        array &$actions
+    ): void {
+        $additionalActions = $this->extractPdfDictionaryOrReferenceValue($pageDictionary, 'AA', $objects);
+        if ($additionalActions === null) {
+            return;
+        }
+
+        $pageObject = $pageReference . ' R';
+        foreach (['O' => 'page-open', 'C' => 'page-close'] as $trigger => $triggerLabel) {
+            $value = $this->extractPdfValueForName($additionalActions, $trigger);
+            if ($value === null) {
+                continue;
+            }
+
+            $source = 'page:' . $pageObject . '.AA.' . $trigger;
+            $summary = $this->summarizePdfPageActionValue($value, $objects, $source);
+            if ($summary === null) {
+                continue;
+            }
+
+            $actions[] = [
+                'page' => $pageNumber,
+                'pageObject' => $pageObject,
+                'trigger' => $trigger,
+                'triggerLabel' => $triggerLabel,
+                'source' => $source,
+                'actionType' => $summary['type'],
+                'actionTarget' => $summary['target'],
+                'scriptBytes' => $summary['scriptBytes'],
+                'scriptSha256' => $summary['scriptSha256'],
+            ];
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array{kind:string, value:string, next:int} $value
+     * @return array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}|null
+     */
+    private function summarizePdfPageActionValue(array $value, array $objects, string $source): ?array
+    {
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return null;
+            }
+
+            return $this->summarizePdfActiveActionDictionary($body, $source, $objects);
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $this->summarizePdfActiveActionDictionary($value['value'], $source, $objects);
+        }
+
+        if (in_array($value['kind'], ['literal', 'hex', 'name'], true)) {
+            $target = trim($value['value']);
+            if ($target === '') {
+                return null;
+            }
+
+            return [
+                'source' => $source,
+                'type' => 'Named',
+                'target' => $target,
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ];
+        }
+
+        return null;
     }
 
     /**

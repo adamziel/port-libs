@@ -196,6 +196,7 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
         '',
         'library',
         '  import: test-options',
+        '  exposed-modules: Text.Pandoc.Lua',
         '  build-depends:',
         '    ' . implode(",\n    ", $libraryDependencies),
         '',
@@ -620,6 +621,10 @@ return [
         $t->same([], $audit['benchmarkDependencyClosure']['unexpectedDataFiles']);
         $t->same([], $audit['benchmarkDependencyClosure']['unexpectedConditionalBranches']);
         $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDependencies(), $audit['luaEngineLibraryClosure']['expectedDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryExposedModules(), $audit['luaEngineLibraryClosure']['expectedExposedModules']);
+        $t->same(['Text.Pandoc.Lua'], $audit['luaEngineLibraryClosure']['presentExposedModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingExposedModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExposedModules']);
         $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDefaultLanguage(), $audit['luaEngineLibraryClosure']['expectedDefaultLanguage']);
         $t->same('Haskell2010', $audit['luaEngineLibraryClosure']['presentDefaultLanguage']);
         $t->same(null, $audit['luaEngineLibraryClosure']['mismatchedDefaultLanguage']);
@@ -708,6 +713,7 @@ return [
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
         $t->contains('test-suite type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal custom-setup/setup-depends, no unexpected common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, and exact other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('exact library exposed-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('Haskell2010 library default-language', $audit['nonMutatingPlan'][2]);
         $t->contains('benchmark:benchmark-pandoc type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
@@ -2277,6 +2283,52 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('unexpected pandoc-lua-engine library Lua support build-depends: hslua-module-runner-audit >= 0.1 && < 0.2, pandoc-lua-generated', $blocked);
         $t->contains('no unexpected pandoc-lua-engine library Lua support build-depends', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks lua engine library exposed-module drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
+        $luaPackage = str_replace(
+            '  exposed-modules: Text.Pandoc.Lua',
+            '  exposed-modules: Text.Pandoc.Lua.Generated',
+            $luaCabal()
+        );
+
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            null,
+            $luaPackage
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryExposedModules(), $audit['luaEngineLibraryClosure']['expectedExposedModules']);
+        $t->same(['Text.Pandoc.Lua.Generated'], $audit['luaEngineLibraryClosure']['presentExposedModules']);
+        $t->same(['Text.Pandoc.Lua'], $audit['luaEngineLibraryClosure']['missingExposedModules']);
+        $t->same(['Text.Pandoc.Lua.Generated'], $audit['luaEngineLibraryClosure']['unexpectedExposedModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedConditionalBranches']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedNativeSystemFields']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing pandoc-lua-engine library exposed-modules: Text.Pandoc.Lua', $blocked);
+        $t->contains('unexpected pandoc-lua-engine library exposed-modules: Text.Pandoc.Lua.Generated', $blocked);
+        $t->contains('exact pandoc-lua-engine library exposed-modules closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks unexpected lua engine library extension drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
@@ -5052,10 +5104,11 @@ return [
     'blocks lua engine library file artifact globs before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
-            "library\n  import: test-options\n  build-depends:",
+            "library\n  import: test-options\n  exposed-modules: Text.Pandoc.Lua\n  build-depends:",
             implode("\n", [
                 'library',
                 '  import: test-options',
+                '  exposed-modules: Text.Pandoc.Lua',
                 '  extra-source-files: cbits/lua-runner.c',
                 '  extra-doc-files: docs/lua-runner.md',
                 '  extra-tmp-files: dist/lua-runner.tmp',

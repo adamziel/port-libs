@@ -320,6 +320,8 @@ $archiveBombContentBytes = str_repeat('A', 4096);
 $nestedArchiveBombContentBytes = str_repeat('B', 4096);
 $chunkedPackageManifestBytes = '{"source":"decoded-package-chunks","target":"wordpress"}';
 $chunkedPackageContentBytes = "# Decoded package chunks\n\nReady for WordPress archive streaming review.\n";
+$zipEntryLayoutDocumentXml = '<w:document><w:body><w:p>ZIP entry source segment review packet</w:p></w:body></w:document>'
+    . str_repeat('<w:p>Review paragraph.</w:p>', 6);
 
 $archive = TarArchive::fromEntries([
     [
@@ -1196,6 +1198,41 @@ $chunkedPackageInspection = ArchiveCompressionStream::inspectDecodedPackageChunk
     strlen($chunkedPackageManifestBytes) + strlen($chunkedPackageContentBytes),
     1024
 );
+$zipEntryLayoutPackage = ZipPackage::fromParts([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => $zipEntryLayoutDocumentXml,
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/styles.xml',
+        'data' => '<w:styles><w:style w:type="paragraph" w:styleId="Normal"/></w:styles>',
+        'compressionMethod' => 0,
+    ],
+]);
+$zipEntryLayoutBytes = $zipEntryLayoutPackage->bytes();
+$zipEntryLayoutLocalPreflight = $zipEntryLayoutPackage->localHeaderPreflight();
+$zipEntryLayoutDocumentLocal = $zipEntryLayoutLocalPreflight['entries'][1];
+$zipEntryLayoutSplitOffset = $zipEntryLayoutDocumentLocal['dataStart'] + 32;
+$zipEntryLayoutGzip = GzipStream::build(substr($zipEntryLayoutBytes, 0, $zipEntryLayoutSplitOffset), [
+    'filename' => 'wordpress-zip-entry-layout-part-1.zip',
+    'comment' => 'first ZIP local-entry source segment',
+]) . GzipStream::build(substr($zipEntryLayoutBytes, $zipEntryLayoutSplitOffset), [
+    'filename' => 'wordpress-zip-entry-layout-part-2.zip',
+    'comment' => 'second ZIP local-entry source segment',
+]);
+$zipEntryLayoutInspection = ArchiveCompressionStream::inspectZipStream(
+    $zipEntryLayoutGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($zipEntryLayoutBytes)
+);
+$zipEntryLayoutDocumentRecordSize = $zipEntryLayoutDocumentLocal['recordEnd'] - $zipEntryLayoutDocumentLocal['localHeaderOffset'];
+$zipEntryLayoutDocumentRecordSplitOffset = $zipEntryLayoutSplitOffset - $zipEntryLayoutDocumentLocal['localHeaderOffset'];
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -1483,6 +1520,30 @@ if (in_array('--self-test', $argv, true)) {
         ],
         'chunkedPackageSecondChunkOffsets' => [1024, $chunkedPackageSplitOffset],
         'chunkedPackageSecondChunkEndOffsets' => [$chunkedPackageSplitOffset, 2048],
+        'zipEntryLayoutFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipEntryLayoutNames' => ['[Content_Types].xml', 'word/document.xml', 'word/styles.xml'],
+        'zipEntryLayoutMemberNames' => [
+            'wordpress-zip-entry-layout-part-1.zip',
+            'wordpress-zip-entry-layout-part-2.zip',
+        ],
+        'zipEntryLayoutDocumentSegmentCount' => 2,
+        'zipEntryLayoutDocumentSourceLabels' => [
+            'wordpress-zip-entry-layout-part-1.zip',
+            'wordpress-zip-entry-layout-part-2.zip',
+        ],
+        'zipEntryLayoutDocumentSourceOffsets' => [
+            $zipEntryLayoutDocumentLocal['localHeaderOffset'],
+            $zipEntryLayoutSplitOffset,
+        ],
+        'zipEntryLayoutDocumentSourceEndOffsets' => [
+            $zipEntryLayoutSplitOffset,
+            $zipEntryLayoutDocumentLocal['recordEnd'],
+        ],
+        'zipEntryLayoutDocumentRecordOffsets' => [0, $zipEntryLayoutDocumentRecordSplitOffset],
+        'zipEntryLayoutDocumentRecordEndOffsets' => [
+            $zipEntryLayoutDocumentRecordSplitOffset,
+            $zipEntryLayoutDocumentRecordSize,
+        ],
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -1912,6 +1973,18 @@ if (in_array('--self-test', $argv, true)) {
         || array_column($chunkedPackageInspection['chunks'][1]['sourceSegments'], 'sourceDecodedEndOffset') !== $expected['chunkedPackageSecondChunkEndOffsets']
         || isset($chunkedPackageInspection['tarBytes'])
         || isset($chunkedPackageInspection['archive'])
+        || $zipEntryLayoutInspection['format'] !== $expected['zipEntryLayoutFormat']
+        || $zipEntryLayoutInspection['entryNames'] !== $expected['zipEntryLayoutNames']
+        || array_column($zipEntryLayoutInspection['stream']['members'], 'filename') !== $expected['zipEntryLayoutMemberNames']
+        || ($zipEntryLayoutInspection['entryLayouts'][1]['name'] ?? null) !== 'word/document.xml'
+        || ($zipEntryLayoutInspection['entryLayouts'][1]['type'] ?? null) !== 'file'
+        || ($zipEntryLayoutInspection['entryLayouts'][1]['decodedSourceSegmentCount'] ?? null) !== $expected['zipEntryLayoutDocumentSegmentCount']
+        || array_column($zipEntryLayoutInspection['entryLayouts'][1]['decodedSourceSegments'] ?? [], 'sourceLabel') !== $expected['zipEntryLayoutDocumentSourceLabels']
+        || array_column($zipEntryLayoutInspection['entryLayouts'][1]['decodedSourceSegments'] ?? [], 'sourceDecodedOffset') !== $expected['zipEntryLayoutDocumentSourceOffsets']
+        || array_column($zipEntryLayoutInspection['entryLayouts'][1]['decodedSourceSegments'] ?? [], 'sourceDecodedEndOffset') !== $expected['zipEntryLayoutDocumentSourceEndOffsets']
+        || array_column($zipEntryLayoutInspection['entryLayouts'][1]['decodedSourceSegments'] ?? [], 'entryRecordOffset') !== $expected['zipEntryLayoutDocumentRecordOffsets']
+        || array_column($zipEntryLayoutInspection['entryLayouts'][1]['decodedSourceSegments'] ?? [], 'entryRecordEndOffset') !== $expected['zipEntryLayoutDocumentRecordEndOffsets']
+        || $zipEntryLayoutInspection['package']->read('/word/document.xml') !== $zipEntryLayoutDocumentXml
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -2139,4 +2212,15 @@ echo 'chunkedPackage.crossesSourceBoundary=' . implode(',', array_map(
 echo 'chunkedPackage.secondChunkSources=' . implode(',', array_map(
     static fn (array $segment): string => $segment['sourceLabel'] . ':' . $segment['sourceDecodedOffset'] . '-' . $segment['sourceDecodedEndOffset'],
     $chunkedPackageInspection['chunks'][1]['sourceSegments']
+)) . "\n";
+echo 'zipEntryLayout.format=' . $zipEntryLayoutInspection['format'] . "\n";
+echo 'zipEntryLayout.entryNames=' . implode(',', $zipEntryLayoutInspection['entryNames']) . "\n";
+echo 'zipEntryLayout.memberNames=' . implode(',', array_column($zipEntryLayoutInspection['stream']['members'], 'filename')) . "\n";
+echo 'zipEntryLayout.documentSegments=' . implode(',', array_map(
+    static fn (array $segment): string => $segment['sourceLabel'] . ':' . $segment['sourceDecodedOffset'] . '-' . $segment['sourceDecodedEndOffset'],
+    $zipEntryLayoutInspection['entryLayouts'][1]['decodedSourceSegments']
+)) . "\n";
+echo 'zipEntryLayout.documentRecordOffsets=' . implode(',', array_map(
+    static fn (array $segment): string => $segment['entryRecordOffset'] . '-' . $segment['entryRecordEndOffset'],
+    $zipEntryLayoutInspection['entryLayouts'][1]['decodedSourceSegments']
 )) . "\n";

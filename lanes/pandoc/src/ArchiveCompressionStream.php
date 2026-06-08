@@ -1714,6 +1714,7 @@ final class ArchiveCompressionStream
      *     entryCount:int,
      *     packageByteSize:int,
      *     entryUncompressedSize:int,
+     *     entryLayouts:list<array<string, mixed>>,
      *     stream:array<string, mixed>
      * }
      */
@@ -1895,6 +1896,7 @@ final class ArchiveCompressionStream
      *     entryCount:int,
      *     packageByteSize:int,
      *     entryUncompressedSize:int,
+     *     entryLayouts:list<array<string, mixed>>,
      *     stream:array<string, mixed>
      * }
      */
@@ -2312,6 +2314,7 @@ final class ArchiveCompressionStream
      *     entryCount:int,
      *     packageByteSize:int,
      *     entryUncompressedSize:int,
+     *     entryLayouts:list<array<string, mixed>>,
      *     stream:array<string, mixed>
      * }
      */
@@ -2323,6 +2326,7 @@ final class ArchiveCompressionStream
         ?int $maxUncompressedBytes,
         ?array $streamInspection = null
     ): array {
+        $stream = $streamInspection ?? self::streamInspection($bytes, $format, $maxUncompressedBytes);
         $entryNames = $package->names();
 
         return [
@@ -2333,8 +2337,107 @@ final class ArchiveCompressionStream
             'entryCount' => count($entryNames),
             'packageByteSize' => strlen($zipBytes),
             'entryUncompressedSize' => self::zipPackageUncompressedSize($package),
-            'stream' => $streamInspection ?? self::streamInspection($bytes, $format, $maxUncompressedBytes),
+            'entryLayouts' => self::zipEntryLayouts($package, $stream),
+            'stream' => $stream,
         ];
+    }
+
+    /**
+     * @return list<array{
+     *     name:string,
+     *     type:string,
+     *     centralDirectoryIndex:int,
+     *     localHeaderOrder:int,
+     *     compressionMethod:int,
+     *     generalPurposeFlags:int,
+     *     crc32:int,
+     *     crc32Hex:string,
+     *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     localHeaderOffset:int,
+     *     localHeaderLength:int,
+     *     localNameLength:int,
+     *     localExtraFieldLength:int,
+     *     compressedDataOffset:int,
+     *     compressedDataEndOffset:int,
+     *     usesDataDescriptor:bool,
+     *     descriptorOffset:?int,
+     *     descriptorLength:?int,
+     *     recordEndOffset:int,
+     *     nextOffset:int,
+     *     isContiguousWithNext:bool,
+     *     recordSize:int,
+     *     decodedSourceSegmentCount:int,
+     *     decodedSourceSegments:list<array{
+     *         sourceType:string,
+     *         sourceIndex:int,
+     *         sourceLabel:?string,
+     *         sourceDecodedOffset:int,
+     *         sourceDecodedEndOffset:int,
+     *         entryRecordOffset:int,
+     *         entryRecordEndOffset:int
+     *     }>
+     * }>
+     */
+    private static function zipEntryLayouts(ZipPackage $package, array $streamInspection): array
+    {
+        $decodedSourceSegments = self::decodedStreamSourceSegments(
+            $streamInspection,
+            strlen($package->bytes())
+        );
+        $entriesByName = [];
+        $centralIndexByName = [];
+        foreach ($package->entries() as $index => $entry) {
+            $entriesByName[$entry->name] = $entry;
+            $centralIndexByName[$entry->name] = $index;
+        }
+
+        $layouts = [];
+        foreach ($package->localHeaderPreflight()['entries'] as $localHeaderOrder => $layout) {
+            $name = $layout['name'];
+            $entry = $entriesByName[$name] ?? null;
+            if (!$entry instanceof ZipPackageEntry) {
+                throw new \RuntimeException("ZIP local header entry {$name} is missing from the central directory");
+            }
+
+            $recordStart = (int) $layout['localHeaderOffset'];
+            $recordEnd = (int) $layout['recordEnd'];
+            $entrySourceSegments = self::entryDecodedSourceSegments(
+                $recordStart,
+                $recordEnd,
+                $decodedSourceSegments
+            );
+
+            $layouts[] = [
+                'name' => $name,
+                'type' => $entry->isDirectory() ? 'directory' : 'file',
+                'centralDirectoryIndex' => (int) $centralIndexByName[$name],
+                'localHeaderOrder' => (int) $localHeaderOrder,
+                'compressionMethod' => (int) $layout['compressionMethod'],
+                'generalPurposeFlags' => (int) $layout['generalPurposeFlags'],
+                'crc32' => $entry->crc32,
+                'crc32Hex' => $entry->crc32Hex(),
+                'compressedSize' => (int) $layout['compressedSize'],
+                'uncompressedSize' => $entry->uncompressedSize,
+                'localHeaderOffset' => $recordStart,
+                'localHeaderLength' => (int) $layout['localHeaderLength'],
+                'localNameLength' => (int) $layout['localNameLength'],
+                'localExtraFieldLength' => (int) $layout['localExtraFieldLength'],
+                'compressedDataOffset' => (int) $layout['dataStart'],
+                'compressedDataEndOffset' => (int) $layout['compressedDataEnd'],
+                'usesDataDescriptor' => (bool) $layout['usesDataDescriptor'],
+                'descriptorOffset' => $layout['descriptorOffset'],
+                'descriptorLength' => $layout['descriptorLength'],
+                'recordEndOffset' => $recordEnd,
+                'nextOffset' => (int) $layout['nextOffset'],
+                'isContiguousWithNext' => (bool) $layout['isContiguousWithNext'],
+                'recordSize' => $recordEnd - $recordStart,
+                'decodedSourceSegmentCount' => count($entrySourceSegments),
+                'decodedSourceSegments' => $entrySourceSegments,
+            ];
+        }
+
+        return $layouts;
     }
 
     private static function archiveUnpackedSize(TarArchive $archive): int

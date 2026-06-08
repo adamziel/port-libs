@@ -3414,6 +3414,100 @@ return [
         $t->same('zip package reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
     },
 
+    'maps zip local entry layouts to decoded compression stream source segments' => static function (TestRunner $t): void {
+        $contentTypesXml = '<Types><Default Extension="xml" ContentType="application/xml"/></Types>';
+        $documentXml = '<w:document><w:body><w:p>ZIP entry source segment review packet</w:p></w:body></w:document>'
+            . str_repeat('<w:p>Review paragraph.</w:p>', 8);
+        $stylesXml = '<w:styles><w:style w:type="paragraph" w:styleId="Normal"/></w:styles>';
+        $package = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => $contentTypesXml,
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => $stylesXml,
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $zipBytes = $package->bytes();
+        $localPreflight = $package->localHeaderPreflight();
+        $documentLocal = $localPreflight['entries'][1];
+        $splitOffset = $documentLocal['dataStart'] + 40;
+        $gzip = GzipStream::build(substr($zipBytes, 0, $splitOffset), [
+            'filename' => 'zip-entry-source-part-1.zip',
+            'comment' => 'first ZIP entry byte source',
+        ]) . GzipStream::build(substr($zipBytes, $splitOffset), [
+            'filename' => 'zip-entry-source-part-2.zip',
+            'comment' => 'second ZIP entry byte source',
+        ]);
+
+        $inspection = ArchiveCompressionStream::inspectZipStream(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+
+        $layouts = $inspection['entryLayouts'];
+        $documentLayout = $layouts[1];
+        $documentRecordSplitOffset = $splitOffset - $documentLocal['localHeaderOffset'];
+
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $inspection['format']);
+        $t->same($package->names(), $inspection['entryNames']);
+        $t->same('gzip', $inspection['stream']['type']);
+        $t->same(['zip-entry-source-part-1.zip', 'zip-entry-source-part-2.zip'], array_column($inspection['stream']['members'], 'filename'));
+        $t->same(3, count($layouts));
+        $t->same('[Content_Types].xml', $layouts[0]['name']);
+        $t->same('word/document.xml', $documentLayout['name']);
+        $t->same('file', $documentLayout['type']);
+        $t->same(1, $documentLayout['centralDirectoryIndex']);
+        $t->same(1, $documentLayout['localHeaderOrder']);
+        $t->same(0, $documentLayout['compressionMethod']);
+        $t->same(0x0800, $documentLayout['generalPurposeFlags']);
+        $t->same(strlen($documentXml), $documentLayout['compressedSize']);
+        $t->same(strlen($documentXml), $documentLayout['uncompressedSize']);
+        $t->same($documentLocal['localHeaderOffset'], $documentLayout['localHeaderOffset']);
+        $t->same($documentLocal['localHeaderLength'], $documentLayout['localHeaderLength']);
+        $t->same($documentLocal['dataStart'], $documentLayout['compressedDataOffset']);
+        $t->same($documentLocal['compressedDataEnd'], $documentLayout['compressedDataEndOffset']);
+        $t->same(false, $documentLayout['usesDataDescriptor']);
+        $t->same(null, $documentLayout['descriptorOffset']);
+        $t->same(null, $documentLayout['descriptorLength']);
+        $t->same($documentLocal['recordEnd'], $documentLayout['recordEndOffset']);
+        $t->same($documentLocal['recordEnd'] - $documentLocal['localHeaderOffset'], $documentLayout['recordSize']);
+        $t->same(2, $documentLayout['decodedSourceSegmentCount']);
+        $t->same([
+            [
+                'sourceType' => 'gzip-member',
+                'sourceIndex' => 0,
+                'sourceLabel' => 'zip-entry-source-part-1.zip',
+                'sourceDecodedOffset' => $documentLocal['localHeaderOffset'],
+                'sourceDecodedEndOffset' => $splitOffset,
+                'entryRecordOffset' => 0,
+                'entryRecordEndOffset' => $documentRecordSplitOffset,
+            ],
+            [
+                'sourceType' => 'gzip-member',
+                'sourceIndex' => 1,
+                'sourceLabel' => 'zip-entry-source-part-2.zip',
+                'sourceDecodedOffset' => $splitOffset,
+                'sourceDecodedEndOffset' => $documentLocal['recordEnd'],
+                'entryRecordOffset' => $documentRecordSplitOffset,
+                'entryRecordEndOffset' => $documentLayout['recordSize'],
+            ],
+        ], $documentLayout['decodedSourceSegments']);
+        $t->same('word/styles.xml', $layouts[2]['name']);
+        $t->same(1, $layouts[2]['decodedSourceSegmentCount']);
+        $t->same('zip-entry-source-part-2.zip', $layouts[2]['decodedSourceSegments'][0]['sourceLabel']);
+        $t->same($documentXml, $inspection['package']->read('/word/document.xml'));
+    },
+
     'preflights zip data descriptors across archive streams without losing provenance' => static function (TestRunner $t) use ($zipFixtureBytes): void {
         $documentXml = '<w:document><w:body><w:p>Descriptor-backed document.xml</w:p></w:body></w:document>';
         $footnotesXml = '<w:footnotes><w:footnote w:id="1">Descriptor-backed footnote</w:footnote></w:footnotes>';

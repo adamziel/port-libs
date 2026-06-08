@@ -1534,7 +1534,9 @@ foreach ($directoryChunks as $index => $chunk) {
 $fat[$previousDirectorySector] = $end;
 
 $miniFatBytes = '';
-for ($index = 0, $count = count($miniFat); $index < $count; $index++) {
+$miniFatEntriesPerSector = intdiv($sectorSize, 4);
+$miniFatEntryCount = max($miniFatEntriesPerSector, intdiv(count($miniFat) + $miniFatEntriesPerSector - 1, $miniFatEntriesPerSector) * $miniFatEntriesPerSector);
+for ($index = 0; $index < $miniFatEntryCount; $index++) {
     $miniFatBytes .= $u32($miniFat[$index] ?? $free);
 }
 $miniFatChunks = str_split($padTo($miniFatBytes, $sectorSize), $sectorSize);

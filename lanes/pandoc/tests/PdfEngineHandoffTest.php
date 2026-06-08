@@ -7146,6 +7146,108 @@ MARKDOWN);
         $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
     },
 
+    'fake runner extracts bounded pdf page lifecycle actions from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-actions.pdf']);
+        $pageScript = 'this.pageNum = 0;';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /AA << /O << /S /JavaScript /JS (' . str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $pageScript) . ') >> /C 8 0 R >> >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /AA 9 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /S /Named /N /NextPage >>',
+            'endobj',
+            '9 0 obj',
+            '<< /O << /S /Launch /F (tools/page-review-helper.exe) >> /C << /S /SubmitForm /F (https://example.test/review/page-close) >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/page-actions.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/page-actions.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'trigger' => 'O',
+                'triggerLabel' => 'page-open',
+                'source' => 'page:3 0 R.AA.O',
+                'actionType' => 'JavaScript',
+                'actionTarget' => null,
+                'scriptBytes' => strlen($pageScript),
+                'scriptSha256' => hash('sha256', $pageScript),
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'trigger' => 'C',
+                'triggerLabel' => 'page-close',
+                'source' => 'page:3 0 R.AA.C',
+                'actionType' => 'Named',
+                'actionTarget' => 'NextPage',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'trigger' => 'O',
+                'triggerLabel' => 'page-open',
+                'source' => 'page:4 0 R.AA.O',
+                'actionType' => 'Launch',
+                'actionTarget' => 'tools/page-review-helper.exe',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'trigger' => 'C',
+                'triggerLabel' => 'page-close',
+                'source' => 'page:4 0 R.AA.C',
+                'actionType' => 'SubmitForm',
+                'actionTarget' => 'https://example.test/review/page-close',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageActions'] ?? null);
+        $t->contains('pdf-byte-page-actions:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-action-trigger:O:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-action-trigger:C:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-action-type:JavaScript:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-action-type:Launch:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-action-scripts:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageActions'] ?? null);
+    },
+
     'fake runner extracts bounded pdf platform launch action targets from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/platform-launch.pdf']);

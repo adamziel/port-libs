@@ -427,6 +427,30 @@ return [
         $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
         $t->contains('<p>Редактор привет; Ёлка № 7; │─┌.</p>', $blocks);
     },
+    'decodes ibm869 dos greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xA8\xE5\xE5\xE1\xE7\xE3\xE4\x9B\n\n\xCF\xF2\xE7\xEE\x9B\xE4\xEE\xE1\xED \xAB\xEA\xE1\xD8\x9E\xAF; \x86\x88\x8D\x8F\x90\x92\x95\x98; \xDA\xC4\xBF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp869');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm869');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x86\x8D\x8F\x90\x91\x92\x95\x96\x98\x9B\x9D\x9E\x9F\xA0\xA1\xA2\xA3\xFC\xFD", 'ibm869');
+        $repaired = UnicodeText::decodeBytes("ok\x80\x85\x87\x93\x94", 'dos869');
+
+        $t->same('ibm869', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Ελληνικά\n\nΣυντάκτης ½πηγή»; Ά·ΈΉΊΌΎΏ; ┌─┐.", $decoded['text']);
+        $t->same('ΆΈΉΊΪΌΎΫΏάέήίϊΐόύΰώ', $specials['text']);
+        $t->same('ibm869', $specials['encoding']);
+        $t->same(0, $specials['repairs']);
+        $t->same("ok�����", $repaired['text']);
+        $t->same(5, $repaired['repairs']);
+        $t->same(['encoding' => 'ibm869', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Ελληνικά', $document->children[0]->attr('text'));
+        $t->same('Συντάκτης ½πηγή»; Ά·ΈΉΊΌΎΏ; ┌─┐.', $document->children[1]->attr('text'));
+        $t->same(32, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(47, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="ελληνικά">Ελληνικά</h1>', $blocks);
+        $t->contains('<p>Συντάκτης ½πηγή»; Ά·ΈΉΊΌΎΏ; ┌─┐.</p>', $blocks);
+    },
     'decodes ibm437 dos box drawing source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# DOS 437\n\nBox \xC9\xCD\xBB\xBA\xCC; r\x82sum\x82; \xE0\xE1 \xF8\xF1.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp437');

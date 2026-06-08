@@ -433,7 +433,9 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true, array 
 
     if ($miniFat !== []) {
         $miniFatBytes = '';
-        for ($index = 0, $count = count($miniFat); $index < $count; $index++) {
+        $miniFatEntriesPerSector = intdiv($sectorSize, 4);
+        $miniFatEntryCount = max($miniFatEntriesPerSector, intdiv(count($miniFat) + $miniFatEntriesPerSector - 1, $miniFatEntriesPerSector) * $miniFatEntriesPerSector);
+        for ($index = 0; $index < $miniFatEntryCount; $index++) {
             $miniFatBytes .= $u32($miniFat[$index] ?? $free);
         }
         $sectors[$miniFatSector] = $padTo($miniFatBytes, $sectorSize);
@@ -2040,6 +2042,24 @@ return [
         );
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($overlongMiniFatChain));
+    },
+    'rejects allocated CFB MiniFAT entries beyond the root mini stream before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("MiniFAT allocation guard packet\r"),
+            "\x05SummaryInformation" => 'summary bytes',
+        ]);
+        $sectorSize = 512;
+        $miniSectorSize = 64;
+        $directorySectorOffset = $sectorSize + $sectorSize;
+        $rootMiniStreamSize = unpack('Vvalue', substr($bytes, $directorySectorOffset + 120, 4))['value'];
+        $firstMiniSectorBeyondRoot = intdiv((int) $rootMiniStreamSize + $miniSectorSize - 1, $miniSectorSize);
+        $miniFatSector = unpack('Vvalue', substr($bytes, 60, 4))['value'];
+        $miniFatEntryOffset = $sectorSize + ((int) $miniFatSector * $sectorSize) + ($firstMiniSectorBeyondRoot * 4);
+
+        foreach ([0, 0xfffffffe, 0xfffffffd] as $miniFatEntryValue) {
+            $corruptDocBytes = substr_replace($bytes, $u32($miniFatEntryValue), $miniFatEntryOffset, 4);
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($corruptDocBytes));
+        }
     },
     'rejects small CFB streams when MiniFAT metadata is absent before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $docBytes = $buildCfb([

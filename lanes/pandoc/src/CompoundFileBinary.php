@@ -500,9 +500,11 @@ final class CompoundFileBinary
                 break;
             }
         }
+        $rootMiniStreamSize = 0;
         if ($root !== null && (int) ($root['size'] ?? 0) > 0) {
+            $rootMiniStreamSize = (int) $root['size'];
             $markReserved(
-                $this->regularSectorChainIds((int) $root['startSector'], (int) $root['size'], 'Root Entry mini stream'),
+                $this->regularSectorChainIds((int) $root['startSector'], $rootMiniStreamSize, 'Root Entry mini stream'),
                 'root mini stream'
             );
         }
@@ -542,10 +544,45 @@ final class CompoundFileBinary
             }
         }
 
+        if ($rootMiniStreamSize > 0 && self::isRegularSector($this->firstMiniFatSector) && $this->miniFatSectorCount > 0) {
+            $this->validateMiniFatAllocation($miniStreamSectors, $rootMiniStreamSize);
+        }
+
         for ($sectorId = 0; $sectorId < $sectorCount; $sectorId++) {
             $fatEntry = $this->fat[$sectorId] ?? self::FREESECT;
             if ($fatEntry !== self::FREESECT && !isset($ownedSectors[$sectorId])) {
                 throw new \RuntimeException('CFB FAT marks an unreferenced sector as allocated');
+            }
+        }
+    }
+
+    /**
+     * @param array<int,string> $miniStreamSectors
+     */
+    private function validateMiniFatAllocation(array $miniStreamSectors, int $rootMiniStreamSize): void
+    {
+        $miniFat = $this->loadMiniFat();
+        $miniStreamSectorCount = intdiv($rootMiniStreamSize + $this->miniSectorSize - 1, $this->miniSectorSize);
+
+        foreach ($miniFat as $miniSectorId => $miniFatEntry) {
+            $miniFatEntry = (int) $miniFatEntry;
+            if ($miniSectorId >= $miniStreamSectorCount) {
+                if ($miniFatEntry !== self::FREESECT) {
+                    throw new \RuntimeException('CFB MiniFAT marks a mini-sector beyond the root mini stream as allocated');
+                }
+                continue;
+            }
+
+            if (self::isRegularSector($miniFatEntry)) {
+                if ($miniFatEntry >= $miniStreamSectorCount) {
+                    throw new \RuntimeException('CFB MiniFAT entry points outside the root mini stream');
+                }
+            } elseif ($miniFatEntry !== self::FREESECT && $miniFatEntry !== self::ENDOFCHAIN) {
+                throw new \RuntimeException('CFB MiniFAT entry contains a reserved sector marker');
+            }
+
+            if (!isset($miniStreamSectors[$miniSectorId]) && $miniFatEntry !== self::FREESECT) {
+                throw new \RuntimeException('CFB MiniFAT marks an unreferenced mini-sector as allocated');
             }
         }
     }
