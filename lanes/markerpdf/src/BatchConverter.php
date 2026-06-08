@@ -1893,6 +1893,12 @@ final class BatchConverter
         $textLengthCheckedByFilename = [];
         $markdownExistsPathByFilename = [];
         $markdownExistsPathTypeByFilename = [];
+        $markdownExistsPathIsSymlinkByFilename = [];
+        $markdownExistsSymlinkTargetExistsByFilename = [];
+        $markdownExistsSymlinkTargetTypeByFilename = [];
+        $markdownExistsBrokenSymlinkByFilename = [];
+        $markdownExistsSymlinkCountsAsExistingByFilename = [];
+        $markdownExistsBrokenSymlinkDoesNotCountAsExistingByFilename = [];
         $filepathIsFileAtWorkerPreflightByFilename = [];
         $filepathIsReadableAtWorkerPreflightByFilename = [];
         $filepathPathTypeAtWorkerPreflightByFilename = [];
@@ -1901,6 +1907,9 @@ final class BatchConverter
         $upstreamReturnBoundaryByFilename = [];
         $existingMarkdownFilenames = [];
         $markdownExistsDirectoryFilenames = [];
+        $markdownExistsSymlinkFilenames = [];
+        $markdownExistsLiveSymlinkFilenames = [];
+        $markdownExistsBrokenSymlinkFilenames = [];
         $selectedInputMissingFilenames = [];
         $selectedInputBrokenSymlinkFilenames = [];
         $selectedInputNotFileFilenames = [];
@@ -1947,6 +1956,12 @@ final class BatchConverter
                 $textLengthCheckedByFilename[$filename] = (bool) $preflight['text_length_checked'];
                 $markdownExistsPathByFilename[$filename] = $preflight['markdown_exists_path'];
                 $markdownExistsPathTypeByFilename[$filename] = $preflight['markdown_exists_path_type'];
+                $markdownExistsPathIsSymlinkByFilename[$filename] = (bool) $preflight['markdown_exists_path_is_symlink'];
+                $markdownExistsSymlinkTargetExistsByFilename[$filename] = (bool) $preflight['markdown_exists_symlink_target_exists'];
+                $markdownExistsSymlinkTargetTypeByFilename[$filename] = $preflight['markdown_exists_symlink_target_type'];
+                $markdownExistsBrokenSymlinkByFilename[$filename] = (bool) $preflight['markdown_exists_broken_symlink'];
+                $markdownExistsSymlinkCountsAsExistingByFilename[$filename] = (bool) $preflight['markdown_exists_symlink_counts_as_existing'];
+                $markdownExistsBrokenSymlinkDoesNotCountAsExistingByFilename[$filename] = (bool) $preflight['markdown_exists_broken_symlink_does_not_count_as_existing'];
                 $filepathIsFileAtWorkerPreflightByFilename[$filename] = $preflight['filepath_is_file_at_worker_preflight'];
                 $filepathIsReadableAtWorkerPreflightByFilename[$filename] = $preflight['filepath_is_readable_at_worker_preflight'];
                 $filepathPathTypeAtWorkerPreflightByFilename[$filename] = $preflight['filepath_path_type_at_worker_preflight'];
@@ -1959,6 +1974,15 @@ final class BatchConverter
                 }
                 if ((bool) $preflight['markdown_exists_directory_counts_as_existing']) {
                     $markdownExistsDirectoryFilenames[] = $filename;
+                }
+                if ((bool) $preflight['markdown_exists_path_is_symlink']) {
+                    $markdownExistsSymlinkFilenames[] = $filename;
+                }
+                if ((bool) $preflight['markdown_exists_symlink_counts_as_existing']) {
+                    $markdownExistsLiveSymlinkFilenames[] = $filename;
+                }
+                if ((bool) $preflight['markdown_exists_broken_symlink']) {
+                    $markdownExistsBrokenSymlinkFilenames[] = $filename;
                 }
                 if ((bool) $preflight['selected_input_missing_at_worker_preflight']) {
                     $selectedInputMissingFilenames[] = $filename;
@@ -2019,6 +2043,12 @@ final class BatchConverter
                     'markdown_exists_path_exists' => $preflight['markdown_exists_path_exists'],
                     'markdown_exists_path_type' => $preflight['markdown_exists_path_type'],
                     'markdown_exists_directory_counts_as_existing' => $preflight['markdown_exists_directory_counts_as_existing'],
+                    'markdown_exists_path_is_symlink' => $preflight['markdown_exists_path_is_symlink'],
+                    'markdown_exists_symlink_target_exists' => $preflight['markdown_exists_symlink_target_exists'],
+                    'markdown_exists_symlink_target_type' => $preflight['markdown_exists_symlink_target_type'],
+                    'markdown_exists_broken_symlink' => $preflight['markdown_exists_broken_symlink'],
+                    'markdown_exists_symlink_counts_as_existing' => $preflight['markdown_exists_symlink_counts_as_existing'],
+                    'markdown_exists_broken_symlink_does_not_count_as_existing' => $preflight['markdown_exists_broken_symlink_does_not_count_as_existing'],
                     'filepath_exists_at_worker_preflight' => $preflight['filepath_exists_at_worker_preflight'],
                     'filepath_is_file_at_worker_preflight' => $preflight['filepath_is_file_at_worker_preflight'],
                     'filepath_is_readable_at_worker_preflight' => $preflight['filepath_is_readable_at_worker_preflight'],
@@ -2081,6 +2111,12 @@ final class BatchConverter
             'text_length_checked_by_filename' => $textLengthCheckedByFilename,
             'markdown_exists_path_by_filename' => $markdownExistsPathByFilename,
             'markdown_exists_path_type_by_filename' => $markdownExistsPathTypeByFilename,
+            'markdown_exists_path_is_symlink_by_filename' => $markdownExistsPathIsSymlinkByFilename,
+            'markdown_exists_symlink_target_exists_by_filename' => $markdownExistsSymlinkTargetExistsByFilename,
+            'markdown_exists_symlink_target_type_by_filename' => $markdownExistsSymlinkTargetTypeByFilename,
+            'markdown_exists_broken_symlink_by_filename' => $markdownExistsBrokenSymlinkByFilename,
+            'markdown_exists_symlink_counts_as_existing_by_filename' => $markdownExistsSymlinkCountsAsExistingByFilename,
+            'markdown_exists_broken_symlink_does_not_count_as_existing_by_filename' => $markdownExistsBrokenSymlinkDoesNotCountAsExistingByFilename,
             'filepath_is_file_at_worker_preflight_by_filename' => $filepathIsFileAtWorkerPreflightByFilename,
             'filepath_is_readable_at_worker_preflight_by_filename' => $filepathIsReadableAtWorkerPreflightByFilename,
             'filepath_path_type_at_worker_preflight_by_filename' => $filepathPathTypeAtWorkerPreflightByFilename,
@@ -2089,6 +2125,9 @@ final class BatchConverter
             'upstream_return_boundary_by_filename' => $upstreamReturnBoundaryByFilename,
             'existing_markdown_filenames' => $existingMarkdownFilenames,
             'markdown_exists_directory_filenames' => $markdownExistsDirectoryFilenames,
+            'markdown_exists_symlink_filenames' => $markdownExistsSymlinkFilenames,
+            'markdown_exists_live_symlink_filenames' => $markdownExistsLiveSymlinkFilenames,
+            'markdown_exists_broken_symlink_filenames' => $markdownExistsBrokenSymlinkFilenames,
             'selected_input_missing_filenames' => $selectedInputMissingFilenames,
             'selected_input_broken_symlink_filenames' => $selectedInputBrokenSymlinkFilenames,
             'selected_input_not_file_filenames' => $selectedInputNotFileFilenames,
@@ -2791,6 +2830,7 @@ final class BatchConverter
         $markdownPath = $this->writer->getMarkdownFilepath($outputFolder, $filename);
         $markdownPathExists = $this->writer->markdownExists($outputFolder, $filename);
         $markdownPathType = $this->filesystemPathType($markdownPath);
+        $markdownPathReview = $this->markdownExistsPathReview($markdownPath, $markdownPathExists, $markdownPathType);
         $metadataKeys = is_array($metadata) ? array_values(array_filter(array_keys($metadata), 'is_string')) : [];
         sort($metadataKeys, SORT_STRING);
         $workerFileAvailability = $this->workerFileAvailabilityReview($filepath);
@@ -2825,6 +2865,7 @@ final class BatchConverter
             'markdown_exists_path_exists' => $markdownPathExists,
             'markdown_exists_path_type' => $markdownPathType,
             'markdown_exists_directory_counts_as_existing' => $markdownPathType === 'directory',
+            ...$markdownPathReview,
             ...$workerFileAvailability,
             'filetype_checked' => false,
             'filetype' => null,
@@ -2976,6 +3017,33 @@ final class BatchConverter
             'selected_input_not_file_at_worker_preflight' => $isNotFile,
             'selected_input_directory_at_worker_preflight' => $isDirectory,
             'selected_input_unreadable_at_worker_preflight' => $isUnreadable,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     markdown_exists_path_is_symlink: bool,
+     *     markdown_exists_symlink_target_exists: bool,
+     *     markdown_exists_symlink_target_type: string|null,
+     *     markdown_exists_broken_symlink: bool,
+     *     markdown_exists_symlink_counts_as_existing: bool,
+     *     markdown_exists_broken_symlink_does_not_count_as_existing: bool
+     * }
+     */
+    private function markdownExistsPathReview(string $markdownPath, bool $markdownPathExists, string $markdownPathType): array
+    {
+        $isSymlink = is_link($markdownPath);
+        $targetExists = $isSymlink && $markdownPathExists;
+
+        return [
+            'markdown_exists_path_is_symlink' => $isSymlink,
+            'markdown_exists_symlink_target_exists' => $targetExists,
+            'markdown_exists_symlink_target_type' => $isSymlink
+                ? ($targetExists ? $markdownPathType : 'missing')
+                : null,
+            'markdown_exists_broken_symlink' => $isSymlink && !$targetExists,
+            'markdown_exists_symlink_counts_as_existing' => $isSymlink && $markdownPathExists,
+            'markdown_exists_broken_symlink_does_not_count_as_existing' => $isSymlink && !$markdownPathExists,
         ];
     }
 

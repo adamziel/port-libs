@@ -456,6 +456,7 @@ final class PdfTextExtractor
      *     invalid_member_offset_rejection_count: int,
      *     malformed_xref_stream_width_count: int,
      *     malformed_xref_stream_index_count: int,
+     *     malformed_xref_stream_size_count: int,
      *     malformed_xref_stream_row_alignment_count: int,
      *     direct_xref_stream_owner_cycle_count: int,
      *     suppressed_hybrid_type2_entry_count: int,
@@ -465,6 +466,7 @@ final class PdfTextExtractor
      *     entries: list<array<string, mixed>>,
      *     malformed_xref_stream_width_entries: list<array<string, mixed>>,
      *     malformed_xref_stream_index_entries: list<array<string, mixed>>,
+     *     malformed_xref_stream_size_entries: list<array<string, mixed>>,
      *     malformed_xref_stream_row_alignment_entries: list<array<string, mixed>>,
      *     suppressed_hybrid_entries: list<array<string, mixed>>,
      *     free_entries: list<array<string, mixed>>,
@@ -497,6 +499,7 @@ final class PdfTextExtractor
             'invalid_member_offset_rejection_count' => 0,
             'malformed_xref_stream_width_count' => 0,
             'malformed_xref_stream_index_count' => 0,
+            'malformed_xref_stream_size_count' => 0,
             'malformed_xref_stream_row_alignment_count' => 0,
             'direct_xref_stream_owner_cycle_count' => 0,
             'suppressed_hybrid_type2_entry_count' => 0,
@@ -506,6 +509,7 @@ final class PdfTextExtractor
             'entries' => [],
             'malformed_xref_stream_width_entries' => [],
             'malformed_xref_stream_index_entries' => [],
+            'malformed_xref_stream_size_entries' => [],
             'malformed_xref_stream_row_alignment_entries' => [],
             'suppressed_hybrid_entries' => [],
             'free_entries' => [],
@@ -536,6 +540,12 @@ final class PdfTextExtractor
             $definitions
         );
         $review['malformed_xref_stream_index_count'] = count($review['malformed_xref_stream_index_entries']);
+        $review['malformed_xref_stream_size_entries'] = $this->xrefStreamMalformedSizeEntries(
+            $pdfBytes,
+            $preliminaryObjects,
+            $definitions
+        );
+        $review['malformed_xref_stream_size_count'] = count($review['malformed_xref_stream_size_entries']);
         $review['malformed_xref_stream_row_alignment_entries'] = $this->xrefStreamMalformedRowAlignmentEntries(
             $pdfBytes,
             $preliminaryObjects,
@@ -31647,6 +31657,9 @@ final class PdfTextExtractor
         if ($this->xrefStreamIndexProblem($dictionary, $streamObjects) !== null) {
             return true;
         }
+        if ($this->xrefStreamSizeProblem($dictionary, $streamObjects) !== null) {
+            return true;
+        }
 
         $entry = $this->streamDictionaryAndPayload($definition['body'], $streamObjects);
         if ($entry === null) {
@@ -31701,6 +31714,21 @@ final class PdfTextExtractor
         }
 
         return $this->xrefStreamMalformedIndexEntriesFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return list<array<string, mixed>>
+     */
+    private function xrefStreamMalformedSizeEntries(string $pdfBytes, array $objects, array $definitions): array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        if ($offset === null) {
+            return [];
+        }
+
+        return $this->xrefStreamMalformedSizeEntriesFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
     }
 
     /**
@@ -31827,6 +31855,103 @@ final class PdfTextExtractor
             $entries = array_merge(
                 $entries,
                 $this->xrefStreamMalformedWidthEntriesFromOffsetChain(
+                    $pdfBytes,
+                    $previousOffset,
+                    $objects,
+                    $definitions,
+                    $seenOffsets
+                )
+            );
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return list<array<string, mixed>>
+     */
+    private function xrefStreamMalformedSizeEntriesFromOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $definitions,
+        array $seenOffsets = []
+    ): array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return [];
+        }
+        $seenOffsets[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($tableSection !== null) {
+            $entries = [];
+            $trailer = $tableSection['trailer'];
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer($trailer, $objects);
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $entries = array_merge(
+                    $entries,
+                    $this->xrefStreamMalformedSizeEntriesFromOffsetChain(
+                        $pdfBytes,
+                        $hybridStreamOffset,
+                        $objects,
+                        $definitions,
+                        $seenOffsets
+                    )
+                );
+            }
+
+            $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer, $objects);
+            if ($previousOffset !== null && $previousOffset >= 0) {
+                $entries = array_merge(
+                    $entries,
+                    $this->xrefStreamMalformedSizeEntriesFromOffsetChain(
+                        $pdfBytes,
+                        $previousOffset,
+                        $objects,
+                        $definitions,
+                        $seenOffsets
+                    )
+                );
+            }
+
+            return $entries;
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
+        if ($streamSection === null) {
+            return [];
+        }
+
+        $streamObjects = $this->objectsWithDirectStreamDictionaryOperandOwners(
+            $objects,
+            $streamSection['definition']['body'],
+            $definitions,
+            $streamSection['definition']['offset']
+        );
+        $dictionary = $this->dictionaryObjectBody($streamSection['body']) ?? $streamSection['body'];
+        $problem = $this->xrefStreamSizeProblem($dictionary, $streamObjects);
+        $entries = [];
+        if ($problem !== null) {
+            $entries[] = [
+                'xref_offset' => $streamSection['definition']['offset'],
+                'selected_generation' => $streamSection['definition']['generation'],
+                'size_value' => $problem['size_value'],
+                'resolved_size' => $problem['resolved_size'],
+                'index_array_absent' => $problem['index_array_absent'],
+                'owner_policy' => $problem['owner_policy'],
+                'rejected_before_row_decode' => true,
+                'review_only' => true,
+            ];
+        }
+
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $streamSection['body'], $streamObjects);
+        if ($previousOffset !== null && $previousOffset >= 0) {
+            $entries = array_merge(
+                $entries,
+                $this->xrefStreamMalformedSizeEntriesFromOffsetChain(
                     $pdfBytes,
                     $previousOffset,
                     $objects,
@@ -36989,6 +37114,9 @@ final class PdfTextExtractor
         if ($widths === null) {
             return $entries;
         }
+        if ($this->xrefStreamSizeProblem($dictionary, $streamObjects) !== null) {
+            return $entries;
+        }
         $entryWidth = array_sum($widths);
         if ($entryWidth <= 0) {
             return $entries;
@@ -37250,6 +37378,51 @@ final class PdfTextExtractor
                 'indexes' => $indexes,
                 'malformed_indexes' => [count($indexes) - 1],
                 'owner_policy' => 'incomplete_xref_stream_index_pair',
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{size_value: string|null, resolved_size: int|null, index_array_absent: true, owner_policy: string}|null
+     */
+    private function xrefStreamSizeProblem(string $dictionary, array $objects): ?array
+    {
+        if ($this->topLevelNameValueOffset($dictionary, 'Index') !== null) {
+            return null;
+        }
+
+        $sizeOffset = $this->topLevelNameValueOffset($dictionary, 'Size');
+        if ($sizeOffset === null) {
+            return [
+                'size_value' => null,
+                'resolved_size' => null,
+                'index_array_absent' => true,
+                'owner_policy' => 'missing_xref_stream_size_without_index',
+            ];
+        }
+
+        $sizeValue = $this->pdfValueAtOffset($dictionary, $sizeOffset);
+        $resolvedSize = $sizeValue === null
+            ? null
+            : $this->pdfStrictIntegerValueAt($sizeValue, 0, $objects);
+        if ($resolvedSize === null) {
+            return [
+                'size_value' => $sizeValue,
+                'resolved_size' => null,
+                'index_array_absent' => true,
+                'owner_policy' => 'non_integer_xref_stream_size_without_index',
+            ];
+        }
+
+        if ($resolvedSize < 0) {
+            return [
+                'size_value' => $sizeValue,
+                'resolved_size' => $resolvedSize,
+                'index_array_absent' => true,
+                'owner_policy' => 'negative_xref_stream_size_without_index',
             ];
         }
 
