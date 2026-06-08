@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\DeflateStream;
 use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\PdfEngineHandoff;
@@ -2609,6 +2610,78 @@ MARKDOWN);
         $t->contains('pdf-byte-pdfa:2:B', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-pdfua:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-pdfua-amendment:2024', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfXmpMetadata']);
+    },
+
+    'fake runner decodes bounded flatedecode pdf xmp metadata streams without executing engines' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/compressed-xmp.pdf']);
+        $xmp = implode("\n", [
+            '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+            '<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/">',
+            '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Compressed PDF Review Packet</rdf:li></rdf:Alt></dc:title>',
+            '<dc:format>application/pdf</dc:format>',
+            '<xmp:CreatorTool>Pandoc native compressed metadata handoff</xmp:CreatorTool>',
+            '</rdf:Description>',
+            '</rdf:RDF>',
+            '</x:xmpmeta>',
+            '<?xpacket end="w"?>',
+        ]);
+        $compressedXmp = DeflateStream::build($xmp);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($compressedXmp) . ' >>',
+            'stream',
+            $compressedXmp,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/compressed-xmp.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/compressed-xmp.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'packetBytes' => strlen($xmp),
+            'packetSha256' => hash('sha256', $xmp),
+            'decodedFilter' => 'FlateDecode',
+            'compressedBytes' => strlen($compressedXmp),
+            'title' => 'Compressed PDF Review Packet',
+            'format' => 'application/pdf',
+            'creatorTool' => 'Pandoc native compressed metadata handoff',
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfXmpMetadata']);
+        $t->contains('pdf-byte-xmp-metadata:7', $diagnostics);
+        $t->contains('pdf-byte-xmp-metadata-decoded:FlateDecode', $diagnostics);
+        $t->contains('pdf-byte-xmp-metadata-compressed-bytes:' . strlen($compressedXmp), $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfXmpMetadata']);
     },

@@ -466,6 +466,180 @@ final class LegacyDocReader
     /**
      * @return array<string,mixed>
      */
+    public function decodeFormFieldData(string $bytes): array
+    {
+        if (strlen($bytes) < 10) {
+            throw new \RuntimeException('Legacy DOC FFData structure is truncated');
+        }
+
+        $cursor = 0;
+        $version = self::u32($bytes, $cursor);
+        $cursor += 4;
+        if ($version !== 0xffffffff) {
+            throw new \RuntimeException('Legacy DOC FFData version must be 0xffffffff');
+        }
+
+        $bits = self::u16($bytes, $cursor);
+        $cursor += 2;
+        $fieldTypeCode = $bits & 0x0003;
+        $currentStateCode = ($bits >> 2) & 0x001f;
+        $hasOwnHelpText = (($bits >> 7) & 0x0001) === 1;
+        $hasOwnStatusText = (($bits >> 8) & 0x0001) === 1;
+        $protected = (($bits >> 9) & 0x0001) === 1;
+        $checkboxAutoSize = (($bits >> 10) & 0x0001) === 1;
+        $textTypeCode = ($bits >> 11) & 0x0007;
+        $recalculateOnExit = (($bits >> 14) & 0x0001) === 1;
+        $hasListBox = (($bits >> 15) & 0x0001) === 1;
+        $fieldType = $this->legacyDocFormFieldTypeName($fieldTypeCode);
+
+        if ($fieldTypeCode === 0 && $currentStateCode !== 0) {
+            throw new \RuntimeException('Legacy DOC FFData textbox state bits must be zero');
+        }
+        if ($fieldTypeCode === 1 && !in_array($currentStateCode, [0, 1, 25], true)) {
+            throw new \RuntimeException('Legacy DOC FFData checkbox state must be unchecked, checked, or undefined');
+        }
+        if ($fieldTypeCode !== 1 && $checkboxAutoSize) {
+            throw new \RuntimeException('Legacy DOC FFData checkbox auto-size bit must be zero for non-checkbox fields');
+        }
+        if ($fieldTypeCode !== 0 && $textTypeCode !== 0) {
+            throw new \RuntimeException('Legacy DOC FFData text-type bits must be zero for non-textbox fields');
+        }
+        if ($fieldTypeCode === 0 && $textTypeCode > 5) {
+            throw new \RuntimeException('Legacy DOC FFData textbox type is unsupported');
+        }
+        if ($fieldTypeCode === 2 && !$hasListBox) {
+            throw new \RuntimeException('Legacy DOC FFData dropdown fields must carry a list box');
+        }
+        if ($fieldTypeCode !== 2 && $hasListBox) {
+            throw new \RuntimeException('Legacy DOC FFData list-box bit must be zero for non-dropdown fields');
+        }
+
+        $maxLength = self::u16($bytes, $cursor);
+        $cursor += 2;
+        if ($fieldTypeCode === 0 && $maxLength > 32767) {
+            throw new \RuntimeException('Legacy DOC FFData textbox maximum length is outside the supported range');
+        }
+        if ($fieldTypeCode !== 0 && $maxLength !== 0) {
+            throw new \RuntimeException('Legacy DOC FFData non-textbox fields must not declare a text maximum length');
+        }
+
+        $checkboxSizeHalfPoints = self::u16($bytes, $cursor);
+        $cursor += 2;
+        if ($fieldTypeCode === 1 && ($checkboxSizeHalfPoints < 2 || $checkboxSizeHalfPoints > 3168)) {
+            throw new \RuntimeException('Legacy DOC FFData checkbox size must be between 2 and 3168 half-points');
+        }
+
+        $name = $this->readLegacyDocXstz($bytes, $cursor, 'FFData field name', 20);
+        $record = [
+            'source' => 'FFData',
+            'versionHex' => '0xffffffff',
+            'byteCount' => strlen($bytes),
+            'bits' => $bits,
+            'fieldType' => $fieldType,
+            'fieldTypeCode' => $fieldTypeCode,
+            'currentStateCode' => $currentStateCode,
+            'protected' => $protected,
+            'hasOwnHelpText' => $hasOwnHelpText,
+            'hasOwnStatusText' => $hasOwnStatusText,
+            'recalculateOnExit' => $recalculateOnExit,
+            'hasListBox' => $hasListBox,
+            'name' => $name,
+        ];
+
+        if ($fieldTypeCode === 0) {
+            $defaultText = $this->readLegacyDocXstz($bytes, $cursor, 'FFData default textbox text', 255);
+            if (in_array($textTypeCode, [3, 4], true) && $defaultText !== '') {
+                throw new \RuntimeException('Legacy DOC FFData current date/time textboxes must not carry default text');
+            }
+            $record['textType'] = $this->legacyDocTextFormFieldTypeName($textTypeCode);
+            $record['textTypeCode'] = $textTypeCode;
+            $record['maxLength'] = $maxLength;
+            $record['defaultText'] = $defaultText;
+        } else {
+            if ($cursor + 2 > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC FFData default state is truncated');
+            }
+            $defaultStateCode = self::u16($bytes, $cursor);
+            $cursor += 2;
+            $record['defaultStateCode'] = $defaultStateCode;
+
+            if ($fieldTypeCode === 1) {
+                if (!in_array($defaultStateCode, [0, 1], true)) {
+                    throw new \RuntimeException('Legacy DOC FFData checkbox default state must be unchecked or checked');
+                }
+                $record['checkboxAutoSize'] = $checkboxAutoSize;
+                $record['checkboxSizeHalfPoints'] = $checkboxSizeHalfPoints;
+                $record['defaultChecked'] = $defaultStateCode === 1;
+                $record['checked'] = $currentStateCode === 1;
+                $record['checkboxState'] = $currentStateCode === 25
+                    ? 'undefined'
+                    : ($currentStateCode === 1 ? 'checked' : 'unchecked');
+            } else {
+                $record['defaultSelectedIndex'] = $defaultStateCode;
+                $record['selectedIndex'] = $currentStateCode === 25 ? null : $currentStateCode;
+                $record['selectionUndefined'] = $currentStateCode === 25;
+            }
+        }
+
+        $textFormat = $this->readLegacyDocXstz($bytes, $cursor, 'FFData textbox format', 64);
+        if ($fieldTypeCode !== 0 && $textFormat !== '') {
+            throw new \RuntimeException('Legacy DOC FFData non-textbox fields must not carry a textbox format');
+        }
+        if ($textFormat !== '') {
+            $record['textFormat'] = $textFormat;
+        }
+
+        $helpText = $this->readLegacyDocXstz($bytes, $cursor, 'FFData help text', 255);
+        if ($helpText !== '') {
+            $record['helpText'] = $helpText;
+        }
+
+        $statusText = $this->readLegacyDocXstz($bytes, $cursor, 'FFData status text', 138);
+        if ($statusText !== '') {
+            $record['statusText'] = $statusText;
+        }
+
+        $entryMacro = $this->readLegacyDocXstz($bytes, $cursor, 'FFData entry macro', 32);
+        if ($entryMacro !== '') {
+            $record['entryMacro'] = $entryMacro;
+        }
+
+        $exitMacro = $this->readLegacyDocXstz($bytes, $cursor, 'FFData exit macro', 32);
+        if ($exitMacro !== '') {
+            $record['exitMacro'] = $exitMacro;
+        }
+
+        if ($fieldTypeCode === 2) {
+            $items = $this->readLegacyDocUnicodeSttbStrings($bytes, $cursor, 'FFData dropdown list', 25, 255);
+            if ($items === []) {
+                throw new \RuntimeException('Legacy DOC FFData dropdown list must contain at least one item');
+            }
+            $defaultIndex = (int) $record['defaultSelectedIndex'];
+            if (!array_key_exists($defaultIndex, $items)) {
+                throw new \RuntimeException('Legacy DOC FFData dropdown default index is outside the list');
+            }
+            if ($currentStateCode !== 25 && !array_key_exists($currentStateCode, $items)) {
+                throw new \RuntimeException('Legacy DOC FFData dropdown selected index is outside the list');
+            }
+
+            $record['dropDownItems'] = $items;
+            $record['dropDownItemCount'] = count($items);
+            $record['defaultDropDownItem'] = $items[$defaultIndex];
+            if ($currentStateCode !== 25) {
+                $record['selectedDropDownItem'] = $items[$currentStateCode];
+            }
+        }
+
+        if ($cursor !== strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC FFData structure contains trailing bytes');
+        }
+
+        return $record;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
     private function readFib(string $wordDocument): array
     {
         if (strlen($wordDocument) < 32) {
@@ -6307,6 +6481,105 @@ final class LegacyDocReader
             $this->decodeUtf16Le(substr($bytes, $textOffset, $byteLength)),
             2 + $byteLength + 2,
         ];
+    }
+
+    private function legacyDocFormFieldTypeName(int $fieldTypeCode): string
+    {
+        return match ($fieldTypeCode) {
+            0 => 'text',
+            1 => 'checkbox',
+            2 => 'dropdown',
+            default => throw new \RuntimeException('Legacy DOC FFData field type is unsupported'),
+        };
+    }
+
+    private function legacyDocTextFormFieldTypeName(int $textTypeCode): string
+    {
+        return match ($textTypeCode) {
+            0 => 'regular',
+            1 => 'number',
+            2 => 'date-time',
+            3 => 'current-date',
+            4 => 'current-time',
+            5 => 'calculation',
+            default => throw new \RuntimeException('Legacy DOC FFData textbox type is unsupported'),
+        };
+    }
+
+    private function readLegacyDocXstz(string $bytes, int &$cursor, string $context, int $maxCharacters): string
+    {
+        if ($cursor + 4 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC ' . $context . ' is truncated');
+        }
+
+        $characters = self::u16($bytes, $cursor);
+        $cursor += 2;
+        if ($characters > $maxCharacters) {
+            throw new \RuntimeException('Legacy DOC ' . $context . ' exceeds the supported character limit');
+        }
+
+        $byteLength = $characters * 2;
+        if ($cursor + $byteLength + 2 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC ' . $context . ' points outside its string data');
+        }
+
+        $value = $characters === 0 ? '' : $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
+        $cursor += $byteLength;
+        if (self::u16($bytes, $cursor) !== 0) {
+            throw new \RuntimeException('Legacy DOC ' . $context . ' is missing its null terminator');
+        }
+        $cursor += 2;
+
+        return $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function readLegacyDocUnicodeSttbStrings(string $bytes, int &$cursor, string $context, int $maxCount, int $maxCharacters): array
+    {
+        if ($cursor + 6 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC ' . $context . ' is truncated');
+        }
+        if (self::u16($bytes, $cursor) !== 0xffff) {
+            throw new \RuntimeException('Legacy DOC ' . $context . ' must use extended strings');
+        }
+        $cursor += 2;
+
+        $count = self::u16($bytes, $cursor);
+        $cursor += 2;
+        if ($count > $maxCount) {
+            throw new \RuntimeException('Legacy DOC ' . $context . ' contains too many strings');
+        }
+
+        $extraBytes = self::u16($bytes, $cursor);
+        $cursor += 2;
+        if ($extraBytes !== 0) {
+            throw new \RuntimeException('Legacy DOC ' . $context . ' must not contain extra data');
+        }
+
+        $strings = [];
+        for ($index = 0; $index < $count; $index++) {
+            if ($cursor + 2 > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC ' . $context . ' string length is truncated');
+            }
+
+            $characters = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if ($characters > $maxCharacters) {
+                throw new \RuntimeException('Legacy DOC ' . $context . ' string exceeds the supported character limit');
+            }
+
+            $byteLength = $characters * 2;
+            if ($cursor + $byteLength > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC ' . $context . ' points outside its string data');
+            }
+
+            $strings[] = $characters === 0 ? '' : $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
+            $cursor += $byteLength;
+        }
+
+        return $strings;
     }
 
     /**

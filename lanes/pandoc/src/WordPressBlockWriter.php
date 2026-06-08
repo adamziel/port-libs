@@ -1121,6 +1121,7 @@ final class WordPressBlockWriter
     private function renderTableCellAttrs(AstNode $table, int $column, int $colspan, int $rowspan, AstNode $cell, array $accessibilityAttrs = []): string
     {
         $attrs = $this->renderComputedTableAccessibilityAttrs($cell, $accessibilityAttrs);
+        $attrs .= $this->renderSourceCellDecimalAlignmentAttr($cell);
         $attrs .= $this->renderStoredHtmlAttrs($cell, true, ['style']);
         if ($colspan > 1) {
             $attrs .= ' colspan="' . $colspan . '"';
@@ -1158,6 +1159,19 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    private function renderSourceCellDecimalAlignmentAttr(AstNode $cell): string
+    {
+        $htmlAttributes = $cell->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+
+        $attributes = $this->mergedStoredHtmlAttributes($cell, $htmlAttributes);
+        $alignment = strtolower(trim((string) ($attributes['align'] ?? '')));
+
+        return $alignment === 'char' ? ' align="char"' : '';
     }
 
     private function sourceTableCellHasVerticalAlignment(AstNode $cell, string $sourceStyle): bool

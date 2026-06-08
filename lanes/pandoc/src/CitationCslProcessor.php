@@ -7277,6 +7277,25 @@ final class CitationCslProcessor
         };
     }
 
+    private function textVariableAcceptsNumberForm(string $variable): bool
+    {
+        return in_array($variable, [
+            'citation-number',
+            'first-reference-note-number',
+            'locator',
+            'page',
+            'page-first',
+            'number',
+            'edition',
+            'volume',
+            'issue',
+            'chapter-number',
+            'number-of-pages',
+            'number-of-volumes',
+            'collection-number',
+        ], true);
+    }
+
     /**
      * @param array<string, mixed> $item
      */
@@ -7348,7 +7367,10 @@ final class CitationCslProcessor
         $normalizedForm = strtolower(trim($form));
         $normalizedVariable = strtolower(trim($variable));
 
-        if ($normalizedVariable === 'citation-number' && in_array($normalizedForm, ['numeric', 'ordinal', 'long-ordinal', 'roman'], true)) {
+        if (
+            in_array($normalizedForm, ['numeric', 'ordinal', 'long-ordinal', 'roman'], true)
+            && $this->textVariableAcceptsNumberForm($normalizedVariable)
+        ) {
             return $this->formatCslNumber($this->renderVariableValue($item, $variable, $scope, $citation), $normalizedForm);
         }
 

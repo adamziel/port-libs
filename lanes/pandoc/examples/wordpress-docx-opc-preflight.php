@@ -1295,6 +1295,20 @@ $packageConsistencyTargets = [];
 foreach ($packageConsistency['relationshipTargets'] as $target) {
     $packageConsistencyTargets[$target['source'] . ':' . $target['id']] = $target;
 }
+$packageConsistencyRelationshipTypePolicies = [];
+foreach ($packageConsistency['relationshipTypePolicies'] as $policy) {
+    $packageConsistencyRelationshipTypePolicies[$policy['type']] = [
+        'type' => $policy['type'],
+        'knownRole' => $policy['knownRole'],
+        'sourceScope' => $policy['sourceScope'],
+        'singletonScope' => $policy['singletonScope'],
+        'policyValid' => $policy['policyValid'],
+        'policyIssues' => $policy['policyIssues'],
+        'relationshipCount' => $policy['relationshipCount'],
+        'sourceCount' => $policy['sourceCount'],
+        'sources' => $policy['sources'],
+    ];
+}
 
 $relationshipSummaries = [];
 foreach ($graph->summarizeTargetsForSource($documentPart) as $relationship) {
@@ -1778,8 +1792,10 @@ $summary = [
         'packagePartsValid' => $packageConsistency['packagePartsValid'],
         'contentTypeOverridesValid' => $packageConsistency['contentTypeOverridesValid'],
         'relationshipTargetsValid' => $packageConsistency['relationshipTargetsValid'],
+        'relationshipTypePoliciesValid' => $packageConsistency['relationshipTypePoliciesValid'],
         'contentTypeOverrides' => $packageConsistencyOverrides,
         'relationshipTargets' => $packageConsistencyTargets,
+        'relationshipTypePolicies' => $packageConsistencyRelationshipTypePolicies,
     ],
     'relationshipPartLoads' => $relationshipPartLoads,
     'directRelationshipContentTypeGuard' => $directRelationshipContentTypeGuard,
@@ -2145,6 +2161,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packageConsistency']['packagePartsValid'] ?? null) !== false
         || ($summary['packageConsistency']['contentTypeOverridesValid'] ?? null) !== false
         || ($summary['packageConsistency']['relationshipTargetsValid'] ?? null) !== false
+        || ($summary['packageConsistency']['relationshipTypePoliciesValid'] ?? null) !== true
+        || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['knownRole'] ?? null) !== 'office-document'
+        || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyValid'] ?? null) !== true
+        || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyIssues'] ?? null) !== []
+        || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['knownRole'] ?? null) !== 'thumbnail'
+        || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['relationshipCount'] ?? null) !== 1
+        || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['policyValid'] ?? null) !== true
         || ($summary['packageConsistency']['contentTypeOverrides']['/word/media/stale source.png']['exists'] ?? null) !== false
         || ($summary['packageConsistency']['contentTypeOverrides']['/word/media/stale source.png']['issues'] ?? null) !== ['override-target-missing-part']
         || ($summary['packageConsistency']['contentTypeOverrides']['/word/_rels/draft.xml.rels']['relationshipSourceLoaded'] ?? null) !== false

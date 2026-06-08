@@ -1594,6 +1594,7 @@ final class TableGeometry
      *     columns:list<array{column:int,alignment:string,width:?float,declared:bool}>,
      *     columnGroups:list<array<string, mixed>>,
      *     columnDecimalAlignments:list<array<string, mixed>>,
+     *     cellDecimalAlignments:list<array<string, mixed>>,
      *     rowGroups:list<array<string, mixed>>,
      *     captions:array<string, array<string, mixed>>,
      *     sections:list<array<string, mixed>>,
@@ -1619,6 +1620,7 @@ final class TableGeometry
         $widthSummary = self::columnWidthSummary($table, $columnCount);
         $columnGroups = self::columnGroups($table, $columnCount);
         $columnDecimalAlignments = self::columnDecimalAlignments($columnGroups);
+        $cellDecimalAlignments = self::cellDecimalAlignments($coverageRecords);
         $rowGroups = self::rowGroups($table, $columnCount);
         $sourceSummary = self::sourceSummaryRecord($table);
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
@@ -1648,6 +1650,7 @@ final class TableGeometry
             'columns' => self::columnSpecs($table, $columnCount),
             'columnGroups' => $columnGroups,
             'columnDecimalAlignments' => $columnDecimalAlignments,
+            'cellDecimalAlignments' => $cellDecimalAlignments,
             'widthSummary' => $widthSummary,
             'sections' => self::serializableSectionGrids($sections),
             'rowGroups' => $rowGroups,
@@ -1668,6 +1671,7 @@ final class TableGeometry
                 $captions,
                 $columnGroups,
                 $columnDecimalAlignments,
+                $cellDecimalAlignments,
                 $rowGroups,
                 $headerAssociations,
                 $rowHeaderMap,
@@ -4236,6 +4240,10 @@ final class TableGeometry
                 if ($sourceAttributes !== []) {
                     $record['sourceAttributes'] = $sourceAttributes;
                 }
+                $decimalAlignment = self::cellDecimalAlignmentFromNode($node);
+                if ($decimalAlignment !== []) {
+                    $record['decimalAlignment'] = $decimalAlignment;
+                }
                 $nestedTables = self::nestedTableSummaries($node);
                 if ($nestedTables !== []) {
                     $record['nestedTables'] = $nestedTables;
@@ -4264,6 +4272,8 @@ final class TableGeometry
      * @param array<string, list<array<string, mixed>>> $writerDowngrades
      * @param array{long:array<string, mixed>,short:array<string, mixed>} $captions
      * @param list<array<string, mixed>> $columnGroups
+     * @param list<array<string, mixed>> $columnDecimalAlignments
+     * @param list<array<string, mixed>> $cellDecimalAlignments
      * @param list<array<string, mixed>> $rowGroups
      * @param array<string, mixed> $headerAssociations
      * @param array<string, mixed> $rowHeaderMap
@@ -4280,6 +4290,7 @@ final class TableGeometry
         array $captions,
         array $columnGroups,
         array $columnDecimalAlignments,
+        array $cellDecimalAlignments,
         array $rowGroups,
         array $headerAssociations,
         array $rowHeaderMap,
@@ -4538,6 +4549,11 @@ final class TableGeometry
             'columnDecimalAlignmentColumns' => self::columnDecimalAlignmentColumns($columnDecimalAlignments),
             'columnDecimalAlignmentChars' => self::columnDecimalAlignmentStringValues($columnDecimalAlignments, 'char'),
             'columnDecimalAlignmentOffsets' => self::columnDecimalAlignmentStringValues($columnDecimalAlignments, 'charoff'),
+            'cellDecimalAlignmentCount' => count($cellDecimalAlignments),
+            'hasCellDecimalAlignments' => $cellDecimalAlignments !== [],
+            'cellDecimalAlignmentColumns' => self::cellDecimalAlignmentColumns($cellDecimalAlignments),
+            'cellDecimalAlignmentChars' => self::cellDecimalAlignmentStringValues($cellDecimalAlignments, 'char'),
+            'cellDecimalAlignmentOffsets' => self::cellDecimalAlignmentStringValues($cellDecimalAlignments, 'charoff'),
             'rowGroupCount' => $rowGroupSummary['rowGroupCount'],
             'bodyGroupCount' => $rowGroupSummary['bodyGroupCount'],
             'hasMultipleBodyGroups' => $rowGroupSummary['hasMultipleBodyGroups'],
@@ -4910,6 +4926,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -4982,6 +4999,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -5066,6 +5084,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -5540,6 +5559,176 @@ final class TableGeometry
             'chars' => self::columnDecimalAlignmentStringValues($records, 'char'),
             'charOffsets' => self::columnDecimalAlignmentStringValues($records, 'charoff'),
             'alignments' => $records,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
+    private static function cellDecimalAlignments(array $coverage): array
+    {
+        $records = [];
+        foreach ($coverage as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $node = $record['node'] ?? null;
+            $alignment = self::cellDecimalAlignmentFromNode($node);
+            if ($alignment === []) {
+                continue;
+            }
+
+            $columns = self::intList($record['columns'] ?? []);
+            if ($columns === []) {
+                continue;
+            }
+
+            $cell = [
+                'section' => (string) ($record['section'] ?? ''),
+                'rowRole' => (string) ($record['rowRole'] ?? ''),
+                'row' => max(0, (int) ($record['row'] ?? 0)),
+                'globalRow' => max(0, (int) ($record['globalRow'] ?? 0)),
+                'column' => min($columns),
+                'endColumn' => max($columns) + 1,
+                'columns' => $columns,
+                'source' => 'html-table-cell-char-alignment',
+                'alignment' => 'char',
+                'char' => (string) ($alignment['char'] ?? ''),
+                'charoff' => (string) ($alignment['charoff'] ?? ''),
+                'text' => $node instanceof AstNode ? self::plainText($node) : '',
+            ];
+
+            foreach (['sourceRow', 'sourceCell', 'sourceColumn', 'colspan', 'rowspan', 'rawColspan', 'rawRowspan'] as $key) {
+                if (isset($record[$key]) && is_numeric($record[$key])) {
+                    $cell[$key] = (int) $record[$key];
+                }
+            }
+
+            foreach (['sourceRows', 'globalRows'] as $key) {
+                $values = self::intList($record[$key] ?? []);
+                if ($values !== []) {
+                    $cell[$key] = $values;
+                }
+            }
+
+            if (($record['headerCell'] ?? false) === true) {
+                $cell['headerCell'] = true;
+            }
+
+            $htmlAttributes = is_array($alignment['htmlAttributes'] ?? null) ? $alignment['htmlAttributes'] : [];
+            if ($htmlAttributes !== []) {
+                $cell['htmlAttributes'] = $htmlAttributes;
+            }
+
+            $records[] = $cell;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function cellDecimalAlignmentFromNode(mixed $node): array
+    {
+        if (!$node instanceof AstNode) {
+            return [];
+        }
+
+        $align = strtolower(self::sourceHtmlAttribute($node, 'align'));
+        $char = self::sourceHtmlAttribute($node, 'char');
+        $charoff = self::sourceHtmlAttribute($node, 'charoff');
+        if ($align !== 'char' && $char === '' && $charoff === '') {
+            return [];
+        }
+
+        $htmlAttributes = self::stringAttributeMap($node->attr('htmlAttributes', []), true);
+
+        return [
+            'source' => 'html-table-cell-char-alignment',
+            'alignment' => 'char',
+            'char' => $char,
+            'charoff' => $charoff,
+            'htmlAttributes' => $htmlAttributes,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<int>
+     */
+    private static function cellDecimalAlignmentColumns(array $records): array
+    {
+        $columns = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            foreach (self::intList($record['columns'] ?? []) as $column) {
+                $columns[] = $column;
+            }
+        }
+
+        return array_values(array_unique($columns));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function cellDecimalAlignmentStringValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $value = trim((string) ($record[$key] ?? ''));
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function cellDecimalAlignmentWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-cell-char-alignment-require-raw-html', 'raw-html-cell-char-alignment'],
+            'asciidoc' => ['asciidoc-cell-char-alignment-review-required', 'cell-char-alignment-review'],
+            'latex' => ['latex-cell-char-alignment-review-required', 'decimal-cell-alignment-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $records = self::cellDecimalAlignments(self::cellCoverage($table));
+        if ($records === []) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'cell-char-alignment',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-cell-char-alignment',
+            'caption' => (string) $table->attr('caption', ''),
+            'cellCount' => count($records),
+            'columns' => self::cellDecimalAlignmentColumns($records),
+            'chars' => self::cellDecimalAlignmentStringValues($records, 'char'),
+            'charOffsets' => self::cellDecimalAlignmentStringValues($records, 'charoff'),
+            'cells' => $records,
         ]];
     }
 

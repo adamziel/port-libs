@@ -6,6 +6,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\PdfEngineHandoff;
+use PortLibs\Pandoc\DeflateStream;
 use PortLibs\Pandoc\GzipStream;
 
 $markdown = <<<'MARKDOWN'
@@ -88,6 +89,7 @@ $fakeXmpMetadata = implode("\n", [
     '</x:xmpmeta>',
     '<?xpacket end="w"?>',
 ]);
+$fakeXmpMetadataStream = DeflateStream::build($fakeXmpMetadata);
 $fakeIccProfile = "fake sRGB ICC profile bytes\n";
 $fakePageXmpMetadata = implode("\n", [
     '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
@@ -186,9 +188,9 @@ $fakePdfBytes = implode("\n", [
     '<< /Fields [13 0 R 40 0 R] /NeedAppearances true /SigFlags 3 /DR << /Font << /Helv 30 0 R >> >> /DA (/Helv 10 Tf 0 g) /Q 1 /CO [13 0 R] /XFA [(template) 45 0 R (datasets) 46 0 R] >>',
     'endobj',
     '15 0 obj',
-    '<< /Type /Metadata /Subtype /XML /Length ' . strlen($fakeXmpMetadata) . ' >>',
+    '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($fakeXmpMetadataStream) . ' >>',
     'stream',
-    $fakeXmpMetadata,
+    $fakeXmpMetadataStream,
     'endstream',
     'endobj',
     '17 0 obj',
@@ -602,9 +604,9 @@ $fakeFinalPdfBytes = implode("\n", [
     '<< /Fields [13 0 R 40 0 R] /NeedAppearances true /SigFlags 3 /DR << /Font << /Helv 30 0 R >> >> /DA (/Helv 10 Tf 0 g) /Q 1 /CO [13 0 R] /XFA [(template) 45 0 R (datasets) 46 0 R] >>',
     'endobj',
     '15 0 obj',
-    '<< /Type /Metadata /Subtype /XML /Length ' . strlen($fakeXmpMetadata) . ' >>',
+    '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($fakeXmpMetadataStream) . ' >>',
     'stream',
-    $fakeXmpMetadata,
+    $fakeXmpMetadataStream,
     'endstream',
     'endobj',
     '17 0 obj',
@@ -1502,6 +1504,8 @@ if (in_array('--self-test', $argv, true)) {
         '"Producer":"XeTeX fake runner"',
         'pdfXmpMetadata',
         '"packetSha256"',
+        '"decodedFilter":"FlateDecode"',
+        '"compressedBytes"',
         '"title":"PDF Review Packet"',
         '"description":"Migration review metadata"',
         '"format":"application/pdf"',
@@ -1522,7 +1526,9 @@ if (in_array('--self-test', $argv, true)) {
         '"description":"Reviewer role imported from handoff packet"',
         '"name":"sourceSlug"',
         '"description":"Original WordPress source slug"',
-        'pdf-byte-xmp-metadata:15',
+        'pdf-byte-xmp-metadata:17',
+        'pdf-byte-xmp-metadata-decoded:FlateDecode',
+        'pdf-byte-xmp-metadata-compressed-bytes',
         'pdf-byte-pdfa:2:B',
         'pdf-byte-pdfua:1',
         'pdf-byte-pdfua-amendment:2024',

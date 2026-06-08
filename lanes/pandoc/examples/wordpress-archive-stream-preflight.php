@@ -207,7 +207,11 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
             if ((bool) ($entry['descriptorSignature'] ?? true)) {
                 $body .= "PK\x07\x08";
             }
-            $body .= pack('VVV', $crc32, strlen($payload), strlen($data));
+            if ((bool) ($entry['descriptorZip64'] ?? false)) {
+                $body .= pack('VVVVV', $crc32, strlen($payload), 0, strlen($data), 0);
+            } else {
+                $body .= pack('VVV', $crc32, strlen($payload), strlen($data));
+            }
         }
 
         $centralDirectory .= pack(
@@ -625,6 +629,44 @@ $descriptorZipInspection = ArchiveCompressionStream::inspectZipDataDescriptorPol
     ArchiveCompressionStream::FORMAT_GZIP_ZIP,
     strlen($descriptorZipBytes)
 );
+$zip64DescriptorZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => $descriptorDocumentXml,
+        'compressionMethod' => 8,
+        'descriptor' => true,
+        'descriptorZip64' => true,
+    ],
+    [
+        'name' => 'word/footnotes.xml',
+        'data' => $descriptorFootnotesXml,
+        'compressionMethod' => 0,
+        'descriptor' => true,
+        'descriptorSignature' => false,
+        'descriptorZip64' => true,
+    ],
+], 'zip64 descriptor integrity review fixture');
+$zip64DescriptorZipGzip = GzipStream::build($zip64DescriptorZipBytes, [
+    'filename' => 'wordpress-zip64-descriptor-package.zip',
+    'comment' => 'ZIP64 data descriptor integrity preflight fixture',
+    'headerCrc' => true,
+]);
+$zip64DescriptorIntegrityInspection = ArchiveCompressionStream::inspectZipDataDescriptorIntegrityPolicy(
+    $zip64DescriptorZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($zip64DescriptorZipBytes)
+);
+$zip64DescriptorExtractionBlocked = false;
+try {
+    ZipPackage::fromString($zip64DescriptorZipBytes);
+} catch (RuntimeException) {
+    $zip64DescriptorExtractionBlocked = true;
+}
 $splitZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -997,6 +1039,18 @@ if (in_array('--self-test', $argv, true)) {
         'zipDescriptorSignatures' => [true, false],
         'zipDescriptorLengths' => [16, 12],
         'zipDescriptorGzipFilename' => 'wordpress-descriptor-package.zip',
+        'zip64DescriptorFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zip64DescriptorEntryCount' => 3,
+        'zip64DescriptorDescriptorCount' => 2,
+        'zip64DescriptorMismatchCount' => 2,
+        'zip64DescriptorZip64Count' => 2,
+        'zip64DescriptorSignedCount' => 1,
+        'zip64DescriptorUnsignedCount' => 1,
+        'zip64DescriptorIssues' => ['zip64-sized-data-descriptor'],
+        'zip64DescriptorNames' => ['word/document.xml', 'word/footnotes.xml'],
+        'zip64DescriptorSignatures' => [true, false],
+        'zip64DescriptorLengths' => [24, 20],
+        'zip64DescriptorGzipFilename' => 'wordpress-zip64-descriptor-package.zip',
         'zipSplitFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipSplitEntryCount' => 3,
         'zipSplitDiskNumber' => 1,
@@ -1220,6 +1274,26 @@ if (in_array('--self-test', $argv, true)) {
         || ($descriptorZipInspection['descriptorEntries'][1]['valueOffset'] ?? null) !== ($descriptorZipInspection['descriptorEntries'][1]['descriptorOffset'] ?? null)
         || ($descriptorZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipDescriptorGzipFilename']
         || $descriptorZipInspection['zipBytes'] !== $descriptorZipBytes
+        || $zip64DescriptorIntegrityInspection['format'] !== $expected['zip64DescriptorFormat']
+        || $zip64DescriptorIntegrityInspection['zipBytes'] !== $zip64DescriptorZipBytes
+        || $zip64DescriptorIntegrityInspection['packageByteSize'] !== strlen($zip64DescriptorZipBytes)
+        || $zip64DescriptorIntegrityInspection['entryCount'] !== $expected['zip64DescriptorEntryCount']
+        || $zip64DescriptorIntegrityInspection['descriptorEntryCount'] !== $expected['zip64DescriptorDescriptorCount']
+        || $zip64DescriptorIntegrityInspection['mismatchedDescriptorEntryCount'] !== $expected['zip64DescriptorMismatchCount']
+        || $zip64DescriptorIntegrityInspection['zip64SizedDescriptorEntryCount'] !== $expected['zip64DescriptorZip64Count']
+        || $zip64DescriptorIntegrityInspection['signedDescriptorEntryCount'] !== $expected['zip64DescriptorSignedCount']
+        || $zip64DescriptorIntegrityInspection['unsignedDescriptorEntryCount'] !== $expected['zip64DescriptorUnsignedCount']
+        || $zip64DescriptorIntegrityInspection['isSupportedByBoundedReader'] !== false
+        || $zip64DescriptorIntegrityInspection['issues'] !== $expected['zip64DescriptorIssues']
+        || array_column($zip64DescriptorIntegrityInspection['descriptorEntries'], 'name') !== $expected['zip64DescriptorNames']
+        || array_column($zip64DescriptorIntegrityInspection['descriptorEntries'], 'hasSignature') !== $expected['zip64DescriptorSignatures']
+        || array_column($zip64DescriptorIntegrityInspection['descriptorEntries'], 'descriptorLength') !== $expected['zip64DescriptorLengths']
+        || array_column($zip64DescriptorIntegrityInspection['descriptorEntries'], 'usesZip64SizedDescriptor') !== [true, true]
+        || array_column($zip64DescriptorIntegrityInspection['descriptorEntries'], 'descriptorValuesMatchCentral') !== [true, true]
+        || ($zip64DescriptorIntegrityInspection['descriptorEntries'][0]['valueOffset'] ?? null) !== (($zip64DescriptorIntegrityInspection['descriptorEntries'][0]['descriptorOffset'] ?? 0) + 4)
+        || ($zip64DescriptorIntegrityInspection['descriptorEntries'][1]['valueOffset'] ?? null) !== ($zip64DescriptorIntegrityInspection['descriptorEntries'][1]['descriptorOffset'] ?? null)
+        || ($zip64DescriptorIntegrityInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zip64DescriptorGzipFilename']
+        || !$zip64DescriptorExtractionBlocked
         || $splitZipInspection['format'] !== $expected['zipSplitFormat']
         || $splitZipInspection['zipBytes'] !== $splitZipBytes
         || $splitZipInspection['packageByteSize'] !== strlen($splitZipBytes)
@@ -1441,6 +1515,15 @@ echo 'zipDescriptor.signedCount=' . $descriptorZipInspection['signedDescriptorEn
 echo 'zipDescriptor.unsignedCount=' . $descriptorZipInspection['unsignedDescriptorEntryCount'] . "\n";
 echo 'zipDescriptor.names=' . implode(',', array_column($descriptorZipInspection['descriptorEntries'], 'name')) . "\n";
 echo 'zipDescriptor.gzipFilename=' . $descriptorZipInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zip64Descriptor.format=' . $zip64DescriptorIntegrityInspection['format'] . "\n";
+echo 'zip64Descriptor.entryCount=' . $zip64DescriptorIntegrityInspection['entryCount'] . "\n";
+echo 'zip64Descriptor.descriptorEntryCount=' . $zip64DescriptorIntegrityInspection['descriptorEntryCount'] . "\n";
+echo 'zip64Descriptor.mismatchCount=' . $zip64DescriptorIntegrityInspection['mismatchedDescriptorEntryCount'] . "\n";
+echo 'zip64Descriptor.zip64Count=' . $zip64DescriptorIntegrityInspection['zip64SizedDescriptorEntryCount'] . "\n";
+echo 'zip64Descriptor.issues=' . implode(',', $zip64DescriptorIntegrityInspection['issues']) . "\n";
+echo 'zip64Descriptor.lengths=' . implode(',', array_column($zip64DescriptorIntegrityInspection['descriptorEntries'], 'descriptorLength')) . "\n";
+echo 'zip64Descriptor.gzipFilename=' . $zip64DescriptorIntegrityInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zip64Descriptor.extractionBlocked=' . ($zip64DescriptorExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'zipSplit.format=' . $splitZipInspection['format'] . "\n";
 echo 'zipSplit.entryCount=' . $splitZipInspection['entryCount'] . "\n";
 echo 'zipSplit.issues=' . implode(',', $splitZipInspection['issues']) . "\n";

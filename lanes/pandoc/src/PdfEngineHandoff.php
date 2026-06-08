@@ -1437,6 +1437,12 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-xmp-metadata-skipped:too-large';
                     } else {
                         $diagnostics[] = 'pdf-byte-xmp-metadata:' . count($pdfXmpMetadata);
+                        if (is_string($pdfXmpMetadata['decodedFilter'] ?? null) && $pdfXmpMetadata['decodedFilter'] !== '') {
+                            $diagnostics[] = 'pdf-byte-xmp-metadata-decoded:' . $pdfXmpMetadata['decodedFilter'];
+                        }
+                        if (is_int($pdfXmpMetadata['compressedBytes'] ?? null)) {
+                            $diagnostics[] = 'pdf-byte-xmp-metadata-compressed-bytes:' . $pdfXmpMetadata['compressedBytes'];
+                        }
                         if (isset($pdfXmpMetadata['pdfaIdentification']) && is_array($pdfXmpMetadata['pdfaIdentification'])) {
                             $part = is_string($pdfXmpMetadata['pdfaIdentification']['part'] ?? null)
                                 ? $pdfXmpMetadata['pdfaIdentification']['part']
@@ -4768,12 +4774,15 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @param array{bytes:string, filtered:bool} $stream
+     * @param array{bytes:string, filtered:bool, compressedBytes?:int|null, decodedFilter?:string|null} $stream
      * @return array<string, mixed>
      */
     private function summarizePdfXmpMetadataStream(array $stream): array
     {
-        if ($stream['filtered']) {
+        $decodedFilter = is_string($stream['decodedFilter'] ?? null) && $stream['decodedFilter'] !== ''
+            ? $stream['decodedFilter']
+            : null;
+        if ($stream['filtered'] && $decodedFilter === null) {
             return [
                 'packetBytes' => strlen($stream['bytes']),
                 'skipped' => 'filtered',
@@ -4799,6 +4808,12 @@ final class PdfEngineHandoff
             'packetBytes' => strlen($xml),
             'packetSha256' => hash('sha256', $xml),
         ];
+        if ($decodedFilter !== null) {
+            $metadata['decodedFilter'] = $decodedFilter;
+            $metadata['compressedBytes'] = is_int($stream['compressedBytes'] ?? null)
+                ? $stream['compressedBytes']
+                : null;
+        }
 
         foreach ([
             'title' => 'title',
@@ -5079,15 +5094,12 @@ final class PdfEngineHandoff
             return null;
         }
 
-        $streamBytes = $this->extractPdfStreamBytes($metadataObject);
-        if ($streamBytes === null) {
+        $stream = $this->pdfMetadataStreamForObject($metadataObject, $objects);
+        if ($stream === null) {
             return null;
         }
 
-        $metadata = $this->summarizePdfXmpMetadataStream([
-            'bytes' => $streamBytes,
-            'filtered' => preg_match('/\/Filter\b/s', $metadataObject) === 1,
-        ]);
+        $metadata = $this->summarizePdfXmpMetadataStream($stream);
         if ($metadata === []) {
             return null;
         }
@@ -5632,7 +5644,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return array{bytes:string, filtered:bool}|null
+     * @return array{bytes:string, filtered:bool, compressedBytes:int|null, decodedFilter:string|null}|null
      */
     private function extractPdfMetadataStream(string $pdfBytes, ?string $catalog): ?array
     {
@@ -5658,18 +5670,65 @@ final class PdfEngineHandoff
         }
 
         foreach ($candidates as $body) {
-            $bytes = $this->extractPdfStreamBytes($body);
-            if ($bytes === null) {
+            $stream = $this->pdfMetadataStreamForObject($body, $objects);
+            if ($stream === null) {
                 continue;
             }
 
-            return [
-                'bytes' => $bytes,
-                'filtered' => preg_match('/\/Filter\b/s', $body) === 1,
-            ];
+            return $stream;
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{bytes:string, filtered:bool, compressedBytes:int|null, decodedFilter:string|null}|null
+     */
+    private function pdfMetadataStreamForObject(string $objectBody, array $objects): ?array
+    {
+        $bytes = $this->extractPdfStreamBytes($objectBody);
+        if ($bytes === null) {
+            return null;
+        }
+
+        $filters = $this->extractPdfFilterNames($objectBody, $objects);
+        if ($filters === []) {
+            return [
+                'bytes' => $bytes,
+                'filtered' => false,
+                'compressedBytes' => null,
+                'decodedFilter' => null,
+            ];
+        }
+
+        if ($filters === ['FlateDecode'] && $this->pdfMetadataStreamHasSimpleDecodeParameters($objectBody)) {
+            try {
+                return [
+                    'bytes' => DeflateStream::decode($bytes, DeflateStream::FORMAT_ZLIB, self::MAX_XMP_METADATA_BYTES),
+                    'filtered' => true,
+                    'compressedBytes' => strlen($bytes),
+                    'decodedFilter' => 'FlateDecode',
+                ];
+            } catch (\RuntimeException) {
+                // Preserve the existing skipped-filter handoff for malformed compressed metadata.
+            }
+        }
+
+        return [
+            'bytes' => $bytes,
+            'filtered' => true,
+            'compressedBytes' => null,
+            'decodedFilter' => null,
+        ];
+    }
+
+    private function pdfMetadataStreamHasSimpleDecodeParameters(string $objectBody): bool
+    {
+        $decodeParameters = $this->extractPdfValueForName($objectBody, 'DecodeParms');
+
+        return $decodeParameters === null
+            || (($decodeParameters['kind'] ?? null) === 'keyword' && ($decodeParameters['value'] ?? null) === 'null');
     }
 
     /**

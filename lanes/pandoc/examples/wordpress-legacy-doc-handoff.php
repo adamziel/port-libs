@@ -50,6 +50,64 @@ $utf16le = static function (string $text): string {
 
     return $encoded;
 };
+$xstz = static function (string $text) use ($u16, $utf16le): string {
+    $encoded = $utf16le($text);
+
+    return $u16(intdiv(strlen($encoded), 2)) . $encoded . $u16(0);
+};
+$sttbUnicode = static function (array $strings) use ($u16, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(count($strings)) . $u16(0);
+    foreach ($strings as $string) {
+        $encoded = $utf16le((string) $string);
+        $bytes .= $u16(intdiv(strlen($encoded), 2)) . $encoded;
+    }
+
+    return $bytes;
+};
+$ffData = static function (array $options) use ($u16, $u32, $xstz, $sttbUnicode): string {
+    $fieldType = (string) ($options['fieldType'] ?? 'text');
+    $fieldTypeCode = match ($fieldType) {
+        'text' => 0,
+        'checkbox' => 1,
+        'dropdown' => 2,
+        default => throw new RuntimeException('Unsupported FFData fixture field type'),
+    };
+
+    $currentStateCode = (int) ($options['currentStateCode'] ?? 0);
+    $bits = $fieldTypeCode
+        | (($currentStateCode & 0x1f) << 2)
+        | (!empty($options['hasOwnHelpText']) ? (1 << 7) : 0)
+        | (!empty($options['hasOwnStatusText']) ? (1 << 8) : 0)
+        | (!empty($options['protected']) ? (1 << 9) : 0)
+        | (!empty($options['checkboxAutoSize']) ? (1 << 10) : 0)
+        | (((int) ($options['textTypeCode'] ?? 0) & 0x07) << 11)
+        | (!empty($options['recalculateOnExit']) ? (1 << 14) : 0)
+        | ($fieldType === 'dropdown' ? (1 << 15) : 0);
+
+    $bytes = $u32(0xffffffff)
+        . $u16($bits)
+        . $u16($fieldType === 'text' ? (int) ($options['maxLength'] ?? 0) : 0)
+        . $u16($fieldType === 'checkbox' ? (int) ($options['checkboxSizeHalfPoints'] ?? 20) : 0)
+        . $xstz((string) ($options['name'] ?? ''));
+
+    if ($fieldType === 'text') {
+        $bytes .= $xstz((string) ($options['defaultText'] ?? ''));
+    } else {
+        $bytes .= $u16((int) ($options['defaultStateCode'] ?? 0));
+    }
+
+    $bytes .= $xstz((string) ($options['textFormat'] ?? ''))
+        . $xstz((string) ($options['helpText'] ?? ''))
+        . $xstz((string) ($options['statusText'] ?? ''))
+        . $xstz((string) ($options['entryMacro'] ?? ''))
+        . $xstz((string) ($options['exitMacro'] ?? ''));
+
+    if ($fieldType === 'dropdown') {
+        $bytes .= $sttbUnicode($options['dropDownItems'] ?? []);
+    }
+
+    return $bytes;
+};
 $characterLength = static function (string $text): int {
     if ($text === '') {
         return 0;
@@ -1383,8 +1441,38 @@ $docBytes = str_pad($header, 512, "\0") . implode('', $sectors);
 $difatFixture = $moveFatListingToDifatSector($docBytes);
 $docBytes = $difatFixture['bytes'];
 $difatSector = (int) $difatFixture['difatSector'];
-$result = (new LegacyDocReader())->readBytes($docBytes);
+$reader = new LegacyDocReader();
+$result = $reader->readBytes($docBytes);
 $blocks = (new WordPressBlockWriter())->write($result['document']);
+$formFieldDataSamples = [
+    'reviewerName' => $reader->decodeFormFieldData($ffData([
+        'fieldType' => 'text',
+        'name' => 'ReviewerName',
+        'defaultText' => 'pending review',
+        'textFormat' => 'Title Case',
+        'helpText' => 'Enter the reviewer name before import.',
+        'statusText' => 'Reviewer name stored in legacy form metadata.',
+        'maxLength' => 40,
+        'hasOwnHelpText' => true,
+        'hasOwnStatusText' => true,
+        'protected' => true,
+    ])),
+    'approval' => $reader->decodeFormFieldData($ffData([
+        'fieldType' => 'checkbox',
+        'name' => 'ApproveImport',
+        'defaultStateCode' => 0,
+        'currentStateCode' => 1,
+        'checkboxSizeHalfPoints' => 24,
+    ])),
+    'publicationState' => $reader->decodeFormFieldData($ffData([
+        'fieldType' => 'dropdown',
+        'name' => 'PublicationState',
+        'defaultStateCode' => 1,
+        'currentStateCode' => 2,
+        'dropDownItems' => ['Draft', 'Review', 'Publish'],
+        'helpText' => 'Choose the publication state for the migrated post.',
+    ])),
+];
 
 $summary = [
     'metadata' => $result['metadata'],
@@ -1408,6 +1496,7 @@ $summary = [
     'fieldCharacters' => $result['fieldCharacters'],
     'fields' => $result['fields'],
     'fieldStories' => $result['fieldStories'],
+    'formFieldDataSamples' => $formFieldDataSamples,
     'embeddedObjects' => $result['embeddedObjects'],
     'embeddedObjectReferences' => $result['embeddedObjectReferences'],
     'pictureReferences' => $result['pictureReferences'],
@@ -2026,6 +2115,41 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['fields'][7]['typeCode'] ?? null) !== 0x46 || ($summary['fields'][7]['hasResult'] ?? null) !== true) {
         throw new RuntimeException('Legacy DOC handoff self-test missing FORMTEXT Plcfld result range');
+    }
+    $formFieldDataSamples = $summary['formFieldDataSamples'] ?? [];
+    if (
+        ($formFieldDataSamples['reviewerName']['fieldType'] ?? '') !== 'text'
+        || ($formFieldDataSamples['reviewerName']['name'] ?? '') !== 'ReviewerName'
+        || ($formFieldDataSamples['reviewerName']['defaultText'] ?? '') !== 'pending review'
+        || ($formFieldDataSamples['reviewerName']['textFormat'] ?? '') !== 'Title Case'
+        || ($formFieldDataSamples['reviewerName']['maxLength'] ?? null) !== 40
+        || ($formFieldDataSamples['reviewerName']['hasOwnHelpText'] ?? null) !== true
+        || ($formFieldDataSamples['reviewerName']['protected'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing decoded FFData textbox metadata');
+    }
+    if (
+        ($formFieldDataSamples['approval']['fieldType'] ?? '') !== 'checkbox'
+        || ($formFieldDataSamples['approval']['name'] ?? '') !== 'ApproveImport'
+        || ($formFieldDataSamples['approval']['defaultChecked'] ?? null) !== false
+        || ($formFieldDataSamples['approval']['checked'] ?? null) !== true
+        || ($formFieldDataSamples['approval']['checkboxSizeHalfPoints'] ?? null) !== 24
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing decoded FFData checkbox metadata');
+    }
+    if (
+        ($formFieldDataSamples['publicationState']['fieldType'] ?? '') !== 'dropdown'
+        || ($formFieldDataSamples['publicationState']['name'] ?? '') !== 'PublicationState'
+        || ($formFieldDataSamples['publicationState']['defaultDropDownItem'] ?? '') !== 'Review'
+        || ($formFieldDataSamples['publicationState']['selectedDropDownItem'] ?? '') !== 'Publish'
+        || ($formFieldDataSamples['publicationState']['dropDownItems'] ?? []) !== ['Draft', 'Review', 'Publish']
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing decoded FFData dropdown metadata');
+    }
+    foreach (['PublicationState', 'Choose the publication state for the migrated post.'] as $hiddenFormFieldMetadata) {
+        if (str_contains($summary['wordpressBlocks'], $hiddenFormFieldMetadata)) {
+            throw new RuntimeException('Legacy DOC handoff self-test rendered FFData metadata into blocks');
+        }
     }
     if (($summary['fields'][8]['typeCode'] ?? null) !== 0x3b || ($summary['fields'][8]['type'] ?? '') !== 'mergefield') {
         throw new RuntimeException('Legacy DOC handoff self-test missing MERGEFIELD Plcfld metadata');

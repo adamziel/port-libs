@@ -242,12 +242,23 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
                 $body .= "PK\x07\x08";
             }
 
-            $body .= pack(
-                'VVV',
-                (int) ($entry['descriptorCrc32'] ?? $crc32),
-                (int) ($entry['descriptorCompressedSize'] ?? strlen($payload)),
-                (int) ($entry['descriptorUncompressedSize'] ?? strlen($data))
-            );
+            if ((bool) ($entry['descriptorZip64'] ?? false)) {
+                $body .= pack(
+                    'VVVVV',
+                    (int) ($entry['descriptorCrc32'] ?? $crc32),
+                    (int) ($entry['descriptorCompressedSize'] ?? strlen($payload)),
+                    0,
+                    (int) ($entry['descriptorUncompressedSize'] ?? strlen($data)),
+                    0
+                );
+            } else {
+                $body .= pack(
+                    'VVV',
+                    (int) ($entry['descriptorCrc32'] ?? $crc32),
+                    (int) ($entry['descriptorCompressedSize'] ?? strlen($payload)),
+                    (int) ($entry['descriptorUncompressedSize'] ?? strlen($data))
+                );
+            }
         }
 
         $centralDirectory .= pack(
@@ -3256,6 +3267,148 @@ return [
         $t->throws(
             \RuntimeException::class,
             static fn (): array => ArchiveCompressionStream::inspectZipDataDescriptorPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
+    'preflights zip data descriptor integrity across archive streams without accepting zip64 descriptors' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $documentXml = '<w:document><w:body><w:p>ZIP64 descriptor document.xml</w:p></w:body></w:document>';
+        $footnotesXml = '<w:footnotes><w:footnote w:id="2">ZIP64 descriptor footnote</w:footnote></w:footnotes>';
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'compressionMethod' => 8,
+                'descriptor' => true,
+                'descriptorZip64' => true,
+            ],
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => $footnotesXml,
+                'compressionMethod' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+                'descriptorZip64' => true,
+            ],
+        ], 'zip64 descriptor integrity fixture');
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-zip64-descriptor-package.zip',
+                'comment' => 'zip64 descriptor integrity preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('zip64 descriptor reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        $zip64ExtractionBlocked = false;
+        try {
+            ZipPackage::fromString($zipBytes);
+        } catch (\RuntimeException) {
+            $zip64ExtractionBlocked = true;
+        }
+
+        $t->same(true, $zip64ExtractionBlocked);
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipDataDescriptorIntegrityPolicy($bytes, $format, strlen($zipBytes));
+            $descriptorEntries = $inspection['descriptorEntries'];
+
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(3, $inspection['entryCount']);
+            $t->same(3, $inspection['totalEntryCount']);
+            $t->same(2, $inspection['descriptorEntryCount']);
+            $t->same(0, $inspection['matchedDescriptorEntryCount']);
+            $t->same(2, $inspection['mismatchedDescriptorEntryCount']);
+            $t->same(1, $inspection['signedDescriptorEntryCount']);
+            $t->same(1, $inspection['unsignedDescriptorEntryCount']);
+            $t->same(2, $inspection['zip64SizedDescriptorEntryCount']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same(['zip64-sized-data-descriptor'], $inspection['issues']);
+            $t->same([
+                'word/document.xml',
+                'word/footnotes.xml',
+            ], array_column($descriptorEntries, 'name'));
+            $t->same([
+                true,
+                false,
+            ], array_column($descriptorEntries, 'hasSignature'));
+            $t->same([
+                24,
+                20,
+            ], array_column($descriptorEntries, 'descriptorLength'));
+            $t->same([
+                true,
+                true,
+            ], array_column($descriptorEntries, 'usesZip64SizedDescriptor'));
+            $t->same([
+                true,
+                true,
+            ], array_column($descriptorEntries, 'descriptorValuesMatchCentral'));
+            $t->same([
+                ['zip64-sized-data-descriptor'],
+                ['zip64-sized-data-descriptor'],
+            ], array_column($descriptorEntries, 'issues'));
+            $t->same($descriptorEntries, $inspection['mismatchedDescriptorEntries']);
+            $t->same([
+                true,
+                true,
+            ], array_column($descriptorEntries, 'hasZeroLocalHeaderPlaceholders'));
+            $t->same([
+                $descriptorEntries[0]['descriptorOffset'] + 4,
+                $descriptorEntries[1]['descriptorOffset'],
+            ], array_column($descriptorEntries, 'valueOffset'));
+            $t->same((int) sprintf('%u', crc32($documentXml)), $descriptorEntries[0]['crc32']);
+            $t->same((int) sprintf('%u', crc32($footnotesXml)), $descriptorEntries[1]['crc32']);
+            $t->same(strlen(gzdeflate($documentXml)), $descriptorEntries[0]['compressedSize']);
+            $t->same(strlen($footnotesXml), $descriptorEntries[1]['compressedSize']);
+            $t->same('word/document.xml', $inspection['entries'][1]['name']);
+            $t->same(true, $inspection['entries'][1]['usesDataDescriptor']);
+            $t->same(false, $inspection['entries'][0]['usesDataDescriptor']);
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipDataDescriptorIntegrityPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipDataDescriptorIntegrityPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-zip64-descriptor-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('zip64 descriptor integrity preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('zip64 descriptor reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipDataDescriptorIntegrityPolicy(
                 $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
                 ArchiveCompressionStream::FORMAT_GZIP_TAR,
                 strlen($zipBytes)

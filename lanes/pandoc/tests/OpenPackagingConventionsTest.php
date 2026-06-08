@@ -4347,6 +4347,88 @@ XML;
         $t->same(false, $documentInventory[OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['policyValid']);
         $t->same(['multiple-thumbnail-relationships-for-source'], $documentInventory[OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['policyIssues']);
     },
+    'preflights OPC relationship type policies in package consistency' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/second.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocumentA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdDocumentB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/second.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdPackageThumb" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="docProps/thumb.png"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdMisplacedDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="comments.xml"/>
+  <Relationship Id="rIdMisplacedCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="../docProps/core.xml"/>
+  <Relationship Id="rIdThumbA" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="media/thumb-a.png"/>
+  <Relationship Id="rIdThumbB" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="media/thumb-b.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/second.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/thumb-a.png', 'data' => 'PNG'],
+            ['name' => 'word/media/thumb-b.png', 'data' => 'PNG'],
+            ['name' => 'docProps/thumb.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $consistency = $graph->preflightPackageConsistency();
+        $policies = [];
+        foreach ($consistency['relationshipTypePolicies'] ?? [] as $policy) {
+            $policies[$policy['type']] = $policy;
+        }
+
+        $t->same(true, array_key_exists('relationshipTypePoliciesValid', $consistency));
+        $t->same(false, $consistency['valid']);
+        $t->same(true, $consistency['packagePartsValid']);
+        $t->same(true, $consistency['contentTypeOverridesValid']);
+        $t->same(true, $consistency['relationshipTargetsValid']);
+        $t->same(false, $consistency['relationshipTypePoliciesValid']);
+        $t->same([
+            OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::CORE_PROPERTIES_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE,
+        ], array_keys($policies));
+
+        $officeDocument = $policies[OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE];
+        $coreProperties = $policies[OpcRelationshipGraph::CORE_PROPERTIES_RELATIONSHIP_TYPE];
+        $thumbnail = $policies[OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE];
+
+        $t->same('office-document', $officeDocument['knownRole']);
+        $t->same(false, $officeDocument['policyValid']);
+        $t->same(['multiple-office-document-relationships', 'office-document-relationship-source-not-package-root'], $officeDocument['policyIssues']);
+        $t->same(3, $officeDocument['relationshipCount']);
+        $t->same(['/', '/word/document.xml'], $officeDocument['sources']);
+
+        $t->same('core-properties', $coreProperties['knownRole']);
+        $t->same(false, $coreProperties['policyValid']);
+        $t->same(['core-properties-relationship-source-not-package-root', 'multiple-core-properties-relationships'], $coreProperties['policyIssues']);
+        $t->same(2, $coreProperties['relationshipCount']);
+
+        $t->same('thumbnail', $thumbnail['knownRole']);
+        $t->same(false, $thumbnail['policyValid']);
+        $t->same(['multiple-thumbnail-relationships-for-source'], $thumbnail['policyIssues']);
+        $t->same(3, $thumbnail['relationshipCount']);
+        $t->same(2, $thumbnail['sourceCount']);
+    },
     'summarizes package-wide OPC relationship source inventory for import review' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

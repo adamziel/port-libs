@@ -50,6 +50,64 @@ $utf16le = static function (string $text): string {
 
     return $encoded;
 };
+$xstz = static function (string $text) use ($u16, $utf16le): string {
+    $encoded = $utf16le($text);
+
+    return $u16(intdiv(strlen($encoded), 2)) . $encoded . $u16(0);
+};
+$sttbUnicode = static function (array $strings) use ($u16, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(count($strings)) . $u16(0);
+    foreach ($strings as $string) {
+        $encoded = $utf16le((string) $string);
+        $bytes .= $u16(intdiv(strlen($encoded), 2)) . $encoded;
+    }
+
+    return $bytes;
+};
+$ffData = static function (array $options) use ($u16, $u32, $xstz, $sttbUnicode): string {
+    $fieldType = (string) ($options['fieldType'] ?? 'text');
+    $fieldTypeCode = match ($fieldType) {
+        'text' => 0,
+        'checkbox' => 1,
+        'dropdown' => 2,
+        default => throw new RuntimeException('Unsupported FFData fixture field type'),
+    };
+
+    $currentStateCode = (int) ($options['currentStateCode'] ?? 0);
+    $bits = $fieldTypeCode
+        | (($currentStateCode & 0x1f) << 2)
+        | (!empty($options['hasOwnHelpText']) ? (1 << 7) : 0)
+        | (!empty($options['hasOwnStatusText']) ? (1 << 8) : 0)
+        | (!empty($options['protected']) ? (1 << 9) : 0)
+        | (!empty($options['checkboxAutoSize']) ? (1 << 10) : 0)
+        | (((int) ($options['textTypeCode'] ?? 0) & 0x07) << 11)
+        | (!empty($options['recalculateOnExit']) ? (1 << 14) : 0)
+        | ($fieldType === 'dropdown' ? (1 << 15) : 0);
+
+    $bytes = $u32(0xffffffff)
+        . $u16($bits)
+        . $u16($fieldType === 'text' ? (int) ($options['maxLength'] ?? 0) : 0)
+        . $u16($fieldType === 'checkbox' ? (int) ($options['checkboxSizeHalfPoints'] ?? 20) : 0)
+        . $xstz((string) ($options['name'] ?? ''));
+
+    if ($fieldType === 'text') {
+        $bytes .= $xstz((string) ($options['defaultText'] ?? ''));
+    } else {
+        $bytes .= $u16((int) ($options['defaultStateCode'] ?? 0));
+    }
+
+    $bytes .= $xstz((string) ($options['textFormat'] ?? ''))
+        . $xstz((string) ($options['helpText'] ?? ''))
+        . $xstz((string) ($options['statusText'] ?? ''))
+        . $xstz((string) ($options['entryMacro'] ?? ''))
+        . $xstz((string) ($options['exitMacro'] ?? ''));
+
+    if ($fieldType === 'dropdown') {
+        $bytes .= $sttbUnicode($options['dropDownItems'] ?? []);
+    }
+
+    return $bytes;
+};
 $padTo = static function (string $bytes, int $size): string {
     $remainder = strlen($bytes) % $size;
 
@@ -4165,6 +4223,112 @@ return [
         foreach (['FORMTEXT', 'FORMCHECKBOX', 'FORMDROPDOWN'] as $instruction) {
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC form field instructions should not render as visible text');
         }
+    },
+    'decodes legacy DOC FFData form-field options for review handoff metadata' => static function (TestRunner $t) use ($ffData): void {
+        $reader = new LegacyDocReader();
+
+        $textField = $reader->decodeFormFieldData($ffData([
+            'fieldType' => 'text',
+            'name' => 'ReviewerName',
+            'defaultText' => 'Alice Reviewer',
+            'textFormat' => 'Title Case',
+            'helpText' => 'Enter reviewer display name.',
+            'statusText' => 'Reviewer name for import audit.',
+            'entryMacro' => 'AuditEnter',
+            'exitMacro' => 'AuditExit',
+            'maxLength' => 40,
+            'textTypeCode' => 0,
+            'hasOwnHelpText' => true,
+            'hasOwnStatusText' => true,
+            'protected' => true,
+            'recalculateOnExit' => true,
+        ]));
+        $t->same('FFData', $textField['source']);
+        $t->same('0xffffffff', $textField['versionHex']);
+        $t->same('text', $textField['fieldType']);
+        $t->same(0, $textField['fieldTypeCode']);
+        $t->same(0, $textField['currentStateCode']);
+        $t->same('ReviewerName', $textField['name']);
+        $t->same('regular', $textField['textType']);
+        $t->same(0, $textField['textTypeCode']);
+        $t->same(40, $textField['maxLength']);
+        $t->same('Alice Reviewer', $textField['defaultText']);
+        $t->same('Title Case', $textField['textFormat']);
+        $t->same('Enter reviewer display name.', $textField['helpText']);
+        $t->same('Reviewer name for import audit.', $textField['statusText']);
+        $t->same('AuditEnter', $textField['entryMacro']);
+        $t->same('AuditExit', $textField['exitMacro']);
+        $t->same(true, $textField['hasOwnHelpText']);
+        $t->same(true, $textField['hasOwnStatusText']);
+        $t->same(true, $textField['protected']);
+        $t->same(true, $textField['recalculateOnExit']);
+        $t->same(false, $textField['hasListBox']);
+        $t->true($textField['byteCount'] > 0, 'FFData text field byte count should be retained');
+
+        $checkbox = $reader->decodeFormFieldData($ffData([
+            'fieldType' => 'checkbox',
+            'name' => 'ApprovePacket',
+            'defaultStateCode' => 1,
+            'currentStateCode' => 25,
+            'checkboxSizeHalfPoints' => 24,
+            'checkboxAutoSize' => true,
+            'protected' => true,
+        ]));
+        $t->same('checkbox', $checkbox['fieldType']);
+        $t->same('ApprovePacket', $checkbox['name']);
+        $t->same(1, $checkbox['defaultStateCode']);
+        $t->same(25, $checkbox['currentStateCode']);
+        $t->same(true, $checkbox['checkboxAutoSize']);
+        $t->same(24, $checkbox['checkboxSizeHalfPoints']);
+        $t->same(true, $checkbox['defaultChecked']);
+        $t->same(false, $checkbox['checked']);
+        $t->same('undefined', $checkbox['checkboxState']);
+        $t->same(true, $checkbox['protected']);
+
+        $dropdown = $reader->decodeFormFieldData($ffData([
+            'fieldType' => 'dropdown',
+            'name' => 'ImportState',
+            'defaultStateCode' => 1,
+            'currentStateCode' => 2,
+            'dropDownItems' => ['Draft', 'Review', 'Publish'],
+            'helpText' => 'Choose the publication state.',
+        ]));
+        $t->same('dropdown', $dropdown['fieldType']);
+        $t->same('ImportState', $dropdown['name']);
+        $t->same(1, $dropdown['defaultSelectedIndex']);
+        $t->same(2, $dropdown['selectedIndex']);
+        $t->same(false, $dropdown['selectionUndefined']);
+        $t->same(['Draft', 'Review', 'Publish'], $dropdown['dropDownItems']);
+        $t->same(3, $dropdown['dropDownItemCount']);
+        $t->same('Review', $dropdown['defaultDropDownItem']);
+        $t->same('Publish', $dropdown['selectedDropDownItem']);
+        $t->same('Choose the publication state.', $dropdown['helpText']);
+        $t->same(true, $dropdown['hasListBox']);
+
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->decodeFormFieldData(substr_replace($ffData([
+            'fieldType' => 'text',
+            'name' => 'BadVersion',
+        ]), "\0\0\0\0", 0, 4)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->decodeFormFieldData($ffData([
+            'fieldType' => 'dropdown',
+            'name' => 'BadDefault',
+            'defaultStateCode' => 4,
+            'currentStateCode' => 0,
+            'dropDownItems' => ['Only'],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->decodeFormFieldData($ffData([
+            'fieldType' => 'checkbox',
+            'name' => 'BadFormat',
+            'defaultStateCode' => 1,
+            'currentStateCode' => 1,
+            'textFormat' => '0.00',
+        ])));
+        $truncated = substr($ffData([
+            'fieldType' => 'text',
+            'name' => 'Truncated',
+            'defaultText' => 'value',
+        ]), 0, -1);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->decodeFormFieldData($truncated));
     },
     'extracts legacy DOC Plcfld field tables for form-field handoff metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
         $fieldBegin = "\x13";

@@ -640,6 +640,78 @@ HTML;
         $t->contains('<tbody><tr><td>Posts</td><td>42.50</td><td>1,25</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'carries html cell decimal alignment provenance into geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="cell-decimal-alignment-grid" data-source="html-reader">
+<caption>Cell decimal alignment review</caption>
+<thead>
+<tr><th align="char" char="." charoff="2">Amount</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr><td align="char" char="." charoff="1">42.50</td><td>Ready</td></tr>
+<tr><td align="char" char="," charoff="3">7,25</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+
+        $headerCell = $table->children[0]->children[0]->children[0] ?? null;
+        $bodyCell = $table->children[1]->children[0]->children[0] ?? null;
+        $t->same('char', $headerCell instanceof AstNode ? ($headerCell->attr('htmlAttributes')['align'] ?? null) : null);
+        $t->same('.', $bodyCell instanceof AstNode ? ($bodyCell->attr('htmlAttributes')['char'] ?? null) : null);
+        $t->same('1', $bodyCell instanceof AstNode ? ($bodyCell->attr('htmlAttributes')['charoff'] ?? null) : null);
+
+        $t->same(3, count($packet['cellDecimalAlignments'] ?? []));
+        $t->same('html-table-cell-char-alignment', $packet['cellDecimalAlignments'][0]['source'] ?? null);
+        $t->same('head', $packet['cellDecimalAlignments'][0]['section'] ?? null);
+        $t->same(0, $packet['cellDecimalAlignments'][0]['column'] ?? null);
+        $t->same([0], $packet['cellDecimalAlignments'][0]['columns'] ?? null);
+        $t->same('Amount', $packet['cellDecimalAlignments'][0]['text'] ?? null);
+        $t->same('.', $packet['cellDecimalAlignments'][0]['char'] ?? null);
+        $t->same('2', $packet['cellDecimalAlignments'][0]['charoff'] ?? null);
+        $t->same(',', $packet['cellDecimalAlignments'][2]['char'] ?? null);
+        $t->same('3', $packet['cellDecimalAlignments'][2]['charoff'] ?? null);
+        $t->same('char', $packet['coverage'][0]['decimalAlignment']['alignment'] ?? null);
+        $t->same('.', $packet['coverage'][2]['decimalAlignment']['char'] ?? null);
+        $t->same(',', $packet['coverage'][4]['decimalAlignment']['char'] ?? null);
+        $t->same(3, $packet['summary']['cellDecimalAlignmentCount'] ?? null);
+        $t->same(true, $packet['summary']['hasCellDecimalAlignments'] ?? null);
+        $t->same([0], $packet['summary']['cellDecimalAlignmentColumns'] ?? null);
+        $t->same(['.', ','], $packet['summary']['cellDecimalAlignmentChars'] ?? null);
+        $t->same(['2', '1', '3'], $packet['summary']['cellDecimalAlignmentOffsets'] ?? null);
+
+        $markdownDiagnostics = $packet['writerDowngrades']['markdown'] ?? [];
+        $markdownCodes = array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $markdownDiagnostics);
+        $t->same(true, in_array('markdown-cell-char-alignment-require-raw-html', $markdownCodes, true));
+        $cellDiagnostics = array_values(array_filter(
+            $markdownDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-cell-char-alignment-require-raw-html'
+        ));
+        $t->same(1, count($cellDiagnostics));
+        $t->same('raw-html-cell-char-alignment', $cellDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same([0], $cellDiagnostics[0]['columns'] ?? null);
+        $t->same(['.', ','], $cellDiagnostics[0]['chars'] ?? null);
+        $t->same(['2', '1', '3'], $cellDiagnostics[0]['charOffsets'] ?? null);
+        $t->same('Amount', $cellDiagnostics[0]['cells'][0]['text'] ?? null);
+        $t->same('7,25', $cellDiagnostics[0]['cells'][2]['text'] ?? null);
+
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoc');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'latex');
+        $t->same(true, in_array('asciidoc-cell-char-alignment-review-required', array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $asciidocDiagnostics), true));
+        $t->same(true, in_array('latex-cell-char-alignment-review-required', array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $latexDiagnostics), true));
+
+        $t->contains('<thead><tr><th align="char" char="." charoff="2">Amount</th><th>Status</th></tr></thead>', $blocks);
+        $t->contains('<tbody><tr><td align="char" char="." charoff="1">42.50</td><td>Ready</td></tr><tr><td align="char" char="," charoff="3">7,25</td><td>Review</td></tr></tbody>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'preserves safe html colgroup and col provenance in wordpress output' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="wordpress-colgroup-source" data-source="html-reader">

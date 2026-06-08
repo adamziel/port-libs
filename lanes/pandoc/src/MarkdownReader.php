@@ -8065,7 +8065,28 @@ final class MarkdownReader
             $attrs['valign'] = $verticalAlignment;
         }
 
+        $attrs = $this->htmlTableCellCharAlignmentAttrs($cell, $attrs);
+
         return new AstNode('table_cell', $attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function htmlTableCellCharAlignmentAttrs(\DOMElement $cell, array $attrs): array
+    {
+        if (strtolower(trim($cell->getAttribute('align'))) !== 'char') {
+            return $attrs;
+        }
+
+        foreach (['attributes', 'htmlAttributes'] as $key) {
+            $values = isset($attrs[$key]) && is_array($attrs[$key]) ? $attrs[$key] : [];
+            $values['align'] = 'char';
+            $attrs[$key] = $values;
+        }
+
+        return $attrs;
     }
 
     /**

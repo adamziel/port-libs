@@ -76,6 +76,22 @@ $decimalAlignmentTables = array_values(array_filter(
     $decimalAlignmentDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$cellDecimalAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="cell-decimal-alignment-grid" data-source="html-reader">
+<caption>Cell decimal alignment review</caption>
+<thead>
+<tr><th align="char" char="." charoff="2">Amount</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr><td align="char" char="." charoff="1">42.50</td><td>Ready</td></tr>
+<tr><td align="char" char="," charoff="3">7,25</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML);
+$cellDecimalAlignmentTables = array_values(array_filter(
+    $cellDecimalAlignmentDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $colgroupMismatchDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="colgroup-underdeclared-grid" data-source="html-reader">
 <caption>Colgroup mismatch review</caption>
@@ -1060,6 +1076,7 @@ $document = new AstNode('document', [], [
     ...$rowspanZeroTables,
     ...$colgroupAlignmentTables,
     ...$decimalAlignmentTables,
+    ...$cellDecimalAlignmentTables,
     ...$colgroupMismatchTables,
     ...$inheritedAlignmentTables,
     ...$verticalAlignmentTables,
@@ -1975,6 +1992,70 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($decimalAlignmentPacket, JSON_THROW_ON_ERROR);
     json_encode($decimalWriterPacket, JSON_THROW_ON_ERROR);
+
+    $cellDecimalAlignmentTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'cell-decimal-alignment-grid') {
+            $cellDecimalAlignmentTable = $node;
+            break;
+        }
+    }
+    $cellDecimalAlignmentPacket = $cellDecimalAlignmentTable instanceof AstNode ? $cellDecimalAlignmentTable->attr('tableGeometry') : null;
+    $cellDecimalHeader = $cellDecimalAlignmentTable instanceof AstNode ? ($cellDecimalAlignmentTable->children[0]->children[0]->children[0] ?? null) : null;
+    $cellDecimalBody = $cellDecimalAlignmentTable instanceof AstNode ? ($cellDecimalAlignmentTable->children[1]->children[0]->children[0] ?? null) : null;
+    if (
+        !$cellDecimalAlignmentTable instanceof AstNode
+        || !$cellDecimalHeader instanceof AstNode
+        || !$cellDecimalBody instanceof AstNode
+        || ($cellDecimalHeader->attr('htmlAttributes')['align'] ?? null) !== 'char'
+        || ($cellDecimalHeader->attr('htmlAttributes')['charoff'] ?? null) !== '2'
+        || ($cellDecimalBody->attr('htmlAttributes')['char'] ?? null) !== '.'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source HTML cell decimal alignment metadata');
+    }
+    if (
+        !is_array($cellDecimalAlignmentPacket)
+        || count($cellDecimalAlignmentPacket['cellDecimalAlignments'] ?? []) !== 3
+        || ($cellDecimalAlignmentPacket['cellDecimalAlignments'][0]['source'] ?? null) !== 'html-table-cell-char-alignment'
+        || ($cellDecimalAlignmentPacket['cellDecimalAlignments'][0]['section'] ?? null) !== 'head'
+        || ($cellDecimalAlignmentPacket['cellDecimalAlignments'][0]['columns'] ?? null) !== [0]
+        || ($cellDecimalAlignmentPacket['cellDecimalAlignments'][0]['text'] ?? null) !== 'Amount'
+        || ($cellDecimalAlignmentPacket['cellDecimalAlignments'][2]['char'] ?? null) !== ','
+        || ($cellDecimalAlignmentPacket['summary']['hasCellDecimalAlignments'] ?? null) !== true
+        || ($cellDecimalAlignmentPacket['summary']['cellDecimalAlignmentCount'] ?? null) !== 3
+        || ($cellDecimalAlignmentPacket['summary']['cellDecimalAlignmentColumns'] ?? null) !== [0]
+        || ($cellDecimalAlignmentPacket['summary']['cellDecimalAlignmentChars'] ?? null) !== ['.', ',']
+        || ($cellDecimalAlignmentPacket['summary']['cellDecimalAlignmentOffsets'] ?? null) !== ['2', '1', '3']
+        || ($cellDecimalAlignmentPacket['coverage'][0]['decimalAlignment']['alignment'] ?? null) !== 'char'
+        || ($cellDecimalAlignmentPacket['coverage'][4]['decimalAlignment']['char'] ?? null) !== ','
+    ) {
+        throw new RuntimeException('Table geometry self-test missing cell decimal alignment review-packet summary');
+    }
+    $cellDecimalWriterPacket = TableGeometry::reviewPacket($cellDecimalAlignmentTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex', 'wordpress'],
+    ]);
+    $cellDecimalMarkdownDiagnostics = array_values(array_filter(
+        $cellDecimalWriterPacket['writerDowngrades']['markdown'] ?? [],
+        static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-cell-char-alignment-require-raw-html'
+    ));
+    if (
+        !in_array('markdown-cell-char-alignment-require-raw-html', $cellDecimalWriterPacket['summary']['writerDowngradeCodes'] ?? [], true)
+        || !in_array('asciidoc-cell-char-alignment-review-required', $cellDecimalWriterPacket['summary']['writerDowngradeCodes'] ?? [], true)
+        || !in_array('latex-cell-char-alignment-review-required', $cellDecimalWriterPacket['summary']['writerDowngradeCodes'] ?? [], true)
+        || count($cellDecimalMarkdownDiagnostics) !== 1
+        || ($cellDecimalMarkdownDiagnostics[0]['requiredFeature'] ?? null) !== 'raw-html-cell-char-alignment'
+        || ($cellDecimalMarkdownDiagnostics[0]['columns'] ?? null) !== [0]
+        || ($cellDecimalMarkdownDiagnostics[0]['cells'][2]['text'] ?? null) !== '7,25'
+        || ($cellDecimalWriterPacket['writerDowngrades']['wordpress'] ?? null) !== []
+    ) {
+        throw new RuntimeException('Table geometry self-test missing cell decimal alignment writer diagnostics');
+    }
+    if (!str_contains($blocks, '<table id="cell-decimal-alignment-grid" data-source="html-reader"><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><thead><tr><th align="char" char="." charoff="2">Amount</th><th>Status</th></tr></thead><tbody><tr><td align="char" char="." charoff="1">42.50</td><td>Ready</td></tr><tr><td align="char" char="," charoff="3">7,25</td><td>Review</td></tr></tbody></table><figcaption class="wp-element-caption">Cell decimal alignment review</figcaption></figure>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for decimal alignment cells');
+    }
+    json_encode($cellDecimalAlignmentPacket, JSON_THROW_ON_ERROR);
+    json_encode($cellDecimalWriterPacket, JSON_THROW_ON_ERROR);
 
     $colgroupMismatchTable = null;
     foreach ($document->children as $node) {

@@ -10767,6 +10767,111 @@ XML
         $t->contains('<dt>Middle 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin">[ii]</div><div class="csl-right-inline">Middle, M. Middle Packet. 2025.</div></div></dd>', $blocks);
         $t->contains('<dt>Zeta 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">[iii]</div><div class="csl-right-inline">Zeta, Z. Zeta Packet. 2026.</div></div></dd>', $blocks);
     },
+    'formats bounded csl numeric text variables with number forms' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'source-a',
+                'type' => 'report',
+                'title' => 'Numeric Text Source A',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'page' => '12, 18 & 20',
+                'edition' => '3',
+                'number' => '2-4',
+            ],
+            [
+                'id' => 'source-b',
+                'type' => 'report',
+                'title' => 'Numeric Text Source B',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'page' => 'A7',
+                'edition' => 'Second',
+                'number' => 'Review 8',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="note" default-locale="en-US">
+  <info>
+    <title>Bounded Numeric Text Variable Form Review</title>
+    <id>https://example.test/styles/bounded-numeric-text-variable-form-review</id>
+    <updated>2026-06-08T13:18:04+00:00</updated>
+  </info>
+  <macro name="source-key">
+    <group delimiter=" ">
+      <names variable="author"/>
+      <date variable="issued"><date-part name="year"/></date>
+    </group>
+  </macro>
+  <citation>
+    <layout delimiter="; ">
+      <choose>
+        <if position="subsequent" match="any">
+          <group delimiter=" ">
+            <text value="first-note"/>
+            <text variable="first-reference-note-number" form="long-ordinal"/>
+            <text variable="locator" form="ordinal" prefix="locator "/>
+            <text variable="edition" form="roman" prefix="edition "/>
+          </group>
+        </if>
+        <else>
+          <text macro="source-key"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <text value="pages"/>
+        <text variable="page" form="roman"/>
+      </group>
+      <group delimiter=" ">
+        <text value="edition"/>
+        <text variable="edition" form="long-ordinal"/>
+      </group>
+      <group delimiter=" ">
+        <text value="number"/>
+        <text variable="number" form="ordinal"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $subsequentChildren = $summary['citationRendering'][0]['branches'][0]['children'][0]['children'] ?? [];
+        $t->same('first-reference-note-number', $subsequentChildren[1]['variable'] ?? null);
+        $t->same('long-ordinal', $subsequentChildren[1]['form'] ?? null);
+        $t->same('locator', $subsequentChildren[2]['variable'] ?? null);
+        $t->same('ordinal', $subsequentChildren[2]['form'] ?? null);
+        $t->same('edition', $subsequentChildren[3]['variable'] ?? null);
+        $t->same('roman', $subsequentChildren[3]['form'] ?? null);
+        $t->same('roman', $summary['bibliographyRendering'][1]['children'][1]['form'] ?? null);
+        $t->same('long-ordinal', $summary['bibliographyRendering'][2]['children'][1]['form'] ?? null);
+        $t->same('ordinal', $summary['bibliographyRendering'][3]['children'][1]['form'] ?? null);
+
+        $document = (new MarkdownReader())->read(
+            'Initial source note.[^a]'
+            . "\n\n" . 'Bridge source note.[^b]'
+            . "\n\n" . 'Repeated source note.[^c]'
+            . "\n\n" . '[^a]: Initial footnote cites [@source-a].'
+            . "\n\n" . '[^b]: Bridge footnote cites [@source-b].'
+            . "\n\n" . '[^c]: Repeated footnote cites [@source-a, p. 9].'
+        );
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+
+        $t->contains('<li id="fn-1"><p>Initial footnote cites Smith 2026.</p>', $blocks);
+        $t->contains('<li id="fn-3"><p>Repeated footnote cites first-note first locator 9th edition iii.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Numeric Text Source A. pages xii, xviii &amp; xx. edition third. number 2nd-4th.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Numeric Text Source B. pages A7. edition Second. number Review 8.</dd>', $blocks);
+    },
     'collapses bounded csl citation-number ranges for numeric styles' => static function (TestRunner $t): void {
         $items = [
             [
