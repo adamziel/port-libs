@@ -588,6 +588,19 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!in_array('1.2', array_column($yamlDirectiveProvenance, 'version'), true)) {
         throw new RuntimeException('YAML metadata self-test missing YAML directive version provenance');
     }
+    $yamlTagDirectives = array_values(array_filter(
+        $yamlDirectiveProvenance,
+        static fn (array $directive): bool => ($directive['directive'] ?? '') === 'TAG'
+    ));
+    if (array_column($yamlTagDirectives, 'handle') !== ['!wpd!', '!yaml!']) {
+        throw new RuntimeException('YAML metadata self-test missing TAG directive handles');
+    }
+    if (array_column($yamlTagDirectives, 'prefix') !== ['tag:directive.example,2026:', 'tag:yaml.org,2002:']) {
+        throw new RuntimeException('YAML metadata self-test missing TAG directive prefixes');
+    }
+    if (array_column($yamlTagDirectives, 'sourceLine') !== ['5', '7']) {
+        throw new RuntimeException('YAML metadata self-test missing TAG directive source lines');
+    }
     if (count($invalidTagDiagnostics) !== 1) {
         throw new RuntimeException('YAML metadata self-test missing invalid TAG directive diagnostic');
     }

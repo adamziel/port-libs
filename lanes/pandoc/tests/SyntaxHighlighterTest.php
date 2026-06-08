@@ -1902,6 +1902,50 @@ return [
         $t->contains('<span class="fu">&lt;ImportCard</span> <span class="ot">:title</span><span class="op">=</span><span class="st">&quot;post.title&quot;</span><span class="op">&gt;{{</span>', $directVue['html']);
         $t->contains('<span class="op">&gt;{{</span> <span class="va">post</span><span class="op">.</span><span class="va">title</span> <span class="op">??</span> <span class="st">&quot;Untitled&quot;</span> <span class="op">}}</span>', $directVue['html']);
     },
+    'highlights vue sfc custom block metadata with embedded languages' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[63] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Vue custom-block code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'kate');
+        $directVue = $highlighter->highlight(
+            "<i18n lang=\"yaml\">\nen:\n  title: Imported\n</i18n>\n<docs>\n## Notes\n</docs>",
+            'vue-sfc'
+        );
+
+        $t->same('vue', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('vue', $highlighted['language']);
+        $t->same('vue', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(920, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource vue numberLines"><code class="sourceCode vue" style="counter-reset: source-line 919;">', $highlighted['html']);
+        $t->contains('<span id="vue-custom-block-review-920"><a href="#vue-custom-block-review-920"></a><span class="co">&lt;!-- Vue custom metadata blocks for WordPress review --&gt;</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;i18n</span> <span class="ot">lang</span><span class="op">=</span><span class="st">&quot;json&quot;</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">&quot;title&quot;</span><span class="op">:</span><span class="st">&quot;Imported&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">&quot;review&quot;</span><span class="op">:</span><span class="cn">true</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;route</span> <span class="ot">lang</span><span class="op">=</span><span class="st">&quot;yaml&quot;</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">meta</span><span class="op">:</span>', $highlighted['html']);
+        $t->contains('<span class="ot">requiresReview</span><span class="op">:</span> <span class="cn">true</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;docs</span> <span class="ot">lang</span><span class="op">=</span><span class="st">&quot;md&quot;</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="re">## Import Notes</span>', $highlighted['html']);
+        $t->contains('<span class="op">- </span><span class="cn">[x]</span> Review <span class="ot">[queue](https://example.test/wp-admin/edit.php)</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="ot">&quot;review&quot;</span><span class="op">:</span><span class="cn">true</span>', $wordpressBlock);
+        $t->same('vue', $directVue['language']);
+        $t->same('vue-sfc', $directVue['requestedLanguage']);
+        $t->contains('<span class="ot">en</span><span class="op">:</span>', $directVue['html']);
+        $t->contains('<span class="re">## Notes</span>', $directVue['html']);
+    },
     'highlights ocaml review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
         if (!is_string($fixture)) {

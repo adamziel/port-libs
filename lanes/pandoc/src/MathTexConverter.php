@@ -1889,6 +1889,18 @@ final class MathTexConverter
                 break;
             }
 
+            $colorDeclaration = $this->readColorDeclarationCommand($source, $offset);
+            if ($colorDeclaration !== null) {
+                $tail = $this->parseExpression($source, $offset, $stopChar);
+                if ($tail === []) {
+                    throw new \InvalidArgumentException('Expected TeX color declaration content at offset ' . $offset);
+                }
+
+                $nodes[] = '<mstyle mathcolor="' . $this->esc($colorDeclaration) . '">' . $this->row($tail) . '</mstyle>';
+
+                return $nodes;
+            }
+
             $infixOffset = $offset;
             $infixCommand = $this->readInfixFractionCommand($source, $infixOffset);
             if ($infixCommand !== null) {
@@ -2750,6 +2762,41 @@ final class MathTexConverter
         $content = $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content');
 
         return '<mstyle mathcolor="' . $this->esc($color) . '">' . $content . '</mstyle>';
+    }
+
+    private function readColorDeclarationCommand(string $source, int &$offset): ?string
+    {
+        $cursor = $offset;
+        if (($source[$cursor] ?? '') !== '\\') {
+            return null;
+        }
+
+        $cursor++;
+        if ($this->readCommandName($source, $cursor) !== 'color') {
+            return null;
+        }
+
+        $this->skipWhitespace($source, $cursor);
+        $argument = $this->readTexBraceArgument($source, $cursor);
+        if ($argument === null) {
+            return null;
+        }
+
+        $after = $argument['next'];
+        $this->skipWhitespace($source, $after);
+
+        if (($source[$after] ?? '') === '{') {
+            return null;
+        }
+
+        $marker = $source[$after] ?? '';
+        if ($marker === '_' || $marker === '^' || $marker === "'") {
+            throw new \InvalidArgumentException('Expected TeX color declaration content at offset ' . $after);
+        }
+
+        $offset = $argument['next'];
+
+        return $this->normalizeMathColor($argument['value']);
     }
 
     private function normalizeMathColor(string $color): string

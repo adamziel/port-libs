@@ -1115,7 +1115,10 @@ return [
         $t->same('Import Desk', $meta['review']['owner']);
         $t->same('queued', $meta['review']['status']);
         $t->same(['migration', '*missing_label'], $meta['review']['labels']);
-        $t->same(['2'], array_column($directives, 'sourceLine'));
+        $t->same(['YAML', 'TAG'], array_column($directives, 'directive'));
+        $t->same(['2', '4'], array_column($directives, 'sourceLine'));
+        $t->same('!wp!', $directives[1]['handle'] ?? '');
+        $t->same('tag:example.test,2026:', $directives[1]['prefix'] ?? '');
         $t->same([
             'unsupported-yaml-version',
             'invalid-tag-directive',
@@ -3028,6 +3031,7 @@ return [
         $meta = $document->attr('meta');
         $titleInlines = $meta['titleInlines'] ?? [];
         $provenance = $document->attr('yamlMetadataTagProvenance', []);
+        $directives = $document->attr('yamlMetadataDirectiveProvenance', []);
         $tags = array_column($provenance, 'tag');
         $blocks = (new WordPressBlockWriter())->write($document);
 
@@ -3050,6 +3054,14 @@ return [
         $t->same(false, in_array('!primary', $tags, true));
         $t->same(false, in_array('!<tag:yaml.org,2002:str>', $tags, true));
         $t->same(false, in_array('!<tag:yaml.org,2002:int>', $tags, true));
+        $t->same(['YAML', 'TAG', 'TAG', 'TAG'], array_column($directives, 'directive'));
+        $t->same(['2', '3', '4', '5'], array_column($directives, 'sourceLine'));
+        $t->same('!', $directives[1]['handle'] ?? '');
+        $t->same('tag:primary.example,2026:', $directives[1]['prefix'] ?? '');
+        $t->same('!wp!', $directives[2]['handle'] ?? '');
+        $t->same('tag:example.test,2026:', $directives[2]['prefix'] ?? '');
+        $t->same('!yaml!', $directives[3]['handle'] ?? '');
+        $t->same('tag:yaml.org,2002:', $directives[3]['prefix'] ?? '');
         $t->same('heading', $document->children[0]->type);
         $t->same('tag-directive-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="tag-directive-yaml-body">Tag directive YAML body</h1>', $blocks);

@@ -1143,3 +1143,29 @@ end
 packet = JSON3.read(raw_json, ReviewPacket)
 @info "review packet" source=packet.source_id dry_run=true
 ```
+
+``` {.vue #vue-custom-block-review .numberLines startFrom=920}
+<!-- Vue custom metadata blocks for WordPress review -->
+<template>
+  <ImportCard :title="packet.title" />
+</template>
+
+<i18n lang="json">
+{"en":{"title":"Imported","review":true},"fr":{"title":"Imported FR"}}
+</i18n>
+
+<route lang="yaml">
+meta:
+  requiresReview: true
+  roles:
+    - editor
+    - importer
+</route>
+
+<docs lang="md">
+## Import Notes
+
+- [x] Review [queue](https://example.test/wp-admin/edit.php)
+- Keep `legacy_shortcode` visible
+</docs>
+```

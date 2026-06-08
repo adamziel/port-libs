@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review', 'shadowroot-template-review', 'slot-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -523,6 +523,9 @@ final class Html5DomFragment
         }
         if ($mode === 'html' && $name === 'ruby') {
             self::markHtmlRubyReviewMetadata($node, $attrs, $children, $diagnostics);
+        }
+        if ($mode === 'html' && $name === 'figure') {
+            self::markHtmlFigureReviewMetadata($node, $attrs, $children, $diagnostics);
         }
         if ($mode === 'html' && $elementForeignContext === null && $name === 'slot') {
             self::markHtmlSlotFallbackReviewMetadata($node, $attrs, $diagnostics);
@@ -924,6 +927,136 @@ final class Html5DomFragment
         $text = preg_replace('/[\t\r\n\f ]+/u', ' ', $text) ?? $text;
 
         return trim($text);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlFigureReviewMetadata(
+        \DOMElement $element,
+        array &$attrs,
+        array $children,
+        array &$diagnostics
+    ): void {
+        if (array_key_exists('align', $attrs)) {
+            $align = self::normalizeHtmlFigureAlignAttribute((string) $attrs['align']);
+            unset($attrs['align']);
+            if ($align === null) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'figure',
+                    'attribute' => 'align',
+                    'reason' => 'invalid-legacy-figure-align',
+                ], $element);
+            } else {
+                $attrs['data-pandoc-figure-align'] = $align;
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'figure-metadata-review',
+                    'tag' => 'figure',
+                    'attribute' => 'align',
+                    'alignment' => $align,
+                    'reason' => 'legacy-figure-align-preserved-as-metadata',
+                ], $element);
+            }
+        }
+
+        $caption = self::htmlFigureCaptionMetadata($children);
+        if ($caption === null) {
+            return;
+        }
+
+        $attrs['data-pandoc-figure-caption'] = $caption['text'];
+        if (($caption['id'] ?? '') !== '') {
+            $attrs['data-pandoc-figure-caption-id'] = (string) $caption['id'];
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'figure-metadata-review',
+            'tag' => 'figure',
+            'reason' => 'figcaption-text-preserved-as-metadata',
+        ], $element);
+    }
+
+    private static function normalizeHtmlFigureAlignAttribute(string $value): ?string
+    {
+        $align = strtolower(self::cleanHtmlMetadataAttribute($value));
+
+        return in_array($align, ['center', 'left', 'right'], true) ? $align : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @return array{text:string, id?:string}|null
+     */
+    private static function htmlFigureCaptionMetadata(array $children): ?array
+    {
+        foreach ($children as $child) {
+            if (($child['type'] ?? '') !== 'element' || strtolower((string) ($child['name'] ?? '')) !== 'figcaption') {
+                continue;
+            }
+
+            $text = self::normalizeFigureMetadataText(self::figureNodeText($child));
+            if ($text === '') {
+                return null;
+            }
+
+            $metadata = ['text' => $text];
+            $attrs = is_array($child['attrs'] ?? null) ? $child['attrs'] : [];
+            $id = self::normalizeHtmlFigureCaptionId((string) ($attrs['id'] ?? ''));
+            if ($id !== null) {
+                $metadata['id'] = $id;
+            }
+
+            return $metadata;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private static function figureNodeText(array $node): string
+    {
+        if (($node['type'] ?? '') === 'text') {
+            return (string) ($node['text'] ?? '');
+        }
+        if (($node['type'] ?? '') !== 'element' || !is_array($node['children'] ?? null)) {
+            return '';
+        }
+
+        $text = '';
+        foreach ($node['children'] as $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+
+            $text .= self::figureNodeText($child);
+        }
+
+        return $text;
+    }
+
+    private static function normalizeFigureMetadataText(string $text): string
+    {
+        $text = preg_replace('/[\t\r\n\f ]+/u', ' ', $text) ?? $text;
+
+        return trim($text);
+    }
+
+    private static function normalizeHtmlFigureCaptionId(string $id): ?string
+    {
+        $id = self::cleanHtmlMetadataAttribute($id);
+        if ($id === '' || strlen($id) > 128) {
+            return null;
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9_.:-]*$/', $id) !== 1) {
+            return null;
+        }
+
+        return $id;
     }
 
     /**

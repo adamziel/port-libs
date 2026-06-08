@@ -1400,6 +1400,7 @@ final class MarkdownReader
             && $m[2] !== ''
         ) {
             $this->yamlMetadataTagHandles[$m[1]] = $m[2];
+            $this->recordYamlTagDirective($m[1], $m[2]);
             return true;
         }
 
@@ -1430,6 +1431,16 @@ final class MarkdownReader
             'directive' => 'YAML',
             'version' => $version,
             'supportedVersions' => implode(',', self::SUPPORTED_YAML_METADATA_VERSIONS),
+        ] + $this->yamlMetadataSourceLineAttrs();
+    }
+
+    private function recordYamlTagDirective(string $handle, string $prefix): void
+    {
+        $this->yamlMetadataDirectiveProvenance[] = [
+            'type' => 'yaml-directive',
+            'directive' => 'TAG',
+            'handle' => $handle,
+            'prefix' => $prefix,
         ] + $this->yamlMetadataSourceLineAttrs();
     }
 

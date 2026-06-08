@@ -1390,6 +1390,26 @@ return [
         $t->contains('<menclose notation="downdiagonalstrike"><msub><mi>y</mi><mi>i</mi></msub></menclose>', $cancelMathml);
         $t->contains('<menclose notation="updiagonalstrike downdiagonalstrike"><msub><mi>z</mi><mi>i</mi></msub></menclose>', $cancelMathml);
     },
+    'converts bounded tex color declarations to scoped mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $declarationMathml = $converter->texToMathMl('\\color{red} p_i + m_i + \\frac{a}{b}', true);
+        $groupScopedMathml = $converter->texToMathMl('x + {\\color{blue} y + z} + q');
+        $arrayScopedMathml = $converter->texToMathMl('\\begin{array}{cc}\\color{#336699}p_i & m_i \\\\ q_i & \\color{review-blue}\\frac{a}{b}\\end{array}');
+        $groupCommandMathml = $converter->texToMathMl('\\color{green}{x+y} + z');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\color{red} x + y');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $declarationMathml);
+        $t->contains('<mstyle mathcolor="red"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></mrow></mstyle>', $declarationMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\color{red} p_i + m_i + \\frac{a}{b}</annotation>', $declarationMathml);
+        $t->contains('<mi>x</mi><mo>+</mo><mstyle mathcolor="blue"><mrow><mi>y</mi><mo>+</mo><mi>z</mi></mrow></mstyle><mo>+</mo><mi>q</mi>', $groupScopedMathml);
+        $t->contains('<mtd><mstyle mathcolor="#336699"><msub><mi>p</mi><mi>i</mi></msub></mstyle></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd>', $arrayScopedMathml);
+        $t->contains('<mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><mstyle mathcolor="review-blue"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle></mtd>', $arrayScopedMathml);
+        $t->contains('<mstyle mathcolor="green"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow></mstyle><mo>+</mo><mi>z</mi>', $groupCommandMathml);
+        $t->contains('alttext="x plus y"', $accessibleMathml);
+        $t->contains('intent="row(x,plus,y)"', $accessibleMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color{red}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color{red}_1'));
+    },
     'converts bounded tex boxed expressions to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $boxedMathml = $converter->texToMathMl('\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j', true);

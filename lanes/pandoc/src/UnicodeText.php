@@ -3424,7 +3424,7 @@ final class UnicodeText
             if (!self::isValidUtf8Sequence($bytesAt)) {
                 $out .= self::REPLACEMENT;
                 $repairs++;
-                $offset++;
+                $offset += self::hasUtf8ContinuationBytes($bytesAt) ? $sequenceLength : 1;
                 continue;
             }
 
@@ -3438,12 +3438,24 @@ final class UnicodeText
     /**
      * @param list<int> $bytes
      */
-    private static function isValidUtf8Sequence(array $bytes): bool
+    private static function hasUtf8ContinuationBytes(array $bytes): bool
     {
         foreach (array_slice($bytes, 1) as $byte) {
             if ($byte < 0x80 || $byte > 0xbf) {
                 return false;
             }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<int> $bytes
+     */
+    private static function isValidUtf8Sequence(array $bytes): bool
+    {
+        if (!self::hasUtf8ContinuationBytes($bytes)) {
+            return false;
         }
 
         $first = $bytes[0];

@@ -3267,6 +3267,67 @@ return [
         $t->true(!str_contains($html, 'target='), 'Expected area browsing-context targets to be stripped');
         $t->same(0, preg_match('/(?:^|[\s"])opener(?:[\s"]|$)/', $html), 'Expected opener rel tokens to be stripped');
     },
+    'preserves figure caption and legacy alignment as inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<figure align="Right" aria-describedby="cap-note" data-pandoc-figure-caption="source-spoof">'
+            . '<img src="./cover.png" alt="Cover">'
+            . '<figcaption id="cap-note">  Cover <em>caption</em> <a href="./caption-source.html">source</a> <a href="java&#10;script:alert(1)">bad</a>  </figcaption>'
+            . '</figure>'
+            . '<figure align="poster"><figcaption>Invalid align caption</figcaption></figure>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/figure-caption-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<figure aria-describedby="cap-note" data-pandoc-figure-align="right" data-pandoc-figure-caption="Cover caption source bad" data-pandoc-figure-caption-id="cap-note">'
+            . '<img src="https://source.example.test/import/posts/cover.png" alt="Cover">'
+            . '<figcaption id="cap-note">  Cover <em>caption</em> <a href="https://source.example.test/import/posts/caption-source.html">source</a> <a>bad</a>  </figcaption>'
+            . '</figure>'
+            . '<figure data-pandoc-figure-caption="Invalid align caption"><figcaption>Invalid align caption</figcaption></figure>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('  Cover caption source bad  Invalid align caption', $fragment->textContent());
+        $t->same(['a', 'em', 'figcaption', 'figure', 'img'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['align', 'data-pandoc-figure-caption', 'href'], $summary['filteredAttributes']);
+        $t->same([
+            'unsafe-attribute',
+            'unsafe-url',
+            'figure-metadata-review',
+            'figure-metadata-review',
+            'unsafe-attribute',
+            'figure-metadata-review',
+        ], $policyDiagnostics);
+        $t->same('figure', $nodes[0]['name']);
+        $t->same([
+            'aria-describedby' => 'cap-note',
+            'data-pandoc-figure-align' => 'right',
+            'data-pandoc-figure-caption' => 'Cover caption source bad',
+            'data-pandoc-figure-caption-id' => 'cap-note',
+        ], $nodes[0]['attrs']);
+        $t->same('https://source.example.test/import/posts/cover.png', $nodes[0]['children'][0]['attrs']['src']);
+        $t->same('figcaption', $nodes[0]['children'][1]['name']);
+        $t->same('cap-note', $nodes[0]['children'][1]['attrs']['id']);
+        $t->same('https://source.example.test/import/posts/caption-source.html', $nodes[0]['children'][1]['children'][3]['attrs']['href']);
+        $t->same([], $nodes[0]['children'][1]['children'][5]['attrs']);
+        $t->same(['data-pandoc-figure-caption' => 'Invalid align caption'], $nodes[1]['attrs']);
+        $t->same('/migration/figure-caption-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, ' align='), 'Expected legacy figure alignment to move into inert metadata');
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned figure metadata spoofing to be stripped');
+        $t->true(!str_contains($html, 'poster'), 'Expected invalid figure alignment to stay diagnostic-only');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe caption link to be stripped');
+    },
     'ignores inactive fallback base elements before resolving reviewer URLs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<template><base href="https://inactive.example/assets/"><a href="template-note.html">template note</a></template>'

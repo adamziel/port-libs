@@ -1781,7 +1781,7 @@ final class SyntaxHighlighter
         $length = strlen($code);
 
         while ($offset < $length) {
-            $match = self::nextHtmlRawTextTag($code, $offset);
+            $match = self::nextVueRawTextTag($code, $offset);
             if ($match === null) {
                 $this->scanVueFragment(substr($code, $offset), $tokens);
                 break;
@@ -1885,9 +1885,13 @@ final class SyntaxHighlighter
         $language = self::vueEmbeddedLanguage($tag, $openingTag);
         $embedded = match ($language) {
             'css' => $this->tokenizeCss($code),
+            'json' => $this->tokenizeJson($code),
+            'jsonc' => $this->tokenizeJsonWithComments($code),
             'less' => $this->tokenizeLess($code),
+            'markdown' => $this->tokenizeMarkdown($code),
             'sass', 'scss' => $this->tokenizeScss($code),
             'typescript' => $this->tokenizeTypeScript($code),
+            'yaml' => $this->tokenizeYaml($code),
             default => $this->tokenizeJavaScript($code),
         };
 
@@ -1898,19 +1902,67 @@ final class SyntaxHighlighter
 
     private static function vueEmbeddedLanguage(string $tag, string $openingTag): string
     {
+        $tag = strtolower($tag);
+        $lang = self::vueLangAttribute($openingTag);
+
         if ($tag === 'style') {
-            if (preg_match('/\\blang\\s*=\\s*([\'"]?)(less|sass|scss)\\1/i', $openingTag, $matches) === 1) {
-                return strtolower($matches[2]);
+            if (in_array($lang, ['less', 'sass', 'scss'], true)) {
+                return $lang;
             }
 
             return 'css';
         }
 
-        if (preg_match('/\\blang\\s*=\\s*([\'"]?)(ts|typescript|tsx)\\1/i', $openingTag, $matches) === 1) {
-            return 'typescript';
+        if ($tag === 'script') {
+            return in_array($lang, ['ts', 'typescript', 'tsx'], true) ? 'typescript' : 'javascript';
+        }
+
+        if ($tag === 'i18n') {
+            if (in_array($lang, ['yaml', 'yml'], true)) {
+                return 'yaml';
+            }
+
+            if (in_array($lang, ['json5', 'jsonc', 'json-with-comments'], true)) {
+                return 'jsonc';
+            }
+
+            return 'json';
+        }
+
+        if ($tag === 'route') {
+            if (in_array($lang, ['yaml', 'yml'], true)) {
+                return 'yaml';
+            }
+
+            if (in_array($lang, ['json5', 'jsonc', 'json-with-comments'], true)) {
+                return 'jsonc';
+            }
+
+            return 'json';
+        }
+
+        if ($tag === 'docs') {
+            if (in_array($lang, ['yaml', 'yml'], true)) {
+                return 'yaml';
+            }
+
+            if (in_array($lang, ['json', 'json5', 'jsonc', 'json-with-comments'], true)) {
+                return in_array($lang, ['json5', 'jsonc', 'json-with-comments'], true) ? 'jsonc' : 'json';
+            }
+
+            return 'markdown';
         }
 
         return 'javascript';
+    }
+
+    private static function vueLangAttribute(string $openingTag): string
+    {
+        if (preg_match('/\\blang\\s*=\\s*([\'"]?)([A-Za-z0-9_.+-]+)\\1/i', $openingTag, $matches) !== 1) {
+            return '';
+        }
+
+        return strtolower(str_replace('_', '-', $matches[2]));
     }
 
     /**
@@ -1980,6 +2032,18 @@ final class SyntaxHighlighter
     private static function nextHtmlRawTextTag(string $code, int $offset): ?array
     {
         if (preg_match('/<(script|style)\\b/i', $code, $matches, PREG_OFFSET_CAPTURE, $offset) !== 1) {
+            return null;
+        }
+
+        return [strtolower($matches[1][0]), $matches[0][1]];
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private static function nextVueRawTextTag(string $code, int $offset): ?array
+    {
+        if (preg_match('/<(script|style|i18n|route|docs)\\b/i', $code, $matches, PREG_OFFSET_CAPTURE, $offset) !== 1) {
             return null;
         }
 

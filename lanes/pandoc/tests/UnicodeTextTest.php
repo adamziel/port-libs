@@ -1059,6 +1059,28 @@ return [
         $t->same(['encoding' => 'utf-8-repaired', 'bom' => null, 'repairs' => 2], $document->attr('sourceEncoding'));
         $t->same("Broken \u{FFFD}(\u{FFFD} UTF-8", $document->children[0]->attr('text'));
     },
+    'repairs complete invalid utf8 scalar sequences once' => static function (TestRunner $t): void {
+        $bytes = "# UTF-8 Repair\n\nBad \xED\xA0\x80 high \xED\xB0\x80 low \xE0\x80\x80 overlong \xF0\x80\x80\x80 wide \xF4\x90\x80\x80 beyond.";
+        $decoded = UnicodeText::decodeBytes($bytes);
+        $document = (new MarkdownReader())->readBytes($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $text = "Bad \u{FFFD} high \u{FFFD} low \u{FFFD} overlong \u{FFFD} wide \u{FFFD} beyond.";
+
+        $t->same('utf-8-repaired', $decoded['encoding']);
+        $t->same(5, $decoded['repairs']);
+        $t->same("# UTF-8 Repair\n\n{$text}", $decoded['text']);
+        $t->same(['encoding' => 'utf-8-repaired', 'bom' => null, 'repairs' => 5], $document->attr('sourceEncoding'));
+        $t->same('UTF-8 Repair', $document->children[0]->attr('text'));
+        $t->same($text, $document->children[1]->attr('text'));
+        $t->same(44, UnicodeText::displayWidth($text));
+        $t->same(49, UnicodeText::displayWidth($text, 'wide'));
+        $t->contains('<h1 id="utf-8-repair">UTF-8 Repair</h1>', $blocks);
+        $t->contains("<p>{$text}</p>", $blocks);
+
+        $broken = UnicodeText::decodeBytes("Broken \xE2(\xA1 UTF-8");
+        $t->same("Broken \u{FFFD}(\u{FFFD} UTF-8", $broken['text']);
+        $t->same(2, $broken['repairs']);
+    },
     'normalizes decoded carriage return line endings before markdown parsing' => static function (TestRunner $t) use ($utf16le): void {
         $decoded = UnicodeText::decodeBytes("# Import\r\n\r\nFirst paragraph\rSecond paragraph", 'utf-8');
         $document = (new MarkdownReader())->readBytes("\xFF\xFE" . $utf16le([

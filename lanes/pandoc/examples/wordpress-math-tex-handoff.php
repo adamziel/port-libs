@@ -60,6 +60,8 @@ With-delims audit ${a+b \overwithdelims() c+d} + {n \atopwithdelims\langle\rangl
 
 Review controls $\color{red}{p_i} + \textcolor{#336699}{\operatorname{media}} + \phantom{p_i + m_i} + \hphantom{draft} + \vphantom{\frac{a}{b}} + \cancel{x_i} + \bcancel{y_i} + \xcancel{z_i} + \cancelto{0}{\operatorname{draft}_i}$ stay explicit.
 
+Color declaration audit $\color{reviewblue} p_i + m_i + \frac{a}{b}$ scopes review color to the remaining math expression.
+
 Boxed equation audit $\boxed{p_i + m_i} + \boxed{\frac{a}{b}}_j$ stays semantic.
 
 Overlap layout audit $\smash{\frac{a}{b}} + \smash[t]{p_i} + \smash[b]{m_i} + \mathllap{L_i} + \mathrlap{R_i} + \mathclap{x+y}$ stays semantic.
@@ -201,6 +203,7 @@ $summary = [
     'infixFractionMathml' => $converter->texToMathMl('{a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}'),
     'withDelimsFractionMathml' => $converter->texToMathMl('{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}'),
     'colorPhantomCancelMathml' => $converter->texToMathMl('\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}'),
+    'colorDeclarationMathml' => $converter->texToMathMl('\\color{reviewblue} p_i + m_i + \\frac{a}{b}'),
     'boxedMathml' => $converter->texToMathMl('\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j'),
     'smashOverlapMathml' => $converter->texToMathMl('\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}'),
     'mathVariantMathml' => $converter->texToMathMl('\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i'),
@@ -306,6 +309,13 @@ if (($argv[1] ?? '') === '--self-test') {
 
     if (str_contains($summary['mathChoiceMathml'], '<mi>\\mathchoice</mi>') || !str_contains($summary['mathChoiceMathml'], '<mtext>text branch</mtext>')) {
         throw new RuntimeException('Math TeX handoff self-test did not select the inline mathchoice branch');
+    }
+
+    if (
+        str_contains($summary['colorDeclarationMathml'], '<mi>\\color</mi>')
+        || !str_contains($summary['colorDeclarationMathml'], '<mstyle mathcolor="reviewblue"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></mrow></mstyle>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not scope color declaration content');
     }
 
     if (
@@ -452,6 +462,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mo fence="true" stretchy="true">[</mo><mfrac linethickness="1pt"><msub><mi>p</mi><mi>i</mi></msub><msub><mi>m</mi><mi>i</mi></msub></mfrac><mo fence="true" stretchy="true">]</mo>',
         '<mstyle mathcolor="red"><msub><mi>p</mi><mi>i</mi></msub></mstyle>',
         '<mstyle mathcolor="#336699"><mi>media</mi></mstyle>',
+        '<mstyle mathcolor="reviewblue"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></mrow></mstyle>',
         '<mphantom><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mphantom>',
         '<mpadded height="0" depth="0"><mphantom><mrow><mi>d</mi><mi>r</mi><mi>a</mi><mi>f</mi><mi>t</mi></mrow></mphantom></mpadded>',
         '<mpadded width="0"><mphantom><mfrac><mi>a</mi><mi>b</mi></mfrac></mphantom></mpadded>',

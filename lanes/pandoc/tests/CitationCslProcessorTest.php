@@ -14302,6 +14302,119 @@ XML);
 </style>
 XML));
     },
+    'applies bounded csl is creator conditionals for extended creator roles' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'founder-source',
+                'type' => 'book',
+                'title' => 'Founder Packet',
+                'founder' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'continuator-reviser-source',
+                'type' => 'book',
+                'title' => 'Continuator Reviser Packet',
+                'continuator' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'reviser' => [
+                    ['literal' => 'Revision Desk'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'collaborator-source',
+                'type' => 'book',
+                'title' => 'Collaborator Packet',
+                'collaborator' => [
+                    ['literal' => 'Source Review Desk'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'plain-source',
+                'type' => 'book',
+                'title' => 'Plain Packet',
+                'issued' => ['date-parts' => [[2023]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Extended Creator Condition Review</title>
+    <id>https://example.test/styles/bounded-extended-creator-condition-review</id>
+    <updated>2026-06-08T18:00:46+00:00</updated>
+  </info>
+  <macro name="extended-creator-route">
+    <choose>
+      <if is-creator="founder">
+        <text value="founded"/>
+      </if>
+      <else-if is-creator="continuator reviser" match="all">
+        <text value="continued-and-revised"/>
+      </else-if>
+      <else-if is-creator="collaborator" match="any">
+        <text value="collaborated"/>
+      </else-if>
+      <else-if is-creator="founder continuator reviser collaborator" match="none">
+        <text value="no-extended-creator"/>
+      </else-if>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <text macro="extended-creator-route"/>
+        <names variable="founder continuator reviser collaborator">
+          <substitute>
+            <text variable="title"/>
+          </substitute>
+        </names>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text macro="extended-creator-route"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $branches = $summary['macros']['extended-creator-route'][0]['branches'] ?? [];
+        $t->same(['founder'], $branches[0]['isCreator'] ?? null);
+        $t->same('all', $branches[0]['match'] ?? null);
+        $t->same(['continuator', 'reviser'], $branches[1]['isCreator'] ?? null);
+        $t->same('all', $branches[1]['match'] ?? null);
+        $t->same(['collaborator'], $branches[2]['isCreator'] ?? null);
+        $t->same('any', $branches[2]['match'] ?? null);
+        $t->same(['founder', 'continuator', 'reviser', 'collaborator'], $branches[3]['isCreator'] ?? null);
+        $t->same('none', $branches[3]['match'] ?? null);
+
+        $t->same('(founded | Roe; continued-and-revised | Ng; collaborated | Source Review Desk; no-extended-creator | Plain Packet)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'founder-source', 'text' => '[@founder-source]']),
+            new AstNode('citation', ['id' => 'continuator-reviser-source', 'text' => '[@continuator-reviser-source]']),
+            new AstNode('citation', ['id' => 'collaborator-source', 'text' => '[@collaborator-source]']),
+            new AstNode('citation', ['id' => 'plain-source', 'text' => '[@plain-source]']),
+        ]));
+        $t->same('Founder Packet :: founded', $processor->renderBibliographyEntry('founder-source'));
+        $t->same('Continuator Reviser Packet :: continued-and-revised', $processor->renderBibliographyEntry('continuator-reviser-source'));
+        $t->same('Collaborator Packet :: collaborated', $processor->renderBibliographyEntry('collaborator-source'));
+        $t->same('Plain Packet :: no-extended-creator', $processor->renderBibliographyEntry('plain-source'));
+
+        $document = (new MarkdownReader())->read('Extended creator routes [@founder-source; @continuator-reviser-source; @collaborator-source; @plain-source] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Extended creator routes (founded | Roe; continued-and-revised | Ng; collaborated | Source Review Desk; no-extended-creator | Plain Packet) stay visible.</p>', $blocks);
+        $t->contains('<dt>Founder Packet 2026</dt><dd>Founder Packet :: founded</dd>', $blocks);
+        $t->contains('<dt>Continuator Reviser Packet 2025</dt><dd>Continuator Reviser Packet :: continued-and-revised</dd>', $blocks);
+        $t->contains('<dt>Collaborator Packet 2024</dt><dd>Collaborator Packet :: collaborated</dd>', $blocks);
+        $t->contains('<dt>Plain Packet 2023</dt><dd>Plain Packet :: no-extended-creator</dd>', $blocks);
+    },
     'rejects bounded csl choose else branches without rendering elements' => static function (TestRunner $t): void {
         $valid = CitationCslProcessor::fromItems([
             [

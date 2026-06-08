@@ -230,6 +230,8 @@ $utf32BomSource = (new MarkdownReader())->readBytes("\x00\x00\xFE\xFF" . $utf32b
 ]), 'windows-1252');
 $declaredUtf8Bom = UnicodeText::declaredCharset("\xEF\xBB\xBF<meta charset=windows-1252><p>x</p>", 'text/html; charset=windows-1252');
 $declaredUtf16Bom = UnicodeText::declaredCharset("\xFE\xFF\x00<\x00?\x00x\x00m\x00l encoding=\"windows-1252\"?>");
+$surrogateRepairSource = (new MarkdownReader())->readBytes("# UTF-8 Repair\n\nBad \xED\xA0\x80 high \xED\xB0\x80 low \xE0\x80\x80 overlong \xF0\x80\x80\x80 wide \xF4\x90\x80\x80 beyond.");
+$surrogateRepairText = (string) $surrogateRepairSource->children[1]->attr('text');
 $table = new AstNode('table', [
     'caption' => 'Unicode width audit',
     'alignments' => ['default', 'default', 'default'],
@@ -618,6 +620,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($utf32BomSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . ($utf32BomSource->attr('sourceEncoding')['bom'] ?? '') . ':' . UnicodeText::displayWidth((string) $utf32BomSource->children[0]->attr('text'))])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'UTF-8 scalar repair'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $surrogateRepairText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($surrogateRepairSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . ($surrogateRepairSource->attr('sourceEncoding')['repairs'] ?? 0) . ':' . UnicodeText::displayWidth($surrogateRepairText) . '/' . UnicodeText::displayWidth($surrogateRepairText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Declared BOM'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($declaredUtf8Bom['encoding'] ?? '') . ' / ' . ($declaredUtf16Bom['encoding'] ?? '')])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($declaredUtf8Bom['source'] ?? '') . ':' . ($declaredUtf8Bom['offset'] ?? '')])]),
@@ -974,6 +981,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>UTF-32 BOM source</td><td>\u{1F4DA} Review / 計画</td><td>utf-32be:utf-32be:9</td>")) {
         throw new RuntimeException('charset handoff self-test missing UTF-32 BOM audit row');
+    }
+    if (($surrogateRepairSource->attr('sourceEncoding')['repairs'] ?? 0) !== 5) {
+        throw new RuntimeException('charset handoff self-test missing UTF-8 scalar repair count');
+    }
+    if (!str_contains($blocks, "<td>UTF-8 scalar repair</td><td>Bad \u{FFFD} high \u{FFFD} low \u{FFFD} overlong \u{FFFD} wide \u{FFFD} beyond.</td><td>utf-8-repaired:5:44/49</td>")) {
+        throw new RuntimeException('charset handoff self-test missing UTF-8 scalar repair audit row');
     }
     if (($declaredUtf8Bom['source'] ?? '') !== 'byte-order-mark' || ($declaredUtf8Bom['encoding'] ?? '') !== 'utf-8') {
         throw new RuntimeException('charset handoff self-test missing declared UTF-8 BOM preflight');
