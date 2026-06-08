@@ -10717,7 +10717,20 @@ final class PdfImageRenderer
     {
         $segments = [];
         $length = strlen($jpegBytes);
-        $offset = str_starts_with($jpegBytes, "\xff\xd8") ? 2 : 0;
+        $soiOffset = $this->dctPreviewSoiOffset($jpegBytes);
+        $offset = 0;
+        if ($soiOffset !== null) {
+            $offset = $soiOffset + 1;
+            while ($offset < $length && $jpegBytes[$offset] === "\xff") {
+                $offset++;
+            }
+
+            if ($offset < $length && ord($jpegBytes[$offset]) === 0xd8) {
+                $offset++;
+            } else {
+                $offset = 0;
+            }
+        }
 
         while ($offset + 4 <= $length) {
             if ($jpegBytes[$offset] !== "\xff") {
