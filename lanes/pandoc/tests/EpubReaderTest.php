@@ -1359,6 +1359,87 @@ XML;
         $t->same($renditionLayout, $result['importReport']['metadata']['renditionLayout']);
         $t->same($renditionLayout, $result['document']->attr('metadata')['renditionLayout']);
     },
+    'preserves EPUB XHTML viewport metadata for fixed layout review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $fixedLayoutXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+  <head>
+    <title>Fixed page metadata</title>
+    <meta name="viewport" content="width=600, height=900"/>
+    <meta id="bad-viewport" name="viewport" content="width=cover,height=0,scale=1"/>
+  </head>
+  <body><h1>Fixed page metadata</h1><p>Viewport dimensions remain available for package review.</p></body>
+</html>
+XML;
+        $opfWithFixedContent = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="fixed-content" href="text/fixed-layout.xhtml" media-type="application/xhtml+xml" properties="rendition:layout-pre-paginated"/>',
+            $opfXml
+        );
+        $opfWithFixedContent = str_replace(
+            '</spine>',
+            '<itemref idref="fixed-content"/></spine>',
+            $opfWithFixedContent
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithFixedContent,
+            null,
+            [
+                ['name' => 'OEBPS/text/fixed-layout.xhtml', 'data' => $fixedLayoutXhtml],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/fixed-layout.xhtml'];
+        $metadata = $asset['metadata'];
+        $block = $result['document']->children[2];
+
+        $t->same(1, $report['viewportAssetCount']);
+        $t->same(2, $report['viewportCount']);
+        $t->same(1, $report['validViewportCount']);
+        $t->same(1, $report['invalidViewportCount']);
+        $t->same(2, count($report['viewportItems']));
+        $t->same('/OEBPS/text/fixed-layout.xhtml', $report['viewportItems'][0]['sourcePart']);
+        $t->same(3, count($report['viewportDiagnostics']));
+        $t->same('/OEBPS/text/fixed-layout.xhtml', $report['viewportDiagnostics'][0]['part']);
+
+        $t->same(true, $metadata['present']);
+        $t->same(true, $metadata['headPresent']);
+        $t->same('Fixed page metadata', $metadata['title']);
+        $t->same(2, $metadata['metaCount']);
+        $t->same(2, $metadata['viewportCount']);
+        $t->same(1, $metadata['validViewportCount']);
+        $t->same(1, $metadata['invalidViewportCount']);
+
+        $viewport = $metadata['viewport'];
+        $t->same(true, $viewport['valid']);
+        $t->same('width=600, height=900', $viewport['raw']);
+        $t->same(['width' => '600', 'height' => '900'], $viewport['parameters']);
+        $t->same(600, $viewport['width']);
+        $t->same(900, $viewport['height']);
+        $t->same([], $viewport['diagnostics']);
+
+        $invalid = $metadata['viewports'][1];
+        $t->same('bad-viewport', $invalid['id']);
+        $t->same(false, $invalid['valid']);
+        $t->same(null, $invalid['width']);
+        $t->same(null, $invalid['height']);
+        $t->same(['width' => 'cover', 'height' => '0', 'scale' => '1'], $invalid['parameters']);
+        $t->same([
+            'invalid-xhtml-viewport-width',
+            'invalid-xhtml-viewport-height',
+            'unknown-xhtml-viewport-parameter',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $invalid['diagnostics']));
+        $t->same($invalid['diagnostics'], $metadata['diagnostics']);
+        $t->same($metadata['diagnostics'], $asset['metadataDiagnostics']);
+        $t->same($metadata['diagnostics'], $asset['diagnostics']);
+
+        $t->same($metadata, $block->attr('contentMetadata'));
+        $t->same($viewport, $block->attr('contentViewport'));
+        $t->same($metadata['viewports'], $block->attr('contentViewports'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'parses EPUB3 nav and legacy NCX table of contents targets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage());
 

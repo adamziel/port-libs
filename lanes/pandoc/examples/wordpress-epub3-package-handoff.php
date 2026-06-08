@@ -186,6 +186,10 @@ XML;
 
 $chapterXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:ev="http://www.w3.org/2001/xml-events">
+  <head>
+    <title>Source chapter</title>
+    <meta name="viewport" content="width=1024,height=768"/>
+  </head>
   <body epub:type="bodymatter chapter" xml:lang="en" dir="ltr">
     <h1 id="source" epub:type="title">Source chapter</h1>
     <span id="page-1" epub:type="pagebreak" title="1"></span>
@@ -970,6 +974,12 @@ XML;
     if (($result['xhtmlResourceReport']['triggerAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['triggerCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB XHTML content scan to identify trigger controls');
     }
+    if (($result['xhtmlResourceReport']['viewportAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['viewportCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB XHTML content scan to identify viewport metadata');
+    }
+    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['width'] ?? null) !== 1024 || ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['height'] ?? null) !== 768) {
+        throw new RuntimeException('Expected EPUB XHTML viewport dimensions to remain available for review');
+    }
     if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'switch', 'trigger', 'remote-resources']) {
         throw new RuntimeException('Expected EPUB XHTML content review flags for the source chapter');
     }
@@ -981,6 +991,9 @@ XML;
     }
     if (($result['document']->children[0]->attr('contentResourceFlags')['trigger'] ?? null) !== true) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB trigger content metadata');
+    }
+    if (($result['document']->children[0]->attr('contentViewport')['raw'] ?? null) !== 'width=1024,height=768') {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML viewport metadata');
     }
     $chapterTrigger = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['triggers'][0] ?? null;
     if (!is_array($chapterTrigger) || ($chapterTrigger['action'] ?? null) !== 'play' || ($chapterTrigger['refElement'] ?? null) !== 'audio' || ($chapterTrigger['observerElement'] ?? null) !== 'span') {
@@ -1376,6 +1389,8 @@ echo 'chapterSwitchCaseNamespace=' . ($result['xhtmlResourceReport']['itemsByPar
 echo 'chapterSwitchDefault=' . ($result['document']->children[0]->attr('contentSwitches')[0]['defaults'][0]['text'] ?? '') . "\n";
 echo 'xhtmlContentTriggerAssets=' . ($result['xhtmlResourceReport']['triggerAssetCount'] ?? 0) . "\n";
 echo 'xhtmlContentTriggers=' . ($result['xhtmlResourceReport']['triggerCount'] ?? 0) . "\n";
+echo 'xhtmlViewportAssets=' . ($result['xhtmlResourceReport']['viewportAssetCount'] ?? 0) . "\n";
+echo 'chapterViewport=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['raw'] ?? '') . "\n";
 echo 'chapterContentReviewFlags=' . implode(',', $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) . "\n";
 echo 'chapterTriggerAction=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['triggers'][0]['action'] ?? '') . "\n";
 echo 'cssResourceAssets=' . ($result['cssResourceReport']['assetCount'] ?? 0) . "\n";

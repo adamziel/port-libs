@@ -9479,6 +9479,9 @@ final class EpubReader
                 'contentResourceReport' => $contentReport,
                 'contentResourceFlags' => $contentReport['flags'],
                 'contentResourceReviewFlags' => $contentReport['reviewFlags'],
+                'contentMetadata' => $contentReport['metadata'],
+                'contentViewport' => $contentReport['metadata']['viewport'],
+                'contentViewports' => $contentReport['metadata']['viewports'],
                 'contentReferences' => $contentReport['references'],
                 'contentSwitches' => $contentReport['switches'],
                 'contentTriggers' => $contentReport['triggers'],
@@ -10317,6 +10320,12 @@ final class EpubReader
         $semanticItemCount = 0;
         $semanticItems = [];
         $semanticDiagnostics = [];
+        $viewportAssetCount = 0;
+        $viewportCount = 0;
+        $validViewportCount = 0;
+        $invalidViewportCount = 0;
+        $viewportItems = [];
+        $viewportDiagnostics = [];
         $reviewRequiredCount = 0;
         $referenceCount = 0;
 
@@ -10334,6 +10343,14 @@ final class EpubReader
                 'manifestProperties' => is_array($asset['properties'] ?? null) ? array_values($asset['properties']) : [],
                 'flags' => is_array($report['flags'] ?? null) ? $report['flags'] : [],
                 'reviewFlags' => is_array($report['reviewFlags'] ?? null) ? array_values($report['reviewFlags']) : [],
+                'metadata' => is_array($report['metadata'] ?? null) ? $report['metadata'] : self::emptyXhtmlContentMetadataReport($part),
+                'title' => is_string($report['metadata']['title'] ?? null) ? $report['metadata']['title'] : null,
+                'viewportCount' => is_int($report['metadata']['viewportCount'] ?? null) ? $report['metadata']['viewportCount'] : 0,
+                'validViewportCount' => is_int($report['metadata']['validViewportCount'] ?? null) ? $report['metadata']['validViewportCount'] : 0,
+                'invalidViewportCount' => is_int($report['metadata']['invalidViewportCount'] ?? null) ? $report['metadata']['invalidViewportCount'] : 0,
+                'viewport' => is_array($report['metadata']['viewport'] ?? null) ? $report['metadata']['viewport'] : self::emptyXhtmlViewportReport(),
+                'viewports' => is_array($report['metadata']['viewports'] ?? null) ? array_values($report['metadata']['viewports']) : [],
+                'metadataDiagnostics' => is_array($report['metadata']['diagnostics'] ?? null) ? array_values($report['metadata']['diagnostics']) : [],
                 'referenceCount' => count(is_array($report['references'] ?? null) ? $report['references'] : []),
                 'references' => is_array($report['references'] ?? null) ? array_values($report['references']) : [],
                 'switchCount' => count(is_array($report['switches'] ?? null) ? $report['switches'] : []),
@@ -10363,9 +10380,16 @@ final class EpubReader
             $invalidSwitchCount += $item['invalidSwitchCount'];
             $triggerCount += $item['triggerCount'];
             $semanticItemCount += $item['semanticCount'];
+            $viewportCount += $item['viewportCount'];
+            $validViewportCount += $item['validViewportCount'];
+            $invalidViewportCount += $item['invalidViewportCount'];
             if ($item['semanticCount'] > 0) {
                 ++$semanticAssetCount;
                 array_push($semanticItems, ...$item['semantics']);
+            }
+            if ($item['viewportCount'] > 0) {
+                ++$viewportAssetCount;
+                array_push($viewportItems, ...$item['viewports']);
             }
             if (($item['flags']['mathml'] ?? false) === true) {
                 ++$mathmlAssetCount;
@@ -10414,6 +10438,11 @@ final class EpubReader
                     'part' => $part,
                 ] + $diagnostic;
             }
+            foreach ($item['metadataDiagnostics'] as $diagnostic) {
+                $viewportDiagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
 
             $items[] = $item;
             if ($part !== '') {
@@ -10447,6 +10476,12 @@ final class EpubReader
             'semanticItems' => $semanticItems,
             'semanticItemsByType' => self::xhtmlSemanticItemsByType($semanticItems),
             'semanticDiagnostics' => $semanticDiagnostics,
+            'viewportAssetCount' => $viewportAssetCount,
+            'viewportCount' => $viewportCount,
+            'validViewportCount' => $validViewportCount,
+            'invalidViewportCount' => $invalidViewportCount,
+            'viewportItems' => $viewportItems,
+            'viewportDiagnostics' => $viewportDiagnostics,
             'reviewRequiredCount' => $reviewRequiredCount,
             'items' => $items,
             'itemsByPart' => $itemsByPart,
@@ -10485,6 +10520,7 @@ final class EpubReader
                 'part' => $part,
                 'flags' => $flags,
                 'reviewFlags' => [],
+                'metadata' => self::emptyXhtmlContentMetadataReport($part),
                 'references' => [],
                 'switches' => [],
                 'switchCaseCount' => 0,
@@ -10507,6 +10543,7 @@ final class EpubReader
         }
 
         $root = $dom->documentElement;
+        $metadata = self::xhtmlContentMetadataReport($dom, $part);
         if ($root instanceof \DOMElement) {
             $this->scanXhtmlContentElement(
                 $package,
@@ -10562,11 +10599,15 @@ final class EpubReader
                 ] + $diagnostic;
             }
         }
+        foreach ($metadata['diagnostics'] as $diagnostic) {
+            $diagnostics[] = $diagnostic;
+        }
 
         return [
             'part' => $part,
             'flags' => $flags,
             'reviewFlags' => self::xhtmlContentReviewFlags($flags),
+            'metadata' => $metadata,
             'references' => $references,
             'switches' => $switches,
             'switchCaseCount' => array_sum(array_map(
@@ -10599,6 +10640,215 @@ final class EpubReader
                 static fn (array $trigger): bool => ($trigger['valid'] ?? true) !== true,
             )),
             'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyXhtmlContentMetadataReport(string $part): array
+    {
+        return [
+            'present' => false,
+            'part' => $part,
+            'headPresent' => false,
+            'title' => null,
+            'metaCount' => 0,
+            'viewportCount' => 0,
+            'validViewportCount' => 0,
+            'invalidViewportCount' => 0,
+            'viewport' => self::emptyXhtmlViewportReport(),
+            'viewports' => [],
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlContentMetadataReport(\DOMDocument $dom, string $part): array
+    {
+        $empty = self::emptyXhtmlContentMetadataReport($part);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return $empty;
+        }
+
+        $head = self::firstChildElement($root, 'head', self::XHTML_NS);
+        if (!$head instanceof \DOMElement) {
+            return $empty;
+        }
+
+        $titleElement = self::firstChildElement($head, 'title', self::XHTML_NS);
+        $title = $titleElement instanceof \DOMElement ? self::normalizedText($titleElement) : null;
+        $metaElements = self::childElements($head, 'meta', self::XHTML_NS);
+        $viewports = [];
+        $diagnostics = [];
+
+        foreach ($metaElements as $meta) {
+            $name = strtolower(trim($meta->getAttribute('name')));
+            if ($name !== 'viewport') {
+                continue;
+            }
+
+            $viewport = self::xhtmlViewportReport($meta, $part, count($viewports));
+            foreach ($viewport['diagnostics'] as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+            $viewports[] = $viewport;
+        }
+
+        $validViewports = array_values(array_filter(
+            $viewports,
+            static fn (array $viewport): bool => ($viewport['valid'] ?? false) === true,
+        ));
+        $invalidViewports = array_values(array_filter(
+            $viewports,
+            static fn (array $viewport): bool => ($viewport['valid'] ?? true) !== true,
+        ));
+        $selectedViewport = $validViewports[0] ?? ($viewports[0] ?? self::emptyXhtmlViewportReport());
+
+        return [
+            'present' => true,
+            'part' => $part,
+            'headPresent' => true,
+            'title' => $title,
+            'metaCount' => count($metaElements),
+            'viewportCount' => count($viewports),
+            'validViewportCount' => count($validViewports),
+            'invalidViewportCount' => count($invalidViewports),
+            'viewport' => $selectedViewport,
+            'viewports' => $viewports,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlViewportReport(\DOMElement $element, string $part, int $index): array
+    {
+        $raw = trim($element->getAttribute('content'));
+        $parameters = [];
+        $diagnostics = [];
+        $unknownParameterDiagnostics = [];
+        $segments = $raw === '' ? [] : preg_split('/\s*,\s*/', $raw);
+
+        foreach ($segments ?: [] as $segment) {
+            $segment = trim((string) $segment);
+            if ($segment === '') {
+                continue;
+            }
+
+            if (preg_match('/^([A-Za-z][A-Za-z0-9_-]*)\s*=\s*(.+)$/', $segment, $matches) !== 1) {
+                $diagnostics[] = [
+                    'type' => 'invalid-xhtml-viewport-parameter',
+                    'property' => 'meta[name=viewport]',
+                    'index' => $index,
+                    'segment' => $segment,
+                    'message' => 'EPUB XHTML viewport meta content parameters must be key=value pairs',
+                ];
+                continue;
+            }
+
+            $key = strtolower($matches[1]);
+            $value = trim($matches[2]);
+            if (isset($parameters[$key])) {
+                $diagnostics[] = [
+                    'type' => 'duplicate-xhtml-viewport-parameter',
+                    'property' => 'meta[name=viewport]',
+                    'index' => $index,
+                    'parameter' => $key,
+                    'message' => 'EPUB XHTML viewport meta content repeats a parameter; first value is retained',
+                ];
+                continue;
+            }
+
+            $parameters[$key] = $value;
+            if (!in_array($key, ['width', 'height'], true)) {
+                $unknownParameterDiagnostics[] = [
+                    'type' => 'unknown-xhtml-viewport-parameter',
+                    'property' => 'meta[name=viewport]',
+                    'index' => $index,
+                    'parameter' => $key,
+                    'value' => $value,
+                    'message' => 'EPUB XHTML viewport meta content parameter is preserved but not used by the bounded package review parser',
+                ];
+            }
+        }
+
+        if ($raw === '') {
+            $diagnostics[] = [
+                'type' => 'empty-xhtml-viewport',
+                'property' => 'meta[name=viewport]',
+                'index' => $index,
+                'message' => 'EPUB XHTML viewport meta content is empty',
+            ];
+        }
+
+        foreach (['width', 'height'] as $dimension) {
+            $value = $parameters[$dimension] ?? null;
+            if ($value === null || preg_match('/^[1-9][0-9]*$/', $value) !== 1) {
+                $diagnostics[] = [
+                    'type' => 'invalid-xhtml-viewport-' . $dimension,
+                    'property' => 'meta[name=viewport]',
+                    'index' => $index,
+                    'parameter' => $dimension,
+                    'value' => $value,
+                    'message' => 'EPUB XHTML viewport width and height must be positive integer CSS pixels',
+                ];
+            }
+        }
+        $diagnostics = array_merge($diagnostics, $unknownParameterDiagnostics);
+
+        return [
+            'present' => true,
+            'index' => $index,
+            'sourcePart' => $part,
+            'property' => 'meta[name=viewport]',
+            'id' => self::nullableAttribute($element, 'id'),
+            'name' => self::nullableAttribute($element, 'name'),
+            'raw' => $raw,
+            'parameters' => $parameters,
+            'widthRaw' => $parameters['width'] ?? null,
+            'heightRaw' => $parameters['height'] ?? null,
+            'width' => isset($parameters['width']) && preg_match('/^[1-9][0-9]*$/', $parameters['width']) === 1
+                ? (int) $parameters['width']
+                : null,
+            'height' => isset($parameters['height']) && preg_match('/^[1-9][0-9]*$/', $parameters['height']) === 1
+                ? (int) $parameters['height']
+                : null,
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyXhtmlViewportReport(): array
+    {
+        return [
+            'present' => false,
+            'index' => null,
+            'sourcePart' => null,
+            'property' => 'meta[name=viewport]',
+            'id' => null,
+            'name' => null,
+            'raw' => null,
+            'parameters' => [],
+            'widthRaw' => null,
+            'heightRaw' => null,
+            'width' => null,
+            'height' => null,
+            'language' => null,
+            'direction' => null,
+            'attributes' => [],
+            'valid' => true,
+            'diagnostics' => [],
         ];
     }
 
@@ -12242,6 +12492,9 @@ final class EpubReader
                 'resourceReviewFlags' => $asset['resourceReviewFlags'] ?? [],
                 'contentResourceFlags' => $asset['contentResourceFlags'] ?? [],
                 'contentResourceReviewFlags' => $asset['contentResourceReviewFlags'] ?? [],
+                'contentMetadata' => $asset['contentMetadata'] ?? [],
+                'contentViewport' => $asset['contentViewport'] ?? [],
+                'contentViewports' => $asset['contentViewports'] ?? [],
                 'contentReferences' => $asset['contentReferences'] ?? [],
                 'contentSwitches' => $asset['contentSwitches'] ?? [],
                 'contentTriggers' => $asset['contentTriggers'] ?? [],
