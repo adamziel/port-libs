@@ -406,6 +406,28 @@ $relationshipTargetModePackage = ZipPackage::fromParts([
     ['name' => 'word/_rels/targetmode.xml.rels', 'data' => $targetModeDiagnosticRelationshipsXml],
 ]);
 
+$packageRootExternalTargetContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+$packageRootExternalTargetRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdPackageRelative" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="review/source.html#packet" TargetMode="External"/>
+  <Relationship Id="rIdPackageFragment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#package-review" TargetMode="External"/>
+</Relationships>
+XML;
+
+$packageRootExternalTargetPackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $packageRootExternalTargetContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $packageRootExternalTargetRelationshipsXml],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+]);
+
 $relationshipRecordShapeContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -927,6 +949,26 @@ foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($relationship
         'valid' => $part['valid'],
         'issues' => $part['issues'],
         'parseError' => $part['parseError'],
+    ];
+}
+
+$packageRootExternalTargetGraph = OpcRelationshipGraph::fromPackage($packageRootExternalTargetPackage);
+$packageRootExternalTargetGuards = [];
+foreach ($packageRootExternalTargetGraph->preflightTargetsForSource('/') as $target) {
+    if (!$target['external']) {
+        continue;
+    }
+
+    $packageRootExternalTargetGuards[$target['id']] = [
+        'id' => $target['id'],
+        'target' => $target['target'],
+        'kind' => $target['externalTargetKind'],
+        'allowed' => $target['externalTargetAllowed'],
+        'requiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+        'rewriteBasePart' => $target['externalTargetRewriteBasePart'],
+        'rewriteReason' => $target['externalTargetRewriteReason'],
+        'valid' => $target['valid'],
+        'issues' => $target['issues'],
     ];
 }
 
@@ -1710,6 +1752,7 @@ $summary = [
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
     'relationshipTargetModeGuards' => $relationshipTargetModeGuards,
+    'packageRootExternalTargetGuards' => $packageRootExternalTargetGuards,
     'relationshipRecordShapeGuards' => $relationshipRecordShapeGuards,
     'fixedContentTypesItemGuard' => $fixedContentTypesItemGuard,
     'reservedRelationshipContentTypeGuard' => $reservedRelationshipContentTypeGuard,
@@ -2116,6 +2159,19 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['relationshipCount'] ?? null) !== null
         || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'invalid-relationship-target-mode']
         || !str_contains((string) ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['parseError'] ?? ''), 'Unsupported OPC relationship TargetMode: external')
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageRelative']['kind'] ?? null) !== 'relative-reference'
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageRelative']['allowed'] ?? null) !== true
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageRelative']['requiresBaseUri'] ?? null) !== true
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageRelative']['rewriteBasePart'] ?? null) !== null
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageRelative']['rewriteReason'] ?? null) !== 'external-target-relative-reference'
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageRelative']['valid'] ?? null) !== false
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageRelative']['issues'] ?? null) !== ['external-target-package-root-base-uri']
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageFragment']['kind'] ?? null) !== 'fragment-reference'
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageFragment']['requiresBaseUri'] ?? null) !== true
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageFragment']['rewriteBasePart'] ?? null) !== null
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageFragment']['rewriteReason'] ?? null) !== 'external-target-fragment-reference'
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageFragment']['valid'] ?? null) !== false
+        || ($summary['packageRootExternalTargetGuards']['rIdPackageFragment']['issues'] ?? null) !== ['external-target-package-root-base-uri']
         || array_keys($summary['relationshipRecordShapeGuards'] ?? []) !== [
             '/word/_rels/missing-id.xml.rels',
             '/word/_rels/missing-type.xml.rels',

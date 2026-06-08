@@ -441,7 +441,11 @@ final class OpcRelationshipGraph
             if ($relationship->isExternal()) {
                 $externalTarget = $relationship->externalTargetPreflight();
                 $externalRewrite = self::externalTargetRewritePolicy($sourcePartName, $externalTarget);
-                $issues = array_values(array_unique(array_merge($typePreflight['issues'], $externalTarget['issues'])));
+                $issues = array_values(array_unique(array_merge(
+                    $typePreflight['issues'],
+                    $externalTarget['issues'],
+                    $externalRewrite['issues'],
+                )));
                 $preflight[] = [
                     'id' => $relationship->id,
                     'type' => $relationship->type,
@@ -3605,18 +3609,21 @@ final class OpcRelationshipGraph
 
     /**
      * @param array{kind:string, scheme:?string, allowed:bool, issues:list<string>} $externalTarget
-     * @return array{requiresBaseUri:bool, basePart:?string, reason:?string}
+     * @return array{requiresBaseUri:bool, basePart:?string, reason:?string, issues:list<string>}
      */
     private static function externalTargetRewritePolicy(string $sourcePartName, array $externalTarget): array
     {
         $kind = $externalTarget['kind'];
         if ($kind === 'relative-reference' || $kind === 'fragment-reference') {
+            $basePart = OpcPackagePath::canonicalPartName($sourcePartName, true);
+
             return [
                 'requiresBaseUri' => true,
-                'basePart' => OpcPackagePath::canonicalPartName($sourcePartName, true),
+                'basePart' => $basePart === '/' ? null : $basePart,
                 'reason' => $kind === 'relative-reference'
                     ? 'external-target-relative-reference'
                     : 'external-target-fragment-reference',
+                'issues' => $basePart === '/' ? ['external-target-package-root-base-uri'] : [],
             ];
         }
 
@@ -3624,6 +3631,7 @@ final class OpcRelationshipGraph
             'requiresBaseUri' => false,
             'basePart' => null,
             'reason' => null,
+            'issues' => [],
         ];
     }
 
