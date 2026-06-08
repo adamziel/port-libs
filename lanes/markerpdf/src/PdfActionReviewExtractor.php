@@ -1463,7 +1463,7 @@ final class PdfActionReviewExtractor
 
         $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
         if ($section !== null) {
-            $previousOffset = $this->previousXrefStreamOffset($section, $definitions, $offset);
+            $previousOffset = $this->previousXrefStreamOffset($pdfBytes, $section, $definitions, $offset);
             $entries = $this->repairCurrentUpdateXrefEntries(
                 $this->xrefStreamEntriesFromSection($section),
                 $definitions,
@@ -1494,7 +1494,7 @@ final class PdfActionReviewExtractor
             return [];
         }
 
-        $previousOffset = $this->previousXrefTableOffset($tableSection, $definitions, $offset);
+        $previousOffset = $this->previousXrefTableOffset($pdfBytes, $tableSection, $definitions, $offset);
         $entries = $this->repairCurrentUpdateXrefEntries(
             $tableSection['entries'],
             $definitions,
@@ -1524,9 +1524,14 @@ final class PdfActionReviewExtractor
      * @param array{dictionary: array<string, mixed>, body: string} $section
      * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
      */
-    private function previousXrefStreamOffset(array $section, array $definitions, int $currentOffset): ?int
+    private function previousXrefStreamOffset(string $pdfBytes, array $section, array $definitions, int $currentOffset): ?int
     {
-        return $this->previousXrefOffsetFromValue($section['dictionary']['Prev'] ?? null, $definitions, $currentOffset);
+        return $this->repairPreviousXrefOffset(
+            $pdfBytes,
+            $this->previousXrefOffsetFromValue($section['dictionary']['Prev'] ?? null, $definitions, $currentOffset),
+            $definitions,
+            $currentOffset
+        );
     }
 
     /**
@@ -1586,9 +1591,14 @@ final class PdfActionReviewExtractor
      * @param array{trailer: array<string, mixed>} $section
      * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
      */
-    private function previousXrefTableOffset(array $section, array $definitions, int $currentOffset): ?int
+    private function previousXrefTableOffset(string $pdfBytes, array $section, array $definitions, int $currentOffset): ?int
     {
-        return $this->previousXrefOffsetFromValue($section['trailer']['Prev'] ?? null, $definitions, $currentOffset);
+        return $this->repairPreviousXrefOffset(
+            $pdfBytes,
+            $this->previousXrefOffsetFromValue($section['trailer']['Prev'] ?? null, $definitions, $currentOffset),
+            $definitions,
+            $currentOffset
+        );
     }
 
     /**
@@ -1631,6 +1641,69 @@ final class PdfActionReviewExtractor
 
             $index = 0;
             $value = $this->parseValue($tokens, $index);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     */
+    private function repairPreviousXrefOffset(string $pdfBytes, ?int $previousOffset, array $definitions, int $currentOffset): ?int
+    {
+        if ($previousOffset === null || $previousOffset < 0) {
+            return $previousOffset;
+        }
+
+        if ($previousOffset < $currentOffset && $this->xrefSectionExistsAtOffset($pdfBytes, $previousOffset, $definitions)) {
+            return $previousOffset;
+        }
+
+        return $this->latestXrefSectionOffsetBefore($pdfBytes, $definitions, $currentOffset);
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     */
+    private function xrefSectionExistsAtOffset(string $pdfBytes, int $offset, array $definitions): bool
+    {
+        return $this->xrefStreamSectionAtOffset($offset, $definitions) !== null
+            || $this->xrefTableSectionAtOffset($pdfBytes, $offset) !== null;
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     */
+    private function latestXrefSectionOffsetBefore(string $pdfBytes, array $definitions, int $currentOffset): ?int
+    {
+        $offsets = [];
+        if (preg_match_all('/\bxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
+            foreach ($matches[0] as $match) {
+                $offset = $match[1] ?? null;
+                if (is_int($offset)) {
+                    $offsets[] = $offset;
+                }
+            }
+        }
+
+        foreach ($definitions as $definition) {
+            $offset = $definition['offset'];
+            if ($offset < $currentOffset && $this->xrefStreamSectionAtOffset($offset, $definitions) !== null) {
+                $offsets[] = $offset;
+            }
+        }
+
+        rsort($offsets, SORT_NUMERIC);
+        $seen = [];
+        foreach ($offsets as $offset) {
+            if ($offset >= $currentOffset || isset($seen[$offset])) {
+                continue;
+            }
+            $seen[$offset] = true;
+
+            if ($this->xrefSectionExistsAtOffset($pdfBytes, $offset, $definitions)) {
+                return $offset;
+            }
         }
 
         return null;
