@@ -4585,6 +4585,79 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC include field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC nested field results inside displayed field output' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Nested '
+            . $fieldBegin . ' HYPERLINK "https://example.test/review" \o "Review packet" '
+            . $fieldSeparator . 'Source p. '
+            . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '12' . $fieldEnd
+            . ' checked' . $fieldEnd
+            . ".\r";
+
+        $outerBegin = strpos($text, $fieldBegin);
+        $outerSeparator = strpos($text, $fieldSeparator, (int) $outerBegin);
+        $innerBegin = strpos($text, $fieldBegin, (int) $outerSeparator + 1);
+        $innerSeparator = strpos($text, $fieldSeparator, (int) $innerBegin);
+        $innerEnd = strpos($text, $fieldEnd, (int) $innerSeparator);
+        $outerEnd = strpos($text, $fieldEnd, (int) $innerEnd + 1);
+        foreach ([$outerBegin, $outerSeparator, $innerBegin, $innerSeparator, $innerEnd, $outerEnd] as $cp) {
+            if (!is_int($cp)) {
+                throw new RuntimeException('Unable to locate legacy DOC nested field fixture');
+            }
+        }
+
+        $fieldTable = $plcfldMom([
+            ['cp' => $outerBegin, 'character' => 0x13, 'typeCode' => 0x58],
+            ['cp' => $outerSeparator, 'character' => 0x14],
+            ['cp' => $innerBegin, 'character' => 0x13, 'typeCode' => 0x21],
+            ['cp' => $innerSeparator, 'character' => 0x14],
+            ['cp' => $innerEnd, 'character' => 0x15, 'endFlags' => 0xd4],
+            ['cp' => $outerEnd, 'character' => 0x15, 'endFlags' => 0x80],
+        ], strlen($text));
+        $wordDocument = $buildSimpleWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $fieldTable,
+        ]));
+        $document = $result['document'];
+        $fields = $result['fields'];
+        $paragraph = $document->children[0];
+        $link = $paragraph->children[1];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(6, $result['metadata']['fieldCharacterCount']);
+        $t->same(2, $result['metadata']['fieldCount']);
+        $t->same('page', $fields[0]['type']);
+        $t->same(1, $fields[0]['nestingLevel']);
+        $t->same(0xd4, $fields[0]['endFlags']);
+        $t->same(['result-dirty', 'locked', 'nested', 'has-separator'], $fields[0]['endFlagNames']);
+        $t->same(true, $fields[0]['nested']);
+        $t->same('hyperlink', $fields[1]['type']);
+        $t->same(0, $fields[1]['nestingLevel']);
+        $t->same(false, $fields[1]['nested']);
+
+        $t->same('link', $link->type);
+        $t->same('https://example.test/review', $link->attr('url'));
+        $t->same('Review packet', $link->attr('title'));
+        $t->same('Source p. ', $link->children[0]->attr('text'));
+        $t->same('span', $link->children[1]->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-field-page'], $link->children[1]->attr('classes'));
+        $t->same('page', $link->children[1]->attr('attributes')['data-legacy-doc-field']);
+        $t->same('12', $link->children[1]->children[0]->attr('text'));
+        $t->same(' checked', $link->children[2]->attr('text'));
+
+        $t->contains('[12]{.legacy-doc-field .legacy-doc-field-page data-legacy-doc-field="page"', $markdown);
+        $t->contains('<a href="https://example.test/review" title="Review packet">Source p. <span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">12</span> checked</a>', $blocks);
+        foreach (['HYPERLINK', 'PAGE'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC nested field instructions should not render as visible text');
+        }
+    },
     'rejects malformed legacy DOC field-code boundaries before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $reader = new LegacyDocReader();
 

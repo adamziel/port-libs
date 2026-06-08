@@ -1175,54 +1175,73 @@ final class LegacyDocReader
         }
 
         $nodes = [];
-        $field = null;
+        $fieldStack = [];
         foreach ($parts as $part) {
             if ($part === '') {
                 continue;
             }
 
             if ($part === "\x13") {
-                if ($field !== null) {
-                    throw new \RuntimeException('Legacy DOC nested field codes are not supported by the native reader');
+                if ($fieldStack !== [] && $fieldStack[count($fieldStack) - 1]['collectingResult'] !== true) {
+                    throw new \RuntimeException('Legacy DOC nested field codes inside field instructions are not supported by the native reader');
                 }
-                $field = [
+                $fieldStack[] = [
                     'instruction' => '',
-                    'result' => '',
+                    'resultText' => '',
+                    'resultNodes' => [],
                     'collectingResult' => false,
                 ];
                 continue;
             }
 
             if ($part === "\x14") {
-                if ($field === null) {
+                if ($fieldStack === []) {
                     throw new \RuntimeException('Legacy DOC field separator appears outside a field');
                 }
-                if ($field['collectingResult'] === true) {
+                $fieldIndex = count($fieldStack) - 1;
+                if ($fieldStack[$fieldIndex]['collectingResult'] === true) {
                     throw new \RuntimeException('Legacy DOC field contains duplicate separators');
                 }
-                $field['collectingResult'] = true;
+                $fieldStack[$fieldIndex]['collectingResult'] = true;
                 continue;
             }
 
             if ($part === "\x15") {
-                if ($field === null) {
+                if ($fieldStack === []) {
                     throw new \RuntimeException('Legacy DOC field end appears outside a field');
                 }
-                array_push($nodes, ...$this->fieldResultNodes($field));
-                $field = null;
+                $field = array_pop($fieldStack);
+                $fieldNodes = $this->fieldResultNodes($field);
+                if ($fieldStack === []) {
+                    array_push($nodes, ...$fieldNodes);
+                    continue;
+                }
+
+                $fieldIndex = count($fieldStack) - 1;
+                if ($fieldStack[$fieldIndex]['collectingResult'] !== true) {
+                    throw new \RuntimeException('Legacy DOC nested field codes inside field instructions are not supported by the native reader');
+                }
+
+                array_push($fieldStack[$fieldIndex]['resultNodes'], ...$fieldNodes);
+                $fieldStack[$fieldIndex]['resultText'] .= $field['resultText'];
                 continue;
             }
 
-            if ($field === null) {
+            if ($fieldStack === []) {
                 array_push($nodes, ...$this->plainInlineNodes($part));
-            } elseif ($field['collectingResult'] === true) {
-                $field['result'] .= $part;
+                continue;
+            }
+
+            $fieldIndex = count($fieldStack) - 1;
+            if ($fieldStack[$fieldIndex]['collectingResult'] === true) {
+                array_push($fieldStack[$fieldIndex]['resultNodes'], ...$this->plainInlineNodes($part));
+                $fieldStack[$fieldIndex]['resultText'] .= $part;
             } else {
-                $field['instruction'] .= $part;
+                $fieldStack[$fieldIndex]['instruction'] .= $part;
             }
         }
 
-        if ($field !== null) {
+        if ($fieldStack !== []) {
             throw new \RuntimeException('Legacy DOC field code is not terminated');
         }
 
@@ -1230,14 +1249,15 @@ final class LegacyDocReader
     }
 
     /**
-     * @param array{instruction:string,result:string,collectingResult:bool} $field
+     * @param array{instruction:string,resultText:string,resultNodes:list<AstNode>,collectingResult:bool} $field
      * @return list<AstNode>
      */
     private function fieldResultNodes(array $field): array
     {
-        $resultNodes = $this->plainInlineNodes($field['result']);
+        $resultNodes = $field['resultNodes'];
+        $resultText = $field['resultText'];
         if ($resultNodes === []) {
-            $attrs = $this->fieldSpanAttrs($field['instruction'], $field['result']);
+            $attrs = $this->fieldSpanAttrs($field['instruction'], $resultText);
             if ($attrs !== null && ($attrs['attributes']['data-legacy-doc-field'] ?? '') === 'set') {
                 return [new AstNode('span', $attrs, [])];
             }
@@ -1250,7 +1270,7 @@ final class LegacyDocReader
             return [new AstNode('link', $attrs, $resultNodes)];
         }
 
-        $attrs = $this->fieldSpanAttrs($field['instruction'], $field['result']);
+        $attrs = $this->fieldSpanAttrs($field['instruction'], $resultText);
         if ($attrs !== null) {
             return [new AstNode('span', $attrs, $resultNodes)];
         }
