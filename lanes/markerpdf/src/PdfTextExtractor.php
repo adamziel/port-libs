@@ -10162,7 +10162,7 @@ final class PdfTextExtractor
 
         $nameOffset = $this->topLevelNameValueOffset($decodeParms, 'Name');
 
-        return $nameOffset !== null && $this->pdfNameValueAt($decodeParms, $nameOffset, $objects) === 'Identity';
+        return $nameOffset !== null && $this->pdfNameValueAtStrictIndirectOperand($decodeParms, $nameOffset, $objects) === 'Identity';
     }
 
     /**
@@ -21318,7 +21318,7 @@ final class PdfTextExtractor
             return $stream;
         }
 
-        return $this->pdfNameValueAt($decodeParms, $nameOffset, $objects) === 'Identity' ? $stream : null;
+        return $this->pdfNameValueAtStrictIndirectOperand($decodeParms, $nameOffset, $objects) === 'Identity' ? $stream : null;
     }
 
     /**
@@ -26615,6 +26615,74 @@ final class PdfTextExtractor
         $end = $offset + 1;
         while ($end < strlen($value) && !str_contains(" \t\r\n\f[]()<>{}/%", $value[$end])) {
             $end++;
+        }
+
+        return $this->decodePdfName(substr($value, $offset + 1, $end - $offset - 1));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pdfNameValueAtStrictIndirectOperand(
+        string $value,
+        int $offset,
+        array $objects,
+        array $seen = []
+    ): ?string {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference === null) {
+            return $this->pdfNameValueAt($value, $offset, $objects, $seen);
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+            return null;
+        }
+
+        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$objectKey] = true;
+        return $this->standalonePdfNameValue(trim($body), $objects, $seen);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function standalonePdfNameValue(string $value, array $objects, array $seen): ?string
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if ($offset >= strlen($value)) {
+            return null;
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference !== null) {
+            if ($this->skipPdfWhitespace($value, $reference['endOffset']) !== strlen($value)) {
+                return null;
+            }
+
+            return $this->pdfNameValueAtStrictIndirectOperand($value, $offset, $objects, $seen);
+        }
+
+        if (($value[$offset] ?? '') !== '/') {
+            return null;
+        }
+
+        $end = $offset + 1;
+        while ($end < strlen($value) && !str_contains(" \t\r\n\f[]()<>{}/%", $value[$end])) {
+            $end++;
+        }
+
+        if ($this->skipPdfWhitespace($value, $end) !== strlen($value)) {
+            return null;
         }
 
         return $this->decodePdfName(substr($value, $offset + 1, $end - $offset - 1));
