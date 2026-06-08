@@ -367,6 +367,30 @@ $textHintPolicyInspection = ArchiveCompressionStream::inspectGzipTextHintPolicy(
     ArchiveCompressionStream::FORMAT_GZIP_TAR,
     strlen($archive->bytes())
 );
+$boundaryFirstArchive = TarArchive::fromEntries([
+    [
+        'name' => 'packet/first.md',
+        'data' => "# First complete gzip member package\n",
+    ],
+]);
+$boundarySecondArchive = TarArchive::fromEntries([
+    [
+        'name' => 'packet/second.md',
+        'data' => "# Second complete gzip member package\n",
+    ],
+]);
+$gzipMemberBoundaryUpload = GzipStream::build($boundaryFirstArchive->bytes(), [
+    'filename' => 'standalone-first.tar',
+    'comment' => 'first complete package member',
+]) . GzipStream::build($boundarySecondArchive->bytes(), [
+    'filename' => 'standalone-second.tar',
+    'comment' => 'second complete package member',
+]);
+$gzipMemberBoundaryInspection = ArchiveCompressionStream::inspectGzipMemberPackageBoundaryPolicy(
+    $gzipMemberBoundaryUpload,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($boundaryFirstArchive->bytes()) + strlen($boundarySecondArchive->bytes())
+);
 
 $legacyContiguousArchiveBytes = $rawTarHeader(
     'packet/legacy-contiguous.md',
@@ -1163,6 +1187,15 @@ if (in_array('--self-test', $argv, true)) {
         'gzipTextHintBinaryCount' => 1,
         'gzipTextHintFilename' => 'wordpress-text-hint-review.tar',
         'gzipTextHintDiagnostics' => ['gzip-text-hint-binary-payload'],
+        'gzipMemberBoundaryPolicy' => 'review-before-conversion',
+        'gzipMemberBoundaryDiagnostics' => [
+            'gzip-combined-package-decode-failed',
+            'gzip-members-contain-standalone-packages',
+            'gzip-multiple-standalone-package-members',
+        ],
+        'gzipMemberBoundaryStandaloneCount' => 2,
+        'gzipMemberBoundaryFirstEntry' => ['packet/first.md'],
+        'gzipMemberBoundarySecondEntry' => ['packet/second.md'],
         'content' => $contentBytes,
         'contentCreatedAt' => 1780479062,
         'contentSourceType' => 'gzip-member',
@@ -1422,6 +1455,14 @@ if (in_array('--self-test', $argv, true)) {
         || ($textHintPolicyInspection['members'][0]['policy'] ?? null) !== 'review'
         || ($textHintPolicyInspection['members'][0]['diagnostics'][0] ?? null) !== 'gzip-text-hint-binary-payload'
         || isset($textHintPolicyInspection['members'][0]['data'])
+        || $gzipMemberBoundaryInspection['policy'] !== $expected['gzipMemberBoundaryPolicy']
+        || $gzipMemberBoundaryInspection['diagnostics'] !== $expected['gzipMemberBoundaryDiagnostics']
+        || $gzipMemberBoundaryInspection['standalonePackageMemberCount'] !== $expected['gzipMemberBoundaryStandaloneCount']
+        || ($gzipMemberBoundaryInspection['members'][0]['entryNames'] ?? []) !== $expected['gzipMemberBoundaryFirstEntry']
+        || ($gzipMemberBoundaryInspection['members'][1]['entryNames'] ?? []) !== $expected['gzipMemberBoundarySecondEntry']
+        || ($gzipMemberBoundaryInspection['members'][0]['standalonePackage'] ?? null) !== true
+        || isset($gzipMemberBoundaryInspection['members'][0]['archive'])
+        || isset($gzipMemberBoundaryInspection['members'][1]['tarBytes'])
         || $inspection['archive']->read('/packet/content.md') !== $expected['content']
         || ($inspection['entryLayouts'][2]['paxHeaderKeys'] ?? []) !== ['LIBARCHIVE.creationtime', 'atime', 'ctime']
         || ($inspection['entryLayouts'][2]['createdAt'] ?? null) !== $expected['contentCreatedAt']
@@ -1824,6 +1865,9 @@ echo 'gzipTextHint.handoffPolicy=' . $textHintPolicyInspection['handoffPolicy'] 
 echo 'gzipTextHint.binaryTextHintMemberCount=' . $textHintPolicyInspection['binaryTextHintMemberCount'] . "\n";
 echo 'gzipTextHint.filename=' . $textHintPolicyInspection['members'][0]['filename'] . "\n";
 echo 'gzipTextHint.diagnostics=' . implode(',', $textHintPolicyInspection['diagnostics']) . "\n";
+echo 'gzipMemberBoundary.policy=' . $gzipMemberBoundaryInspection['policy'] . "\n";
+echo 'gzipMemberBoundary.standalonePackageMemberCount=' . $gzipMemberBoundaryInspection['standalonePackageMemberCount'] . "\n";
+echo 'gzipMemberBoundary.diagnostics=' . implode(',', $gzipMemberBoundaryInspection['diagnostics']) . "\n";
 echo 'tar.layout=' . implode(',', $layoutSummary) . "\n";
 echo 'tar.contentSource=' . $inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceType'] . ':' . $inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceLabel'] . "\n";
 echo 'content.md=' . $inspection['archive']->read('/packet/content.md') . "\n";

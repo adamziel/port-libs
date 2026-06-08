@@ -1240,3 +1240,20 @@ function [score, slug] = normalizeImport(packet)
     meta = struct("reviewed", true, "slug", slug);
 end
 ```
+
+``` {.fish #fish-review .numberLines startFrom=1000}
+# Fish shell WordPress import review
+function normalize_title --argument-names packet_path
+    set -l title (jq -r '.title // ""' $packet_path)
+    string trim -- $title | read -l title
+    if test -z "$title"
+        set title "Untitled"
+    end
+    printf "review:%s\n" $title
+end
+
+for review_path in exports/*.json
+    set -l slug (string lower (path basename $review_path .json))
+    wp post meta update $slug import_source $review_path; or return 1
+end
+```

@@ -2726,6 +2726,105 @@ return [
         $t->same($contentBytes, $inspection['archive']->read('/packet/content.md'));
     },
 
+    'preflights gzip member package boundaries before package handoff' => static function (TestRunner $t): void {
+        $manifestBytes = '{"source":"gzip-member-boundary","target":"wordpress"}';
+        $contentBytes = "# GZIP member boundary\n\nReady for split stream review.\n";
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => $manifestBytes,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $contentBytes,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $splitOffset = 768;
+        $splitGzip = GzipStream::build(substr($tarBytes, 0, $splitOffset), [
+            'filename' => 'member-boundary-part-1.tar',
+            'comment' => 'first decoded package segment',
+        ]) . GzipStream::build(substr($tarBytes, $splitOffset), [
+            'filename' => 'member-boundary-part-2.tar',
+            'comment' => 'second decoded package segment',
+        ]);
+
+        $firstStandalone = TarArchive::fromEntries([
+            [
+                'name' => 'packet/first.md',
+                'data' => "# First complete packet\n",
+            ],
+        ]);
+        $secondStandalone = TarArchive::fromEntries([
+            [
+                'name' => 'packet/second.md',
+                'data' => "# Second complete packet\n",
+            ],
+        ]);
+        $twoPackageGzip = GzipStream::build($firstStandalone->bytes(), [
+            'filename' => 'standalone-first.tar',
+            'comment' => 'first complete package member',
+        ]) . GzipStream::build($secondStandalone->bytes(), [
+            'filename' => 'standalone-second.tar',
+            'comment' => 'second complete package member',
+        ]);
+
+        $splitPolicy = ArchiveCompressionStream::inspectGzipMemberPackageBoundaryPolicy(
+            $splitGzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes)
+        );
+        $standalonePolicy = ArchiveCompressionStream::inspectGzipMemberPackageBoundaryPolicy(
+            $twoPackageGzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($firstStandalone->bytes()) + strlen($secondStandalone->bytes())
+        );
+
+        $t->same('archive-gzip-member-package-boundary-policy', $splitPolicy['type']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $splitPolicy['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $splitPolicy['format']);
+        $t->same(2, $splitPolicy['memberCount']);
+        $t->same(strlen($splitGzip), $splitPolicy['compressedSize']);
+        $t->same(strlen($tarBytes), $splitPolicy['decodedSize']);
+        $t->same('package', $splitPolicy['combinedPackageStatus']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $splitPolicy['combinedEntryNames']);
+        $t->same(0, $splitPolicy['standalonePackageMemberCount']);
+        $t->same('single-decoded-package-stream', $splitPolicy['policy']);
+        $t->same([], $splitPolicy['diagnostics']);
+        $t->same([0, $splitOffset], array_map(static fn (array $member): int => $member['decodedDataOffset'], $splitPolicy['members']));
+        $t->same([$splitOffset, strlen($tarBytes)], array_map(static fn (array $member): int => $member['decodedDataEndOffset'], $splitPolicy['members']));
+        $t->same(['member-boundary-part-1.tar', 'member-boundary-part-2.tar'], array_map(static fn (array $member): ?string => $member['filename'], $splitPolicy['members']));
+        $t->same([false, false], array_map(static fn (array $member): bool => $member['standalonePackage'], $splitPolicy['members']));
+        $t->same(['package-segment', 'package-segment'], array_map(static fn (array $member): string => $member['policy'], $splitPolicy['members']));
+        $t->same(false, isset($splitPolicy['members'][0]['data']));
+        $t->same(false, isset($splitPolicy['combinedPackage']));
+
+        $t->same('invalid', $standalonePolicy['combinedPackageStatus']);
+        $t->true(str_contains($standalonePolicy['combinedPackageError'] ?? '', 'non-zero bytes after the end marker'));
+        $t->same(2, $standalonePolicy['standalonePackageMemberCount']);
+        $t->same('review-before-conversion', $standalonePolicy['policy']);
+        $t->same([
+            'gzip-combined-package-decode-failed',
+            'gzip-members-contain-standalone-packages',
+            'gzip-multiple-standalone-package-members',
+        ], $standalonePolicy['diagnostics']);
+        $t->same([true, true], array_map(static fn (array $member): bool => $member['standalonePackage'], $standalonePolicy['members']));
+        $t->same([
+            ['packet/first.md'],
+            ['packet/second.md'],
+        ], array_map(static fn (array $member): array => $member['entryNames'], $standalonePolicy['members']));
+        $t->same(['standalone-gzip-member-package', 'standalone-gzip-member-package'], array_map(static fn (array $member): string => $member['policy'], $standalonePolicy['members']));
+        $t->same([ArchiveCompressionStream::PACKAGE_KIND_TAR, ArchiveCompressionStream::PACKAGE_KIND_TAR], array_map(static fn (array $member): string => $member['kind'], $standalonePolicy['members']));
+        $t->same([ArchiveCompressionStream::FORMAT_TAR, ArchiveCompressionStream::FORMAT_TAR], array_map(static fn (array $member): string => $member['format'], $standalonePolicy['members']));
+        $t->same(false, isset($standalonePolicy['members'][0]['archive']));
+        $t->same(false, isset($standalonePolicy['members'][1]['tarBytes']));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipMemberPackageBoundaryPolicy(
+            $splitGzip,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR
+        ));
+    },
+
     'preflights decoded package chunks across split gzip source members' => static function (TestRunner $t): void {
         $manifestBytes = '{"source":"decoded-package-chunks","target":"wordpress"}';
         $contentBytes = "# Decoded package chunks\n\nReady for streaming archive review.\n";

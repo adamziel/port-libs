@@ -424,6 +424,12 @@ if (!$matlabCodeBlock instanceof PortLibs\Pandoc\AstNode || $matlabCodeBlock->ty
 }
 $matlab = $highlighter->highlightCodeBlock($matlabCodeBlock, 'monochrome');
 $matlabWordpressBlock = $highlighter->wordpressHtmlBlock($matlabCodeBlock, 'monochrome');
+$fishCodeBlock = $document->children[67] ?? null;
+if (!$fishCodeBlock instanceof PortLibs\Pandoc\AstNode || $fishCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Fish shell review code block');
+}
+$fish = $highlighter->highlightCodeBlock($fishCodeBlock, 'haddock');
+$fishWordpressBlock = $highlighter->wordpressHtmlBlock($fishCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1835,6 +1841,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($matlabWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
         throw new RuntimeException('Expected MATLAB WordPress style metadata');
     }
+    if (($fish['language'] ?? '') !== 'fish') {
+        throw new RuntimeException('Expected Fish shell language handoff');
+    }
+    if (($fish['requestedLanguage'] ?? '') !== 'fish') {
+        throw new RuntimeException('Expected Fish requested-language wrapper handoff');
+    }
+    if (($fish['lineNumbering']['start'] ?? null) !== 1000) {
+        throw new RuntimeException('Expected Fish source startFrom line-number handoff');
+    }
+    if (!str_contains($fish['html'], '<span class="kw">function</span> <span class="va">normalize_title</span> <span class="ot">--argument-names</span>')) {
+        throw new RuntimeException('Expected Fish function and option token handoff');
+    }
+    if (!str_contains($fish['html'], '<span class="kw">set</span> <span class="ot">-l</span> <span class="va">title</span> <span class="op">(</span><span class="fu">jq</span>')) {
+        throw new RuntimeException('Expected Fish set and command-substitution token handoff');
+    }
+    if (!str_contains($fish['html'], '<span class="fu">string</span> <span class="va">trim</span> <span class="op">--</span> <span class="va">$title</span> <span class="op">|</span> <span class="fu">read</span>')) {
+        throw new RuntimeException('Expected Fish pipe and builtin token handoff');
+    }
+    if (!str_contains($fish['html'], '<span class="fu">wp</span> <span class="va">post</span> <span class="va">meta</span> <span class="va">update</span>')) {
+        throw new RuntimeException('Expected Fish WordPress CLI token handoff');
+    }
+    if (!str_contains($fishWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected Fish WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1922,6 +1952,7 @@ echo "juliaHighlightedHtml:\n" . $julia['html'] . "\n";
 echo "awkHighlightedHtml:\n" . $awk['html'] . "\n";
 echo "batchHighlightedHtml:\n" . $batch['html'] . "\n";
 echo "matlabHighlightedHtml:\n" . $matlab['html'] . "\n";
+echo "fishHighlightedHtml:\n" . $fish['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1979,4 +2010,5 @@ echo "juliaWordpressBlock:\n" . $juliaWordpressBlock . "\n";
 echo "awkWordpressBlock:\n" . $awkWordpressBlock . "\n";
 echo "batchWordpressBlock:\n" . $batchWordpressBlock . "\n";
 echo "matlabWordpressBlock:\n" . $matlabWordpressBlock . "\n";
+echo "fishWordpressBlock:\n" . $fishWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

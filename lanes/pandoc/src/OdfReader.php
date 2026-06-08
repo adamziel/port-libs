@@ -190,6 +190,7 @@ final class OdfReader
                     'indexMarkCount' => $contentStats['indexMarkCount'],
                     'sequenceCount' => $contentStats['sequenceCount'],
                     'fieldCount' => $contentStats['fieldCount'],
+                    'metaSpanCount' => $contentStats['metaSpanCount'],
                     'placeholderCount' => $contentStats['placeholderCount'],
                     'rubyCount' => $contentStats['rubyCount'],
                     'softPageBreakCount' => $contentStats['softPageBreakCount'],
@@ -4026,6 +4027,13 @@ final class OdfReader
                 }
                 continue;
             }
+            if ($this->isElement($child, self::TEXT_NS, 'meta') || $this->isElement($child, self::TEXT_NS, 'meta-field')) {
+                $meta = $this->metaSpanNode($child, $catalog, $package);
+                if ($meta instanceof AstNode) {
+                    $nodes[] = $meta;
+                }
+                continue;
+            }
             if ($this->isElement($child, self::TEXT_NS, 'a')) {
                 $nodes[] = $this->linkNode($child, $catalog, $package);
                 continue;
@@ -4581,6 +4589,106 @@ final class OdfReader
         $suffix = trim($suffix, '-');
 
         return $suffix === '' ? 'unknown' : $suffix;
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function metaSpanNode(\DOMElement $meta, array $catalog, ?ZipPackage $package): ?AstNode
+    {
+        $children = $this->coalesceTextNodes($this->inlineNodes($meta, $catalog, $package));
+        $metadata = $this->metaSpanMetadata($meta);
+        if ($children === []) {
+            $text = $this->metaSpanFallbackText($metadata);
+            if ($text === '') {
+                return null;
+            }
+            $children = [new AstNode('text', ['text' => $text])];
+        }
+
+        $metaType = $meta->localName;
+        $classes = ['odf-meta'];
+        if ($metaType === 'meta-field') {
+            $classes[] = 'odf-meta-field';
+        }
+
+        $attributes = [
+            'data-odf-meta-type' => $metaType,
+        ];
+        foreach ($metadata as $name => $value) {
+            if ($value === null || $value === '' || is_array($value)) {
+                continue;
+            }
+            $attributes['data-odf-meta-' . self::kebabCase((string) $name)] = is_bool($value)
+                ? ($value ? 'true' : 'false')
+                : (string) $value;
+        }
+
+        return new AstNode('span', [
+            'sourceFormat' => 'odt',
+            'metaType' => $metaType,
+            'metaMetadata' => $metadata,
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ], $children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaSpanMetadata(\DOMElement $meta): array
+    {
+        $sourceId = self::attr($meta, self::XML_NS, 'id');
+        if ($sourceId === '') {
+            $sourceId = self::attr($meta, self::TEXT_NS, 'id');
+        }
+        $valueType = self::attr($meta, self::OFFICE_NS, 'value-type');
+        if ($valueType === '') {
+            $valueType = self::attr($meta, self::TEXT_NS, 'value-type');
+        }
+        $stringValue = self::attr($meta, self::OFFICE_NS, 'string-value');
+        if ($stringValue === '') {
+            $stringValue = self::attr($meta, self::TEXT_NS, 'string-value');
+        }
+        $dateValue = self::attr($meta, self::OFFICE_NS, 'date-value');
+        if ($dateValue === '') {
+            $dateValue = self::attr($meta, self::TEXT_NS, 'date-value');
+        }
+        $timeValue = self::attr($meta, self::OFFICE_NS, 'time-value');
+        if ($timeValue === '') {
+            $timeValue = self::attr($meta, self::TEXT_NS, 'time-value');
+        }
+
+        return self::withoutEmpty([
+            'sourceId' => self::nullable($sourceId),
+            'name' => self::nullable(self::attr($meta, self::TEXT_NS, 'name')),
+            'description' => self::nullable(self::attr($meta, self::TEXT_NS, 'description')),
+            'valueType' => self::nullable($valueType),
+            'stringValue' => self::nullable($stringValue),
+            'value' => self::nullable(self::attr($meta, self::OFFICE_NS, 'value')),
+            'booleanValue' => self::nullableBool(self::attr($meta, self::OFFICE_NS, 'boolean-value')),
+            'dateValue' => self::nullable($dateValue),
+            'timeValue' => self::nullable($timeValue),
+            'fixed' => self::nullableBool(self::attr($meta, self::TEXT_NS, 'fixed')),
+            'styleName' => self::nullable(self::attr($meta, self::TEXT_NS, 'style-name')),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function metaSpanFallbackText(array $metadata): string
+    {
+        foreach (['stringValue', 'value', 'dateValue', 'timeValue', 'booleanValue', 'sourceId', 'name'] as $key) {
+            $value = $metadata[$key] ?? null;
+            if ($value === null || $value === '' || is_array($value)) {
+                continue;
+            }
+
+            return is_bool($value) ? ($value ? 'true' : 'false') : (string) $value;
+        }
+
+        return '';
     }
 
     /**
@@ -7004,7 +7112,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, formControlOptionCount:int, selectedFormControlOptionCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, metaSpanCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, formControlOptionCount:int, selectedFormControlOptionCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -7018,6 +7126,7 @@ final class OdfReader
             'indexMarkCount' => 0,
             'sequenceCount' => 0,
             'fieldCount' => 0,
+            'metaSpanCount' => 0,
             'placeholderCount' => 0,
             'rubyCount' => 0,
             'softPageBreakCount' => 0,
@@ -7151,6 +7260,9 @@ final class OdfReader
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-field')) {
                 $stats['fieldCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-meta')) {
+                $stats['metaSpanCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-placeholder')) {
                 $stats['placeholderCount']++;

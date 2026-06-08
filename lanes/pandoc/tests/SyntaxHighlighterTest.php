@@ -38,6 +38,9 @@ return [
         $t->same('dart', SyntaxHighlighter::normalizeLanguage('dartlang'));
         $t->same('dart', SyntaxHighlighter::normalizeLanguage('flutter'));
         $t->same('dart', SyntaxHighlighter::normalizeLanguage('language-dartlang'));
+        $t->same('fish', SyntaxHighlighter::normalizeLanguage('fish'));
+        $t->same('fish', SyntaxHighlighter::normalizeLanguage('fish-shell'));
+        $t->same('fish', SyntaxHighlighter::normalizeLanguage('language-fish'));
         $t->same('swift', SyntaxHighlighter::normalizeLanguage('swift'));
         $t->same('swift', SyntaxHighlighter::normalizeLanguage('swiftui'));
         $t->same('swift', SyntaxHighlighter::normalizeLanguage('swift-source'));
@@ -3249,6 +3252,46 @@ return [
         $t->same('octave', $directOctave['requestedLanguage']);
         $t->contains('<span class="kw">function</span> <span class="va">y</span> <span class="op">=</span> <span class="fu">normalize_title</span><span class="op">(</span><span class="va">x</span><span class="op">);</span>', $directOctave['html']);
         $t->contains('<span class="va">y</span> <span class="op">=</span> <span class="fu">strtrim</span><span class="op">(</span><span class="va">x</span><span class="op">);</span> <span class="kw">endfunction</span>', $directOctave['html']);
+    },
+    'highlights fish shell import review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[67] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Fish shell review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'haddock');
+        $directFish = $highlighter->highlight('set -q argv[1]; and echo $argv[1]', 'fish-shell');
+
+        $t->same('fish', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('fish', $highlighted['language']);
+        $t->same('fish', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1000, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource fish numberLines"><code class="sourceCode fish" style="counter-reset: source-line 999;">', $highlighted['html']);
+        $t->contains('<span id="fish-review-1000"><a href="#fish-review-1000"></a><span class="co"># Fish shell WordPress import review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">function</span> <span class="va">normalize_title</span> <span class="ot">--argument-names</span> <span class="va">packet_path</span>', $highlighted['html']);
+        $t->contains('<span class="kw">set</span> <span class="ot">-l</span> <span class="va">title</span> <span class="op">(</span><span class="fu">jq</span> <span class="ot">-r</span> <span class="st">&#039;.title // &quot;&quot;&#039;</span> <span class="va">$packet_path</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">string</span> <span class="va">trim</span> <span class="op">--</span> <span class="va">$title</span> <span class="op">|</span> <span class="fu">read</span> <span class="ot">-l</span> <span class="va">title</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="fu">test</span> <span class="ot">-z</span> <span class="st">&quot;$title&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">set</span> <span class="va">title</span> <span class="st">&quot;Untitled&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">printf</span> <span class="st">&quot;review:%s\\n&quot;</span> <span class="va">$title</span>', $highlighted['html']);
+        $t->contains('<span class="kw">for</span> <span class="va">review_path</span> <span class="kw">in</span> <span class="va">exports</span><span class="op">/*.</span><span class="va">json</span>', $highlighted['html']);
+        $t->contains('<span class="kw">set</span> <span class="ot">-l</span> <span class="va">slug</span> <span class="op">(</span><span class="fu">string</span> <span class="va">lower</span> <span class="op">(</span><span class="fu">path</span> <span class="va">basename</span> <span class="va">$review_path</span> <span class="op">.</span><span class="va">json</span><span class="op">))</span>', $highlighted['html']);
+        $t->contains('<span class="fu">wp</span> <span class="va">post</span> <span class="va">meta</span> <span class="va">update</span> <span class="va">$slug</span> <span class="va">import_source</span> <span class="va">$review_path</span><span class="op">;</span> <span class="kw">or</span> <span class="kw">return</span> <span class="dv">1</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="fu">wp</span> <span class="va">post</span> <span class="va">meta</span>', $wordpressBlock);
+        $t->same('fish', $directFish['language']);
+        $t->same('fish-shell', $directFish['requestedLanguage']);
+        $t->contains('<span class="kw">set</span> <span class="ot">-q</span> <span class="va">argv</span><span class="op">[</span><span class="dv">1</span><span class="op">];</span> <span class="kw">and</span> <span class="fu">echo</span> <span class="va">$argv[1]</span>', $directFish['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

@@ -6335,13 +6335,24 @@ final class CitationCslProcessor
     private function substituteRenderedNamesElementVariables(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, array $substitutedVariables = []): array
     {
         $variable = (string) ($element['variable'] ?? 'author editor');
-        [$names] = $this->namesForRenderingVariableWithSource($item, $variable);
-        if ($names !== []) {
+        $nameGroups = $this->namesForRenderingVariableGroups($item, $variable);
+        if ($nameGroups !== []) {
             $probeSubstitutedVariables = $substitutedVariables;
             $bibliographyState = null;
             $value = $this->renderNamesElementValue($element, $item, $scope, false, $bibliographyState, $citation, $probeSubstitutedVariables);
 
-            return $value === '' ? [] : $this->renderingVariableNames($variable);
+            if ($value === '') {
+                return [];
+            }
+
+            if ($this->rendersIndependentNamesVariableGroups($element, $variable, $nameGroups)) {
+                return array_values(array_map(
+                    static fn (array $group): string => $group['variable'],
+                    $nameGroups
+                ));
+            }
+
+            return $this->renderingVariableNames($variable);
         }
 
         $substitute = $element['substitute'] ?? [];
@@ -6913,8 +6924,8 @@ final class CitationCslProcessor
     private function renderNamesElementValue(array $element, array $item, string $scope, bool $allowImplicitTitleFallback, ?array &$bibliographyState = null, ?AstNode $citation = null, array &$substitutedVariables = []): string
     {
         $variable = (string) ($element['variable'] ?? 'author editor');
-        [$names, $selectedVariable] = $this->namesForRenderingVariableWithSource($item, $variable);
-        if ($names === []) {
+        $nameGroups = $this->namesForRenderingVariableGroups($item, $variable);
+        if ($nameGroups === []) {
             $substitute = $element['substitute'] ?? [];
             if (is_array($substitute) && $substitute !== []) {
                 foreach ($substitute as $substituteElement) {
@@ -6947,15 +6958,58 @@ final class CitationCslProcessor
             ? $this->normalizedNameRenderingOptions($elementOptions, $scope)
             : ($scope === 'bibliography' ? $this->style->bibliographyNameRendering() : $this->style->citationNameRendering());
 
-        $rendered = $this->renderNameList(
-            $names,
-            $options,
-            $scope === 'bibliography',
-            $citation,
-            $bibliographyState
-        );
+        if (!$this->rendersIndependentNamesVariableGroups($element, $variable, $nameGroups)) {
+            $names = $nameGroups[0]['names'];
+            $selectedVariable = $nameGroups[0]['variable'];
+            $rendered = $this->renderNameList(
+                $names,
+                $options,
+                $scope === 'bibliography',
+                $citation,
+                $bibliographyState
+            );
 
-        return $this->applyNamesLabel($rendered, $selectedVariable, $names, $options);
+            return $this->applyNamesLabel($rendered, $selectedVariable, $names, $options);
+        }
+
+        $renderedGroups = [];
+        foreach ($nameGroups as $nameGroup) {
+            $names = $nameGroup['names'];
+            $groupBibliographyState = null;
+            $rendered = $this->renderNameList(
+                $names,
+                $options,
+                $scope === 'bibliography',
+                $citation,
+                $groupBibliographyState
+            );
+            $rendered = $this->applyNamesLabel($rendered, $nameGroup['variable'], $names, $options);
+            if ($rendered !== '') {
+                $renderedGroups[] = $rendered;
+            }
+        }
+
+        return $this->joinRenderedElements($renderedGroups, (string) ($options['delimiter'] ?? ''));
+    }
+
+    /**
+     * @param list<array{variable:string, names:list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>}> $nameGroups
+     */
+    private function rendersIndependentNamesVariableGroups(array $element, string $variable, array $nameGroups): bool
+    {
+        if (count($nameGroups) < 2) {
+            return false;
+        }
+
+        $variables = preg_split('/\s+/', strtolower(trim($variable))) ?: [];
+        $variables = array_values(array_filter($variables, static fn (string $value): bool => $value !== ''));
+        if ($variables !== ['editor', 'translator']) {
+            return false;
+        }
+
+        $options = $element['nameRendering'] ?? [];
+
+        return is_array($options) && is_array($options['label'] ?? null);
     }
 
     private function namesVariableAllowsTitleFallback(string $variable): bool
@@ -8091,61 +8145,87 @@ final class CitationCslProcessor
      */
     private function namesForRenderingVariableWithSource(array $item, string $variable): array
     {
+        $groups = $this->namesForRenderingVariableGroups($item, $variable);
+        if ($groups === []) {
+            return [[], ''];
+        }
+
+        return [$groups[0]['names'], $groups[0]['variable']];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<array{variable:string, names:list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>}>
+     */
+    private function namesForRenderingVariableGroups(array $item, string $variable): array
+    {
         $variables = preg_split('/\s+/', strtolower(trim($variable))) ?: [];
         if ($variables === []) {
             $variables = ['author', 'editor'];
         }
 
+        $groups = [];
         foreach ($variables as $nameVariable) {
-            $names = match ($nameVariable) {
-                'short-author' => $item['shortAuthors'] ?? [],
-                'short-editor' => $item['shortEditors'] ?? [],
-                'author' => $item['authors'] ?? [],
-                'editor' => $item['editors'] ?? [],
-                'holder' => $item['holders'] ?? [],
-                'translator' => $item['translators'] ?? [],
-                'chair' => $item['chairs'] ?? [],
-                'container-author' => $item['containerAuthors'] ?? [],
-                'collection-editor' => $item['collectionEditors'] ?? [],
-                'composer' => $item['composers'] ?? [],
-                'contributor' => $item['contributors'] ?? [],
-                'editor-translator' => $item['editorTranslators'] ?? [],
-                'executive-producer' => $item['executiveProducers'] ?? [],
-                'event-organizer', 'organizer' => $item['eventOrganizers'] ?? [],
-                'guest' => $item['guests'] ?? [],
-                'host' => $item['hosts'] ?? [],
-                'narrator' => $item['narrators'] ?? [],
-                'original-author' => $item['originalAuthors'] ?? [],
-                'performer' => $item['performers'] ?? [],
-                'producer' => $item['producers'] ?? [],
-                'recipient' => $item['recipients'] ?? [],
-                'script-writer' => $item['scriptWriters'] ?? [],
-                'compiler' => $item['compilers'] ?? [],
-                'curator' => $item['curators'] ?? [],
-                'director' => $item['directors'] ?? [],
-                'editorial-director' => $item['editorialDirectors'] ?? [],
-                'illustrator' => $item['illustrators'] ?? [],
-                'interviewer' => $item['interviewers'] ?? [],
-                'reviewed-author' => $item['reviewedAuthors'] ?? [],
-                'redactor' => $item['redactors'] ?? [],
-                'founder' => $item['founders'] ?? [],
-                'continuator' => $item['continuators'] ?? [],
-                'reviser' => $item['revisers'] ?? [],
-                'collaborator' => $item['collaborators'] ?? [],
-                'commentator' => $item['commentators'] ?? [],
-                'annotator' => $item['annotators'] ?? [],
-                'introduction' => $item['introductionAuthors'] ?? [],
-                'foreword' => $item['forewordAuthors'] ?? [],
-                'afterword' => $item['afterwordAuthors'] ?? [],
-                'namea', 'nameb', 'namec' => is_array($item['biblatexCustomNames'][$nameVariable] ?? null) ? $item['biblatexCustomNames'][$nameVariable] : [],
-                default => [],
-            };
-            if (is_array($names) && $names !== []) {
-                return [$names, $nameVariable];
+            $names = $this->namesForRenderingSingleVariable($item, $nameVariable);
+            if ($names !== []) {
+                $groups[] = ['variable' => $nameVariable, 'names' => $names];
             }
         }
 
-        return [[], ''];
+        return $groups;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>
+     */
+    private function namesForRenderingSingleVariable(array $item, string $nameVariable): array
+    {
+        $names = match ($nameVariable) {
+            'short-author' => $item['shortAuthors'] ?? [],
+            'short-editor' => $item['shortEditors'] ?? [],
+            'author' => $item['authors'] ?? [],
+            'editor' => $item['editors'] ?? [],
+            'holder' => $item['holders'] ?? [],
+            'translator' => $item['translators'] ?? [],
+            'chair' => $item['chairs'] ?? [],
+            'container-author' => $item['containerAuthors'] ?? [],
+            'collection-editor' => $item['collectionEditors'] ?? [],
+            'composer' => $item['composers'] ?? [],
+            'contributor' => $item['contributors'] ?? [],
+            'editor-translator' => $item['editorTranslators'] ?? [],
+            'executive-producer' => $item['executiveProducers'] ?? [],
+            'event-organizer', 'organizer' => $item['eventOrganizers'] ?? [],
+            'guest' => $item['guests'] ?? [],
+            'host' => $item['hosts'] ?? [],
+            'narrator' => $item['narrators'] ?? [],
+            'original-author' => $item['originalAuthors'] ?? [],
+            'performer' => $item['performers'] ?? [],
+            'producer' => $item['producers'] ?? [],
+            'recipient' => $item['recipients'] ?? [],
+            'script-writer' => $item['scriptWriters'] ?? [],
+            'compiler' => $item['compilers'] ?? [],
+            'curator' => $item['curators'] ?? [],
+            'director' => $item['directors'] ?? [],
+            'editorial-director' => $item['editorialDirectors'] ?? [],
+            'illustrator' => $item['illustrators'] ?? [],
+            'interviewer' => $item['interviewers'] ?? [],
+            'reviewed-author' => $item['reviewedAuthors'] ?? [],
+            'redactor' => $item['redactors'] ?? [],
+            'founder' => $item['founders'] ?? [],
+            'continuator' => $item['continuators'] ?? [],
+            'reviser' => $item['revisers'] ?? [],
+            'collaborator' => $item['collaborators'] ?? [],
+            'commentator' => $item['commentators'] ?? [],
+            'annotator' => $item['annotators'] ?? [],
+            'introduction' => $item['introductionAuthors'] ?? [],
+            'foreword' => $item['forewordAuthors'] ?? [],
+            'afterword' => $item['afterwordAuthors'] ?? [],
+            'namea', 'nameb', 'namec' => is_array($item['biblatexCustomNames'][$nameVariable] ?? null) ? $item['biblatexCustomNames'][$nameVariable] : [],
+            default => [],
+        };
+
+        return is_array($names) ? $names : [];
     }
 
     /**

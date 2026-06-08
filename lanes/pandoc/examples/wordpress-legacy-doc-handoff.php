@@ -208,6 +208,33 @@ $typedFiletime = static function (string $iso8601) use ($u64): string {
 $typedClsid = static function (string $clsid) use ($clsidBytes): string {
     return pack('v', 0x0048) . "\0\0" . $clsidBytes($clsid);
 };
+$typedBlob = static function (string $payload) use ($u32): string {
+    $raw = pack('v', 0x0041) . "\0\0" . $u32(strlen($payload)) . $payload;
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
+$typedUnicodeBlob = static function (string $value) use ($typedBlob, $utf16le): string {
+    return $typedBlob($utf16le($value . "\0"));
+};
+$vtLpwstr = static function (string $value) use ($u32, $utf16le): string {
+    $bytes = $utf16le($value . "\0");
+    $raw = pack('v', 0x001f) . "\0\0" . $u32(intdiv(strlen($bytes), 2)) . $bytes;
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
+$typedHyperlinks = static function (array $links) use ($typedBlob, $typedI4, $u32, $vtLpwstr): string {
+    $payload = $u32(count($links) * 6);
+    foreach ($links as $link) {
+        $payload .= $typedI4((int) ($link['hash'] ?? 0))
+            . $typedI4((int) ($link['app'] ?? 0))
+            . $typedI4((int) ($link['shapeId'] ?? 0))
+            . $typedI4((int) ($link['info'] ?? 0))
+            . $vtLpwstr((string) ($link['target'] ?? ''))
+            . $vtLpwstr((string) ($link['location'] ?? ''));
+    }
+
+    return $typedBlob($payload);
+};
 $typedVectorLpstr = static function (array $values) use ($padTo): string {
     $payload = pack('V', count($values));
     foreach ($values as $value) {
@@ -1207,6 +1234,8 @@ $streams = [
                     8 => 'Confidence Score',
                     9 => 'Invoice Total',
                     10 => 'Review Date',
+                    11 => '_PID_LINKBASE',
+                    12 => '_PID_HLINKS',
                 ]),
                 1 => $typedI2(1252),
                 2 => $typedLpstr('legacy-doc-42'),
@@ -1218,6 +1247,25 @@ $streams = [
                 8 => $typedR8(0.875),
                 9 => $typedCurrency(12345678),
                 10 => $typedOleDate(45309.5),
+                11 => $typedUnicodeBlob('https://example.test/legacy/'),
+                12 => $typedHyperlinks([
+                    [
+                        'hash' => 0x12345678,
+                        'app' => 42,
+                        'shapeId' => 1001,
+                        'info' => 0x00000000,
+                        'target' => 'appendix-a.html',
+                        'location' => 'ReviewAnchor',
+                    ],
+                    [
+                        'hash' => 0x01020304,
+                        'app' => 77,
+                        'shapeId' => 2002,
+                        'info' => 0x00010000,
+                        'target' => 'https://example.test/source.doc',
+                        'location' => '',
+                    ],
+                ]),
             ],
         ],
     ]),
@@ -2042,6 +2090,33 @@ if (($argv[1] ?? '') === '--self-test') {
         'Review Date' => '2024-01-18T12:00:00Z',
     ]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing user-defined custom properties');
+    }
+    if (
+        ($summary['metadata']['hyperlinkBase'] ?? '') !== 'https://example.test/legacy/'
+        || ($summary['metadata']['hyperlinkBasePolicy'] ?? '') !== 'metadata-only-native-review'
+        || ($summary['metadata']['hyperlinkCount'] ?? null) !== 2
+        || ($summary['metadata']['hyperlinkPolicy'] ?? '') !== 'metadata-only-native-review'
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing reserved hyperlink metadata');
+    }
+    if (
+        ($summary['metadata']['hyperlinks'][0]['target'] ?? '') !== 'appendix-a.html'
+        || ($summary['metadata']['hyperlinks'][0]['location'] ?? '') !== 'ReviewAnchor'
+        || ($summary['metadata']['hyperlinks'][0]['targetKind'] ?? '') !== 'relative-or-file'
+        || ($summary['metadata']['hyperlinks'][0]['fixupStatus'] ?? '') !== 'synchronized'
+        || ($summary['metadata']['hyperlinks'][1]['target'] ?? '') !== 'https://example.test/source.doc'
+        || ($summary['metadata']['hyperlinks'][1]['targetKind'] ?? '') !== 'external-url'
+        || ($summary['metadata']['hyperlinks'][1]['fixupStatus'] ?? '') !== 'requires-fixup'
+        || ($summary['metadata']['hyperlinks'][1]['canExposeBytes'] ?? null) !== false
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing reserved hyperlink record details');
+    }
+    if (
+        str_contains($blocks, 'https://example.test/legacy/')
+        || str_contains($blocks, 'appendix-a.html')
+        || str_contains($blocks, 'https://example.test/source.doc')
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered reserved hyperlink metadata into blocks');
     }
     if (($summary['metadata']['bookmarkCount'] ?? null) !== 1) {
         throw new RuntimeException('Legacy DOC handoff self-test missing standard bookmark count');

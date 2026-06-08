@@ -10445,6 +10445,10 @@ final class EpubReader
         $mediaRuleCount = 0;
         $supportsRuleCount = 0;
         $importConditionCount = 0;
+        $pageRuleCount = 0;
+        $namedPageRuleCount = 0;
+        $pagePseudoClassCount = 0;
+        $pageMarginBoxCount = 0;
         $fontFaceItems = [];
         $fontFaceFamilies = [];
         $fontFaceDiagnostics = [];
@@ -10452,6 +10456,10 @@ final class EpubReader
         $mediaConditions = [];
         $supportsConditions = [];
         $importConditions = [];
+        $pageRules = [];
+        $pageRuleNames = [];
+        $pagePseudoClasses = [];
+        $pageMarginBoxNames = [];
         $reviewRequiredCount = 0;
 
         foreach ($manifest as $asset) {
@@ -10498,10 +10506,18 @@ final class EpubReader
                     'mediaRuleCount' => 0,
                     'supportsRuleCount' => 0,
                     'importConditionCount' => 0,
+                    'pageRuleCount' => 0,
+                    'namedPageRuleCount' => 0,
+                    'pagePseudoClassCount' => 0,
+                    'pageMarginBoxCount' => 0,
                     'conditionalRules' => [],
                     'mediaConditions' => [],
                     'supportsConditions' => [],
                     'importConditions' => [],
+                    'pageRules' => [],
+                    'pageRuleNames' => [],
+                    'pagePseudoClasses' => [],
+                    'pageMarginBoxNames' => [],
                     'reviewFlags' => ['missing-references'],
                     'references' => [],
                     'diagnostics' => $assetDiagnostics,
@@ -10564,6 +10580,18 @@ final class EpubReader
             ));
             $assetMediaConditions = self::cssConditionalRuleConditions($assetMediaRules);
             $assetSupportsConditions = self::cssConditionalRuleConditions($assetSupportsRules);
+            $assetPageRules = self::cssPageAtRuleReports($css);
+            $assetPageRuleNames = self::cssPageRuleNames($assetPageRules);
+            $assetPagePseudoClasses = self::cssPageRulePseudoClasses($assetPageRules);
+            $assetPageMarginBoxNames = self::cssPageRuleMarginBoxNames($assetPageRules);
+            $assetPageMarginBoxCount = array_sum(array_map(
+                static fn (array $pageRule): int => is_int($pageRule['marginBoxCount'] ?? null) ? $pageRule['marginBoxCount'] : 0,
+                $assetPageRules,
+            ));
+            $assetNamedPageRuleCount = count(array_filter(
+                $assetPageRules,
+                static fn (array $pageRule): bool => is_string($pageRule['name'] ?? null) && $pageRule['name'] !== '',
+            ));
 
             $fontFaces = $this->cssFontFaceReports($package, $part, $css, $manifestByPart);
             $assetFontFaceCount = count($fontFaces);
@@ -10592,7 +10620,7 @@ final class EpubReader
                     ] + $diagnostic;
                 }
             }
-            $reviewFlags = self::cssResourceReviewFlags($references, $assetConditionalRules);
+            $reviewFlags = self::cssResourceReviewFlags($references, $assetConditionalRules, $assetPageRules);
             if ($reviewFlags !== []) {
                 ++$reviewRequiredCount;
             }
@@ -10620,10 +10648,18 @@ final class EpubReader
                 'mediaRuleCount' => count($assetMediaRules),
                 'supportsRuleCount' => count($assetSupportsRules),
                 'importConditionCount' => count($assetImportConditions),
+                'pageRuleCount' => count($assetPageRules),
+                'namedPageRuleCount' => $assetNamedPageRuleCount,
+                'pagePseudoClassCount' => count($assetPagePseudoClasses),
+                'pageMarginBoxCount' => $assetPageMarginBoxCount,
                 'conditionalRules' => $assetConditionalRules,
                 'mediaConditions' => $assetMediaConditions,
                 'supportsConditions' => $assetSupportsConditions,
                 'importConditions' => $assetImportConditions,
+                'pageRules' => $assetPageRules,
+                'pageRuleNames' => $assetPageRuleNames,
+                'pagePseudoClasses' => $assetPagePseudoClasses,
+                'pageMarginBoxNames' => $assetPageMarginBoxNames,
                 'reviewFlags' => $reviewFlags,
                 'references' => $references,
                 'diagnostics' => $assetDiagnostics,
@@ -10643,8 +10679,13 @@ final class EpubReader
             $mediaRuleCount += count($assetMediaRules);
             $supportsRuleCount += count($assetSupportsRules);
             $importConditionCount += count($assetImportConditions);
+            $pageRuleCount += count($assetPageRules);
+            $namedPageRuleCount += $assetNamedPageRuleCount;
+            $pagePseudoClassCount += count($assetPagePseudoClasses);
+            $pageMarginBoxCount += $assetPageMarginBoxCount;
             array_push($fontFaceItems, ...$fontFaces);
             array_push($conditionalRules, ...$assetConditionalRules);
+            array_push($pageRules, ...$assetPageRules);
             foreach ($assetFontFaceFamilies as $family) {
                 if (!in_array($family, $fontFaceFamilies, true)) {
                     $fontFaceFamilies[] = $family;
@@ -10653,6 +10694,9 @@ final class EpubReader
             self::appendUniqueStrings($mediaConditions, $assetMediaConditions);
             self::appendUniqueStrings($supportsConditions, $assetSupportsConditions);
             self::appendUniqueStrings($importConditions, $assetImportConditions);
+            self::appendUniqueStrings($pageRuleNames, $assetPageRuleNames);
+            self::appendUniqueStrings($pagePseudoClasses, $assetPagePseudoClasses);
+            self::appendUniqueStrings($pageMarginBoxNames, $assetPageMarginBoxNames);
             foreach ($assetFontFaceDiagnostics as $diagnostic) {
                 $fontFaceDiagnostics[] = ['part' => $part] + $diagnostic;
             }
@@ -10686,10 +10730,18 @@ final class EpubReader
             'mediaRuleCount' => $mediaRuleCount,
             'supportsRuleCount' => $supportsRuleCount,
             'importConditionCount' => $importConditionCount,
+            'pageRuleCount' => $pageRuleCount,
+            'namedPageRuleCount' => $namedPageRuleCount,
+            'pagePseudoClassCount' => $pagePseudoClassCount,
+            'pageMarginBoxCount' => $pageMarginBoxCount,
             'conditionalRules' => $conditionalRules,
             'mediaConditions' => $mediaConditions,
             'supportsConditions' => $supportsConditions,
             'importConditions' => $importConditions,
+            'pageRules' => $pageRules,
+            'pageRuleNames' => $pageRuleNames,
+            'pagePseudoClasses' => $pagePseudoClasses,
+            'pageMarginBoxNames' => $pageMarginBoxNames,
             'externalReferenceCount' => count($externalReferences),
             'missingReferenceCount' => count($missingReferences),
             'encryptedReferenceCount' => count($encryptedReferences),
@@ -11740,6 +11792,265 @@ final class EpubReader
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private static function cssPageAtRuleReports(string $css): array
+    {
+        $rules = [];
+        $stripped = self::stripCssComments($css);
+        $matchCount = preg_match_all('/@page\b([^{}]*)\{/i', $stripped, $matches, \PREG_SET_ORDER | \PREG_OFFSET_CAPTURE);
+        if (!is_int($matchCount) || $matchCount === 0) {
+            return [];
+        }
+
+        foreach ($matches as $match) {
+            $selector = trim((string) ($match[1][0] ?? ''));
+            $start = is_int($match[0][1] ?? null) ? $match[0][1] : null;
+            if ($start === null) {
+                continue;
+            }
+
+            $open = strpos($stripped, '{', $start);
+            if ($open === false) {
+                continue;
+            }
+            $close = self::cssMatchingBraceOffset($stripped, $open);
+            if ($close === null) {
+                continue;
+            }
+
+            $body = substr($stripped, $open + 1, $close - $open - 1);
+            $raw = substr($stripped, $start, $close - $start + 1);
+            $selectorReport = self::cssPageSelectorReport($selector);
+            $marginBoxes = self::cssPageMarginBoxReports($body);
+            $descriptors = self::cssDeclarationMap(self::cssWithoutNestedAtRules($body));
+
+            $rules[] = [
+                'index' => count($rules),
+                'kind' => 'page',
+                'selector' => $selector,
+                'name' => $selectorReport['name'],
+                'pseudoClasses' => $selectorReport['pseudoClasses'],
+                'pseudoClassCount' => count($selectorReport['pseudoClasses']),
+                'descriptors' => $descriptors,
+                'descriptorCount' => count($descriptors),
+                'size' => self::cssNullableDescriptor($descriptors, 'size'),
+                'margin' => self::cssNullableDescriptor($descriptors, 'margin'),
+                'bleed' => self::cssNullableDescriptor($descriptors, 'bleed'),
+                'marks' => self::cssNullableDescriptor($descriptors, 'marks'),
+                'marginBoxCount' => count($marginBoxes),
+                'marginBoxes' => $marginBoxes,
+                'marginBoxNames' => self::cssPageMarginBoxNamesFromBoxes($marginBoxes),
+                'raw' => $raw,
+                'rawSha256' => hash('sha256', $raw),
+                'bodySha256' => hash('sha256', $body),
+                'diagnostics' => $selectorReport['diagnostics'],
+            ];
+        }
+
+        return $rules;
+    }
+
+    /**
+     * @return array{name:?string, pseudoClasses:list<string>, diagnostics:list<array<string, mixed>>}
+     */
+    private static function cssPageSelectorReport(string $selector): array
+    {
+        $name = null;
+        $pseudoClasses = [];
+        $diagnostics = [];
+
+        if ($selector !== '') {
+            $parts = explode(':', $selector);
+            $namePart = trim((string) array_shift($parts));
+            if ($namePart !== '') {
+                $name = $namePart;
+                if (preg_match('/^-?[A-Za-z_][A-Za-z0-9_-]*$/', $name) !== 1) {
+                    $diagnostics[] = [
+                        'type' => 'invalid-css-page-name',
+                        'selector' => $selector,
+                        'name' => $name,
+                        'message' => 'EPUB CSS @page selector name is preserved but is not a bounded CSS identifier',
+                    ];
+                }
+            }
+
+            foreach ($parts as $part) {
+                $pseudoClass = trim((string) $part);
+                if ($pseudoClass === '') {
+                    continue;
+                }
+                $pseudoClasses[] = strtolower($pseudoClass);
+                if (preg_match('/^[A-Za-z-]+$/', $pseudoClass) !== 1) {
+                    $diagnostics[] = [
+                        'type' => 'invalid-css-page-pseudo-class',
+                        'selector' => $selector,
+                        'pseudoClass' => $pseudoClass,
+                        'message' => 'EPUB CSS @page pseudo-class is preserved but is not a bounded page pseudo-class token',
+                    ];
+                }
+            }
+        }
+
+        return [
+            'name' => $name,
+            'pseudoClasses' => $pseudoClasses,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function cssPageMarginBoxReports(string $body): array
+    {
+        $boxes = [];
+        $matchCount = preg_match_all('/@([A-Za-z][A-Za-z-]*)\s*\{/i', $body, $matches, \PREG_SET_ORDER | \PREG_OFFSET_CAPTURE);
+        if (!is_int($matchCount) || $matchCount === 0) {
+            return [];
+        }
+
+        foreach ($matches as $match) {
+            $name = strtolower((string) ($match[1][0] ?? ''));
+            $start = is_int($match[0][1] ?? null) ? $match[0][1] : null;
+            if ($name === '' || $start === null) {
+                continue;
+            }
+
+            $open = strpos($body, '{', $start);
+            if ($open === false) {
+                continue;
+            }
+            $close = self::cssMatchingBraceOffset($body, $open);
+            if ($close === null) {
+                continue;
+            }
+
+            $boxBody = substr($body, $open + 1, $close - $open - 1);
+            $raw = substr($body, $start, $close - $start + 1);
+            $descriptors = self::cssDeclarationMap($boxBody);
+            $boxes[] = [
+                'index' => count($boxes),
+                'name' => $name,
+                'raw' => $raw,
+                'rawSha256' => hash('sha256', $raw),
+                'bodySha256' => hash('sha256', $boxBody),
+                'descriptors' => $descriptors,
+                'descriptorCount' => count($descriptors),
+                'content' => self::cssNullableDescriptor($descriptors, 'content'),
+            ];
+        }
+
+        return $boxes;
+    }
+
+    private static function cssWithoutNestedAtRules(string $body): string
+    {
+        $result = $body;
+        $ranges = [];
+        $matchCount = preg_match_all('/@[A-Za-z][A-Za-z-]*\s*\{/i', $body, $matches, \PREG_SET_ORDER | \PREG_OFFSET_CAPTURE);
+        if (!is_int($matchCount) || $matchCount === 0) {
+            return $body;
+        }
+
+        foreach ($matches as $match) {
+            $start = is_int($match[0][1] ?? null) ? $match[0][1] : null;
+            if ($start === null) {
+                continue;
+            }
+            $open = strpos($body, '{', $start);
+            if ($open === false) {
+                continue;
+            }
+            $close = self::cssMatchingBraceOffset($body, $open);
+            if ($close === null) {
+                continue;
+            }
+            $ranges[] = [$start, $close + 1];
+        }
+
+        for ($index = count($ranges) - 1; $index >= 0; --$index) {
+            [$start, $end] = $ranges[$index];
+            $result = substr_replace($result, str_repeat(' ', $end - $start), $start, $end - $start);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rules
+     *
+     * @return list<string>
+     */
+    private static function cssPageRuleNames(array $rules): array
+    {
+        $names = [];
+        foreach ($rules as $rule) {
+            $name = is_string($rule['name'] ?? null) ? $rule['name'] : '';
+            if ($name !== '' && !in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rules
+     *
+     * @return list<string>
+     */
+    private static function cssPageRulePseudoClasses(array $rules): array
+    {
+        $pseudoClasses = [];
+        foreach ($rules as $rule) {
+            foreach (is_array($rule['pseudoClasses'] ?? null) ? $rule['pseudoClasses'] : [] as $pseudoClass) {
+                if (is_string($pseudoClass) && $pseudoClass !== '' && !in_array($pseudoClass, $pseudoClasses, true)) {
+                    $pseudoClasses[] = $pseudoClass;
+                }
+            }
+        }
+
+        return $pseudoClasses;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rules
+     *
+     * @return list<string>
+     */
+    private static function cssPageRuleMarginBoxNames(array $rules): array
+    {
+        $names = [];
+        foreach ($rules as $rule) {
+            self::appendUniqueStrings(
+                $names,
+                self::cssPageMarginBoxNamesFromBoxes(is_array($rule['marginBoxes'] ?? null) ? $rule['marginBoxes'] : []),
+            );
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $boxes
+     *
+     * @return list<string>
+     */
+    private static function cssPageMarginBoxNamesFromBoxes(array $boxes): array
+    {
+        $names = [];
+        foreach ($boxes as $box) {
+            $name = is_string($box['name'] ?? null) ? $box['name'] : '';
+            if ($name !== '' && !in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
      * @param list<string> $target
      * @param list<string> $values
      */
@@ -11755,10 +12066,11 @@ final class EpubReader
     /**
      * @param list<array<string, mixed>> $references
      * @param list<array<string, mixed>> $conditionalRules
+     * @param list<array<string, mixed>> $pageRules
      *
      * @return list<string>
      */
-    private static function cssResourceReviewFlags(array $references, array $conditionalRules = []): array
+    private static function cssResourceReviewFlags(array $references, array $conditionalRules = [], array $pageRules = []): array
     {
         $flags = [];
         $hasConditionalStyles = $conditionalRules !== [];
@@ -11778,6 +12090,9 @@ final class EpubReader
         }
         if ($hasConditionalStyles) {
             $flags['conditional-styles'] = true;
+        }
+        if ($pageRules !== []) {
+            $flags['paged-media'] = true;
         }
 
         return array_keys($flags);

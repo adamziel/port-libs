@@ -7486,6 +7486,87 @@ XML;
             $t->same('CSL citation names label form must be long, short, verb, verb-short, or symbol', $exception->getMessage());
         }
     },
+    'renders bounded csl names variable lists as ordered creator groups' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'edited-translation-source',
+                'type' => 'book',
+                'title' => 'Edited Translation Packet',
+                'editor' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'translator' => [
+                    ['family' => 'Translator', 'given' => 'Tia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Names Variable List Review Style</title>
+    <id>https://example.test/styles/bounded-names-variable-list-review</id>
+    <updated>2026-06-08T20:36:03+00:00</updated>
+  </info>
+  <locale>
+    <terms>
+      <term name="editor" form="verb">edited by</term>
+      <term name="translator" form="verb">translated by</term>
+      <term name="editor" form="short">
+        <single>ed.</single>
+        <multiple>eds.</multiple>
+      </term>
+      <term name="translator" form="short">trans.</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")">
+      <group delimiter=" ">
+        <names variable="editor translator" delimiter="; ">
+          <label form="verb" suffix=" "/>
+          <name initialize-with=". "/>
+        </names>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <names variable="editor translator" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <label form="short" plural="contextual" prefix=", "/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationNames = $summary['citationRendering'][0]['children'][0] ?? [];
+        $bibliographyNames = $summary['bibliographyRendering'][0] ?? [];
+        $t->same('Bounded Names Variable List Review Style', $summary['title'] ?? null);
+        $t->same('editor translator', $citationNames['variable'] ?? null);
+        $t->same('; ', $citationNames['nameRendering']['delimiter'] ?? null);
+        $t->same('editor translator', $bibliographyNames['variable'] ?? null);
+        $t->same('after', $bibliographyNames['nameRendering']['label']['position'] ?? null);
+
+        $t->same('(edited by Curator and Ng; translated by Translator 2026)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'edited-translation-source', 'text' => '[@edited-translation-source]']),
+        ]));
+        $t->same('Curator, E.; Ng, N., eds.; Translator, T., trans. | Edited Translation Packet', $processor->renderBibliographyEntry('edited-translation-source'));
+
+        $document = (new MarkdownReader())->read('Review cites [@edited-translation-source] for role-complete source metadata.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (edited by Curator and Ng; translated by Translator 2026) for role-complete source metadata.</p>', $blocks);
+        $t->contains('<dt>Curator and Ng 2026</dt><dd>Curator, E.; Ng, N., eds.; Translator, T., trans. | Edited Translation Packet</dd>', $blocks);
+    },
     'applies bounded csl name rendering options for initials and et al thresholds' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

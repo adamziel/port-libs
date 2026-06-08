@@ -497,6 +497,132 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @return array{
+     *     type:string,
+     *     expectedKind:string,
+     *     format:string,
+     *     memberCount:int,
+     *     compressedSize:int,
+     *     decodedSize:int,
+     *     combinedPackageStatus:string,
+     *     combinedPackageError:?string,
+     *     combinedEntryCount:int,
+     *     combinedEntryNames:list<string>,
+     *     standalonePackageMemberCount:int,
+     *     policy:string,
+     *     diagnostics:list<string>,
+     *     members:list<array{
+     *         memberIndex:int,
+     *         filename:?string,
+     *         filenameText:?string,
+     *         comment:?string,
+     *         commentText:?string,
+     *         decodedDataOffset:int,
+     *         decodedDataEndOffset:int,
+     *         decodedSize:int,
+     *         compressedSize:int,
+     *         memberOffset:int,
+     *         memberSize:int,
+     *         standalonePackage:bool,
+     *         kind:?string,
+     *         format:?string,
+     *         entryCount:int,
+     *         entryNames:list<string>,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>
+     * }
+     */
+    public static function inspectGzipMemberPackageBoundaryPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+
+        $expectedKind = match ($format) {
+            self::FORMAT_GZIP_TAR => self::PACKAGE_KIND_TAR,
+            self::FORMAT_GZIP_ZIP => self::PACKAGE_KIND_ZIP,
+            default => throw new \RuntimeException("GZIP member package-boundary policy requires a GZIP archive stream format: {$format}"),
+        };
+
+        $inspection = GzipStream::inspect($bytes, $maxUncompressedBytes);
+        $decodedBytes = '';
+        foreach ($inspection['members'] as $member) {
+            $decodedBytes .= $member['data'];
+        }
+
+        $combined = self::gzipMemberPackageSummary($decodedBytes, $expectedKind, $maxUnpackedBytes);
+        $members = [];
+        $standalonePackageMemberCount = 0;
+
+        foreach ($inspection['members'] as $index => $member) {
+            $summary = self::gzipMemberPackageSummary($member['data'], $expectedKind, $maxUnpackedBytes);
+            $standalonePackage = $summary['status'] === 'package';
+            if ($standalonePackage) {
+                $standalonePackageMemberCount++;
+            }
+
+            $members[] = [
+                'memberIndex' => $index,
+                'filename' => $member['filename'],
+                'filenameText' => $member['filenameText'],
+                'comment' => $member['comment'],
+                'commentText' => $member['commentText'],
+                'decodedDataOffset' => $member['decodedDataOffset'],
+                'decodedDataEndOffset' => $member['decodedDataEndOffset'],
+                'decodedSize' => $member['uncompressedSize'],
+                'compressedSize' => $member['compressedSize'],
+                'memberOffset' => $member['memberOffset'],
+                'memberSize' => $member['memberSize'],
+                'standalonePackage' => $standalonePackage,
+                'kind' => $standalonePackage ? $expectedKind : null,
+                'format' => $standalonePackage
+                    ? ($expectedKind === self::PACKAGE_KIND_TAR ? self::FORMAT_TAR : self::FORMAT_ZIP)
+                    : null,
+                'entryCount' => $summary['entryCount'],
+                'entryNames' => $summary['entryNames'],
+                'policy' => $standalonePackage ? 'standalone-gzip-member-package' : 'package-segment',
+                'diagnostics' => $standalonePackage ? ['gzip-member-is-standalone-package'] : [],
+            ];
+        }
+
+        $diagnostics = [];
+        if ($combined['status'] !== 'package') {
+            $diagnostics[] = 'gzip-combined-package-decode-failed';
+        }
+
+        if ($inspection['memberCount'] > 1 && $standalonePackageMemberCount > 0) {
+            $diagnostics[] = 'gzip-members-contain-standalone-packages';
+        }
+
+        if ($standalonePackageMemberCount > 1) {
+            $diagnostics[] = 'gzip-multiple-standalone-package-members';
+        }
+
+        return [
+            'type' => 'archive-gzip-member-package-boundary-policy',
+            'expectedKind' => $expectedKind,
+            'format' => $format,
+            'memberCount' => $inspection['memberCount'],
+            'compressedSize' => strlen($bytes),
+            'decodedSize' => $inspection['uncompressedSize'],
+            'combinedPackageStatus' => $combined['status'],
+            'combinedPackageError' => $combined['error'],
+            'combinedEntryCount' => $combined['entryCount'],
+            'combinedEntryNames' => $combined['entryNames'],
+            'standalonePackageMemberCount' => $standalonePackageMemberCount,
+            'policy' => $diagnostics === []
+                ? ($inspection['memberCount'] === 1 ? 'single-gzip-member-package-stream' : 'single-decoded-package-stream')
+                : 'review-before-conversion',
+            'diagnostics' => $diagnostics,
+            'members' => $members,
+        ];
+    }
+
+    /**
      * @param array<int|string, string> $dictionaries
      * @return array<string, mixed>
      */
@@ -2198,6 +2324,47 @@ final class ArchiveCompressionStream
         }
 
         return $size;
+    }
+
+    /**
+     * @return array{status:string, error:?string, entryCount:int, entryNames:list<string>}
+     */
+    private static function gzipMemberPackageSummary(string $bytes, string $expectedKind, ?int $maxUnpackedBytes): array
+    {
+        try {
+            if ($expectedKind === self::PACKAGE_KIND_TAR) {
+                $archive = TarArchive::fromString($bytes, $maxUnpackedBytes);
+                $entryNames = $archive->names();
+
+                return [
+                    'status' => 'package',
+                    'error' => null,
+                    'entryCount' => count($entryNames),
+                    'entryNames' => $entryNames,
+                ];
+            }
+
+            if ($expectedKind === self::PACKAGE_KIND_ZIP) {
+                $package = ZipPackage::fromString($bytes);
+                $entryNames = $package->names();
+
+                return [
+                    'status' => 'package',
+                    'error' => null,
+                    'entryCount' => count($entryNames),
+                    'entryNames' => $entryNames,
+                ];
+            }
+        } catch (\RuntimeException $exception) {
+            return [
+                'status' => 'invalid',
+                'error' => $exception->getMessage(),
+                'entryCount' => 0,
+                'entryNames' => [],
+            ];
+        }
+
+        throw new \RuntimeException("Unsupported gzip member package-boundary kind: {$expectedKind}");
     }
 
     /**

@@ -3539,6 +3539,68 @@ XML;
         $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M00S">09:30</span>', $blocksHtml);
     },
+    'maps ODT inline meta spans into review metadata spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithInlineMeta = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <office:body>
+    <office:text>
+      <text:p>Reviewed <text:meta xml:id="source-claim-meta" text:name="review:claim" text:description="Curated import source" text:style-name="MetaSource">source claim</text:meta> with <text:meta-field text:name="review-score" office:value-type="float" office:value="0.98">98%</text:meta-field> confidence and <text:meta-field text:name="review-date" office:value-type="date" office:date-value="2026-06-08"/>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithInlineMeta));
+        $paragraph = $result['document']->children[0];
+        $sourceMeta = $paragraph->children[1];
+        $scoreMeta = $paragraph->children[3];
+        $dateMeta = $paragraph->children[5];
+
+        $t->same('Reviewed source claim with 98% confidence and 2026-06-08.', $paragraph->attr('text'));
+        $t->same('span', $sourceMeta->type);
+        $t->same(['odf-meta'], $sourceMeta->attr('classes'));
+        $t->same('meta', $sourceMeta->attr('metaType'));
+        $t->same('source-claim-meta', $sourceMeta->attr('metaMetadata')['sourceId']);
+        $t->same('review:claim', $sourceMeta->attr('metaMetadata')['name']);
+        $t->same('Curated import source', $sourceMeta->attr('metaMetadata')['description']);
+        $t->same('MetaSource', $sourceMeta->attr('metaMetadata')['styleName']);
+        $t->same('source claim', $sourceMeta->children[0]->attr('text'));
+        $t->same('meta', $sourceMeta->attr('attributes')['data-odf-meta-type']);
+        $t->same('source-claim-meta', $sourceMeta->attr('attributes')['data-odf-meta-source-id']);
+        $t->same('review:claim', $sourceMeta->attr('attributes')['data-odf-meta-name']);
+
+        $t->same('span', $scoreMeta->type);
+        $t->same(['odf-meta', 'odf-meta-field'], $scoreMeta->attr('classes'));
+        $t->same('meta-field', $scoreMeta->attr('metaType'));
+        $t->same('review-score', $scoreMeta->attr('metaMetadata')['name']);
+        $t->same('float', $scoreMeta->attr('metaMetadata')['valueType']);
+        $t->same('0.98', $scoreMeta->attr('metaMetadata')['value']);
+        $t->same('98%', $scoreMeta->children[0]->attr('text'));
+        $t->same('meta-field', $scoreMeta->attr('attributes')['data-odf-meta-type']);
+        $t->same('float', $scoreMeta->attr('attributes')['data-odf-meta-value-type']);
+        $t->same('0.98', $scoreMeta->attr('attributes')['data-odf-meta-value']);
+
+        $t->same('meta-field', $dateMeta->attr('metaType'));
+        $t->same('review-date', $dateMeta->attr('metaMetadata')['name']);
+        $t->same('date', $dateMeta->attr('metaMetadata')['valueType']);
+        $t->same('2026-06-08', $dateMeta->attr('metaMetadata')['dateValue']);
+        $t->same('2026-06-08', $dateMeta->children[0]->attr('text'));
+        $t->same('2026-06-08', $dateMeta->attr('attributes')['data-odf-meta-date-value']);
+        $t->same(3, $result['importReport']['content']['metaSpanCount']);
+        $t->same(0, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[source claim]{.odf-meta data-odf-meta-type="meta" data-odf-meta-source-id="source-claim-meta" data-odf-meta-name="review:claim" data-odf-meta-description="Curated import source" data-odf-meta-style-name="MetaSource"}', $markdown);
+        $t->contains('[98%]{.odf-meta .odf-meta-field data-odf-meta-type="meta-field" data-odf-meta-name="review-score" data-odf-meta-value-type="float" data-odf-meta-value="0.98"}', $markdown);
+        $t->contains('[2026-06-08]{.odf-meta .odf-meta-field data-odf-meta-type="meta-field" data-odf-meta-name="review-date" data-odf-meta-value-type="date" data-odf-meta-date-value="2026-06-08"}', $markdown);
+        $t->contains('<span class="odf-meta" data-odf-meta-type="meta" data-odf-meta-source-id="source-claim-meta" data-odf-meta-name="review:claim" data-odf-meta-description="Curated import source" data-odf-meta-style-name="MetaSource">source claim</span>', $blocksHtml);
+        $t->contains('<span class="odf-meta odf-meta-field" data-odf-meta-type="meta-field" data-odf-meta-name="review-score" data-odf-meta-value-type="float" data-odf-meta-value="0.98">98%</span>', $blocksHtml);
+        $t->contains('<span class="odf-meta odf-meta-field" data-odf-meta-type="meta-field" data-odf-meta-name="review-date" data-odf-meta-value-type="date" data-odf-meta-date-value="2026-06-08">2026-06-08</span>', $blocksHtml);
+    },
     'maps ODT user-defined content fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithUserDefinedFields = <<<'XML'
 <office:document-content

@@ -4533,6 +4533,87 @@ CSS;
         $t->same($css, $result['importReport']['cssResourceReport']);
         $t->same($css, $result['document']->attr('cssResourceReport'));
     },
+    'reports EPUB stylesheet page rules for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithPagedCss = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/paged.css" media-type="text/css"/>',
+            $opfXml
+        );
+        $pagedCss = <<<'CSS'
+@page {
+  size: 6in 9in;
+  margin: 0.75in;
+  bleed: 6pt;
+  marks: crop cross;
+  @top-center { content: string(chapter); }
+}
+@page chapter:left {
+  margin-left: 1.25in;
+  @bottom-center { content: counter(page); }
+}
+@page :blank {
+  @top-center { content: none; }
+}
+CSS;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithPagedCss,
+            null,
+            [
+                ['name' => 'OEBPS/styles/paged.css', 'data' => $pagedCss],
+            ]
+        ));
+
+        $css = $result['cssResourceReport'];
+        $style = $css['itemsByPart']['/OEBPS/styles/paged.css'];
+
+        $t->same(1, $css['assetCount']);
+        $t->same(3, $css['pageRuleCount']);
+        $t->same(1, $css['namedPageRuleCount']);
+        $t->same(2, $css['pagePseudoClassCount']);
+        $t->same(3, $css['pageMarginBoxCount']);
+        $t->same(['chapter'], $css['pageRuleNames']);
+        $t->same(['left', 'blank'], $css['pagePseudoClasses']);
+        $t->same(['top-center', 'bottom-center'], $css['pageMarginBoxNames']);
+        $t->same($style['pageRules'], $css['pageRules']);
+
+        $t->same(['paged-media'], $style['reviewFlags']);
+        $t->same(3, $style['pageRuleCount']);
+        $t->same(1, $style['namedPageRuleCount']);
+        $t->same(2, $style['pagePseudoClassCount']);
+        $t->same(3, $style['pageMarginBoxCount']);
+        $t->same(['chapter'], $style['pageRuleNames']);
+        $t->same(['left', 'blank'], $style['pagePseudoClasses']);
+
+        $defaultPage = $style['pageRules'][0];
+        $t->same('', $defaultPage['selector']);
+        $t->same(null, $defaultPage['name']);
+        $t->same([], $defaultPage['pseudoClasses']);
+        $t->same('6in 9in', $defaultPage['descriptors']['size']);
+        $t->same('0.75in', $defaultPage['descriptors']['margin']);
+        $t->same('6pt', $defaultPage['bleed']);
+        $t->same('crop cross', $defaultPage['marks']);
+        $t->same(1, $defaultPage['marginBoxCount']);
+        $t->same('top-center', $defaultPage['marginBoxes'][0]['name']);
+        $t->same('string(chapter)', $defaultPage['marginBoxes'][0]['descriptors']['content']);
+
+        $chapterLeft = $style['pageRules'][1];
+        $t->same('chapter:left', $chapterLeft['selector']);
+        $t->same('chapter', $chapterLeft['name']);
+        $t->same(['left'], $chapterLeft['pseudoClasses']);
+        $t->same('1.25in', $chapterLeft['descriptors']['margin-left']);
+        $t->same('bottom-center', $chapterLeft['marginBoxes'][0]['name']);
+        $t->same('counter(page)', $chapterLeft['marginBoxes'][0]['descriptors']['content']);
+
+        $blank = $style['pageRules'][2];
+        $t->same(':blank', $blank['selector']);
+        $t->same(null, $blank['name']);
+        $t->same(['blank'], $blank['pseudoClasses']);
+        $t->same('none', $blank['marginBoxes'][0]['descriptors']['content']);
+
+        $t->same($css, $result['importReport']['cssResourceReport']);
+        $t->same($css, $result['document']->attr('cssResourceReport'));
+    },
     'flags EPUB switch XHTML content for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $switchXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

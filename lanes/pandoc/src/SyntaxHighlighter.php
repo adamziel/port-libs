@@ -94,6 +94,8 @@ final class SyntaxHighlighter
         'ex' => 'elixir',
         'exs' => 'elixir',
         'flutter' => 'dart',
+        'fish' => 'fish',
+        'fish-shell' => 'fish',
         'git-diff' => 'diff',
         'gawk' => 'awk',
         'graphviz' => 'dot',
@@ -719,6 +721,7 @@ final class SyntaxHighlighter
             'dockerfile' => $this->tokenizeDockerfile($code),
             'elm' => $this->tokenizeElm($code),
             'elixir' => $this->tokenizeElixir($code),
+            'fish' => $this->tokenizeFish($code),
             'go' => $this->tokenizeGo($code),
             'graphql' => $this->tokenizeGraphql($code),
             'hcl' => $this->tokenizeHcl($code),
@@ -1365,6 +1368,27 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^[{}()[\\];,.+*\\/%=!<>?:|&@`-]/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeFish(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*(?:\\[[^\\]\\n]+\\])?/'],
+            ['keyword', '/^\\b(?:and|begin|break|case|continue|else|end|for|function|if|in|not|or|return|switch|while)\\b/'],
+            ['keyword', '/^\\b(?:builtin|command|exec|set|source)\\b/'],
+            ['function', '/^\\b(?:argparse|contains|count|echo|emit|eval|fish|functions|jq|math|path|printf|read|status|string|test|type|wp)\\b(?=\\s|[();]|$)/'],
+            ['operator', '/^--(?=\\s|$)/'],
+            ['attribute', '/^--?[A-Za-z][A-Za-z0-9_-]*/'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
+            ['operator', '/^(?:\\|\\||&&|2>>?|&>>?|>>?|<<?|==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
         ]);
     }
 

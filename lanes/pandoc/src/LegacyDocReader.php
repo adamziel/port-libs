@@ -114,6 +114,8 @@ final class LegacyDocReader
     private const FIELD_CHARACTER_SEPARATOR = 0x14;
     private const FIELD_CHARACTER_END = 0x15;
     private const MAX_CLIPBOARD_DATA_BYTES = 8388608;
+    private const MAX_RESERVED_HYPERLINK_BLOB_BYTES = 1048576;
+    private const MAX_RESERVED_HYPERLINK_COUNT = 4096;
     private const FIELD_TYPE_NAMES = [
         0x03 => 'ref',
         0x05 => 'noteref',
@@ -5522,13 +5524,18 @@ final class LegacyDocReader
 
             $propertySet = $this->readPropertySet($bytes, $propertySetOffset);
             if ($kind === 'document-summary' && $fmtid === self::FMTID_USER_DEFINED_PROPERTIES) {
-                $customProperties = $this->customDocumentProperties($propertySet['properties'], $propertySet['dictionary']);
-                if ($customProperties !== []) {
-                    $metadata['customProperties'] = array_replace(
-                        $metadata['customProperties'] ?? [],
-                        $customProperties
+                $userDefinedMetadata = $this->userDefinedDocumentPropertyMetadata($propertySet['properties'], $propertySet['dictionary']);
+                if (
+                    isset($userDefinedMetadata['customProperties'], $metadata['customProperties'])
+                    && is_array($userDefinedMetadata['customProperties'])
+                    && is_array($metadata['customProperties'])
+                ) {
+                    $userDefinedMetadata['customProperties'] = array_replace(
+                        $metadata['customProperties'],
+                        $userDefinedMetadata['customProperties']
                     );
                 }
+                $metadata = array_replace($metadata, $userDefinedMetadata);
                 continue;
             }
 
@@ -5588,6 +5595,11 @@ final class LegacyDocReader
 
         foreach ($locations as $propertyId => $valueOffset) {
             if ($propertyId === 0 || $propertyId === 1) {
+                continue;
+            }
+            $dictionaryName = $dictionary[$propertyId] ?? null;
+            if (is_string($dictionaryName) && $this->isReservedHyperlinkPropertyName($dictionaryName)) {
+                $values[$propertyId] = $this->readReservedHyperlinkPropertyValue($dictionaryName, $bytes, $valueOffset);
                 continue;
             }
             $values[$propertyId] = $this->readTypedPropertyValue($bytes, $valueOffset, $codepage);
@@ -5874,8 +5886,9 @@ final class LegacyDocReader
      * @param array<int,string> $dictionary
      * @return array<string,mixed>
      */
-    private function customDocumentProperties(array $properties, array $dictionary): array
+    private function userDefinedDocumentPropertyMetadata(array $properties, array $dictionary): array
     {
+        $metadata = [];
         $customProperties = [];
         foreach ($dictionary as $propertyId => $name) {
             $value = $properties[$propertyId] ?? null;
@@ -5883,10 +5896,258 @@ final class LegacyDocReader
                 continue;
             }
 
+            if ($name === '_PID_LINKBASE') {
+                if (is_array($value) && ($value['type'] ?? null) === 'reserved-link-base') {
+                    $metadata['hyperlinkBase'] = $value['value'];
+                    $metadata['hyperlinkBaseSourceProperty'] = $name;
+                    $metadata['hyperlinkBaseByteCount'] = $value['byteCount'];
+                    $metadata['hyperlinkBasePolicy'] = $value['extractionPolicy'];
+                    $metadata['hyperlinkBaseCanExposeBytes'] = $value['canExposeBytes'];
+                    $metadata['hyperlinkBaseMetadata'] = $value;
+                }
+                continue;
+            }
+
+            if ($name === '_PID_HLINKS') {
+                if (is_array($value) && ($value['type'] ?? null) === 'reserved-hyperlinks') {
+                    $metadata['hyperlinks'] = $value['links'];
+                    $metadata['hyperlinkCount'] = $value['count'];
+                    $metadata['hyperlinkByteCount'] = $value['byteCount'];
+                    $metadata['hyperlinkPolicy'] = $value['extractionPolicy'];
+                    $metadata['hyperlinkCanExposeBytes'] = $value['canExposeBytes'];
+                    $metadata['hyperlinkMetadata'] = $value;
+                }
+                continue;
+            }
+
             $customProperties[$name] = $value;
         }
 
-        return $customProperties;
+        if ($customProperties !== []) {
+            $metadata['customProperties'] = $customProperties;
+        }
+
+        return $metadata;
+    }
+
+    private function isReservedHyperlinkPropertyName(string $name): bool
+    {
+        return $name === '_PID_LINKBASE' || $name === '_PID_HLINKS';
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function readReservedHyperlinkPropertyValue(string $name, string $bytes, int $offset): array
+    {
+        return match ($name) {
+            '_PID_LINKBASE' => $this->readPidLinkBaseProperty($bytes, $offset),
+            '_PID_HLINKS' => $this->readPidHlinksProperty($bytes, $offset),
+            default => throw new \RuntimeException('Legacy DOC reserved hyperlink property name is not supported'),
+        };
+    }
+
+    /**
+     * @return array{type:string,sourceProperty:string,value:string,byteCount:int,sourceEncoding:string,extractionPolicy:string,canExposeBytes:bool}
+     */
+    private function readPidLinkBaseProperty(string $bytes, int $offset): array
+    {
+        $blob = $this->readReservedHyperlinkBlobProperty($bytes, $offset, '_PID_LINKBASE');
+        $payload = $blob['payload'];
+        if ($payload === '' || (strlen($payload) % 2) !== 0 || !str_ends_with($payload, "\0\0")) {
+            throw new \RuntimeException('Legacy DOC _PID_LINKBASE hyperlink base is not a null-terminated UTF-16LE string');
+        }
+
+        $value = rtrim($this->decodeUtf16Le($payload), "\0");
+        if ($value === '') {
+            throw new \RuntimeException('Legacy DOC _PID_LINKBASE hyperlink base is empty');
+        }
+
+        return [
+            'type' => 'reserved-link-base',
+            'sourceProperty' => '_PID_LINKBASE',
+            'value' => $value,
+            'byteCount' => $blob['byteCount'],
+            'sourceEncoding' => 'UTF-16LE',
+            'extractionPolicy' => 'metadata-only-native-review',
+            'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @return array{type:string,sourceProperty:string,count:int,byteCount:int,links:list<array<string,mixed>>,extractionPolicy:string,canExposeBytes:bool}
+     */
+    private function readPidHlinksProperty(string $bytes, int $offset): array
+    {
+        $blob = $this->readReservedHyperlinkBlobProperty($bytes, $offset, '_PID_HLINKS');
+        $links = $this->readVtHyperlinks($blob['payload']);
+
+        return [
+            'type' => 'reserved-hyperlinks',
+            'sourceProperty' => '_PID_HLINKS',
+            'count' => count($links),
+            'byteCount' => $blob['byteCount'],
+            'links' => $links,
+            'extractionPolicy' => 'metadata-only-native-review',
+            'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @return array{payload:string,byteCount:int,bytes:int}
+     */
+    private function readReservedHyperlinkBlobProperty(string $bytes, int $offset, string $label): array
+    {
+        if ($offset + 8 > strlen($bytes) || self::u16($bytes, $offset) !== 0x0041) {
+            throw new \RuntimeException('Legacy DOC ' . $label . ' reserved hyperlink property must be encoded as VT_BLOB');
+        }
+        if (self::u16($bytes, $offset + 2) !== 0) {
+            throw new \RuntimeException('Legacy DOC ' . $label . ' reserved hyperlink property has nonzero typed-value padding');
+        }
+
+        $byteCount = self::u32($bytes, $offset + 4);
+        if (
+            $byteCount > self::MAX_RESERVED_HYPERLINK_BLOB_BYTES
+            || $offset + 8 + $byteCount > strlen($bytes)
+        ) {
+            throw new \RuntimeException('Legacy DOC ' . $label . ' reserved hyperlink blob is truncated or too large');
+        }
+
+        return [
+            'payload' => substr($bytes, $offset + 8, $byteCount),
+            'byteCount' => $byteCount,
+            'bytes' => $this->consumeDwordPadding($bytes, $offset, 8 + $byteCount),
+        ];
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function readVtHyperlinks(string $payload): array
+    {
+        if (strlen($payload) < 4) {
+            throw new \RuntimeException('Legacy DOC _PID_HLINKS VtHyperlinks payload is truncated');
+        }
+
+        $elementCount = self::u32($payload, 0);
+        if (($elementCount % 6) !== 0) {
+            throw new \RuntimeException('Legacy DOC _PID_HLINKS VtHyperlinks element count is not divisible by six');
+        }
+
+        $hyperlinkCount = intdiv($elementCount, 6);
+        if ($hyperlinkCount > self::MAX_RESERVED_HYPERLINK_COUNT) {
+            throw new \RuntimeException('Legacy DOC _PID_HLINKS VtHyperlinks payload has too many links');
+        }
+
+        $cursor = 4;
+        $links = [];
+        for ($index = 0; $index < $hyperlinkCount; $index++) {
+            $hash = $this->readRequiredVtI4($payload, $cursor, '_PID_HLINKS hash');
+            $cursor += $hash['bytes'];
+            $appData = $this->readRequiredVtI4($payload, $cursor, '_PID_HLINKS app data');
+            $cursor += $appData['bytes'];
+            $shapeId = $this->readRequiredVtI4($payload, $cursor, '_PID_HLINKS shape id');
+            $cursor += $shapeId['bytes'];
+            $info = $this->readRequiredVtI4($payload, $cursor, '_PID_HLINKS info');
+            $cursor += $info['bytes'];
+            $target = $this->readRequiredVtString($payload, $cursor, '_PID_HLINKS target');
+            $cursor += $target['bytes'];
+            $location = $this->readRequiredVtString($payload, $cursor, '_PID_HLINKS location');
+            $cursor += $location['bytes'];
+            $fixupStatusCode = ($info['unsigned'] >> 16) & 0xffff;
+
+            $links[] = [
+                'sourceProperty' => '_PID_HLINKS',
+                'index' => $index + 1,
+                'target' => $target['value'],
+                'location' => $location['value'],
+                'targetKind' => $this->reservedHyperlinkTargetKind($target['value'], $location['value']),
+                'hash' => $hash['unsigned'],
+                'hashHex' => sprintf('%08x', $hash['unsigned']),
+                'appData' => $appData['unsigned'],
+                'shapeId' => $shapeId['unsigned'],
+                'info' => $info['unsigned'],
+                'fixupStatusCode' => $fixupStatusCode,
+                'fixupStatus' => $this->reservedHyperlinkFixupStatus($fixupStatusCode),
+                'extractionPolicy' => 'metadata-only-native-review',
+                'canExposeBytes' => false,
+            ];
+        }
+
+        if ($cursor !== strlen($payload)) {
+            throw new \RuntimeException('Legacy DOC _PID_HLINKS VtHyperlinks payload has trailing bytes');
+        }
+
+        return $links;
+    }
+
+    /**
+     * @return array{unsigned:int,signed:int,bytes:int}
+     */
+    private function readRequiredVtI4(string $bytes, int $offset, string $label): array
+    {
+        if ($offset + 8 > strlen($bytes) || self::u16($bytes, $offset) !== 0x0003) {
+            throw new \RuntimeException('Legacy DOC ' . $label . ' value must be VT_I4');
+        }
+        if (self::u16($bytes, $offset + 2) !== 0) {
+            throw new \RuntimeException('Legacy DOC ' . $label . ' value has nonzero typed-value padding');
+        }
+
+        $raw = self::u32($bytes, $offset + 4);
+
+        return [
+            'unsigned' => $raw,
+            'signed' => self::signed32($raw),
+            'bytes' => 8,
+        ];
+    }
+
+    /**
+     * @return array{value:string,bytes:int}
+     */
+    private function readRequiredVtString(string $bytes, int $offset, string $label): array
+    {
+        if ($offset + 4 > strlen($bytes) || self::u16($bytes, $offset) !== 0x001f) {
+            throw new \RuntimeException('Legacy DOC ' . $label . ' value must be a VT_LPWSTR VtString');
+        }
+        if (self::u16($bytes, $offset + 2) !== 0) {
+            throw new \RuntimeException('Legacy DOC ' . $label . ' value has nonzero typed-value padding');
+        }
+
+        $value = $this->readLpwstrWithSize($bytes, $offset + 4);
+        if ($value === null) {
+            throw new \RuntimeException('Legacy DOC ' . $label . ' VtString payload is truncated');
+        }
+
+        return [
+            'value' => $value['value'],
+            'bytes' => 4 + $value['bytes'],
+        ];
+    }
+
+    private function reservedHyperlinkTargetKind(string $target, string $location): string
+    {
+        if ($target === '') {
+            return $location === '' ? 'empty' : 'document-location';
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $target) === 1) {
+            return 'external-url';
+        }
+        if (str_starts_with($target, '#')) {
+            return 'fragment';
+        }
+
+        return 'relative-or-file';
+    }
+
+    private function reservedHyperlinkFixupStatus(int $status): string
+    {
+        return match ($status) {
+            0 => 'synchronized',
+            1 => 'requires-fixup',
+            2 => 'delete-on-load',
+            default => 'unknown',
+        };
     }
 
     /**

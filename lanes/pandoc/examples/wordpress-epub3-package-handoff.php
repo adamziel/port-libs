@@ -351,6 +351,11 @@ $reviewCss = <<<'CSS'
 @supports (display: grid) {
   .review-grid { display: grid; }
 }
+@page source:left {
+  size: 6in 9in;
+  margin-left: 1in;
+  @bottom-center { content: counter(page); }
+}
 @font-face { font-family: "Source Review"; src: url("../fonts/source.otf") format("opentype"); }
 body { color: #222; background-image: url("../images/cover.png"); }
 CSS;
@@ -1121,6 +1126,25 @@ XML;
     if (($result['cssResourceReport']['supportsConditions'] ?? []) !== ['(display: grid)']) {
         throw new RuntimeException('Expected EPUB CSS supports conditions to stay inspectable');
     }
+    if (($result['cssResourceReport']['pageRuleCount'] ?? null) !== 1 || ($result['cssResourceReport']['namedPageRuleCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB CSS report to preserve paged-media rule counts');
+    }
+    if (($result['cssResourceReport']['pageRuleNames'] ?? []) !== ['source'] || ($result['cssResourceReport']['pagePseudoClasses'] ?? []) !== ['left']) {
+        throw new RuntimeException('Expected EPUB CSS page selector metadata to stay inspectable');
+    }
+    if (($result['cssResourceReport']['pageMarginBoxCount'] ?? null) !== 1 || ($result['cssResourceReport']['pageMarginBoxNames'] ?? []) !== ['bottom-center']) {
+        throw new RuntimeException('Expected EPUB CSS page margin boxes to stay inspectable');
+    }
+    $reviewCssPageRule = $result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['pageRules'][0] ?? [];
+    if (($reviewCssPageRule['selector'] ?? null) !== 'source:left' || ($reviewCssPageRule['name'] ?? null) !== 'source' || ($reviewCssPageRule['pseudoClasses'] ?? []) !== ['left']) {
+        throw new RuntimeException('Expected EPUB CSS per-stylesheet page selector metadata');
+    }
+    if (($reviewCssPageRule['size'] ?? null) !== '6in 9in' || ($reviewCssPageRule['descriptors']['margin-left'] ?? null) !== '1in') {
+        throw new RuntimeException('Expected EPUB CSS page descriptors to remain inspectable');
+    }
+    if (($reviewCssPageRule['marginBoxes'][0]['name'] ?? null) !== 'bottom-center' || ($reviewCssPageRule['marginBoxes'][0]['content'] ?? null) !== 'counter(page)') {
+        throw new RuntimeException('Expected EPUB CSS page margin-box content metadata');
+    }
     $reviewCssFontFace = $result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['fontFaces'][0] ?? [];
     if (($reviewCssFontFace['family'] ?? null) !== 'Source Review' || ($reviewCssFontFace['sourceCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB CSS font-face descriptor metadata to remain inspectable');
@@ -1131,8 +1155,8 @@ XML;
     if (($reviewCssFontFace['sources'][0]['encrypted'] ?? null) !== true || ($reviewCssFontFace['sources'][0]['diagnostics'][0]['type'] ?? null) !== 'encrypted-css-font-face-source') {
         throw new RuntimeException('Expected EPUB CSS font-face source to expose encrypted font diagnostics');
     }
-    if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['reviewFlags'] ?? []) !== ['encrypted-references', 'conditional-styles']) {
-        throw new RuntimeException('Expected EPUB CSS review flags to identify encrypted and conditional stylesheet dependencies');
+    if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['reviewFlags'] ?? []) !== ['encrypted-references', 'conditional-styles', 'paged-media']) {
+        throw new RuntimeException('Expected EPUB CSS review flags to identify encrypted, conditional, and paged-media stylesheet dependencies');
     }
     if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['conditionalRules'][0]['conditionItems'] ?? []) !== ['screen and (min-width: 700px)', 'print']) {
         throw new RuntimeException('Expected EPUB CSS per-stylesheet media condition metadata');
@@ -1558,6 +1582,9 @@ echo 'cssEncryptedReferences=' . ($result['cssResourceReport']['encryptedReferen
 echo 'cssConditionalRules=' . ($result['cssResourceReport']['conditionalRuleCount'] ?? 0) . "\n";
 echo 'cssMediaConditions=' . implode('|', $result['cssResourceReport']['mediaConditions'] ?? []) . "\n";
 echo 'cssSupportsConditions=' . implode('|', $result['cssResourceReport']['supportsConditions'] ?? []) . "\n";
+echo 'cssPageRules=' . ($result['cssResourceReport']['pageRuleCount'] ?? 0) . "\n";
+echo 'cssPageRuleNames=' . implode('|', $result['cssResourceReport']['pageRuleNames'] ?? []) . "\n";
+echo 'cssPageMarginBoxes=' . ($result['cssResourceReport']['pageMarginBoxCount'] ?? 0) . "\n";
 echo 'remoteResourceDeclaredItems=' . ($result['remoteResources']['declaredCount'] ?? 0) . "\n";
 echo 'remoteResourceObservedAssets=' . ($result['remoteResources']['observedAssetCount'] ?? 0) . "\n";
 echo 'remoteResourceReferences=' . ($result['remoteResources']['remoteReferenceCount'] ?? 0) . "\n";

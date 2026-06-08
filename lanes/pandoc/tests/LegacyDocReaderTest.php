@@ -532,6 +532,33 @@ $typedFiletime = static function (string $iso8601) use ($u64): string {
 $typedClsid = static function (string $clsid) use ($clsidBytes): string {
     return pack('v', 0x0048) . "\0\0" . $clsidBytes($clsid);
 };
+$typedBlob = static function (string $payload) use ($u32): string {
+    $raw = pack('v', 0x0041) . "\0\0" . $u32(strlen($payload)) . $payload;
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
+$typedUnicodeBlob = static function (string $value) use ($typedBlob, $utf16le): string {
+    return $typedBlob($utf16le($value . "\0"));
+};
+$vtLpwstr = static function (string $value) use ($u32, $utf16le): string {
+    $bytes = $utf16le($value . "\0");
+    $raw = pack('v', 0x001f) . "\0\0" . $u32(intdiv(strlen($bytes), 2)) . $bytes;
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
+$typedHyperlinks = static function (array $links) use ($typedBlob, $typedI4, $u32, $vtLpwstr): string {
+    $payload = $u32(count($links) * 6);
+    foreach ($links as $link) {
+        $payload .= $typedI4((int) ($link['hash'] ?? 0))
+            . $typedI4((int) ($link['app'] ?? 0))
+            . $typedI4((int) ($link['shapeId'] ?? 0))
+            . $typedI4((int) ($link['info'] ?? 0))
+            . $vtLpwstr((string) ($link['target'] ?? ''))
+            . $vtLpwstr((string) ($link['location'] ?? ''));
+    }
+
+    return $typedBlob($payload);
+};
 $typedThumbnail = static function (int $clipboardTag, ?int $formatId, string $data) use ($u32): string {
     $payload = $u32($clipboardTag);
     if ($clipboardTag !== 0) {
@@ -3503,6 +3530,119 @@ return [
             'Review Timestamp' => '2024-03-04T05:06:07Z',
         ], $metadata['customProperties']);
         $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
+    },
+    'extracts legacy DOC reserved hyperlink custom properties as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedDictionary, $typedLpstr, $typedI2, $typedBool, $typedUnicodeBlob, $typedHyperlinks, $typedBlob, $typedI4, $u32): void {
+        $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
+        $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
+        if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
+            throw new RuntimeException('Unable to build OLE property-set FMTID fixtures');
+        }
+
+        $buildDocBytes = static function (string $linkBaseProperty, string $hyperlinksProperty) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedDictionary, $typedLpstr, $typedI2, $typedBool, $docSummaryFmtid, $userDefinedFmtid): string {
+            return $buildCfb([
+                'WordDocument' => $buildSimpleWordDocument("Reserved hyperlink metadata packet\r"),
+                "\x05DocumentSummaryInformation" => $typedPropertySetStream([
+                    [
+                        'fmtid' => $docSummaryFmtid,
+                        'properties' => [
+                            2 => $typedLpstr('Review queue'),
+                            16 => $typedBool(true),
+                            22 => $typedBool(true),
+                        ],
+                    ],
+                    [
+                        'fmtid' => $userDefinedFmtid,
+                        'properties' => [
+                            0 => $typedDictionary([
+                                2 => '_PID_LINKBASE',
+                                3 => '_PID_HLINKS',
+                                4 => 'MigrationBatch',
+                            ]),
+                            1 => $typedI2(1252),
+                            2 => $linkBaseProperty,
+                            3 => $hyperlinksProperty,
+                            4 => $typedLpstr('legacy-doc-42'),
+                        ],
+                    ],
+                ]),
+            ]);
+        };
+
+        $docBytes = $buildDocBytes(
+            $typedUnicodeBlob('https://example.test/legacy/'),
+            $typedHyperlinks([
+                [
+                    'hash' => 0x12345678,
+                    'app' => 42,
+                    'shapeId' => 1001,
+                    'info' => 0x00000000,
+                    'target' => 'appendix-a.html',
+                    'location' => 'ReviewAnchor',
+                ],
+                [
+                    'hash' => 0x01020304,
+                    'app' => 77,
+                    'shapeId' => 2002,
+                    'info' => 0x00010000,
+                    'target' => 'https://example.test/source.doc',
+                    'location' => '',
+                ],
+            ])
+        );
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+        $hyperlinks = $metadata['hyperlinks'] ?? [];
+
+        $t->same('Review queue', $metadata['category']);
+        $t->same(true, $metadata['linksDirty']);
+        $t->same(true, $metadata['hyperlinksChanged']);
+        $t->same('https://example.test/legacy/', $metadata['hyperlinkBase']);
+        $t->same('_PID_LINKBASE', $metadata['hyperlinkBaseSourceProperty']);
+        $t->same('metadata-only-native-review', $metadata['hyperlinkBasePolicy']);
+        $t->same(2, $metadata['hyperlinkCount']);
+        $t->same('metadata-only-native-review', $metadata['hyperlinkPolicy']);
+        $t->same(['MigrationBatch' => 'legacy-doc-42'], $metadata['customProperties']);
+        $t->same($metadata['hyperlinks'], $result['document']->attr('meta')['hyperlinks']);
+        $t->same($metadata['hyperlinkBase'], $result['document']->attr('meta')['hyperlinkBase']);
+
+        $t->same('_PID_HLINKS', $hyperlinks[0]['sourceProperty']);
+        $t->same(1, $hyperlinks[0]['index']);
+        $t->same('appendix-a.html', $hyperlinks[0]['target']);
+        $t->same('ReviewAnchor', $hyperlinks[0]['location']);
+        $t->same('relative-or-file', $hyperlinks[0]['targetKind']);
+        $t->same(0x12345678, $hyperlinks[0]['hash']);
+        $t->same('12345678', $hyperlinks[0]['hashHex']);
+        $t->same(42, $hyperlinks[0]['appData']);
+        $t->same(1001, $hyperlinks[0]['shapeId']);
+        $t->same(0, $hyperlinks[0]['info']);
+        $t->same(0, $hyperlinks[0]['fixupStatusCode']);
+        $t->same('synchronized', $hyperlinks[0]['fixupStatus']);
+        $t->same(false, $hyperlinks[0]['canExposeBytes']);
+        $t->same('metadata-only-native-review', $hyperlinks[0]['extractionPolicy']);
+        $t->same('https://example.test/source.doc', $hyperlinks[1]['target']);
+        $t->same('external-url', $hyperlinks[1]['targetKind']);
+        $t->same(1, $hyperlinks[1]['fixupStatusCode']);
+        $t->same('requires-fixup', $hyperlinks[1]['fixupStatus']);
+
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Reserved hyperlink metadata packet', $blocks);
+        $t->true(!str_contains($blocks, 'https://example.test/legacy/'), 'Reserved hyperlink base must remain metadata-only');
+        $t->true(!str_contains($blocks, 'appendix-a.html'), 'Reserved hyperlink targets must remain metadata-only');
+        $t->true(!str_contains($blocks, 'https://example.test/source.doc'), 'Reserved hyperlink targets must remain metadata-only');
+
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes(
+            $typedBlob("\xff"),
+            $typedHyperlinks([])
+        )));
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes(
+            $typedUnicodeBlob('https://example.test/legacy/'),
+            $typedBlob($u32(5))
+        )));
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes(
+            $typedUnicodeBlob('https://example.test/legacy/'),
+            $typedBlob($u32(6) . $typedI4(1) . $typedI4(2) . $typedI4(3) . $typedI4(4))
+        )));
     },
     'extracts legacy DOC unsigned integer 64-bit and CLSID OLE property scalars' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedPropertySetStream, $typedDictionary, $typedI2, $typedUi2, $typedUi4, $typedI8Parts, $typedUi8Parts, $typedClsid): void {
         $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
