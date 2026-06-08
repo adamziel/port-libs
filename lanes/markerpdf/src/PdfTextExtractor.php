@@ -13917,7 +13917,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            foreach ($this->type3CharProcsDictionaryReferencesForFallbackExclusion($body) as $reference) {
+            foreach ($this->type3CharProcsDictionaryReferencesForFallbackExclusion($body, $objects) as $reference) {
                 $references[$reference['objectNumber']][$reference['generation']] = true;
             }
         }
@@ -23101,8 +23101,13 @@ final class PdfTextExtractor
     /**
      * @return list<array{objectNumber: int, generation: int}>
      * @param array<int, string> $objects
+     * @param array<string, true> $seen
      */
-    private function charProcObjectReferencesFromCharProcsValueForFallbackExclusion(string $value, array $objects): array
+    private function charProcObjectReferencesFromCharProcsValueForFallbackExclusion(
+        string $value,
+        array $objects,
+        array $seen = []
+    ): array
     {
         $value = trim($value);
         if ($value === '') {
@@ -23110,6 +23115,29 @@ final class PdfTextExtractor
         }
 
         $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference !== null) {
+            $referenceKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$referenceKey])) {
+                return [];
+            }
+        }
+
+        $array = $this->pdfArrayFromValue($value, $objects, $seen);
+        if ($array !== null) {
+            $references = [];
+            if ($reference !== null) {
+                $seen[$reference['objectNumber'] . ':' . $reference['generation']] = true;
+            }
+
+            foreach ($this->pdfArrayItems($array) as $item) {
+                foreach ($this->charProcObjectReferencesFromCharProcsValueForFallbackExclusion($item, $objects, $seen) as $itemReference) {
+                    $references[] = $itemReference;
+                }
+            }
+
+            return $this->uniquePdfReferenceList($references);
+        }
+
         if ($reference !== null) {
             $objectBody = $this->objectBodyForExactReference(
                 $objects,
@@ -23166,14 +23194,58 @@ final class PdfTextExtractor
 
     /**
      * @return list<array{objectNumber: int, generation: int}>
+     * @param array<int, string> $objects
      */
-    private function type3CharProcsDictionaryReferencesForFallbackExclusion(string $fontBody): array
+    private function type3CharProcsDictionaryReferencesForFallbackExclusion(string $fontBody, array $objects): array
     {
         $references = [];
         foreach ($this->topLevelPdfValuesAfterName($fontBody, 'CharProcs') as $value) {
-            $reference = $this->pdfIndirectReferenceValue(trim($value));
-            if ($reference !== null) {
+            foreach ($this->type3CharProcsDictionaryReferencesFromValueForFallbackExclusion($value, $objects) as $reference) {
                 $references[] = $reference;
+            }
+        }
+
+        return $this->uniquePdfReferenceList($references);
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function type3CharProcsDictionaryReferencesFromValueForFallbackExclusion(
+        string $value,
+        array $objects,
+        array $seen = []
+    ): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference !== null) {
+            $referenceKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$referenceKey])) {
+                return [];
+            }
+        }
+
+        $array = $this->pdfArrayFromValue($value, $objects, $seen);
+        if ($array === null) {
+            return $reference === null ? [] : [$reference];
+        }
+
+        $references = [];
+        if ($reference !== null) {
+            $references[] = $reference;
+            $seen[$reference['objectNumber'] . ':' . $reference['generation']] = true;
+        }
+
+        foreach ($this->pdfArrayItems($array) as $item) {
+            foreach ($this->type3CharProcsDictionaryReferencesFromValueForFallbackExclusion($item, $objects, $seen) as $itemReference) {
+                $references[] = $itemReference;
             }
         }
 
