@@ -42521,7 +42521,7 @@ final class PdfTextExtractor
             return 'unknown';
         }
 
-        if (!str_starts_with($bytes, "\xff\xd8")) {
+        if ($this->dctPreviewSoiOffset($bytes) === null) {
             return 'unknown';
         }
 
