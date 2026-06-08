@@ -1588,7 +1588,7 @@ final class PdfPagePropertyExtractor
         }
 
         $names = [];
-        $duplicateReferenceNames = $this->duplicateResourceSubdictionaryReferenceNames($subdictionary['body']);
+        $duplicateReferenceNames = $this->duplicateResourceSubdictionaryEntryNames($subdictionary['body']);
         foreach ($this->resourceSubdictionaryEntries($subdictionary['body']) as $name => $entry) {
             if (isset($duplicateReferenceNames[$name])) {
                 unset($names[$name]);
@@ -1653,7 +1653,7 @@ final class PdfPagePropertyExtractor
     /**
      * @return array<string, true>
      */
-    private function duplicateResourceSubdictionaryReferenceNames(string $dictionary): array
+    private function duplicateResourceSubdictionaryEntryNames(string $dictionary): array
     {
         $counts = [];
         for ($offset = 0, $length = strlen($dictionary); $offset < $length;) {
@@ -1679,10 +1679,8 @@ final class PdfPagePropertyExtractor
                 continue;
             }
 
-            if ($this->objectReferenceFromValue($value['raw']) !== null) {
-                $name = $this->decodePdfName($match[1]);
-                $counts[$name] = ($counts[$name] ?? 0) + 1;
-            }
+            $name = $this->decodePdfName($match[1]);
+            $counts[$name] = ($counts[$name] ?? 0) + 1;
             $offset = $value['end'];
         }
 

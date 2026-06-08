@@ -4585,7 +4585,7 @@ final class PdfTextExtractor
         }
 
         $references = [];
-        $duplicateResourceNames = $this->duplicateTopLevelResourceReferenceNames($xObjectDictionary);
+        $duplicateResourceNames = $this->duplicateTopLevelResourceEntryNames($xObjectDictionary);
         foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary, true) as $resourceName => $resource) {
             if (isset($duplicateResourceNames[$resourceName])) {
                 continue;
@@ -4617,15 +4617,10 @@ final class PdfTextExtractor
     /**
      * @return array<string, true>
      */
-    private function duplicateTopLevelResourceReferenceNames(string $dictionary): array
+    private function duplicateTopLevelResourceEntryNames(string $dictionary): array
     {
         $counts = [];
         foreach ($this->topLevelPdfNameValueEntriesInDictionaryBody($dictionary) as $entry) {
-            $offset = 0;
-            if ($this->readPdfIndirectReferenceToken($entry['value'], $offset) === null) {
-                continue;
-            }
-
             $name = $entry['name'];
             $counts[$name] = ($counts[$name] ?? 0) + 1;
         }
@@ -22001,7 +21996,7 @@ final class PdfTextExtractor
 
         $maps = [];
         $namedCMapBodies = $this->namedCMapBodies($objects);
-        $duplicateResourceNames = $this->duplicateTopLevelResourceReferenceNames($fontDictionary);
+        $duplicateResourceNames = $this->duplicateTopLevelResourceEntryNames($fontDictionary);
         foreach ($this->topLevelResourceReferenceEntries($fontDictionary, true) as $resourceName => $resource) {
             if (isset($duplicateResourceNames[$resourceName])) {
                 continue;
@@ -22136,7 +22131,7 @@ final class PdfTextExtractor
         }
 
         $properties = [];
-        $duplicateResourceNames = $this->duplicateTopLevelResourceReferenceNames($propertiesDictionary);
+        $duplicateResourceNames = $this->duplicateTopLevelResourceEntryNames($propertiesDictionary);
         $offset = 0;
         $length = strlen($propertiesDictionary);
         while ($offset < $length) {
