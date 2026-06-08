@@ -358,7 +358,7 @@ final class WordPressBlockWriter
     }
 
     /**
-     * @param list<array{display?:mixed, text?:mixed}> $parts
+     * @param list<array{display?:mixed, text?:mixed, formatting?:mixed}> $parts
      */
     private function renderCslDisplayPartsHtml(array $parts): string
     {
@@ -381,10 +381,64 @@ final class WordPressBlockWriter
                 continue;
             }
 
-            $html .= '<div class="' . $class . '">' . $this->esc($text) . '</div>';
+            [$formatClasses, $style] = $this->cslDisplayPartFormattingAttrs($part['formatting'] ?? []);
+            $classes = implode(' ', array_merge([$class], $formatClasses));
+            $attrs = ' class="' . $this->esc($classes) . '"';
+            if ($style !== '') {
+                $attrs .= ' style="' . $this->esc($style) . '"';
+            }
+
+            $html .= '<div' . $attrs . '>' . $this->esc($text) . '</div>';
         }
 
         return $html . '</div>';
+    }
+
+    /**
+     * @return array{0:list<string>, 1:string}
+     */
+    private function cslDisplayPartFormattingAttrs(mixed $formatting): array
+    {
+        if (!is_array($formatting)) {
+            return [[], ''];
+        }
+
+        $classes = [];
+        $styles = [];
+        $fontStyle = (string) ($formatting['fontStyle'] ?? '');
+        if (in_array($fontStyle, ['italic', 'oblique'], true)) {
+            $classes[] = 'csl-font-style-' . $fontStyle;
+            $styles[] = 'font-style:' . $fontStyle;
+        }
+
+        $fontVariant = (string) ($formatting['fontVariant'] ?? '');
+        if ($fontVariant === 'small-caps') {
+            $classes[] = 'csl-font-variant-small-caps';
+            $styles[] = 'font-variant:small-caps';
+        }
+
+        $fontWeight = (string) ($formatting['fontWeight'] ?? '');
+        if ($fontWeight === 'bold') {
+            $classes[] = 'csl-font-weight-bold';
+            $styles[] = 'font-weight:bold';
+        } elseif ($fontWeight === 'light') {
+            $classes[] = 'csl-font-weight-light';
+            $styles[] = 'font-weight:300';
+        }
+
+        $textDecoration = (string) ($formatting['textDecoration'] ?? '');
+        if ($textDecoration === 'underline') {
+            $classes[] = 'csl-text-decoration-underline';
+            $styles[] = 'text-decoration:underline';
+        }
+
+        $verticalAlign = (string) ($formatting['verticalAlign'] ?? '');
+        if (in_array($verticalAlign, ['sup', 'sub'], true)) {
+            $classes[] = 'csl-vertical-align-' . $verticalAlign;
+            $styles[] = 'vertical-align:' . ($verticalAlign === 'sup' ? 'super' : 'sub');
+        }
+
+        return [$classes, implode(';', $styles)];
     }
 
     private function renderTableHtml(AstNode $node): string

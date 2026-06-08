@@ -10357,16 +10357,16 @@ XML
   </citation>
   <bibliography second-field-align="flush">
     <layout delimiter=" ">
-      <text variable="citation-key" display="left-margin" prefix="[" suffix="]"/>
-      <group display="right-inline" delimiter=". " suffix=".">
+      <text variable="citation-key" display="left-margin" prefix="[" suffix="]" font-weight="bold"/>
+      <group display="right-inline" delimiter=". " suffix="." font-style="italic" font-variant="small-caps">
         <names variable="author">
           <name initialize-with=". " name-as-sort-order="all"/>
         </names>
         <text variable="title"/>
         <date variable="issued"><date-part name="year"/></date>
       </group>
-      <text variable="note" display="indent" prefix="Review note: "/>
-      <text variable="URL" display="block" prefix="Source: "/>
+      <text variable="note" display="indent" prefix="Review note: " text-decoration="underline"/>
+      <text variable="URL" display="block" prefix="Source: " font-weight="light" vertical-align="sup"/>
     </layout>
   </bibliography>
 </style>
@@ -10380,6 +10380,10 @@ XML
         $t->same('right-inline', $summary['bibliographyRendering'][1]['display'] ?? null);
         $t->same('indent', $summary['bibliographyRendering'][2]['display'] ?? null);
         $t->same('block', $summary['bibliographyRendering'][3]['display'] ?? null);
+        $t->same(['fontWeight' => 'bold'], $summary['bibliographyRendering'][0]['formatting'] ?? null);
+        $t->same(['fontStyle' => 'italic', 'fontVariant' => 'small-caps'], $summary['bibliographyRendering'][1]['formatting'] ?? null);
+        $t->same(['textDecoration' => 'underline'], $summary['bibliographyRendering'][2]['formatting'] ?? null);
+        $t->same(['fontWeight' => 'light', 'verticalAlign' => 'sup'], $summary['bibliographyRendering'][3]['formatting'] ?? null);
 
         $t->same('(de la Cruz 2026)', $processor->renderCitationCluster([
             new AstNode('citation', ['id' => 'source-packet', 'text' => '[@source-packet]']),
@@ -10395,10 +10399,10 @@ XML
         $t->same('flush', $bibliography->attr('secondFieldAlign'));
         $t->same('definition_item', $item->type);
         $t->same([
-            ['display' => 'left-margin', 'text' => '[source-packet]'],
-            ['display' => 'right-inline', 'text' => 'de la Cruz, A. M. Source Packet. 2026.'],
-            ['display' => 'indent', 'text' => 'Review note: Attachment needs review.'],
-            ['display' => 'block', 'text' => 'Source: https://example.test/source-packet'],
+            ['display' => 'left-margin', 'text' => '[source-packet]', 'formatting' => ['fontWeight' => 'bold']],
+            ['display' => 'right-inline', 'text' => 'de la Cruz, A. M. Source Packet. 2026.', 'formatting' => ['fontStyle' => 'italic', 'fontVariant' => 'small-caps']],
+            ['display' => 'indent', 'text' => 'Review note: Attachment needs review.', 'formatting' => ['textDecoration' => 'underline']],
+            ['display' => 'block', 'text' => 'Source: https://example.test/source-packet', 'formatting' => ['fontWeight' => 'light', 'verticalAlign' => 'sup']],
         ], $displayParts);
 
         $markdown = (new MarkdownWriter())->write($processed);
@@ -10407,7 +10411,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites de la Cruz (2026) for second-field bibliography output.</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">[source-packet]</div><div class="csl-right-inline">de la Cruz, A. M. Source Packet. 2026.</div><div class="csl-indent">Review note: Attachment needs review.</div><div class="csl-block">Source: https://example.test/source-packet</div></div></dd>', $blocks);
+        $t->contains('<dt>de la Cruz 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">[source-packet]</div><div class="csl-right-inline csl-font-style-italic csl-font-variant-small-caps" style="font-style:italic;font-variant:small-caps">de la Cruz, A. M. Source Packet. 2026.</div><div class="csl-indent csl-text-decoration-underline" style="text-decoration:underline">Review note: Attachment needs review.</div><div class="csl-block csl-font-weight-light csl-vertical-align-sup" style="font-weight:300;vertical-align:super">Source: https://example.test/source-packet</div></div></dd>', $blocks);
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -10416,6 +10420,98 @@ XML
   <citation>
     <layout>
       <text variable="title" display="sideways"/>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <text variable="title" font-style="slanted"/>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+    },
+    'surfaces bounded csl rendering formatting on bibliography display parts' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'format-source',
+                'type' => 'report',
+                'title' => 'Format Packet',
+                'issued' => ['date-parts' => [[2026]]],
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Vera'],
+                ],
+                'URL' => 'https://example.test/format-source',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Display Formatting Style</title>
+    <id>https://example.test/styles/bounded-display-formatting</id>
+    <updated>2026-06-08T06:04:42+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography second-field-align="flush">
+    <layout delimiter=" ">
+      <text variable="citation-key" display="left-margin" prefix="[" suffix="]" font-weight="bold"/>
+      <group display="right-inline" delimiter=". " suffix="." font-style="italic" font-variant="small-caps">
+        <text variable="title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+      <text variable="URL" display="block" prefix="Source: " text-decoration="underline" vertical-align="sub"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Display Formatting Style', $summary['title'] ?? null);
+        $t->same(['fontWeight' => 'bold'], $summary['bibliographyRendering'][0]['formatting'] ?? null);
+        $t->same(['fontStyle' => 'italic', 'fontVariant' => 'small-caps'], $summary['bibliographyRendering'][1]['formatting'] ?? null);
+        $t->same(['textDecoration' => 'underline', 'verticalAlign' => 'sub'], $summary['bibliographyRendering'][2]['formatting'] ?? null);
+        $t->same('[format-source] Format Packet. 2026. Source: https://example.test/format-source', $processor->renderBibliographyEntry('format-source'));
+
+        $document = (new MarkdownReader())->read('Review cites @format-source for formatted CSL display output.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $bibliography = $processed->children[2];
+        $item = $bibliography->children[0];
+        $t->same([
+            ['display' => 'left-margin', 'text' => '[format-source]', 'formatting' => ['fontWeight' => 'bold']],
+            ['display' => 'right-inline', 'text' => 'Format Packet. 2026.', 'formatting' => ['fontStyle' => 'italic', 'fontVariant' => 'small-caps']],
+            ['display' => 'block', 'text' => 'Source: https://example.test/format-source', 'formatting' => ['textDecoration' => 'underline', 'verticalAlign' => 'sub']],
+        ], $item->attr('cslDisplayParts'));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites Vale (2026) for formatted CSL display output.', $markdown);
+        $t->contains('Vale 2026' . "\n" . ':   \[format-source\] Format Packet. 2026. Source: https://example.test/format-source', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<dt>Vale 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">[format-source]</div><div class="csl-right-inline csl-font-style-italic csl-font-variant-small-caps" style="font-style:italic;font-variant:small-caps">Format Packet. 2026.</div><div class="csl-block csl-text-decoration-underline csl-vertical-align-sub" style="text-decoration:underline;vertical-align:sub">Source: https://example.test/format-source</div></div></dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <text variable="title" font-weight="heavy"/>
     </layout>
   </citation>
 </style>

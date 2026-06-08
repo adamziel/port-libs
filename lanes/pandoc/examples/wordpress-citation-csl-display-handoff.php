@@ -48,16 +48,16 @@ $styleXml = <<<'XML'
   </citation>
   <bibliography second-field-align="flush">
     <layout delimiter=" ">
-      <text variable="citation-key" display="left-margin" prefix="[" suffix="]"/>
-      <group display="right-inline" delimiter=". " suffix=".">
+      <text variable="citation-key" display="left-margin" prefix="[" suffix="]" font-weight="bold"/>
+      <group display="right-inline" delimiter=". " suffix="." font-style="italic" font-variant="small-caps">
         <names variable="author">
           <name initialize-with=". " name-as-sort-order="all"/>
         </names>
         <text variable="title"/>
         <date variable="issued"><date-part name="year"/></date>
       </group>
-      <text variable="note" display="indent" prefix="Review note: "/>
-      <text variable="URL" display="block" prefix="Source: "/>
+      <text variable="note" display="indent" prefix="Review note: " text-decoration="underline"/>
+      <text variable="URL" display="block" prefix="Source: " font-weight="light" vertical-align="sup"/>
     </layout>
   </bibliography>
 </style>
@@ -75,9 +75,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['bibliographyRendering'][1]['display'] ?? null) !== 'right-inline') {
         throw new RuntimeException('CSL display handoff did not preserve right-inline metadata');
     }
+    if (($summary['bibliographyRendering'][1]['formatting']['fontStyle'] ?? null) !== 'italic') {
+        throw new RuntimeException('CSL display handoff did not preserve font-style metadata');
+    }
+    if (($summary['bibliographyRendering'][3]['formatting']['verticalAlign'] ?? null) !== 'sup') {
+        throw new RuntimeException('CSL display handoff did not preserve vertical-align metadata');
+    }
     foreach ([
         '<p>The source packet cites de la Cruz (2026) before the bibliography is reviewed.</p>',
-        '<dt>de la Cruz 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">[source-packet]</div><div class="csl-right-inline">de la Cruz, A. M. Source Packet. 2026.</div><div class="csl-indent">Review note: Attachment needs review.</div><div class="csl-block">Source: https://example.test/source-packet</div></div></dd>',
+        '<dt>de la Cruz 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">[source-packet]</div><div class="csl-right-inline csl-font-style-italic csl-font-variant-small-caps" style="font-style:italic;font-variant:small-caps">de la Cruz, A. M. Source Packet. 2026.</div><div class="csl-indent csl-text-decoration-underline" style="text-decoration:underline">Review note: Attachment needs review.</div><div class="csl-block csl-font-weight-light csl-vertical-align-sup" style="font-weight:300;vertical-align:super">Source: https://example.test/source-packet</div></div></dd>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
             throw new RuntimeException('CSL display handoff self-test missing expected snippet: ' . $snippet);

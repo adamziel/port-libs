@@ -3577,6 +3577,7 @@ final class CitationCslProcessor
             || (string) ($element['suffix'] ?? '') !== ''
             || (string) ($element['display'] ?? '') !== ''
             || (string) ($element['textCase'] ?? '') !== ''
+            || $this->renderingFormatting($element) !== []
             || ($element['quotes'] ?? false) === true
             || ($element['stripPeriods'] ?? false) === true;
     }
@@ -3939,7 +3940,7 @@ final class CitationCslProcessor
 
     /**
      * @param array<string, mixed> $item
-     * @return list<array{display:string, text:string}>
+     * @return list<array{display:string, text:string, formatting?:array<string, string>}>
      */
     private function bibliographyDisplayParts(array $item): array
     {
@@ -3950,7 +3951,7 @@ final class CitationCslProcessor
      * @param list<array<string, mixed>> $elements
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
-     * @return list<array{display:string, text:string}>
+     * @return list<array{display:string, text:string, formatting?:array<string, string>}>
      */
     private function bibliographyDisplayPartsForElements(array $elements, array $item, array $macroStack = []): array
     {
@@ -3972,7 +3973,7 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
-     * @return list<array{display:string, text:string}>
+     * @return list<array{display:string, text:string, formatting?:array<string, string>}>
      */
     private function bibliographyDisplayPartsForElement(array $element, array $item, array $macroStack = []): array
     {
@@ -3980,7 +3981,17 @@ final class CitationCslProcessor
         if ($display !== '') {
             $value = $this->renderRenderingElement($element, $item, 'bibliography', $macroStack);
 
-            return $value === '' ? [] : [['display' => $display, 'text' => $value]];
+            if ($value === '') {
+                return [];
+            }
+
+            $part = ['display' => $display, 'text' => $value];
+            $formatting = $this->renderingFormatting($element);
+            if ($formatting !== []) {
+                $part['formatting'] = $formatting;
+            }
+
+            return [$part];
         }
 
         $type = (string) ($element['type'] ?? '');
@@ -4038,6 +4049,29 @@ final class CitationCslProcessor
         return in_array($display, ['block', 'left-margin', 'right-inline', 'indent'], true)
             ? $display
             : '';
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @return array<string, string>
+     */
+    private function renderingFormatting(array $element): array
+    {
+        $formatting = $element['formatting'] ?? [];
+        if (!is_array($formatting)) {
+            return [];
+        }
+
+        $attributes = [];
+        foreach ($formatting as $key => $value) {
+            if (!is_string($key) || !is_string($value) || $value === '') {
+                continue;
+            }
+
+            $attributes[$key] = $value;
+        }
+
+        return $attributes;
     }
 
     /**

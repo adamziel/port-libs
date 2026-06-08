@@ -1296,7 +1296,7 @@ final class CslStyle
      */
     private static function groupRenderingElement(\DOMElement $group, string $scope): array
     {
-        return [
+        $element = [
             'type' => 'group',
             'prefix' => self::optionalAttribute($group, 'prefix'),
             'suffix' => self::optionalAttribute($group, 'suffix'),
@@ -1304,6 +1304,8 @@ final class CslStyle
             'display' => self::displayAttribute($group, $scope),
             'children' => self::renderingElements($group, $scope),
         ];
+
+        return self::withRenderingFormatting($element, $group, $scope);
     }
 
     /**
@@ -1341,7 +1343,7 @@ final class CslStyle
             $element['macro'] = $macro;
         }
 
-        return $element;
+        return self::withRenderingFormatting($element, $text, $scope);
     }
 
     /**
@@ -1387,7 +1389,7 @@ final class CslStyle
             ];
         }
 
-        return [
+        $element = [
             'type' => 'date',
             'prefix' => self::optionalAttribute($date, 'prefix'),
             'suffix' => self::optionalAttribute($date, 'suffix'),
@@ -1399,6 +1401,8 @@ final class CslStyle
             'textCase' => self::textCaseAttribute($date, $scope),
             'display' => self::displayAttribute($date, $scope),
         ];
+
+        return self::withRenderingFormatting($element, $date, $scope);
     }
 
     private static function datePartFormIsSupported(string $name, string $form): bool
@@ -1433,7 +1437,7 @@ final class CslStyle
             throw new \InvalidArgumentException('CSL ' . $scope . ' number form must be numeric, ordinal, long-ordinal, or roman');
         }
 
-        return [
+        $element = [
             'type' => 'number',
             'prefix' => self::optionalAttribute($number, 'prefix'),
             'suffix' => self::optionalAttribute($number, 'suffix'),
@@ -1442,6 +1446,8 @@ final class CslStyle
             'textCase' => self::textCaseAttribute($number, $scope),
             'display' => self::displayAttribute($number, $scope),
         ];
+
+        return self::withRenderingFormatting($element, $number, $scope);
     }
 
     /**
@@ -1470,7 +1476,7 @@ final class CslStyle
             $element['substitute'] = self::renderingElements($substitute, $scope);
         }
 
-        return $element;
+        return self::withRenderingFormatting($element, $names, $scope);
     }
 
     /**
@@ -1503,7 +1509,7 @@ final class CslStyle
             throw new \InvalidArgumentException('CSL ' . $scope . ' label plural must be contextual, always, or never');
         }
 
-        return [
+        $element = [
             'type' => 'label',
             'prefix' => self::optionalAttribute($label, 'prefix'),
             'suffix' => self::optionalAttribute($label, 'suffix'),
@@ -1514,6 +1520,8 @@ final class CslStyle
             'textCase' => self::textCaseAttribute($label, $scope),
             'display' => self::displayAttribute($label, $scope),
         ];
+
+        return self::withRenderingFormatting($element, $label, $scope);
     }
 
     /**
@@ -1828,6 +1836,64 @@ final class CslStyle
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @return array<string, mixed>
+     */
+    private static function withRenderingFormatting(array $element, \DOMElement $source, string $scope): array
+    {
+        $formatting = self::renderingFormattingAttributes($source, $scope);
+        if ($formatting !== []) {
+            $element['formatting'] = $formatting;
+        }
+
+        return $element;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function renderingFormattingAttributes(\DOMElement $element, string $scope): array
+    {
+        $attributes = [];
+        $supported = [
+            'font-style' => ['fontStyle', ['normal', 'italic', 'oblique']],
+            'font-variant' => ['fontVariant', ['normal', 'small-caps']],
+            'font-weight' => ['fontWeight', ['normal', 'bold', 'light']],
+            'text-decoration' => ['textDecoration', ['none', 'underline']],
+            'vertical-align' => ['verticalAlign', ['baseline', 'sup', 'sub']],
+        ];
+
+        foreach ($supported as $attribute => [$key, $values]) {
+            $value = strtolower(trim($element->getAttribute($attribute)));
+            if ($value === '') {
+                continue;
+            }
+
+            if (!in_array($value, $values, true)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' ' . $attribute . ' must be ' . self::commaSeparatedList($values));
+            }
+
+            $attributes[$key] = $value;
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function commaSeparatedList(array $values): string
+    {
+        if (count($values) < 2) {
+            return implode('', $values);
+        }
+
+        $last = array_pop($values);
+
+        return implode(', ', $values) . ', or ' . $last;
     }
 
     /**
