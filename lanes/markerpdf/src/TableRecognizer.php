@@ -2735,7 +2735,8 @@ final class TableRecognizer
         array $imageSize,
         bool $allowGenericCoordinateSpace = false
     ): ?array {
-        $bbox = $this->bboxFromGeometryValue($value);
+        $bbox = $this->tableCropBboxFromValue($value, $record, $sourceKey)
+            ?? $this->bboxFromGeometryValue($value);
         if ($bbox === null) {
             return null;
         }
@@ -2747,6 +2748,45 @@ final class TableRecognizer
             $table,
             $imageSize
         );
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @return list<float>|null
+     */
+    private function tableCropBboxFromValue(mixed $value, array $record, string $sourceKey): ?array
+    {
+        $order = $this->tableCropBboxCoordinateOrder($record, $sourceKey);
+        if ($order === null || !is_array($value)) {
+            return null;
+        }
+
+        $raw = $this->rawListBboxCoordinatesFromValue($value);
+        if ($raw === null) {
+            return null;
+        }
+
+        return $this->canonicalBbox($this->applyBboxCoordinateOrder($raw, $order));
+    }
+
+    /**
+     * @param array<string|int, mixed> $value
+     * @return list<float>|null
+     */
+    private function rawListBboxCoordinatesFromValue(array $value): ?array
+    {
+        if (array_is_list($value)) {
+            return $this->rawBboxCoordinates(array_values($value));
+        }
+
+        foreach ($this->wrappedGeometryKeys() as $key) {
+            $wrapped = $value[$key] ?? null;
+            if (is_array($wrapped) && array_is_list($wrapped)) {
+                return $this->rawBboxCoordinates(array_values($wrapped));
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -2786,6 +2826,72 @@ final class TableRecognizer
         $candidate['page_image_normalization_size'] = $pageImageSize;
 
         return $candidate;
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     */
+    private function tableCropBboxCoordinateOrder(array $record, string $sourceKey): ?string
+    {
+        $normalizedSource = $this->normalizeCoordinateSpace($sourceKey);
+        $sourceParts = array_values(array_filter(explode('.', $normalizedSource), static fn (string $part): bool => $part !== ''));
+        $lastSourcePart = $sourceParts === [] ? $normalizedSource : $sourceParts[count($sourceParts) - 1];
+        $keys = [
+            $normalizedSource . '_order',
+            $normalizedSource . '_bbox_order',
+            $normalizedSource . '_coordinate_order',
+            $normalizedSource . '_coordinate_format',
+            $normalizedSource . '_bbox_coordinate_order',
+            $normalizedSource . '_bbox_coordinate_format',
+            $normalizedSource . '_bbox_format',
+            $lastSourcePart . '_order',
+            $lastSourcePart . '_bbox_order',
+            $lastSourcePart . '_coordinate_order',
+            $lastSourcePart . '_coordinate_format',
+            $lastSourcePart . '_bbox_coordinate_order',
+            $lastSourcePart . '_bbox_coordinate_format',
+            $lastSourcePart . '_bbox_format',
+        ];
+
+        if (str_contains($normalizedSource, 'table_bbox') || str_contains($normalizedSource, 'crop_bbox')) {
+            $keys = [
+                ...$keys,
+                'table_bbox_order',
+                'table_bbox_coordinate_order',
+                'table_bbox_coordinate_format',
+                'table_bbox_format',
+                'table_crop_bbox_order',
+                'table_crop_bbox_coordinate_order',
+                'table_crop_bbox_coordinate_format',
+                'table_crop_bbox_format',
+                'crop_bbox_order',
+                'crop_bbox_coordinate_order',
+                'crop_bbox_coordinate_format',
+                'crop_bbox_format',
+                'highres_bbox_order',
+                'highres_bbox_coordinate_order',
+                'highres_bbox_coordinate_format',
+                'highres_bbox_format',
+                'page_table_bbox_order',
+                'page_table_bbox_coordinate_order',
+                'page_table_bbox_coordinate_format',
+                'page_table_bbox_format',
+            ];
+        }
+
+        foreach (array_values(array_unique($keys)) as $key) {
+            if (!isset($record[$key]) || !is_scalar($record[$key])) {
+                continue;
+            }
+
+            $source = $this->normalizeBboxCoordinateOrderLabel((string) $record[$key]);
+            $order = $this->canonicalBboxCoordinateOrder($source);
+            if ($order !== null) {
+                return $order;
+            }
+        }
+
+        return null;
     }
 
     /**
