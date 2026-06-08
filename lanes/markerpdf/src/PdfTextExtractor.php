@@ -32521,8 +32521,8 @@ final class PdfTextExtractor
             return null;
         }
 
-        $body = $this->objectStreamMemberBody($memberTable, $member);
-        if ($body === null || $body === '' || $this->objectStreamMemberIsTopLevelStreamObject($body)) {
+        $body = $this->objectStreamMemberBodyForGraphRepair($memberTable, $member);
+        if ($body === null) {
             return null;
         }
 
@@ -32588,8 +32588,8 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $body = $this->objectStreamMemberBody($memberTable, $member);
-            if ($body === null || $body === '' || $this->objectStreamMemberIsTopLevelStreamObject($body)) {
+            $body = $this->objectStreamMemberBodyForGraphRepair($memberTable, $member);
+            if ($body === null) {
                 continue;
             }
 
@@ -32644,6 +32644,35 @@ final class PdfTextExtractor
         }
 
         return $selected;
+    }
+
+    /**
+     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberBodyForGraphRepair(array $memberTable, array $member): ?string
+    {
+        $body = $this->objectStreamMemberBody($memberTable, $member);
+        if ($body === null || $body === '') {
+            return null;
+        }
+
+        if (
+            $this->objectStreamMemberIsIndirectObjectWrapper($body)
+            || $this->objectStreamMemberIsTopLevelStreamObject($body)
+        ) {
+            return null;
+        }
+
+        if ($this->objectStreamMemberHasSingleTopLevelValue($body)) {
+            return $body;
+        }
+
+        if (!$this->objectStreamMemberTailCanBeRecoveredFromInvalidLaterOffset($memberTable, $member, $body)) {
+            return null;
+        }
+
+        return $this->objectStreamMemberFirstTopLevelValueBody($body);
     }
 
     /**
