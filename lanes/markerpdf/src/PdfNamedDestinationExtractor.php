@@ -1731,22 +1731,37 @@ final class PdfNamedDestinationExtractor
             return false;
         }
 
-        if (!$this->nameTreeItemIsDirectString($items[$valueIndex])) {
+        $valueName = $this->destinationNameDetails($items[$valueIndex], $objects, $cache);
+        if ($valueName === null || $valueName['text'] === '') {
             return false;
         }
 
-        $valueName = $this->destinationNameDetails($items[$valueIndex], $objects, $cache);
-        if ($valueName === null || $valueName['text'] === '') {
+        if (!$this->nameTreeItemCanStartExplicitDestination($items[$nextIndex], $objects, $cache)) {
             return false;
         }
 
         return $this->destinationNameDetails($items[$nextIndex], $objects, $cache) === null;
     }
 
-    private function nameTreeItemIsDirectString(mixed $value): bool
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function nameTreeItemCanStartExplicitDestination(mixed $value, array $objects, array &$cache): bool
     {
-        return is_string($value)
-            || is_array($value) && array_key_exists('__pdf_string', $value);
+        if ($this->valueHasTrailingOperandAfterResolution($value, $objects, $cache)) {
+            return false;
+        }
+        if ($this->isRefValue($value) && $this->validRefObjectId($value, $objects) === null) {
+            return false;
+        }
+
+        $resolved = $this->resolve($value, $objects, $cache);
+        if (is_array($resolved) && array_is_list($resolved) && $resolved !== []) {
+            return true;
+        }
+
+        return $this->isDictionary($resolved) && array_key_exists('D', $resolved);
     }
 
     /**

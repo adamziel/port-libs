@@ -4484,21 +4484,32 @@ final class PdfOutlineExtractor
             return false;
         }
 
-        if (!$this->nameTreeItemIsDirectString($items[$valueIndex])) {
+        $valueName = $this->destinationNameDetails($items[$valueIndex], $objects);
+        if ($valueName === null || $valueName['text'] === '') {
             return false;
         }
 
-        $valueName = $this->destinationNameDetails($items[$valueIndex], $objects);
-        if ($valueName === null || $valueName['text'] === '') {
+        if (!$this->nameTreeItemCanStartExplicitDestination($items[$nextIndex], $objects)) {
             return false;
         }
 
         return $this->destinationNameDetails($items[$nextIndex], $objects) === null;
     }
 
-    private function nameTreeItemIsDirectString(mixed $value): bool
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function nameTreeItemCanStartExplicitDestination(mixed $value, array $objects): bool
     {
-        return is_array($value) && ($value['pdfType'] ?? null) === 'string';
+        $resolved = $this->resolveValue($value, $objects);
+        $array = $this->arrayItems($resolved);
+        if ($array !== null && $array !== []) {
+            return true;
+        }
+
+        $dictionary = $this->dictionaryItems($resolved);
+
+        return $dictionary !== null && array_key_exists('D', $dictionary);
     }
 
     /**

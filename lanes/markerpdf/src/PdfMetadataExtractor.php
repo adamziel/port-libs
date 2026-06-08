@@ -8405,24 +8405,33 @@ final class PdfMetadataExtractor
             return false;
         }
 
-        if (!$this->nameTreeRawItemIsDirectString($items[$valueIndex])) {
+        $valueName = $this->destinationNameDetailsFromRaw($items[$valueIndex], $objects);
+        if ($valueName === null || $valueName['text'] === '') {
             return false;
         }
 
-        $valueName = $this->destinationNameDetailsFromRaw($items[$valueIndex], $objects);
-        if ($valueName === null || $valueName['text'] === '') {
+        if (!$this->nameTreeRawItemCanStartExplicitDestination($items[$nextIndex], $objects)) {
             return false;
         }
 
         return $this->destinationNameDetailsFromRaw($items[$nextIndex], $objects) === null;
     }
 
-    private function nameTreeRawItemIsDirectString(string $value): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function nameTreeRawItemCanStartExplicitDestination(string $value, array $objects): bool
     {
-        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        if ($this->destinationValueHasTrailingOperandAfterResolution($value, $objects)) {
+            return false;
+        }
 
-        return $trimmed !== ''
-            && ($trimmed[0] === '(' || $trimmed[0] === '<' && ($trimmed[1] ?? '') !== '<');
+        $dictionary = $this->resolveDictionaryFromValue($value, $objects);
+        if ($dictionary !== null) {
+            return $this->dictionaryTopLevelRawValue($dictionary['body'], 'D') !== null;
+        }
+
+        return $this->arrayItemsFromValue($value, $objects) !== [];
     }
 
     /**

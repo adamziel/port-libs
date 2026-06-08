@@ -4005,21 +4005,33 @@ final class PdfActionReviewExtractor
             return false;
         }
 
-        if (!$this->nameTreeItemIsDirectString($items[$valueIndex])) {
+        $valueName = $this->pdfStringDetails($this->resolveValue($items[$valueIndex]));
+        if ($valueName === null || $valueName['text'] === '') {
             return false;
         }
 
-        $valueName = $this->pdfStringDetails($this->resolveValue($items[$valueIndex]));
-        if ($valueName === null || $valueName['text'] === '') {
+        if (!$this->nameTreeItemCanStartExplicitDestination($items[$nextIndex])) {
             return false;
         }
 
         return $this->pdfStringDetails($this->resolveValue($items[$nextIndex])) === null;
     }
 
-    private function nameTreeItemIsDirectString(mixed $value): bool
+    private function nameTreeItemCanStartExplicitDestination(mixed $value): bool
     {
-        return is_array($value) && ($value['pdfType'] ?? null) === 'string';
+        if ($this->valueHasTrailingOperandAfterResolution($value)) {
+            return false;
+        }
+
+        $resolved = $this->resolveValue($value);
+        $array = $this->arrayItems($resolved);
+        if ($array !== null && $array !== []) {
+            return true;
+        }
+
+        $dictionary = $this->dictionaryItems($resolved);
+
+        return $dictionary !== null && array_key_exists('D', $dictionary);
     }
 
     /**

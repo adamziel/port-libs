@@ -13002,18 +13002,19 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $appearanceObjectNumber = $this->normalAppearanceObjectNumber($annotation['body'], $objects);
-            if ($appearanceObjectNumber === null) {
+            $appearanceReference = $this->normalAppearanceReference($annotation['body'], $objects);
+            if ($appearanceReference === null) {
                 continue;
             }
 
             $appearance = $this->decodedAppearanceStreamWithFontMaps(
-                $appearanceObjectNumber,
+                $appearanceReference['objectNumber'],
                 $objects,
                 $fontObjectMaps,
                 $currentFontToUnicodeMaps,
                 $optionalContentStates,
-                $inheritedResourceOwnerBody
+                $inheritedResourceOwnerBody,
+                $appearanceReference['body']
             );
             if ($appearance === null) {
                 continue;
@@ -13139,9 +13140,10 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array{objectNumber: int, body: string}|null
      * @param array<int, string> $objects
      */
-    private function normalAppearanceObjectNumber(string $annotationBody, array $objects): ?int
+    private function normalAppearanceReference(string $annotationBody, array $objects): ?array
     {
         $appearanceDictionary = $this->appearanceDictionaryBody($annotationBody, $objects);
         if ($appearanceDictionary === null) {
@@ -13155,23 +13157,31 @@ final class PdfTextExtractor
 
         $appearanceState = $this->pdfNameValueAfterName($annotationBody, 'AS');
         $normalAppearance = trim($normalAppearance);
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $normalAppearance, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            if (!isset($objects[$objectNumber])) {
+        $normalAppearanceReference = $this->pdfIndirectReferenceValue($normalAppearance);
+        if ($normalAppearanceReference !== null) {
+            $appearanceBody = $this->selectedObjectBodyForReference(
+                $objects,
+                $normalAppearanceReference['objectNumber'],
+                $normalAppearanceReference['generation']
+            );
+            if ($appearanceBody === null) {
                 return null;
             }
 
-            if ($this->isStreamObject($objects[$objectNumber])) {
-                return $objectNumber;
+            if ($this->isStreamObject($appearanceBody)) {
+                return [
+                    'objectNumber' => $normalAppearanceReference['objectNumber'],
+                    'body' => $appearanceBody,
+                ];
             }
 
-            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
-            return $dictionary === null ? null : $this->appearanceObjectNumberFromStateDictionary($dictionary, $appearanceState);
+            $dictionary = $this->dictionaryObjectBody($appearanceBody);
+            return $dictionary === null ? null : $this->appearanceReferenceFromStateDictionary($dictionary, $appearanceState, $objects);
         }
 
         if (str_starts_with($normalAppearance, '<<')) {
             $dictionary = $this->readPdfDictionaryAt($normalAppearance, 0);
-            return $dictionary === null ? null : $this->appearanceObjectNumberFromStateDictionary($dictionary, $appearanceState);
+            return $dictionary === null ? null : $this->appearanceReferenceFromStateDictionary($dictionary, $appearanceState, $objects);
         }
 
         return null;
@@ -13192,33 +13202,69 @@ final class PdfTextExtractor
             return $this->readPdfDictionaryAt($appearance, 0);
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $appearance, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        $reference = $this->pdfIndirectReferenceValue($appearance);
+        if ($reference !== null) {
+            $body = $this->selectedObjectBodyForReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+
+            return $body === null ? null : $this->dictionaryObjectBody($body);
         }
 
         return null;
     }
 
-    private function appearanceObjectNumberFromStateDictionary(string $dictionary, ?string $appearanceState): ?int
+    /**
+     * @return array{objectNumber: int, body: string}|null
+     * @param array<int, string> $objects
+     */
+    private function appearanceReferenceFromStateDictionary(string $dictionary, ?string $appearanceState, array $objects): ?array
     {
         if ($appearanceState !== null) {
-            return $this->objectReferenceValueAfterName($dictionary, $appearanceState);
+            $reference = $this->objectReferenceAfterName($dictionary, $appearanceState);
+            if ($reference === null) {
+                return null;
+            }
+
+            $body = $this->selectedObjectBodyForReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+
+            return $body === null
+                ? null
+                : [
+                    'objectNumber' => $reference['objectNumber'],
+                    'body' => $body,
+                ];
         }
 
         $fallback = null;
-        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $dictionary, $matches, PREG_SET_ORDER)) {
+        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/', $dictionary, $matches, PREG_SET_ORDER)) {
             return null;
         }
 
         foreach ($matches as $match) {
             $state = $this->decodePdfName($match[1]);
             $objectNumber = (int) $match[2];
+            $generation = (int) $match[3];
+            $body = $this->selectedObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                continue;
+            }
+
+            $candidate = [
+                'objectNumber' => $objectNumber,
+                'body' => $body,
+            ];
             if ($fallback === null) {
-                $fallback = $objectNumber;
+                $fallback = $candidate;
             }
             if ($state !== 'Off') {
-                return $objectNumber;
+                return $candidate;
             }
         }
 
@@ -13238,13 +13284,14 @@ final class PdfTextExtractor
         array $fontObjectMaps,
         array $fontToUnicodeMaps,
         array $optionalContentStates = [],
-        ?string $inheritedResourceOwnerBody = null
+        ?string $inheritedResourceOwnerBody = null,
+        ?string $resolvedAppearanceBody = null
     ): ?array {
-        if (!isset($objects[$appearanceObjectNumber]) || !$this->isFormXObjectBody($objects[$appearanceObjectNumber], $objects)) {
+        $appearanceBody = $resolvedAppearanceBody ?? ($objects[$appearanceObjectNumber] ?? null);
+        if ($appearanceBody === null || !$this->isFormXObjectBody($appearanceBody, $objects)) {
             return null;
         }
 
-        $appearanceBody = $objects[$appearanceObjectNumber];
         if (!$this->optionalContentObjectVisible($appearanceBody, $objects, $optionalContentStates)) {
             return null;
         }
@@ -30575,6 +30622,14 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      */
     private function objectBodyForResourceReference(array $objects, int $objectNumber, int $generation): ?string
+    {
+        return $this->selectedObjectBodyForReference($objects, $objectNumber, $generation);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function selectedObjectBodyForReference(array $objects, int $objectNumber, int $generation): ?string
     {
         if ($objectNumber <= 0 || $generation < 0) {
             return null;
