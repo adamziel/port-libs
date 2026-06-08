@@ -36513,7 +36513,8 @@ final class PdfTextExtractor
             $writingMode = $localWritingMode;
         }
 
-        $localCodeSpaceRanges = $this->parseCMapCodeSpaceRanges($cmap);
+        $localCodeSpaceRangesUnderdeclared = $this->cMapHasUnderdeclaredCodeSpaceRangeBlock($cmap);
+        $localCodeSpaceRanges = $localCodeSpaceRangesUnderdeclared ? [] : $this->parseCMapCodeSpaceRanges($cmap);
         $cidRangeCodeSpaceRanges = array_values($codeSpaceRanges);
         foreach ($localCodeSpaceRanges as $range) {
             $cidRangeCodeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
@@ -36521,6 +36522,10 @@ final class PdfTextExtractor
         $cidRangeCodeSpaceRanges = array_values($cidRangeCodeSpaceRanges);
 
         foreach ($this->cMapCidMappingBlocks($cmap) as $mappingBlock) {
+            if ($localCodeSpaceRangesUnderdeclared) {
+                continue;
+            }
+
             if ($mappingBlock['kind'] === 'char') {
                 $this->parseCidChars(
                     $mappingBlock['body'],
