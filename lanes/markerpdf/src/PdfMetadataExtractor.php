@@ -9354,7 +9354,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary?: bool, encrypt_operand_shape?: string, encrypt_operand_status?: string}|null
+     * @return array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary?: bool, encrypt_dictionary_resolved?: bool, encrypt_operand_shape?: string, encrypt_operand_single_value?: bool, encrypt_operand_status?: string, encrypt_trailing_operand?: bool, encrypt_trailing_operand_shape?: string, encrypt_trailing_operand_preview?: string, encrypt_trailing_operand_object_number?: int, encrypt_trailing_operand_generation?: int}|null
      */
     private function encryptionDictionaryEntry(string $pdfBytes, array $objects): ?array
     {
@@ -9435,7 +9435,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{parsed: bool, entry: array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary?: bool, encrypt_operand_shape?: string, encrypt_operand_status?: string}|null}
+     * @return array{parsed: bool, entry: array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary?: bool, encrypt_dictionary_resolved?: bool, encrypt_operand_shape?: string, encrypt_operand_single_value?: bool, encrypt_operand_status?: string, encrypt_trailing_operand?: bool, encrypt_trailing_operand_shape?: string, encrypt_trailing_operand_preview?: string, encrypt_trailing_operand_object_number?: int, encrypt_trailing_operand_generation?: int}|null}
      */
     private function trailerEncryptionDictionaryEntryFromStartxrefChain(string $pdfBytes, array $objects): array
     {
@@ -9457,7 +9457,7 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
      * @param array<int, true> $seenOffsets
-     * @return array{parsed: bool, entry: array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary?: bool, encrypt_operand_shape?: string, encrypt_operand_status?: string}|null}
+     * @return array{parsed: bool, entry: array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary?: bool, encrypt_dictionary_resolved?: bool, encrypt_operand_shape?: string, encrypt_operand_single_value?: bool, encrypt_operand_status?: string, encrypt_trailing_operand?: bool, encrypt_trailing_operand_shape?: string, encrypt_trailing_operand_preview?: string, encrypt_trailing_operand_object_number?: int, encrypt_trailing_operand_generation?: int}|null}
      */
     private function trailerEncryptionDictionaryEntryAtOffsetChain(
         string $pdfBytes,
@@ -9541,7 +9541,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{body: string, object: int|null, generation?: int, source: string, encrypt_dictionary_resolved: true, encrypt_operand_shape: string, encrypt_operand_status: string}|null
+     * @return array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary?: bool, encrypt_dictionary_resolved?: bool, encrypt_operand_shape: string, encrypt_operand_single_value?: bool, encrypt_operand_status: string, encrypt_trailing_operand?: bool, encrypt_trailing_operand_shape?: string, encrypt_trailing_operand_preview?: string, encrypt_trailing_operand_object_number?: int, encrypt_trailing_operand_generation?: int}|null
      */
     private function resolvedEncryptionDictionary(string $value, array $objects, string $source): ?array
     {
@@ -9564,9 +9564,26 @@ final class PdfMetadataExtractor
                 return null;
             }
 
-            $dictionary = $this->dictionaryObjectBody($objectBody);
-            return $dictionary === null ? null : [
-                'body' => $dictionary,
+            $dictionaryReview = $this->encryptionDictionaryObjectBodyReview($objectBody);
+            if ($dictionaryReview === null) {
+                return null;
+            }
+            if (($dictionaryReview['single_value'] ?? true) !== true) {
+                return array_merge([
+                    'body' => '',
+                    'object' => $objectNumber,
+                    'generation' => $generation,
+                    'source' => $source,
+                    'malformed_encrypt_dictionary' => true,
+                    'encrypt_dictionary_resolved' => false,
+                    'encrypt_operand_shape' => 'indirect_reference',
+                    'encrypt_operand_single_value' => false,
+                    'encrypt_operand_status' => 'encrypt_dictionary_trailing_operand_review',
+                ], $this->encryptionDictionaryObjectBodyTrailingOperandReview($dictionaryReview));
+            }
+
+            return [
+                'body' => $dictionaryReview['body'],
                 'object' => $objectNumber,
                 'generation' => $generation,
                 'source' => $source,
@@ -9597,6 +9614,95 @@ final class PdfMetadataExtractor
             'encrypt_operand_shape' => 'dictionary_object_body',
             'encrypt_operand_status' => 'encrypt_dictionary_object_body_resolved',
         ];
+    }
+
+    /**
+     * /Encrypt references must resolve to a single top-level dictionary object.
+     * Extra object-body operands are ambiguous security metadata and stay
+     * fail-closed before permission review.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function encryptionDictionaryObjectBodyReview(string $objectBody): ?array
+    {
+        $offset = $this->skipPdfWhitespace($objectBody, 0);
+        if (substr($objectBody, $offset, 2) !== '<<') {
+            return null;
+        }
+
+        $body = $this->readPdfDictionaryAt($objectBody, $offset);
+        if ($body === null) {
+            return null;
+        }
+
+        $after = $this->skipPdfWhitespace($objectBody, $offset + strlen($body) + 4);
+        if ($after >= strlen($objectBody)) {
+            return [
+                'body' => $body,
+                'single_value' => true,
+                'trailing_operand' => false,
+            ];
+        }
+
+        $operand = $this->readPdfValueAt($objectBody, $after);
+        if ($operand === null || $operand === '') {
+            return [
+                'body' => $body,
+                'single_value' => false,
+                'trailing_operand' => true,
+                'trailing_operand_shape' => 'malformed',
+                'trailing_operand_preview' => 'malformed_top_level_token',
+            ];
+        }
+
+        $shape = $this->metadataStreamFilterOperandTokenType($operand);
+        $review = [
+            'body' => $body,
+            'single_value' => false,
+            'trailing_operand' => true,
+            'trailing_operand_shape' => $shape,
+            'trailing_operand_preview' => $this->metadataStreamFilterOperandPreview($operand),
+        ];
+
+        if ($shape === 'name') {
+            $name = $this->nameValueAt($operand, 0);
+            if ($name !== null) {
+                $review['trailing_operand_name'] = $name;
+            }
+        }
+
+        $reference = $this->objectReferenceFromValue($operand);
+        if ($reference !== null) {
+            $review['trailing_operand_object_number'] = $reference['objectNumber'];
+            $review['trailing_operand_generation'] = $reference['generation'];
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<string, mixed> $dictionaryReview
+     * @return array<string, mixed>
+     */
+    private function encryptionDictionaryObjectBodyTrailingOperandReview(array $dictionaryReview): array
+    {
+        $review = [
+            'encrypt_trailing_operand' => true,
+            'encrypt_trailing_operand_shape' => $dictionaryReview['trailing_operand_shape'] ?? 'malformed',
+            'encrypt_trailing_operand_preview' => $dictionaryReview['trailing_operand_preview'] ?? 'malformed_top_level_token',
+        ];
+
+        foreach ([
+            'trailing_operand_name' => 'encrypt_trailing_operand_name',
+            'trailing_operand_object_number' => 'encrypt_trailing_operand_object_number',
+            'trailing_operand_generation' => 'encrypt_trailing_operand_generation',
+        ] as $sourceKey => $targetKey) {
+            if (array_key_exists($sourceKey, $dictionaryReview)) {
+                $review[$targetKey] = $dictionaryReview[$sourceKey];
+            }
+        }
+
+        return $review;
     }
 
     /**
