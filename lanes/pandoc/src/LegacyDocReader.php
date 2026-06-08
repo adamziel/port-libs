@@ -1372,6 +1372,11 @@ final class LegacyDocReader
             return $promptFieldAttrs;
         }
 
+        $includeFieldAttrs = $this->includeFieldAttrs($fieldName, $tokens, $instruction);
+        if ($includeFieldAttrs !== null) {
+            return $includeFieldAttrs;
+        }
+
         $generatedFieldAttrs = $this->generatedFieldAttrs($fieldName, $tokens, $instruction);
         if ($generatedFieldAttrs !== null) {
             return $generatedFieldAttrs;
@@ -1807,6 +1812,99 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-prompt-field', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function includeFieldAttrs(string $fieldName, array $tokens, string $instruction): ?array
+    {
+        $fieldTypes = [
+            'INCLUDEPICTURE' => 'picture',
+            'INCLUDETEXT' => 'text',
+        ];
+        if (!isset($fieldTypes[$fieldName])) {
+            return null;
+        }
+
+        $source = null;
+        $switches = [];
+        $switchValues = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (!str_starts_with($token, '\\')) {
+                $source ??= $token;
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if ($switch === '') {
+                continue;
+            }
+            if (($switch === '*' || $switch === '@' || $switch === '#') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                continue;
+            }
+
+            $switches[] = $switch;
+            if (isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                $switchValues[$switch][] = $tokens[$index];
+            } else {
+                $switchValues[$switch] ??= [];
+            }
+        }
+        if ($source === null || $source === '') {
+            return null;
+        }
+
+        $fieldKey = strtolower($fieldName);
+        $attributes = [
+            'data-legacy-doc-field' => $fieldKey,
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-include-field-type' => $fieldTypes[$fieldName],
+            'data-legacy-doc-include-source' => $source,
+            'data-legacy-doc-include-source-kind' => preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $source) === 1 ? 'external-url' : 'file-path',
+            'data-legacy-doc-include-source-basename' => $this->legacyPathBasename($source),
+        ];
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+        if ($switches !== []) {
+            $switches = array_values(array_unique($switches));
+            $attributes['data-legacy-doc-include-field-switches'] = implode(' ', $switches);
+            foreach ($switches as $switch) {
+                if ($switch === '!') {
+                    $attributes['data-legacy-doc-include-field-lock-result'] = 'true';
+                    continue;
+                }
+
+                $attributeSwitch = preg_replace('/[^a-z0-9-]/', '', $switch);
+                if (!is_string($attributeSwitch) || $attributeSwitch === '') {
+                    continue;
+                }
+
+                $values = array_values(array_unique(array_map(
+                    static fn (mixed $value): string => (string) $value,
+                    $switchValues[$switch] ?? []
+                )));
+                $attributes['data-legacy-doc-include-field-switch-' . $attributeSwitch] = $values === []
+                    ? 'true'
+                    : implode('; ', $values);
+            }
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-include-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
     }

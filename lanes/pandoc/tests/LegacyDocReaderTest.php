@@ -4459,6 +4459,62 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC numbering field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC include field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'Includes '
+                . $fieldBegin . ' INCLUDEPICTURE "C:\Legacy\Figures\chart.png" \d \* MERGEFORMAT '
+                . $fieldSeparator . 'chart placeholder' . $fieldEnd
+                . ' and '
+                . $fieldBegin . ' INCLUDETEXT "https://example.test/legacy/clause.doc" \c "Heading 1" \! '
+                . $fieldSeparator . 'Imported clause' . $fieldEnd
+                . ".\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $picture = $paragraph->children[1];
+        $t->same('span', $picture->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-include-field', 'legacy-doc-field-includepicture'], $picture->attr('classes'));
+        $t->same('includepicture', $picture->attr('attributes')['data-legacy-doc-field']);
+        $t->same('INCLUDEPICTURE "C:\Legacy\Figures\chart.png" \d \* MERGEFORMAT', $picture->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('picture', $picture->attr('attributes')['data-legacy-doc-include-field-type']);
+        $t->same('C:\Legacy\Figures\chart.png', $picture->attr('attributes')['data-legacy-doc-include-source']);
+        $t->same('file-path', $picture->attr('attributes')['data-legacy-doc-include-source-kind']);
+        $t->same('chart.png', $picture->attr('attributes')['data-legacy-doc-include-source-basename']);
+        $t->same('MERGEFORMAT', $picture->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('d', $picture->attr('attributes')['data-legacy-doc-include-field-switches']);
+        $t->same('true', $picture->attr('attributes')['data-legacy-doc-include-field-switch-d']);
+        $t->same('chart placeholder', $picture->children[0]->attr('text'));
+
+        $includedText = $paragraph->children[3];
+        $t->same(['legacy-doc-field', 'legacy-doc-include-field', 'legacy-doc-field-includetext'], $includedText->attr('classes'));
+        $t->same('includetext', $includedText->attr('attributes')['data-legacy-doc-field']);
+        $t->same('INCLUDETEXT "https://example.test/legacy/clause.doc" \c "Heading 1" \!', $includedText->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('text', $includedText->attr('attributes')['data-legacy-doc-include-field-type']);
+        $t->same('https://example.test/legacy/clause.doc', $includedText->attr('attributes')['data-legacy-doc-include-source']);
+        $t->same('external-url', $includedText->attr('attributes')['data-legacy-doc-include-source-kind']);
+        $t->same('clause.doc', $includedText->attr('attributes')['data-legacy-doc-include-source-basename']);
+        $t->same('c !', $includedText->attr('attributes')['data-legacy-doc-include-field-switches']);
+        $t->same('Heading 1', $includedText->attr('attributes')['data-legacy-doc-include-field-switch-c']);
+        $t->same('true', $includedText->attr('attributes')['data-legacy-doc-include-field-lock-result']);
+        $t->same('Imported clause', $includedText->children[0]->attr('text'));
+
+        $t->contains('[chart placeholder]{.legacy-doc-field .legacy-doc-include-field .legacy-doc-field-includepicture data-legacy-doc-field="includepicture"', $markdown);
+        $t->contains('[Imported clause]{.legacy-doc-field .legacy-doc-include-field .legacy-doc-field-includetext data-legacy-doc-field="includetext"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-include-field legacy-doc-field-includepicture" data-legacy-doc-field="includepicture" data-legacy-doc-field-instruction="INCLUDEPICTURE &quot;C:\Legacy\Figures\chart.png&quot; \d \* MERGEFORMAT" data-legacy-doc-include-field-type="picture" data-legacy-doc-include-source="C:\Legacy\Figures\chart.png" data-legacy-doc-include-source-kind="file-path" data-legacy-doc-include-source-basename="chart.png" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-include-field-switches="d" data-legacy-doc-include-field-switch-d="true">chart placeholder</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-include-field legacy-doc-field-includetext" data-legacy-doc-field="includetext" data-legacy-doc-field-instruction="INCLUDETEXT &quot;https://example.test/legacy/clause.doc&quot; \c &quot;Heading 1&quot; \!" data-legacy-doc-include-field-type="text" data-legacy-doc-include-source="https://example.test/legacy/clause.doc" data-legacy-doc-include-source-kind="external-url" data-legacy-doc-include-source-basename="clause.doc" data-legacy-doc-include-field-switches="c !" data-legacy-doc-include-field-switch-c="Heading 1" data-legacy-doc-include-field-lock-result="true">Imported clause</span>', $blocks);
+        foreach (['INCLUDEPICTURE', 'INCLUDETEXT'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC include field instructions should not render as visible text');
+        }
+    },
     'rejects malformed legacy DOC field-code boundaries before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $reader = new LegacyDocReader();
 
