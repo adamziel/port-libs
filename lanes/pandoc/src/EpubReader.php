@@ -8472,6 +8472,9 @@ final class EpubReader
                 'contentResourceReviewFlags' => $contentReport['reviewFlags'],
                 'contentReferences' => $contentReport['references'],
                 'contentTriggers' => $contentReport['triggers'],
+                'contentSemantics' => $contentReport['semantics'],
+                'contentSemanticTypes' => $contentReport['semanticTypes'],
+                'contentSemanticDiagnostics' => $contentReport['semanticDiagnostics'],
                 'contentDiagnostics' => $contentReport['diagnostics'],
             ];
         }
@@ -9293,6 +9296,10 @@ final class EpubReader
         $switchAssetCount = 0;
         $triggerAssetCount = 0;
         $triggerCount = 0;
+        $semanticAssetCount = 0;
+        $semanticItemCount = 0;
+        $semanticItems = [];
+        $semanticDiagnostics = [];
         $reviewRequiredCount = 0;
         $referenceCount = 0;
 
@@ -9316,11 +9323,22 @@ final class EpubReader
                 'triggers' => is_array($report['triggers'] ?? null) ? array_values($report['triggers']) : [],
                 'validTriggerCount' => is_int($report['validTriggerCount'] ?? null) ? $report['validTriggerCount'] : 0,
                 'invalidTriggerCount' => is_int($report['invalidTriggerCount'] ?? null) ? $report['invalidTriggerCount'] : 0,
+                'semanticCount' => count(is_array($report['semantics'] ?? null) ? $report['semantics'] : []),
+                'semantics' => is_array($report['semantics'] ?? null) ? array_values($report['semantics']) : [],
+                'semanticTypes' => is_array($report['semanticTypes'] ?? null) ? array_values($report['semanticTypes']) : [],
+                'semanticItemsByType' => is_array($report['semanticItemsByType'] ?? null) ? $report['semanticItemsByType'] : [],
+                'semanticDiagnosticCount' => count(is_array($report['semanticDiagnostics'] ?? null) ? $report['semanticDiagnostics'] : []),
+                'semanticDiagnostics' => is_array($report['semanticDiagnostics'] ?? null) ? array_values($report['semanticDiagnostics']) : [],
                 'diagnostics' => is_array($report['diagnostics'] ?? null) ? array_values($report['diagnostics']) : [],
             ];
 
             $referenceCount += $item['referenceCount'];
             $triggerCount += $item['triggerCount'];
+            $semanticItemCount += $item['semanticCount'];
+            if ($item['semanticCount'] > 0) {
+                ++$semanticAssetCount;
+                array_push($semanticItems, ...$item['semantics']);
+            }
             if (($item['flags']['mathml'] ?? false) === true) {
                 ++$mathmlAssetCount;
             }
@@ -9360,6 +9378,11 @@ final class EpubReader
                     'part' => $part,
                 ] + $diagnostic;
             }
+            foreach ($item['semanticDiagnostics'] as $diagnostic) {
+                $semanticDiagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
 
             $items[] = $item;
             if ($part !== '') {
@@ -9381,6 +9404,12 @@ final class EpubReader
             'switchAssetCount' => $switchAssetCount,
             'triggerAssetCount' => $triggerAssetCount,
             'triggerCount' => $triggerCount,
+            'semanticAssetCount' => $semanticAssetCount,
+            'semanticItemCount' => $semanticItemCount,
+            'semanticTypes' => self::xhtmlSemanticTypes($semanticItems),
+            'semanticItems' => $semanticItems,
+            'semanticItemsByType' => self::xhtmlSemanticItemsByType($semanticItems),
+            'semanticDiagnostics' => $semanticDiagnostics,
             'reviewRequiredCount' => $reviewRequiredCount,
             'items' => $items,
             'itemsByPart' => $itemsByPart,
@@ -9406,6 +9435,7 @@ final class EpubReader
         $flags = self::emptyXhtmlContentResourceFlags();
         $references = [];
         $triggers = [];
+        $semantics = [];
         $elementIds = [];
         $diagnostics = [];
 
@@ -9418,6 +9448,10 @@ final class EpubReader
                 'reviewFlags' => [],
                 'references' => [],
                 'triggers' => [],
+                'semantics' => [],
+                'semanticTypes' => [],
+                'semanticItemsByType' => [],
+                'semanticDiagnostics' => [],
                 'validTriggerCount' => 0,
                 'invalidTriggerCount' => 0,
                 'diagnostics' => [[
@@ -9438,11 +9472,13 @@ final class EpubReader
                 $flags,
                 $references,
                 $triggers,
+                $semantics,
                 $elementIds
             );
         }
 
         $triggers = self::xhtmlTriggersWithElementResolution($triggers, $elementIds);
+        $semantics = self::xhtmlSemanticsWithElementResolution($semantics, $elementIds);
 
         foreach ($references as $reference) {
             foreach ($reference['diagnostics'] as $diagnostic) {
@@ -9462,6 +9498,17 @@ final class EpubReader
                 ] + $diagnostic;
             }
         }
+        $semanticDiagnostics = [];
+        foreach ($semantics as $semantic) {
+            foreach ($semantic['diagnostics'] as $diagnostic) {
+                $semanticDiagnostics[] = [
+                    'semanticIndex' => $semantic['index'],
+                    'semanticId' => $semantic['id'],
+                    'element' => $semantic['element'],
+                    'primaryType' => $semantic['primaryType'],
+                ] + $diagnostic;
+            }
+        }
 
         return [
             'part' => $part,
@@ -9469,6 +9516,10 @@ final class EpubReader
             'reviewFlags' => self::xhtmlContentReviewFlags($flags),
             'references' => $references,
             'triggers' => $triggers,
+            'semantics' => $semantics,
+            'semanticTypes' => self::xhtmlSemanticTypes($semantics),
+            'semanticItemsByType' => self::xhtmlSemanticItemsByType($semantics),
+            'semanticDiagnostics' => $semanticDiagnostics,
             'validTriggerCount' => count(array_filter(
                 $triggers,
                 static fn (array $trigger): bool => ($trigger['valid'] ?? false) === true,
@@ -9486,6 +9537,7 @@ final class EpubReader
      * @param array<string, bool> $flags
      * @param list<array<string, mixed>> $references
      * @param list<array<string, mixed>> $triggers
+     * @param list<array<string, mixed>> $semantics
      * @param array<string, array<string, mixed>> $elementIds
      */
     private function scanXhtmlContentElement(
@@ -9496,6 +9548,7 @@ final class EpubReader
         array &$flags,
         array &$references,
         array &$triggers,
+        array &$semantics,
         array &$elementIds
     ): void {
         $namespace = (string) $element->namespaceURI;
@@ -9516,6 +9569,17 @@ final class EpubReader
         if ($namespace === self::EPUB_OPS_NS && $localName === 'trigger') {
             $flags['trigger'] = true;
             $triggers[] = self::xhtmlTriggerReport($element, count($triggers));
+        }
+        $epubTypes = self::epubTypes($element);
+        if ($epubTypes !== []) {
+            $semantics[] = $this->xhtmlSemanticReport(
+                $package,
+                $part,
+                $element,
+                $epubTypes,
+                $manifestByPart,
+                count($semantics)
+            );
         }
 
         foreach (self::xhtmlEventHandlerAttributes($element) as $attributeName) {
@@ -9587,6 +9651,7 @@ final class EpubReader
                 $flags,
                 $references,
                 $triggers,
+                $semantics,
                 $elementIds
             );
         }
@@ -9720,6 +9785,146 @@ final class EpubReader
         }
 
         return $triggers;
+    }
+
+    /**
+     * @param list<string> $types
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function xhtmlSemanticReport(
+        ZipPackage $package,
+        string $part,
+        \DOMElement $element,
+        array $types,
+        array $manifestByPart,
+        int $index
+    ): array {
+        $href = self::nullableAttribute($element, 'href');
+        $reference = $href === null ? null : $this->packageReference(
+            $package,
+            $part,
+            $href,
+            $manifestByPart,
+            'xhtml-semantic'
+        );
+
+        return [
+            'index' => $index,
+            'sourcePart' => $part,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'types' => $types,
+            'primaryType' => $types[0] ?? null,
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'href' => $href,
+            'target' => is_array($reference) ? $reference['target'] : null,
+            'part' => is_array($reference) ? $reference['part'] : null,
+            'fragment' => is_array($reference) ? $reference['fragment'] : null,
+            'fragmentKind' => is_array($reference) ? $reference['fragmentKind'] : null,
+            'epubCfi' => is_array($reference) ? $reference['epubCfi'] : null,
+            'fragmentExists' => null,
+            'external' => is_array($reference) ? $reference['external'] : false,
+            'exists' => is_array($reference) ? $reference['exists'] : null,
+            'byteLength' => is_array($reference) ? $reference['byteLength'] : null,
+            'crc32' => is_array($reference) ? $reference['crc32'] : null,
+            'manifestId' => is_array($reference) ? $reference['manifestId'] : null,
+            'mediaType' => is_array($reference) ? $reference['mediaType'] : null,
+            'encrypted' => is_array($reference) ? $reference['encrypted'] : false,
+            'canExposeBytes' => is_array($reference) ? $reference['canExposeBytes'] : null,
+            'attributes' => self::elementAttributes($element),
+            'diagnostics' => is_array($reference) ? $reference['diagnostics'] : [],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $semantics
+     * @param array<string, array<string, mixed>> $elementIds
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function xhtmlSemanticsWithElementResolution(array $semantics, array $elementIds): array
+    {
+        foreach ($semantics as $index => $semantic) {
+            $fragment = is_string($semantic['fragment'] ?? null) ? $semantic['fragment'] : null;
+            $part = is_string($semantic['part'] ?? null) ? $semantic['part'] : null;
+            $sourcePart = is_string($semantic['sourcePart'] ?? null) ? $semantic['sourcePart'] : null;
+            if (
+                $fragment === null
+                || $part === null
+                || $sourcePart === null
+                || $part !== $sourcePart
+                || ($semantic['external'] ?? false) === true
+                || ($semantic['fragmentKind'] ?? null) === 'epub-cfi'
+            ) {
+                continue;
+            }
+
+            $targetExists = ($semantic['exists'] ?? false) === true;
+            if (!$targetExists) {
+                $semantics[$index]['fragmentExists'] = false;
+                continue;
+            }
+
+            $fragmentExists = isset($elementIds[$fragment]);
+            $semantics[$index]['fragmentExists'] = $fragmentExists;
+            if (!$fragmentExists) {
+                $semantics[$index]['diagnostics'][] = [
+                    'type' => 'unresolved-xhtml-semantic-fragment',
+                    'fragment' => $fragment,
+                    'target' => $semantic['target'] ?? null,
+                    'message' => 'EPUB XHTML semantic link fragment does not match an element id in the same content document',
+                ];
+            }
+        }
+
+        return $semantics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $semantics
+     *
+     * @return list<string>
+     */
+    private static function xhtmlSemanticTypes(array $semantics): array
+    {
+        $types = [];
+        foreach ($semantics as $semantic) {
+            foreach (is_array($semantic['types'] ?? null) ? $semantic['types'] : [] as $type) {
+                if (is_string($type) && $type !== '' && !in_array($type, $types, true)) {
+                    $types[] = $type;
+                }
+            }
+        }
+
+        return $types;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $semantics
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function xhtmlSemanticItemsByType(array $semantics): array
+    {
+        $items = [];
+        foreach ($semantics as $semantic) {
+            foreach (is_array($semantic['types'] ?? null) ? $semantic['types'] : [] as $type) {
+                if (!is_string($type) || $type === '') {
+                    continue;
+                }
+
+                $items[$type] ??= [];
+                $items[$type][] = $semantic;
+            }
+        }
+
+        return $items;
     }
 
     /**
@@ -10848,6 +11053,9 @@ final class EpubReader
                 'contentResourceReviewFlags' => $asset['contentResourceReviewFlags'] ?? [],
                 'contentReferences' => $asset['contentReferences'] ?? [],
                 'contentTriggers' => $asset['contentTriggers'] ?? [],
+                'contentSemantics' => $asset['contentSemantics'] ?? [],
+                'contentSemanticTypes' => $asset['contentSemanticTypes'] ?? [],
+                'contentSemanticDiagnostics' => $asset['contentSemanticDiagnostics'] ?? [],
                 'contentDiagnostics' => $asset['contentDiagnostics'] ?? [],
                 'source' => $isFallback ? 'epub3-spine-fallback' : 'epub3-spine',
             ];

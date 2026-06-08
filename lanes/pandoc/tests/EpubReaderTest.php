@@ -3661,6 +3661,97 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB XHTML semantic type annotations for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $semanticXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en">
+  <body>
+    <section id="bodymatter" class="chapter section" epub:type="bodymatter chapter" xml:lang="en-US" dir="ltr">
+      <h1>Semantic review</h1>
+      <p><a id="note-ref" epub:type="noteref" href="#fn-1">1</a></p>
+      <span id="page-7" epub:type="pagebreak" title="7">7</span>
+      <aside id="fn-1" epub:type="footnote" role="doc-footnote">Footnote source text.</aside>
+      <section id="refs" epub:type="bibliography"><p>Reference list.</p></section>
+      <a id="missing-note-ref" epub:type="noteref" href="#missing-note">missing note</a>
+    </section>
+  </body>
+</html>
+XML;
+        $opfWithSemanticContent = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="semantic-content" href="text/semantic.xhtml" media-type="application/xhtml+xml"/>',
+            $opfXml
+        );
+        $opfWithSemanticContent = str_replace(
+            '</spine>',
+            '<itemref idref="semantic-content"/></spine>',
+            $opfWithSemanticContent
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithSemanticContent,
+            null,
+            [
+                ['name' => 'OEBPS/text/semantic.xhtml', 'data' => $semanticXhtml],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/semantic.xhtml'];
+        $semanticBlock = $result['document']->children[2];
+
+        $t->same(6, $asset['semanticCount']);
+        $t->same(['bodymatter', 'chapter', 'noteref', 'pagebreak', 'footnote', 'bibliography'], $asset['semanticTypes']);
+        $t->same(1, $asset['semanticDiagnosticCount']);
+        $t->same('unresolved-xhtml-semantic-fragment', $asset['semanticDiagnostics'][0]['type']);
+        $t->same('missing-note', $asset['semanticDiagnostics'][0]['fragment']);
+
+        $bodymatter = $asset['semantics'][0];
+        $t->same('section', $bodymatter['element']);
+        $t->same('bodymatter', $bodymatter['primaryType']);
+        $t->same(['bodymatter', 'chapter'], $bodymatter['types']);
+        $t->same('bodymatter', $bodymatter['id']);
+        $t->same(['chapter', 'section'], $bodymatter['classes']);
+        $t->same('en-US', $bodymatter['language']);
+        $t->same('ltr', $bodymatter['direction']);
+        $t->same(null, $bodymatter['href']);
+
+        $noteref = $asset['semanticItemsByType']['noteref'][0];
+        $t->same('note-ref', $noteref['id']);
+        $t->same('#fn-1', $noteref['href']);
+        $t->same('/OEBPS/text/semantic.xhtml#fn-1', $noteref['target']);
+        $t->same('/OEBPS/text/semantic.xhtml', $noteref['part']);
+        $t->same('fn-1', $noteref['fragment']);
+        $t->same(true, $noteref['fragmentExists']);
+        $t->same('semantic-content', $noteref['manifestId']);
+        $t->same([], $noteref['diagnostics']);
+
+        $page = $asset['semanticItemsByType']['pagebreak'][0];
+        $t->same('page-7', $page['id']);
+        $t->same('span', $page['element']);
+        $t->same('7', $page['attributes']['title']);
+
+        $footnote = $asset['semanticItemsByType']['footnote'][0];
+        $t->same('fn-1', $footnote['id']);
+        $t->same('aside', $footnote['element']);
+        $t->same('doc-footnote', $footnote['attributes']['role']);
+
+        $bibliography = $asset['semanticItemsByType']['bibliography'][0];
+        $t->same('refs', $bibliography['id']);
+        $t->same('section', $bibliography['element']);
+
+        $missing = $asset['semanticItemsByType']['noteref'][1];
+        $t->same('missing-note-ref', $missing['id']);
+        $t->same('#missing-note', $missing['href']);
+        $t->same(true, $missing['exists']);
+        $t->same(false, $missing['fragmentExists']);
+        $t->same('unresolved-xhtml-semantic-fragment', $missing['diagnostics'][0]['type']);
+
+        $t->same($asset['semantics'], $semanticBlock->attr('contentSemantics'));
+        $t->same($asset['semanticTypes'], $semanticBlock->attr('contentSemanticTypes'));
+        $t->same($asset['semanticDiagnostics'], $semanticBlock->attr('contentSemanticDiagnostics'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reconciles OPF remote-resources declarations with observed XHTML resource references' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $declaredRemoteXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">

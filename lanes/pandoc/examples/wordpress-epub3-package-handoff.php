@@ -186,9 +186,9 @@ XML;
 
 $chapterXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:ev="http://www.w3.org/2001/xml-events">
-  <body>
-    <h1 id="source">Source chapter</h1>
-    <span id="page-1"></span>
+  <body epub:type="bodymatter chapter" xml:lang="en" dir="ltr">
+    <h1 id="source" epub:type="title">Source chapter</h1>
+    <span id="page-1" epub:type="pagebreak" title="1"></span>
     <p>EPUB XHTML content is preserved for WordPress import review.</p>
     <p>Remote media marker: <img src="https://cdn.example.test/images/source.png" alt="remote source"/></p>
     <p>Responsive cover candidate: <img src="../images/cover.png" srcset="../images/cover.png 1x, ../images/legacy-cover.jpg 2x" alt="responsive cover"/></p>
@@ -678,6 +678,16 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['pageBreaks']['items'][0]['spineIdref'] ?? null) !== 'chapter' || ($result['document']->children[0]->attr('pageBreakCount') ?? null) !== 1) {
         throw new RuntimeException('Expected WordPress spine block to expose EPUB page-break metadata');
+    }
+    $chapterSemantics = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml'] ?? [];
+    if (!in_array('bodymatter', $chapterSemantics['semanticTypes'] ?? [], true) || !in_array('pagebreak', $chapterSemantics['semanticTypes'] ?? [], true)) {
+        throw new RuntimeException('Expected EPUB XHTML semantic type annotations to be summarized for package review');
+    }
+    if (($chapterSemantics['semanticItemsByType']['pagebreak'][0]['id'] ?? null) !== 'page-1' || ($chapterSemantics['semanticItemsByType']['pagebreak'][0]['attributes']['title'] ?? null) !== '1') {
+        throw new RuntimeException('Expected EPUB XHTML pagebreak semantic metadata to preserve source attributes');
+    }
+    if (!in_array('title', $result['document']->children[0]->attr('contentSemanticTypes') ?? [], true)) {
+        throw new RuntimeException('Expected WordPress spine block to expose EPUB XHTML semantic metadata');
     }
     $navWithoutPageList = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
