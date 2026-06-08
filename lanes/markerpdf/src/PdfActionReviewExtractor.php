@@ -355,7 +355,7 @@ final class PdfActionReviewExtractor
      * @param array<string, true> $seen
      * @return list<array<string, mixed>>
      */
-    private function reviewActionsFromValue(mixed $value, array &$seen, int $depth = 0): array
+    private function reviewActionsFromValue(mixed $value, array &$seen, int $depth = 0, bool $allowDestinationFallback = true): array
     {
         if ($value === null || $depth > self::MAX_ACTION_CHAIN_DEPTH) {
             return [];
@@ -369,7 +369,7 @@ final class PdfActionReviewExtractor
         if ($array !== null) {
             $actions = [];
             foreach ($array as $item) {
-                foreach ($this->reviewActionsFromValue($item, $seen, $depth + 1) as $action) {
+                foreach ($this->reviewActionsFromValue($item, $seen, $depth + 1, $allowDestinationFallback) as $action) {
                     $actions[] = $action;
                 }
             }
@@ -379,8 +379,18 @@ final class PdfActionReviewExtractor
 
         $dict = $this->dictionaryItems($resolved);
         if ($dict === null) {
-            $action = $this->localDestinationReview($value);
-            return $action === null ? [] : [$action];
+            $action = $allowDestinationFallback
+                ? $this->localDestinationReview($value)
+                : $this->malformedActionDictionaryReview('unknown');
+            if ($action === null) {
+                return [];
+            }
+            if ($depth > 0) {
+                $action['chained'] = true;
+                $action['chain_index'] = $depth;
+            }
+
+            return [$action];
         }
 
         $actionReference = $this->referenceObject($value);
@@ -403,7 +413,7 @@ final class PdfActionReviewExtractor
         ) {
             $action = $this->reviewAction($type ?? 'unknown', 'malformed-action-dictionary', null, null, null, [], [], null, null, null, null);
         } else {
-            $action = $this->reviewActionFromDictionary($dict, $value, $type);
+            $action = $this->reviewActionFromDictionary($dict, $value, $type, $allowDestinationFallback);
             if ($action === null && $type !== null) {
                 $action = $this->reviewAction($type, 'unsupported-action-review', null, null, null, [], [], null, null, null, null);
             }
@@ -426,7 +436,7 @@ final class PdfActionReviewExtractor
         }
 
         if (!$hasObjectTrailingOperand && array_key_exists('Next', $dict) && !isset($malformedValueKeys['Next'])) {
-            foreach ($this->reviewActionsFromValue($dict['Next'], $seen, $depth + 1) as $nextAction) {
+            foreach ($this->reviewActionsFromValue($dict['Next'], $seen, $depth + 1, false) as $nextAction) {
                 $nextAction['chained'] = true;
                 $nextAction['chain_index'] = $nextAction['chain_index'] ?? ($depth + 1);
                 $actions[] = $nextAction;
@@ -440,7 +450,12 @@ final class PdfActionReviewExtractor
      * @param array<string, mixed> $action
      * @return array<string, mixed>|null
      */
-    private function reviewActionFromDictionary(array $action, mixed $originalValue, ?string $type): ?array
+    private function reviewActionFromDictionary(
+        array $action,
+        mixed $originalValue,
+        ?string $type,
+        bool $allowDestinationFallback = true
+    ): ?array
     {
         $malformedValueKeys = $this->dictionaryMalformedValueOperandKeySet($this->resolveValue($originalValue));
 
@@ -607,7 +622,9 @@ final class PdfActionReviewExtractor
         }
 
         if ($type === null) {
-            return $this->localDestinationReview($originalValue);
+            return $allowDestinationFallback
+                ? $this->localDestinationReview($originalValue)
+                : $this->malformedActionDictionaryReview('unknown');
         }
 
         return null;

@@ -15178,6 +15178,12 @@ final class PdfTextExtractor
             $this->collectType3PrivateResourceStreamGenerations($body, $objects, $references, $seen);
         }
 
+        foreach (['XObject', 'Pattern'] as $category) {
+            foreach ($this->type3PrivateResourceCategoryValues($resourceOwnerBody, $objects, $category) as $value) {
+                $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
+            }
+        }
+
         foreach ($this->extGStateSoftMaskResourceReferences($resourceOwnerBody, $objects) as $reference) {
             $key = $reference['objectNumber'] . ':' . $reference['generation'];
             if (isset($seen[$key])) {
