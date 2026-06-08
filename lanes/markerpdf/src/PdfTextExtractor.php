@@ -38562,9 +38562,11 @@ final class PdfTextExtractor
                     $source = $this->normalizeHexKey($sourceHex);
                     if ($source !== '' && strlen($source) <= 8) {
                         $target = $this->normalizeHexKey($targetHex);
+                        $targetKind = $entry['targetKind'] ?? null;
                         if (
                             $target === ''
-                            || (($entry['targetKind'] ?? null) === 'hex' && !$this->isWellFormedCMapUnicodeScalarTarget($target))
+                            || ($targetKind === 'hex' && !$this->isWellFormedCMapUnicodeScalarTarget($target))
+                            || ($targetKind === 'literal' && !$this->isWellFormedCMapLiteralTarget($target))
                         ) {
                             continue;
                         }
@@ -39308,9 +39310,11 @@ final class PdfTextExtractor
             }
 
             $target = $this->normalizeHexKey($range['target'] ?? '');
+            $targetKind = $range['targetKind'] ?? null;
             if (
                 $target === ''
-                || (($range['targetKind'] ?? null) === 'hex' && !$this->isWellFormedCMapUnicodeScalarTarget($target))
+                || ($targetKind === 'hex' && !$this->isWellFormedCMapUnicodeScalarTarget($target))
+                || ($targetKind === 'literal' && !$this->isWellFormedCMapLiteralTarget($target))
             ) {
                 continue;
             }
@@ -39708,6 +39712,9 @@ final class PdfTextExtractor
         foreach ($targets as $index => $target) {
             $kind = $targetKinds[$index] ?? 'hex';
             if ($kind === 'literal') {
+                if (!$this->isWellFormedCMapLiteralTarget($target)) {
+                    return false;
+                }
                 continue;
             }
             if (!$this->isWellFormedCMapUnicodeScalarTarget($target)) {
@@ -40936,6 +40943,25 @@ final class PdfTextExtractor
         $bytes = hex2bin($normalized);
         if ($bytes === false) {
             return false;
+        }
+
+        return @iconv('UTF-16BE', 'UTF-8', $bytes) !== false;
+    }
+
+    private function isWellFormedCMapLiteralTarget(string $hex): bool
+    {
+        $normalized = $this->normalizeHexKey($hex);
+        if ($normalized === '') {
+            return false;
+        }
+
+        $bytes = hex2bin($normalized);
+        if ($bytes === false) {
+            return false;
+        }
+
+        if (strlen($bytes) % 2 === 1) {
+            return true;
         }
 
         return @iconv('UTF-16BE', 'UTF-8', $bytes) !== false;
