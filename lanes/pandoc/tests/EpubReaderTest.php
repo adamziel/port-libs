@@ -1787,6 +1787,113 @@ XML;
         $t->same($nav, $result['importReport']['nav']);
         $t->same($navigation, $result['document']->attr('navigation'));
     },
+    'preserves EPUB nav item semantic type sources for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithItemTypes = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="landmark-source" epub:type="landmarks">
+      <ol>
+        <li id="body-li" epub:type="bodymatter frontmatter">
+          <a id="body-link" href="text/chapter1.xhtml#intro">Body from list item</a>
+        </li>
+        <li id="page-li" epub:type="bodymatter">
+          <a id="page-link" epub:type="pagebreak" href="text/chapter1.xhtml#page-1">Page one</a>
+        </li>
+        <li id="figure-li" epub:type="loi">
+          <span id="figure-label" epub:type="list-of-illustrations">Figure list heading</span>
+        </li>
+      </ol>
+    </nav>
+    <nav id="print-pages" epub:type="page-list">
+      <ol>
+        <li id="print-page-li" epub:type="pagebreak">
+          <a id="print-page-link" href="text/chapter1.xhtml#page-1">1</a>
+        </li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNavXhtml: $navWithItemTypes,
+        ));
+
+        $nav = $result['nav'];
+        $landmarks = $nav['landmarks'];
+        $t->same(3, count($landmarks));
+
+        $body = $landmarks[0];
+        $t->same('body-link', $body['id']);
+        $t->same('body-li', $body['itemId']);
+        $t->same('bodymatter', $body['type']);
+        $t->same(['bodymatter', 'frontmatter'], $body['types']);
+        $t->same(['bodymatter', 'frontmatter'], $body['itemTypes']);
+        $t->same([], $body['labelTypes']);
+        $t->same('item', $body['typeSource']);
+        $t->same([
+            ['type' => 'bodymatter', 'source' => 'item', 'element' => 'li'],
+            ['type' => 'frontmatter', 'source' => 'item', 'element' => 'li'],
+        ], $body['typeSources']);
+
+        $page = $landmarks[1];
+        $t->same('page-link', $page['id']);
+        $t->same('page-li', $page['itemId']);
+        $t->same('pagebreak', $page['type']);
+        $t->same(['pagebreak', 'bodymatter'], $page['types']);
+        $t->same(['bodymatter'], $page['itemTypes']);
+        $t->same(['pagebreak'], $page['labelTypes']);
+        $t->same('label', $page['typeSource']);
+        $t->same([
+            ['type' => 'pagebreak', 'source' => 'label', 'element' => 'a'],
+            ['type' => 'bodymatter', 'source' => 'item', 'element' => 'li'],
+        ], $page['typeSources']);
+
+        $span = $landmarks[2];
+        $t->same('figure-label', $span['id']);
+        $t->same('figure-li', $span['itemId']);
+        $t->same('list-of-illustrations', $span['type']);
+        $t->same(['list-of-illustrations', 'loi'], $span['types']);
+        $t->same(['loi'], $span['itemTypes']);
+        $t->same(['list-of-illustrations'], $span['labelTypes']);
+        $t->same('label', $span['typeSource']);
+        $t->same(null, $span['target']);
+
+        $policy = $nav['primaryNavigationTargetPolicy'];
+        $policyBody = $policy['itemsBySectionType']['landmarks'][0];
+        $policyPage = $policy['itemsBySectionType']['landmarks'][1];
+        $policySpan = $policy['itemsBySectionType']['landmarks'][2];
+        $t->same(0, $policy['landmarkMissingTypeCount']);
+        $t->same(false, in_array('missing-landmark-nav-type', array_column($policy['diagnostics'], 'type'), true));
+        $t->same(['bodymatter', 'frontmatter'], $policyBody['itemTypes']);
+        $t->same([], $policyBody['labelTypes']);
+        $t->same('item', $policyBody['typeSource']);
+        $t->same(['pagebreak'], $policyPage['labelTypes']);
+        $t->same(['bodymatter'], $policyPage['itemTypes']);
+        $t->same('label', $policyPage['typeSource']);
+        $t->same(['loi'], $policySpan['itemTypes']);
+        $t->same(['list-of-illustrations'], $policySpan['labelTypes']);
+
+        $navigation = $result['navigation'];
+        $t->same(['bodymatter', 'frontmatter'], $navigation['items'][0]['types']);
+        $t->same(['bodymatter', 'frontmatter'], $navigation['items'][0]['itemTypes']);
+        $t->same('item', $navigation['items'][0]['typeSource']);
+        $t->same(['pagebreak', 'bodymatter'], $navigation['items'][1]['types']);
+        $t->same(['pagebreak'], $navigation['items'][1]['labelTypes']);
+        $t->same('label', $navigation['items'][1]['typeSource']);
+        $t->same('list-of-illustrations', $navigation['items'][2]['type']);
+        $t->same(['list-of-illustrations'], $navigation['items'][2]['labelTypes']);
+
+        $pageBreak = $result['pageBreaks']['items'][0];
+        $t->same('print-page-link', $pageBreak['id']);
+        $t->same('print-page-li', $pageBreak['itemId']);
+        $t->same('pagebreak', $pageBreak['type']);
+        $t->same(['pagebreak'], $pageBreak['itemTypes']);
+        $t->same([], $pageBreak['labelTypes']);
+        $t->same('item', $pageBreak['typeSource']);
+        $t->same($nav, $result['importReport']['nav']);
+        $t->same($navigation, $result['document']->attr('navigation'));
+    },
     'reconciles EPUB navigation targets with resolved spine coverage' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $coverageNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

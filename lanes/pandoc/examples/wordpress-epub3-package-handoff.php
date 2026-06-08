@@ -157,7 +157,7 @@ $navXhtml = <<<'XML'
   <body>
     <nav id="source-toc" class="source-navigation" epub:type="toc" xml:lang="en" dir="ltr">
       <ol>
-        <li>
+        <li epub:type="bodymatter chapter">
           <a id="source-toc-link" class="source-link" xml:lang="en" href="text/chapter.xhtml#source">Source chapter</a>
           <ol>
             <li><a href="text/chapter.xhtml#epubcfi(/6/2[source]!/4/2/1:12)">CFI review offset</a></li>
@@ -619,8 +619,17 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['nav']['items'][0]['id'] ?? null) !== 'source-toc-link' || ($result['nav']['items'][0]['class'] ?? null) !== 'source-link') {
         throw new RuntimeException('Expected EPUB nav item source id and class to remain visible for review');
     }
+    if (($result['nav']['items'][0]['type'] ?? null) !== 'bodymatter' || ($result['nav']['items'][0]['itemTypes'] ?? []) !== ['bodymatter', 'chapter']) {
+        throw new RuntimeException('Expected EPUB nav item semantic type to fall back to the list item');
+    }
+    if (($result['nav']['items'][0]['typeSource'] ?? null) !== 'item' || ($result['nav']['items'][0]['typeSources'][0]['element'] ?? null) !== 'li') {
+        throw new RuntimeException('Expected EPUB nav item type source provenance to identify the list item');
+    }
     if (($result['navigation']['items'][0]['id'] ?? null) !== 'source-toc-link' || ($result['navigation']['items'][0]['classes'] ?? []) !== ['source-link']) {
         throw new RuntimeException('Expected EPUB navigation report to preserve nav item provenance');
+    }
+    if (($result['navigation']['items'][0]['itemTypes'] ?? []) !== ['bodymatter', 'chapter'] || ($result['navigation']['items'][0]['typeSource'] ?? null) !== 'item') {
+        throw new RuntimeException('Expected EPUB navigation report to preserve nav item semantic type source');
     }
     if (($result['nav']['items'][0]['children'][0]['fragmentKind'] ?? null) !== 'epub-cfi') {
         throw new RuntimeException('Expected EPUB nav CFI fragment to be classified for review');
@@ -1548,6 +1557,8 @@ echo 'navigationCfiTargets=' . ($result['navigation']['cfiTargetCount'] ?? 0) . 
 echo 'navigationExternalTargets=' . ($result['navigation']['externalTargetCount'] ?? 0) . "\n";
 echo 'navigationUncoveredLinear=' . ($result['navigation']['uncoveredLinearSpineItemCount'] ?? 0) . "\n";
 echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
+echo 'tocItemTypeSource=' . ($result['nav']['items'][0]['typeSource'] ?? '') . "\n";
+echo 'tocItemTypes=' . implode(',', $result['nav']['items'][0]['itemTypes'] ?? []) . "\n";
 echo 'pageListTarget=' . ($result['nav']['pageList'][0]['target'] ?? '') . "\n";
 echo 'primaryNavPolicyItems=' . ($result['nav']['primaryNavigationTargetPolicy']['itemCount'] ?? 0) . "\n";
 echo 'primaryNavPolicyExternal=' . ($result['nav']['primaryNavigationTargetPolicy']['externalTargetCount'] ?? 0) . "\n";

@@ -6007,6 +6007,54 @@ return [
         ));
     },
 
+    'maps zlib preset dictionary decoded source segments for review packets' => static function (TestRunner $t) use ($zlibDictionaryStream): void {
+        $manifestBytes = '{"source":"zlib-dictionary-source-segments","target":"wordpress"}';
+        $contentBytes = "# ZLIB dictionary source segments\n\nReady for WordPress archive provenance review.\n";
+        $tarArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => $manifestBytes,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $contentBytes,
+                'modifiedAt' => 1780479095,
+            ],
+        ]);
+        $tarBytes = $tarArchive->bytes();
+        $dictionary = 'packet/content.md:zlib-source-segment-dictionary';
+        $dictionaryId = intval(hash('adler32', $dictionary), 16);
+        $zlibTar = $zlibDictionaryStream($dictionary, $tarBytes);
+        $inspection = ArchiveCompressionStream::inspectPackageStreamWithZlibDictionaries(
+            $zlibTar,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            [$dictionaryId => $dictionary],
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes)
+        );
+        $manifestLayout = $inspection['entryLayouts'][0];
+        $contentLayout = $inspection['entryLayouts'][1];
+
+        $t->same(ArchiveCompressionStream::FORMAT_ZLIB_TAR, $inspection['format']);
+        $t->same('zlib-deflate', $inspection['stream']['type']);
+        $t->same(true, $inspection['stream']['hasPresetDictionary']);
+        $t->same($dictionaryId, $inspection['stream']['presetDictionaryId']);
+        $t->same(sprintf('%08x', $dictionaryId), $inspection['stream']['presetDictionaryIdHex']);
+        $t->same('packet/content.md', $contentLayout['name']);
+        $t->same($contentBytes, $inspection['archive']->read('/packet/content.md'));
+        $t->same(1, $manifestLayout['decodedSourceSegmentCount']);
+        $t->same(1, $contentLayout['decodedSourceSegmentCount']);
+        $t->same('zlib-preset-dictionary-deflate', $contentLayout['decodedSourceSegments'][0]['sourceType']);
+        $t->same('dictid:0x' . sprintf('%08x', $dictionaryId), $contentLayout['decodedSourceSegments'][0]['sourceLabel']);
+        $t->same(0, $contentLayout['decodedSourceSegments'][0]['sourceIndex']);
+        $t->same($contentLayout['headerOffset'], $contentLayout['decodedSourceSegments'][0]['sourceDecodedOffset']);
+        $t->same($contentLayout['headerOffset'] + $contentLayout['recordSize'], $contentLayout['decodedSourceSegments'][0]['sourceDecodedEndOffset']);
+        $t->same(0, $contentLayout['decodedSourceSegments'][0]['entryRecordOffset']);
+        $t->same($contentLayout['recordSize'], $contentLayout['decodedSourceSegments'][0]['entryRecordEndOffset']);
+        $t->same('zlib-preset-dictionary-deflate', $manifestLayout['decodedSourceSegments'][0]['sourceType']);
+        $t->same('dictid:0x' . sprintf('%08x', $dictionaryId), $manifestLayout['decodedSourceSegments'][0]['sourceLabel']);
+    },
+
     'preflights zlib preset dictionary policy without exposing package bytes' => static function (TestRunner $t) use ($zlibDictionaryStream): void {
         $archive = TarArchive::fromEntries([
             [

@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'value-metadata-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'value-metadata-review', 'output-metadata-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -3639,6 +3639,14 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlOutputMetadataAttribute($tagName, $name)) {
+                $outputMetadata = self::normalizeHtmlOutputMetadataAttribute($name, $value, $diagnostics);
+                foreach ($outputMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && strtolower($tagName) === 'track') {
                 $trackAttributeName = strtolower($name);
                 if ($trackAttributeName === 'kind') {
@@ -3748,6 +3756,113 @@ final class Html5DomFragment
             'progress' => in_array($attribute, ['value', 'max'], true),
             default => false,
         };
+    }
+
+    private static function isHtmlOutputMetadataAttribute(string $tagName, string $name): bool
+    {
+        return strtolower($tagName) === 'output'
+            && in_array(strtolower($name), ['for', 'form', 'name'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlOutputMetadataAttribute(
+        string $name,
+        string $value,
+        array &$diagnostics
+    ): array {
+        $attribute = strtolower($name);
+        if ($attribute === 'for') {
+            $tokens = self::splitHtmlSemanticTokens($value);
+            if ($tokens === []) {
+                self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute);
+
+                return [];
+            }
+
+            $normalized = [];
+            foreach ($tokens as $token) {
+                if (!self::isSafeHtmlAriaIdToken($token)) {
+                    self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute, $token);
+                    continue;
+                }
+                if (!in_array($token, $normalized, true)) {
+                    $normalized[] = $token;
+                }
+            }
+
+            if ($normalized === []) {
+                return [];
+            }
+
+            self::addHtmlOutputMetadataDiagnostic($diagnostics, $attribute, 'data-pandoc-output-for');
+
+            return ['data-pandoc-output-for' => implode(' ', $normalized)];
+        }
+
+        if ($attribute === 'form') {
+            $form = self::cleanHtmlMetadataAttribute($value);
+            if ($form === '' || strlen($form) > 128 || !self::isSafeHtmlAriaIdToken($form)) {
+                self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute);
+
+                return [];
+            }
+
+            self::addHtmlOutputMetadataDiagnostic($diagnostics, $attribute, 'data-pandoc-output-form');
+
+            return ['data-pandoc-output-form' => $form];
+        }
+
+        $outputName = self::cleanHtmlMetadataAttribute($value);
+        if ($outputName === '' || strlen($outputName) > 128 || preg_match('/[<>{}`]/u', $outputName) === 1) {
+            self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute);
+
+            return [];
+        }
+
+        self::addHtmlOutputMetadataDiagnostic($diagnostics, $attribute, 'data-pandoc-output-name');
+
+        return ['data-pandoc-output-name' => $outputName];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlOutputMetadataDiagnostic(
+        array &$diagnostics,
+        string $attributeName,
+        string $metadataAttribute
+    ): void {
+        $diagnostics[] = [
+            'code' => 'output-metadata-review',
+            'tag' => 'output',
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'calculation-output-association-preserved-as-review-metadata',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlInvalidOutputMetadataDiagnostic(
+        array &$diagnostics,
+        string $attributeName,
+        ?string $token = null
+    ): void {
+        $diagnostic = [
+            'code' => 'unsafe-attribute',
+            'tag' => 'output',
+            'attribute' => $attributeName,
+            'reason' => 'invalid-output-metadata',
+        ];
+        if ($token !== null) {
+            $diagnostic['token'] = $token;
+        }
+
+        $diagnostics[] = $diagnostic;
     }
 
     /**

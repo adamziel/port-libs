@@ -518,6 +518,29 @@ return [
         $t->contains('<h1 id="dos-857">DOS 857</h1>', $blocks);
         $t->contains('<p>Türkiye İstanbul; Ğağ, Şişli; box ╔═╗; §.</p>', $blocks);
     },
+    'decodes ibm862 dos hebrew source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# DOS 862\n\nHebrew \x92\x81\x98\x89\x9A: \x99\x8C\x85\x8D \x8E\x97\x85\x98; box \xC9\xCD\xBB; Latin \xA0\xA1.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp862');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm862');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8A\x8B\x8C\x8D\x8E\x8F\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9A\x9B\x9C\x9D\x9E\x9F", 'ibm862');
+        $ibm437Comparison = UnicodeText::decodeBytes("\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8A\x8B\x8C\x8D\x8E\x8F\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9A", 'ibm437');
+
+        $t->same('ibm862', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# DOS 862\n\nHebrew עברית: שלום מקור; box ╔═╗; Latin áí.", $decoded['text']);
+        $t->same('אבגדהוזחטיךכלםמןנסעףפץצקרשת¢£¥₧ƒ', $specials['text']);
+        $t->same('ibm862', $specials['encoding']);
+        $t->same(0, $specials['repairs']);
+        $t->same('ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ', $ibm437Comparison['text']);
+        $t->same(['encoding' => 'ibm862', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('DOS 862', $document->children[0]->attr('text'));
+        $t->same('Hebrew עברית: שלום מקור; box ╔═╗; Latin áí.', $document->children[1]->attr('text'));
+        $t->same(43, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(48, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="dos-862">DOS 862</h1>', $blocks);
+        $t->contains('<p>Hebrew עברית: שלום מקור; box ╔═╗; Latin áí.</p>', $blocks);
+    },
     'decodes ibm852 dos central european source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# DOS 852\n\nCzech \xAC\x9F \xB7\xD8 \xE6\xE7 \xA6\xA7 \xFC\xFD; Polish \x9D\x88 \xA4\xA5 \xBD\xBE; Hungarian \x8A\x8B \xEB\xFB; box \xC9\xCD\xBB; \xF1.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp852');

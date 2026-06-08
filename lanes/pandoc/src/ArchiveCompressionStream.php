@@ -2779,15 +2779,21 @@ final class ArchiveCompressionStream
 
         $sourceType = match ($type) {
             'plain-tar' => 'plain-tar',
-            'zlib-deflate' => 'zlib-deflate',
+            'zlib-deflate' => ($streamInspection['hasPresetDictionary'] ?? false) === true
+                ? 'zlib-preset-dictionary-deflate'
+                : 'zlib-deflate',
             'raw-deflate' => 'raw-deflate',
             default => $type === '' ? 'unknown' : $type,
         };
+        $sourceLabel = null;
+        if ($sourceType === 'zlib-preset-dictionary-deflate' && is_string($streamInspection['presetDictionaryIdHex'] ?? null)) {
+            $sourceLabel = 'dictid:0x' . $streamInspection['presetDictionaryIdHex'];
+        }
 
         return [[
             'sourceType' => $sourceType,
             'sourceIndex' => 0,
-            'sourceLabel' => null,
+            'sourceLabel' => $sourceLabel,
             'decodedDataOffset' => 0,
             'decodedDataEndOffset' => $decodedSize,
         ]];

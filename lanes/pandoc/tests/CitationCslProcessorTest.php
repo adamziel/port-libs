@@ -8055,6 +8055,90 @@ XML
         $t->contains('<p>Review cites (edited by Curator and Ng; translated by Translator 2026) for role-complete source metadata.</p>', $blocks);
         $t->contains('<dt>Curator and Ng 2026</dt><dd>Curator, E.; Ng, N., eds.; Translator, T., trans. | Edited Translation Packet</dd>', $blocks);
     },
+    'applies bounded csl editortranslator term for identical editor translator names' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'edited-translated-source',
+                'type' => 'book',
+                'title' => 'Edited and Translated Packet',
+                'editor' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'translator' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Editortranslator Term Review Style</title>
+    <id>https://example.test/styles/bounded-editortranslator-term-review</id>
+    <updated>2026-06-08T22:05:18+00:00</updated>
+  </info>
+  <locale>
+    <terms>
+      <term name="editortranslator" form="verb">edited and translated by</term>
+      <term name="editortranslator" form="short">
+        <single>ed. &amp; trans.</single>
+        <multiple>eds. &amp; trans.</multiple>
+      </term>
+      <term name="editor" form="verb">edited by</term>
+      <term name="translator" form="verb">translated by</term>
+      <term name="editor" form="short">
+        <single>ed.</single>
+        <multiple>eds.</multiple>
+      </term>
+      <term name="translator" form="short">trans.</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")">
+      <group delimiter=" ">
+        <names variable="editor translator" delimiter="; ">
+          <label form="verb" suffix=" "/>
+          <name initialize-with=". "/>
+        </names>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <names variable="editor translator" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <label form="short" plural="contextual" prefix=", "/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $names = $summary['citationRendering'][0]['children'][0] ?? [];
+        $t->same('Bounded Editortranslator Term Review Style', $summary['title'] ?? null);
+        $t->same('editor translator', $names['variable'] ?? null);
+        $t->same('verb', $names['nameRendering']['label']['form'] ?? null);
+
+        $t->same('(edited and translated by Curator and Ng 2026)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'edited-translated-source', 'text' => '[@edited-translated-source]']),
+        ]));
+        $t->same('Curator, E.; Ng, N., eds. & trans. | Edited and Translated Packet', $processor->renderBibliographyEntry('edited-translated-source'));
+
+        $document = (new MarkdownReader())->read('Review cites [@edited-translated-source] for combined role source metadata.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (edited and translated by Curator and Ng 2026) for combined role source metadata.</p>', $blocks);
+        $t->contains('<dt>Curator and Ng 2026</dt><dd>Curator, E.; Ng, N., eds. &amp; trans. | Edited and Translated Packet</dd>', $blocks);
+    },
     'applies bounded csl name rendering options for initials and et al thresholds' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

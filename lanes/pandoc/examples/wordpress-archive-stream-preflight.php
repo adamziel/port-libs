@@ -1518,6 +1518,8 @@ if (in_array('--self-test', $argv, true)) {
         'zlibDictionaryId' => $zlibDictionaryId,
         'zlibDictionarySize' => strlen($zlibDictionary),
         'zlibDictionaryContent' => $zlibDictionaryContentBytes,
+        'zlibDictionaryEntrySourceType' => 'zlib-preset-dictionary-deflate',
+        'zlibDictionaryEntrySourceLabel' => 'dictid:0x' . sprintf('%08x', $zlibDictionaryId),
         'lz4PackageKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'lz4PackageFormat' => ArchiveCompressionStream::FORMAT_LZ4_TAR,
         'lz4PackageEntryCount' => 2,
@@ -1954,6 +1956,8 @@ if (in_array('--self-test', $argv, true)) {
         || ($zlibDictionaryInspection['stream']['dictionarySize'] ?? null) !== $expected['zlibDictionarySize']
         || $zlibDictionaryInspection['archive']->read('/packet/content.md') !== $expected['zlibDictionaryContent']
         || ($zlibDictionaryInspection['entryLayouts'][1]['modifiedAt'] ?? null) !== 1780479092
+        || ($zlibDictionaryInspection['entryLayouts'][1]['decodedSourceSegments'][0]['sourceType'] ?? null) !== $expected['zlibDictionaryEntrySourceType']
+        || ($zlibDictionaryInspection['entryLayouts'][1]['decodedSourceSegments'][0]['sourceLabel'] ?? null) !== $expected['zlibDictionaryEntrySourceLabel']
         || !$zlibDictionaryMissingBlocked
         || $lz4PackageInspection['kind'] !== $expected['lz4PackageKind']
         || $lz4PackageInspection['format'] !== $expected['lz4PackageFormat']
@@ -2290,6 +2294,8 @@ echo 'zlibDictionary.format=' . $zlibDictionaryInspection['format'] . "\n";
 echo 'zlibDictionary.dictionaryId=' . $zlibDictionaryInspection['stream']['presetDictionaryId'] . "\n";
 echo 'zlibDictionary.dictionarySize=' . $zlibDictionaryInspection['stream']['dictionarySize'] . "\n";
 echo 'zlibDictionary.content.md=' . $zlibDictionaryInspection['archive']->read('/packet/content.md') . "\n";
+echo 'zlibDictionary.entrySourceType=' . $zlibDictionaryInspection['entryLayouts'][1]['decodedSourceSegments'][0]['sourceType'] . "\n";
+echo 'zlibDictionary.entrySourceLabel=' . $zlibDictionaryInspection['entryLayouts'][1]['decodedSourceSegments'][0]['sourceLabel'] . "\n";
 echo 'zlibDictionary.missingBlocked=' . ($zlibDictionaryMissingBlocked ? 'yes' : 'no') . "\n";
 echo 'lz4Package.kind=' . $lz4PackageInspection['kind'] . "\n";
 echo 'lz4Package.format=' . $lz4PackageInspection['format'] . "\n";

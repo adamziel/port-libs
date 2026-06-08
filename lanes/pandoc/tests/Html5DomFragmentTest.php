@@ -1705,6 +1705,66 @@ return [
         $t->true(!str_contains($html, 'NaN'), 'Expected non-finite meter values to stay diagnostic-only');
         $t->true(!str_contains($blocks, ' value='), 'Expected WordPress blocks to omit source value attributes');
     },
+    'converts output calculation metadata into inert reviewer attributes before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article><form id="calc"><label>Subtotal <input id="subtotal"></label>'
+            . '<output for=" subtotal tax bad<tag subtotal " form=" calc " name=" total " data-pandoc-output-name="source-spoof">Total due</output>'
+            . '<output for=" missing " form="bad id" name="bad<tag">Bad output</output>'
+            . '</form></article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/output-metadata-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><label>Subtotal </label>'
+            . '<output data-pandoc-output-for="subtotal tax" data-pandoc-output-form="calc" data-pandoc-output-name="total">Total due</output>'
+            . '<output data-pandoc-output-for="missing">Bad output</output>'
+            . '</article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Subtotal Total dueBad output', $fragment->textContent());
+        $t->same(['article', 'label', 'output'], $summary['elementNames']);
+        $t->same(['form', 'input'], $summary['blockedTags']);
+        $t->same(['data-pandoc-output-name', 'for', 'form', 'name'], $summary['filteredAttributes']);
+        $t->same([
+            'blocked-tag',
+            'blocked-tag',
+            'unsafe-attribute',
+            'output-metadata-review',
+            'output-metadata-review',
+            'output-metadata-review',
+            'unsafe-attribute',
+            'output-metadata-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+        ], $policyDiagnostics);
+        $children = $nodes[0]['children'];
+        $t->same('label', $children[0]['name']);
+        $t->same([
+            'data-pandoc-output-for' => 'subtotal tax',
+            'data-pandoc-output-form' => 'calc',
+            'data-pandoc-output-name' => 'total',
+        ], $children[1]['attrs']);
+        $t->same(['data-pandoc-output-for' => 'missing'], $children[2]['attrs']);
+        $t->same('/migration/output-metadata-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' for=', ' form=', ' name=', 'source-spoof', 'bad&lt;tag'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected live output association metadata to be stripped or converted: ' . $blocked);
+        }
+        $t->true(!str_contains($blocks, ' for='), 'Expected WordPress blocks to omit source output for attributes');
+        $t->true(!str_contains($blocks, ' form='), 'Expected WordPress blocks to omit source output form attributes');
+    },
     'converts ins and del revision metadata into inert reviewer attributes before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article><p>'

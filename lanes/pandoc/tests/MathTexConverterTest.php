@@ -653,6 +653,28 @@ return [
         $t->true(!str_contains($combinedMathml, '<mi>\\lesssim</mi>'));
         $t->true(!str_contains($combinedMathml, '<mi>\\rightsquigarrow</mi>'));
     },
+    'converts bounded texmath relation and harpoon aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $orderMathml = $converter->texToMathMl('A \\prec B + C \\succ D + E \\ll F + G \\gg H + P \\precsim Q + R \\succsim S + U \\subsetneq V + W \\supsetneq X', true);
+        $arrowMathml = $converter->texToMathMl('x \\nearrow y + a \\searrow b + c \\swarrow d + e \\nwarrow f + L \\leftharpoonup M + N \\rightharpoondown O + P \\rightleftharpoons Q + R \\leftrightharpoons S');
+        $logicMathml = $converter->texToMathMl('p \\because q + f \\multimap g + h \\pitchfork i + x \\leadsto y');
+        $accessibleMathml = $converter->texToAccessibleMathMl('A \\prec B + x \\nearrow y + p \\because q');
+        $combinedMathml = $orderMathml . $arrowMathml . $logicMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $orderMathml);
+        $t->contains('<mi>A</mi><mo>≺</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>≻</mo><mi>D</mi><mo>+</mo><mi>E</mi><mo>≪</mo><mi>F</mi><mo>+</mo><mi>G</mi><mo>≫</mo><mi>H</mi>', $orderMathml);
+        $t->contains('<mi>P</mi><mo>≾</mo><mi>Q</mi><mo>+</mo><mi>R</mi><mo>≿</mo><mi>S</mi><mo>+</mo><mi>U</mi><mo>⊊</mo><mi>V</mi><mo>+</mo><mi>W</mi><mo>⊋</mo><mi>X</mi>', $orderMathml);
+        $t->contains('<annotation encoding="application/x-tex">A \\prec B + C \\succ D + E \\ll F + G \\gg H + P \\precsim Q + R \\succsim S + U \\subsetneq V + W \\supsetneq X</annotation>', $orderMathml);
+        $t->contains('<mi>x</mi><mo>↗</mo><mi>y</mi><mo>+</mo><mi>a</mi><mo>↘</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>↙</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>↖</mo><mi>f</mi>', $arrowMathml);
+        $t->contains('<mi>L</mi><mo>↼</mo><mi>M</mi><mo>+</mo><mi>N</mi><mo>⇁</mo><mi>O</mi><mo>+</mo><mi>P</mi><mo>⇌</mo><mi>Q</mi><mo>+</mo><mi>R</mi><mo>⇋</mo><mi>S</mi>', $arrowMathml);
+        $t->contains('<annotation encoding="application/x-tex">x \\nearrow y + a \\searrow b + c \\swarrow d + e \\nwarrow f + L \\leftharpoonup M + N \\rightharpoondown O + P \\rightleftharpoons Q + R \\leftrightharpoons S</annotation>', $arrowMathml);
+        $t->contains('<mi>p</mi><mo>∵</mo><mi>q</mi><mo>+</mo><mi>f</mi><mo>⊸</mo><mi>g</mi><mo>+</mo><mi>h</mi><mo>⋔</mo><mi>i</mi><mo>+</mo><mi>x</mi><mo>⤳</mo><mi>y</mi>', $logicMathml);
+        $t->contains('alttext="A precedes B plus x north east arrow y plus p because q"', $accessibleMathml);
+        $t->contains('intent="row(a,precedes,b,plus,x,north_east_arrow,y,plus,p,because,q)"', $accessibleMathml);
+        $t->true(!str_contains($combinedMathml, '<mi>\\prec</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\nearrow</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\because</mi>'));
+    },
     'converts bounded texmath symbol override aliases to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $identifierMathml = $converter->texToMathMl('\\arg z + \\hbar\\omega + \\digamma + \\varnothing', true);

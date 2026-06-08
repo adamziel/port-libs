@@ -8292,6 +8292,10 @@ final class EpubReader
             'missingLandmarkType' => $missingLandmarkType,
             'type' => is_string($item['type'] ?? null) ? $item['type'] : null,
             'types' => $types,
+            'itemTypes' => is_array($item['itemTypes'] ?? null) ? array_values($item['itemTypes']) : [],
+            'labelTypes' => is_array($item['labelTypes'] ?? null) ? array_values($item['labelTypes']) : [],
+            'typeSource' => is_string($item['typeSource'] ?? null) ? $item['typeSource'] : null,
+            'typeSources' => is_array($item['typeSources'] ?? null) ? array_values($item['typeSources']) : [],
             'class' => is_string($item['class'] ?? null) ? $item['class'] : null,
             'classes' => is_array($item['classes'] ?? null) ? array_values($item['classes']) : [],
             'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
@@ -8528,6 +8532,10 @@ final class EpubReader
                 'exists' => (bool) ($navItem['exists'] ?? false),
                 'type' => is_string($navItem['type'] ?? null) ? $navItem['type'] : null,
                 'types' => is_array($navItem['types'] ?? null) ? array_values($navItem['types']) : [],
+                'itemTypes' => is_array($navItem['itemTypes'] ?? null) ? array_values($navItem['itemTypes']) : [],
+                'labelTypes' => is_array($navItem['labelTypes'] ?? null) ? array_values($navItem['labelTypes']) : [],
+                'typeSource' => is_string($navItem['typeSource'] ?? null) ? $navItem['typeSource'] : null,
+                'typeSources' => is_array($navItem['typeSources'] ?? null) ? array_values($navItem['typeSources']) : [],
                 'itemId' => is_string($navItem['itemId'] ?? null) ? $navItem['itemId'] : null,
                 'labelId' => is_string($navItem['labelId'] ?? null) ? $navItem['labelId'] : null,
                 'labelElement' => is_string($navItem['labelElement'] ?? null) ? $navItem['labelElement'] : null,
@@ -8996,7 +9004,7 @@ final class EpubReader
             $label = $link instanceof \DOMElement ? $link : self::firstChildElement($li, 'span', self::XHTML_NS);
             $href = $link instanceof \DOMElement ? trim($link->getAttribute('href')) : '';
             $childList = self::firstChildElement($li, 'ol', self::XHTML_NS);
-            $types = self::epubTypes($link ?? $label ?? $li);
+            $typeReport = self::navItemTypeReport($li, $label);
             $reference = $href === ''
                 ? self::emptyPackageReference()
                 : $this->packageReference($package, $navPart, $href, [], 'nav');
@@ -9033,13 +9041,69 @@ final class EpubReader
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
                 'diagnostics' => $reference['diagnostics'],
-                'type' => $types[0] ?? null,
-                'types' => $types,
+                'type' => $typeReport['type'],
+                'types' => $typeReport['types'],
+                'itemTypes' => $typeReport['itemTypes'],
+                'labelTypes' => $typeReport['labelTypes'],
+                'typeSource' => $typeReport['typeSource'],
+                'typeSources' => $typeReport['typeSources'],
                 'children' => $childList instanceof \DOMElement ? $this->readNavList($package, $childList, $navPart) : [],
             ];
         }
 
         return $items;
+    }
+
+    /**
+     * @return array{
+     *     type:?string,
+     *     types:list<string>,
+     *     itemTypes:list<string>,
+     *     labelTypes:list<string>,
+     *     typeSource:?string,
+     *     typeSources:list<array{type:string, source:string, element:string}>
+     * }
+     */
+    private static function navItemTypeReport(\DOMElement $item, ?\DOMElement $label): array
+    {
+        $itemTypes = self::epubTypes($item);
+        $labelTypes = $label instanceof \DOMElement ? self::epubTypes($label) : [];
+        $types = [];
+        $typeSources = [];
+        $sourceByType = [];
+
+        $addTypes = static function (array $sourceTypes, string $source, string $element) use (&$types, &$typeSources, &$sourceByType): void {
+            foreach ($sourceTypes as $type) {
+                if (!is_string($type) || $type === '') {
+                    continue;
+                }
+
+                if (!in_array($type, $types, true)) {
+                    $types[] = $type;
+                    $sourceByType[$type] = $source;
+                }
+
+                $typeSources[] = [
+                    'type' => $type,
+                    'source' => $source,
+                    'element' => $element,
+                ];
+            }
+        };
+
+        $addTypes($labelTypes, 'label', $label instanceof \DOMElement ? $label->localName : '');
+        $addTypes($itemTypes, 'item', $item->localName);
+
+        $type = $types[0] ?? null;
+
+        return [
+            'type' => $type,
+            'types' => $types,
+            'itemTypes' => $itemTypes,
+            'labelTypes' => $labelTypes,
+            'typeSource' => $type === null ? null : ($sourceByType[$type] ?? null),
+            'typeSources' => $typeSources,
+        ];
     }
 
     /**
@@ -9684,6 +9748,10 @@ final class EpubReader
             'exists' => (bool) ($item['exists'] ?? false),
             'type' => is_string($item['type'] ?? null) ? $item['type'] : null,
             'types' => is_array($item['types'] ?? null) ? array_values($item['types']) : [],
+            'itemTypes' => is_array($item['itemTypes'] ?? null) ? array_values($item['itemTypes']) : [],
+            'labelTypes' => is_array($item['labelTypes'] ?? null) ? array_values($item['labelTypes']) : [],
+            'typeSource' => is_string($item['typeSource'] ?? null) ? $item['typeSource'] : null,
+            'typeSources' => is_array($item['typeSources'] ?? null) ? array_values($item['typeSources']) : [],
             'itemId' => is_string($item['itemId'] ?? null) ? $item['itemId'] : null,
             'labelId' => is_string($item['labelId'] ?? null) ? $item['labelId'] : null,
             'labelElement' => is_string($item['labelElement'] ?? null) ? $item['labelElement'] : null,

@@ -7082,6 +7082,19 @@ final class CitationCslProcessor
             ? $this->normalizedNameRenderingOptions($elementOptions, $scope)
             : ($scope === 'bibliography' ? $this->style->bibliographyNameRendering() : $this->style->citationNameRendering());
 
+        if ($this->rendersCombinedEditorTranslatorNameGroup($variable, $nameGroups)) {
+            $names = $nameGroups[0]['names'];
+            $rendered = $this->renderNameList(
+                $names,
+                $options,
+                $scope === 'bibliography',
+                $citation,
+                $bibliographyState
+            );
+
+            return $this->applyNamesLabel($rendered, 'editortranslator', $names, $options);
+        }
+
         if (!$this->rendersIndependentNamesVariableGroups($element, $variable, $nameGroups)) {
             $names = $nameGroups[0]['names'];
             $selectedVariable = $nameGroups[0]['variable'];
@@ -7114,6 +7127,63 @@ final class CitationCslProcessor
         }
 
         return $this->joinRenderedElements($renderedGroups, (string) ($options['delimiter'] ?? ''));
+    }
+
+    /**
+     * @param list<array{variable:string, names:list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>}> $nameGroups
+     */
+    private function rendersCombinedEditorTranslatorNameGroup(string $variable, array $nameGroups): bool
+    {
+        $variables = preg_split('/\s+/', strtolower(trim($variable))) ?: [];
+        $variables = array_values(array_filter($variables, static fn (string $value): bool => $value !== ''));
+        if ($variables !== ['editor', 'translator'] || count($nameGroups) !== 2) {
+            return false;
+        }
+
+        if (($nameGroups[0]['variable'] ?? '') !== 'editor' || ($nameGroups[1]['variable'] ?? '') !== 'translator') {
+            return false;
+        }
+
+        return $this->nameListsMatch($nameGroups[0]['names'], $nameGroups[1]['names']);
+    }
+
+    /**
+     * @param list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $left
+     * @param list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $right
+     */
+    private function nameListsMatch(array $left, array $right): bool
+    {
+        if (count($left) !== count($right)) {
+            return false;
+        }
+
+        foreach ($left as $index => $leftName) {
+            if (!isset($right[$index]) || $this->nameIdentityKey($leftName) !== $this->nameIdentityKey($right[$index])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
+     */
+    private function nameIdentityKey(array $name): string
+    {
+        return json_encode([
+            'family' => (string) ($name['family'] ?? ''),
+            'given' => (string) ($name['given'] ?? ''),
+            'literal' => (string) ($name['literal'] ?? ''),
+            'short' => (string) ($name['short'] ?? ''),
+            'nonDroppingParticle' => (string) ($name['nonDroppingParticle'] ?? ''),
+            'droppingParticle' => (string) ($name['droppingParticle'] ?? ''),
+            'suffix' => (string) ($name['suffix'] ?? ''),
+            'commaSuffix' => ($name['commaSuffix'] ?? false) === true,
+            'staticOrdering' => ($name['staticOrdering'] ?? false) === true,
+            'parseNames' => ($name['parseNames'] ?? true) === true,
+            'annotations' => $name['annotations'] ?? [],
+        ], JSON_THROW_ON_ERROR);
     }
 
     /**
@@ -8958,6 +9028,7 @@ final class CitationCslProcessor
         return match (strtolower(trim($variable))) {
             'short-author' => 'author',
             'short-editor' => 'editor',
+            'editor-translator', 'editortranslator' => 'editortranslator',
             'event-organizer', 'organizer' => 'event-organizer',
             default => strtolower(trim($variable)),
         };

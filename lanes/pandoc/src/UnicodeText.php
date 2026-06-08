@@ -1420,6 +1420,37 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const IBM862_REPLACEMENTS = [
+        0x80 => 0x05d0,
+        0x81 => 0x05d1,
+        0x82 => 0x05d2,
+        0x83 => 0x05d3,
+        0x84 => 0x05d4,
+        0x85 => 0x05d5,
+        0x86 => 0x05d6,
+        0x87 => 0x05d7,
+        0x88 => 0x05d8,
+        0x89 => 0x05d9,
+        0x8a => 0x05da,
+        0x8b => 0x05db,
+        0x8c => 0x05dc,
+        0x8d => 0x05dd,
+        0x8e => 0x05de,
+        0x8f => 0x05df,
+        0x90 => 0x05e0,
+        0x91 => 0x05e1,
+        0x92 => 0x05e2,
+        0x93 => 0x05e3,
+        0x94 => 0x05e4,
+        0x95 => 0x05e5,
+        0x96 => 0x05e6,
+        0x97 => 0x05e7,
+        0x98 => 0x05e8,
+        0x99 => 0x05e9,
+        0x9a => 0x05ea,
+    ];
+
+    /** @var array<int, int> */
     private const IBM863_REPLACEMENTS = [
         0x80 => 0x00c7,
         0x81 => 0x00fc,
@@ -3164,6 +3195,7 @@ final class UnicodeText
             || $normalized === 'ibm852'
             || $normalized === 'ibm860'
             || $normalized === 'ibm861'
+            || $normalized === 'ibm862'
             || $normalized === 'ibm863'
             || $normalized === 'ibm865'
             || $normalized === 'ibm866'
@@ -3802,6 +3834,7 @@ final class UnicodeText
             '852', 'cp852', 'ibm852', 'dos852', 'xcp852', 'oem852', 'cspc852', 'cspcp852', 'csibm852' => 'ibm852',
             '860', 'cp860', 'ibm860', 'dos860', 'xcp860', 'oem860', 'csibm860' => 'ibm860',
             '861', 'cp861', 'ibm861', 'dos861', 'xcp861', 'oem861', 'cpis', 'csibm861' => 'ibm861',
+            '862', 'cp862', 'ibm862', 'dos862', 'xcp862', 'oem862', 'cspc862latinhebrew', 'csibm862' => 'ibm862',
             '863', 'cp863', 'ibm863', 'dos863', 'xcp863', 'oem863', 'csibm863' => 'ibm863',
             '865', 'cp865', 'ibm865', 'dos865', 'xcp865', 'oem865', 'csibm865' => 'ibm865',
             '866', 'cp866', 'csibm866', 'dos866', 'ibm866', 'xcp866' => 'ibm866',
@@ -4489,6 +4522,10 @@ final class UnicodeText
             }
             if ($encoding === 'ibm861' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::IBM861_REPLACEMENTS[$byte] ?? self::IBM437_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'ibm862' && $byte >= 0x80) {
+                $out .= self::fromCodepoint(self::IBM862_REPLACEMENTS[$byte] ?? self::IBM437_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'ibm863' && $byte >= 0x80) {
