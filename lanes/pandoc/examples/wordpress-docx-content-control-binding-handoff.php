@@ -13,6 +13,7 @@ $contentTypesXml = <<<'XML'
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
 </Types>
 XML;
 
@@ -21,6 +22,7 @@ $package = ZipPackage::fromParts([
     ['name' => '_rels/.rels', 'data' => <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCustomData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml/item1.xml"/>
 </Relationships>
 XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -45,6 +47,23 @@ XML],
   </w:body>
 </w:document>
 XML],
+    ['name' => 'customXml/item1.xml', 'data' => <<<'XML'
+<wpd:packet xmlns:wpd="https://example.test/wp/docx" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <dc:title>Migration packet</dc:title>
+</wpd:packet>
+XML],
+    ['name' => 'customXml/_rels/item1.xml.rels', 'data' => <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCustomDataProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/>
+</Relationships>
+XML],
+    ['name' => 'customXml/itemProps1.xml', 'data' => <<<'XML'
+<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="{33333333-4444-5555-6666-777777777777}">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="https://example.test/wp/docx/schema"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML],
 ]);
 
 $document = (new DocxReader())->readDocument($package);
@@ -58,6 +77,10 @@ if (in_array('--self-test', $argv, true)) {
         'data-docx-sdt-prefix-count="2"',
         'data-docx-sdt-prefix-1-name="wpd"',
         'data-docx-sdt-prefix-2-name="dc"',
+        'data-docx-sdt-custom-xml-bound="true"',
+        'data-docx-sdt-custom-xml-part="/customXml/item1.xml"',
+        'data-docx-sdt-custom-xml-root-name="wpd:packet"',
+        'data-docx-sdt-custom-xml-schema-ref-1-uri="https://example.test/wp/docx/schema"',
         '>Migration packet</span>',
     ] as $expected) {
         if (!str_contains($blocks, $expected)) {

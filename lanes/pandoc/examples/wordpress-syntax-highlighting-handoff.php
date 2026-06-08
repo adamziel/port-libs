@@ -454,6 +454,12 @@ if (!$schemeCodeBlock instanceof PortLibs\Pandoc\AstNode || $schemeCodeBlock->ty
 }
 $scheme = $highlighter->highlightCodeBlock($schemeCodeBlock, 'espresso');
 $schemeWordpressBlock = $highlighter->wordpressHtmlBlock($schemeCodeBlock, 'espresso');
+$csvCodeBlock = $document->children[72] ?? null;
+if (!$csvCodeBlock instanceof PortLibs\Pandoc\AstNode || $csvCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a CSV import review code block');
+}
+$csv = $highlighter->highlightCodeBlock($csvCodeBlock, 'tango');
+$csvWordpressBlock = $highlighter->wordpressHtmlBlock($csvCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1979,6 +1985,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($schemeWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
         throw new RuntimeException('Expected Scheme/Racket WordPress style metadata');
     }
+    if (($csv['language'] ?? '') !== 'csv') {
+        throw new RuntimeException('Expected CSV language handoff');
+    }
+    if (($csv['requestedLanguage'] ?? '') !== 'csv') {
+        throw new RuntimeException('Expected CSV requested-language wrapper handoff');
+    }
+    if (($csv['lineNumbering']['start'] ?? null) !== 1100) {
+        throw new RuntimeException('Expected CSV source startFrom line-number handoff');
+    }
+    if (!str_contains($csv['html'], '<span class="ot">source_id</span><span class="op">,</span><span class="ot">title</span>')) {
+        throw new RuntimeException('Expected CSV header field token handoff');
+    }
+    if (!str_contains($csv['html'], '<span class="st">&quot;Legacy, &quot;&quot;quoted&quot;&quot; title&quot;</span>')) {
+        throw new RuntimeException('Expected CSV quoted field token handoff');
+    }
+    if (!str_contains($csv['html'], '<span class="cn">true</span>')) {
+        throw new RuntimeException('Expected CSV boolean constant token handoff');
+    }
+    if (!str_contains($csvWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected CSV WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2070,6 +2097,7 @@ echo "fishHighlightedHtml:\n" . $fish['html'] . "\n";
 echo "sedHighlightedHtml:\n" . $sed['html'] . "\n";
 echo "vimHighlightedHtml:\n" . $vim['html'] . "\n";
 echo "schemeHighlightedHtml:\n" . $scheme['html'] . "\n";
+echo "csvHighlightedHtml:\n" . $csv['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2132,4 +2160,5 @@ echo "sedWordpressBlock:\n" . $sedWordpressBlock . "\n";
 echo "bibtexWordpressBlock:\n" . $bibtexWordpressBlock . "\n";
 echo "vimWordpressBlock:\n" . $vimWordpressBlock . "\n";
 echo "schemeWordpressBlock:\n" . $schemeWordpressBlock . "\n";
+echo "csvWordpressBlock:\n" . $csvWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

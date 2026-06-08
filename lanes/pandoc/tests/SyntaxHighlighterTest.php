@@ -3487,6 +3487,49 @@ return [
         $t->contains('<span class="fu">string-blank?</span>', $directScheme['html']);
         $t->contains('<span class="st">&quot;Untitled&quot;</span>', $directScheme['html']);
     },
+    'highlights csv and tsv import review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[72] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a CSV review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directTsv = $highlighter->highlight(
+            "source_id\ttitle\tstatus\n42\t\"Legacy export\"\tdraft",
+            'tab-separated-values'
+        );
+
+        $t->same('csv', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('csv', SyntaxHighlighter::normalizeLanguage('csv'));
+        $t->same('csv', SyntaxHighlighter::normalizeLanguage('comma-separated-values'));
+        $t->same('tsv', SyntaxHighlighter::normalizeLanguage('tsv'));
+        $t->same('tsv', SyntaxHighlighter::normalizeLanguage('tab-separated-values'));
+        $t->same('csv', $highlighted['language']);
+        $t->same('csv', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1100, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource csv numberLines"><code class="sourceCode csv" style="counter-reset: source-line 1099;">', $highlighted['html']);
+        $t->contains('<span id="csv-review-1100"><a href="#csv-review-1100"></a><span class="co"># WordPress CSV import review</span></span>', $highlighted['html']);
+        $t->contains('<span class="ot">source_id</span><span class="op">,</span><span class="ot">title</span><span class="op">,</span><span class="ot">status</span><span class="op">,</span><span class="ot">views</span><span class="op">,</span><span class="ot">featured</span>', $highlighted['html']);
+        $t->contains('<span class="dv">42</span><span class="op">,</span><span class="st">&quot;Legacy, &quot;&quot;quoted&quot;&quot; title&quot;</span><span class="op">,</span><span class="va">draft</span><span class="op">,</span><span class="dv">120</span><span class="op">,</span><span class="cn">true</span>', $highlighted['html']);
+        $t->contains('<span class="dv">43</span><span class="op">,</span><span class="va">Untitled</span><span class="op">,</span><span class="va">publish</span><span class="op">,</span><span class="dv">0</span><span class="op">,</span><span class="cn">false</span>', $highlighted['html']);
+        $t->contains('<span class="dv">44</span><span class="op">,</span><span class="st">&quot;Media path: uploads/hero.jpg&quot;</span><span class="op">,</span><span class="va">needs-review</span><span class="op">,,</span><span class="cn">null</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="st">&quot;Legacy, &quot;&quot;quoted&quot;&quot; title&quot;</span>', $wordpressBlock);
+        $t->same('tsv', $directTsv['language']);
+        $t->same('tab-separated-values', $directTsv['requestedLanguage']);
+        $t->contains('<span class="ot">source_id</span><span class="op">	</span><span class="ot">title</span><span class="op">	</span><span class="ot">status</span>', $directTsv['html']);
+        $t->contains('<span class="dv">42</span><span class="op">	</span><span class="st">&quot;Legacy export&quot;</span><span class="op">	</span><span class="va">draft</span>', $directTsv['html']);
+    },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
             'name' => 'Review Import',

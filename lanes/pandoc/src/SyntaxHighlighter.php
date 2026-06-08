@@ -79,9 +79,11 @@ final class SyntaxHighlighter
         'cmakelists-txt' => 'cmake',
         'cmd' => 'batch',
         'cmd-exe' => 'batch',
+        'comma-separated-values' => 'csv',
         'console' => 'bash',
         'containerfile' => 'dockerfile',
         'css' => 'css',
+        'csv' => 'csv',
         'dart' => 'dart',
         'dartlang' => 'dart',
         'diff' => 'diff',
@@ -282,7 +284,9 @@ final class SyntaxHighlighter
         'tex' => 'tex',
         'tf' => 'hcl',
         'tfvars' => 'hcl',
+        'tab-separated-values' => 'tsv',
         'toml' => 'toml',
+        'tsv' => 'tsv',
         'ts' => 'typescript',
         'tsx' => 'tsx',
         'typ' => 'typst',
@@ -732,6 +736,7 @@ final class SyntaxHighlighter
             'cmake' => $this->tokenizeCMake($code),
             'csharp' => $this->tokenizeCSharp($code),
             'css' => $this->tokenizeCss($code),
+            'csv' => $this->tokenizeDelimitedText($code, ','),
             'dart' => $this->tokenizeDart($code),
             'diff' => $this->tokenizeDiff($code),
             'dot' => $this->tokenizeDot($code),
@@ -779,6 +784,7 @@ final class SyntaxHighlighter
             'swift' => $this->tokenizeSwift($code),
             'tex' => $this->tokenizeTex($code),
             'toml' => $this->tokenizeToml($code),
+            'tsv' => $this->tokenizeDelimitedText($code, "\t"),
             'twig' => $this->tokenizeTwig($code),
             'tsx' => $this->tokenizeTsx($code),
             'typst' => $this->tokenizeTypst($code),
@@ -1529,6 +1535,125 @@ final class SyntaxHighlighter
             ['variable', '/^[A-Za-z_][A-Za-z0-9_:.\\/-]*/'],
             ['operator', '/^(?:#|[{}()[\\],=])/'],
         ];
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeDelimitedText(string $code, string $delimiter): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+        $headerPending = true;
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            $isDataLine = trim($line) !== '' && preg_match('/^[ \t]*#/', $line) !== 1;
+            $this->tokenizeDelimitedLine($line, $delimiter, $headerPending && $isDataLine, $tokens);
+            if ($isDataLine) {
+                $headerPending = false;
+            }
+
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeDelimitedLine(string $line, string $delimiter, bool $isHeader, array &$tokens): void
+    {
+        if ($line === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(#.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'comment', $matches[2]);
+            return;
+        }
+
+        $offset = 0;
+        $length = strlen($line);
+        $delimiterLength = strlen($delimiter);
+
+        while ($offset < $length) {
+            if (substr($line, $offset, $delimiterLength) === $delimiter) {
+                $this->appendToken($tokens, 'operator', $delimiter);
+                $offset += $delimiterLength;
+                continue;
+            }
+
+            if ($line[$offset] === '"') {
+                $end = $offset + 1;
+                while ($end < $length) {
+                    if ($line[$end] !== '"') {
+                        $end++;
+                        continue;
+                    }
+
+                    if (($line[$end + 1] ?? '') === '"') {
+                        $end += 2;
+                        continue;
+                    }
+
+                    $end++;
+                    break;
+                }
+
+                $this->appendToken($tokens, 'string', substr($line, $offset, $end - $offset));
+                $offset = $end;
+                continue;
+            }
+
+            $nextDelimiter = strpos($line, $delimiter, $offset);
+            $fieldEnd = $nextDelimiter === false ? $length : $nextDelimiter;
+            $this->appendDelimitedField(substr($line, $offset, $fieldEnd - $offset), $isHeader, $tokens);
+            $offset = $fieldEnd;
+        }
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendDelimitedField(string $field, bool $isHeader, array &$tokens): void
+    {
+        if ($field === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(.*?)([ \t]*)$/', $field, $matches) !== 1) {
+            $this->appendToken($tokens, 'text', $field);
+            return;
+        }
+
+        $this->appendToken($tokens, 'text', $matches[1]);
+        $value = (string) $matches[2];
+        if ($value !== '') {
+            if ($isHeader) {
+                $this->appendToken($tokens, 'attribute', $value);
+            } elseif (preg_match('/^(?:true|false|null|yes|no)$/i', $value) === 1) {
+                $this->appendToken($tokens, 'constant', $value);
+            } elseif (preg_match('/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/', $value) === 1) {
+                $this->appendToken($tokens, 'number', $value);
+            } else {
+                $this->appendToken($tokens, 'variable', $value);
+            }
+        }
+        $this->appendToken($tokens, 'text', $matches[3]);
     }
 
     /**

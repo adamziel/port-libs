@@ -68,6 +68,8 @@ Accent alias audit $\acute{x} + \grave{y} + \breve{z} + \check{a} + \mathring{A}
 
 Above and below audit $\overset{\text{new}}{p_i} + \underset{0}{\lim}_{n \to \infty} a_n + \overbrace{x + y}^{\text{sum}} + \underbrace{m_i}_{\text{media}} + \displaystyle \frac{q}{r}$ stays semantic.
 
+Buildrel relation audit $\buildrel{\text{def}}\over= + A \buildrel{\operatorname{iso}}\over\longrightarrow B$ stays semantic.
+
 Infix audit ${a+b \over c+d} + {n \choose k} + {n \atop k} + {p_i \brack m_i} + {x+y \brace z} + {n \bangle k}$ stays semantic.
 
 With-delims audit ${a+b \overwithdelims() c+d} + {n \atopwithdelims\langle\rangle k} + {p_i \abovewithdelims[]1pt m_i}$ stays semantic.
@@ -229,6 +231,7 @@ $summary = [
     'primeMathml' => $converter->texToMathMl("f'(x) + g''_i + h_i''' + \\partial^\\prime f + y^\\backprime"),
     'accentAliasMathml' => $converter->texToMathMl('\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}'),
     'aboveBelowMathml' => $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}'),
+    'buildrelMathml' => $converter->texToMathMl('\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B'),
     'infixFractionMathml' => $converter->texToMathMl('{a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}'),
     'withDelimsFractionMathml' => $converter->texToMathMl('{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}'),
     'colorPhantomCancelMathml' => $converter->texToMathMl('\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}'),
@@ -355,6 +358,14 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['buildrelMathml'], '<mi>\\buildrel</mi>')
+        || str_contains($summary['buildrelMathml'], '<mfrac><mrow><mi>\\buildrel</mi>')
+        || !str_contains($summary['buildrelMathml'], '<mover><mo>=</mo><mtext>def</mtext></mover><mo>+</mo><mi>A</mi><mover><mo>→</mo><mi>iso</mi></mover><mi>B</mi>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map plain TeX buildrel relations');
+    }
+
+    if (
         str_contains($summary['colorDeclarationMathml'], '<mi>\\color</mi>')
         || !str_contains($summary['colorDeclarationMathml'], '<mstyle mathcolor="reviewblue"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></mrow></mstyle>')
     ) {
@@ -474,6 +485,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(f&#039;(x) + g&#039;&#039;_i + h_i&#039;&#039;&#039; + \\partial^\\prime f + y^\\backprime\\)</span>',
         '<span class="math inline">\\(\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}\\)</span>',
         '<span class="math inline">\\(\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}\\)</span>',
+        '<span class="math inline">\\(\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B\\)</span>',
         '<span class="math inline">\\({a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}\\)</span>',
         '<span class="math inline">\\({a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}\\)</span>',
         '<span class="math inline">\\(\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}\\)</span>',
@@ -563,6 +575,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mover accent="true"><mi>z</mi><mo>˘</mo></mover><mo>+</mo><mover accent="true"><mi>a</mi><mo>ˇ</mo></mover>',
         '<msub><mover accent="true"><mi>A</mi><mo>˚</mo></mover><mn>0</mn></msub><mo>+</mo><mover accent="true"><mrow><mi>m</mi><mi>n</mi></mrow><mo>~</mo></mover>',
         '<annotation encoding="application/x-tex">\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}</annotation>',
+        '<mover><mo>=</mo><mtext>def</mtext></mover><mo>+</mo><mi>A</mi><mover><mo>→</mo><mi>iso</mi></mover><mi>B</mi>',
+        '<annotation encoding="application/x-tex">\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B</annotation>',
         '<msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup>',
         '<mi>migrate</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>',
         '<mfrac><msub><mi>a</mi><mn>1</mn></msub><msqrt><msup><mi>b</mi><mn>2</mn></msup></msqrt></mfrac>',

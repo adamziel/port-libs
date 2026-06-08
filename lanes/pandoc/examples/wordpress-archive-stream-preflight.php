@@ -424,6 +424,26 @@ $gzipMemberCountInspection = ArchiveCompressionStream::inspectGzipMemberCountPol
     2,
     strlen($gzipMemberCountArchiveBytes)
 );
+$gzipMemberByteLimitFirstLength = 512;
+$gzipMemberByteLimitSecondLength = 1536;
+$gzipMemberByteLimitThirdOffset = $gzipMemberByteLimitFirstLength + $gzipMemberByteLimitSecondLength;
+$gzipMemberByteLimitThreshold = 1200;
+$gzipMemberByteLimitUpload = GzipStream::build(substr($gzipMemberCountArchiveBytes, 0, $gzipMemberByteLimitFirstLength), [
+    'filename' => 'wordpress-member-size-part-1.tar',
+    'comment' => 'first bounded decoded package segment',
+]) . GzipStream::build(substr($gzipMemberCountArchiveBytes, $gzipMemberByteLimitFirstLength, $gzipMemberByteLimitSecondLength), [
+    'filename' => 'wordpress-member-size-part-2.tar',
+    'comment' => 'oversized decoded package segment',
+]) . GzipStream::build(substr($gzipMemberCountArchiveBytes, $gzipMemberByteLimitThirdOffset), [
+    'filename' => 'wordpress-member-size-part-3.tar',
+    'comment' => 'third bounded decoded package segment',
+]);
+$gzipMemberByteLimitInspection = ArchiveCompressionStream::inspectGzipMemberByteLimitPolicy(
+    $gzipMemberByteLimitUpload,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    $gzipMemberByteLimitThreshold,
+    strlen($gzipMemberCountArchiveBytes)
+);
 
 $legacyContiguousArchiveBytes = $rawTarHeader(
     'packet/legacy-contiguous.md',
@@ -1372,6 +1392,22 @@ if (in_array('--self-test', $argv, true)) {
         ],
         'gzipMemberCountPolicies' => ['metadata', 'metadata', 'review-before-conversion'],
         'gzipMemberCountMemberDiagnostics' => [[], [], ['gzip-member-over-limit']],
+        'gzipMemberByteLimitType' => 'archive-gzip-member-byte-limit-policy',
+        'gzipMemberByteLimitPolicy' => 'review-before-conversion',
+        'gzipMemberByteLimitExtractionPolicy' => 'gzip-member-byte-limit-review',
+        'gzipMemberByteLimitDiagnostics' => ['gzip-member-byte-limit-exceeds-threshold'],
+        'gzipMemberByteLimitMemberCount' => 3,
+        'gzipMemberByteLimitThreshold' => $gzipMemberByteLimitThreshold,
+        'gzipMemberByteLimitOverLimitCount' => 1,
+        'gzipMemberByteLimitFirstOverLimitIndex' => 1,
+        'gzipMemberByteLimitLargestMember' => $gzipMemberByteLimitSecondLength,
+        'gzipMemberByteLimitMemberSizes' => [
+            $gzipMemberByteLimitFirstLength,
+            $gzipMemberByteLimitSecondLength,
+            strlen($gzipMemberCountArchiveBytes) - $gzipMemberByteLimitThirdOffset,
+        ],
+        'gzipMemberByteLimitPolicies' => ['metadata', 'review-before-conversion', 'metadata'],
+        'gzipMemberByteLimitMemberDiagnostics' => [[], ['gzip-member-byte-limit-over-limit'], []],
         'content' => $contentBytes,
         'contentCreatedAt' => 1780479062,
         'contentSourceType' => 'gzip-member',
@@ -1706,6 +1742,23 @@ if (in_array('--self-test', $argv, true)) {
         || isset($gzipMemberCountInspection['members'][0]['data'])
         || isset($gzipMemberCountInspection['archive'])
         || isset($gzipMemberCountInspection['tarBytes'])
+        || $gzipMemberByteLimitInspection['type'] !== $expected['gzipMemberByteLimitType']
+        || $gzipMemberByteLimitInspection['handoffPolicy'] !== $expected['gzipMemberByteLimitPolicy']
+        || $gzipMemberByteLimitInspection['extractionPolicy'] !== $expected['gzipMemberByteLimitExtractionPolicy']
+        || $gzipMemberByteLimitInspection['diagnostics'] !== $expected['gzipMemberByteLimitDiagnostics']
+        || $gzipMemberByteLimitInspection['memberCount'] !== $expected['gzipMemberByteLimitMemberCount']
+        || $gzipMemberByteLimitInspection['maxMemberUncompressedBytes'] !== $expected['gzipMemberByteLimitThreshold']
+        || $gzipMemberByteLimitInspection['overLimitMemberCount'] !== $expected['gzipMemberByteLimitOverLimitCount']
+        || $gzipMemberByteLimitInspection['firstOverLimitMemberIndex'] !== $expected['gzipMemberByteLimitFirstOverLimitIndex']
+        || $gzipMemberByteLimitInspection['largestMemberUncompressedSize'] !== $expected['gzipMemberByteLimitLargestMember']
+        || $gzipMemberByteLimitInspection['uncompressedSize'] !== strlen($gzipMemberCountArchiveBytes)
+        || array_column($gzipMemberByteLimitInspection['members'], 'uncompressedSize') !== $expected['gzipMemberByteLimitMemberSizes']
+        || array_column($gzipMemberByteLimitInspection['members'], 'policy') !== $expected['gzipMemberByteLimitPolicies']
+        || array_column($gzipMemberByteLimitInspection['members'], 'diagnostics') !== $expected['gzipMemberByteLimitMemberDiagnostics']
+        || ($gzipMemberByteLimitInspection['members'][1]['decodedDataOffset'] ?? null) !== $gzipMemberByteLimitFirstLength
+        || isset($gzipMemberByteLimitInspection['members'][1]['data'])
+        || isset($gzipMemberByteLimitInspection['archive'])
+        || isset($gzipMemberByteLimitInspection['tarBytes'])
         || $inspection['archive']->read('/packet/content.md') !== $expected['content']
         || ($inspection['entryLayouts'][2]['paxHeaderKeys'] ?? []) !== ['LIBARCHIVE.creationtime', 'atime', 'ctime']
         || ($inspection['entryLayouts'][2]['createdAt'] ?? null) !== $expected['contentCreatedAt']
@@ -2170,6 +2223,11 @@ echo 'gzipMemberCount.memberCount=' . $gzipMemberCountInspection['memberCount'] 
 echo 'gzipMemberCount.overLimitMemberCount=' . $gzipMemberCountInspection['overLimitMemberCount'] . "\n";
 echo 'gzipMemberCount.diagnostics=' . implode(',', $gzipMemberCountInspection['diagnostics']) . "\n";
 echo 'gzipMemberCount.memberPolicies=' . implode(',', array_column($gzipMemberCountInspection['members'], 'policy')) . "\n";
+echo 'gzipMemberByteLimit.handoffPolicy=' . $gzipMemberByteLimitInspection['handoffPolicy'] . "\n";
+echo 'gzipMemberByteLimit.maxMemberUncompressedBytes=' . $gzipMemberByteLimitInspection['maxMemberUncompressedBytes'] . "\n";
+echo 'gzipMemberByteLimit.overLimitMemberCount=' . $gzipMemberByteLimitInspection['overLimitMemberCount'] . "\n";
+echo 'gzipMemberByteLimit.largestMemberUncompressedSize=' . $gzipMemberByteLimitInspection['largestMemberUncompressedSize'] . "\n";
+echo 'gzipMemberByteLimit.memberPolicies=' . implode(',', array_column($gzipMemberByteLimitInspection['members'], 'policy')) . "\n";
 echo 'tar.layout=' . implode(',', $layoutSummary) . "\n";
 echo 'tar.contentSource=' . $inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceType'] . ':' . $inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceLabel'] . "\n";
 echo 'content.md=' . $inspection['archive']->read('/packet/content.md') . "\n";

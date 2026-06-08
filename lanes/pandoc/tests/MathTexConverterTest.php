@@ -1560,6 +1560,28 @@ return [
         $t->contains('<mstyle displaystyle="true"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle><mo>+</mo><mstyle displaystyle="false"><mi>c</mi></mstyle>', $styleMathml);
         $t->contains('<mstyle scriptlevel="1"><msub><mi>d</mi><mi>i</mi></msub></mstyle><mo>+</mo><mstyle scriptlevel="2"><mi>e</mi></mstyle>', $styleMathml);
     },
+    'converts bounded plain tex buildrel relations to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $buildrelMathml = $converter->texToMathMl('\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B + x \\buildrel\\star\\over\\Rightarrow y', true);
+        $scriptedMathml = $converter->texToMathMl('a \\buildrel{n+1}\\over{\\sim}_i b');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\buildrel{\\text{def}}\\over=');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $buildrelMathml);
+        $t->contains('<mover><mo>=</mo><mtext>def</mtext></mover><mo>+</mo><mi>A</mi><mover><mo>→</mo><mi>iso</mi></mover><mi>B</mi><mo>+</mo><mi>x</mi><mover><mo>⇒</mo><mo>⋆</mo></mover><mi>y</mi>', $buildrelMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B + x \\buildrel\\star\\over\\Rightarrow y</annotation>', $buildrelMathml);
+        $t->contains('<mi>a</mi><msub><mover><mo>∼</mo><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mover><mi>i</mi></msub><mi>b</mi>', $scriptedMathml);
+        $t->contains('alttext="equals over def"', $accessibleMathml);
+        $t->contains('intent="over(equals,def)"', $accessibleMathml);
+        $t->true(!str_contains($buildrelMathml, '<mi>\\buildrel</mi>'), 'Expected TeX \\buildrel to become a mover, not a literal identifier');
+        $t->true(!str_contains($buildrelMathml, '<mfrac><mrow><mi>\\buildrel</mi>'), 'Expected TeX \\buildrel to avoid infix-fraction fallback');
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\buildrel'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\buildrel{}\\over='));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\buildrel{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\buildrel{x}\\atop='));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\buildrel{x}\\over'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\buildrel{x}\\over_1'));
+    },
     'converts bounded tex overbracket and underbracket accents to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $bracketMathml = $converter->texToMathMl('\\overbracket{p_i + m_i}^{\\text{review}} + \\underbracket{q_i}_{0}', true);

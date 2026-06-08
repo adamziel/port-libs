@@ -5558,6 +5558,54 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC data field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC document-information field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'Info '
+                . $fieldBegin . ' DOCPROPERTY "Source System" \* MERGEFORMAT ' . $fieldSeparator . 'legacy-cms' . $fieldEnd
+                . ' by '
+                . $fieldBegin . ' INFO "Author" \* Upper ' . $fieldSeparator . 'MIGRATION DESK' . $fieldEnd
+                . ".\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $property = $paragraph->children[1];
+        $t->same('span', $property->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-data-field', 'legacy-doc-field-docproperty'], $property->attr('classes'));
+        $t->same('docproperty', $property->attr('attributes')['data-legacy-doc-field']);
+        $t->same('DOCPROPERTY "Source System" \* MERGEFORMAT', $property->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('document-property', $property->attr('attributes')['data-legacy-doc-data-field-type']);
+        $t->same('Source System', $property->attr('attributes')['data-legacy-doc-data-field-name']);
+        $t->same('MERGEFORMAT', $property->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('legacy-cms', $property->children[0]->attr('text'));
+
+        $info = $paragraph->children[3];
+        $t->same('span', $info->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-data-field', 'legacy-doc-field-info'], $info->attr('classes'));
+        $t->same('info', $info->attr('attributes')['data-legacy-doc-field']);
+        $t->same('INFO "Author" \* Upper', $info->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('document-info', $info->attr('attributes')['data-legacy-doc-data-field-type']);
+        $t->same('Author', $info->attr('attributes')['data-legacy-doc-data-field-name']);
+        $t->same('Upper', $info->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('MIGRATION DESK', $info->children[0]->attr('text'));
+
+        $t->contains('[legacy-cms]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-docproperty data-legacy-doc-field="docproperty"', $markdown);
+        $t->contains('data-legacy-doc-data-field-name="Source System"', $markdown);
+        $t->contains('[MIGRATION DESK]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-info data-legacy-doc-field="info"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-docproperty" data-legacy-doc-field="docproperty" data-legacy-doc-field-instruction="DOCPROPERTY &quot;Source System&quot; \* MERGEFORMAT" data-legacy-doc-data-field-type="document-property" data-legacy-doc-data-field-name="Source System" data-legacy-doc-field-format="MERGEFORMAT">legacy-cms</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-info" data-legacy-doc-field="info" data-legacy-doc-field-instruction="INFO &quot;Author&quot; \* Upper" data-legacy-doc-data-field-type="document-info" data-legacy-doc-data-field-name="Author" data-legacy-doc-field-format="Upper">MIGRATION DESK</span>', $blocks);
+        foreach (['DOCPROPERTY', 'INFO', 'Source System', 'Author'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC document-information field instructions should not render as visible text');
+        }
+    },
     'preserves legacy DOC SET field assignments as hidden handoff metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";

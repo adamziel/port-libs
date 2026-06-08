@@ -1951,6 +1951,8 @@ final class LegacyDocReader
         $fieldTypes = [
             'MERGEFIELD' => 'mail-merge',
             'DOCVARIABLE' => 'document-variable',
+            'DOCPROPERTY' => 'document-property',
+            'INFO' => 'document-info',
         ];
         if (!isset($fieldTypes[$fieldName])) {
             return null;

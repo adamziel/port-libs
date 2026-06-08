@@ -2459,6 +2459,10 @@ final class MathTexConverter
             return $this->parseMathChoiceCommand($source, $offset);
         }
 
+        if ($command === 'buildrel') {
+            return $this->parseBuildrelCommand($source, $offset);
+        }
+
         if ($command === 'stackrel') {
             $above = $this->parseRequiredAtomOrGroup($source, $offset, 'stackrel above');
             $base = $this->parseRequiredAtomOrGroup($source, $offset, 'stackrel base');
@@ -3531,6 +3535,27 @@ final class MathTexConverter
         }
 
         return $thinSpace . '<mo>(</mo>' . $argument . '<mo>)</mo>';
+    }
+
+    private function parseBuildrelCommand(string $source, int &$offset): string
+    {
+        $above = $this->parseRequiredScriptedAtomOrGroup($source, $offset, 'buildrel above');
+        $this->skipWhitespace($source, $offset);
+
+        if (($source[$offset] ?? '') !== '\\') {
+            throw new \InvalidArgumentException('Expected TeX \\buildrel \\over at offset ' . $offset);
+        }
+
+        $overOffset = $offset + 1;
+        $command = $this->readCommandName($source, $overOffset);
+        if ($command !== 'over') {
+            throw new \InvalidArgumentException('Expected TeX \\buildrel \\over at offset ' . $offset);
+        }
+
+        $offset = $overOffset;
+        $base = $this->parseRequiredScriptedAtomOrGroup($source, $offset, 'buildrel base');
+
+        return '<mover>' . $base . $above . '</mover>';
     }
 
     private function parseRequiredScriptedAtomOrGroup(string $source, int &$offset, string $label): string

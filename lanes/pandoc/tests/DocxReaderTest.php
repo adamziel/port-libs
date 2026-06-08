@@ -2175,6 +2175,44 @@ $sdtDataBindingPrefixDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$sdtCustomXmlStoreContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
+</Types>
+XML;
+
+$sdtCustomXmlStorePackageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCustomData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml/item1.xml"/>
+</Relationships>
+XML;
+
+$sdtCustomXmlStoreItemRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCustomDataProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/>
+</Relationships>
+XML;
+
+$sdtCustomXmlStoreItemXml = <<<'XML'
+<wpd:packet xmlns:wpd="https://example.test/wp/docx" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:review="https://example.test/review">
+  <dc:title>Migration packet</dc:title>
+  <review:summary>Mapped summary block.</review:summary>
+</wpd:packet>
+XML;
+
+$sdtCustomXmlStorePropertiesXml = <<<'XML'
+<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="{33333333-4444-5555-6666-777777777777}">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="https://example.test/wp/docx/schema"/>
+    <ds:schemaRef ds:uri="https://example.test/review/schema"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
 $sdtFormControlDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -3836,6 +3874,24 @@ $buildSdtDataBindingPrefixPackage = static function () use ($contentTypesXml, $p
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $sdtDataBindingPrefixDocumentXml],
+    ]);
+};
+
+$buildSdtDataBindingCustomXmlStorePackage = static function () use (
+    $sdtCustomXmlStoreContentTypesXml,
+    $sdtCustomXmlStorePackageRelationshipsXml,
+    $sdtDataBindingPrefixDocumentXml,
+    $sdtCustomXmlStoreItemRelationshipsXml,
+    $sdtCustomXmlStoreItemXml,
+    $sdtCustomXmlStorePropertiesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $sdtCustomXmlStoreContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $sdtCustomXmlStorePackageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $sdtDataBindingPrefixDocumentXml],
+        ['name' => 'customXml/item1.xml', 'data' => $sdtCustomXmlStoreItemXml],
+        ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $sdtCustomXmlStoreItemRelationshipsXml],
+        ['name' => 'customXml/itemProps1.xml', 'data' => $sdtCustomXmlStorePropertiesXml],
     ]);
 };
 
@@ -7262,6 +7318,67 @@ return [
         $t->contains('data-docx-sdt-prefix-2-uri="http://purl.org/dc/elements/1.1/"', $blocks);
         $t->contains('<div class="docx-content-control docx-content-control-rich-text" data-docx-sdt-id="151"', $blocks);
         $t->contains('data-docx-sdt-prefix-2-name="review" data-docx-sdt-prefix-2-uri="https://example.test/review"', $blocks);
+    },
+    'reports DOCX custom XML store parts for bound content controls' => static function (TestRunner $t) use ($buildSdtDataBindingCustomXmlStorePackage): void {
+        $result = (new DocxReader())->readPackage($buildSdtDataBindingCustomXmlStorePackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $store = $result['metadata']['docxCustomXmlStore'];
+        $t->same(1, $store['count']);
+        $t->same(1, $store['boundStoreItemCount']);
+
+        $item = $store['items'][0];
+        $t->same('rIdCustomData', $item['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml', $item['relationshipType']);
+        $t->same('/customXml/item1.xml', $item['target']);
+        $t->same('/customXml/item1.xml', $item['targetPart']);
+        $t->same('application/xml', $item['contentType']);
+        $t->same(false, $item['external']);
+        $t->same(true, $item['exists']);
+        $t->true(is_int($item['bytes']) && $item['bytes'] > 0, 'Custom XML store item should report byte size');
+        $t->same('wpd:packet', $item['rootName']);
+        $t->same('packet', $item['rootLocalName']);
+        $t->same('https://example.test/wp/docx', $item['rootNamespace']);
+        $t->same('Migration packet Mapped summary block.', $item['textPreview']);
+        $t->same('{33333333-4444-5555-6666-777777777777}', $item['storeItemID']);
+        $t->same('/customXml/itemProps1.xml', $item['propertiesPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.customXmlProperties+xml', $item['propertiesContentType']);
+        $t->same(2, $item['schemaRefCount']);
+        $t->same('https://example.test/wp/docx/schema', $item['schemaRefs'][0]);
+        $t->same('https://example.test/review/schema', $item['schemaRefs'][1]);
+        $t->same([], $item['issues']);
+        $t->same([], $item['propertiesIssues']);
+        $t->same($item, $store['byStoreItemID']['{33333333-4444-5555-6666-777777777777}']);
+        $t->same($store, $result['importReport']['customXmlStore']);
+
+        $paragraph = $document->children[0];
+        $inlineControl = $paragraph->children[1];
+        $inlineAttrs = $inlineControl->attr('attributes');
+        $t->same('true', $inlineAttrs['data-docx-sdt-custom-xml-bound']);
+        $t->same('/customXml/item1.xml', $inlineAttrs['data-docx-sdt-custom-xml-part']);
+        $t->same('application/xml', $inlineAttrs['data-docx-sdt-custom-xml-content-type']);
+        $t->same('/customXml/itemProps1.xml', $inlineAttrs['data-docx-sdt-custom-xml-properties-part']);
+        $t->same('wpd:packet', $inlineAttrs['data-docx-sdt-custom-xml-root-name']);
+        $t->same('https://example.test/wp/docx', $inlineAttrs['data-docx-sdt-custom-xml-root-namespace']);
+        $t->same('Migration packet Mapped summary block.', $inlineAttrs['data-docx-sdt-custom-xml-text-preview']);
+        $t->same('2', $inlineAttrs['data-docx-sdt-custom-xml-schema-ref-count']);
+        $t->same('https://example.test/wp/docx/schema', $inlineAttrs['data-docx-sdt-custom-xml-schema-ref-1-uri']);
+        $t->same('https://example.test/review/schema', $inlineAttrs['data-docx-sdt-custom-xml-schema-ref-2-uri']);
+
+        $blockAttrs = $document->children[1]->attr('attributes');
+        $t->same('true', $blockAttrs['data-docx-sdt-custom-xml-bound']);
+        $t->same('/customXml/item1.xml', $blockAttrs['data-docx-sdt-custom-xml-part']);
+        $t->same('wpd:packet', $blockAttrs['data-docx-sdt-custom-xml-root-name']);
+        $t->same('https://example.test/review/schema', $blockAttrs['data-docx-sdt-custom-xml-schema-ref-2-uri']);
+
+        $t->contains('data-docx-sdt-custom-xml-part="/customXml/item1.xml"', $markdown);
+        $t->contains('data-docx-sdt-custom-xml-root-name="wpd:packet"', $markdown);
+        $t->contains('data-docx-sdt-custom-xml-schema-ref-2-uri="https://example.test/review/schema"', $markdown);
+        $t->contains('data-docx-sdt-custom-xml-part="/customXml/item1.xml"', $blocks);
+        $t->contains('data-docx-sdt-custom-xml-root-name="wpd:packet"', $blocks);
+        $t->contains('data-docx-sdt-custom-xml-schema-ref-1-uri="https://example.test/wp/docx/schema"', $blocks);
     },
     'preserves DOCX structured document tag form-control metadata' => static function (TestRunner $t) use ($buildSdtFormControlPackage): void {
         $document = (new DocxReader())->readDocument($buildSdtFormControlPackage());

@@ -411,6 +411,115 @@ final class ArchiveCompressionStream
     /**
      * @return array{
      *     type:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     memberCount:int,
+     *     maxMemberUncompressedBytes:int,
+     *     overLimitMemberCount:int,
+     *     firstOverLimitMemberIndex:?int,
+     *     largestMemberUncompressedSize:int,
+     *     trailingPaddingBytes:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     members:list<array{
+     *         memberIndex:int,
+     *         filename:?string,
+     *         filenameText:?string,
+     *         filenameEncoding:?string,
+     *         comment:?string,
+     *         commentText:?string,
+     *         commentEncoding:?string,
+     *         decodedDataOffset:int,
+     *         decodedDataEndOffset:int,
+     *         uncompressedSize:int,
+     *         compressedSize:int,
+     *         memberOffset:int,
+     *         memberSize:int,
+     *         nextMemberOffset:int,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>
+     * }
+     */
+    public static function inspectGzipMemberByteLimitPolicy(
+        string $bytes,
+        string $format,
+        int $maxMemberUncompressedBytes,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_GZIP_TAR && $format !== self::FORMAT_GZIP_ZIP) {
+            throw new \RuntimeException("GZIP member byte-limit policy requires a GZIP archive stream format: {$format}");
+        }
+
+        if ($maxMemberUncompressedBytes <= 0) {
+            throw new \RuntimeException('GZIP member byte-limit policy threshold must be positive');
+        }
+
+        $stream = self::gzipStreamInspection($bytes, $maxUncompressedBytes);
+        $members = [];
+        $overLimitMemberCount = 0;
+        $firstOverLimitMemberIndex = null;
+        $largestMemberUncompressedSize = 0;
+
+        foreach ($stream['members'] as $index => $member) {
+            $memberUncompressedSize = $member['uncompressedSize'];
+            $largestMemberUncompressedSize = max($largestMemberUncompressedSize, $memberUncompressedSize);
+            $overLimit = $memberUncompressedSize > $maxMemberUncompressedBytes;
+            $memberDiagnostics = [];
+            if ($overLimit) {
+                $overLimitMemberCount++;
+                $memberDiagnostics[] = 'gzip-member-byte-limit-over-limit';
+                if ($firstOverLimitMemberIndex === null) {
+                    $firstOverLimitMemberIndex = $index;
+                }
+            }
+
+            $members[] = [
+                'memberIndex' => $index,
+                'filename' => $member['filename'],
+                'filenameText' => $member['filenameText'],
+                'filenameEncoding' => $member['filenameEncoding'],
+                'comment' => $member['comment'],
+                'commentText' => $member['commentText'],
+                'commentEncoding' => $member['commentEncoding'],
+                'decodedDataOffset' => $member['decodedDataOffset'],
+                'decodedDataEndOffset' => $member['decodedDataEndOffset'],
+                'uncompressedSize' => $memberUncompressedSize,
+                'compressedSize' => $member['compressedSize'],
+                'memberOffset' => $member['memberOffset'],
+                'memberSize' => $member['memberSize'],
+                'nextMemberOffset' => $member['nextMemberOffset'],
+                'policy' => $overLimit ? 'review-before-conversion' : 'metadata',
+                'diagnostics' => $memberDiagnostics,
+            ];
+        }
+
+        $diagnostics = $overLimitMemberCount > 0 ? ['gzip-member-byte-limit-exceeds-threshold'] : [];
+
+        return [
+            'type' => 'archive-gzip-member-byte-limit-policy',
+            'format' => $format,
+            'compressedSize' => $stream['compressedSize'],
+            'uncompressedSize' => $stream['uncompressedSize'],
+            'memberCount' => $stream['memberCount'],
+            'maxMemberUncompressedBytes' => $maxMemberUncompressedBytes,
+            'overLimitMemberCount' => $overLimitMemberCount,
+            'firstOverLimitMemberIndex' => $firstOverLimitMemberIndex,
+            'largestMemberUncompressedSize' => $largestMemberUncompressedSize,
+            'trailingPaddingBytes' => $stream['trailingPaddingBytes'],
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $diagnostics === [] ? 'metadata-only-no-extraction' : 'gzip-member-byte-limit-review',
+            'diagnostics' => $diagnostics,
+            'members' => $members,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
      *     kind:string,
      *     format:string,
      *     decodedFormat:string,

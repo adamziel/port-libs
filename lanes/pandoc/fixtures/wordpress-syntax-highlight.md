@@ -1338,3 +1338,11 @@ highlight wpImportSource ctermfg=Green guifg=#005cc5
 
 (provide normalize-title packet->blocks)
 ```
+
+``` {.csv #csv-review .numberLines startFrom=1100}
+# WordPress CSV import review
+source_id,title,status,views,featured
+42,"Legacy, ""quoted"" title",draft,120,true
+43,Untitled,publish,0,false
+44,"Media path: uploads/hero.jpg",needs-review,,null
+```

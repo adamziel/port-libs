@@ -51,6 +51,9 @@ final class DocxReader
     public const REL_TYPE_OLE_OBJECT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     public const REL_TYPE_EMBEDDED_PACKAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
     public const REL_TYPE_SUBDOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument';
+    public const REL_TYPE_CUSTOM_XML = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+    public const REL_TYPE_CUSTOM_XML_PROPS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+    public const CUSTOM_XML_DATASTORE_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
 
     /**
      * Bounded subset of Pandoc's DOCX symbol font table for common review
@@ -96,11 +99,17 @@ final class DocxReader
     private array $currentThemeFonts = [];
 
     /**
+     * @var array<string, array<string, mixed>>
+     */
+    private array $currentCustomXmlPartsByStoreItemId = [];
+
+    /**
      * @return array{document:AstNode, metadata:array<string, mixed>, documentPart:string, relationships:list<array{id:string, type:string, target:string, contentType:?string, external:bool}>, importReport:array<string, mixed>}
      */
     public function readPackage(ZipPackage $package): array
     {
         $this->noteReferenceState = $this->newNoteReferenceState([]);
+        $this->currentCustomXmlPartsByStoreItemId = [];
         $graph = OpcRelationshipGraph::fromPackage($package);
         $documentPart = $graph->firstTargetOfType(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
         if ($documentPart === null) {
@@ -124,6 +133,8 @@ final class DocxReader
         $numbering = $this->loadNumbering($package, $graph, $documentPart);
         $documentXml = $package->read($documentPart);
         $specialNotes = $this->specialNoteImportReport($package, $graph, $documentPart);
+        $customXmlStore = $this->readCustomXmlStore($package, $graph);
+        $this->currentCustomXmlPartsByStoreItemId = $customXmlStore['lookupByStoreItemID'] ?? [];
         $document = $this->parseDocumentXml(
             $documentXml,
             $documentPart,
@@ -162,6 +173,14 @@ final class DocxReader
         if ($glossary !== []) {
             $metadata['docxGlossary'] = $glossary;
         }
+        if ($customXmlStore['count'] > 0) {
+            $metadata['docxCustomXmlStore'] = [
+                'count' => $customXmlStore['count'],
+                'boundStoreItemCount' => $customXmlStore['boundStoreItemCount'],
+                'items' => $customXmlStore['items'],
+                'byStoreItemID' => $customXmlStore['byStoreItemID'],
+            ];
+        }
 
         return [
             'document' => $document,
@@ -182,6 +201,7 @@ final class DocxReader
                 $settings,
                 $theme,
                 $glossary,
+                $customXmlStore,
             ),
         ];
     }
@@ -196,6 +216,7 @@ final class DocxReader
      * @param array<string, mixed> $settings
      * @param array<string, mixed> $theme
      * @param array<string, mixed> $glossary
+     * @param array<string, mixed> $customXmlStore
      * @return array<string, mixed>
      */
     private function importReport(
@@ -211,7 +232,8 @@ final class DocxReader
         array $docProperties,
         array $settings,
         array $theme,
-        array $glossary
+        array $glossary,
+        array $customXmlStore
     ): array {
         $relationshipIssues = [];
         foreach ($reachableRelationships as $relationship) {
@@ -249,6 +271,12 @@ final class DocxReader
             'settings' => $settings,
             'theme' => $theme,
             'glossary' => $glossary,
+            'customXmlStore' => [
+                'count' => $customXmlStore['count'] ?? 0,
+                'boundStoreItemCount' => $customXmlStore['boundStoreItemCount'] ?? 0,
+                'items' => $customXmlStore['items'] ?? [],
+                'byStoreItemID' => $customXmlStore['byStoreItemID'] ?? [],
+            ],
             'background' => $document->attr('docxBackground', []),
             'sections' => [
                 'count' => count($document->attr('sectionProperties', [])),
@@ -4111,6 +4139,7 @@ final class DocxReader
 
             $dataBinding = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'dataBinding');
             if ($dataBinding instanceof \DOMElement) {
+                $storeItemId = null;
                 foreach ([
                     'xpath' => 'data-docx-sdt-xpath',
                     'storeItemID' => 'data-docx-sdt-store-item-id',
@@ -4118,11 +4147,20 @@ final class DocxReader
                     $value = $this->wordAttr($dataBinding, $localName);
                     if ($value !== null && $value !== '') {
                         $attributes[$attributeName] = $value;
+                        if ($localName === 'storeItemID') {
+                            $storeItemId = $value;
+                        }
                     }
                 }
 
                 foreach ($this->structuredDocumentTagPrefixMappingAttrs($dataBinding) as $name => $value) {
                     $attributes[$name] = $value;
+                }
+
+                if ($storeItemId !== null) {
+                    foreach ($this->structuredDocumentTagCustomXmlStoreAttrs($storeItemId) as $name => $value) {
+                        $attributes[$name] = $value;
+                    }
                 }
             }
 
@@ -4203,6 +4241,53 @@ final class DocxReader
         }
 
         return $mappings;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function structuredDocumentTagCustomXmlStoreAttrs(string $storeItemId): array
+    {
+        $item = $this->currentCustomXmlPartsByStoreItemId[$this->customXmlStoreLookupKey($storeItemId)] ?? null;
+        if (!is_array($item)) {
+            return [];
+        }
+
+        $attributes = [
+            'data-docx-sdt-custom-xml-bound' => 'true',
+        ];
+
+        foreach ([
+            'targetPart' => 'data-docx-sdt-custom-xml-part',
+            'contentType' => 'data-docx-sdt-custom-xml-content-type',
+            'propertiesPart' => 'data-docx-sdt-custom-xml-properties-part',
+            'rootName' => 'data-docx-sdt-custom-xml-root-name',
+            'rootNamespace' => 'data-docx-sdt-custom-xml-root-namespace',
+            'textPreview' => 'data-docx-sdt-custom-xml-text-preview',
+        ] as $source => $target) {
+            $value = $item[$source] ?? null;
+            if (is_string($value) && $value !== '') {
+                $attributes[$target] = $value;
+            }
+        }
+
+        if (isset($item['bytes']) && is_int($item['bytes'])) {
+            $attributes['data-docx-sdt-custom-xml-bytes'] = (string) $item['bytes'];
+        }
+
+        $schemaRefs = $item['schemaRefs'] ?? [];
+        if (is_array($schemaRefs) && $schemaRefs !== []) {
+            $attributes['data-docx-sdt-custom-xml-schema-ref-count'] = (string) count($schemaRefs);
+            foreach (array_values($schemaRefs) as $index => $schemaRef) {
+                if (!is_string($schemaRef) || $schemaRef === '') {
+                    continue;
+                }
+
+                $attributes['data-docx-sdt-custom-xml-schema-ref-' . ($index + 1) . '-uri'] = $schemaRef;
+            }
+        }
+
+        return $attributes;
     }
 
     /**
@@ -10452,6 +10537,299 @@ final class DocxReader
         $properties['items'] = $items;
 
         return $properties;
+    }
+
+    /**
+     * @return array{count:int, boundStoreItemCount:int, items:list<array<string, mixed>>, byStoreItemID:array<string, array<string, mixed>>, lookupByStoreItemID:array<string, array<string, mixed>>}
+     */
+    private function readCustomXmlStore(ZipPackage $package, OpcRelationshipGraph $graph): array
+    {
+        $store = [
+            'count' => 0,
+            'boundStoreItemCount' => 0,
+            'items' => [],
+            'byStoreItemID' => [],
+            'lookupByStoreItemID' => [],
+        ];
+
+        $packageRelationships = $graph->relationshipsForSource('/');
+        if (!$packageRelationships instanceof OpcRelationships) {
+            return $store;
+        }
+
+        $items = [];
+        foreach ($packageRelationships->ofType(self::REL_TYPE_CUSTOM_XML) as $relationship) {
+            $items[] = $this->customXmlStoreItem($relationship, $package, $graph, $packageRelationships);
+        }
+
+        $seenStoreItemIds = [];
+        foreach ($items as &$item) {
+            $storeItemId = $item['storeItemID'] ?? null;
+            if (!is_string($storeItemId) || $storeItemId === '') {
+                continue;
+            }
+
+            $lookupKey = $this->customXmlStoreLookupKey($storeItemId);
+            if (isset($seenStoreItemIds[$lookupKey])) {
+                $item['issues'][] = 'duplicate-store-item-id';
+                $item['issues'] = array_values(array_unique($item['issues']));
+                continue;
+            }
+
+            $seenStoreItemIds[$lookupKey] = true;
+        }
+        unset($item);
+
+        $byStoreItemId = [];
+        $lookupByStoreItemId = [];
+        foreach ($items as $item) {
+            $storeItemId = $item['storeItemID'] ?? null;
+            if (!is_string($storeItemId) || $storeItemId === '' || in_array('duplicate-store-item-id', $item['issues'], true)) {
+                continue;
+            }
+
+            $byStoreItemId[$storeItemId] = $item;
+            $lookupByStoreItemId[$this->customXmlStoreLookupKey($storeItemId)] = $item;
+        }
+
+        return [
+            'count' => count($items),
+            'boundStoreItemCount' => count($byStoreItemId),
+            'items' => $items,
+            'byStoreItemID' => $byStoreItemId,
+            'lookupByStoreItemID' => $lookupByStoreItemId,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function customXmlStoreItem(
+        OpcRelationship $relationship,
+        ZipPackage $package,
+        OpcRelationshipGraph $graph,
+        OpcRelationships $packageRelationships
+    ): array {
+        $relationshipSummary = $this->internalSupportPartRelationshipSummary(
+            $relationship,
+            $package,
+            $packageRelationships,
+        );
+
+        $item = [
+            'id' => $relationship->id,
+            'relationshipType' => $relationship->type,
+            'target' => $relationshipSummary['target'],
+            'targetPart' => $relationshipSummary['targetPart'],
+            'contentType' => $relationshipSummary['contentType'],
+            'external' => $relationshipSummary['external'],
+            'exists' => $relationshipSummary['exists'],
+            'bytes' => null,
+            'rootName' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'textPreview' => null,
+            'textLength' => null,
+            'storeItemID' => null,
+            'schemaRefCount' => 0,
+            'schemaRefs' => [],
+            'propertiesPart' => null,
+            'propertiesContentType' => null,
+            'propertiesRelationship' => null,
+            'propertiesIssues' => [],
+            'issues' => $relationshipSummary['issues'],
+        ];
+
+        if (
+            is_string($relationshipSummary['contentType'])
+            && !$this->contentTypeBaseEquals($relationshipSummary['contentType'], 'application/xml')
+            && !$this->contentTypeBaseEquals($relationshipSummary['contentType'], 'text/xml')
+        ) {
+            $item['issues'][] = 'unexpected-content-type';
+        }
+
+        if ($relationshipSummary['exists'] !== true || !is_string($relationshipSummary['targetPart'])) {
+            $item['issues'] = array_values(array_unique($item['issues']));
+
+            return $item;
+        }
+
+        $bytes = $package->read($relationshipSummary['targetPart']);
+        $item['bytes'] = strlen($bytes);
+
+        try {
+            $dom = self::loadXml($bytes, 'DOCX custom XML data store item');
+            $root = $dom->documentElement;
+        } catch (\InvalidArgumentException) {
+            $root = null;
+            $item['issues'][] = 'invalid-custom-xml';
+        }
+
+        if ($root instanceof \DOMElement) {
+            $text = trim(preg_replace('/[ \t\r\n\f]+/u', ' ', $root->textContent) ?? $root->textContent);
+            $item['rootName'] = $this->qualifiedDomName($root);
+            $item['rootNamespace'] = $root->namespaceURI;
+            $item['rootLocalName'] = $root->localName;
+            $item['textPreview'] = $text === '' ? null : $this->boundedTextPreview($text);
+            $item['textLength'] = strlen($text);
+        }
+
+        $properties = $this->customXmlStorePropertiesForItem($relationshipSummary['targetPart'], $package, $graph);
+        if ($properties !== []) {
+            $item['propertiesPart'] = $properties['part'];
+            $item['propertiesContentType'] = $properties['contentType'];
+            $item['propertiesRelationship'] = $properties['relationship'];
+            $item['propertiesIssues'] = $properties['issues'];
+            $item['storeItemID'] = $properties['storeItemID'];
+            $item['schemaRefs'] = $properties['schemaRefs'];
+            $item['schemaRefCount'] = count($properties['schemaRefs']);
+        } else {
+            $item['issues'][] = 'missing-custom-xml-properties-relationship';
+        }
+
+        $item['issues'] = array_values(array_unique($item['issues']));
+
+        return $item;
+    }
+
+    /**
+     * @return array{part:?string, contentType:?string, relationship:array<string, mixed>, storeItemID:?string, schemaRefs:list<string>, issues:list<string>}|array{}
+     */
+    private function customXmlStorePropertiesForItem(
+        string $itemPart,
+        ZipPackage $package,
+        OpcRelationshipGraph $graph
+    ): array {
+        $relationships = $graph->relationshipsForSource($itemPart);
+        if (!$relationships instanceof OpcRelationships) {
+            return [];
+        }
+
+        $relationship = $relationships->firstOfType(self::REL_TYPE_CUSTOM_XML_PROPS);
+        if (!$relationship instanceof OpcRelationship) {
+            return [];
+        }
+
+        $relationshipSummary = $this->internalSupportPartRelationshipSummary(
+            $relationship,
+            $package,
+            $relationships,
+        );
+        $issues = $relationshipSummary['issues'];
+
+        if (
+            is_string($relationshipSummary['contentType'])
+            && !$this->contentTypeBaseEquals($relationshipSummary['contentType'], 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml')
+        ) {
+            $issues[] = 'unexpected-properties-content-type';
+        }
+
+        $properties = [
+            'part' => $relationshipSummary['targetPart'],
+            'contentType' => $relationshipSummary['contentType'],
+            'relationship' => $relationshipSummary,
+            'storeItemID' => null,
+            'schemaRefs' => [],
+            'issues' => [],
+        ];
+
+        if ($relationshipSummary['exists'] !== true || !is_string($relationshipSummary['targetPart'])) {
+            $properties['issues'] = array_values(array_unique($issues));
+
+            return $properties;
+        }
+
+        $parsed = $this->customXmlStoreProperties($package->read($relationshipSummary['targetPart']));
+        $properties['storeItemID'] = $parsed['storeItemID'];
+        $properties['schemaRefs'] = $parsed['schemaRefs'];
+        $properties['issues'] = array_values(array_unique(array_merge($issues, $parsed['issues'])));
+
+        return $properties;
+    }
+
+    /**
+     * @return array{storeItemID:?string, schemaRefs:list<string>, issues:list<string>}
+     */
+    private function customXmlStoreProperties(string $xml): array
+    {
+        $properties = [
+            'storeItemID' => null,
+            'schemaRefs' => [],
+            'issues' => [],
+        ];
+
+        try {
+            $dom = self::loadXml($xml, 'DOCX custom XML data store item properties');
+        } catch (\InvalidArgumentException) {
+            $properties['issues'][] = 'invalid-custom-xml-properties';
+
+            return $properties;
+        }
+
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->namespaceURI !== self::CUSTOM_XML_DATASTORE_NS || $root->localName !== 'datastoreItem') {
+            $properties['issues'][] = 'invalid-custom-xml-properties-root';
+
+            return $properties;
+        }
+
+        $storeItemId = $this->customXmlDataStoreAttr($root, 'itemID');
+        if ($storeItemId !== null && $storeItemId !== '') {
+            $properties['storeItemID'] = $storeItemId;
+        } else {
+            $properties['issues'][] = 'missing-store-item-id';
+        }
+
+        $schemaRefs = $this->firstChildElement($root, self::CUSTOM_XML_DATASTORE_NS, 'schemaRefs');
+        if ($schemaRefs instanceof \DOMElement) {
+            foreach ($schemaRefs->childNodes as $child) {
+                if (!$child instanceof \DOMElement || $child->namespaceURI !== self::CUSTOM_XML_DATASTORE_NS || $child->localName !== 'schemaRef') {
+                    continue;
+                }
+
+                $uri = $this->customXmlDataStoreAttr($child, 'uri');
+                if ($uri !== null && $uri !== '') {
+                    $properties['schemaRefs'][] = $uri;
+                }
+            }
+        }
+
+        return $properties;
+    }
+
+    private function customXmlDataStoreAttr(\DOMElement $element, string $localName): ?string
+    {
+        return $this->namespacedAttr($element, self::CUSTOM_XML_DATASTORE_NS, $localName);
+    }
+
+    private function customXmlStoreLookupKey(string $storeItemId): string
+    {
+        return strtolower(trim($storeItemId));
+    }
+
+    private function contentTypeBaseEquals(string $contentType, string $expected): bool
+    {
+        return strtolower(trim(explode(';', $contentType, 2)[0])) === strtolower($expected);
+    }
+
+    private function qualifiedDomName(\DOMElement $element): string
+    {
+        $prefix = $element->prefix;
+
+        return is_string($prefix) && $prefix !== '' ? $prefix . ':' . $element->localName : $element->localName;
+    }
+
+    private function boundedTextPreview(string $text): string
+    {
+        if (strlen($text) <= 120) {
+            return $text;
+        }
+
+        if (function_exists('mb_substr')) {
+            return mb_substr($text, 0, 120, 'UTF-8') . '...';
+        }
+
+        return substr($text, 0, 120) . '...';
     }
 
     private function docPropsChildText(\DOMElement $root, string $namespace, string $localName): ?string
