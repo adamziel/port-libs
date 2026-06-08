@@ -32735,7 +32735,9 @@ final class PdfTextExtractor
             ]];
         }
 
-        $items = $this->xrefStreamOperandItems($value);
+        $trimmedValue = trim($value);
+        $topLevelArrayOperand = str_starts_with($trimmedValue, '[') && str_ends_with($trimmedValue, ']');
+        $items = $this->xrefStreamOperandItems($trimmedValue);
         if ($items === []) {
             return [[
                 'name' => $name,
@@ -32751,7 +32753,7 @@ final class PdfTextExtractor
             : null;
         $topLevelFilterExtraOperandAttached = false;
         $reviews = [];
-        foreach ($items as $item) {
+        foreach ($items as $itemIndex => $item) {
             $item = trim($item);
             if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $item, $match) === 1) {
                 $review = $this->xrefStreamIndirectOperandReview(
@@ -32767,6 +32769,10 @@ final class PdfTextExtractor
                     : null;
                 if ($extraFilterOperand !== null) {
                     $review = $this->streamFilterOperandReviewWithExtraOperand($review, $extraFilterOperand);
+                }
+                if ($topLevelArrayOperand) {
+                    $review['array_item'] = true;
+                    $review['array_index'] = $itemIndex;
                 }
 
                 $reviews[] = $review;
@@ -32805,6 +32811,10 @@ final class PdfTextExtractor
             }
             if ($name === 'DecodeParms') {
                 $review['valid_decodeparms_operand'] = $this->decodeParmsOperandBodyIsValid($item, $objects);
+            }
+            if ($topLevelArrayOperand) {
+                $review['array_item'] = true;
+                $review['array_index'] = $itemIndex;
             }
 
             $reviews[] = $review;
