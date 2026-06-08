@@ -16402,7 +16402,7 @@ final class PdfMetadataExtractor
     private function xmpPacketInstructionMatchesKind(string $instruction, string $kind): bool
     {
         $attributes = $this->xmpPacketInstructionAttributes($instruction);
-        if ($attributes === null) {
+        if ($attributes === null || $this->xmpPacketInstructionHasAmbiguousBoundaryAttributes($attributes)) {
             return false;
         }
 
@@ -16427,6 +16427,20 @@ final class PdfMetadataExtractor
             'end' => $hasTerminalEnd && !$hasBegin,
             default => false,
         };
+    }
+
+    /**
+     * @param array<string, list<array{value: string, quoted: bool}>> $attributes
+     */
+    private function xmpPacketInstructionHasAmbiguousBoundaryAttributes(array $attributes): bool
+    {
+        foreach (['begin', 'end'] as $name) {
+            if (count($attributes[$name] ?? []) > 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

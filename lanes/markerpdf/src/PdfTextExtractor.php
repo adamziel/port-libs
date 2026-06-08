@@ -4297,6 +4297,10 @@ final class PdfTextExtractor
             $resourceOwnerBody,
             $objects
         );
+        $resourceOwnerFormXObjectResourceNames = $this->formXObjectResourceNamesForResourceOwnerBody(
+            $resourceOwnerBody,
+            $objects
+        );
         if (
             $xObjectMap === []
             && !$shouldTransformTextPositions
@@ -4329,7 +4333,7 @@ final class PdfTextExtractor
             'leading' => null,
             'insideBBox' => true,
         ];
-        foreach ($this->contentTokens($content) as $token) {
+        foreach ($this->contentTokens($content, false, [], $resourceOwnerFormXObjectResourceNames) as $token) {
             if (!$this->isOperator($token)) {
                 $operands[] = $token;
                 continue;
@@ -4778,6 +4782,27 @@ final class PdfTextExtractor
             'generation' => $generation,
             'body' => $body,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function formXObjectResourceNamesForResourceOwnerBody(string $resourceOwnerBody, array $objects): array
+    {
+        $names = [];
+        foreach ($this->xObjectResourceReferences($resourceOwnerBody, $objects) as $resourceName => $reference) {
+            $body = $reference['body'] ?? null;
+            if (!is_string($body)) {
+                continue;
+            }
+
+            if ($this->isFormXObjectBody($body, $objects)) {
+                $names[] = $resourceName;
+            }
+        }
+
+        return array_values(array_unique($names));
     }
 
     /**
@@ -43076,11 +43101,13 @@ final class PdfTextExtractor
     /**
      * @return list<string>
      * @param array<string, string> $inlineImageColorSpaceResources
+     * @param list<string> $textProducingXObjectResourceNames
      */
     private function contentTokens(
         string $stream,
         bool $preserveInlineImageOperator = false,
-        array $inlineImageColorSpaceResources = []
+        array $inlineImageColorSpaceResources = [],
+        array $textProducingXObjectResourceNames = []
     ): array
     {
         $tokens = [];
@@ -43139,7 +43166,13 @@ final class PdfTextExtractor
             $token = substr($stream, $start, $index - $start);
             if ($token === 'BI' && !$insideTextObject) {
                 $inlineImageEnd = $index;
-                if ($this->skipInlineImage($stream, $inlineImageEnd, $compatibilityDepth, $inlineImageColorSpaceResources)) {
+                if ($this->skipInlineImage(
+                    $stream,
+                    $inlineImageEnd,
+                    $compatibilityDepth,
+                    $inlineImageColorSpaceResources,
+                    $textProducingXObjectResourceNames
+                )) {
                     if ($preserveInlineImageOperator) {
                         $tokens[] = $token;
                     }
@@ -43167,12 +43200,14 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, string> $inlineImageColorSpaceResources
+     * @param list<string> $textProducingXObjectResourceNames
      */
     private function skipInlineImage(
         string $stream,
         int &$index,
         int $outerCompatibilityDepth = 0,
-        array $inlineImageColorSpaceResources = []
+        array $inlineImageColorSpaceResources = [],
+        array $textProducingXObjectResourceNames = []
     ): bool
     {
         $length = strlen($stream);
@@ -43232,7 +43267,8 @@ final class PdfTextExtractor
                             'graphics_state' => 0,
                             'marked_content' => 0,
                             'compatibility' => $outerCompatibilityDepth,
-                        ] : []
+                        ] : [],
+                        $textProducingXObjectResourceNames
                     );
                     if (
                         $closedTextObjectBeforeCandidateEi
@@ -43242,7 +43278,12 @@ final class PdfTextExtractor
                         )
                         || (
                             $openScopes !== null
-                            && $this->contentSegmentOpenScopesContinueAfterEiAndClose($stream, $end + 2, $openScopes)
+                            && $this->contentSegmentOpenScopesContinueAfterEiAndClose(
+                                $stream,
+                                $end + 2,
+                                $openScopes,
+                                $textProducingXObjectResourceNames
+                            )
                         )
                         || $this->contentSegmentContainsInlineImagePreamble($segmentAfterFallback)
                         || $this->contentSegmentContainsUnterminatedTextLiteralAfterTextObject($segmentAfterFallback)
@@ -43285,14 +43326,17 @@ final class PdfTextExtractor
 
     /**
      * @param array{graphics_state: int, marked_content: int, compatibility: int}|null $openScopes
+     * @param list<string> $textProducingXObjectResourceNames
      */
     private function contentSegmentIsLineSeparatedClosedTextObject(
         string $segment,
         ?array &$openScopes = null,
-        array $initialOpenScopes = []
+        array $initialOpenScopes = [],
+        array $textProducingXObjectResourceNames = []
     ): bool
     {
         $openScopes = null;
+        $textProducingXObjectResourceNameSet = array_fill_keys($textProducingXObjectResourceNames, true);
         $index = 0;
         $length = strlen($segment);
         $lineSeparated = false;
@@ -43300,6 +43344,7 @@ final class PdfTextExtractor
         $textObjectHasText = false;
         $closedTextObject = false;
         $closedReplacementOnlyMarkedContent = false;
+        $invokedTextProducingXObject = false;
         $graphicsStateDepth = max(0, (int) ($initialOpenScopes['graphics_state'] ?? 0));
         $markedContentDepth = max(0, (int) ($initialOpenScopes['marked_content'] ?? 0));
         $compatibilityDepth = max(0, (int) ($initialOpenScopes['compatibility'] ?? 0));
@@ -43527,6 +43572,11 @@ final class PdfTextExtractor
                         return false;
                     }
 
+                    $xObjectResourceName = $this->decodePdfName(substr($outsideTextOperands[0], 1));
+                    if (isset($textProducingXObjectResourceNameSet[$xObjectResourceName])) {
+                        $invokedTextProducingXObject = true;
+                    }
+
                     $replacementIndex = $this->contentSegmentActiveMarkedContentReplacementIndex($markedContentStack);
                     if ($replacementIndex !== null) {
                         $markedContentStack[$replacementIndex]['has_image_xobject'] = true;
@@ -43666,7 +43716,7 @@ final class PdfTextExtractor
         }
 
         if (
-            (!$closedTextObject && !$closedReplacementOnlyMarkedContent)
+            (!$closedTextObject && !$closedReplacementOnlyMarkedContent && !$invokedTextProducingXObject)
             || $insideTextObject
             || $outsideTextOperands !== []
         ) {
@@ -43739,11 +43789,13 @@ final class PdfTextExtractor
 
     /**
      * @param array{graphics_state: int, marked_content: int, compatibility: int} $openScopes
+     * @param list<string> $textProducingXObjectResourceNames
      */
     private function contentSegmentOpenScopesContinueAfterEiAndClose(
         string $stream,
         int $offset,
-        array $openScopes
+        array $openScopes,
+        array $textProducingXObjectResourceNames = []
     ): bool {
         $closureOffset = $this->contentSegmentOpenScopeClosureOffset($stream, $offset, $openScopes);
         if ($closureOffset === null || $closureOffset <= $offset) {
@@ -43754,7 +43806,8 @@ final class PdfTextExtractor
         return $this->contentSegmentIsLineSeparatedClosedTextObject(
             substr($stream, $offset, $closureOffset - $offset),
             $resolvedOpenScopes,
-            $openScopes
+            $openScopes,
+            $textProducingXObjectResourceNames
         );
     }
 
