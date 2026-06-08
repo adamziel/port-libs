@@ -1032,3 +1032,31 @@ object ReviewPacket:
   val blocks: Map[String, Boolean] =
     Map("core/paragraph" -> true, "core/html" -> false)
 ```
+
+``` {.ex #elixir-review .numberLines startFrom=820}
+# Phoenix WordPress import review
+defmodule Importer.ReviewPacket do
+  @derive Jason.Encoder
+  @enforce_keys [:source_id, :title]
+  defstruct [:source_id, :title, media: [], blocks: MapSet.new()]
+
+  @spec normalize_title(%__MODULE__{}) :: String.t()
+  def normalize_title(%__MODULE__{title: title, source_id: source_id}) when is_binary(title) do
+    title
+    |> String.trim()
+    |> case do
+      "" -> "Import #{source_id}"
+      clean -> clean
+    end
+  end
+
+  def from_json(raw) do
+    with {:ok, packet} <- Jason.decode(raw, keys: :atoms),
+         true <- Map.has_key?(packet, :source_id) do
+      {:ok, struct(__MODULE__, packet)}
+    else
+      _ -> {:error, :invalid_packet}
+    end
+  end
+end
+```

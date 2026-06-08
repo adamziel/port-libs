@@ -46,6 +46,10 @@ return [
         $t->same('elm', SyntaxHighlighter::normalizeLanguage('elm'));
         $t->same('elm', SyntaxHighlighter::normalizeLanguage('language-elm-module'));
         $t->same('elm', SyntaxHighlighter::normalizeLanguage('elm.source'));
+        $t->same('elixir', SyntaxHighlighter::normalizeLanguage('elixir'));
+        $t->same('elixir', SyntaxHighlighter::normalizeLanguage('ex'));
+        $t->same('elixir', SyntaxHighlighter::normalizeLanguage('exs'));
+        $t->same('elixir', SyntaxHighlighter::normalizeLanguage('language-ex'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('graphviz'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('gv'));
         $t->same('apache', SyntaxHighlighter::normalizeLanguage('apache'));
@@ -1780,6 +1784,58 @@ return [
         $t->same('sbt', $directSbt['requestedLanguage']);
         $t->contains('<span class="dt">ThisBuild</span> <span class="op">/</span> <span class="va">scalaVersion</span> <span class="op">:=</span> <span class="st">&quot;3.5.0&quot;</span>', $directSbt['html']);
         $t->contains('<span class="kw">lazy</span> <span class="kw">val</span> <span class="va">importer</span> <span class="op">=</span> <span class="va">project</span>', $directSbt['html']);
+    },
+    'highlights elixir phoenix review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[59] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an Elixir code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directExs = $highlighter->highlight(
+            'defmodule Importer.Script do; @spec run(String.t()) :: :ok; def run(title), do: title |> String.trim(); end',
+            'exs'
+        );
+
+        $t->same('ex', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('elixir', SyntaxHighlighter::normalizeLanguage('elixir'));
+        $t->same('elixir', SyntaxHighlighter::normalizeLanguage('ex'));
+        $t->same('elixir', SyntaxHighlighter::normalizeLanguage('exs'));
+        $t->same('elixir', $highlighted['language']);
+        $t->same('ex', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(820, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource ex numberLines"><code class="sourceCode elixir" style="counter-reset: source-line 819;">', $highlighted['html']);
+        $t->contains('<span id="elixir-review-820"><a href="#elixir-review-820"></a><span class="co"># Phoenix WordPress import review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">defmodule</span> <span class="dt">Importer</span><span class="op">.</span><span class="dt">ReviewPacket</span> <span class="kw">do</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@derive</span> <span class="dt">Jason</span><span class="op">.</span><span class="dt">Encoder</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@enforce_keys</span> <span class="op">[</span><span class="cn">:source_id</span><span class="op">,</span> <span class="cn">:title</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">defstruct</span> <span class="op">[</span><span class="cn">:source_id</span><span class="op">,</span> <span class="cn">:title</span><span class="op">,</span> <span class="ot">media</span><span class="op">:</span> <span class="op">[],</span> <span class="ot">blocks</span><span class="op">:</span> <span class="dt">MapSet</span><span class="op">.</span><span class="fu">new</span><span class="op">()]</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@spec</span> <span class="fu">normalize_title</span><span class="op">(%</span><span class="dt">__MODULE__</span><span class="op">{})</span> <span class="op">::</span> <span class="dt">String</span><span class="op">.</span><span class="fu">t</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<span class="kw">def</span> <span class="fu">normalize_title</span><span class="op">(%</span><span class="dt">__MODULE__</span><span class="op">{</span><span class="ot">title</span><span class="op">:</span> <span class="va">title</span><span class="op">,</span> <span class="ot">source_id</span><span class="op">:</span> <span class="va">source_id</span><span class="op">})</span> <span class="kw">when</span> <span class="fu">is_binary</span><span class="op">(</span><span class="va">title</span><span class="op">)</span> <span class="kw">do</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span>', $highlighted['html']);
+        $t->contains('<span class="op">|&gt;</span> <span class="dt">String</span><span class="op">.</span><span class="fu">trim</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<span class="op">|&gt;</span> <span class="kw">case</span> <span class="kw">do</span>', $highlighted['html']);
+        $t->contains('<span class="st">&quot;&quot;</span> <span class="op">-&gt;</span> <span class="st">&quot;Import #{source_id}&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">with</span> <span class="op">{</span><span class="cn">:ok</span><span class="op">,</span> <span class="va">packet</span><span class="op">}</span> <span class="op">&lt;-</span> <span class="dt">Jason</span><span class="op">.</span><span class="fu">decode</span><span class="op">(</span><span class="va">raw</span><span class="op">,</span> <span class="ot">keys</span><span class="op">:</span> <span class="cn">:atoms</span><span class="op">),</span>', $highlighted['html']);
+        $t->contains('<span class="cn">:source_id</span>', $highlighted['html']);
+        $t->contains('<span class="op">-&gt;</span> <span class="op">{</span><span class="cn">:error</span><span class="op">,</span> <span class="cn">:invalid_packet</span><span class="op">}</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="dt">Jason</span><span class="op">.</span><span class="fu">decode</span>', $wordpressBlock);
+        $t->same('elixir', $directExs['language']);
+        $t->same('exs', $directExs['requestedLanguage']);
+        $t->contains('<span class="kw">defmodule</span> <span class="dt">Importer</span><span class="op">.</span><span class="dt">Script</span> <span class="kw">do</span>', $directExs['html']);
+        $t->contains('<span class="ot">@spec</span> <span class="fu">run</span><span class="op">(</span><span class="dt">String</span><span class="op">.</span><span class="fu">t</span><span class="op">())</span> <span class="op">::</span> <span class="cn">:ok</span>', $directExs['html']);
+        $t->contains('<span class="kw">def</span> <span class="fu">run</span><span class="op">(</span><span class="va">title</span><span class="op">),</span> <span class="ot">do</span><span class="op">:</span> <span class="va">title</span> <span class="op">|&gt;</span> <span class="dt">String</span><span class="op">.</span><span class="fu">trim</span><span class="op">();</span>', $directExs['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

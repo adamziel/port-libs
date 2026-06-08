@@ -82,6 +82,9 @@ final class SyntaxHighlighter
         'elm' => 'elm',
         'elm-module' => 'elm',
         'elm-source' => 'elm',
+        'elixir' => 'elixir',
+        'ex' => 'elixir',
+        'exs' => 'elixir',
         'flutter' => 'dart',
         'git-diff' => 'diff',
         'graphviz' => 'dot',
@@ -680,6 +683,7 @@ final class SyntaxHighlighter
             'dot' => $this->tokenizeDot($code),
             'dockerfile' => $this->tokenizeDockerfile($code),
             'elm' => $this->tokenizeElm($code),
+            'elixir' => $this->tokenizeElixir($code),
             'go' => $this->tokenizeGo($code),
             'graphql' => $this->tokenizeGraphql($code),
             'hcl' => $this->tokenizeHcl($code),
@@ -2292,6 +2296,35 @@ final class SyntaxHighlighter
             ['datatype', '/^\\b[A-Z][A-Za-z0-9_.]*(?:\\/[A-Z][A-Za-z0-9_.]*)?\\b/'],
             ['variable', '/^[A-Za-z*!?+<>=_.$%&-][A-Za-z0-9*!?+<>=_.$%&\\/:-]*/'],
             ['operator', '/^(?:#\\{|#\\(|#\\[|~@|->>|->|::?|[{}()[\\]\'`~@^.,])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeElixir(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^~[A-Za-z](?:"""[\\s\\S]*?"""|\'\'\'[\\s\\S]*?\'\'\'|\\/(?:\\\\.|[^\\/\\\\])*\\/[A-Za-z]*)/'],
+            ['string', '/^"""[\\s\\S]*?"""/'],
+            ['string', "/^'''[\\s\\S]*?'''/"],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_!?]*/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_!?]*(?=\\s*:)/'],
+            ['keyword', '/^\\b(?:after|alias|and|case|catch|cond|def|defdelegate|defexception|defguard|defguardp|defimpl|defmacro|defmacrop|defmodule|defoverridable|defp|defprotocol|defstruct|destructure|do|else|end|fn|for|if|import|in|not|or|quote|raise|receive|require|rescue|super|throw|try|unless|unquote|use|when|with)\\b/'],
+            ['constant', '/^\\b(?:false|nil|true)\\b/'],
+            ['constant', '/^:[A-Za-z_][A-Za-z0-9_!?@]*(?:[\\/?][A-Za-z0-9_!?@-]+)*/'],
+            ['datatype', '/^\\b(?:Access|Agent|Application|Date|DateTime|Decimal|Enum|File|GenServer|Integer|Jason|Keyword|List|Logger|Map|MapSet|Phoenix|Process|Regex|Repo|String|Supervisor|Task|Time|URI)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|0[oO][0-7](?:_?[0-7])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)\\b/'],
+            ['datatype', '/^__MODULE__\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({.]|\\b))/'],
+            ['function', '/^\\b[a-z_][A-Za-z0-9_!?]*(?=\\s*(?:<[^>\\n]+>\\s*)?\\()/'],
+            ['function', '/^\\b[a-z_][A-Za-z0-9_!?]*(?=\\s+(?:do\\b|%\\{|\\[|\\{|[A-Za-z_:@"]))/'],
+            ['variable', '/^\\b_[A-Za-z0-9_!?]*\\b/'],
+            ['variable', '/^\\b[a-z_][A-Za-z0-9_!?]*\\b/'],
+            ['operator', '/^(?:%\\{|%|\\|>|::|=>|->|<-|\\\\\\\\|<>|==|!=|<=|>=|&&|\\|\\||\\.\\.|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
         ]);
     }
 

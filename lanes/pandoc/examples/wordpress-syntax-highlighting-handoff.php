@@ -376,6 +376,12 @@ if (!$scalaCodeBlock instanceof PortLibs\Pandoc\AstNode || $scalaCodeBlock->type
 }
 $scala = $highlighter->highlightCodeBlock($scalaCodeBlock, 'zenburn');
 $scalaWordpressBlock = $highlighter->wordpressHtmlBlock($scalaCodeBlock, 'zenburn');
+$elixirCodeBlock = $document->children[59] ?? null;
+if (!$elixirCodeBlock instanceof PortLibs\Pandoc\AstNode || $elixirCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an Elixir code block');
+}
+$elixir = $highlighter->highlightCodeBlock($elixirCodeBlock, 'tango');
+$elixirWordpressBlock = $highlighter->wordpressHtmlBlock($elixirCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1604,6 +1610,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($scalaWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
         throw new RuntimeException('Expected Scala WordPress style metadata');
     }
+    if (($elixir['language'] ?? '') !== 'elixir') {
+        throw new RuntimeException('Expected Elixir language handoff');
+    }
+    if (($elixir['lineNumbering']['start'] ?? null) !== 820) {
+        throw new RuntimeException('Expected Elixir source startFrom line-number handoff');
+    }
+    if (!str_contains($elixir['html'], '<span class="kw">defmodule</span> <span class="dt">Importer</span><span class="op">.</span><span class="dt">ReviewPacket</span> <span class="kw">do</span>')) {
+        throw new RuntimeException('Expected Elixir module token handoff');
+    }
+    if (!str_contains($elixir['html'], '<span class="ot">@enforce_keys</span> <span class="op">[</span><span class="cn">:source_id</span>')) {
+        throw new RuntimeException('Expected Elixir module-attribute atom token handoff');
+    }
+    if (!str_contains($elixir['html'], '<span class="op">|&gt;</span> <span class="dt">String</span><span class="op">.</span><span class="fu">trim</span><span class="op">()</span>')) {
+        throw new RuntimeException('Expected Elixir pipeline function token handoff');
+    }
+    if (!str_contains($elixir['html'], '<span class="kw">with</span> <span class="op">{</span><span class="cn">:ok</span><span class="op">,</span> <span class="va">packet</span><span class="op">}</span> <span class="op">&lt;-</span>')) {
+        throw new RuntimeException('Expected Elixir with atom tuple token handoff');
+    }
+    if (!str_contains($elixirWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected Elixir WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1683,6 +1710,7 @@ echo "jsoncHighlightedHtml:\n" . $jsonc['html'] . "\n";
 echo "typstHighlightedHtml:\n" . $typst['html'] . "\n";
 echo "kotlinHighlightedHtml:\n" . $kotlin['html'] . "\n";
 echo "scalaHighlightedHtml:\n" . $scala['html'] . "\n";
+echo "elixirHighlightedHtml:\n" . $elixir['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1732,4 +1760,5 @@ echo "elmWordpressBlock:\n" . $elmWordpressBlock . "\n";
 echo "jsoncWordpressBlock:\n" . $jsoncWordpressBlock . "\n";
 echo "kotlinWordpressBlock:\n" . $kotlinWordpressBlock . "\n";
 echo "scalaWordpressBlock:\n" . $scalaWordpressBlock . "\n";
+echo "elixirWordpressBlock:\n" . $elixirWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
