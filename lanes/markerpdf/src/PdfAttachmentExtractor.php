@@ -45,6 +45,8 @@ final class PdfAttachmentExtractor
 
     private const FILE_SPEC_METADATA_BOUNDARY_KEYS = ['FS', 'ID', 'V'];
 
+    private const FILE_SPEC_DESCRIPTION_BOUNDARY_KEYS = ['Desc'];
+
     private const FILE_SPEC_COLLECTION_ITEM_BOUNDARY_KEYS = ['CI'];
 
     private const FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS = ['RF'];
@@ -1840,6 +1842,14 @@ final class PdfAttachmentExtractor
         $decodedLength = $this->intValue($this->resolveValue($streamDict['DL'] ?? null, $objects));
         $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
         $relationship = $this->nameValue($this->resolveValue($fileSpec['AFRelationship'] ?? null, $objects));
+        $descriptionMalformed = $fileSpecDictionaryBody !== null
+            && (
+                $this->dictionaryHasDuplicateKeys($fileSpecDictionaryBody, self::FILE_SPEC_DESCRIPTION_BOUNDARY_KEYS)
+                || $this->dictionaryHasTrailingOperandsAfterKeys($fileSpecDictionaryBody, self::FILE_SPEC_DESCRIPTION_BOUNDARY_KEYS)
+            );
+        $description = $descriptionMalformed
+            ? null
+            : $this->stringValue($this->resolveValue($fileSpec['Desc'] ?? null, $objects));
         $fileSpecMetadataMalformed = $fileSpecDictionaryBody !== null
             && (
                 $this->dictionaryHasDuplicateKeys($fileSpecDictionaryBody, self::FILE_SPEC_METADATA_BOUNDARY_KEYS)
@@ -1873,7 +1883,7 @@ final class PdfAttachmentExtractor
             'ef_key' => $streamReference['key'],
             'filename' => $filename,
             'filename_source' => $filenameSource,
-            'description' => $this->stringValue($this->resolveValue($fileSpec['Desc'] ?? null, $objects)),
+            'description' => $description,
             'content_type' => $this->nameValue($this->resolveValue($streamDict['Subtype'] ?? null, $objects)),
             'declared_size' => $declaredSize,
             'checksum_hex' => $checksum,
@@ -1884,6 +1894,9 @@ final class PdfAttachmentExtractor
         ];
         foreach ($this->embeddedFileKeySelectionReview($filenameSource, $streamReference['key']) as $key => $metadataValue) {
             $attachment[$key] = $metadataValue;
+        }
+        if ($descriptionMalformed) {
+            $attachment['description_status'] = 'malformed_filespec_description_omitted';
         }
         $this->addUtcDateReview($attachment, 'created_at', $createdAt);
         $this->addUtcDateReview($attachment, 'modified_at', $modifiedAt);

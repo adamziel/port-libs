@@ -6338,6 +6338,29 @@ final class PdfSecurityPreflight
         $cryptFilterDictionaryDeclarationReview = is_array($encryption['crypt_filter_dictionary_declaration_review'] ?? null)
             ? $encryption['crypt_filter_dictionary_declaration_review']
             : [];
+        $declaredCryptFilters = is_array($encryption['crypt_filters'] ?? null) ? $encryption['crypt_filters'] : [];
+        $declaredCryptFilterNames = array_values(array_filter(
+            array_keys($declaredCryptFilters),
+            static fn (mixed $name): bool => is_string($name) && $name !== ''
+        ));
+        $selectedCryptFilterNames = is_array($cryptFilterContentReview['selected_filter_names'] ?? null)
+            ? array_values(array_filter(
+                $cryptFilterContentReview['selected_filter_names'],
+                static fn (mixed $name): bool => is_string($name) && $name !== ''
+            ))
+            : [];
+        $cryptFilterDictionaryDeclaredFilterNames = is_array($cryptFilterDictionaryDeclarationReview['declared_filter_names'] ?? null)
+            ? array_values(array_filter(
+                $cryptFilterDictionaryDeclarationReview['declared_filter_names'],
+                static fn (mixed $name): bool => is_string($name) && $name !== ''
+            ))
+            : [];
+        $cryptFilterDictionarySelectedFilterNames = is_array($cryptFilterDictionaryDeclarationReview['selected_filter_names'] ?? null)
+            ? array_values(array_filter(
+                $cryptFilterDictionaryDeclarationReview['selected_filter_names'],
+                static fn (mixed $name): bool => is_string($name) && $name !== ''
+            ))
+            : [];
         $cryptFilterRoleDeclarationReview = is_array($encryption['crypt_filter_role_declaration_review'] ?? null)
             ? $encryption['crypt_filter_role_declaration_review']
             : [];
@@ -6572,9 +6595,14 @@ final class PdfSecurityPreflight
             'public_key_crypt_filter_selection' => is_array($publicKeyRecipientReview['crypt_filter_selection'] ?? null)
                 ? $publicKeyRecipientReview['crypt_filter_selection']
                 : [],
+            'declared_crypt_filter_count' => count($declaredCryptFilterNames),
+            'declared_crypt_filter_names' => $declaredCryptFilterNames,
+            'selected_crypt_filter_names' => $selectedCryptFilterNames,
             'crypt_filter_dictionary_declaration_review' => $cryptFilterDictionaryDeclarationReview,
             'crypt_filter_dictionary_status' => $cryptFilterDictionaryDeclarationReview['status'] ?? null,
             'crypt_filter_dictionary_declared_entry_count' => (int) ($cryptFilterDictionaryDeclarationReview['declared_entry_count'] ?? 0),
+            'crypt_filter_dictionary_declared_filter_names' => $cryptFilterDictionaryDeclaredFilterNames,
+            'crypt_filter_dictionary_selected_filter_names' => $cryptFilterDictionarySelectedFilterNames,
             'crypt_filter_dictionary_duplicate_entries' => (bool) ($cryptFilterDictionaryDeclarationReview['duplicate_entries'] ?? false),
             'crypt_filter_dictionary_malformed_entry_count' => (int) ($cryptFilterDictionaryDeclarationReview['malformed_entry_count'] ?? 0),
             'crypt_filter_dictionary_fail_closed' => (bool) ($cryptFilterDictionaryDeclarationReview['fail_closed'] ?? false),

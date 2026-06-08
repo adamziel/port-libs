@@ -23,6 +23,8 @@ final class PdfEmbeddedFileExtractor
 
     private const FILE_SPEC_METADATA_BOUNDARY_KEYS = ['FS', 'ID', 'V'];
 
+    private const FILE_SPEC_DESCRIPTION_BOUNDARY_KEYS = ['Desc'];
+
     private const FILE_SPEC_COLLECTION_ITEM_BOUNDARY_KEYS = ['CI'];
 
     private const FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS = ['RF'];
@@ -1007,8 +1009,11 @@ final class PdfEmbeddedFileExtractor
                 $file['unicode_filename'] = $filename;
             }
 
+            foreach ($this->fileSpecDescriptionMetadata($body, $objects) as $key => $metadataValue) {
+                $file[$key] = $metadataValue;
+            }
+
             foreach ([
-                'description' => $this->dictionaryStringValue($body, 'Desc', $objects),
                 'relationship' => $this->dictionaryNameValue($body, 'AFRelationship', $objects),
             ] as $key => $metadataValue) {
                 if (is_string($metadataValue) && $metadataValue !== '') {
@@ -2118,6 +2123,30 @@ final class PdfEmbeddedFileExtractor
         }
 
         return ['embedded-file', 'generated'];
+    }
+
+    /**
+     * FileSpec /Desc is user-facing review metadata. If duplicate or tailed,
+     * keep the payload review row but omit the ambiguous description.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, string>
+     */
+    private function fileSpecDescriptionMetadata(string $fileSpecBody, array $objects): array
+    {
+        if (
+            $this->dictionaryHasDuplicateKeys($fileSpecBody, self::FILE_SPEC_DESCRIPTION_BOUNDARY_KEYS)
+            || $this->dictionaryHasTrailingOperandsAfterKeys($fileSpecBody, self::FILE_SPEC_DESCRIPTION_BOUNDARY_KEYS)
+        ) {
+            return ['description_status' => 'malformed_filespec_description_omitted'];
+        }
+
+        $description = $this->dictionaryStringValue($fileSpecBody, 'Desc', $objects);
+        if ($description === null || $description === '') {
+            return [];
+        }
+
+        return ['description' => $description];
     }
 
     /**

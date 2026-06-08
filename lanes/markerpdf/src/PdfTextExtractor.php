@@ -591,13 +591,18 @@ final class PdfTextExtractor
 
             $defaultMemberIndex = (int) ($entry['index'] ?? 0);
             $objectStreamXrefEntry = $objectStreamNumber > 0 ? ($xrefEntries[$objectStreamNumber] ?? null) : null;
-            $objectStreamOwner = $objectStreamNumber > 0 && isset($objects[$objectStreamNumber])
-                ? $this->directObjectDefinitionForBody($definitions[$objectStreamNumber] ?? [], $objects[$objectStreamNumber])
+            $objectStreamBody = $objectStreamNumber > 0 && isset($objects[$objectStreamNumber])
+                ? $objects[$objectStreamNumber]
                 : null;
-            $memberTable = $objectStreamNumber > 0 && isset($objects[$objectStreamNumber])
-                ? $this->decodedObjectStreamMemberTable($objects[$objectStreamNumber], $objects)
+            $objectStreamCarrierIsTyped = is_string($objectStreamBody)
+                && $this->objectBodyHasTypeName($objectStreamBody, 'ObjStm', $objects);
+            $objectStreamOwner = $objectStreamCarrierIsTyped
+                ? $this->directObjectDefinitionForBody($definitions[$objectStreamNumber] ?? [], (string) $objectStreamBody)
                 : null;
-            $objectStreamCarrierResolved = $objectStreamNumber > 0 && $memberTable !== null;
+            $memberTable = $objectStreamCarrierIsTyped
+                ? $this->decodedObjectStreamMemberTable((string) $objectStreamBody, $objects)
+                : null;
+            $objectStreamCarrierResolved = $objectStreamCarrierIsTyped && $memberTable !== null;
             if (!$objectStreamCarrierResolved) {
                 $review['unresolved_object_stream_carrier_count']++;
             }
@@ -677,8 +682,9 @@ final class PdfTextExtractor
             $selectedMemberIsStream = $selectedMemberBody !== null
                 && !$selectedMemberIsIndirectWrapper
                 && $this->objectStreamMemberIsTopLevelStreamObject($selectedMemberBody);
-            $objectStreamCarrierHasFilter = isset($objects[$objectStreamNumber])
-                && $this->objectStreamCarrierHasFilters($objects[$objectStreamNumber], $objects);
+            $objectStreamCarrierHasFilter = $objectStreamCarrierIsTyped
+                && is_string($objectStreamBody)
+                && $this->objectStreamCarrierHasFilters($objectStreamBody, $objects);
             $objectStreamOwnerPolicy = $objectStreamNumber <= 0
                 ? ($objectStreamIsExplicit ? 'invalid_explicit_object_stream_carrier' : 'missing_object_stream_carrier')
                 : $this->objectStreamCarrierOwnerPolicy($objectStreamXrefEntry, $objectStreamOwner);
@@ -727,6 +733,7 @@ final class PdfTextExtractor
                 'xref_member_index' => $defaultMemberIndex,
                 'object_stream_field_is_explicit' => $objectStreamIsExplicit,
                 'object_stream_field_is_zero_width' => !$objectStreamIsExplicit,
+                'object_stream_carrier_is_objstm' => $objectStreamCarrierIsTyped,
                 'object_stream_carrier_resolved' => $objectStreamCarrierResolved,
                 'object_stream_selected_generation' => $objectStreamOwner['generation'] ?? null,
                 'object_stream_selected_offset' => $objectStreamOwner['offset'] ?? null,
