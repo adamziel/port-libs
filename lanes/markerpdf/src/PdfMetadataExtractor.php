@@ -4974,6 +4974,11 @@ final class PdfMetadataExtractor
     private function catalogOutlinesMalformedOperandReview(string $catalog): array
     {
         $body = $this->normalizedDictionaryBody($catalog);
+        $outlinesEntryCount = 0;
+        $selectedEntryIndex = null;
+        $selectedValue = null;
+        $selectedTrailingOperands = [];
+
         for ($offset = 0, $length = strlen($body); $offset < $length;) {
             $offset = $this->skipPdfWhitespace($body, $offset);
             if ($offset >= $length) {
@@ -5004,42 +5009,48 @@ final class PdfMetadataExtractor
                 continue;
             }
 
-            $trailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
-            if ($trailingOperands === []) {
-                $offset = $afterValue;
-                continue;
-            }
-
-            $review = [
-                'source' => 'catalog_outlines_operand_boundary',
-                'review_only' => true,
-                'payload_included' => false,
-                'visible_text_source' => false,
-                'status' => 'rejected_malformed_catalog_outlines_operand',
-                'outlines_entry_count' => count($this->dictionaryTopLevelRawValues($catalog, 'Outlines')),
-                'outlines_operand_count' => 1 + count($trailingOperands),
-            ];
-
-            $objectNumber = $this->objectNumberFromReference($value);
-            if ($objectNumber !== null) {
-                $review['selected_outline_root_object'] = $objectNumber;
-            }
-
-            $trailingObjectNumbers = [];
-            foreach ($trailingOperands as $operand) {
-                $reference = $this->objectReferenceFromValue($operand);
-                if ($reference !== null) {
-                    $trailingObjectNumbers[] = $reference['objectNumber'];
-                }
-            }
-            if ($trailingObjectNumbers !== []) {
-                $review['trailing_reference_object_numbers'] = $this->uniqueIntegers($trailingObjectNumbers);
-            }
-
-            return $review;
+            $selectedValue = $value;
+            $selectedTrailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
+            $selectedEntryIndex = $outlinesEntryCount;
+            $outlinesEntryCount++;
+            $offset = $afterValue;
         }
 
-        return [];
+        if ($selectedValue === null || $selectedTrailingOperands === []) {
+            return [];
+        }
+
+        $review = [
+            'source' => 'catalog_outlines_operand_boundary',
+            'review_only' => true,
+            'payload_included' => false,
+            'visible_text_source' => false,
+            'status' => 'rejected_malformed_catalog_outlines_operand',
+            'outlines_entry_count' => $outlinesEntryCount,
+            'outlines_operand_count' => 1 + count($selectedTrailingOperands),
+        ];
+
+        if ($selectedEntryIndex !== null) {
+            $review['selected_entry_index'] = $selectedEntryIndex;
+        }
+
+        $objectNumber = $this->objectNumberFromReference($selectedValue);
+        if ($objectNumber !== null) {
+            $review['selected_outline_root_object'] = $objectNumber;
+        }
+
+        $trailingObjectNumbers = [];
+        foreach ($selectedTrailingOperands as $operand) {
+            $reference = $this->objectReferenceFromValue($operand);
+            if ($reference !== null) {
+                $trailingObjectNumbers[] = $reference['objectNumber'];
+            }
+        }
+        if ($trailingObjectNumbers !== []) {
+            $review['trailing_reference_object_numbers'] = $this->uniqueIntegers($trailingObjectNumbers);
+        }
+
+        return $review;
     }
 
     /**

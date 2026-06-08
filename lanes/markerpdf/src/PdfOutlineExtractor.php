@@ -3591,6 +3591,8 @@ final class PdfOutlineExtractor
         }
 
         $index = 1;
+        $found = false;
+        $selectedHasTrailingOperand = false;
         while (($tokens[$index] ?? null) !== null && $tokens[$index] !== '>>') {
             $key = $tokens[$index] ?? '';
             $index++;
@@ -3604,19 +3606,22 @@ final class PdfOutlineExtractor
                 continue;
             }
 
+            $found = true;
             $next = $tokens[$index] ?? null;
             if ($next === null || $next === '>>') {
+                $selectedHasTrailingOperand = false;
                 continue;
             }
 
             if (is_string($next) && str_starts_with($next, '/')) {
+                $selectedHasTrailingOperand = false;
                 continue;
             }
 
-            return true;
+            $selectedHasTrailingOperand = true;
         }
 
-        return false;
+        return $found && $selectedHasTrailingOperand;
     }
 
     /**
