@@ -241,6 +241,7 @@ final class PdfSecurityPreflight
         $recipientPermissionsDeclared = (int) ($publicKeyRecipientReview['recipient_count'] ?? 0) > 0;
         $selectedRecipientCount = (int) ($publicKeyRecipientReview['selected_recipient_count'] ?? 0);
         $publicKeyRecipientDeclarationFailClosed = ($publicKeyRecipientReview['recipient_declaration_fail_closed'] ?? false) === true;
+        $publicKeyCryptFilterRoleDeclarationFailClosed = ($publicKeyRecipientReview['crypt_filter_role_declaration_fail_closed'] ?? false) === true;
         $securityHandlerSubfilterPermissionBoundary = $securityHandlerSubfilterDeclarationFailClosed;
         $permissionBitsReliable = $handlerSupported
             && !$securityHandlerDeclarationFailClosed
@@ -295,6 +296,10 @@ final class PdfSecurityPreflight
             $policy = 'permissions_malformed_blocked_without_decryption';
             $boundary = 'blocked_encrypted_public_key_recipient_declaration_malformed';
             $source = 'public_key_recipient_declaration_malformed';
+        } elseif (!$declared && $recipientPermissionsDeclared && $publicKeyCryptFilterRoleDeclarationFailClosed) {
+            $policy = 'permissions_malformed_blocked_without_decryption';
+            $boundary = 'blocked_encrypted_public_key_crypt_filter_role_malformed';
+            $source = 'public_key_crypt_filter_role_declaration_malformed';
         } elseif (!$declared && $recipientPermissionsDeclared) {
             $policy = 'public_key_recipient_permissions_blocked_without_private_key';
             $boundary = 'blocked_encrypted_public_key_recipient_permissions';
@@ -362,6 +367,16 @@ final class PdfSecurityPreflight
             'public_key_recipient_malformed_entries' => (bool) ($publicKeyRecipientReview['recipient_malformed_entries'] ?? false),
             'public_key_recipient_declared_entry_count' => (int) ($publicKeyRecipientReview['recipient_declared_entry_count'] ?? 0),
             'public_key_recipient_trailing_operand_count' => (int) ($publicKeyRecipientReview['recipient_trailing_operand_count'] ?? 0),
+            'public_key_crypt_filter_role_declaration_fail_closed' => $publicKeyCryptFilterRoleDeclarationFailClosed,
+            'public_key_crypt_filter_role_fail_closed_role_names' => is_array($publicKeyRecipientReview['crypt_filter_role_fail_closed_role_names'] ?? null)
+                ? $publicKeyRecipientReview['crypt_filter_role_fail_closed_role_names']
+                : [],
+            'public_key_crypt_filter_role_fail_closed_pdf_names' => is_array($publicKeyRecipientReview['crypt_filter_role_fail_closed_pdf_names'] ?? null)
+                ? $publicKeyRecipientReview['crypt_filter_role_fail_closed_pdf_names']
+                : [],
+            'public_key_crypt_filter_role_fail_closed_statuses' => is_array($publicKeyRecipientReview['crypt_filter_role_fail_closed_statuses'] ?? null)
+                ? $publicKeyRecipientReview['crypt_filter_role_fail_closed_statuses']
+                : [],
             'public_key_recipient_entry_statuses' => is_array($publicKeyRecipientReview['recipient_entry_statuses'] ?? null)
                 ? $publicKeyRecipientReview['recipient_entry_statuses']
                 : [],
@@ -2475,6 +2490,7 @@ final class PdfSecurityPreflight
         $selectedPublicKeyRecipientCount = (int) ($publicKeyRecipientReview['selected_recipient_count'] ?? 0);
         $recipientPermissionsDeclared = $publicKeyRecipientCount > 0;
         $publicKeyRecipientDeclarationFailClosed = ($publicKeyRecipientReview['recipient_declaration_fail_closed'] ?? false) === true;
+        $publicKeyCryptFilterRoleDeclarationFailClosed = ($publicKeyRecipientReview['crypt_filter_role_declaration_fail_closed'] ?? false) === true;
         $securityHandlerSubfilterPermissionBoundary = $securityHandlerSubfilterDeclarationFailClosed;
         $standardAuthenticationReview = is_array($encryption['standard_authentication_review'] ?? null)
             ? $encryption['standard_authentication_review']
@@ -2490,6 +2506,9 @@ final class PdfSecurityPreflight
             $reviewWellFormed = false;
         } elseif (!$declared && $recipientPermissionsDeclared && $publicKeyRecipientDeclarationFailClosed) {
             $status = 'malformed_public_key_recipient_declaration_review';
+            $reviewWellFormed = false;
+        } elseif (!$declared && $recipientPermissionsDeclared && $publicKeyCryptFilterRoleDeclarationFailClosed) {
+            $status = 'malformed_public_key_crypt_filter_role_declaration_review';
             $reviewWellFormed = false;
         } elseif (!$declared && $recipientPermissionsDeclared) {
             $status = 'public_key_recipient_permissions_undecoded_review';
@@ -2544,6 +2563,16 @@ final class PdfSecurityPreflight
             'public_key_recipient_duplicate_entries' => (bool) ($publicKeyRecipientReview['recipient_duplicate_entries'] ?? false),
             'public_key_recipient_malformed_entries' => (bool) ($publicKeyRecipientReview['recipient_malformed_entries'] ?? false),
             'public_key_recipient_trailing_operand_count' => (int) ($publicKeyRecipientReview['recipient_trailing_operand_count'] ?? 0),
+            'public_key_crypt_filter_role_declaration_fail_closed' => $publicKeyCryptFilterRoleDeclarationFailClosed,
+            'public_key_crypt_filter_role_fail_closed_role_names' => is_array($publicKeyRecipientReview['crypt_filter_role_fail_closed_role_names'] ?? null)
+                ? $publicKeyRecipientReview['crypt_filter_role_fail_closed_role_names']
+                : [],
+            'public_key_crypt_filter_role_fail_closed_pdf_names' => is_array($publicKeyRecipientReview['crypt_filter_role_fail_closed_pdf_names'] ?? null)
+                ? $publicKeyRecipientReview['crypt_filter_role_fail_closed_pdf_names']
+                : [],
+            'public_key_crypt_filter_role_fail_closed_statuses' => is_array($publicKeyRecipientReview['crypt_filter_role_fail_closed_statuses'] ?? null)
+                ? $publicKeyRecipientReview['crypt_filter_role_fail_closed_statuses']
+                : [],
             'public_key_recipient_entry_statuses' => is_array($publicKeyRecipientReview['recipient_entry_statuses'] ?? null)
                 ? $publicKeyRecipientReview['recipient_entry_statuses']
                 : [],
@@ -6431,6 +6460,16 @@ final class PdfSecurityPreflight
             'public_key_recipient_malformed_entries' => (bool) ($publicKeyRecipientReview['recipient_malformed_entries'] ?? false),
             'public_key_recipient_declared_entry_count' => (int) ($publicKeyRecipientReview['recipient_declared_entry_count'] ?? 0),
             'public_key_recipient_trailing_operand_count' => (int) ($publicKeyRecipientReview['recipient_trailing_operand_count'] ?? 0),
+            'public_key_crypt_filter_role_declaration_fail_closed' => (bool) ($publicKeyRecipientReview['crypt_filter_role_declaration_fail_closed'] ?? false),
+            'public_key_crypt_filter_role_fail_closed_role_names' => is_array($publicKeyRecipientReview['crypt_filter_role_fail_closed_role_names'] ?? null)
+                ? $publicKeyRecipientReview['crypt_filter_role_fail_closed_role_names']
+                : [],
+            'public_key_crypt_filter_role_fail_closed_pdf_names' => is_array($publicKeyRecipientReview['crypt_filter_role_fail_closed_pdf_names'] ?? null)
+                ? $publicKeyRecipientReview['crypt_filter_role_fail_closed_pdf_names']
+                : [],
+            'public_key_crypt_filter_role_fail_closed_statuses' => is_array($publicKeyRecipientReview['crypt_filter_role_fail_closed_statuses'] ?? null)
+                ? $publicKeyRecipientReview['crypt_filter_role_fail_closed_statuses']
+                : [],
             'public_key_recipient_entry_statuses' => is_array($publicKeyRecipientReview['recipient_entry_statuses'] ?? null)
                 ? $publicKeyRecipientReview['recipient_entry_statuses']
                 : [],
@@ -6570,6 +6609,9 @@ final class PdfSecurityPreflight
                     if ((int) ($permissionPreflight['public_key_recipient_trailing_operand_count'] ?? 0) > 0) {
                         $reasons[] = 'public_key_recipient_trailing_operand';
                     }
+                } elseif (($permissionPreflight['public_key_crypt_filter_role_declaration_fail_closed'] ?? false) === true) {
+                    $reasons[] = 'public_key_crypt_filter_role_declaration_malformed';
+                    $reasons[] = 'malformed_public_key_crypt_filter_roles';
                 } elseif (($permissionPreflight['standard_security_handler_parameters_well_formed'] ?? null) === false) {
                     $reasons[] = 'standard_security_handler_parameters_malformed';
                     $parameterViolations = is_array($permissionPreflight['standard_security_handler_parameter_violations'] ?? null)

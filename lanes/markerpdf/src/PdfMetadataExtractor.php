@@ -12521,6 +12521,16 @@ final class PdfMetadataExtractor
         $recipientDeclarationSummary = $this->publicKeyRecipientDeclarationSummary($recipientLists);
 
         $cryptFilterSelection = $this->publicKeyRecipientCryptFilterSelection($dictionary, $objects, $cryptFilters, $metadata);
+        $cryptFilterRoleDeclarationFailClosed = ($cryptFilterSelection['role_declaration_fail_closed'] ?? false) === true;
+        $cryptFilterRoleFailClosedRoleNames = is_array($cryptFilterSelection['role_declaration_fail_closed_role_names'] ?? null)
+            ? $cryptFilterSelection['role_declaration_fail_closed_role_names']
+            : [];
+        $cryptFilterRoleFailClosedPdfNames = is_array($cryptFilterSelection['role_declaration_fail_closed_pdf_names'] ?? null)
+            ? $cryptFilterSelection['role_declaration_fail_closed_pdf_names']
+            : [];
+        $cryptFilterRoleFailClosedStatuses = is_array($cryptFilterSelection['role_declaration_fail_closed_statuses'] ?? null)
+            ? $cryptFilterSelection['role_declaration_fail_closed_statuses']
+            : [];
         if ($subfilterDeclarationFailClosed) {
             $cryptFilterSelection['selected_crypt_filters'] = [];
             $cryptFilterSelection['selected_filter_names'] = [];
@@ -12567,6 +12577,10 @@ final class PdfMetadataExtractor
                 'selected_recipient_sources' => [],
                 'selected_recipient_source_policy' => 'no_selected_recipient_permission_envelopes',
                 'crypt_filter_selection' => $cryptFilterSelection,
+                'crypt_filter_role_declaration_fail_closed' => $cryptFilterRoleDeclarationFailClosed,
+                'crypt_filter_role_fail_closed_role_names' => $cryptFilterRoleFailClosedRoleNames,
+                'crypt_filter_role_fail_closed_pdf_names' => $cryptFilterRoleFailClosedPdfNames,
+                'crypt_filter_role_fail_closed_statuses' => $cryptFilterRoleFailClosedStatuses,
                 'recipient_lists' => $recipientLists,
                 'recipient_declaration_fail_closed' => $recipientDeclarationSummary['recipient_declaration_fail_closed'],
                 'recipient_duplicate_entries' => $recipientDeclarationSummary['recipient_duplicate_entries'],
@@ -12642,6 +12656,10 @@ final class PdfMetadataExtractor
             'selected_recipient_sources' => $selectedRecipientSources,
             'selected_recipient_source_policy' => $this->publicKeySelectedRecipientSourcePolicy($selectedRecipientSources),
             'crypt_filter_selection' => $cryptFilterSelection,
+            'crypt_filter_role_declaration_fail_closed' => $cryptFilterRoleDeclarationFailClosed,
+            'crypt_filter_role_fail_closed_role_names' => $cryptFilterRoleFailClosedRoleNames,
+            'crypt_filter_role_fail_closed_pdf_names' => $cryptFilterRoleFailClosedPdfNames,
+            'crypt_filter_role_fail_closed_statuses' => $cryptFilterRoleFailClosedStatuses,
             'recipient_lists' => $recipientLists,
             'recipient_declaration_fail_closed' => $recipientDeclarationSummary['recipient_declaration_fail_closed'],
             'recipient_duplicate_entries' => $recipientDeclarationSummary['recipient_duplicate_entries'],
@@ -12660,9 +12678,11 @@ final class PdfMetadataExtractor
             'permissions_decoded' => false,
             'permission_decode_status' => $recipientDeclarationSummary['recipient_declaration_fail_closed'] === true
                 ? 'public_key_recipient_declaration_malformed_review'
-                : ($recipientCount > 0
+                : ($cryptFilterRoleDeclarationFailClosed
+                    ? 'public_key_crypt_filter_role_declaration_malformed_review'
+                    : ($recipientCount > 0
                     ? 'cms_pkcs7_permission_decode_unavailable'
-                    : 'public_key_recipient_envelopes_missing'),
+                    : 'public_key_recipient_envelopes_missing')),
             'requires_private_key_for_permission_review' => true,
             'recipient_bytes_exposed' => false,
             'recipient_certificates_exposed' => false,
@@ -12735,6 +12755,19 @@ final class PdfMetadataExtractor
         array $metadata
     ): array
     {
+        $roleDeclarations = [];
+        $roleDeclarationReview = is_array($metadata['crypt_filter_role_declaration_review'] ?? null)
+            ? $metadata['crypt_filter_role_declaration_review']
+            : [];
+        foreach (($roleDeclarationReview['roles'] ?? []) as $roleDeclaration) {
+            if (
+                is_array($roleDeclaration)
+                && is_string($roleDeclaration['metadata_key'] ?? null)
+                && !isset($roleDeclarations[$roleDeclaration['metadata_key']])
+            ) {
+                $roleDeclarations[$roleDeclaration['metadata_key']] = $roleDeclaration;
+            }
+        }
         $declared = [];
         $defaulted = [];
         $sources = [];
@@ -12749,6 +12782,11 @@ final class PdfMetadataExtractor
         $selectedRecipientEntryStatuses = [];
         $selectedRecipientTrailingOperandCount = 0;
         $countedRecipientFilters = [];
+        $roleDeclarationFailClosed = false;
+        $roleDeclarationFailClosedContentRoles = [];
+        $roleDeclarationFailClosedRoleNames = [];
+        $roleDeclarationFailClosedPdfNames = [];
+        $roleDeclarationFailClosedStatuses = [];
 
         foreach ([
             'stream_filter' => [
@@ -12768,6 +12806,7 @@ final class PdfMetadataExtractor
             ],
         ] as $role => $definition) {
             $pdfName = $definition['pdf_name'];
+            $roleDeclaration = is_array($roleDeclarations[$role] ?? null) ? $roleDeclarations[$role] : [];
             $explicitName = $this->dictionaryNameValue($dictionary, $pdfName, $objects)
                 ?? $this->dictionaryStringValue($dictionary, $pdfName);
             $name = $explicitName;
@@ -12792,6 +12831,63 @@ final class PdfMetadataExtractor
             $filter = $cryptFilters[$name] ?? null;
             $recipients = is_array($filter['recipients'] ?? null) ? $filter['recipients'] : null;
             $hasRecipients = $recipients !== null;
+            $roleDeclarationBlocked = ($roleDeclaration['fail_closed'] ?? false) === true;
+            if ($roleDeclarationBlocked) {
+                $roleDeclarationFailClosed = true;
+                if (!in_array($role, $roleDeclarationFailClosedContentRoles, true)) {
+                    $roleDeclarationFailClosedContentRoles[] = $role;
+                }
+                if (
+                    is_string($roleDeclaration['role'] ?? null)
+                    && !in_array($roleDeclaration['role'], $roleDeclarationFailClosedRoleNames, true)
+                ) {
+                    $roleDeclarationFailClosedRoleNames[] = $roleDeclaration['role'];
+                }
+                if (
+                    is_string($roleDeclaration['pdf_name'] ?? null)
+                    && !in_array($roleDeclaration['pdf_name'], $roleDeclarationFailClosedPdfNames, true)
+                ) {
+                    $roleDeclarationFailClosedPdfNames[] = $roleDeclaration['pdf_name'];
+                }
+                if (
+                    is_string($roleDeclaration['status'] ?? null)
+                    && !in_array($roleDeclaration['status'], $roleDeclarationFailClosedStatuses, true)
+                ) {
+                    $roleDeclarationFailClosedStatuses[] = $roleDeclaration['status'];
+                }
+
+                $selectedRows[] = [
+                    'role' => $role,
+                    'pdf_name' => $pdfName,
+                    'name' => $name,
+                    'filter_source' => $roleSource,
+                    'filter_defaulted' => $roleDefaulted,
+                    'crypt_filter_present' => is_array($filter),
+                    'method' => is_array($filter) ? ($filter['method'] ?? null) : null,
+                    'auth_event' => is_array($filter) ? ($filter['auth_event'] ?? null) : null,
+                    'has_recipients' => $hasRecipients,
+                    'recipient_count' => 0,
+                    'suppressed_recipient_count' => $hasRecipients ? (int) ($recipients['recipient_count'] ?? 0) : 0,
+                    'recipient_bytes' => 0,
+                    'suppressed_recipient_bytes' => $hasRecipients ? (int) ($recipients['recipient_bytes'] ?? 0) : 0,
+                    'unresolved_recipient_count' => 0,
+                    'suppressed_unresolved_recipient_count' => $hasRecipients ? (int) ($recipients['unresolved_recipient_count'] ?? 0) : 0,
+                    'permission_decode_status' => 'public_key_crypt_filter_role_declaration_malformed_review',
+                    'recipient_declaration_status' => $hasRecipients ? ($recipients['recipient_declaration_status'] ?? null) : null,
+                    'recipient_declaration_fail_closed' => $hasRecipients
+                        ? (bool) ($recipients['recipient_declaration_fail_closed'] ?? false)
+                        : false,
+                    'recipient_entry_statuses' => $hasRecipients && is_array($recipients['recipient_entry_statuses'] ?? null)
+                        ? $recipients['recipient_entry_statuses']
+                        : [],
+                    'role_declaration_status' => is_string($roleDeclaration['status'] ?? null) ? $roleDeclaration['status'] : null,
+                    'role_declaration_fail_closed' => true,
+                    'selection_suppressed_by_role_declaration' => true,
+                    'recipient_bytes_exposed' => false,
+                ];
+
+                continue;
+            }
             if (!in_array($name, $selectedNames, true)) {
                 $selectedNames[] = $name;
             }
@@ -12820,6 +12916,9 @@ final class PdfMetadataExtractor
                 'recipient_entry_statuses' => $hasRecipients && is_array($recipients['recipient_entry_statuses'] ?? null)
                     ? $recipients['recipient_entry_statuses']
                     : [],
+                'role_declaration_status' => is_string($roleDeclaration['status'] ?? null) ? $roleDeclaration['status'] : null,
+                'role_declaration_fail_closed' => false,
+                'selection_suppressed_by_role_declaration' => false,
                 'recipient_bytes_exposed' => false,
             ];
 
@@ -12876,6 +12975,11 @@ final class PdfMetadataExtractor
             'selected_recipient_declaration_fail_closed' => $selectedRecipientDeclarationFailClosed,
             'selected_recipient_entry_statuses' => $selectedRecipientEntryStatuses,
             'selected_recipient_trailing_operand_count' => $selectedRecipientTrailingOperandCount,
+            'role_declaration_fail_closed' => $roleDeclarationFailClosed,
+            'role_declaration_fail_closed_content_roles' => $roleDeclarationFailClosedContentRoles,
+            'role_declaration_fail_closed_role_names' => $roleDeclarationFailClosedRoleNames,
+            'role_declaration_fail_closed_pdf_names' => $roleDeclarationFailClosedPdfNames,
+            'role_declaration_fail_closed_statuses' => $roleDeclarationFailClosedStatuses,
             'recipient_bytes_exposed' => false,
             'permissions_decoded' => false,
         ];

@@ -5016,6 +5016,7 @@ final class PdfTextExtractor
                 'blend_modes' => $this->extGStateBlendModes($dictionary, $objects),
                 'has_soft_mask' => $softMaskValue !== null,
                 'soft_mask' => $softMaskValue === null ? null : $this->extGStateSoftMaskReview($softMaskValue, $objects),
+                'transfer_functions' => $this->extGStateTransferFunctionReviews($dictionary, $objects),
                 'payload_in_visible_text' => false,
                 'review_only' => true,
             ];
@@ -5054,6 +5055,140 @@ final class PdfTextExtractor
         }
 
         return $modes;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     * @param array<int, string> $objects
+     */
+    private function extGStateTransferFunctionReviews(string $dictionary, array $objects): array
+    {
+        $reviews = [];
+        foreach (['TR', 'TR2'] as $name) {
+            $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
+            if ($value === null) {
+                continue;
+            }
+
+            $reviews[] = $this->extGStateTransferFunctionReview($name, $value, $objects);
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @return array<string, mixed>
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function extGStateTransferFunctionReview(
+        string $name,
+        string $value,
+        array $objects,
+        array $seen = []
+    ): array
+    {
+        $referenceOffset = 0;
+        $reference = $this->readPdfIndirectReferenceToken($value, $referenceOffset);
+        if ($reference !== null) {
+            $referenceKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$referenceKey])) {
+                return [
+                    'name' => $name,
+                    'value_type' => 'reference',
+                    'transfer_function' => null,
+                    'transfer_function_object' => $reference['objectNumber'],
+                    'transfer_function_generation' => $reference['generation'],
+                    'function_type' => null,
+                    'domain' => null,
+                    'range' => null,
+                    'component_functions' => [],
+                    'resolved' => false,
+                    'payload_in_visible_text' => false,
+                    'review_only' => true,
+                ];
+            }
+        }
+
+        $functionName = $this->pdfNameValueAt($value, 0, $objects);
+        $arrayBody = $this->pdfArrayFromValue($value, $objects, $seen);
+        $functionDictionary = $this->pdfDictionaryFromValue($value, $objects);
+        $componentFunctions = [];
+        if ($arrayBody !== null && $functionDictionary === null && $functionName === null) {
+            $childSeen = $seen;
+            if ($reference !== null) {
+                $childSeen[$reference['objectNumber'] . ':' . $reference['generation']] = true;
+            }
+            foreach ($this->pdfArrayItems($arrayBody) as $index => $item) {
+                $componentFunctions[] = $this->extGStateTransferFunctionReview(
+                    $name . '[' . $index . ']',
+                    trim($item),
+                    $objects,
+                    $childSeen
+                );
+            }
+        }
+
+        $valueType = 'unknown';
+        if ($reference !== null) {
+            $valueType = 'reference';
+        } elseif ($arrayBody !== null) {
+            $valueType = 'array';
+        } elseif ($functionDictionary !== null) {
+            $valueType = 'dictionary';
+        } elseif ($functionName !== null) {
+            $valueType = 'name';
+        }
+
+        return [
+            'name' => $name,
+            'value_type' => $valueType,
+            'transfer_function' => $functionName,
+            'transfer_function_object' => $reference['objectNumber'] ?? null,
+            'transfer_function_generation' => $reference['generation'] ?? null,
+            'function_type' => $functionDictionary === null
+                ? null
+                : $this->topLevelPdfIntegerValueAfterNameResolvingObjects($functionDictionary, 'FunctionType', $objects),
+            'domain' => $this->pdfNumericArrayReview(
+                $functionDictionary === null
+                    ? null
+                    : $this->topLevelPdfArrayValueAfterNameResolvingObjects($functionDictionary, 'Domain', $objects),
+                $objects
+            ),
+            'range' => $this->pdfNumericArrayReview(
+                $functionDictionary === null
+                    ? null
+                    : $this->topLevelPdfArrayValueAfterNameResolvingObjects($functionDictionary, 'Range', $objects),
+                $objects
+            ),
+            'component_functions' => $componentFunctions,
+            'resolved' => $functionName !== null || $functionDictionary !== null || $componentFunctions !== [],
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @return list<float>|null
+     * @param array<int, string> $objects
+     */
+    private function pdfNumericArrayReview(?string $arrayBody, array $objects): ?array
+    {
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $numbers = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $number = $this->pdfNumberValueAt(trim($item), 0, $objects);
+            if ($number === null) {
+                return null;
+            }
+
+            $numbers[] = $number;
+        }
+
+        return $this->normalizedPdfReviewNumbers($numbers);
     }
 
     /**
@@ -6321,6 +6456,7 @@ final class PdfTextExtractor
      *     line_width: float,
      *     blend_modes: list<string>,
      *     soft_mask: array<string, mixed>|null,
+     *     transfer_functions: list<array<string, mixed>>,
      *     review_only: true
      * }
      */
@@ -6338,6 +6474,7 @@ final class PdfTextExtractor
             'line_width' => 1.0,
             'blend_modes' => [],
             'soft_mask' => null,
+            'transfer_functions' => [],
             'stroking_color_space' => 'DeviceGray',
             'stroking_color_components' => [0.0],
             'stroking_pattern_name' => null,
@@ -6397,6 +6534,10 @@ final class PdfTextExtractor
         if (is_array($state['soft_mask'] ?? null)) {
             $default['soft_mask'] = $state['soft_mask'];
         }
+        $default['transfer_functions'] = array_values(array_filter(
+            $state['transfer_functions'] ?? [],
+            static fn (mixed $transferFunction): bool => is_array($transferFunction)
+        ));
         foreach (['stroking', 'nonstroking'] as $paintKind) {
             $colorSpaceKey = $paintKind . '_color_space';
             $componentsKey = $paintKind . '_color_components';
@@ -6867,6 +7008,13 @@ final class PdfTextExtractor
                 ? null
                 : $softMask;
         }
+        if (($review['transfer_functions'] ?? []) !== [] && is_array($review['transfer_functions'])) {
+            foreach ($review['transfer_functions'] as $transferFunction) {
+                if (is_array($transferFunction)) {
+                    $state['transfer_functions'][] = $transferFunction;
+                }
+            }
+        }
 
         return $state;
     }
@@ -6888,6 +7036,7 @@ final class PdfTextExtractor
             && $state['overprint_mode'] === null
             && $state['blend_modes'] === []
             && $state['soft_mask'] === null
+            && $state['transfer_functions'] === []
         ) {
             return null;
         }
