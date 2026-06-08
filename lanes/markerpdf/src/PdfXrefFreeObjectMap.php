@@ -699,7 +699,7 @@ final class PdfXrefFreeObjectMap
                     continue;
                 }
 
-                if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])\b/', $rowLine, $match) !== 1) {
+                if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])(?:\s*(?:%.*)?)$/', $rowLine, $match) !== 1) {
                     return $entries === [] ? null : $entries;
                 }
 

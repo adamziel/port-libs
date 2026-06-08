@@ -282,6 +282,36 @@ return [
         $t->same('--langs', $missingLangValue['parse_args']['error_argument']);
         $t->contains('expected one argument', $missingLangValue['parse_args']['error_message']);
 
+        $optionLookingLangValue = $single->runtimeArgumentPreflightPlan([
+            '/wp/uploads/editorial-checklist.pdf',
+            '/wp/marker-output',
+            '--langs',
+            '-x',
+        ]);
+        $t->same(false, $optionLookingLangValue['parse_args']['parse_args_success']);
+        $t->same('--langs', $optionLookingLangValue['parse_args']['error_argument']);
+        $t->contains('expected one argument', $optionLookingLangValue['parse_args']['error_message']);
+        $t->same(false, $optionLookingLangValue['executes_python_or_models']);
+
+        $attachedOptionLookingLangValue = $single->runtimeArgumentPreflightPlan([
+            '/wp/uploads/editorial-checklist.pdf',
+            '/wp/marker-output',
+            '--langs=-x',
+        ]);
+        $t->same(true, $attachedOptionLookingLangValue['parse_args']['parse_args_success']);
+        $t->same('-x', $attachedOptionLookingLangValue['arguments']['options']['langs']);
+        $t->same(['-x'], $attachedOptionLookingLangValue['language_parse']['parsed_langs']);
+
+        $optionLookingIntegerValue = $single->runtimeArgumentPreflightPlan([
+            '/wp/uploads/editorial-checklist.pdf',
+            '/wp/marker-output',
+            '--max_pages',
+            '-x',
+        ]);
+        $t->same(false, $optionLookingIntegerValue['parse_args']['parse_args_success']);
+        $t->same('--max_pages', $optionLookingIntegerValue['parse_args']['error_argument']);
+        $t->contains('expected one argument', $optionLookingIntegerValue['parse_args']['error_message']);
+
         $unknownOption = $single->runtimeArgumentPreflightPlan([
             '/wp/uploads/editorial-checklist.pdf',
             '/wp/marker-output',

@@ -5211,6 +5211,7 @@ final class EpubReader
             'foreignResourceCount' => $countWhere(static fn (array $item): bool => ($item['foreignResource'] ?? false) === true),
             'exemptResourceCount' => $countWhere(static fn (array $item): bool => ($item['exemptResource'] ?? false) === true),
             'epubContentDocumentCount' => $countWhere(static fn (array $item): bool => ($item['epubContentDocument'] ?? false) === true),
+            'invalidMediaTypeCount' => $countWhere(static fn (array $item): bool => ($item['mediaTypeSyntaxValid'] ?? true) !== true),
             'requiresSpineFallbackWhenDirectCount' => $countWhere(static fn (array $item): bool => ($item['requiresSpineFallbackWhenDirect'] ?? false) === true),
             'manifestFallbackCount' => $countWhere(static fn (array $item): bool => ($item['hasManifestFallback'] ?? false) === true),
             'bindingHandledCount' => $countWhere(static fn (array $item): bool => ($item['bindingHandled'] ?? false) === true),
@@ -5253,7 +5254,10 @@ final class EpubReader
             && ($binding['handlerMediaType'] ?? null) === self::XHTML_MEDIA_TYPE;
 
         $reviewFlags = [];
-        $diagnostics = [];
+        $diagnostics = is_array($parts['diagnostics'] ?? null) ? array_values($parts['diagnostics']) : [];
+        if (($parts['valid'] ?? true) !== true) {
+            $reviewFlags[] = 'invalid-media-type';
+        }
         if ($foreignResource && !$hasManifestFallback && !$bindingHandled) {
             $reviewFlags[] = 'foreign-resource-without-fallback';
             $diagnostics[] = [
@@ -5284,6 +5288,8 @@ final class EpubReader
             'normalizedMediaType' => $parts['normalized'],
             'baseMediaType' => $parts['base'],
             'mediaTypeParameters' => $parts['parameters'],
+            'mediaTypeParameterCount' => count($parts['parameters']),
+            'mediaTypeSyntaxValid' => (bool) ($parts['valid'] ?? true),
             'properties' => is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
             'coreMediaType' => $core,
             'coreMediaTypeKind' => $coreKind,
@@ -5306,25 +5312,68 @@ final class EpubReader
     }
 
     /**
-     * @return array{normalized:string, base:string, parameters:array<string, string>}
+     * @return array{normalized:string, base:string, parameters:array<string, string>, valid:bool, diagnostics:list<array<string, mixed>>}
      */
     private static function mediaTypeParts(string $mediaType): array
     {
-        $tokens = array_map('trim', explode(';', trim($mediaType)));
+        $raw = trim($mediaType);
+        $tokens = array_map('trim', explode(';', $raw));
         $base = strtolower(array_shift($tokens) ?? '');
         $parameters = [];
-        foreach ($tokens as $token) {
+        $diagnostics = [];
+        if ($base === '' || preg_match('/^[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+\/[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+$/', $base) !== 1) {
+            $diagnostics[] = [
+                'type' => 'invalid-manifest-media-type',
+                'mediaType' => $raw,
+                'baseMediaType' => $base,
+                'message' => 'EPUB OPF manifest media-type must be a MIME type in type/subtype form',
+            ];
+        }
+
+        foreach ($tokens as $index => $token) {
             if ($token === '') {
+                continue;
+            }
+
+            if (!str_contains($token, '=')) {
+                $diagnostics[] = [
+                    'type' => 'invalid-manifest-media-type-parameter',
+                    'mediaType' => $raw,
+                    'parameter' => $token,
+                    'parameterIndex' => $index,
+                    'message' => 'EPUB OPF manifest media-type parameters must use name=value syntax',
+                ];
                 continue;
             }
 
             [$name, $value] = array_pad(explode('=', $token, 2), 2, '');
             $name = strtolower(trim($name));
-            if ($name === '') {
+            if ($name === '' || preg_match('/^[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+$/', $name) !== 1) {
+                $diagnostics[] = [
+                    'type' => 'invalid-manifest-media-type-parameter-name',
+                    'mediaType' => $raw,
+                    'parameter' => $token,
+                    'parameterIndex' => $index,
+                    'name' => $name,
+                    'message' => 'EPUB OPF manifest media-type parameter names must be MIME tokens',
+                ];
                 continue;
             }
 
-            $parameters[$name] = trim($value, " \t\n\r\0\x0B\"'");
+            $parameterValue = trim($value, " \t\n\r\0\x0B\"'");
+            if (isset($parameters[$name])) {
+                $diagnostics[] = [
+                    'type' => 'duplicate-manifest-media-type-parameter',
+                    'mediaType' => $raw,
+                    'parameter' => $name,
+                    'parameterIndex' => $index,
+                    'previousValue' => $parameters[$name],
+                    'value' => $parameterValue,
+                    'message' => 'EPUB OPF manifest media-type parameter repeats a name; later value is retained for package review',
+                ];
+            }
+
+            $parameters[$name] = $parameterValue;
         }
 
         $normalized = $base;
@@ -5336,6 +5385,8 @@ final class EpubReader
             'normalized' => $normalized,
             'base' => $base,
             'parameters' => $parameters,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
         ];
     }
 

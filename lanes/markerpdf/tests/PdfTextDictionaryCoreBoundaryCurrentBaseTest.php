@@ -763,6 +763,42 @@ return [
         $t->true(!str_contains($encoded, 'direct wrapper dictionary_output metadata'));
         $t->true(!str_contains($encoded, 'direct wrapper dictionary_output payload'));
     },
+    'rejects malformed explicit dictionary_output wrappers before stale adapter pages at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $stalePage = $pdftextLinkedPage();
+        $stalePage['page'] = 935;
+        $stalePage['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Stale malformed dictionary_output adapter page must not import';
+
+        $extractor = new PdfTextDocumentExtractor();
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([
+            'pages' => [935 => $stalePage],
+            'dictionary_output' => 'not a pdftext dictionary_output page list',
+            'raw_adapter_payload' => 'malformed explicit dictionary_output scalar wrapper payload must not cross',
+        ], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([
+            'pages' => [935 => $stalePage],
+            'dictionary_output' => null,
+            'raw_adapter_payload' => 'malformed explicit dictionary_output null wrapper payload must not cross',
+        ], maxPages: 1));
+    },
+    'keeps direct pdftext pages authoritative when a non-page dictionary_output field is attached' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = $pdftextLinkedPage();
+        $page['page'] = 936;
+        $page['dictionary_output'] = 'adapter sidecar marker must stay fallback-only on direct pages';
+        $page['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Direct page ';
+        $page['blocks'][0]['lines'][0]['spans'][1]['text'] = 'dictionary link';
+        $page['blocks'][0]['lines'][0]['spans'][2]['text'] = ' ignores malformed sidecar';
+        unset($page['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks($page, maxPages: 1);
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $document['page_range']);
+        $t->same(1, $document['metadata']['source_pages']);
+        $t->same(936, $document['pages'][0]['pnum']);
+        $t->same('Direct page [dictionary link](https://example.com/import\\)docs) ignores malformed sidecar', $blocks[0]['text']);
+        $t->true(!str_contains($encoded, 'adapter sidecar marker must stay fallback-only'));
+    },
     'prefers explicit pdftext envelopes inside list-entry page-shaped wrappers at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = static function (int $pageNumber, string $lead, string $linkUrl, string $tail) use ($pdftextLinkedPage): array {
             $page = $pdftextLinkedPage();

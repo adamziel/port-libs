@@ -1406,6 +1406,8 @@ final class ArchiveCompressionStream
      *         crc32:int,
      *         uncompressedSize:int,
      *         compressedSize:int,
+     *         decodedDataOffset:int,
+     *         decodedDataEndOffset:int,
      *         memberSize:int,
      *         memberOffset:int,
      *         headerSize:int,
@@ -1413,7 +1415,11 @@ final class ArchiveCompressionStream
      *         trailerOffset:int,
      *         nextMemberOffset:int,
      *         extraFieldCount:int,
-     *         headerCrc16:?int
+     *         headerCrcPresent:bool,
+     *         headerCrc16:?int,
+     *         headerCrc16Hex:?string,
+     *         headerCrcOffset:?int,
+     *         headerCrcCoverageSize:?int
      *     }>
      * }
      */
@@ -1442,6 +1448,8 @@ final class ArchiveCompressionStream
                 'crc32' => $member['crc32'],
                 'uncompressedSize' => $member['uncompressedSize'],
                 'compressedSize' => $member['compressedSize'],
+                'decodedDataOffset' => $member['decodedDataOffset'],
+                'decodedDataEndOffset' => $member['decodedDataEndOffset'],
                 'memberSize' => $member['memberSize'],
                 'memberOffset' => $member['memberOffset'],
                 'headerSize' => $member['headerSize'],
@@ -1449,7 +1457,11 @@ final class ArchiveCompressionStream
                 'trailerOffset' => $member['trailerOffset'],
                 'nextMemberOffset' => $member['nextMemberOffset'],
                 'extraFieldCount' => count($member['extraFields']),
+                'headerCrcPresent' => $member['headerCrcPresent'],
                 'headerCrc16' => $member['headerCrc16'],
+                'headerCrc16Hex' => $member['headerCrc16Hex'],
+                'headerCrcOffset' => $member['headerCrcOffset'],
+                'headerCrcCoverageSize' => $member['headerCrcCoverageSize'],
             ],
             $inspection['members']
         );

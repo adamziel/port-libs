@@ -1573,7 +1573,15 @@ final class TableRecognizer
     {
         $hasRow = $this->hasAssignedRowAnchor($cell);
         $hasCol = $this->hasAssignedColAnchor($cell);
-        if (!$hasRow && !$hasCol) {
+        $invalidRow = $this->hasInvalidAssignedRowAnchor($cell);
+        $invalidCol = $this->hasInvalidAssignedColAnchor($cell);
+        if ($invalidRow && $invalidCol) {
+            $status = 'rejected_invalid_row_and_column_assignment_anchors';
+        } elseif ($invalidRow) {
+            $status = 'rejected_invalid_row_assignment_anchor';
+        } elseif ($invalidCol) {
+            $status = 'rejected_invalid_column_assignment_anchor';
+        } elseif (!$hasRow && !$hasCol) {
             $status = 'rejected_missing_row_and_column_assignment_anchors';
         } elseif (!$hasRow) {
             $status = 'rejected_missing_row_assignment_anchor';
@@ -1589,6 +1597,8 @@ final class TableRecognizer
             'assignment_excluded_before_markdown' => true,
             'has_row_assignment_anchor' => $hasRow,
             'has_col_assignment_anchor' => $hasCol,
+            'invalid_row_assignment_anchor' => $invalidRow,
+            'invalid_col_assignment_anchor' => $invalidCol,
         ];
         $bbox = $this->nullableBboxFromRecord($cell);
         if ($bbox !== null) {
@@ -1622,6 +1632,45 @@ final class TableRecognizer
     private function hasAssignedColAnchor(array $cell): bool
     {
         return ($this->assignedColIds($cell, [])[0] ?? null) !== null;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     */
+    private function hasInvalidAssignedRowAnchor(array $cell): bool
+    {
+        return $this->hasInvalidAssignedIds($cell, 'row_ids', 'row_id');
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     */
+    private function hasInvalidAssignedColAnchor(array $cell): bool
+    {
+        return $this->hasInvalidAssignedIds($cell, 'col_ids', 'col_id');
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     */
+    private function hasInvalidAssignedIds(array $cell, string $idsKey, string $scalarKey): bool
+    {
+        if (array_key_exists($idsKey, $cell)) {
+            if (!is_array($cell[$idsKey])) {
+                return true;
+            }
+            foreach (array_values($cell[$idsKey]) as $id) {
+                if ($id !== null && $this->nullableInteger($id) === null) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return array_key_exists($scalarKey, $cell)
+            && $cell[$scalarKey] !== null
+            && $this->nullableInteger($cell[$scalarKey]) === null;
     }
 
     /**
@@ -4495,12 +4544,13 @@ final class TableRecognizer
      */
     private function assignedRowIds(array $cell, array $rowOrder): array
     {
-        $rowIds = $cell['row_ids'] ?? null;
-        if (is_array($rowIds) && ($rowIds[0] ?? null) !== null) {
-            return array_map(
-                static fn (mixed $id): ?int => $id === null ? null : (int) $id,
-                array_values($rowIds)
-            );
+        if (array_key_exists('row_ids', $cell)) {
+            $rowIds = $this->assignmentIdList($cell['row_ids']);
+            if ($rowIds !== null && ($rowIds[0] ?? null) !== null) {
+                return $rowIds;
+            }
+
+            return [];
         }
 
         $rowId = $this->nullableInteger($cell['row_id'] ?? null);
@@ -4518,12 +4568,13 @@ final class TableRecognizer
      */
     private function assignedColIds(array $cell, array $colOrder): array
     {
-        $colIds = $cell['col_ids'] ?? null;
-        if (is_array($colIds) && ($colIds[0] ?? null) !== null) {
-            return array_map(
-                static fn (mixed $id): ?int => $id === null ? null : (int) $id,
-                array_values($colIds)
-            );
+        if (array_key_exists('col_ids', $cell)) {
+            $colIds = $this->assignmentIdList($cell['col_ids']);
+            if ($colIds !== null && ($colIds[0] ?? null) !== null) {
+                return $colIds;
+            }
+
+            return [];
         }
 
         $colId = $this->nullableInteger($cell['col_id'] ?? null);
@@ -4532,6 +4583,33 @@ final class TableRecognizer
         }
 
         return $this->spanIdsFromAnchor($colId, $this->positiveSpan($cell['colspan'] ?? null), $colOrder);
+    }
+
+    /**
+     * @return list<int|null>|null
+     */
+    private function assignmentIdList(mixed $ids): ?array
+    {
+        if (!is_array($ids)) {
+            return null;
+        }
+
+        $out = [];
+        foreach (array_values($ids) as $id) {
+            if ($id === null) {
+                $out[] = null;
+                continue;
+            }
+
+            $integer = $this->nullableInteger($id);
+            if ($integer === null) {
+                return null;
+            }
+
+            $out[] = $integer;
+        }
+
+        return $out;
     }
 
     /**

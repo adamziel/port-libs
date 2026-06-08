@@ -2151,6 +2151,103 @@ XML;
         $t->throws(\InvalidArgumentException::class, static fn (): array => $graph->preflightRelationshipSelector('/word/document.xml', ['1bad'], []));
         $t->throws(\InvalidArgumentException::class, static fn (): array => $graph->preflightRelationshipSelector('/word/document.xml', ['rIdHero'], ['']));
     },
+    'rejects OPC relationship selector SourceType values that are not absolute URI references' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/sig-invalid-source-type.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipGroupReference SourceType="officeDocument/relationships/image"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => '_xmlsignatures/sig-invalid-source-type.xml', 'data' => $signatureXml],
+        ]));
+
+        $selector = $graph->preflightRelationshipSelector(
+            '/word/document.xml',
+            [],
+            [
+                'officeDocument/relationships/image',
+                'http:',
+                OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE,
+            ],
+        );
+
+        $t->same([
+            'officeDocument/relationships/image',
+            'http:',
+            OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE,
+        ], $selector['sourceTypes']);
+        $t->same([
+            'officeDocument/relationships/image',
+            'http:',
+        ], $selector['invalidSourceTypes']);
+        $t->same([
+            'officeDocument/relationships/image' => ['source-type-not-absolute-uri'],
+            'http:' => ['source-type-empty-uri-body'],
+        ], $selector['sourceTypeIssues']);
+        $t->same([], $selector['unmatchedSourceTypes']);
+        $t->same(false, $selector['valid']);
+        $t->same(['invalid-source-type'], $selector['issues']);
+        $t->same(1, count($selector['relationships']));
+        $t->same('rIdHero', $selector['relationships'][0]['id']);
+        $t->same(true, $selector['relationships'][0]['selectedBySourceType']);
+        $t->same('/word/media/hero.png', $selector['relationships'][0]['targetPart']);
+        $t->same('image/png', $selector['relationships'][0]['contentType']);
+
+        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-invalid-source-type.xml');
+
+        $t->same(1, count($transforms));
+        $t->same('/word/document.xml', $transforms[0]['source']);
+        $t->same([], $transforms[0]['sourceIds']);
+        $t->same(['officeDocument/relationships/image'], $transforms[0]['sourceTypes']);
+        $t->same(['officeDocument/relationships/image'], $transforms[0]['invalidSourceTypes']);
+        $t->same([
+            'officeDocument/relationships/image' => ['source-type-not-absolute-uri'],
+        ], $transforms[0]['sourceTypeIssues']);
+        $t->same([], $transforms[0]['relationshipIds']);
+        $t->same(0, $transforms[0]['relationshipCount']);
+        $t->same(false, $transforms[0]['selectorValid']);
+        $t->same(true, $transforms[0]['relationshipTargetsValid']);
+        $t->same(false, $transforms[0]['valid']);
+        $t->same(['invalid-source-type'], $transforms[0]['issues']);
+        $t->same('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>', $transforms[0]['relationshipXml']);
+    },
     'materializes OPC relationship transform payloads for selected relationships' => static function (TestRunner $t): void {
         $selectorContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

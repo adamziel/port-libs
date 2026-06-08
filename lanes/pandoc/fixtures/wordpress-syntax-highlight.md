@@ -951,3 +951,39 @@ class ReviewPacket {
   }
 }
 ```
+
+``` {.swift #swift-review .numberLines startFrom=760}
+// SwiftUI WordPress import review card
+import SwiftUI
+
+struct ReviewPacket: Decodable, Identifiable {
+    let id: Int
+    let title: String?
+    let media: [String]
+}
+
+@MainActor
+final class ReviewModel: ObservableObject {
+    @Published var packet: ReviewPacket?
+
+    func load(from data: Data) async throws {
+        packet = try JSONDecoder().decode(ReviewPacket.self, from: data)
+    }
+}
+
+struct ImportReviewCard: View {
+    @StateObject private var model = ReviewModel()
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(model.packet?.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Untitled")
+            if let count = model.packet?.media.count, count > 0 {
+                Text("\(count) attachments")
+            }
+            Button("Review in WordPress") {
+                Task { try? await model.load(from: Data()) }
+            }
+        }
+    }
+}
+```

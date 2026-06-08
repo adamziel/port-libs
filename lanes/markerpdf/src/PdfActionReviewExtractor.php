@@ -2767,14 +2767,18 @@ final class PdfActionReviewExtractor
             $leafEntries = [];
             for ($index = 0, $count = count($names); $index + 1 < $count;) {
                 $name = $this->pdfStringDetails($this->resolveValue($names[$index]));
-                if ($name === null) {
+                if ($name === null || $name['text'] === '') {
+                    $index++;
+                    continue;
+                }
+
+                if ($this->nameTreeStringValueIsMissingBeforePair($names, $index)) {
                     $index++;
                     continue;
                 }
 
                 if (
-                    $name['text'] !== ''
-                    && $this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])
+                    $this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])
                     && $this->destinationValueAllowedForMap($names[$index + 1])
                 ) {
                     $leafEntries[] = [
@@ -3043,6 +3047,11 @@ final class PdfActionReviewExtractor
                 continue;
             }
 
+            if ($this->nameTreeStringValueIsMissingBeforePair($items, $index)) {
+                $index++;
+                continue;
+            }
+
             if ($this->nameTreeNameWithinLimits($name['text'], $limits, $name['bytes'])) {
                 return true;
             }
@@ -3050,6 +3059,25 @@ final class PdfActionReviewExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function nameTreeStringValueIsMissingBeforePair(array $items, int $index): bool
+    {
+        $valueIndex = $index + 1;
+        $nextIndex = $valueIndex + 1;
+        if (!array_key_exists($valueIndex, $items) || !array_key_exists($nextIndex, $items)) {
+            return false;
+        }
+
+        $valueName = $this->pdfStringDetails($this->resolveValue($items[$valueIndex]));
+        if ($valueName === null || $valueName['text'] === '') {
+            return false;
+        }
+
+        return $this->pdfStringDetails($this->resolveValue($items[$nextIndex])) === null;
     }
 
     /**

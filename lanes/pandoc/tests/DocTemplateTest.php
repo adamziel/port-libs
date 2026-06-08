@@ -1398,6 +1398,70 @@ HTML,
         ], null, 'plain'));
     },
 
+    'renders bounded pandoc default rst template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $rst = $renderer->renderResource('templates/default', [], [
+            'titleblock' => "Batch 42 Review\n===============",
+            'author' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-08',
+            'address' => 'https://example.test/wp-admin/edit.php',
+            'contact' => 'migration@example.test',
+            'copyright' => 'Internal review only',
+            'dedication' => 'Reviewer desk',
+            'organization' => 'Port Libs',
+            'revision' => 'r42',
+            'status' => 'draft',
+            'version' => '3.7',
+            'abstract' => "Native RST default template review.\nSecond abstract line.",
+            'rawtex' => true,
+            'include-before' => ['.. note:: Review imported sections before publishing.'],
+            'toc' => true,
+            'toc-depth' => 2,
+            'number-sections' => true,
+            'header-includes' => ['.. |wp| replace:: WordPress'],
+            'body' => "Imported Body\n-------------\n\nConverted content.",
+            'include-after' => ['.. footer:: Migration desk'],
+        ], null, 'rst');
+
+        foreach ([
+            "Batch 42 Review\n===============",
+            ':Author: Migration bot',
+            ':Author: Content editor',
+            ':Date: 2026-06-08',
+            ':Address: https://example.test/wp-admin/edit.php',
+            ':Contact: migration@example.test',
+            ':Copyright: Internal review only',
+            ':Dedication: Reviewer desk',
+            ':Organization: Port Libs',
+            ':Revision: r42',
+            ':Status: draft',
+            ':Version: 3.7',
+            ":Abstract:\n   Native RST default template review.\n   Second abstract line.",
+            '.. role:: raw-latex(raw)',
+            '   :format: latex',
+            '.. note:: Review imported sections before publishing.',
+            ".. contents::\n   :depth: 2",
+            '.. section-numbering::',
+            '.. |wp| replace:: WordPress',
+            "Imported Body\n-------------\n\nConverted content.",
+            '.. footer:: Migration desk',
+        ] as $needle) {
+            $t->contains($needle, $rst);
+        }
+
+        $direct = $renderer->renderResource('templates/default.rst', [], [
+            'body' => "Direct RST body\n\n",
+        ]);
+        $t->contains('Direct RST body', $direct);
+
+        $t->same('custom rst', $renderer->renderResource('templates/default', [
+            'templates/default.rst' => 'custom $body$',
+        ], [
+            'body' => 'rst',
+        ], null, 'rst'));
+    },
+
     'renders bounded pandoc default bbcode template resource and aliases' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
         $body = "[b]Batch 42 Review[/b]\n\n[url=https://example.test/wp-admin/edit.php]Review import queue[/url]\n";

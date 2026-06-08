@@ -732,8 +732,11 @@ final class CompoundFileBinary
         bool $parentIsRed,
         bool $treeRoot = false
     ): int {
-        if (!self::isRegularSector($nodeId)) {
+        if ($nodeId === self::FREESECT) {
             return 1;
+        }
+        if (!self::isRegularSector($nodeId)) {
+            throw new \RuntimeException('CFB directory tree contains an invalid stream ID');
         }
         if (!array_key_exists($nodeId, $rawEntries) || $rawEntries[$nodeId] === null) {
             throw new \RuntimeException('CFB directory tree points outside the directory');

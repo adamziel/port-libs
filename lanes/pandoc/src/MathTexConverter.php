@@ -697,6 +697,7 @@ final class MathTexConverter
             'munder' => $this->mathMlChildAltText($children, 0) . ' under ' . $this->mathMlChildAltText($children, 1),
             'mover' => $this->mathMlChildAltText($children, 0) . ' over ' . $this->mathMlChildAltText($children, 1),
             'munderover' => $this->mathMlChildAltText($children, 0) . ' under ' . $this->mathMlChildAltText($children, 1) . ' over ' . $this->mathMlChildAltText($children, 2),
+            'mmultiscripts' => $this->mathMlMultiScriptsAltText($children),
             'mtable' => 'table ' . implode('; ', array_map(fn (\DOMElement $child): string => $this->mathMlNodeAltText($child), $children)),
             'mtr', 'mlabeledtr' => 'row ' . implode(', ', array_map(fn (\DOMElement $child): string => $this->mathMlNodeAltText($child), $children)),
             'mtd' => $this->joinAccessibilityText($this->mathMlChildAltTexts($node)),
@@ -730,6 +731,7 @@ final class MathTexConverter
             'munder' => $this->intentCall('under', $children),
             'mover' => $this->intentCall('over', $children),
             'munderover' => $this->intentCall('underover', $children),
+            'mmultiscripts' => $this->mathMlMultiScriptsIntent($children),
             'mtable' => $this->intentCall('table', $children),
             'mtr', 'mlabeledtr' => $this->intentCall('row', $children),
             'mtd' => $this->joinIntentText($this->mathMlChildIntents($node)),
@@ -753,6 +755,84 @@ final class MathTexConverter
         }
 
         return $children;
+    }
+
+    /**
+     * @param list<\DOMElement> $children
+     */
+    private function mathMlMultiScriptsAltText(array $children): string
+    {
+        if (!isset($children[0])) {
+            return '';
+        }
+
+        $parts = [$this->normalizeAccessibilityText($this->mathMlNodeAltText($children[0]))];
+        foreach ($this->mathMlMultiScriptParts($children) as $part) {
+            if ($part['text'] !== '') {
+                $parts[] = $part['position'] . ' ' . $part['text'];
+            }
+        }
+
+        return $this->joinAccessibilityText($parts);
+    }
+
+    /**
+     * @param list<\DOMElement> $children
+     */
+    private function mathMlMultiScriptsIntent(array $children): string
+    {
+        if (!isset($children[0])) {
+            return '';
+        }
+
+        $parts = [$this->mathMlNodeIntent($children[0])];
+        foreach ($this->mathMlMultiScriptParts($children) as $part) {
+            if ($part['intent'] !== '') {
+                $parts[] = str_replace('-', '', $part['position']) . '(' . $part['intent'] . ')';
+            }
+        }
+
+        return 'multiscripts(' . implode(',', array_filter($parts, static fn (string $part): bool => $part !== '')) . ')';
+    }
+
+    /**
+     * @param list<\DOMElement> $children
+     * @return list<array{position:string, text:string, intent:string}>
+     */
+    private function mathMlMultiScriptParts(array $children): array
+    {
+        $parts = [];
+        $phase = 'post';
+        for ($index = 1; $index < count($children);) {
+            $child = $children[$index];
+            if ($child->localName === 'mprescripts') {
+                $phase = 'pre';
+                $index++;
+                continue;
+            }
+
+            $subscript = $children[$index] ?? null;
+            $superscript = $children[$index + 1] ?? null;
+            $index += 2;
+
+            if ($subscript instanceof \DOMElement && $subscript->localName !== 'none') {
+                $parts[] = [
+                    'position' => $phase . '-sub',
+                    'text' => $this->normalizeAccessibilityText($this->mathMlNodeAltText($subscript)),
+                    'intent' => $this->mathMlNodeIntent($subscript),
+                ];
+            }
+
+            if ($superscript instanceof \DOMElement && $superscript->localName !== 'none') {
+                $parts[] = [
+                    'position' => $phase . '-sup',
+                    'text' => $this->normalizeAccessibilityText($this->mathMlNodeAltText($superscript)),
+                    'intent' => $this->mathMlNodeIntent($superscript),
+                ];
+            }
+        }
+
+        return $parts;
     }
 
     /**
@@ -1584,6 +1664,10 @@ final class MathTexConverter
             $base = $this->parseRequiredAtomOrGroup($source, $offset, 'stackrel base');
 
             return '<mover>' . $base . $above . '</mover>';
+        }
+
+        if ($command === 'sideset') {
+            return $this->parseSidesetCommand($source, $offset);
         }
 
         if ($command === 'overset') {
@@ -4548,6 +4632,125 @@ final class MathTexConverter
         return $this->applyScripts($source, $offset, $base, $scriptPlacement);
     }
 
+    private function parseSidesetCommand(string $source, int &$offset): string
+    {
+        $left = $this->parseSidesetScriptGroup($this->readRequiredGroupText($source, $offset), 'left');
+        $right = $this->parseSidesetScriptGroup($this->readRequiredGroupText($source, $offset), 'right');
+        $base = $this->parseRequiredAtomOrGroup($source, $offset, 'sideset base');
+
+        if (!$left['hasScripts'] && !$right['hasScripts']) {
+            return $base;
+        }
+
+        $mathml = '<mmultiscripts>' . $base;
+        if ($right['hasScripts']) {
+            $mathml .= ($right['subscript'] ?? '<none/>') . ($right['superscript'] ?? '<none/>');
+        }
+
+        if ($left['hasScripts']) {
+            $mathml .= '<mprescripts/>'
+                . ($left['subscript'] ?? '<none/>')
+                . ($left['superscript'] ?? '<none/>');
+        }
+
+        return $mathml . '</mmultiscripts>';
+    }
+
+    /**
+     * @return array{subscript:?string, superscript:?string, hasScripts:bool}
+     */
+    private function parseSidesetScriptGroup(string $source, string $label): array
+    {
+        $subscript = null;
+        $superscript = null;
+        $offset = 0;
+        $length = strlen($source);
+
+        while ($offset < $length) {
+            $this->skipWhitespace($source, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $marker = $source[$offset] ?? '';
+            if ($marker === '_') {
+                if ($subscript !== null) {
+                    throw new \InvalidArgumentException('Duplicate TeX sideset ' . $label . ' subscript at offset ' . $offset);
+                }
+
+                $offset++;
+                $subscript = $this->parseSidesetScriptArgument($source, $offset, $label . ' subscript');
+                continue;
+            }
+
+            if ($marker === '^') {
+                if ($superscript !== null) {
+                    throw new \InvalidArgumentException('Duplicate TeX sideset ' . $label . ' superscript at offset ' . $offset);
+                }
+
+                $offset++;
+                $superscript = $this->parseSidesetScriptArgument($source, $offset, $label . ' superscript');
+                continue;
+            }
+
+            if ($marker === "'") {
+                if ($superscript !== null) {
+                    throw new \InvalidArgumentException('Duplicate TeX sideset ' . $label . ' superscript at offset ' . $offset);
+                }
+
+                $superscript = $this->parsePrimeShorthand($source, $offset);
+                continue;
+            }
+
+            $primeSuperscript = $this->parseSidesetPrimeCommandRun($source, $offset);
+            if ($primeSuperscript !== null) {
+                if ($superscript !== null) {
+                    throw new \InvalidArgumentException('Duplicate TeX sideset ' . $label . ' superscript at offset ' . $offset);
+                }
+
+                $superscript = $primeSuperscript;
+                continue;
+            }
+
+            throw new \InvalidArgumentException('Expected TeX sideset ' . $label . ' script marker at offset ' . $offset);
+        }
+
+        return [
+            'subscript' => $subscript,
+            'superscript' => $superscript,
+            'hasScripts' => $subscript !== null || $superscript !== null,
+        ];
+    }
+
+    private function parseSidesetScriptArgument(string $source, int &$offset, string $label): string
+    {
+        $start = $offset;
+        $argument = $this->parseScriptArgument($source, $offset);
+        if ($argument === '<mrow></mrow>') {
+            throw new \InvalidArgumentException('Expected TeX sideset ' . $label . ' content at offset ' . $start);
+        }
+
+        return $argument;
+    }
+
+    private function parseSidesetPrimeCommandRun(string $source, int &$offset): ?string
+    {
+        $cursor = $offset;
+        $count = 0;
+        while (substr($source, $cursor, 6) === '\\prime' && !ctype_alpha($source[$cursor + 6] ?? '')) {
+            $count++;
+            $cursor += 6;
+        }
+
+        if ($count === 0) {
+            return null;
+        }
+
+        $offset = $cursor;
+
+        return $this->primeMathMl($count);
+    }
+
     private function applyScripts(string $source, int &$offset, string $base, ?string $scriptPlacement = null): string
     {
         $subscript = null;
@@ -4620,6 +4823,11 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX prime shorthand at offset ' . $offset);
         }
 
+        return $this->primeMathMl($count);
+    }
+
+    private function primeMathMl(int $count): string
+    {
         return match ($count) {
             1 => '<mo>′</mo>',
             2 => '<mo>″</mo>',

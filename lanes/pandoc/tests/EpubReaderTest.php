@@ -2404,6 +2404,76 @@ XML;
         $t->same($mediaTypes, $result['importReport']['mediaTypes']);
         $t->same($mediaTypes, $result['document']->attr('mediaTypes'));
     },
+    'reports malformed OPF manifest media types for package preflight' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithManifestMediaTypes = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="opus-audio" href="audio/chapter.ogg" media-type="audio/ogg; codecs=opus"/>'
+            . '<item id="bad-media" href="data/bad.bin" media-type="application /x-review"/>'
+            . '<item id="bad-param" href="data/bad-param.bin" media-type="application/x-review; profile"/>'
+            . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithManifestMediaTypes,
+            null,
+            [
+                ['name' => 'OEBPS/audio/chapter.ogg', 'data' => 'OGG-OPUS-AUDIO'],
+                ['name' => 'OEBPS/data/bad.bin', 'data' => 'BAD-MEDIA-TYPE'],
+                ['name' => 'OEBPS/data/bad-param.bin', 'data' => 'BAD-MEDIA-PARAM'],
+            ]
+        ));
+
+        $mediaTypes = $result['mediaTypes'];
+        $itemsById = $mediaTypes['itemsById'];
+        $assetById = [];
+        foreach ($result['assets'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+
+        $t->same(9, $mediaTypes['manifestItemCount']);
+        $t->same(7, $mediaTypes['coreMediaTypeCount']);
+        $t->same(2, $mediaTypes['foreignResourceCount']);
+        $t->same(2, $mediaTypes['invalidMediaTypeCount']);
+        $t->same(2, $mediaTypes['reviewRequiredCount']);
+        $t->same(4, count($mediaTypes['diagnostics']));
+
+        $t->same(true, $itemsById['opus-audio']['mediaTypeSyntaxValid']);
+        $t->same('audio/ogg; codecs=opus', $itemsById['opus-audio']['normalizedMediaType']);
+        $t->same('audio/ogg', $itemsById['opus-audio']['baseMediaType']);
+        $t->same(['codecs' => 'opus'], $itemsById['opus-audio']['mediaTypeParameters']);
+        $t->same(true, $itemsById['opus-audio']['coreMediaType']);
+        $t->same('audio', $itemsById['opus-audio']['coreMediaTypeKind']);
+        $t->same([], $itemsById['opus-audio']['diagnostics']);
+
+        $badMedia = $itemsById['bad-media'];
+        $t->same(false, $badMedia['mediaTypeSyntaxValid']);
+        $t->same('application /x-review', $badMedia['baseMediaType']);
+        $t->same(true, $badMedia['foreignResource']);
+        $t->same(true, $badMedia['reviewRequired']);
+        $t->same(['invalid-media-type', 'foreign-resource-without-fallback'], $badMedia['reviewFlags']);
+        $t->same('invalid-manifest-media-type', $badMedia['diagnostics'][0]['type']);
+        $t->same('application /x-review', $badMedia['diagnostics'][0]['mediaType']);
+        $t->same('foreign-resource-without-fallback', $badMedia['diagnostics'][1]['type']);
+
+        $badParam = $itemsById['bad-param'];
+        $t->same(false, $badParam['mediaTypeSyntaxValid']);
+        $t->same('application/x-review', $badParam['baseMediaType']);
+        $t->same([], $badParam['mediaTypeParameters']);
+        $t->same(['invalid-media-type', 'foreign-resource-without-fallback'], $badParam['reviewFlags']);
+        $t->same('invalid-manifest-media-type-parameter', $badParam['diagnostics'][0]['type']);
+        $t->same('profile', $badParam['diagnostics'][0]['parameter']);
+        $t->same('foreign-resource-without-fallback', $badParam['diagnostics'][1]['type']);
+
+        $t->same('bad-media', $mediaTypes['diagnostics'][0]['id']);
+        $t->same('invalid-manifest-media-type', $mediaTypes['diagnostics'][0]['type']);
+        $t->same('bad-param', $mediaTypes['diagnostics'][2]['id']);
+        $t->same('invalid-manifest-media-type-parameter', $mediaTypes['diagnostics'][2]['type']);
+        $t->same($badMedia['diagnostics'], $assetById['bad-media']['mediaTypeDiagnostics']);
+        $t->same($badParam['reviewFlags'], $assetById['bad-param']['mediaTypeReviewFlags']);
+        $t->same($mediaTypes, $result['importReport']['mediaTypes']);
+        $t->same($mediaTypes, $result['document']->attr('mediaTypes'));
+    },
     'parses OPF metadata link records without treating linked records as undeclared assets' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $reviewRecordBytes = '{"@context":"https://schema.org","name":"WordPress EPUB review record"}';
         $opfWithMetadataLinks = str_replace(

@@ -12266,6 +12266,104 @@ XML);
         $t->contains('<li id="fn-2"><p>Endnote cites Ng, 2025.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Footnote Source Packet.</dd>', $blocks);
     },
+    'renders bounded csl first reference note number for note-style citations' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'source-a',
+                'type' => 'report',
+                'title' => 'First Note Source A',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'source-b',
+                'type' => 'report',
+                'title' => 'First Note Source B',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="note" default-locale="en-US">
+  <info>
+    <title>Bounded First Reference Note Number Review</title>
+    <id>https://example.test/styles/bounded-first-reference-note-number-review</id>
+    <updated>2026-06-08T00:45:33+00:00</updated>
+  </info>
+  <macro name="source-key">
+    <group delimiter=" ">
+      <names variable="author"/>
+      <date variable="issued"><date-part name="year"/></date>
+    </group>
+  </macro>
+  <citation>
+    <layout delimiter="; ">
+      <choose>
+        <if position="subsequent" match="any">
+          <group delimiter=" ">
+            <text value="first-note"/>
+            <number variable="first-reference-note-number" form="ordinal"/>
+            <text variable="first-reference-note-number" prefix="raw "/>
+            <text macro="source-key"/>
+          </group>
+        </if>
+        <else>
+          <text macro="source-key"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0]['children'][0]['children'] ?? [];
+        $t->same('first-reference-note-number', $branch[1]['variable'] ?? null);
+        $t->same('ordinal', $branch[1]['form'] ?? null);
+        $t->same('first-reference-note-number', $branch[2]['variable'] ?? null);
+
+        $document = (new MarkdownReader())->read(
+            'Initial source note.[^a]'
+            . "\n\n" . 'Bridge source note.[^b]'
+            . "\n\n" . 'Repeated source note.[^c]'
+            . "\n\n" . '[^a]: Initial footnote cites [@source-a].'
+            . "\n\n" . '[^b]: Bridge footnote cites [@source-b].'
+            . "\n\n" . '[^c]: Repeated footnote cites [@source-a].'
+        );
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $citations = [];
+        $collectCitations = static function (AstNode $node) use (&$collectCitations, &$citations): void {
+            if ($node->type === 'citation') {
+                $citations[] = $node;
+            }
+
+            foreach ($node->children as $child) {
+                $collectCitations($child);
+            }
+        };
+        $collectCitations($processed);
+
+        $t->same(3, count($citations));
+        $t->same(1, $citations[0]->attr('cslFirstReferenceNoteNumber'));
+        $t->same(2, $citations[1]->attr('cslFirstReferenceNoteNumber'));
+        $t->same(1, $citations[2]->attr('cslFirstReferenceNoteNumber'));
+        $t->same('subsequent', $citations[2]->attr('cslPosition'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<li id="fn-1"><p>Initial footnote cites Smith 2026.</p>', $blocks);
+        $t->contains('<li id="fn-3"><p>Repeated footnote cites first-note 1st raw 1 Smith 2026.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. First Note Source A.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

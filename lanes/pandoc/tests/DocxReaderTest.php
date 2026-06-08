@@ -2121,6 +2121,29 @@ $paragraphBorderDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$paragraphFrameDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:framePr w:dropCap="drop" w:lines="3" w:hSpace="240" w:vSpace="120" w:wrap="around" w:hAnchor="margin" w:vAnchor="text" w:xAlign="left" w:yAlign="top"/>
+      </w:pPr>
+      <w:r><w:t>Drop-cap source lead remains reviewable.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:framePr w:w="2160" w:h="720" w:x="144" w:y="-120" w:hRule="exact" w:wrap="tight" w:anchorLock="1"/>
+      </w:pPr>
+      <w:r><w:t>Framed sidebar source note stays labeled.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:framePr w:dropCap="none"/></w:pPr>
+      <w:r><w:t>Disabled frame metadata stays plain.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $sectionPropertiesDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -2953,6 +2976,14 @@ $buildParagraphBorderPackage = static function () use ($contentTypesXml, $packag
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $paragraphBorderDocumentXml],
+    ]);
+};
+
+$buildParagraphFramePackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $paragraphFrameDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $paragraphFrameDocumentXml],
     ]);
 };
 
@@ -5998,6 +6029,52 @@ return [
         $t->contains('[Border separator metadata.]{.docx-paragraph-border .docx-border-between .docx-border-between-dotted .docx-border-bar .docx-border-bar-single data-docx-border-between-val="dotted" data-docx-border-between-size-eighth-points="6" data-docx-border-between-space-points="1" data-docx-border-between-color="999999" data-docx-border-bar-val="single" data-docx-border-bar-size-eighth-points="10" data-docx-border-bar-space-points="3" data-docx-border-bar-color="C00000" data-docx-border-bar-frame="1" data-docx-border-bar-shadow="1"}', $markdown);
         $t->contains('<p><span class="docx-paragraph-border docx-border-top docx-border-top-single docx-border-left docx-border-left-dashed docx-border-bottom docx-border-bottom-double" data-docx-border-top-val="single" data-docx-border-top-size-eighth-points="8" data-docx-border-top-space-points="4" data-docx-border-top-color="4F81BD" data-docx-border-left-val="dashed" data-docx-border-left-size-eighth-points="12" data-docx-border-left-space-points="2" data-docx-border-left-theme-color="accent1" data-docx-border-left-theme-tint="33" data-docx-border-bottom-val="double" data-docx-border-bottom-size-eighth-points="16" data-docx-border-bottom-space-points="6" data-docx-border-bottom-color="auto">Bordered review callout.</span></p>', $blocks);
         $t->contains('<p><span class="docx-paragraph-border docx-border-between docx-border-between-dotted docx-border-bar docx-border-bar-single" data-docx-border-between-val="dotted" data-docx-border-between-size-eighth-points="6" data-docx-border-between-space-points="1" data-docx-border-between-color="999999" data-docx-border-bar-val="single" data-docx-border-bar-size-eighth-points="10" data-docx-border-bar-space-points="3" data-docx-border-bar-color="C00000" data-docx-border-bar-frame="1" data-docx-border-bar-shadow="1">Border separator metadata.</span></p>', $blocks);
+    },
+    'preserves DOCX paragraph frame and drop-cap metadata as reviewer spans' => static function (TestRunner $t) use ($buildParagraphFramePackage): void {
+        $document = (new DocxReader())->readDocument($buildParagraphFramePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+
+        $dropCap = $document->children[0]->children[0];
+        $t->same('span', $dropCap->type);
+        $t->same(['docx-paragraph-frame', 'docx-paragraph-drop-cap', 'docx-drop-cap-drop', 'docx-frame-wrap-around'], $dropCap->attr('classes'));
+        $dropCapAttrs = $dropCap->attr('attributes');
+        $t->same('drop', $dropCapAttrs['data-docx-frame-drop-cap']);
+        $t->same('3', $dropCapAttrs['data-docx-frame-lines']);
+        $t->same('240', $dropCapAttrs['data-docx-frame-horizontal-space-twips']);
+        $t->same('120', $dropCapAttrs['data-docx-frame-vertical-space-twips']);
+        $t->same('around', $dropCapAttrs['data-docx-frame-wrap']);
+        $t->same('margin', $dropCapAttrs['data-docx-frame-horizontal-anchor']);
+        $t->same('text', $dropCapAttrs['data-docx-frame-vertical-anchor']);
+        $t->same('left', $dropCapAttrs['data-docx-frame-horizontal-align']);
+        $t->same('top', $dropCapAttrs['data-docx-frame-vertical-align']);
+        $t->same('Drop-cap source lead remains reviewable.', $dropCap->children[0]->attr('text'));
+
+        $frame = $document->children[1]->children[0];
+        $t->same('span', $frame->type);
+        $t->same(['docx-paragraph-frame', 'docx-frame-wrap-tight'], $frame->attr('classes'));
+        $frameAttrs = $frame->attr('attributes');
+        $t->same('2160', $frameAttrs['data-docx-frame-width-twips']);
+        $t->same('720', $frameAttrs['data-docx-frame-height-twips']);
+        $t->same('144', $frameAttrs['data-docx-frame-horizontal-position-twips']);
+        $t->same('-120', $frameAttrs['data-docx-frame-vertical-position-twips']);
+        $t->same('exact', $frameAttrs['data-docx-frame-height-rule']);
+        $t->same('tight', $frameAttrs['data-docx-frame-wrap']);
+        $t->same('true', $frameAttrs['data-docx-frame-anchor-lock']);
+        $t->same('Framed sidebar source note stays labeled.', $frame->children[0]->attr('text'));
+
+        $plain = $document->children[2];
+        $t->same('paragraph', $plain->type);
+        $t->same('Disabled frame metadata stays plain.', $plain->children[0]->attr('text'));
+        $t->true(!str_contains($markdown, 'Disabled frame metadata stays plain.]{'), 'Disabled DOCX frame metadata should not create Markdown attributes');
+        $t->true(!str_contains($blocks, 'Disabled frame metadata stays plain.</span>'), 'Disabled DOCX frame metadata should not create WordPress span metadata');
+
+        $t->contains('[Drop-cap source lead remains reviewable.]{.docx-paragraph-frame .docx-paragraph-drop-cap .docx-drop-cap-drop .docx-frame-wrap-around data-docx-frame-drop-cap="drop" data-docx-frame-wrap="around" data-docx-frame-horizontal-anchor="margin" data-docx-frame-vertical-anchor="text" data-docx-frame-horizontal-align="left" data-docx-frame-vertical-align="top" data-docx-frame-lines="3" data-docx-frame-horizontal-space-twips="240" data-docx-frame-vertical-space-twips="120"}', $markdown);
+        $t->contains('[Framed sidebar source note stays labeled.]{.docx-paragraph-frame .docx-frame-wrap-tight data-docx-frame-wrap="tight" data-docx-frame-height-rule="exact" data-docx-frame-width-twips="2160" data-docx-frame-height-twips="720" data-docx-frame-horizontal-position-twips="144" data-docx-frame-vertical-position-twips="-120" data-docx-frame-anchor-lock="true"}', $markdown);
+        $t->contains('<p><span class="docx-paragraph-frame docx-paragraph-drop-cap docx-drop-cap-drop docx-frame-wrap-around" data-docx-frame-drop-cap="drop" data-docx-frame-wrap="around" data-docx-frame-horizontal-anchor="margin" data-docx-frame-vertical-anchor="text" data-docx-frame-horizontal-align="left" data-docx-frame-vertical-align="top" data-docx-frame-lines="3" data-docx-frame-horizontal-space-twips="240" data-docx-frame-vertical-space-twips="120">Drop-cap source lead remains reviewable.</span></p>', $blocks);
+        $t->contains('<p><span class="docx-paragraph-frame docx-frame-wrap-tight" data-docx-frame-wrap="tight" data-docx-frame-height-rule="exact" data-docx-frame-width-twips="2160" data-docx-frame-height-twips="720" data-docx-frame-horizontal-position-twips="144" data-docx-frame-vertical-position-twips="-120" data-docx-frame-anchor-lock="true">Framed sidebar source note stays labeled.</span></p>', $blocks);
     },
     'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $reader = new DocxReader();

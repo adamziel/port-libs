@@ -38,6 +38,10 @@ return [
         $t->same('dart', SyntaxHighlighter::normalizeLanguage('dartlang'));
         $t->same('dart', SyntaxHighlighter::normalizeLanguage('flutter'));
         $t->same('dart', SyntaxHighlighter::normalizeLanguage('language-dartlang'));
+        $t->same('swift', SyntaxHighlighter::normalizeLanguage('swift'));
+        $t->same('swift', SyntaxHighlighter::normalizeLanguage('swiftui'));
+        $t->same('swift', SyntaxHighlighter::normalizeLanguage('swift-source'));
+        $t->same('swift', SyntaxHighlighter::normalizeLanguage('language-swift-source'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('dot'));
         $t->same('elm', SyntaxHighlighter::normalizeLanguage('elm'));
         $t->same('elm', SyntaxHighlighter::normalizeLanguage('language-elm-module'));
@@ -1614,6 +1618,57 @@ return [
         $t->same('flutter', $directDart['requestedLanguage']);
         $t->contains('<span class="kw">const</span> <span class="va">blocks</span> <span class="op">=</span> <span class="op">&lt;</span><span class="dt">String</span><span class="op">&gt;[</span><span class="st">&quot;core/paragraph&quot;</span><span class="op">];</span>', $directDart['html']);
     },
+    'highlights swiftui review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[56] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Swift code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directSwift = $highlighter->highlight(
+            'let title: String? = nil; Text(title ?? "Untitled")',
+            'swift-source'
+        );
+
+        $t->same('swift', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('swift', SyntaxHighlighter::normalizeLanguage('swift'));
+        $t->same('swift', SyntaxHighlighter::normalizeLanguage('swiftui'));
+        $t->same('swift', SyntaxHighlighter::normalizeLanguage('swift-source'));
+        $t->same('swift', $highlighted['language']);
+        $t->same('swift', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(760, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource swift numberLines"><code class="sourceCode swift" style="counter-reset: source-line 759;">', $highlighted['html']);
+        $t->contains('<span id="swift-review-760"><a href="#swift-review-760"></a><span class="co">// SwiftUI WordPress import review card</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="dt">SwiftUI</span>', $highlighted['html']);
+        $t->contains('<span class="kw">struct</span> <span class="dt">ReviewPacket</span><span class="op">:</span> <span class="dt">Decodable</span><span class="op">,</span> <span class="dt">Identifiable</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="va">title</span><span class="op">:</span> <span class="dt">String</span><span class="op">?</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@MainActor</span>', $highlighted['html']);
+        $t->contains('<span class="kw">final</span> <span class="kw">class</span> <span class="dt">ReviewModel</span><span class="op">:</span> <span class="dt">ObservableObject</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@Published</span> <span class="kw">var</span> <span class="va">packet</span><span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">?</span>', $highlighted['html']);
+        $t->contains('<span class="kw">func</span> <span class="fu">load</span><span class="op">(</span><span class="va">from</span> <span class="va">data</span><span class="op">:</span> <span class="dt">Data</span><span class="op">)</span> <span class="kw">async</span> <span class="kw">throws</span>', $highlighted['html']);
+        $t->contains('<span class="kw">try</span> <span class="dt">JSONDecoder</span><span class="op">().</span><span class="fu">decode</span><span class="op">(</span><span class="dt">ReviewPacket</span><span class="op">.</span><span class="kw">self</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@StateObject</span> <span class="kw">private</span> <span class="kw">var</span> <span class="va">model</span> <span class="op">=</span> <span class="dt">ReviewModel</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<span class="kw">var</span> <span class="va">body</span><span class="op">:</span> <span class="kw">some</span> <span class="dt">View</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Text</span><span class="op">(</span><span class="va">model</span><span class="op">.</span><span class="va">packet</span><span class="op">?.</span><span class="va">title</span><span class="op">?.</span><span class="fu">trimmingCharacters</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="kw">let</span> <span class="va">count</span> <span class="op">=</span> <span class="va">model</span><span class="op">.</span><span class="va">packet</span><span class="op">?.</span><span class="va">media</span><span class="op">.</span><span class="va">count</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Button</span><span class="op">(</span><span class="st">&quot;Review in WordPress&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="dt">Task</span> <span class="op">{</span> <span class="kw">try</span><span class="op">?</span> <span class="kw">await</span> <span class="va">model</span><span class="op">.</span><span class="fu">load</span>', $wordpressBlock);
+        $t->same('swift', $directSwift['language']);
+        $t->same('swift-source', $directSwift['requestedLanguage']);
+        $t->contains('<span class="kw">let</span> <span class="va">title</span><span class="op">:</span> <span class="dt">String</span><span class="op">?</span> <span class="op">=</span> <span class="cn">nil</span>', $directSwift['html']);
+        $t->contains('<span class="dt">Text</span><span class="op">(</span><span class="va">title</span> <span class="op">??</span> <span class="st">&quot;Untitled&quot;</span><span class="op">)</span>', $directSwift['html']);
+    },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
         $html = $highlighter->highlight('<section data-id="42"><code>$post</code></section>', 'html5');
@@ -1949,13 +2004,39 @@ return [
         $t->contains('<span class="op">&gt; </span>Reviewer note with <span class="ot">&lt;https://example.test/post&gt;</span>', $highlighted['html']);
         $t->contains('<span class="ot">[asset]: uploads/hero.png &quot;Hero image&quot;</span>', $highlighted['html']);
         $t->contains('<span class="pp">``` {.php}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">echo</span> <span class="fu">esc_html</span><span class="op">(</span><span class="va">$title</span><span class="op">);</span>', $highlighted['html']);
         $t->contains('<span class="pp">```</span>', $highlighted['html']);
         $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
         $t->contains('<span class="re"># Migration Review</span>', $wordpressBlock);
+        $t->contains('<span class="fu">esc_html</span><span class="op">(</span><span class="va">$title</span>', $wordpressBlock);
 
         $commonmark = (new SyntaxHighlighter())->highlight('## Imported Notes', 'commonmark');
         $t->same('markdown', $commonmark['language']);
         $t->contains('<pre class="sourceCode markdown"><code class="sourceCode markdown"><span class="re">## Imported Notes</span></code></pre>', $commonmark['html']);
+    },
+    'delegates markdown fenced code bodies to embedded language tokenizers' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '# Import packet',
+            '',
+            '``` json',
+            '{"title":"Imported","draft":false}',
+            '```',
+            '',
+            '~~~ {.php .numberLines}',
+            'echo esc_html($title);',
+            '~~~',
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlight($markdown, 'pandoc-markdown');
+
+        $t->same('markdown', $highlighted['language']);
+        $t->same('pandoc-markdown', $highlighted['requestedLanguage']);
+        $t->contains('<span class="pp">``` json</span>', $highlighted['html']);
+        $t->contains('<span class="ot">&quot;title&quot;</span><span class="op">:</span><span class="st">&quot;Imported&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">&quot;draft&quot;</span><span class="op">:</span><span class="cn">false</span>', $highlighted['html']);
+        $t->contains('<span class="pp">~~~ {.php .numberLines}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">echo</span> <span class="fu">esc_html</span><span class="op">(</span><span class="va">$title</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="pp">~~~</span>', $highlighted['html']);
     },
     'highlights ruby and rake review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $codeBlock = new AstNode('code_block', [

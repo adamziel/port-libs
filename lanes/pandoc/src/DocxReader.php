@@ -1830,6 +1830,7 @@ final class DocxReader
         $this->appendParagraphIndentMetadata($properties, $classes, $attributes);
         $this->appendParagraphTabsMetadata($properties, $classes, $attributes);
         $this->appendParagraphBorderMetadata($properties, $classes, $attributes);
+        $this->appendParagraphFrameMetadata($properties, $classes, $attributes);
 
         if ($this->hasOnOffChild($properties, 'keepNext')) {
             $classes[] = 'docx-keep-next';
@@ -2199,6 +2200,84 @@ final class DocxReader
         $classes[] = 'docx-paragraph-border';
         array_push($classes, ...$borderClasses);
         $attributes += $borderAttributes;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendParagraphFrameMetadata(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        $frame = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'framePr');
+        if (!$frame instanceof \DOMElement) {
+            return;
+        }
+
+        $frameAttributes = [];
+        $dropCap = strtolower(trim((string) ($this->wordAttr($frame, 'dropCap') ?? '')));
+        if ($dropCap !== '' && !in_array($dropCap, ['none', 'nil', '0', 'false', 'off'], true)) {
+            $frameAttributes['drop-cap'] = $dropCap;
+        }
+
+        foreach ([
+            'wrap' => 'wrap',
+            'hAnchor' => 'horizontal-anchor',
+            'vAnchor' => 'vertical-anchor',
+            'xAlign' => 'horizontal-align',
+            'yAlign' => 'vertical-align',
+            'hRule' => 'height-rule',
+        ] as $source => $target) {
+            $value = trim((string) ($this->wordAttr($frame, $source) ?? ''));
+            if ($value !== '') {
+                $frameAttributes[$target] = $value;
+            }
+        }
+
+        foreach ([
+            'lines' => 'lines',
+            'w' => 'width-twips',
+            'h' => 'height-twips',
+            'hSpace' => 'horizontal-space-twips',
+            'vSpace' => 'vertical-space-twips',
+            'x' => 'horizontal-position-twips',
+            'y' => 'vertical-position-twips',
+        ] as $source => $target) {
+            $value = $this->optionalIntWordAttr($frame, $source);
+            if ($value !== null) {
+                $frameAttributes[$target] = (string) $value;
+            }
+        }
+
+        if ($frame->hasAttributeNS(self::WORDPROCESSINGML_NS, 'anchorLock')) {
+            $anchorLock = $this->onOffStringValue($this->wordAttr($frame, 'anchorLock'));
+            if ($anchorLock !== null) {
+                $frameAttributes['anchor-lock'] = $anchorLock ? 'true' : 'false';
+            }
+        }
+
+        if ($frameAttributes === []) {
+            return;
+        }
+
+        $classes[] = 'docx-paragraph-frame';
+        if (isset($frameAttributes['drop-cap'])) {
+            $classes[] = 'docx-paragraph-drop-cap';
+            $suffix = $this->metadataClassSuffix($frameAttributes['drop-cap']);
+            if ($suffix !== null) {
+                $classes[] = 'docx-drop-cap-' . $suffix;
+            }
+        }
+
+        if (isset($frameAttributes['wrap'])) {
+            $suffix = $this->metadataClassSuffix($frameAttributes['wrap']);
+            if ($suffix !== null) {
+                $classes[] = 'docx-frame-wrap-' . $suffix;
+            }
+        }
+
+        foreach ($frameAttributes as $name => $value) {
+            $attributes['data-docx-frame-' . $name] = $value;
+        }
     }
 
     /**

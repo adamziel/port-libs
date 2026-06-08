@@ -210,6 +210,43 @@ $attachmentStreamFilterStackBoundaryCurrentBaseDuplicateStreamKeyPdf = static fu
     ];
 };
 
+$attachmentStreamFilterStackBoundaryCurrentBaseExtraFilterOperandPdf = static function () use (
+    $attachmentStreamFilterStackBoundaryCurrentBaseAscii85
+): array {
+    $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Extra Filter Operand Review) Tj ET';
+    $referencePayload = "Title,Status\nExtra Filter Reference Operand Leak,Blocked\n";
+    $nullPayload = "Title,Status\nExtra Filter Null Operand Leak,Blocked\n";
+    $validPayload = "Title,Status\nValid Attachment After Extra Filter Operand,Ready\n";
+
+    $referenceEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85($referencePayload);
+    $validCompressed = gzcompress($validPayload);
+    if (!is_string($validCompressed)) {
+        throw new RuntimeException('Unable to compress focused attachment extra-filter fixture.');
+    }
+    $validEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85($validCompressed);
+
+    return [
+        'reference_payload' => $referencePayload,
+        'null_payload' => $nullPayload,
+        'valid_payload' => $validPayload,
+        'pdf' => "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(extra-filter-reference.csv) 10 0 R (extra-filter-null.csv) 12 0 R (valid-after-extra-filter.csv) 14 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (extra-filter-reference.csv) /Desc (Extra filter reference operand attachment) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter 20 0 R /FlateDecode null /Params << /Size " . strlen($referencePayload) . " /CheckSum <" . md5($referencePayload) . "> >> /Length " . strlen($referenceEncoded) . " >>\nstream\n{$referenceEncoded}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Filespec /F (extra-filter-null.csv) /Desc (Extra filter null operand attachment) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+            . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter null /ASCII85Decode null /Params << /Size " . strlen($nullPayload) . " /CheckSum <" . md5($nullPayload) . "> >> /Length " . strlen($nullPayload) . " >>\nstream\n{$nullPayload}\nendstream\nendobj\n"
+            . "14 0 obj\n<< /Type /Filespec /F (valid-after-extra-filter.csv) /Desc (Valid attachment after extra filter operand) /AFRelationship /Source /EF << /F 15 0 R >> >>\nendobj\n"
+            . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($validPayload) . " /CheckSum <" . md5($validPayload) . "> >> /Length " . strlen($validEncoded) . " >>\nstream\n{$validEncoded}\nendstream\nendobj\n"
+            . "20 0 obj\n/ASCII85Decode\nendobj\n"
+            . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF\n",
+    ];
+};
+
 $attachmentStreamFilterStackBoundaryCurrentBaseAllNullPdf = static function (): array {
     $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment All Null Stack Review) Tj ET';
     $payload = "Title,Status\nAll Null Attachment,Ready\n";
@@ -627,6 +664,60 @@ return [
         $t->true(!str_contains($plainText, 'Duplicate Filter Attachment Leak'));
         $t->true(!str_contains($plainText, 'Duplicate DecodeParms Attachment Leak'));
         $t->true(!str_contains($plainText, 'Valid Attachment After Duplicate Keys'));
+    },
+    'rejects extra attachment Filter operands after scalar reference or null slots' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterStackBoundaryCurrentBaseExtraFilterOperandPdf): void {
+        $fixture = $attachmentStreamFilterStackBoundaryCurrentBaseExtraFilterOperandPdf();
+        $pdf = $fixture['pdf'];
+        $referencePayload = $fixture['reference_payload'];
+        $nullPayload = $fixture['null_payload'];
+        $validPayload = $fixture['valid_payload'];
+        $checksum = md5($validPayload);
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['valid-after-extra-filter.csv'], $summary['filenames']);
+        $t->same(strlen($validPayload), $summary['total_bytes']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0] ?? [];
+        $t->same('valid-after-extra-filter.csv', $attachment['filename'] ?? null);
+        $t->same('Valid attachment after extra filter operand', $attachment['description'] ?? null);
+        $t->same('Source', $attachment['relationship'] ?? null);
+        $t->same('original_source', $attachment['relationship_role'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $attachment['filters'] ?? null);
+        $t->same(strlen($validPayload), $attachment['byte_length'] ?? null);
+        $t->same($checksum, $attachment['computed_checksum_hex'] ?? null);
+        $t->same(true, $attachment['checksum_matches'] ?? null);
+        $t->same(false, array_key_exists('bytes', $attachment));
+
+        $t->same(1, count($files));
+        $t->same('valid-after-extra-filter.csv', $files[0]['filename'] ?? null);
+        $t->same($validPayload, $files[0]['content'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $files[0]['filters'] ?? null);
+        $t->same($checksum, $files[0]['computed_checksum'] ?? null);
+        $t->same(true, $files[0]['checksum_matches'] ?? null);
+
+        $t->same('Visible Attachment Extra Filter Operand Review', $plainText);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'extra-filter-reference.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'extra-filter-null.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $validPayload));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $referencePayload));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $nullPayload));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'extra-filter-reference.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'extra-filter-null.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, $referencePayload));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, $nullPayload));
+        $t->true(!str_contains($plainText, 'Extra Filter Reference Operand Leak'));
+        $t->true(!str_contains($plainText, 'Extra Filter Null Operand Leak'));
+        $t->true(!str_contains($plainText, 'Valid Attachment After Extra Filter Operand'));
     },
     'rejects non-PDF whitespace inside attachment filter stack data before payload extraction' => static function (
         TestRunner $t

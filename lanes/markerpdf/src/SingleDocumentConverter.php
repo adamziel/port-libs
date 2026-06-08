@@ -90,7 +90,7 @@ final class SingleDocumentConverter
 
                 if (!$valueProvided) {
                     $nextIndex = $index + 1;
-                    if ($nextIndex >= $count || $tokens[$nextIndex] === '--' || str_starts_with($tokens[$nextIndex], '--')) {
+                    if ($nextIndex >= $count || $this->runtimeArgumentMissingOptionValue($tokens[$nextIndex])) {
                         return $this->runtimeArgumentErrorPlan(
                             $tokens,
                             'argument ' . $optionName . ': expected one argument',
@@ -662,5 +662,20 @@ final class SingleDocumentConverter
         }
 
         return (int) $trimmed;
+    }
+
+    private function runtimeArgumentMissingOptionValue(string $token): bool
+    {
+        if ($token === '-') {
+            return false;
+        }
+        if ($token === '--' || str_starts_with($token, '--')) {
+            return true;
+        }
+        if (!str_starts_with($token, '-')) {
+            return false;
+        }
+
+        return preg_match('/^-(?:\d|\.\d)/', $token) !== 1;
     }
 }

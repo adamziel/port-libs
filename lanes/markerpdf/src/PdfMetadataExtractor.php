@@ -719,6 +719,9 @@ final class PdfMetadataExtractor
             if ($this->metadataStreamDecodeParmsOperandBoundaryReview($dictionary, $objects) !== []) {
                 return [];
             }
+            if ($this->metadataStreamLengthOperandBoundaryReview($dictionary, $objects) !== []) {
+                return [];
+            }
             if ($this->metadataStreamCcittFaxFilterBoundaryReview($dictionary, $objects) !== []) {
                 return [];
             }
@@ -846,6 +849,24 @@ final class PdfMetadataExtractor
                 $declaredLength = $this->streamLength($dictionary, $objects);
                 if ($declaredLength !== null) {
                     $review['declared_length'] = $declaredLength;
+                }
+
+                return $review;
+            }
+
+            $lengthBoundaryReview = $this->metadataStreamLengthOperandBoundaryReview($dictionary, $objects);
+            if ($lengthBoundaryReview !== []) {
+                $review = $base + $lengthBoundaryReview + [
+                    'object_number' => $objectNumber,
+                ];
+
+                foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
+                }
+
+                $filters = $this->streamFilters($dictionary, $objects);
+                if ($filters !== []) {
+                    $review['filters'] = $filters;
                 }
 
                 return $review;
@@ -2148,6 +2169,277 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * Catalog XMP stream /Length may be indirect, but it must resolve to one
+     * non-negative integer. If the helper object hides trailing operands, do
+     * not recover through endstream because root XMP promotion is a metadata
+     * trust boundary.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamLengthOperandBoundaryReview(string $dictionary, array $objects): array
+    {
+        $values = $this->dictionaryTopLevelRawValues($dictionary, 'Length');
+        if ($values === []) {
+            return [];
+        }
+
+        if (count($values) > 1) {
+            return [
+                'status' => 'rejected_duplicate_metadata_stream_length_keys',
+                'length_entry_count' => count($values),
+            ];
+        }
+
+        $operand = $this->metadataStreamLengthOperandReview($values[0], $objects);
+        if (($operand['valid_length_operand'] ?? false) === true) {
+            return [];
+        }
+
+        $unresolvedCount = ($operand['resolved'] ?? true) === true ? 0 : 1;
+        $extraCount = ($operand['extra_length_operand'] ?? false) === true ? 1 : 0;
+        $negativeCount = ($operand['negative_length_operand'] ?? false) === true ? 1 : 0;
+        $dictionaryCount = ($operand['dictionary_length_operand'] ?? false) === true ? 1 : 0;
+        $malformedCount = (
+            $unresolvedCount === 0
+            && $extraCount === 0
+            && $negativeCount === 0
+            && $dictionaryCount === 0
+        ) ? 1 : 0;
+
+        return [
+            'status' => 'rejected_malformed_metadata_stream_length_operand',
+            'length_operand_policy' => $this->metadataStreamLengthOperandPolicy(
+                1,
+                $dictionaryCount,
+                $malformedCount,
+                $unresolvedCount,
+                $extraCount,
+                $negativeCount
+            ),
+            'invalid_length_operand_count' => 1,
+            'dictionary_length_operand_count' => $dictionaryCount,
+            'malformed_length_operand_count' => $malformedCount,
+            'unresolved_length_operand_count' => $unresolvedCount,
+            'extra_length_operand_count' => $extraCount,
+            'negative_length_operand_count' => $negativeCount,
+            'length_operand' => $operand,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamLengthOperandReview(
+        string $value,
+        array $objects,
+        array $seenObjects = []
+    ): array {
+        $token = $this->firstPdfValueToken($value);
+        if ($token === '') {
+            return [
+                'name' => 'Length',
+                'kind' => 'direct',
+                'resolved' => true,
+                'token_type' => 'empty',
+                'valid_length_operand' => false,
+                'dictionary_length_operand' => false,
+            ];
+        }
+
+        $reference = $this->objectReferenceFromValue($token);
+        if ($reference !== null && $this->pdfValueIsSingleToken($value, $token)) {
+            return $this->metadataStreamIndirectLengthOperandReview($reference, $objects, $seenObjects);
+        }
+
+        return $this->metadataStreamDirectLengthOperandReview($value);
+    }
+
+    /**
+     * @param array{objectNumber: int, generation: int} $reference
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamIndirectLengthOperandReview(
+        array $reference,
+        array $objects,
+        array $seenObjects
+    ): array {
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $objectKey = $objectNumber . ':' . $generation;
+        $body = isset($seenObjects[$objectKey])
+            ? null
+            : $this->objectBodyForReference($objects, $objectNumber, $generation);
+
+        $review = [
+            'name' => 'Length',
+            'kind' => 'indirect',
+            'object_number' => $objectNumber,
+            'generation' => $generation,
+            'resolved' => $body !== null,
+            'value_preview' => $body === null ? null : $this->metadataStreamFilterOperandPreview($body),
+        ];
+
+        if ($body === null) {
+            return $review + [
+                'token_type' => null,
+                'valid_length_operand' => false,
+                'dictionary_length_operand' => false,
+            ];
+        }
+
+        $seenObjects[$objectKey] = true;
+        return $review + $this->metadataStreamLengthOperandBodyReview($body, $objects, $seenObjects);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metadataStreamDirectLengthOperandReview(string $value): array
+    {
+        $token = $this->firstPdfValueToken($value);
+        $review = [
+            'name' => 'Length',
+            'kind' => 'direct',
+            'value' => preg_match('/^\+?\d+$/', $token) === 1 ? (int) $token : $token,
+            'resolved' => true,
+        ];
+
+        return $review + $this->metadataStreamLengthOperandBodyReview($value, [], []);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamLengthOperandBodyReview(
+        string $body,
+        array $objects,
+        array $seenObjects
+    ): array {
+        $token = $this->firstPdfValueToken($body);
+        $tokenType = $this->metadataStreamFilterOperandTokenType($token);
+        $extraOperand = $this->metadataStreamLengthExtraOperand($body);
+        $isInteger = preg_match('/^\+?\d+$/', $token) === 1;
+        $isNegativeInteger = preg_match('/^-\d+$/', $token) === 1;
+        $reference = $this->objectReferenceFromValue($token);
+        $valid = $isInteger && $extraOperand === null;
+        $review = [
+            'token_type' => $tokenType,
+            'valid_length_operand' => $valid,
+            'dictionary_length_operand' => str_starts_with($token, '<<')
+                || $this->metadataStreamLengthValueContainsDictionary($body, $objects, $seenObjects),
+        ];
+
+        if ($isInteger) {
+            $review['length'] = (int) $token;
+        }
+        if ($isNegativeInteger) {
+            $review['negative_length_operand'] = true;
+        }
+
+        if ($reference !== null && $this->pdfValueIsSingleToken($body, $token)) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (!isset($seenObjects[$objectKey])) {
+                $nested = $this->metadataStreamIndirectLengthOperandReview($reference, $objects, $seenObjects);
+                $review['nested_length_operand'] = $nested;
+                $review['valid_length_operand'] = ($nested['valid_length_operand'] ?? false) === true;
+                $review['dictionary_length_operand'] = ($nested['dictionary_length_operand'] ?? false) === true;
+            }
+        }
+
+        if ($extraOperand !== null) {
+            $review['valid_length_operand'] = false;
+            $review['extra_length_operand'] = true;
+            $review['extra_length_operand_type'] = $extraOperand['type'];
+            $review['extra_length_operand_preview'] = $extraOperand['preview'];
+            if (($extraOperand['type'] ?? null) === 'name' && isset($extraOperand['name'])) {
+                $review['extra_length_name_operand'] = true;
+                $review['extra_length_name'] = $extraOperand['name'];
+            }
+        }
+
+        return $review;
+    }
+
+    /**
+     * @return array{type: string, preview: string, name?: string}|null
+     */
+    private function metadataStreamLengthExtraOperand(string $body): ?array
+    {
+        return $this->metadataStreamFilterExtraOperand($body);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     */
+    private function metadataStreamLengthValueContainsDictionary(
+        string $value,
+        array $objects,
+        array $seenObjects
+    ): bool {
+        $token = $this->firstPdfValueToken($value);
+        if ($token === '') {
+            return false;
+        }
+
+        if (str_starts_with($token, '<<')) {
+            return true;
+        }
+
+        $reference = $this->objectReferenceFromValue($token);
+        if ($reference !== null && $this->pdfValueIsSingleToken($value, $token)) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seenObjects[$objectKey])) {
+                return false;
+            }
+
+            $body = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($body === null) {
+                return false;
+            }
+
+            $seenObjects[$objectKey] = true;
+            return $this->metadataStreamLengthValueContainsDictionary($body, $objects, $seenObjects);
+        }
+
+        return false;
+    }
+
+    private function metadataStreamLengthOperandPolicy(
+        int $invalidCount,
+        int $dictionaryCount,
+        int $malformedCount,
+        int $unresolvedCount,
+        int $extraOperandCount,
+        int $negativeCount
+    ): string {
+        if ($extraOperandCount > 0 || $malformedCount > 0) {
+            return 'reject_malformed_length_operands';
+        }
+
+        if ($negativeCount > 0) {
+            return 'reject_negative_length_operands';
+        }
+
+        if ($dictionaryCount > 0) {
+            return 'reject_dictionary_length_operands';
+        }
+
+        if ($unresolvedCount > 0 || $invalidCount > 0) {
+            return 'reject_unresolved_length_operands';
+        }
+
+        return 'length_resolved';
+    }
+
+    /**
      * @param array<int, string> $objects
      * @return array<string, string>
      */
@@ -2369,13 +2661,63 @@ final class PdfMetadataExtractor
             return false;
         }
 
+        return $this->trailerInfoClearedByOffsetChain($pdfBytes, $offset, $objects, $definitions);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     */
+    private function trailerInfoClearedByOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $definitions,
+        array $seenOffsets = []
+    ): bool {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return false;
+        }
+        $seenOffsets[$offset] = true;
+
         $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions, $objects);
         if ($tableSection !== null) {
-            if ($this->dictionaryTopLevelRawValue($tableSection['trailer'], 'Info') !== null) {
-                return $this->trailerExplicitlyClearsInfo($tableSection['trailer']);
+            if ($this->trailerExplicitlyClearsInfo($tableSection['trailer'])) {
+                return true;
             }
 
-            return $this->trailerExplicitlyClearsEncryption($tableSection['trailer']);
+            if ($this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($tableSection['trailer'], 'Info')) !== null) {
+                return false;
+            }
+
+            $hybridStreamOffset = $this->dictionaryIntegerValue($tableSection['trailer'], 'XRefStm', $objects);
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions);
+                if ($streamSection !== null) {
+                    if ($this->trailerExplicitlyClearsInfo($streamSection['body'])) {
+                        return true;
+                    }
+
+                    if ($this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($streamSection['body'], 'Info')) !== null) {
+                        return false;
+                    }
+                }
+            }
+
+            if ($this->trailerExplicitlyClearsEncryption($tableSection['trailer'])) {
+                return true;
+            }
+
+            $previousOffset = $this->previousXrefOffsetForSectionBody(
+                $pdfBytes,
+                $tableSection['trailer'],
+                $offset,
+                $definitions,
+                $objects
+            );
+            return $previousOffset !== null
+                && $this->trailerInfoClearedByOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
         }
 
         $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
@@ -2383,11 +2725,27 @@ final class PdfMetadataExtractor
             return false;
         }
 
-        if ($this->dictionaryTopLevelRawValue($streamSection['body'], 'Info') !== null) {
-            return $this->trailerExplicitlyClearsInfo($streamSection['body']);
+        if ($this->trailerExplicitlyClearsInfo($streamSection['body'])) {
+            return true;
         }
 
-        return $this->trailerExplicitlyClearsEncryption($streamSection['body']);
+        if ($this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($streamSection['body'], 'Info')) !== null) {
+            return false;
+        }
+
+        if ($this->trailerExplicitlyClearsEncryption($streamSection['body'])) {
+            return true;
+        }
+
+        $previousOffset = $this->previousXrefOffsetForSectionBody(
+            $pdfBytes,
+            $streamSection['body'],
+            $offset,
+            $definitions,
+            $objects
+        );
+        return $previousOffset !== null
+            && $this->trailerInfoClearedByOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
     }
 
     private function trailerExplicitlyClearsInfo(string $body): bool
@@ -5125,7 +5483,9 @@ final class PdfMetadataExtractor
                 break;
             }
 
-            $title = $this->reviewOutlineTitleFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'Title'), $objects);
+            $title = $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Title')
+                ? null
+                : $this->reviewOutlineTitleFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'Title'), $objects);
             if ($title === null) {
                 if ($lastItemObject === null || $current === $lastItemObject) {
                     break;
@@ -6782,6 +7142,11 @@ final class PdfMetadataExtractor
                     continue;
                 }
 
+                if ($this->nameTreeStringValueIsMissingBeforePair($names, $index, $objects)) {
+                    $index++;
+                    continue;
+                }
+
                 if (!$this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])) {
                     $index += 2;
                     continue;
@@ -7014,13 +7379,20 @@ final class PdfMetadataExtractor
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
                 ? $limits
                 : $inheritedLimits;
-            for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+            for ($index = 0, $count = count($names); $index + 1 < $count;) {
                 $name = $this->destinationNameDetailsFromRaw($names[$index], $objects);
-                if (
-                    $name === null
-                    || $name['text'] === ''
-                    || !$this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])
-                ) {
+                if ($name === null || $name['text'] === '') {
+                    $index++;
+                    continue;
+                }
+
+                if ($this->nameTreeStringValueIsMissingBeforePair($names, $index, $objects)) {
+                    $index++;
+                    continue;
+                }
+
+                if (!$this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])) {
+                    $index += 2;
                     continue;
                 }
 
@@ -7029,6 +7401,7 @@ final class PdfMetadataExtractor
                     'name' => $name['text'],
                     'index' => count($entries),
                 ] + $this->catalogNameTreeEntryReview($names[$index + 1], $objects);
+                $index += 2;
             }
         }
 
@@ -7325,6 +7698,11 @@ final class PdfMetadataExtractor
                 continue;
             }
 
+            if ($this->nameTreeStringValueIsMissingBeforePair($items, $index, $objects)) {
+                $index++;
+                continue;
+            }
+
             if ($this->nameTreeNameWithinLimits($name['text'], $limits, $name['bytes'])) {
                 return true;
             }
@@ -7332,6 +7710,26 @@ final class PdfMetadataExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param list<string> $items
+     * @param array<int, string> $objects
+     */
+    private function nameTreeStringValueIsMissingBeforePair(array $items, int $index, array $objects): bool
+    {
+        $valueIndex = $index + 1;
+        $nextIndex = $valueIndex + 1;
+        if (!array_key_exists($valueIndex, $items) || !array_key_exists($nextIndex, $items)) {
+            return false;
+        }
+
+        $valueName = $this->destinationNameDetailsFromRaw($items[$valueIndex], $objects);
+        if ($valueName === null || $valueName['text'] === '') {
+            return false;
+        }
+
+        return $this->destinationNameDetailsFromRaw($items[$nextIndex], $objects) === null;
     }
 
     /**
@@ -9708,10 +10106,12 @@ final class PdfMetadataExtractor
         $entries = [];
         foreach ($valueReviews as $index => $valueReview) {
             $value = (string) $valueReview['value'];
+            $reference = $this->objectReferenceFromValue($value);
             $resolved = $this->resolvePdfValue($value, $objects);
             $resolvedValue = $resolved ?? $value;
             $valueForReview = $this->firstPdfValueToken($resolvedValue);
             $operandShape = $this->standardPermissionWordOperandShape($valueForReview);
+            $rawOperandShape = $this->standardPermissionWordOperandShape($value);
             $singleValue = ($valueReview['single_value'] ?? true) === true
                 && $this->pdfValueIsSingleToken($resolvedValue, $valueForReview);
             $entry = [
@@ -9721,10 +10121,19 @@ final class PdfMetadataExtractor
                 'present' => true,
                 'resolved' => $resolved !== null,
                 'operand_shape' => $operandShape,
+                'raw_operand_shape' => $rawOperandShape,
                 'integer' => false,
                 'single_value' => $singleValue,
                 'review_only' => true,
             ];
+            if ($reference !== null) {
+                $entry['reference_object_number'] = $reference['objectNumber'];
+                $entry['reference_generation'] = $reference['generation'];
+                if ($resolved !== null) {
+                    $entry['resolved_object_number'] = $reference['objectNumber'];
+                    $entry['resolved_generation'] = $reference['generation'];
+                }
+            }
 
             if (($valueReview['single_value'] ?? true) !== true) {
                 $entries[] = array_merge($entry, $this->standardPermissionWordTrailingOperandReviewFromValueReview($valueReview), [
@@ -9805,6 +10214,21 @@ final class PdfMetadataExtractor
             'selected_entry_index' => $selectedEntryIndex,
             'selected_entry_status' => is_string($selectedEntry['status'] ?? null) ? $selectedEntry['status'] : null,
             'selected_entry_integer' => (bool) ($selectedEntry['integer'] ?? false),
+            'selected_entry_resolved' => array_key_exists('resolved', $selectedEntry)
+                ? (bool) $selectedEntry['resolved']
+                : null,
+            'selected_entry_operand_shape' => is_string($selectedEntry['operand_shape'] ?? null)
+                ? $selectedEntry['operand_shape']
+                : null,
+            'selected_entry_raw_operand_shape' => is_string($selectedEntry['raw_operand_shape'] ?? null)
+                ? $selectedEntry['raw_operand_shape']
+                : null,
+            'selected_entry_reference_object_number' => is_int($selectedEntry['reference_object_number'] ?? null)
+                ? $selectedEntry['reference_object_number']
+                : null,
+            'selected_entry_reference_generation' => is_int($selectedEntry['reference_generation'] ?? null)
+                ? $selectedEntry['reference_generation']
+                : null,
             'selected_permission_signed' => is_int($selectedEntry['signed'] ?? null) ? $selectedEntry['signed'] : null,
             'selected_permission_unsigned' => is_int($selectedEntry['unsigned'] ?? null) ? $selectedEntry['unsigned'] : null,
             'selected_permission_hex' => is_string($selectedEntry['hex'] ?? null) ? $selectedEntry['hex'] : null,

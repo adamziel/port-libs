@@ -3383,6 +3383,59 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('sequence-block-body', $document->children[0]->attr('id'));
     },
+    'records pandoc yaml block scalar source provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Scalar provenance **Packet**',
+            'abstract: |+',
+            '  Source abstract',
+            '',
+            '  Final source line.',
+            'review:',
+            '  summary: >-',
+            '    Fold source',
+            '    metadata',
+            '  notes:',
+            '    - |-',
+            '      Keep item line',
+            '      Keep second line',
+            '...',
+            '',
+            '# Scalar Provenance YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenanceByPath = [];
+        foreach ($document->attr('yamlMetadataScalarProvenance', []) as $entry) {
+            $provenanceByPath[$entry['path'] ?? ''] = $entry;
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same("Source abstract\n\nFinal source line.", $meta['abstract']);
+        $t->same('Fold source metadata', $meta['review']['summary']);
+        $t->same("Keep item line\nKeep second line", $meta['review']['notes'][0]);
+        $t->same('literal', $provenanceByPath['/abstract']['style'] ?? null);
+        $t->same('|', $provenanceByPath['/abstract']['indicator'] ?? null);
+        $t->same('keep', $provenanceByPath['/abstract']['chomp'] ?? null);
+        $t->same('3', $provenanceByPath['/abstract']['sourceLine'] ?? null);
+        $t->same('4', $provenanceByPath['/abstract']['contentStartLine'] ?? null);
+        $t->same('6', $provenanceByPath['/abstract']['contentEndLine'] ?? null);
+        $t->same('3', $provenanceByPath['/abstract']['contentLineCount'] ?? null);
+        $t->same('folded', $provenanceByPath['/review/summary']['style'] ?? null);
+        $t->same('>', $provenanceByPath['/review/summary']['indicator'] ?? null);
+        $t->same('strip', $provenanceByPath['/review/summary']['chomp'] ?? null);
+        $t->same('8', $provenanceByPath['/review/summary']['sourceLine'] ?? null);
+        $t->same('9', $provenanceByPath['/review/summary']['contentStartLine'] ?? null);
+        $t->same('10', $provenanceByPath['/review/summary']['contentEndLine'] ?? null);
+        $t->same('2', $provenanceByPath['/review/summary']['contentLineCount'] ?? null);
+        $t->same('literal', $provenanceByPath['/review/notes/0']['style'] ?? null);
+        $t->same('strip', $provenanceByPath['/review/notes/0']['chomp'] ?? null);
+        $t->same('12', $provenanceByPath['/review/notes/0']['sourceLine'] ?? null);
+        $t->same('13', $provenanceByPath['/review/notes/0']['contentStartLine'] ?? null);
+        $t->same('14', $provenanceByPath['/review/notes/0']['contentEndLine'] ?? null);
+        $t->same('2', $provenanceByPath['/review/notes/0']['contentLineCount'] ?? null);
+        $t->same('scalar-provenance-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="scalar-provenance-yaml-body">Scalar Provenance YAML body</h1>', $blocks);
+    },
     'keeps pandoc yaml indented document markers inside block scalar metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

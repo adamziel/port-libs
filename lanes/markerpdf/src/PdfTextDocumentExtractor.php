@@ -279,6 +279,9 @@ final class PdfTextDocumentExtractor
             if ($pageList !== null) {
                 return $pageList;
             }
+            if ($pageListKey === 'dictionary_output' && !array_key_exists('blocks', $entry)) {
+                throw new InvalidArgumentException('Supplied pdftext dictionary_output envelope must contain a page dictionary or page list.');
+            }
         }
 
         return null;
@@ -294,6 +297,10 @@ final class PdfTextDocumentExtractor
             return null;
         }
 
+        if ($value === []) {
+            return [];
+        }
+
         if (array_key_exists('blocks', $value)) {
             return [$value];
         }
@@ -301,6 +308,9 @@ final class PdfTextDocumentExtractor
         if (array_key_exists('pages', $value)) {
             $pages = $this->normalizeSuppliedDictionaryValue($value['pages']);
             if (is_array($pages)) {
+                if ($pages === []) {
+                    return [];
+                }
                 $pageList = $this->orderedSuppliedDictionaryPageList($pages);
 
                 return $this->allSuppliedDictionaryPages($pageList) ? $pageList : null;

@@ -66,6 +66,8 @@ final class PdfAttachmentExtractor
 
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
 
+    private const ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS = ['AF'];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -557,18 +559,25 @@ final class PdfAttachmentExtractor
             }
 
             $portfolio = $this->collectionMetadata($dict['Collection'] ?? null, $objects);
-            $associatedFiles = $this->arrayValue($this->resolveValue($dict['AF'] ?? null, $objects));
-            if ($associatedFiles === null) {
-                continue;
-            }
-
             $rawAssociatedFiles = [];
             $catalogDictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($object['body']);
             if ($catalogDictionaryBody !== null) {
+                if (
+                    $this->dictionaryHasDuplicateKeys($catalogDictionaryBody, self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+                    || $this->dictionaryHasTrailingOperandsAfterKeys($catalogDictionaryBody, self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+                ) {
+                    continue;
+                }
+
                 $rawAssociatedFilesValue = $this->rawDictionaryEntryValue($catalogDictionaryBody, 'AF');
                 if ($rawAssociatedFilesValue !== null) {
                     $rawAssociatedFiles = $this->rawArrayItemsFromValue($rawAssociatedFilesValue, $objects);
                 }
+            }
+
+            $associatedFiles = $this->arrayValue($this->resolveValue($dict['AF'] ?? null, $objects));
+            if ($associatedFiles === null) {
+                continue;
             }
 
             foreach ($associatedFiles as $index => $fileSpec) {
@@ -971,18 +980,25 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
-            $associatedFiles = $this->arrayValue($this->resolveValue($page['AF'] ?? null, $objects));
-            if ($associatedFiles === null) {
-                continue;
-            }
-
             $rawAssociatedFiles = [];
             $pageDictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($objects[$pageObjectId]['body']);
             if ($pageDictionaryBody !== null) {
+                if (
+                    $this->dictionaryHasDuplicateKeys($pageDictionaryBody, self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+                    || $this->dictionaryHasTrailingOperandsAfterKeys($pageDictionaryBody, self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+                ) {
+                    continue;
+                }
+
                 $rawAssociatedFilesValue = $this->rawDictionaryEntryValue($pageDictionaryBody, 'AF');
                 if ($rawAssociatedFilesValue !== null) {
                     $rawAssociatedFiles = $this->rawArrayItemsFromValue($rawAssociatedFilesValue, $objects);
                 }
+            }
+
+            $associatedFiles = $this->arrayValue($this->resolveValue($page['AF'] ?? null, $objects));
+            if ($associatedFiles === null) {
+                continue;
             }
 
             foreach ($associatedFiles as $index => $fileSpec) {
@@ -3170,6 +3186,10 @@ final class PdfAttachmentExtractor
         ?string $dictionaryBody = null
     ): ?string
     {
+        if ($dictionaryBody !== null && $this->streamDictionaryHasExtraFilterOperands($dictionaryBody)) {
+            return null;
+        }
+
         $filters = $this->filterSlots($dict['Filter'] ?? null, $objects);
         if ($filters === null) {
             return null;
@@ -7641,6 +7661,67 @@ final class PdfAttachmentExtractor
         }
 
         return false;
+    }
+
+    private function streamDictionaryHasExtraFilterOperands(string $dictionaryBody): bool
+    {
+        for ($index = 0, $length = strlen($dictionaryBody); $index < $length;) {
+            $this->skipWhitespaceAndComments($dictionaryBody, $index);
+            if ($index >= $length) {
+                break;
+            }
+
+            if (($dictionaryBody[$index] ?? '') !== '/') {
+                $index++;
+                continue;
+            }
+
+            $name = $this->parseName($dictionaryBody, $index);
+            $raw = $this->rawValueAt($dictionaryBody, $index);
+            if ($raw === null || $name !== 'Filter') {
+                continue;
+            }
+
+            $probe = $index;
+            $this->skipWhitespaceAndComments($dictionaryBody, $probe);
+            if (($dictionaryBody[$probe] ?? '') !== '/') {
+                continue;
+            }
+
+            $nextName = $this->parseName($dictionaryBody, $probe);
+            if ($this->streamFilterNameLooksLikeDecoder($nextName)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function streamFilterNameLooksLikeDecoder(string $name): bool
+    {
+        return in_array(
+            $name,
+            [
+                'ASCIIHexDecode',
+                'AHx',
+                'ASCII85Decode',
+                'A85',
+                'LZWDecode',
+                'LZW',
+                'FlateDecode',
+                'Fl',
+                'RunLengthDecode',
+                'RL',
+                'CCITTFaxDecode',
+                'CCF',
+                'DCTDecode',
+                'DCT',
+                'JPXDecode',
+                'JBIG2Decode',
+                'Crypt',
+            ],
+            true
+        );
     }
 
     private function rawDictionaryEntryValue(string $dictionaryBody, string $key): ?string

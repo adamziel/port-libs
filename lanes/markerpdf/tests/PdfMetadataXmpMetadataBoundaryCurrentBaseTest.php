@@ -365,4 +365,62 @@ return [
         $t->true(!str_contains($plainText, 'Extra Operand Metadata Hidden XMP Title'));
         $t->true(!str_contains($plainText, 'extra metadata operand action tail'));
     },
+    'rejects catalog XMP metadata streams whose indirect Length helper has extra operands' => static function (
+        TestRunner $t
+    ) use ($xmpMetadataBoundaryPdf, $xmpMetadataBoundaryPacket): void {
+        $xmp = $xmpMetadataBoundaryPacket(
+            'Malformed Length Hidden XMP Title',
+            'An indirect catalog Metadata stream Length helper with a trailing operand must not define WordPress metadata',
+            '2026-06-08T00:33:26Z'
+        );
+
+        $metadataObject = "5 0 obj\n"
+            . "<< /Type /Metadata /Subtype /XML /Length 7 0 R >>\n"
+            . "stream\n{$xmp}\nendstream\nendobj\n"
+            . "7 0 obj\n" . strlen($xmp) . " 8 0 R\nendobj\n"
+            . "8 0 obj\n<< /S /JavaScript /JS (app.alert\\('metadata length operand action tail'\\)) >>\nendobj\n";
+        $pdf = $xmpMetadataBoundaryPdf(
+            '5 0 R',
+            'Malformed Length Metadata Boundary Body',
+            $metadataObject
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+        $lengthOperand = $review['length_operand'] ?? [];
+
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Metadata Boundary Info Title', $metadata['title']);
+        $t->same(['Metadata Boundary Author'], $metadata['authors']);
+        $t->same('Malformed Length Metadata Boundary Body', $plainText);
+        $t->same('catalog_metadata_stream_boundary', $review['source'] ?? null);
+        $t->same('rejected_malformed_metadata_stream_length_operand', $review['status'] ?? null);
+        $t->same(5, $review['object_number'] ?? null);
+        $t->same('Metadata', $review['type'] ?? null);
+        $t->same('XML', $review['subtype'] ?? null);
+        $t->same('reject_malformed_length_operands', $review['length_operand_policy'] ?? null);
+        $t->same(1, $review['invalid_length_operand_count'] ?? null);
+        $t->same(1, $review['extra_length_operand_count'] ?? null);
+        $t->same(0, $review['malformed_length_operand_count'] ?? null);
+        $t->same(0, $review['unresolved_length_operand_count'] ?? null);
+        $t->same(0, $review['negative_length_operand_count'] ?? null);
+        $t->same('indirect', $lengthOperand['kind'] ?? null);
+        $t->same(7, $lengthOperand['object_number'] ?? null);
+        $t->same(0, $lengthOperand['generation'] ?? null);
+        $t->same('number', $lengthOperand['token_type'] ?? null);
+        $t->same(strlen($xmp), $lengthOperand['length'] ?? null);
+        $t->same(false, $lengthOperand['valid_length_operand'] ?? null);
+        $t->same(true, $lengthOperand['extra_length_operand'] ?? null);
+        $t->same('indirect_reference', $lengthOperand['extra_length_operand_type'] ?? null);
+        $t->same('8 0 R', $lengthOperand['extra_length_operand_preview'] ?? null);
+        $t->same(false, $review['accepted_as_document_xmp'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Malformed Length Hidden XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'metadata length operand action tail'));
+        $t->true(!str_contains($plainText, 'Malformed Length Hidden XMP Title'));
+        $t->true(!str_contains($plainText, 'metadata length operand action tail'));
+    },
 ];

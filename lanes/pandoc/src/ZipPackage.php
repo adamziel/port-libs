@@ -2622,6 +2622,156 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     declaredEntryCount:int,
+     *     diskEntryCount:int,
+     *     scannedEntryCount:int,
+     *     entryCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectorySize:int,
+     *     centralDirectoryEnd:int,
+     *     eocdOffset:int,
+     *     scannedCentralDirectoryBytes:int,
+     *     centralDirectoryTailBytes:int,
+     *     hasEntryCountMismatch:bool,
+     *     hasCentralDirectorySignature:bool,
+     *     centralDirectorySignature:?array{offset:int, dataLength:int, endOffset:int, location:string},
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     entries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}>
+     * }
+     */
+    public static function centralDirectoryInventoryPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before central directory inventory can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $issues = [];
+        $cursor = $archive['centralDirectoryOffset'];
+        $centralDirectorySignature = null;
+        $index = 0;
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $centralDirectorySignature = [
+                    'offset' => $signature['offset'],
+                    'dataLength' => strlen($signature['data']),
+                    'endOffset' => $signature['endOffset'],
+                    'location' => 'inside-central-directory',
+                ];
+                $cursor = $signature['endOffset'];
+                break;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                $issues[] = 'central-directory-unexpected-record';
+                break;
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            self::assertSafePartName($rawName);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            self::assertSafePartName($decodedName['text']);
+            $recordEnd = $cursor + 46 + $variableLength;
+            $entries[] = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'offset' => $cursor,
+                'recordEnd' => $recordEnd,
+                'localHeaderOffset' => $localHeaderOffset,
+            ];
+            $cursor = $recordEnd;
+            $index++;
+        }
+
+        if ($centralDirectorySignature === null && $archive['centralDirectoryEnd'] < $archive['eocdOffset']) {
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $archive['centralDirectoryEnd']);
+            if ($signature !== null && $signature['endOffset'] === $archive['eocdOffset']) {
+                $centralDirectorySignature = [
+                    'offset' => $signature['offset'],
+                    'dataLength' => strlen($signature['data']),
+                    'endOffset' => $signature['endOffset'],
+                    'location' => 'between-central-directory-and-eocd',
+                ];
+            }
+        }
+
+        $entryCountMismatch = count($entries) !== $archive['totalEntryCount'];
+        if ($entryCountMismatch) {
+            $issues[] = 'central-directory-entry-count-mismatch';
+        }
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($cursor < $archive['centralDirectoryEnd']) {
+            $issues[] = 'central-directory-unexpected-tail';
+        }
+        if (
+            $archive['centralDirectoryEnd'] < $archive['eocdOffset']
+            && (
+                $centralDirectorySignature === null
+                || $centralDirectorySignature['endOffset'] !== $archive['eocdOffset']
+            )
+        ) {
+            $issues[] = 'central-directory-eocd-gap';
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'declaredEntryCount' => $archive['totalEntryCount'],
+            'diskEntryCount' => $archive['diskEntryCount'],
+            'scannedEntryCount' => count($entries),
+            'entryCount' => count($entries),
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
+            'centralDirectorySize' => $archive['centralDirectorySize'],
+            'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
+            'eocdOffset' => $archive['eocdOffset'],
+            'scannedCentralDirectoryBytes' => $cursor - $archive['centralDirectoryOffset'],
+            'centralDirectoryTailBytes' => max(0, $archive['centralDirectoryEnd'] - $cursor),
+            'hasEntryCountMismatch' => $entryCountMismatch,
+            'hasCentralDirectorySignature' => $centralDirectorySignature !== null,
+            'centralDirectorySignature' => $centralDirectorySignature,
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     entryCount:int,
      *     centralDirectoryOffset:int,
      *     centralDirectorySize:int,

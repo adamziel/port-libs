@@ -221,6 +221,9 @@ final class SyntaxHighlighter
         'sqlite' => 'sql',
         'sqlite3' => 'sql',
         'svg' => 'xml',
+        'swift' => 'swift',
+        'swift-source' => 'swift',
+        'swiftui' => 'swift',
         'terraform' => 'hcl',
         'tex' => 'tex',
         'tf' => 'hcl',
@@ -699,6 +702,7 @@ final class SyntaxHighlighter
             'rust' => $this->tokenizeRust($code),
             'sass', 'scss' => $this->tokenizeScss($code),
             'sql' => $this->tokenizeSql($code),
+            'swift' => $this->tokenizeSwift($code),
             'tex' => $this->tokenizeTex($code),
             'toml' => $this->tokenizeToml($code),
             'twig' => $this->tokenizeTwig($code),
@@ -1110,6 +1114,29 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*(?:<[^>\\n]+>\\s*)?\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:\\?\\?=|\\?\\?|\\?\\.|\\.\\.\\.?|=>|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|~\\/|[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeSwift(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^#*"""[\\s\\S]*?"""#*/'],
+            ['string', '/^#*"(?:\\\\.|[^"\\\\])*"#*/s'],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_.]*/'],
+            ['keyword', '/^\\b(?:actor|any|as|associatedtype|async|await|break|case|catch|class|continue|convenience|defer|deinit|do|else|enum|extension|fallthrough|fileprivate|final|for|func|get|guard|if|import|in|infix|init|inout|internal|is|isolated|lazy|let|mutating|nonisolated|open|operator|optional|override|postfix|precedencegroup|prefix|private|protocol|public|repeat|required|rethrows|return|self|set|some|static|struct|subscript|super|switch|throw|throws|try|typealias|var|where|while)\\b/'],
+            ['constant', '/^\\b(?:false|nil|true)\\b/'],
+            ['datatype', '/^\\b(?:Any|Array|Binding|Bool|Button|Color|Data|Date|Dictionary|Double|Environment|Error|ForEach|Image|Int|List|NavigationStack|Never|ObservableObject|Published|Result|Set|Some|State|String|Text|URL|UUID|View|Void)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|0[oO][0-7](?:_?[0-7])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({.]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*(?:<[^>\\n]+>\\s*)?\\()/'],
+            ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.?|->|=>|\\?\\?|\\?\\.|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:&|^~@-])/'],
         ]);
     }
 
@@ -2563,9 +2590,65 @@ final class SyntaxHighlighter
      */
     private function tokenizeMarkdown(string $code): array
     {
-        return $this->scan($code, [
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+        $fence = null;
+        $fenceBody = '';
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            if ($fence !== null) {
+                if (self::markdownFenceCloses($line, $fence)) {
+                    $this->appendMarkdownFenceBody($tokens, $fenceBody, $fence['language']);
+                    $fenceBody = '';
+                    $this->appendToken($tokens, 'preprocessor', $line);
+                    $fence = null;
+                } else {
+                    $fenceBody .= $line;
+                    if ($nextNewline !== false) {
+                        $fenceBody .= "\n";
+                    }
+                    continue;
+                }
+            } else {
+                $openingFence = self::markdownFenceOpening($line);
+                if ($openingFence !== null) {
+                    $this->appendToken($tokens, 'preprocessor', $line);
+                    $fence = $openingFence;
+                    $fenceBody = '';
+                } else {
+                    $this->tokenizeMarkdownLine($line, $tokens);
+                }
+            }
+
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        if ($fence !== null) {
+            $this->appendMarkdownFenceBody($tokens, $fenceBody, $fence['language']);
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeMarkdownLine(string $line, array &$tokens): void
+    {
+        $this->scanInto($line, [
             ['comment', '/^<!--[\\s\\S]*?-->/'],
-            ['preprocessor', '/^(?:`{3,}|~{3,})[^\\n]*/'],
             ['region', '/^#{1,6}(?=\\s|$)[^\\n]*/'],
             ['region', '/^ {0,3}(?:(?:\\*\\s*){3,}|(?:_\\s*){3,}|(?:-\\s*){3,})(?=\\n|$)/'],
             ['attribute', '/^\\[[^\\]\\n]+\\]:[^\\n]*/'],
@@ -2581,7 +2664,90 @@ final class SyntaxHighlighter
             ['keyword', '/^(?:\\*\\*[^*\\n]+\\*\\*|__[^_\\n]+__)/'],
             ['variable', '/^(?:\\*[^*\\n]+\\*|_[^_\\n]+_)/'],
             ['operator', '/^[\\\\*_`{}\\[\\]()#+.!|>-]/'],
-        ]);
+        ], $tokens);
+    }
+
+    /**
+     * @return array{char:string, length:int, language:?string}|null
+     */
+    private static function markdownFenceOpening(string $line): ?array
+    {
+        if (preg_match('/^[ \\t]{0,3}((`{3,})|(~{3,}))(.*)$/', $line, $matches) !== 1) {
+            return null;
+        }
+
+        $marker = $matches[1];
+
+        return [
+            'char' => $marker[0],
+            'length' => strlen($marker),
+            'language' => self::markdownFenceLanguage($matches[4] ?? ''),
+        ];
+    }
+
+    /**
+     * @param array{char:string, length:int, language:?string} $fence
+     */
+    private static function markdownFenceCloses(string $line, array $fence): bool
+    {
+        $char = preg_quote($fence['char'], '/');
+
+        return preg_match('/^[ \\t]{0,3}' . $char . '{' . $fence['length'] . ',}[ \\t]*$/', $line) === 1;
+    }
+
+    private static function markdownFenceLanguage(string $info): ?string
+    {
+        $info = trim($info);
+        if ($info === '') {
+            return null;
+        }
+
+        if (str_starts_with($info, '{') && str_ends_with($info, '}')) {
+            $info = trim(substr($info, 1, -1));
+        }
+
+        $parts = preg_split('/\\s+/', $info) ?: [];
+        foreach ($parts as $part) {
+            $part = trim((string) $part, " \t\r\n{}");
+            if ($part === '' || str_starts_with($part, '#') || str_contains($part, '=')) {
+                continue;
+            }
+
+            if ($part[0] === '.') {
+                $part = substr($part, 1);
+            }
+
+            $part = trim($part, " \t\r\n,;");
+            if ($part === '') {
+                continue;
+            }
+
+            $language = self::normalizeLanguage($part);
+            if ($language !== null) {
+                return $language;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendMarkdownFenceBody(array &$tokens, string $body, ?string $language): void
+    {
+        if ($body === '') {
+            return;
+        }
+
+        if ($language === null) {
+            $this->appendToken($tokens, 'datatype', $body);
+            return;
+        }
+
+        foreach ($this->tokenize($body, $language) as $token) {
+            $this->appendToken($tokens, $token['type'], $token['text']);
+        }
     }
 
     /**

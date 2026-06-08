@@ -2424,6 +2424,63 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip64MarkerZip));
     },
 
+    'preflights zip central directory inventory counts before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>central inventory</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "PNG reviewer attachment placeholder\n",
+                'method' => 0,
+            ],
+        ]);
+        $summary = ZipPackage::centralDirectoryInventoryPreflight($zip);
+
+        $t->same(2, $summary['declaredEntryCount']);
+        $t->same(2, $summary['diskEntryCount']);
+        $t->same(2, $summary['scannedEntryCount']);
+        $t->same(2, $summary['entryCount']);
+        $t->same($summary['centralDirectorySize'], $summary['scannedCentralDirectoryBytes']);
+        $t->same(0, $summary['centralDirectoryTailBytes']);
+        $t->same(false, $summary['hasEntryCountMismatch']);
+        $t->same(false, $summary['hasCentralDirectorySignature']);
+        $t->same(null, $summary['centralDirectorySignature']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+        $t->same(['word/document.xml', 'word/media/review.png'], array_column($summary['entries'], 'name'));
+        $t->same([0, 1], array_column($summary['entries'], 'centralDirectoryIndex'));
+        $t->same(true, ZipPackage::fromString($zip)->has('/word/document.xml'));
+
+        $declaredTooLow = $rewriteEndOfCentralDirectory($zip, [
+            'diskEntryCount' => 1,
+            'totalEntryCount' => 1,
+        ]);
+        $lowSummary = ZipPackage::centralDirectoryInventoryPreflight($declaredTooLow);
+        $t->same(1, $lowSummary['declaredEntryCount']);
+        $t->same(2, $lowSummary['scannedEntryCount']);
+        $t->same(true, $lowSummary['hasEntryCountMismatch']);
+        $t->same(false, $lowSummary['isSupportedByBoundedReader']);
+        $t->same(['central-directory-entry-count-mismatch'], $lowSummary['issues']);
+        $t->same(['word/document.xml', 'word/media/review.png'], array_column($lowSummary['entries'], 'name'));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($declaredTooLow));
+
+        $declaredTooHigh = $rewriteEndOfCentralDirectory($zip, [
+            'diskEntryCount' => 3,
+            'totalEntryCount' => 3,
+        ]);
+        $highSummary = ZipPackage::centralDirectoryInventoryPreflight($declaredTooHigh);
+        $t->same(3, $highSummary['declaredEntryCount']);
+        $t->same(2, $highSummary['scannedEntryCount']);
+        $t->same(true, $highSummary['hasEntryCountMismatch']);
+        $t->same(false, $highSummary['isSupportedByBoundedReader']);
+        $t->same(['central-directory-entry-count-mismatch'], $highSummary['issues']);
+        $t->same(0, $highSummary['centralDirectoryTailBytes']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($declaredTooHigh));
+    },
+
     'preflights split zip archive disk markers before bounded package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [

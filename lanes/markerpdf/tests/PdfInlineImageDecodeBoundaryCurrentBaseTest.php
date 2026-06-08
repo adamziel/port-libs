@@ -1060,6 +1060,49 @@ return [
         $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
         $t->same([90.0], $preview['pixels'][0]['raw_sample']);
     },
+    'treats PDF comments after bounded Flate inline members as EOD whitespace' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $imageByte = 'A';
+        $compressedImage = gzcompress($imageByte, 0);
+        if (!is_string($compressedImage)) {
+            throw new RuntimeException('Unable to build Flate comment EOD inline image fixture.');
+        }
+
+        $postStreamComment = "% markerpdf comment after bounded flate member\n";
+        $payload = $compressedImage . $postStreamComment;
+        $dictionary = '/W 1 /H 1 /CS /G /BPC 8 /F /Fl /D [0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Flate Comment EOD Inline) Tj ET\n"
+            . "BI {$dictionary} ID "
+            . $payload . "EI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Flate Comment EOD Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Before Flate Comment EOD Inline',
+            'After Flate Comment EOD Inline',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'markerpdf comment after bounded flate member'));
+        $t->true(!str_contains($plainText, 'FlateDecode'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $payload, [], 1);
+        $t->same(['FlateDecode'], $preview['image_stream']['filters']);
+        $t->same(1, $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', $imageByte), $preview['image_stream']['decoded_sha256']);
+        $t->same('41', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same([65.0], $preview['pixels'][0]['raw_sample']);
+        $t->same(0, $preview['image_sample_boundary']['surplus_byte_count']);
+        $t->same(false, $preview['image_sample_boundary']['truncated_to_declared_samples']);
+    },
     'keeps Flate predictor short-row surplus closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $renderer = new PdfImageRenderer();

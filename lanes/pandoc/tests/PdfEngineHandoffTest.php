@@ -4769,6 +4769,92 @@ MARKDOWN);
         $t->same(['FxOverlay' => 1, 'ImChart' => 1], $sequence['finalPdfPageContentResourceUsage'] ?? null);
     },
 
+    'fake runner records inherited pdf page resource source metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/resource-sources.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] /Resources << /Font << /FInherited 8 0 R >> /XObject << /ImInherited 9 0 R /FxInherited 10 0 R >> /ColorSpace << /CSInherited /DeviceRGB >> /ExtGState << /GSInherited 11 0 R >> /Properties << /MCInherited << /MCID 12 /Alt (Inherited source) >> >> >> >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /Font << /FPage 12 0 R >> /XObject << /ImPage 13 0 R >> /Properties << /MCPage << /MCID 14 /ActualText (Page source) >> >> >> /Contents 7 0 R >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Length 0 >>',
+            'stream',
+            '',
+            'endstream',
+            'endobj',
+            '7 0 obj',
+            '<< /Length 0 >>',
+            'stream',
+            '',
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/resource-sources.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/resource-sources.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'resourceSourceObject' => '2 0 R',
+                'inherited' => true,
+                'categories' => ['ColorSpace', 'ExtGState', 'Font', 'Properties', 'XObject'],
+                'fontNames' => ['FInherited'],
+                'xobjectNames' => ['FxInherited', 'ImInherited'],
+                'colorSpaceNames' => ['CSInherited'],
+                'graphicsStateNames' => ['GSInherited'],
+                'propertyNames' => ['MCInherited'],
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'resourceSourceObject' => '4 0 R',
+                'inherited' => false,
+                'categories' => ['Font', 'Properties', 'XObject'],
+                'fontNames' => ['FPage'],
+                'xobjectNames' => ['ImPage'],
+                'colorSpaceNames' => [],
+                'graphicsStateNames' => [],
+                'propertyNames' => ['MCPage'],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageResourceSources'] ?? null);
+        $t->contains('pdf-byte-page-resource-sources:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-resource-inherited:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-resource-category:Font:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-resource-category:Properties:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-resource-category:ColorSpace:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageResourceSources'] ?? null);
+    },
+
     'fake runner extracts bounded pdf collection portfolio metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/portfolio.pdf']);
@@ -6147,6 +6233,135 @@ MARKDOWN);
         $t->same(true, $sequence['ok']);
         $t->same($expectedLinearization, $sequence['finalPdfLinearization']);
         $t->same(3, $sequence['finalPdfLinearization']['pageCount']);
+    },
+
+    'fake runner extracts bounded pdf web capture spiderinfo metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/web-capture.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /SpiderInfo 5 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /SpiderInfo << /V 1.0 /C [8 0 R] >> >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /V 1.2 /C [6 0 R << /URL (https://example.test/review/checklist.html) /Title (Review checklist) /CT /Capture /ID (cap-inline) /TS (D:20260608010245Z) /L 2 /F 5 /Pages [3 0 R 4 0 R] >>] >>',
+            'endobj',
+            '6 0 obj',
+            '<< /URL (https://example.test/review/) /Title (Review source home) /S /Complete /L 0 /F 1 /Page 3 0 R /Next 7 0 R >>',
+            'endobj',
+            '7 0 obj',
+            '<< /URL (https://example.test/review/next.html) >>',
+            'endobj',
+            '8 0 obj',
+            '<< /URL (https://example.test/review/page-1.html) /T (Captured page one) /N (page-source) /L 1 /F 2 /Page 3 0 R /P 6 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/web-capture.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/web-capture.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'source' => 'catalog.SpiderInfo',
+                'page' => null,
+                'pageObject' => null,
+                'spiderInfoObject' => '5 0 R',
+                'version' => 1.2,
+                'commandCount' => 2,
+                'sourceUrls' => [
+                    'https://example.test/review/',
+                    'https://example.test/review/checklist.html',
+                ],
+                'captures' => [
+                    [
+                        'commandObject' => '6 0 R',
+                        'sourceUrl' => 'https://example.test/review/',
+                        'sourceTitle' => 'Review source home',
+                        'commandName' => null,
+                        'commandType' => 'Complete',
+                        'identifier' => null,
+                        'timestamp' => null,
+                        'flags' => 1,
+                        'depth' => 0,
+                        'pageReferences' => ['3 0 R'],
+                        'parentCommand' => null,
+                        'nextCommand' => '7 0 R',
+                    ],
+                    [
+                        'commandObject' => 'inline',
+                        'sourceUrl' => 'https://example.test/review/checklist.html',
+                        'sourceTitle' => 'Review checklist',
+                        'commandName' => null,
+                        'commandType' => 'Capture',
+                        'identifier' => 'cap-inline',
+                        'timestamp' => 'D:20260608010245Z',
+                        'flags' => 5,
+                        'depth' => 2,
+                        'pageReferences' => ['3 0 R', '4 0 R'],
+                        'parentCommand' => null,
+                        'nextCommand' => null,
+                    ],
+                ],
+            ],
+            [
+                'source' => 'page:3 0 R.SpiderInfo',
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'spiderInfoObject' => 'inline',
+                'version' => 1.0,
+                'commandCount' => 1,
+                'sourceUrls' => ['https://example.test/review/page-1.html'],
+                'captures' => [
+                    [
+                        'commandObject' => '8 0 R',
+                        'sourceUrl' => 'https://example.test/review/page-1.html',
+                        'sourceTitle' => 'Captured page one',
+                        'commandName' => 'page-source',
+                        'commandType' => null,
+                        'identifier' => null,
+                        'timestamp' => null,
+                        'flags' => 2,
+                        'depth' => 1,
+                        'pageReferences' => ['3 0 R'],
+                        'parentCommand' => '6 0 R',
+                        'nextCommand' => null,
+                    ],
+                ],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfWebCaptureMetadata']);
+        $t->contains('pdf-byte-web-capture:2', $diagnostics);
+        $t->contains('pdf-byte-web-capture-commands:3', $diagnostics);
+        $t->contains('pdf-byte-web-capture-pages:1', $diagnostics);
+        $t->contains('pdf-byte-web-capture-urls:3', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfWebCaptureMetadata']);
+        $t->same('https://example.test/review/page-1.html', $sequence['finalPdfWebCaptureMetadata'][1]['sourceUrls'][0]);
     },
 
     'rejects unsafe pdf handoff engine path and option inputs' => static function (TestRunner $t) use ($document): void {

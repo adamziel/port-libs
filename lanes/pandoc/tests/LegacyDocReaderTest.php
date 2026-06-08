@@ -1608,6 +1608,22 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($cyclic));
     },
+    'rejects CFB directory sibling stream IDs that use sector-chain sentinels' => static function (TestRunner $t) use ($buildCfb, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $firstStreamLeftSiblingOffset = $directorySectorOffset + 128 + 68;
+        $firstStreamRightSiblingOffset = $directorySectorOffset + 128 + 72;
+
+        foreach ([0xfffffffe, 0xfffffffd, 0xfffffffc] as $sentinel) {
+            $corruptLeft = substr_replace($bytes, $u32($sentinel), $firstStreamLeftSiblingOffset, 4);
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptLeft));
+
+            $corruptRight = substr_replace($bytes, $u32($sentinel), $firstStreamRightSiblingOffset, 4);
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptRight));
+        }
+    },
     'rejects unsorted CFB directory sibling trees before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
         $bytes = $buildCfb([
             'A' => 'a',
@@ -4276,6 +4292,60 @@ return [
         $t->contains('<span class="legacy-doc-field legacy-doc-generated-field legacy-doc-field-toa" data-legacy-doc-field="toa" data-legacy-doc-field-instruction="TOA \c &quot;1&quot; \p" data-legacy-doc-generated-field-type="table-of-authorities" data-legacy-doc-generated-field-switches="c p" data-legacy-doc-generated-field-switch-c="1" data-legacy-doc-generated-field-switch-p="true">Case One 2</span>', $blocks);
         foreach (['TOC', 'INDEX', 'TOA'] as $instruction) {
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC generated field instructions should not render as visible text');
+        }
+    },
+    'preserves legacy DOC sequence and list-number field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'Numbered '
+                . $fieldBegin . ' SEQ "Figure" \r 4 \* Arabic ' . $fieldSeparator . '4' . $fieldEnd
+                . ' and '
+                . $fieldBegin . ' LISTNUM "LegalDefault" \l 2 \s 3 ' . $fieldSeparator . '3.2' . $fieldEnd
+                . ".\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $sequence = $paragraph->children[1];
+        $t->same('span', $sequence->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-numbering-field', 'legacy-doc-field-seq'], $sequence->attr('classes'));
+        $t->same('seq', $sequence->attr('attributes')['data-legacy-doc-field']);
+        $t->same('SEQ "Figure" \r 4 \* Arabic', $sequence->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('sequence', $sequence->attr('attributes')['data-legacy-doc-numbering-field-type']);
+        $t->same('Figure', $sequence->attr('attributes')['data-legacy-doc-numbering-field-name']);
+        $t->same('Figure', $sequence->attr('attributes')['data-legacy-doc-numbering-field-arguments']);
+        $t->same('Arabic', $sequence->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('r', $sequence->attr('attributes')['data-legacy-doc-numbering-field-switches']);
+        $t->same('4', $sequence->attr('attributes')['data-legacy-doc-numbering-field-switch-r']);
+        $t->same('4', $sequence->children[0]->attr('text'));
+
+        $listNumber = $paragraph->children[3];
+        $t->same('span', $listNumber->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-numbering-field', 'legacy-doc-field-listnum'], $listNumber->attr('classes'));
+        $t->same('listnum', $listNumber->attr('attributes')['data-legacy-doc-field']);
+        $t->same('LISTNUM "LegalDefault" \l 2 \s 3', $listNumber->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('list-number', $listNumber->attr('attributes')['data-legacy-doc-numbering-field-type']);
+        $t->same('LegalDefault', $listNumber->attr('attributes')['data-legacy-doc-numbering-field-name']);
+        $t->same('LegalDefault', $listNumber->attr('attributes')['data-legacy-doc-numbering-field-arguments']);
+        $t->same('l s', $listNumber->attr('attributes')['data-legacy-doc-numbering-field-switches']);
+        $t->same('2', $listNumber->attr('attributes')['data-legacy-doc-numbering-field-switch-l']);
+        $t->same('3', $listNumber->attr('attributes')['data-legacy-doc-numbering-field-switch-s']);
+        $t->same('3.2', $listNumber->children[0]->attr('text'));
+
+        $t->contains('[4]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-seq data-legacy-doc-field="seq"', $markdown);
+        $t->contains('data-legacy-doc-numbering-field-name="Figure"', $markdown);
+        $t->contains('[3.2]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-listnum data-legacy-doc-field="listnum"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-seq" data-legacy-doc-field="seq" data-legacy-doc-field-instruction="SEQ &quot;Figure&quot; \r 4 \* Arabic" data-legacy-doc-numbering-field-type="sequence" data-legacy-doc-field-format="Arabic" data-legacy-doc-numbering-field-name="Figure" data-legacy-doc-numbering-field-arguments="Figure" data-legacy-doc-numbering-field-switches="r" data-legacy-doc-numbering-field-switch-r="4">4</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-listnum" data-legacy-doc-field="listnum" data-legacy-doc-field-instruction="LISTNUM &quot;LegalDefault&quot; \l 2 \s 3" data-legacy-doc-numbering-field-type="list-number" data-legacy-doc-numbering-field-name="LegalDefault" data-legacy-doc-numbering-field-arguments="LegalDefault" data-legacy-doc-numbering-field-switches="l s" data-legacy-doc-numbering-field-switch-l="2" data-legacy-doc-numbering-field-switch-s="3">3.2</span>', $blocks);
+        foreach (['SEQ', 'LISTNUM'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC numbering field instructions should not render as visible text');
         }
     },
     'rejects malformed legacy DOC field-code boundaries before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {

@@ -174,7 +174,7 @@ final class PdfAcroFormExtractor
         $fieldNamesByObject = $this->fieldNamesWithPageWidgetParents($fieldNamesByObject, $objects, $pageWidgets);
         $calculationOrder = $this->calculationOrderFromAcroForm($acroForm, $objects, $fieldNamesByObject);
         $calculationOrderReview = $this->calculationOrderReviewFromAcroForm($acroForm, $objects, $fieldNamesByObject);
-        $signatureFlags = $this->acroFormSignatureFlags($acroForm);
+        $signatureFlags = $this->acroFormSignatureFlags($acroForm, $objects);
 
         foreach ($fieldRefs as $fieldRef) {
             $context = $this->fieldReferenceAncestorContext($fieldRef, $objects, $formDefaults);
@@ -269,10 +269,10 @@ final class PdfAcroFormExtractor
     /**
      * @return array<string, mixed>
      */
-    private function acroFormSignatureFlags(string $acroForm): array
+    private function acroFormSignatureFlags(string $acroForm, array $objects): array
     {
         $rawFlags = $this->valueAfterName($acroForm, 'SigFlags');
-        $flags = $this->numberValueAfterName($acroForm, 'SigFlags') ?? 0;
+        $flags = $this->numberValueAfterNameResolvingObjects($acroForm, 'SigFlags', $objects) ?? 0;
 
         return [
             'source' => $rawFlags === null ? null : 'acroform_sigflags',
@@ -7405,7 +7405,7 @@ final class PdfAcroFormExtractor
             );
         }
 
-        $flags = $this->numberValueAfterName($actionBody, 'Flags') ?? 0;
+        $flags = $this->numberValueAfterNameResolvingObjects($actionBody, 'Flags', $objects) ?? 0;
         $selection = $this->fieldSelectionFromAction($actionBody, $objects, $fieldNamesByObject, $actionType, $flags);
         $metadata = [
             'action_type' => $actionType,

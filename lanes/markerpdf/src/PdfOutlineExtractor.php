@@ -1294,7 +1294,7 @@ final class PdfOutlineExtractor
                 break;
             }
 
-            $title = $this->outlineTitleValue($dict, $objects);
+            $title = $this->outlineTitleValue($dict, $objects, $current);
             if ($title === null) {
                 if ($lastItemObject === null || $current === $lastItemObject) {
                     break;
@@ -1697,8 +1697,12 @@ final class PdfOutlineExtractor
      * @param array<string, mixed> $outline
      * @param array<int, mixed> $objects
      */
-    private function outlineTitleValue(array $outline, array $objects): ?string
+    private function outlineTitleValue(array $outline, array $objects, ?int $outlineObject = null): ?string
     {
+        if ($outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Title')) {
+            return null;
+        }
+
         $titleValue = $outline['Title'] ?? null;
         if ($this->isReferenceValue($titleValue) && !$this->referenceTargetsSingleTopLevelValue($titleValue, $objects)) {
             return null;
@@ -3679,6 +3683,11 @@ final class PdfOutlineExtractor
                     continue;
                 }
 
+                if ($this->nameTreeStringValueIsMissingBeforePair($names, $index, $objects)) {
+                    $index++;
+                    continue;
+                }
+
                 if (
                     $this->nameWithinNameTreeLimits($name['text'], $entryLimits, $name['bytes'])
                     && $this->destinationValueAllowedForMap($names[$index + 1], $objects, $pageIndexes)
@@ -3748,6 +3757,11 @@ final class PdfOutlineExtractor
             for ($index = 0, $count = count($names); $index + 1 < $count;) {
                 $name = $this->destinationNameDetails($names[$index], $objects);
                 if ($name === null) {
+                    $index++;
+                    continue;
+                }
+
+                if ($this->nameTreeStringValueIsMissingBeforePair($names, $index, $objects)) {
                     $index++;
                     continue;
                 }
@@ -4057,6 +4071,11 @@ final class PdfOutlineExtractor
                 continue;
             }
 
+            if ($this->nameTreeStringValueIsMissingBeforePair($items, $index, $objects)) {
+                $index++;
+                continue;
+            }
+
             if ($this->nameWithinNameTreeLimits($name['text'], $limits, $name['bytes'])) {
                 return true;
             }
@@ -4064,6 +4083,26 @@ final class PdfOutlineExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @param array<int, mixed> $objects
+     */
+    private function nameTreeStringValueIsMissingBeforePair(array $items, int $index, array $objects): bool
+    {
+        $valueIndex = $index + 1;
+        $nextIndex = $valueIndex + 1;
+        if (!array_key_exists($valueIndex, $items) || !array_key_exists($nextIndex, $items)) {
+            return false;
+        }
+
+        $valueName = $this->destinationNameDetails($items[$valueIndex], $objects);
+        if ($valueName === null || $valueName['text'] === '') {
+            return false;
+        }
+
+        return $this->destinationNameDetails($items[$nextIndex], $objects) === null;
     }
 
     /**
@@ -4110,7 +4149,7 @@ final class PdfOutlineExtractor
                 break;
             }
 
-            $title = $this->outlineTitleValue($dict, $objects);
+            $title = $this->outlineTitleValue($dict, $objects, $current);
             if ($title === null) {
                 if ($lastItemObject === null || $current === $lastItemObject) {
                     break;
@@ -4211,7 +4250,7 @@ final class PdfOutlineExtractor
                 break;
             }
 
-            $title = $this->outlineTitleValue($dict, $objects);
+            $title = $this->outlineTitleValue($dict, $objects, $current);
             if ($title === null) {
                 if ($lastItemObject === null || $current === $lastItemObject) {
                     break;
@@ -4327,7 +4366,7 @@ final class PdfOutlineExtractor
                 break;
             }
 
-            $title = $this->outlineTitleValue($dict, $objects);
+            $title = $this->outlineTitleValue($dict, $objects, $current);
             if ($title === null) {
                 if ($lastItemObject === null || $current === $lastItemObject) {
                     break;
@@ -4773,7 +4812,7 @@ final class PdfOutlineExtractor
                 break;
             }
 
-            $title = $this->outlineTitleValue($dict, $objects);
+            $title = $this->outlineTitleValue($dict, $objects, $current);
             if ($title === null) {
                 if ($lastItemObject === null || $current === $lastItemObject) {
                     break;

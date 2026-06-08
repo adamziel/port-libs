@@ -152,10 +152,16 @@ final class GzipStream
      *         comment:?string,
      *         commentText:?string,
      *         commentEncoding:?string,
+     *         headerCrcPresent:bool,
      *         headerCrc16:?int,
+     *         headerCrc16Hex:?string,
+     *         headerCrcOffset:?int,
+     *         headerCrcCoverageSize:?int,
      *         crc32:int,
      *         uncompressedSize:int,
      *         compressedSize:int,
+     *         decodedDataOffset:int,
+     *         decodedDataEndOffset:int,
      *         memberSize:int,
      *         memberOffset:int,
      *         headerSize:int,
@@ -251,13 +257,19 @@ final class GzipStream
             }
 
             $headerCrc16 = null;
+            $headerCrc16Hex = null;
+            $headerCrcOffset = null;
+            $headerCrcCoverageSize = null;
             if (($flags & self::FLAG_HEADER_CRC) !== 0) {
                 self::assertRange($bytes, $cursor, 2, 'header CRC16');
+                $headerCrcOffset = $cursor - $memberStart;
+                $headerCrcCoverageSize = $headerCrcOffset;
                 $headerCrc16 = self::readUInt16($bytes, $cursor);
                 $expectedHeaderCrc16 = self::unsignedCrc32(substr($bytes, $memberStart, $cursor - $memberStart)) & 0xffff;
                 if ($headerCrc16 !== $expectedHeaderCrc16) {
                     throw new \RuntimeException('GZIP member header CRC16 does not match header bytes');
                 }
+                $headerCrc16Hex = sprintf('%04x', $headerCrc16);
                 $cursor += 2;
             }
 
@@ -282,7 +294,9 @@ final class GzipStream
                 throw new \RuntimeException('GZIP member uncompressed size does not match trailer');
             }
 
-            $totalUncompressedBytes += strlen($data);
+            $decodedDataOffset = $totalUncompressedBytes;
+            $decodedDataEndOffset = $decodedDataOffset + strlen($data);
+            $totalUncompressedBytes = $decodedDataEndOffset;
             if ($maxUncompressedBytes !== null && $totalUncompressedBytes > $maxUncompressedBytes) {
                 throw new \RuntimeException('GZIP stream exceeds the configured uncompressed byte limit');
             }
@@ -307,10 +321,16 @@ final class GzipStream
                 'comment' => $comment,
                 'commentText' => $commentText,
                 'commentEncoding' => $commentEncoding,
+                'headerCrcPresent' => $headerCrc16 !== null,
                 'headerCrc16' => $headerCrc16,
+                'headerCrc16Hex' => $headerCrc16Hex,
+                'headerCrcOffset' => $headerCrcOffset,
+                'headerCrcCoverageSize' => $headerCrcCoverageSize,
                 'crc32' => $crc32,
                 'uncompressedSize' => $uncompressedSize,
                 'compressedSize' => $compressedSize,
+                'decodedDataOffset' => $decodedDataOffset,
+                'decodedDataEndOffset' => $decodedDataEndOffset,
                 'memberSize' => $cursor - $memberStart,
                 'memberOffset' => $memberStart,
                 'headerSize' => $compressedStart - $memberStart,

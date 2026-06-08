@@ -1754,6 +1754,27 @@ final class Html5DomFragment
                 ]];
             }
 
+            $crawlerMetadata = self::htmlMetaCrawlerMetadata($element, $diagnostics);
+            if ($crawlerMetadata !== null) {
+                [$kind, $name, $content] = $crawlerMetadata;
+                $metadataAttributeName = $kind === 'property'
+                    ? 'data-pandoc-meta-property'
+                    : 'data-pandoc-meta-name';
+
+                return [[
+                    'type' => 'element',
+                    'name' => 'span',
+                    'attrs' => [
+                        $metadataAttributeName => $name,
+                        'data-pandoc-meta-content' => $content,
+                    ],
+                    'children' => [[
+                        'type' => 'text',
+                        'text' => self::htmlMetaReviewLabel($name) . ': ' . $content,
+                    ]],
+                ]];
+            }
+
             $reviewMetadata = self::htmlMetaReviewMetadata($element);
             if ($reviewMetadata === null) {
                 return null;
@@ -2039,6 +2060,105 @@ final class Html5DomFragment
     }
 
     /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string, 2:string}|null
+     */
+    private static function htmlMetaCrawlerMetadata(\DOMElement $element, array &$diagnostics): ?array
+    {
+        if (!$element->hasAttribute('content')) {
+            return null;
+        }
+
+        $name = self::normalizeHtmlMetaName($element->getAttribute('name'));
+        if (!in_array($name, ['robots', 'googlebot', 'bingbot', 'slurp'], true)) {
+            return null;
+        }
+
+        $content = self::normalizeHtmlCrawlerDirectives($element->getAttribute('content'), $diagnostics);
+
+        return $content === null ? null : ['name', $name, $content];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlCrawlerDirectives(string $value, array &$diagnostics): ?string
+    {
+        $content = self::cleanHtmlMetadataAttribute($value);
+        if ($content === '') {
+            return null;
+        }
+
+        $directives = [];
+        foreach (explode(',', $content) as $directive) {
+            $normalized = self::normalizeHtmlCrawlerDirective($directive, $diagnostics);
+            if ($normalized === null || in_array($normalized, $directives, true)) {
+                continue;
+            }
+
+            $directives[] = $normalized;
+        }
+
+        return $directives === [] ? null : implode(', ', $directives);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlCrawlerDirective(string $directive, array &$diagnostics): ?string
+    {
+        $value = strtolower(self::cleanHtmlMetadataAttribute($directive));
+        if ($value === '') {
+            return null;
+        }
+
+        $compact = preg_replace('/[\x00-\x20]+/', '', $value) ?? $value;
+        if (preg_match('/[<>{}`]/', $value) === 1 || preg_match('/(?:java|vb)script:/', $compact) === 1) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => 'meta',
+                'attribute' => 'content',
+                'directive' => $value,
+            ];
+
+            return null;
+        }
+
+        if (in_array($value, [
+            'all',
+            'follow',
+            'index',
+            'noarchive',
+            'nocache',
+            'nofollow',
+            'noimageindex',
+            'noindex',
+            'none',
+            'nosnippet',
+            'notranslate',
+        ], true)) {
+            return $value;
+        }
+
+        if (preg_match('/^(max-snippet|max-video-preview):(-1|0|[1-9][0-9]*)$/', $value, $matches) === 1) {
+            return $matches[1] . ':' . $matches[2];
+        }
+
+        if (preg_match('/^max-image-preview:(none|standard|large)$/', $value, $matches) === 1) {
+            return 'max-image-preview:' . $matches[1];
+        }
+
+        $diagnostics[] = [
+            'code' => 'unsafe-attribute',
+            'tag' => 'meta',
+            'attribute' => 'content',
+            'directive' => $value,
+        ];
+
+        return null;
+    }
+
+    /**
      * @return array{0:string, 1:string, 2:string}|null
      */
     private static function htmlMetaUrlMetadata(\DOMElement $element): ?array
@@ -2171,8 +2291,10 @@ final class Html5DomFragment
             'article:modified_time' => 'Article modified time',
             'article:published_time' => 'Article published time',
             'author' => 'Author',
+            'bingbot' => 'Bingbot',
             'description' => 'Description',
             'generator' => 'Generator',
+            'googlebot' => 'Googlebot',
             'keywords' => 'Keywords',
             'content-security-policy' => 'Content security policy',
             'og:image' => 'Open Graph image',
@@ -2181,6 +2303,8 @@ final class Html5DomFragment
             'og:description' => 'Open Graph description',
             'og:title' => 'Open Graph title',
             'referrer' => 'Referrer policy',
+            'robots' => 'Robots',
+            'slurp' => 'Slurp',
             'twitter:description' => 'Twitter description',
             'twitter:image' => 'Twitter image',
             'twitter:image:src' => 'Twitter image',

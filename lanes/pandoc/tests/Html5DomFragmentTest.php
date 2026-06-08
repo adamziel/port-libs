@@ -2056,6 +2056,56 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe CSP source tokens to be stripped');
         $t->true(!str_contains($html, 'bad policy'), 'Expected invalid referrer policy to stay hidden');
     },
+    'converts crawler meta directives into inert reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<meta name="robots" content=" noindex, nofollow, max-snippet:-1, max-image-preview:large, url=javascript:alert(1), bad&lt;token&gt; ">'
+            . '<meta name="GoogleBot" content="index, follow, max-video-preview:30, max-image-preview:standard">'
+            . '<meta name="bingbot" content="noarchive, nocache, unknown-policy">'
+            . '<meta name="robots" content="   ">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/meta-crawler-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<span data-pandoc-meta-name="robots" data-pandoc-meta-content="noindex, nofollow, max-snippet:-1, max-image-preview:large">Robots: noindex, nofollow, max-snippet:-1, max-image-preview:large</span>'
+            . '<span data-pandoc-meta-name="googlebot" data-pandoc-meta-content="index, follow, max-video-preview:30, max-image-preview:standard">Googlebot: index, follow, max-video-preview:30, max-image-preview:standard</span>'
+            . '<span data-pandoc-meta-name="bingbot" data-pandoc-meta-content="noarchive, nocache">Bingbot: noarchive, nocache</span>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Robots: noindex, nofollow, max-snippet:-1, max-image-preview:largeGooglebot: index, follow, max-video-preview:30, max-image-preview:standardBingbot: noarchive, nocacheafter', $fragment->textContent());
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['meta'], $summary['blockedTags']);
+        $t->same(['content'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'unsafe-attribute', 'unsafe-attribute', 'blocked-tag', 'blocked-tag', 'unsafe-attribute', 'blocked-tag'], $policyDiagnostics);
+        $t->same([
+            'data-pandoc-meta-name' => 'robots',
+            'data-pandoc-meta-content' => 'noindex, nofollow, max-snippet:-1, max-image-preview:large',
+        ], $nodes[0]['attrs']);
+        $t->same('Robots: noindex, nofollow, max-snippet:-1, max-image-preview:large', $nodes[0]['children'][0]['text']);
+        $t->same([
+            'data-pandoc-meta-name' => 'googlebot',
+            'data-pandoc-meta-content' => 'index, follow, max-video-preview:30, max-image-preview:standard',
+        ], $nodes[1]['attrs']);
+        $t->same('bingbot', $nodes[2]['attrs']['data-pandoc-meta-name']);
+        $t->same('noarchive, nocache', $nodes[2]['attrs']['data-pandoc-meta-content']);
+        $t->same('p', $nodes[3]['name']);
+        $t->same('/migration/meta-crawler-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<meta'), 'Expected crawler meta elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected active crawler directives to stay hidden');
+        $t->true(!str_contains($html, 'bad<token>'), 'Expected tag-looking crawler directives to stay hidden');
+        $t->true(!str_contains($html, 'unknown-policy'), 'Expected unsupported crawler directives to stay hidden');
+    },
     'converts passive property metadata into reviewer spans and links before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

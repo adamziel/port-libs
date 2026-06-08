@@ -2705,12 +2705,21 @@ final class PdfTextExtractor
                 );
             }
 
+            $appearanceResourceOwnerBody = $this->pageResourceDictionaryBody($pageObjectNumber, $objects);
+            if (
+                $appearanceResourceOwnerBody === null
+                && !$this->pageResourceDictionaryBlocksFallback($pageObjectNumber, $objects)
+            ) {
+                $appearanceResourceOwnerBody = $objects[$pageObjectNumber];
+            }
+
             foreach ($this->annotationAppearanceStreamsWithFontMaps(
                 $objects[$pageObjectNumber],
                 $objects,
                 $fontObjectMaps,
                 $expanded['fontToUnicodeMaps'],
-                $optionalContentStates
+                $optionalContentStates,
+                $appearanceResourceOwnerBody
             ) as $appearance) {
                 $expanded['stream'] = trim($expanded['stream']) === ''
                     ? $appearance['stream']
@@ -9446,11 +9455,12 @@ final class PdfTextExtractor
 
         if ($value[0] === '/') {
             $end = $this->pdfNameTokenEndOffset($value, 0);
+            $name = $this->decodePdfName(substr($value, 1, $end - 1));
             if ($this->skipPdfWhitespace($value, $end) !== strlen($value)) {
-                return [self::MALFORMED_IMAGE_FILTER_OPERAND];
+                return [self::MALFORMED_IMAGE_FILTER_OPERAND, $name];
             }
 
-            return [$this->decodePdfName(substr($value, 1, $end - 1))];
+            return [$name];
         }
 
         if (preg_match('/\Gnull\b/s', $value, $match, 0, 0) === 1) {
@@ -11580,7 +11590,8 @@ final class PdfTextExtractor
         array $objects,
         array $fontObjectMaps,
         array $fontToUnicodeMaps,
-        array $optionalContentStates = []
+        array $optionalContentStates = [],
+        ?string $inheritedResourceOwnerBody = null
     ): array {
         $appearances = [];
         $currentFontToUnicodeMaps = $fontToUnicodeMaps;
@@ -11604,7 +11615,8 @@ final class PdfTextExtractor
                 $objects,
                 $fontObjectMaps,
                 $currentFontToUnicodeMaps,
-                $optionalContentStates
+                $optionalContentStates,
+                $inheritedResourceOwnerBody
             );
             if ($appearance === null) {
                 continue;
@@ -11828,24 +11840,35 @@ final class PdfTextExtractor
         array $objects,
         array $fontObjectMaps,
         array $fontToUnicodeMaps,
-        array $optionalContentStates = []
+        array $optionalContentStates = [],
+        ?string $inheritedResourceOwnerBody = null
     ): ?array {
         if (!isset($objects[$appearanceObjectNumber]) || !$this->isFormXObjectBody($objects[$appearanceObjectNumber], $objects)) {
             return null;
         }
 
-        if (!$this->optionalContentObjectVisible($objects[$appearanceObjectNumber], $objects, $optionalContentStates)) {
+        $appearanceBody = $objects[$appearanceObjectNumber];
+        if (!$this->optionalContentObjectVisible($appearanceBody, $objects, $optionalContentStates)) {
             return null;
         }
 
-        $decoded = $this->decodeStreamObject($objects[$appearanceObjectNumber], $objects, true, true);
+        $decoded = $this->decodeStreamObject($appearanceBody, $objects, true, true);
         if ($decoded === null) {
+            return null;
+        }
+
+        $resourceOwnerBody = $this->formXObjectResourceOwnerBody(
+            $appearanceBody,
+            $inheritedResourceOwnerBody ?? $appearanceBody,
+            $objects
+        );
+        if ($resourceOwnerBody === null) {
             return null;
         }
 
         $expandedFontToUnicodeMaps = $fontToUnicodeMaps;
         $fontAliases = [];
-        foreach ($this->fontResourceMapsForResourceOwnerBody($objects[$appearanceObjectNumber], $objects, $fontObjectMaps) as $name => $map) {
+        foreach ($this->fontResourceMapsForResourceOwnerBody($resourceOwnerBody, $objects, $fontObjectMaps) as $name => $map) {
             $alias = $this->appearanceFontResourceAlias($appearanceObjectNumber, $name);
             $fontAliases[$name] = $alias;
             $expandedFontToUnicodeMaps[$alias] = $map;
@@ -11854,7 +11877,7 @@ final class PdfTextExtractor
         $decoded = $this->filterOptionalContentMarkedBlocks(
             $decoded,
             $this->optionalContentPropertyVisibilityMapForResourceOwnerBody(
-                $objects[$appearanceObjectNumber],
+                $resourceOwnerBody,
                 $objects,
                 $optionalContentStates
             ),
@@ -11864,7 +11887,7 @@ final class PdfTextExtractor
 
         return $this->expandFormXObjectInvocations(
             $this->rewriteFontResourceOperands($decoded, $fontAliases),
-            $objects[$appearanceObjectNumber],
+            $resourceOwnerBody,
             $objects,
             $fontObjectMaps,
             $expandedFontToUnicodeMaps,
@@ -11872,8 +11895,8 @@ final class PdfTextExtractor
             [],
             $optionalContentStates,
             [],
-            $this->pdfMatrixValueAfterName($objects[$appearanceObjectNumber], 'Matrix', $objects),
-            $this->pdfRectangleValueAfterName($objects[$appearanceObjectNumber], 'BBox', $objects),
+            $this->pdfMatrixValueAfterName($appearanceBody, 'Matrix', $objects),
+            $this->pdfRectangleValueAfterName($appearanceBody, 'BBox', $objects),
             $fontAliases
         );
     }
@@ -13275,12 +13298,9 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $reference = $this->type3CharProcsDictionaryReference($body, false);
-            if ($reference === null) {
-                continue;
+            foreach ($this->type3CharProcsDictionaryReferencesForFallbackExclusion($body) as $reference) {
+                $references[$reference['objectNumber']][$reference['generation']] = true;
             }
-
-            $references[$reference['objectNumber']][$reference['generation']] = true;
         }
 
         return $references;
@@ -13318,6 +13338,7 @@ final class PdfTextExtractor
                 continue;
             }
 
+            $this->collectType3PrivateMetadataStreamGenerations($body, $objects, $references);
             $this->collectType3PrivateResourceStreamGenerations($body, $objects, $references);
             foreach ($this->charProcObjectReferencesForFallbackExclusion($body, $objects) as $reference) {
                 $charProcBody = $this->objectBodyForExactReference(
@@ -13329,11 +13350,34 @@ final class PdfTextExtractor
                     continue;
                 }
 
+                $this->collectType3PrivateMetadataStreamGenerations($charProcBody, $objects, $references);
                 $this->collectType3PrivateResourceStreamGenerations($charProcBody, $objects, $references);
             }
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array<int, true>> $references
+     * @param array<string, true> $seen
+     */
+    private function collectType3PrivateMetadataStreamGenerations(
+        string $resourceOwnerBody,
+        array $objects,
+        array &$references,
+        array $seen = []
+    ): void {
+        $stream = $this->streamDictionaryAndPayload($resourceOwnerBody, $objects);
+        $dictionary = $stream === null ? $this->dictionaryObjectBody($resourceOwnerBody) : $stream['dict'];
+        if ($dictionary === null) {
+            return;
+        }
+
+        foreach ($this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, 'Metadata') as $value) {
+            $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
+        }
     }
 
     /**
@@ -13835,6 +13879,10 @@ final class PdfTextExtractor
 
         $subtype = $this->topLevelPdfValueAfterNameInDictionaryBody($dict, 'Subtype');
         if ($subtype !== null) {
+            if ($this->topLevelPdfNameHasTrailingTopLevelOperand($dict, 'Subtype')) {
+                return false;
+            }
+
             $subtypeName = $this->pdfNameValueAt($subtype, 0, $objects);
             if ($subtypeName === 'Image') {
                 return true;
@@ -14321,6 +14369,7 @@ final class PdfTextExtractor
      */
     private function pageLabelsDictionaryBodies(array $objects): array
     {
+        $dictionaries = [];
         foreach ($objects as $body) {
             if (!$this->isCatalogObject($body)) {
                 continue;
@@ -14331,7 +14380,6 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $dictionaries = [];
             foreach ($entries as $entry) {
                 if ($entry['has_trailing_operand']) {
                     continue;
@@ -14343,11 +14391,9 @@ final class PdfTextExtractor
                     $dictionaries[] = $dictionary;
                 }
             }
-
-            return $dictionaries;
         }
 
-        return [];
+        return $dictionaries;
     }
 
     /**
@@ -22051,81 +22097,126 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array<string, array{objectNumber: int, generation: int}>
+     * @return list<array{objectNumber: int, generation: int}>
      * @param array<int, string> $objects
      */
     private function charProcObjectReferencesForFallbackExclusion(string $fontBody, array $objects): array
     {
-        $references = $this->charProcObjectReferences($fontBody, $objects);
-        $dictionaryReference = $this->type3CharProcsDictionaryReference($fontBody, false);
-        if ($dictionaryReference === null) {
-            return $references !== []
-                ? $references
-                : $this->directCharProcObjectReferencesForFallbackExclusion($fontBody);
+        $references = [];
+        foreach ($this->charProcObjectReferences($fontBody, $objects) as $reference) {
+            $references[] = $reference;
         }
 
-        $objectBody = $this->objectBodyForExactReference(
-            $objects,
-            $dictionaryReference['objectNumber'],
-            $dictionaryReference['generation']
-        );
-        if ($objectBody === null) {
-            return $references;
-        }
-
-        if (!$this->objectBodyIsStreamObject($objectBody)) {
-            if ($references !== []) {
-                return $references;
+        foreach ($this->topLevelPdfValuesAfterName($fontBody, 'CharProcs') as $value) {
+            foreach ($this->charProcObjectReferencesFromCharProcsValueForFallbackExclusion($value, $objects) as $reference) {
+                $references[] = $reference;
             }
-
-            $dictionary = $this->dictionaryObjectBody($objectBody);
-            return $dictionary === null ? [] : $this->charProcObjectReferencesFromDictionary($dictionary, [], false);
         }
 
-        $streamDictionary = $this->dictionaryObjectBody($objectBody);
-        if ($streamDictionary === null) {
-            return $references;
-        }
-
-        $streamDictionaryNames = array_fill_keys([
-            'Type',
-            'Subtype',
-            'Length',
-            'Filter',
-            'DecodeParms',
-            'F',
-            'FFilter',
-            'FDecodeParms',
-            'DL',
-            'Resources',
-            'BBox',
-            'Matrix',
-        ], true);
-
-        return array_replace(
-            $references,
-            $this->charProcObjectReferencesFromDictionary($streamDictionary, $streamDictionaryNames, false)
-        );
+        return $this->uniquePdfReferenceList($references);
     }
 
     /**
-     * @return array<string, array{objectNumber: int, generation: int}>
+     * @return list<array{objectNumber: int, generation: int}>
+     * @param array<int, string> $objects
      */
-    private function directCharProcObjectReferencesForFallbackExclusion(string $fontBody): array
+    private function charProcObjectReferencesFromCharProcsValueForFallbackExclusion(string $value, array $objects): array
     {
-        $value = $this->topLevelPdfLastValueAfterName($fontBody, 'CharProcs');
-        if ($value === null) {
+        $value = trim($value);
+        if ($value === '') {
             return [];
         }
 
-        $value = trim($value);
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference !== null) {
+            $objectBody = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($objectBody === null) {
+                return [];
+            }
+
+            if (!$this->objectBodyIsStreamObject($objectBody)) {
+                $dictionary = $this->singleDictionaryObjectBody($objectBody);
+                return $dictionary === null
+                    ? []
+                    : array_values($this->charProcObjectReferencesFromDictionary($dictionary, [], false));
+            }
+
+            $streamDictionary = $this->dictionaryObjectBody($objectBody);
+            if ($streamDictionary === null) {
+                return [];
+            }
+
+            $streamDictionaryNames = array_fill_keys([
+                'Type',
+                'Subtype',
+                'Length',
+                'Filter',
+                'DecodeParms',
+                'F',
+                'FFilter',
+                'FDecodeParms',
+                'DL',
+                'Resources',
+                'BBox',
+                'Matrix',
+            ], true);
+
+            return array_values($this->charProcObjectReferencesFromDictionary(
+                $streamDictionary,
+                $streamDictionaryNames,
+                false
+            ));
+        }
+
         if (!str_starts_with($value, '<<')) {
             return [];
         }
 
-        $dictionaryOffset = 0;
-        $dictionary = $this->readPdfDictionaryAt($value, $dictionaryOffset);
-        return $dictionary === null ? [] : $this->charProcObjectReferencesFromDictionary($dictionary, [], false);
+        $dictionary = $this->readPdfDictionaryAt($value, 0);
+        return $dictionary === null
+            ? []
+            : array_values($this->charProcObjectReferencesFromDictionary($dictionary, [], false));
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     */
+    private function type3CharProcsDictionaryReferencesForFallbackExclusion(string $fontBody): array
+    {
+        $references = [];
+        foreach ($this->topLevelPdfValuesAfterName($fontBody, 'CharProcs') as $value) {
+            $reference = $this->pdfIndirectReferenceValue(trim($value));
+            if ($reference !== null) {
+                $references[] = $reference;
+            }
+        }
+
+        return $this->uniquePdfReferenceList($references);
+    }
+
+    /**
+     * @param list<array{objectNumber: int, generation: int}> $references
+     * @return list<array{objectNumber: int, generation: int}>
+     */
+    private function uniquePdfReferenceList(array $references): array
+    {
+        $unique = [];
+        $seen = [];
+        foreach ($references as $reference) {
+            $key = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $unique[] = $reference;
+        }
+
+        return $unique;
     }
 
     /**
@@ -32769,8 +32860,8 @@ final class PdfTextExtractor
             return null;
         }
 
-        $count = $this->pdfIntegerValueAfterNameResolvingObjects($body, 'N', $objects);
-        $first = $this->pdfIntegerValueAfterNameResolvingObjects($body, 'First', $objects);
+        $count = $this->objectStreamIntegerValueAfterNameResolvingObjects($body, 'N', $objects);
+        $first = $this->objectStreamIntegerValueAfterNameResolvingObjects($body, 'First', $objects);
         if ($count === null || $first === null) {
             return null;
         }
@@ -32791,6 +32882,23 @@ final class PdfTextExtractor
             'headerSlotCount' => $count,
             'members' => $members,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectStreamIntegerValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?int
+    {
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($body, $name)) {
+            return null;
+        }
+
+        $offset = $this->topLevelNameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->streamLengthValueAt($body, $offset, $objects);
     }
 
     /**
@@ -38921,6 +39029,8 @@ final class PdfTextExtractor
         $markedContentDepth = max(0, (int) ($initialOpenScopes['marked_content'] ?? 0));
         $compatibilityDepth = max(0, (int) ($initialOpenScopes['compatibility'] ?? 0));
         $outsideTextOperands = [];
+        $strokingColorSpace = null;
+        $nonstrokingColorSpace = null;
 
         while ($index < $length) {
             $char = $segment[$index];
@@ -39081,7 +39191,17 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                if ($this->contentSegmentGraphicsStateOperatorOperands($token, $outsideTextOperands)) {
+                if ($this->contentSegmentGraphicsStateOperatorOperands(
+                    $token,
+                    $outsideTextOperands,
+                    $this->contentSegmentAllowsNameOnlyPatternColor($token, $strokingColorSpace, $nonstrokingColorSpace)
+                )) {
+                    if ($token === 'CS' && count($outsideTextOperands) === 1) {
+                        $strokingColorSpace = $outsideTextOperands[0];
+                    } elseif ($token === 'cs' && count($outsideTextOperands) === 1) {
+                        $nonstrokingColorSpace = $outsideTextOperands[0];
+                    }
+
                     $outsideTextOperands = [];
                     continue;
                 }
@@ -39594,6 +39714,39 @@ final class PdfTextExtractor
         return true;
     }
 
+    private function contentSegmentAllowsNameOnlyPatternColor(
+        string $operator,
+        ?string $strokingColorSpace,
+        ?string $nonstrokingColorSpace
+    ): bool {
+        if ($operator !== 'SCN' && $operator !== 'scn') {
+            return false;
+        }
+
+        $colorSpace = $operator === 'SCN' ? $strokingColorSpace : $nonstrokingColorSpace;
+        if ($colorSpace === null || !$this->markedContentTagOperand($colorSpace)) {
+            return false;
+        }
+
+        $name = $this->decodePdfName(substr($colorSpace, 1));
+        if ($name === 'Pattern') {
+            return true;
+        }
+
+        return !in_array($name, [
+            'CalGray',
+            'CalRGB',
+            'DeviceCMYK',
+            'DeviceGray',
+            'DeviceN',
+            'DeviceRGB',
+            'ICCBased',
+            'Indexed',
+            'Lab',
+            'Separation',
+        ], true);
+    }
+
     /**
      * @param list<string> $operands
      */
@@ -39621,7 +39774,11 @@ final class PdfTextExtractor
     /**
      * @param list<string> $operands
      */
-    private function contentSegmentGraphicsStateOperatorOperands(string $operator, array $operands): bool
+    private function contentSegmentGraphicsStateOperatorOperands(
+        string $operator,
+        array $operands,
+        bool $allowNameOnlyPatternColor = false
+    ): bool
     {
         $numericOperands = function (int $count) use ($operands): bool {
             if (count($operands) !== $count) {
@@ -39683,7 +39840,7 @@ final class PdfTextExtractor
         if (in_array($operator, ['SCN', 'scn'], true) && $this->markedContentTagOperand($operands[count($operands) - 1])) {
             array_pop($operands);
             if ($operands === []) {
-                return true;
+                return $allowNameOnlyPatternColor;
             }
         }
 
@@ -40589,7 +40746,8 @@ final class PdfTextExtractor
                         $filters,
                         $dictionary,
                         $candidate,
-                        $expectedLength
+                        $expectedLength,
+                        $rawCandidate
                     )
                     || $this->inlineWrappedFlateCandidateReachesSampleFloorBeforeDecodedPostStreamSurplus(
                         $filters,
@@ -40986,7 +41144,8 @@ final class PdfTextExtractor
         array $filters,
         string $dictionary,
         string $candidate,
-        int $expectedLength
+        int $expectedLength,
+        ?string $rawCandidate = null
     ): bool {
         $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         if ($expectedLength < 1 || !in_array($nonNullFilters, [['FlateDecode'], ['Fl']], true)) {
@@ -41009,12 +41168,7 @@ final class PdfTextExtractor
             return false;
         }
 
-        $postStream = substr($candidate, $endOffset);
-        if (
-            $postStream === ''
-            || $this->streamHasOnlyWhitespaceAfterOffset($candidate, $endOffset)
-            || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postStream) !== 1
-        ) {
+        if (!$this->inlinePostFilterSurplusCanCloseAtCurrentEi($rawCandidate ?? $candidate, $endOffset)) {
             return false;
         }
 
@@ -42816,7 +42970,7 @@ final class PdfTextExtractor
      */
     private function fontSizeOperand(array $operands): ?float
     {
-        if ($operands === []) {
+        if (count($operands) < 2 || !str_starts_with($operands[count($operands) - 2], '/')) {
             return null;
         }
 
@@ -43963,6 +44117,10 @@ final class PdfTextExtractor
         if (is_array($cidMap) && $cidMap !== []) {
             $widthMap['map'] = $cidMap;
         }
+        $cidRanges = $toUnicodeMap['cidRanges'] ?? [];
+        if (is_array($cidRanges) && $cidRanges !== []) {
+            $widthMap['cidRanges'] = $cidRanges;
+        }
 
         $zeroPaddedKeys = $this->zeroPaddedSourceKeysForFontWidths($hex, $widthMap, $toUnicodeMap);
         if ($zeroPaddedKeys !== []) {
@@ -44028,20 +44186,26 @@ final class PdfTextExtractor
     {
         $cidCodeSpaceRanges = $toUnicodeMap['cidCodeSpaceRanges'] ?? [];
         $cidMap = $toUnicodeMap['cidMap'] ?? [];
+        $cidRanges = $toUnicodeMap['cidRanges'] ?? [];
+        $hasCidMappings = (is_array($cidMap) && $cidMap !== []) || (is_array($cidRanges) && $cidRanges !== []);
         if (
             !is_array($cidCodeSpaceRanges)
             || $cidCodeSpaceRanges === []
-            || !is_array($cidMap)
-            || $cidMap === []
+            || !$hasCidMappings
             || $sourceKeys === []
         ) {
             return [];
         }
 
-        $fallbackKeys = $this->textOperandSourceKeys($hex, [
-            'map' => $cidMap,
+        $fallbackMap = [
+            'map' => is_array($cidMap) ? $cidMap : [],
             'codeSpaceRanges' => [],
-        ]);
+        ];
+        if (is_array($cidRanges) && $cidRanges !== []) {
+            $fallbackMap['cidRanges'] = $cidRanges;
+        }
+
+        $fallbackKeys = $this->textOperandSourceKeys($hex, $fallbackMap);
         if ($fallbackKeys === [] || $fallbackKeys === $sourceKeys || count($fallbackKeys) <= count($sourceKeys)) {
             return [];
         }
@@ -44194,7 +44358,9 @@ final class PdfTextExtractor
     private function cidMappedSourceKeysForPartialMetricMiss(array $sourceKeys, string $hex, array $toUnicodeMap): array
     {
         $cidMap = $toUnicodeMap['cidMap'] ?? [];
-        if (!is_array($cidMap) || $cidMap === []) {
+        $cidRanges = $toUnicodeMap['cidRanges'] ?? [];
+        $hasCidMappings = (is_array($cidMap) && $cidMap !== []) || (is_array($cidRanges) && $cidRanges !== []);
+        if (!$hasCidMappings) {
             return [];
         }
 
@@ -44218,10 +44384,15 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $fallbackKeys = $this->textOperandSourceKeys($sourceKey, [
-                'map' => $cidMap,
+            $fallbackMap = [
+                'map' => is_array($cidMap) ? $cidMap : [],
                 'codeSpaceRanges' => [],
-            ]);
+            ];
+            if (is_array($cidRanges) && $cidRanges !== []) {
+                $fallbackMap['cidRanges'] = $cidRanges;
+            }
+
+            $fallbackKeys = $this->textOperandSourceKeys($sourceKey, $fallbackMap);
             if (
                 $fallbackKeys === []
                 || $fallbackKeys === [$sourceKey]
@@ -44245,7 +44416,10 @@ final class PdfTextExtractor
     private function zeroPaddedSourceKeysForFontWidths(string $hex, array $widthMap, array $toUnicodeMap): array
     {
         $mappings = $widthMap['map'] ?? [];
-        $rangeKeyLengths = $this->toUnicodeRangeKeyLengths($widthMap);
+        $rangeKeyLengths = array_merge(
+            $this->toUnicodeRangeKeyLengths($widthMap),
+            $this->cidRangeSourceKeyLengths($widthMap)
+        );
         if ((!is_array($mappings) || $mappings === []) && $rangeKeyLengths === []) {
             return [];
         }
@@ -44452,9 +44626,14 @@ final class PdfTextExtractor
     private function sourceKeysAreCidMapped(array $sourceKeys, array $toUnicodeMap): bool
     {
         $cidMap = $toUnicodeMap['cidMap'] ?? [];
-        if (!is_array($cidMap) || $cidMap === []) {
+        $cidRanges = $toUnicodeMap['cidRanges'] ?? [];
+        if (
+            (!is_array($cidMap) || $cidMap === [])
+            && (!is_array($cidRanges) || $cidRanges === [])
+        ) {
             return false;
         }
+        $cidMap = is_array($cidMap) ? $cidMap : [];
 
         foreach ($sourceKeys as $sourceKey) {
             if (
@@ -44544,6 +44723,7 @@ final class PdfTextExtractor
             ? array_values(array_unique(array_map('strlen', array_keys($mappings))))
             : [];
         array_push($keyLengths, ...$this->toUnicodeRangeKeyLengths($toUnicodeMap));
+        array_push($keyLengths, ...$this->cidRangeSourceKeyLengths($toUnicodeMap));
         $keyLengths = array_values(array_unique($keyLengths));
         rsort($keyLengths, SORT_NUMERIC);
 
@@ -45084,6 +45264,36 @@ final class PdfTextExtractor
             }
 
             $lengths[] = $range['width'];
+        }
+
+        $lengths = array_values(array_unique($lengths));
+        rsort($lengths, SORT_NUMERIC);
+
+        return $lengths;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function cidRangeSourceKeyLengths(array $sourceMap): array
+    {
+        $ranges = $sourceMap['cidRanges'] ?? [];
+        if (!is_array($ranges) || $ranges === []) {
+            return [];
+        }
+
+        $lengths = [];
+        foreach ($ranges as $range) {
+            if (!is_array($range)) {
+                continue;
+            }
+
+            $width = $range['width'] ?? null;
+            if (!is_int($width) || $width <= 0 || $width > 8) {
+                continue;
+            }
+
+            $lengths[] = $width;
         }
 
         $lengths = array_values(array_unique($lengths));

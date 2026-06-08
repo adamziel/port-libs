@@ -1839,6 +1839,70 @@ return [
         $t->same("# GZIP extra metadata\n\nReady for review.\n", $roundTrip->read('/packet/content.md'));
     },
 
+    'exposes gzip header crc provenance for archive review packets' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-header-crc","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP header CRC provenance\n\nReady for review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $extraFieldData = pack('CCv', ord('H'), ord('C'), strlen('fhcrc:v1')) . 'fhcrc:v1';
+        $filename = 'wordpress-header-crc-packet.tar';
+        $comment = 'gzip header CRC provenance';
+        $gzip = GzipStream::build($tarBytes, [
+            'filename' => $filename,
+            'comment' => $comment,
+            'extraFieldData' => $extraFieldData,
+            'headerCrc' => true,
+        ]);
+        $plainGzip = GzipStream::build($tarBytes, [
+            'filename' => 'wordpress-no-header-crc-packet.tar',
+        ]);
+
+        $headerCrcOffset = 10 + 2 + strlen($extraFieldData) + strlen($filename) + 1 + strlen($comment) + 1;
+        $expectedHeaderCrc16 = ((int) sprintf('%u', crc32(substr($gzip, 0, $headerCrcOffset)))) & 0xffff;
+        $member = GzipStream::members($gzip)[0];
+        $plainMember = GzipStream::members($plainGzip)[0];
+        $inspection = ArchiveCompressionStream::inspectTarStreamAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($archive->read('/packet/manifest.json')) + strlen($archive->read('/packet/content.md'))
+        );
+        $inspectionMember = $inspection['stream']['members'][0];
+        $tamperedHeaderCrc = substr_replace(
+            $gzip,
+            chr(ord($gzip[$headerCrcOffset]) ^ 0x01),
+            $headerCrcOffset,
+            1
+        );
+
+        $t->true($member['headerCrcPresent']);
+        $t->same($expectedHeaderCrc16, $member['headerCrc16']);
+        $t->same(sprintf('%04x', $expectedHeaderCrc16), $member['headerCrc16Hex']);
+        $t->same($headerCrcOffset, $member['headerCrcOffset']);
+        $t->same($headerCrcOffset, $member['headerCrcCoverageSize']);
+        $t->same($headerCrcOffset + 2, $member['headerSize']);
+        $t->same($member['headerCrcPresent'], $inspectionMember['headerCrcPresent']);
+        $t->same($member['headerCrc16Hex'], $inspectionMember['headerCrc16Hex']);
+        $t->same($member['headerCrcOffset'], $inspectionMember['headerCrcOffset']);
+        $t->same($member['headerCrcCoverageSize'], $inspectionMember['headerCrcCoverageSize']);
+        $t->same('HC', $inspectionMember['extraFields'][0]['identifier']);
+        $t->same('fhcrc:v1', $inspectionMember['extraFields'][0]['data']);
+        $t->same("# GZIP header CRC provenance\n\nReady for review.\n", $inspection['archive']->read('/packet/content.md'));
+        $t->same(false, $plainMember['headerCrcPresent']);
+        $t->same(null, $plainMember['headerCrc16']);
+        $t->same(null, $plainMember['headerCrc16Hex']);
+        $t->same(null, $plainMember['headerCrcOffset']);
+        $t->same(null, $plainMember['headerCrcCoverageSize']);
+        $t->throws(\RuntimeException::class, static fn (): array => GzipStream::members($tamperedHeaderCrc));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarStreamAuto($tamperedHeaderCrc, strlen($tarBytes)));
+    },
+
     'decodes gzip latin1 filename and comment text for review packet provenance' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [
@@ -2177,6 +2241,55 @@ return [
         $t->same(array_map(static fn (array $member): int => $member['memberOffset'], $directMembers), array_map(static fn (array $member): int => $member['memberOffset'], $members));
         $t->same(array_map(static fn (array $member): int => $member['trailerOffset'], $directMembers), array_map(static fn (array $member): int => $member['trailerOffset'], $members));
         $t->same('{"source":"gzip-byte-layout","target":"wordpress"}', $inspection['archive']->read('/packet/manifest.json'));
+    },
+
+    'maps gzip decoded byte ranges for split package streams' => static function (TestRunner $t): void {
+        $manifestBytes = '{"source":"gzip-decoded-byte-ranges","target":"wordpress"}';
+        $contentBytes = "# GZIP decoded byte ranges\n\nReady for stream review.\n";
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => $manifestBytes,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $contentBytes,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $firstLength = 512;
+        $secondLength = 768;
+        $thirdOffset = $firstLength + $secondLength;
+        $firstMember = GzipStream::build(substr($tarBytes, 0, $firstLength), [
+            'filename' => 'decoded-ranges-part-1.tar',
+        ]);
+        $secondMember = GzipStream::build(substr($tarBytes, $firstLength, $secondLength), [
+            'filename' => 'decoded-ranges-part-2.tar',
+        ]);
+        $thirdMember = GzipStream::build(substr($tarBytes, $thirdOffset), [
+            'filename' => 'decoded-ranges-part-3.tar',
+        ]);
+        $gzip = $firstMember . $secondMember . $thirdMember;
+
+        $inspection = ArchiveCompressionStream::inspectTarStreamAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes)
+        );
+        $members = $inspection['stream']['members'];
+        $directMembers = GzipStream::members($gzip);
+        $expectedStarts = [0, $firstLength, $thirdOffset];
+        $expectedEnds = [$firstLength, $thirdOffset, strlen($tarBytes)];
+
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same(3, $inspection['stream']['memberCount']);
+        $t->same($expectedStarts, array_map(static fn (array $member): int => $member['decodedDataOffset'], $members));
+        $t->same($expectedEnds, array_map(static fn (array $member): int => $member['decodedDataEndOffset'], $members));
+        $t->same([strlen($firstMember), strlen($secondMember), strlen($thirdMember)], array_map(static fn (array $member): int => $member['memberSize'], $members));
+        $t->same($expectedStarts, array_map(static fn (array $member): int => $member['decodedDataOffset'], $directMembers));
+        $t->same($expectedEnds, array_map(static fn (array $member): int => $member['decodedDataEndOffset'], $directMembers));
+        $t->same($tarBytes, GzipStream::decode($gzip));
+        $t->same($contentBytes, $inspection['archive']->read('/packet/content.md'));
     },
 
     'inspects tar entry byte layout for package review streams' => static function (TestRunner $t): void {

@@ -1531,6 +1531,7 @@ final class CslStyle
     {
         return [
             'citation-number',
+            'first-reference-note-number',
             'locator',
             'page',
             'page-first',

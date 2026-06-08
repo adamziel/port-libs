@@ -1208,6 +1208,11 @@ final class PdfNamedDestinationExtractor
                     continue;
                 }
 
+                if ($this->nameTreeStringValueIsMissingBeforePair($names, $index, $objects, $cache)) {
+                    $index++;
+                    continue;
+                }
+
                 if (!$this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])) {
                     $index += 2;
                     continue;
@@ -1480,6 +1485,11 @@ final class PdfNamedDestinationExtractor
                 continue;
             }
 
+            if ($this->nameTreeStringValueIsMissingBeforePair($items, $index, $objects, $cache)) {
+                $index++;
+                continue;
+            }
+
             if ($this->nameTreeNameWithinLimits($name['text'], $limits, $name['bytes'])) {
                 return true;
             }
@@ -1487,6 +1497,27 @@ final class PdfNamedDestinationExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function nameTreeStringValueIsMissingBeforePair(array $items, int $index, array $objects, array &$cache): bool
+    {
+        $valueIndex = $index + 1;
+        $nextIndex = $valueIndex + 1;
+        if (!array_key_exists($valueIndex, $items) || !array_key_exists($nextIndex, $items)) {
+            return false;
+        }
+
+        $valueName = $this->destinationNameDetails($items[$valueIndex], $objects, $cache);
+        if ($valueName === null || $valueName['text'] === '') {
+            return false;
+        }
+
+        return $this->destinationNameDetails($items[$nextIndex], $objects, $cache) === null;
     }
 
     /**

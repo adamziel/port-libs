@@ -396,6 +396,26 @@ return [
         $t->contains('<msubsup><mo>∫</mo><mn>0</mn><mn>1</mn></msubsup><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mi>d</mi><mi>x</mi><mo>+</mo><msub><mo>∑</mo><mi>j</mi></msub><msub><mi>a</mi><mi>j</mi></msub>', $nolimitsMathml);
         $t->contains('<annotation encoding="application/x-tex">\\int\\nolimits_{0}^{1} f(x) dx + \\sum\\nolimits_{j} a_j</annotation>', $nolimitsMathml);
     },
+    'converts bounded tex sideset operator scripts to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $sidesetMathml = $converter->texToMathMl('\\sideset{_a^b}{_c^d}\\sum_{i=1}^{n} x_i + \\sideset{_{L}}{}\\prod q', true);
+        $primeMathml = $converter->texToMathMl('\\sideset{}{\\prime}\\sum + \\sideset{}{\\prime\\prime}\\prod');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\sideset{_a^b}{_c^d}\\sum');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $sidesetMathml);
+        $t->contains('<msubsup><mmultiscripts><mo>∑</mo><mi>c</mi><mi>d</mi><mprescripts/><mi>a</mi><mi>b</mi></mmultiscripts><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup><msub><mi>x</mi><mi>i</mi></msub>', $sidesetMathml);
+        $t->contains('<mmultiscripts><mo>∏</mo><mprescripts/><mi>L</mi><none/></mmultiscripts><mi>q</mi>', $sidesetMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\sideset{_a^b}{_c^d}\\sum_{i=1}^{n} x_i + \\sideset{_{L}}{}\\prod q</annotation>', $sidesetMathml);
+        $t->contains('<mmultiscripts><mo>∑</mo><none/><mo>′</mo></mmultiscripts><mo>+</mo><mmultiscripts><mo>∏</mo><none/><mo>″</mo></mmultiscripts>', $primeMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\sideset{}{\\prime}\\sum + \\sideset{}{\\prime\\prime}\\prod</annotation>', $primeMathml);
+        $t->contains('alttext="sum post-sub c post-sup d pre-sub a pre-sup b"', $accessibleMathml);
+        $t->contains('intent="multiscripts(sum,postsub(c),postsup(d),presub(a),presup(b))"', $accessibleMathml);
+        $t->true(!str_contains($sidesetMathml, '<mi>\\sideset</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sideset{_a^b}\\sum'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sideset{_a}{_b}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sideset{a}{_b}\\sum'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sideset{_a_a}{_b}\\sum'));
+    },
     'converts bounded tex starred operator names and displaylimits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $starredMathml = $converter->texToMathMl('\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname*{limsup}^{n} a_n', true);

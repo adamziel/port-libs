@@ -44,6 +44,8 @@ final class PdfEmbeddedFileExtractor
 
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
 
+    private const ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS = ['AF'];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -127,7 +129,12 @@ final class PdfEmbeddedFileExtractor
             }
         }
 
-        $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files, $portfolioMetadata, $catalogPieceInfo, $encryptionPolicy);
+        if (
+            !$this->dictionaryHasDuplicateKeys($catalog, self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+            && !$this->dictionaryHasTrailingOperandsAfterKeys($catalog, self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+        ) {
+            $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files, $portfolioMetadata, $catalogPieceInfo, $encryptionPolicy);
+        }
         $this->collectPageAssociatedFiles($this->dictionaryRawValue($catalog, 'Pages'), $objects, $files, $encryptionPolicy);
 
         return $this->dedupeEmbeddedFiles($files);
@@ -545,6 +552,13 @@ final class PdfEmbeddedFileExtractor
 
         $entries = [];
         foreach ($pages as $pageIndex => $page) {
+            if (
+                $this->dictionaryHasDuplicateKeys($page['body'], self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+                || $this->dictionaryHasTrailingOperandsAfterKeys($page['body'], self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+            ) {
+                continue;
+            }
+
             $associatedFilesValue = $this->dictionaryRawValue($page['body'], 'AF');
             if ($associatedFilesValue === null) {
                 continue;
@@ -6607,6 +6621,10 @@ final class PdfEmbeddedFileExtractor
 
         $dictionary = $match[1];
         $stream = $match[2];
+        if ($this->streamDictionaryHasExtraFilterOperands($dictionary)) {
+            return null;
+        }
+
         $lengthValue = $this->dictionaryRawValue($dictionary, 'Length');
         if ($this->objectReferenceFromValue($lengthValue) !== null) {
             $declaredLength = $this->dictionaryIntegerValue($dictionary, 'Length', $objects);
@@ -7846,6 +7864,82 @@ final class PdfEmbeddedFileExtractor
         }
 
         return false;
+    }
+
+    private function streamDictionaryHasExtraFilterOperands(string $dictionary): bool
+    {
+        for ($offset = 0, $length = strlen($dictionary); $offset < $length;) {
+            $offset = $this->skipWhitespace($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($dictionary[$offset] ?? '') !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $remaining = substr($dictionary, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $name = $this->decodePdfName($match[1]);
+            $value = $this->readPdfValueAt($dictionary, $offset + strlen($match[0]));
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $offset = $value['end'];
+            if ($name !== 'Filter') {
+                continue;
+            }
+
+            $probe = $this->skipWhitespace($dictionary, $offset);
+            if (($dictionary[$probe] ?? '') !== '/') {
+                continue;
+            }
+
+            $next = substr($dictionary, $probe);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $next, $nextMatch) !== 1) {
+                continue;
+            }
+
+            if ($this->streamFilterNameLooksLikeDecoder($this->decodePdfName($nextMatch[1]))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function streamFilterNameLooksLikeDecoder(string $name): bool
+    {
+        return in_array(
+            $name,
+            [
+                'ASCIIHexDecode',
+                'AHx',
+                'ASCII85Decode',
+                'A85',
+                'LZWDecode',
+                'LZW',
+                'FlateDecode',
+                'Fl',
+                'RunLengthDecode',
+                'RL',
+                'CCITTFaxDecode',
+                'CCF',
+                'DCTDecode',
+                'DCT',
+                'JPXDecode',
+                'JBIG2Decode',
+                'Crypt',
+            ],
+            true
+        );
     }
 
     /**

@@ -2049,7 +2049,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>}
+     * @return array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, firstNoteById:array<string, int>, lastNoteById:array<string, array{index:int, type:string}>}
      */
     private function emptyCitationPositionState(): array
     {
@@ -2057,12 +2057,13 @@ final class CitationCslProcessor
             'seenIds' => [],
             'previousUnit' => null,
             'noteCounter' => 0,
+            'firstNoteById' => [],
             'lastNoteById' => [],
         ];
     }
 
     /**
-     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>} $state
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, firstNoteById:array<string, int>, lastNoteById:array<string, array{index:int, type:string}>} $state
      */
     private function annotateCitationPositions(AstNode $node, array &$state, ?array $noteContext = null): AstNode
     {
@@ -2113,7 +2114,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>} $state
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, firstNoteById:array<string, int>, lastNoteById:array<string, array{index:int, type:string}>} $state
      * @param array<string, mixed>|null $previousInUnit
      * @return array{AstNode, array<string, mixed>}
      */
@@ -2130,19 +2131,40 @@ final class CitationCslProcessor
         if (is_int($info['noteIndex'])) {
             $attrs['cslNoteIndex'] = $info['noteIndex'];
             $attrs['cslNoteType'] = $info['noteType'];
+            if ($info['id'] !== '' && !array_key_exists('cslFirstReferenceNoteNumber', $attrs)) {
+                $attrs['cslFirstReferenceNoteNumber'] = $this->firstReferenceNoteNumberForInfo($info, $state);
+            }
         }
 
         $annotated = new AstNode('citation', $attrs, $citation->children);
 
         if ($info['id'] !== '') {
             $state['seenIds'][$info['id']] = true;
+            if (is_int($info['noteIndex']) && !isset($state['firstNoteById'][$info['id']])) {
+                $state['firstNoteById'][$info['id']] = (int) $info['noteIndex'];
+            }
         }
 
         return [$annotated, $info];
     }
 
     /**
-     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>} $state
+     * @param array<string, mixed> $info
+     * @param array{firstNoteById:array<string, int>} $state
+     */
+    private function firstReferenceNoteNumberForInfo(array $info, array $state): int
+    {
+        $id = (string) ($info['id'] ?? '');
+        $noteIndex = $info['noteIndex'] ?? null;
+        if ($id === '' || !is_int($noteIndex)) {
+            return 0;
+        }
+
+        return $state['firstNoteById'][$id] ?? (int) $noteIndex;
+    }
+
+    /**
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, firstNoteById:array<string, int>, lastNoteById:array<string, array{index:int, type:string}>} $state
      * @param list<array<string, mixed>> $unit
      */
     private function recordCitationPositionUnit(array &$state, array $unit): void
@@ -2159,6 +2181,10 @@ final class CitationCslProcessor
         foreach ($known as $info) {
             if (!is_int($info['noteIndex'] ?? null)) {
                 continue;
+            }
+
+            if (!isset($state['firstNoteById'][(string) $info['id']])) {
+                $state['firstNoteById'][(string) $info['id']] = (int) $info['noteIndex'];
             }
 
             $state['lastNoteById'][(string) $info['id']] = [
@@ -2194,7 +2220,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, lastNoteById:array<string, array{index:int, type:string}>} $state
+     * @param array{seenIds:array<string, bool>, previousUnit:array{single:bool, first:array<string, mixed>|null}|null, noteCounter:int, firstNoteById:array<string, int>, lastNoteById:array<string, array{index:int, type:string}>} $state
      * @return array{index:int, type:string}
      */
     private function citationNoteContext(AstNode $note, array &$state): array
@@ -6124,6 +6150,7 @@ final class CitationCslProcessor
         return match ($normalized) {
             'locator' => $this->formatCslLocatorRanges($this->citationLocatorParts($citation)['value']),
             'citation-number' => $this->citationNumberValue($item, $citation),
+            'first-reference-note-number' => $this->firstReferenceNoteNumberValue($citation),
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
             'citation-aliases', 'citation-alias' => implode(', ', is_array($item['citationAliases'] ?? null) ? $item['citationAliases'] : []),
@@ -6395,6 +6422,26 @@ final class CitationCslProcessor
         return $this->citationNumberForId((string) ($item['id'] ?? ''));
     }
 
+    private function firstReferenceNoteNumberValue(?AstNode $citation): string
+    {
+        if (!$citation instanceof AstNode) {
+            return '';
+        }
+
+        foreach (['cslFirstReferenceNoteNumber', 'firstReferenceNoteNumber'] as $attribute) {
+            $value = $citation->attr($attribute, '');
+            if (is_int($value) && $value >= 1) {
+                return (string) $value;
+            }
+
+            if (is_string($value) && preg_match('/^\d+$/', trim($value)) === 1 && (int) $value >= 1) {
+                return (string) ((int) $value);
+            }
+        }
+
+        return '';
+    }
+
     /**
      * @param array<string, mixed> $item
      */
@@ -6411,6 +6458,10 @@ final class CitationCslProcessor
 
         if ($normalized === 'citation-number') {
             return $this->citationNumberValue($item, $citation) !== '';
+        }
+
+        if ($normalized === 'first-reference-note-number') {
+            return $this->firstReferenceNoteNumberValue($citation) !== '';
         }
 
         if ($normalized === 'year-suffix') {

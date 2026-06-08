@@ -1621,6 +1621,79 @@ $xrefPrevChainLatestInfoNullPdf = static function (): string {
     return $pdf;
 };
 
+$xrefPrevChainSparseLatestCurrentInfoNullPdf = static function (): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale sparse Info null Prev page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current sparse Info null page) Tj T* (Current Info null carried through sparse latest) Tj ET';
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber . ':' . $generation . ':' . count($offsets)] = $offset;
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+    $xrefStreamRow = static fn (int $type, int $fieldTwo, int $fieldThree): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+
+    $staleCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) >>');
+    $stalePagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $stalePageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $staleContentOffset = $addObject(4, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+    $fontOffset = $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $staleInfoOffset = $addObject(6, 0, '<< /Title (Stale Sparse Info Null Title) /Author (Stale Sparse Info Author) /Producer (Stale Sparse Info Producer) /ImportStage (stale-prev) >>');
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 7\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($staleCatalogOffset)
+        . $xrefTableRow($stalePagesOffset)
+        . $xrefTableRow($stalePageOffset)
+        . $xrefTableRow($staleContentOffset)
+        . $xrefTableRow($fontOffset)
+        . $xrefTableRow($staleInfoOffset)
+        . "trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $currentCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /ViewerPreferences << /DisplayDocTitle true >> >>');
+    $currentPagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $currentPageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $currentContentOffset = $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+
+    $currentRows = ''
+        . $xrefStreamRow(1, $currentCatalogOffset, 0)
+        . $xrefStreamRow(1, $currentPagesOffset, 0)
+        . $xrefStreamRow(1, $currentPageOffset, 0)
+        . $xrefStreamRow(1, $currentContentOffset, 0)
+        . $xrefStreamRow(1, $fontOffset, 0);
+    $compressedCurrentRows = gzcompress($currentRows);
+    if (!is_string($compressedCurrentRows)) {
+        throw new RuntimeException('Unable to compress sparse latest Info-null middle xref-stream fixture.');
+    }
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "20 0 obj\n"
+        . '<< /Type /XRef /Size 21 /Root 1 0 R /Info null /Prev ' . $previousXrefOffset . ' /Index [1 5] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedCurrentRows) . " >>\n"
+        . "stream\n{$compressedCurrentRows}\nendstream\nendobj\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF\n";
+
+    $latestXrefOffset = strlen($pdf);
+    $latestRows = $xrefStreamRow(1, $latestXrefOffset, 0);
+    $compressedLatestRows = gzcompress($latestRows);
+    if (!is_string($compressedLatestRows)) {
+        throw new RuntimeException('Unable to compress sparse latest Info-null xref-stream fixture.');
+    }
+
+    $pdf .= "30 0 obj\n"
+        . '<< /Type /XRef /Size 31 /Prev ' . $currentXrefOffset . ' /Index [30 1] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedLatestRows) . " >>\n"
+        . "stream\n{$compressedLatestRows}\nendstream\nendobj\n"
+        . "startxref\n{$latestXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 $xrefPrevChainLatestFreeRowsSuppressPrevPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
     $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale latest free row Prev page) Tj ET';
     $currentContent = 'BT /F1 12 Tf 72 720 Td (Current latest free row page) Tj T* (Latest free rows suppress Prev) Tj ET';
@@ -3002,6 +3075,35 @@ return [
         $t->true(is_string($encodedOutline) && !str_contains($encodedOutline, 'Stale Info Null'));
         $t->true(is_string($encodedOutline) && !str_contains($encodedOutline, 'Stale Info null Prev page'));
         $t->same(['Current Info null page', 'Previous Info cleared'], (new PdfTextExtractor())->extractTextLines($pdf));
+    },
+    'carries current Info null through a sparse latest xref-stream before stale classic Info fallback' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainSparseLatestCurrentInfoNullPdf): void {
+        $pdf = $xrefPrevChainSparseLatestCurrentInfoNullPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $extractor = new PdfTextExtractor();
+        $outline = $extractor->extractOutlineMetadata($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedOutline = json_encode($outline, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['Current sparse Info null page', 'Current Info null carried through sparse latest'], $extractor->extractTextLines($pdf));
+        $t->same("Current sparse Info null page\nCurrent Info null carried through sparse latest", $text);
+        $t->same(['catalog'], $metadata['source']);
+        $t->same([], $metadata['info']);
+        $t->same([], $outline['document_info']);
+        $t->same('en-US', $metadata['language']);
+        $t->same(true, $metadata['viewer_preferences']['display_doc_title'] ?? null);
+        $t->true(str_contains($pdf, '/Info null'));
+        $t->true(str_contains($pdf, '/Prev '));
+        $t->true(str_contains($pdf, '/Index [30 1]'));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Sparse Info'));
+        $t->true(is_string($encodedOutline) && !str_contains($encodedOutline, 'Stale Sparse Info'));
+        $t->true(!isset($metadata['title']));
+        $t->true(!isset($metadata['authors']));
+        $t->true(!isset($metadata['producer']));
+        $t->true(!str_contains($text, 'Stale sparse Info null Prev page'));
+        $t->true(!str_contains($text, "\0"));
     },
     'suppresses previous metadata text and attachments when latest xref-stream rows free those objects' => static function (
         TestRunner $t
