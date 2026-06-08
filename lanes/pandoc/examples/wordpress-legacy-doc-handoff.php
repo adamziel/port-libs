@@ -647,6 +647,9 @@ $secondPieceText = "\rReview\v"
     . ' '
     . $fieldBegin . ' MERGEFIELD Name ' . $fieldSeparator . 'Ada' . $fieldEnd
     . ' '
+    . $fieldBegin . ' DATA "C:\Data\legacy-mailmerge.csv" "C:\Data\legacy-header.doc" \m \* MERGEFORMAT '
+    . $fieldSeparator . 'merge data source' . $fieldEnd
+    . ' '
     . $fieldBegin . ' DOCVARIABLE Batch ' . $fieldSeparator . '42' . $fieldEnd
     . ' '
     . $fieldBegin . ' SYMBOL 183 \f "Symbol" \s 12 \u ' . $fieldSeparator . '·' . $fieldEnd
@@ -788,6 +791,7 @@ $fieldTypeCodes = [
     'FILLIN' => 0x27,
     'FORMTEXT' => 0x46,
     'MERGEFIELD' => 0x3b,
+    'DATA' => 0x28,
     'DOCVARIABLE' => 0x40,
     'SYMBOL' => 0x39,
     'INCLUDEPICTURE' => 0x43,
@@ -1726,6 +1730,22 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['mailMergeDataSource'] ?? '') !== 'C:\Data\legacy-mailmerge.csv' || ($summary['metadata']['mailMergeHeaderDocument'] ?? '') !== 'C:\Data\legacy-header.doc') {
         throw new RuntimeException('Legacy DOC handoff self-test missing mail-merge associated paths');
     }
+    foreach ([
+        'data-legacy-doc-mail-merge-field-type="data-source-redirect"',
+        'data-legacy-doc-mail-merge-data-source-basename="legacy-mailmerge.csv"',
+        'data-legacy-doc-mail-merge-header-document-basename="legacy-header.doc"',
+        'data-legacy-doc-mail-merge-associated-data-source-index="8"',
+        'data-legacy-doc-mail-merge-header-document-index="9"',
+        'data-legacy-doc-mail-merge-switch-m="true"',
+    ] as $expectedAttribute) {
+        if (!str_contains($summary['wordpressBlocks'], $expectedAttribute)) {
+            throw new RuntimeException('Legacy DOC handoff self-test missing DATA mail-merge attribute: ' . $expectedAttribute);
+        }
+    }
+    $visibleBlocks = strip_tags($summary['wordpressBlocks']);
+    if (!str_contains($visibleBlocks, 'merge data source') || str_contains($visibleBlocks, 'DATA') || str_contains($visibleBlocks, 'legacy-mailmerge.csv') || str_contains($visibleBlocks, 'legacy-header.doc')) {
+        throw new RuntimeException('Legacy DOC handoff self-test exposed DATA mail-merge source text');
+    }
     if (($summary['metadata']['hasWriteReservationPassword'] ?? null) !== true || ($summary['metadata']['writeReservationPasswordCharacterCount'] ?? null) !== 11) {
         throw new RuntimeException('Legacy DOC handoff self-test missing redacted write-reservation password metadata');
     }
@@ -2357,7 +2377,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['fieldCharacterCount'] ?? null) !== $totalFieldRecordCount || count($summary['fieldCharacters'] ?? []) !== $totalFieldRecordCount) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field-character inventory');
     }
-    if (($summary['metadata']['fieldCount'] ?? null) !== 22 || count($summary['fields'] ?? []) !== 22) {
+    if (($summary['metadata']['fieldCount'] ?? null) !== 23 || count($summary['fields'] ?? []) !== 23) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field range inventory');
     }
     if (($summary['metadata']['fields'] ?? []) !== ($summary['fields'] ?? [])) {
@@ -2369,7 +2389,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_column($summary['fieldStories'] ?? [], 'story') !== ['main', 'header', 'endnote', 'textbox', 'header-textbox'] || array_column($summary['fieldStories'] ?? [], 'table') !== ['PlcfldMom', 'PlcfldHdr', 'PlcfldEdn', 'PlcfldTxbx', 'PlcfldHdrTxbx']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld story table mapping');
     }
-    if (array_column($summary['fieldStories'] ?? [], 'fieldCount') !== [18, 1, 1, 1, 1] || array_column($summary['fieldStories'] ?? [], 'fieldCharacterCount') !== [count($fieldRecords), count($headerFieldRecords), count($endnoteFieldRecords), count($textboxFieldRecords), count($headerTextboxFieldRecords)]) {
+    if (array_column($summary['fieldStories'] ?? [], 'fieldCount') !== [19, 1, 1, 1, 1] || array_column($summary['fieldStories'] ?? [], 'fieldCharacterCount') !== [count($fieldRecords), count($headerFieldRecords), count($endnoteFieldRecords), count($textboxFieldRecords), count($headerTextboxFieldRecords)]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld story field counts');
     }
     if (array_column($summary['fieldStories'] ?? [], 'characterCount') !== [$totalPieceCharacters, $headerSubdocumentCharacters, $endnoteSubdocumentCharacters, $textboxSubdocumentCharacters, $headerTextboxSubdocumentCharacters]) {
@@ -2385,6 +2405,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'fillin',
         'formtext',
         'mergefield',
+        'data',
         'docvariable',
         'symbol',
         'includepicture',
@@ -2475,49 +2496,52 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['fields'][8]['typeCode'] ?? null) !== 0x3b || ($summary['fields'][8]['type'] ?? '') !== 'mergefield') {
         throw new RuntimeException('Legacy DOC handoff self-test missing MERGEFIELD Plcfld metadata');
     }
-    if (($summary['fields'][9]['typeCode'] ?? null) !== 0x40 || ($summary['fields'][9]['type'] ?? '') !== 'docvariable') {
+    if (($summary['fields'][9]['typeCode'] ?? null) !== 0x28 || ($summary['fields'][9]['type'] ?? '') !== 'data') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DATA Plcfld metadata');
+    }
+    if (($summary['fields'][10]['typeCode'] ?? null) !== 0x40 || ($summary['fields'][10]['type'] ?? '') !== 'docvariable') {
         throw new RuntimeException('Legacy DOC handoff self-test missing DOCVARIABLE Plcfld metadata');
     }
-    if (($summary['fields'][11]['typeCode'] ?? null) !== 0x43 || ($summary['fields'][11]['type'] ?? '') !== 'includepicture') {
+    if (($summary['fields'][12]['typeCode'] ?? null) !== 0x43 || ($summary['fields'][12]['type'] ?? '') !== 'includepicture') {
         throw new RuntimeException('Legacy DOC handoff self-test missing INCLUDEPICTURE Plcfld metadata');
     }
-    if (($summary['fields'][12]['typeCode'] ?? null) !== 0x44 || ($summary['fields'][12]['type'] ?? '') !== 'includetext') {
+    if (($summary['fields'][13]['typeCode'] ?? null) !== 0x44 || ($summary['fields'][13]['type'] ?? '') !== 'includetext') {
         throw new RuntimeException('Legacy DOC handoff self-test missing INCLUDETEXT Plcfld metadata');
     }
-    if (($summary['fields'][13]['typeCode'] ?? null) !== 0x33 || ($summary['fields'][13]['type'] ?? '') !== 'macrobutton') {
+    if (($summary['fields'][14]['typeCode'] ?? null) !== 0x33 || ($summary['fields'][14]['type'] ?? '') !== 'macrobutton') {
         throw new RuntimeException('Legacy DOC handoff self-test missing MACROBUTTON Plcfld metadata');
     }
-    if (($summary['fields'][14]['typeCode'] ?? null) !== 0x32 || ($summary['fields'][14]['type'] ?? '') !== 'gotobutton') {
+    if (($summary['fields'][15]['typeCode'] ?? null) !== 0x32 || ($summary['fields'][15]['type'] ?? '') !== 'gotobutton') {
         throw new RuntimeException('Legacy DOC handoff self-test missing GOTOBUTTON Plcfld metadata');
     }
-    if (($summary['fields'][15]['typeCode'] ?? null) !== 0x35 || ($summary['fields'][15]['type'] ?? '') !== 'autonumlgl') {
+    if (($summary['fields'][16]['typeCode'] ?? null) !== 0x35 || ($summary['fields'][16]['type'] ?? '') !== 'autonumlgl') {
         throw new RuntimeException('Legacy DOC handoff self-test missing AUTONUMLGL Plcfld metadata');
     }
-    if (($summary['fields'][16]['typeCode'] ?? null) !== 0x21
-        || ($summary['fields'][16]['type'] ?? '') !== 'page'
-        || ($summary['fields'][16]['nestingLevel'] ?? null) !== 1
-        || ($summary['fields'][16]['endFlags'] ?? null) !== 0xd4
-        || ($summary['fields'][16]['nested'] ?? null) !== true
+    if (($summary['fields'][17]['typeCode'] ?? null) !== 0x21
+        || ($summary['fields'][17]['type'] ?? '') !== 'page'
+        || ($summary['fields'][17]['nestingLevel'] ?? null) !== 1
+        || ($summary['fields'][17]['endFlags'] ?? null) !== 0xd4
+        || ($summary['fields'][17]['nested'] ?? null) !== true
     ) {
         throw new RuntimeException('Legacy DOC handoff self-test missing nested PAGE Plcfld metadata');
     }
-    if (($summary['fields'][17]['typeCode'] ?? null) !== 0x58
-        || ($summary['fields'][17]['type'] ?? '') !== 'hyperlink'
-        || ($summary['fields'][17]['nestingLevel'] ?? null) !== 0
-        || ($summary['fields'][17]['nested'] ?? null) !== false
+    if (($summary['fields'][18]['typeCode'] ?? null) !== 0x58
+        || ($summary['fields'][18]['type'] ?? '') !== 'hyperlink'
+        || ($summary['fields'][18]['nestingLevel'] ?? null) !== 0
+        || ($summary['fields'][18]['nested'] ?? null) !== false
     ) {
         throw new RuntimeException('Legacy DOC handoff self-test missing outer nested HYPERLINK Plcfld metadata');
     }
-    if (($summary['fields'][18]['story'] ?? '') !== 'header' || ($summary['fields'][18]['typeCode'] ?? null) !== 0x1f || ($summary['fields'][18]['type'] ?? '') !== 'date') {
+    if (($summary['fields'][19]['story'] ?? '') !== 'header' || ($summary['fields'][19]['typeCode'] ?? null) !== 0x1f || ($summary['fields'][19]['type'] ?? '') !== 'date') {
         throw new RuntimeException('Legacy DOC handoff self-test missing header Plcfld DATE metadata');
     }
-    if (($summary['fields'][19]['story'] ?? '') !== 'endnote' || ($summary['fields'][19]['typeCode'] ?? null) !== 0x05 || ($summary['fields'][19]['type'] ?? '') !== 'noteref') {
+    if (($summary['fields'][20]['story'] ?? '') !== 'endnote' || ($summary['fields'][20]['typeCode'] ?? null) !== 0x05 || ($summary['fields'][20]['type'] ?? '') !== 'noteref') {
         throw new RuntimeException('Legacy DOC handoff self-test missing endnote Plcfld NOTEREF metadata');
     }
-    if (($summary['fields'][20]['story'] ?? '') !== 'textbox' || ($summary['fields'][20]['typeCode'] ?? null) !== 0x21 || ($summary['fields'][20]['type'] ?? '') !== 'page') {
+    if (($summary['fields'][21]['story'] ?? '') !== 'textbox' || ($summary['fields'][21]['typeCode'] ?? null) !== 0x21 || ($summary['fields'][21]['type'] ?? '') !== 'page') {
         throw new RuntimeException('Legacy DOC handoff self-test missing textbox Plcfld PAGE metadata');
     }
-    if (($summary['fields'][21]['story'] ?? '') !== 'header-textbox' || ($summary['fields'][21]['typeCode'] ?? null) !== 0x03 || ($summary['fields'][21]['type'] ?? '') !== 'ref') {
+    if (($summary['fields'][22]['story'] ?? '') !== 'header-textbox' || ($summary['fields'][22]['typeCode'] ?? null) !== 0x03 || ($summary['fields'][22]['type'] ?? '') !== 'ref') {
         throw new RuntimeException('Legacy DOC handoff self-test missing header textbox Plcfld REF metadata');
     }
     foreach ([
@@ -2575,8 +2599,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($blocks, 'Document_Open') || str_contains($blocks, 'ImportPacket')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered macro module payload bytes');
     }
-    foreach (['review-lock', 'legacy-mailmerge.csv', 'legacy-header.doc'] as $hiddenAssociatedString) {
-        if (str_contains($blocks, $hiddenAssociatedString)) {
+    if (str_contains($blocks, 'review-lock')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered associated metadata string: review-lock');
+    }
+    $visibleBlocks = strip_tags($blocks);
+    foreach (['legacy-mailmerge.csv', 'legacy-header.doc'] as $hiddenAssociatedString) {
+        if (str_contains($visibleBlocks, $hiddenAssociatedString)) {
             throw new RuntimeException('Legacy DOC handoff self-test rendered associated metadata string: ' . $hiddenAssociatedString);
         }
     }

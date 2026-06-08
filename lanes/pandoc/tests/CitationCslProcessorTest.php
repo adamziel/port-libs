@@ -17435,6 +17435,80 @@ XML);
         $t->contains('<dt>Ng 2025</dt><dd>Section Range Review :: secs. third-fifth</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>Named Section Notice :: sec. metro review</dd>', $blocks);
     },
+    'renders bounded csl source variables for bibliography provenance' => static function (TestRunner $t): void {
+        $items = [
+            [
+                'id' => 'source-provenance',
+                'type' => 'report',
+                'title' => 'Source Provenance Review',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'source' => 'Legacy Drupal export batch 42',
+            ],
+            [
+                'id' => 'source-journal',
+                'type' => 'article-journal',
+                'title' => 'Imported Extract',
+                'container-title' => 'Migration Review',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'source' => 'Internet Archive snapshot',
+            ],
+        ];
+
+        $processor = CitationCslProcessor::fromItems($items)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Source Provenance Review</title>
+    <id>https://example.test/styles/bounded-source-provenance-review</id>
+    <updated>2026-06-08T23:09:38+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="source"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="source"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('source', $citationChildren[1]['variable'] ?? null);
+        $t->same('source', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('Legacy Drupal export batch 42', $processor->item('source-provenance')['source'] ?? null);
+
+        $t->same('(Smith | Legacy Drupal export batch 42; Ng | Internet Archive snapshot)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'source-provenance', 'text' => '[@source-provenance]']),
+            new AstNode('citation', ['id' => 'source-journal', 'text' => '[@source-journal]']),
+        ]));
+        $t->same('Source Provenance Review :: Legacy Drupal export batch 42', $processor->renderBibliographyEntry('source-provenance'));
+        $t->same('Imported Extract :: Internet Archive snapshot', $processor->renderBibliographyEntry('source-journal'));
+
+        $defaultProcessor = CitationCslProcessor::fromItems($items);
+        $t->same('Smith, Ada. Source Provenance Review. 2026. Source: Legacy Drupal export batch 42.', $defaultProcessor->renderBibliographyEntry('source-provenance'));
+        $t->same('Ng, Nia. Imported Extract. Migration Review. 2025. Source: Internet Archive snapshot.', $defaultProcessor->renderBibliographyEntry('source-journal'));
+
+        $document = (new MarkdownReader())->read('Source provenance [@source-provenance; @source-journal] stays visible.');
+        $blocks = (new WordPressBlockWriter())->write($defaultProcessor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Source provenance (Smith 2026; Ng 2025) stays visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Source Provenance Review. 2026. Source: Legacy Drupal export batch 42.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Imported Extract. Migration Review. 2025. Source: Internet Archive snapshot.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

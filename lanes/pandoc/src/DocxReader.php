@@ -2569,10 +2569,262 @@ final class DocxReader
             }
         }
 
-        return [
+        $attrs = [
             'classes' => ['docx-textbox', 'docx-drawing-textbox'],
             'attributes' => $attributes,
         ];
+
+        $attrs = $this->mergeNodeMetadataAttrs(
+            $attrs,
+            $this->drawingGeometryAttrs($this->drawingContainerForElement($content, $drawing))
+        );
+
+        return $this->mergeNodeMetadataAttrs(
+            $attrs,
+            $this->drawingTextboxShapeMetadataAttrs($content, $drawing)
+        );
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>}
+     */
+    private function drawingTextboxShapeMetadataAttrs(\DOMElement $content, \DOMElement $drawing): array
+    {
+        $shape = $this->drawingWordprocessingShapeForElement($content, $drawing);
+        if (!$shape instanceof \DOMElement) {
+            return [];
+        }
+
+        $classes = ['docx-drawing-shape'];
+        $attributes = [];
+
+        $nonVisual = $this->firstChildElement($shape, self::WORDPROCESSING_SHAPE_NS, 'cNvSpPr');
+        if ($nonVisual instanceof \DOMElement) {
+            $textBox = $this->normalizedOnOffAttribute($nonVisual, 'txBox');
+            if ($textBox !== null) {
+                $attributes['data-docx-shape-textbox'] = $textBox;
+                if ($textBox === 'true') {
+                    $classes[] = 'docx-shape-textbox';
+                }
+            }
+        }
+
+        $shapeProperties = $this->firstChildElement($shape, self::WORDPROCESSING_SHAPE_NS, 'spPr');
+        $presetClass = null;
+        if ($shapeProperties instanceof \DOMElement) {
+            $transform = $this->firstChildElement($shapeProperties, self::DRAWINGML_MAIN_NS, 'xfrm');
+            if ($transform instanceof \DOMElement) {
+                $hasTransform = false;
+                $flipHorizontal = false;
+                $flipVertical = false;
+
+                $rotation = trim($transform->getAttribute('rot'));
+                if ($rotation !== '') {
+                    $attributes['data-docx-shape-rotation'] = $rotation;
+                    $hasTransform = true;
+                }
+
+                $flip = $this->normalizedOnOffAttribute($transform, 'flipH');
+                if ($flip !== null) {
+                    $attributes['data-docx-shape-flip-horizontal'] = $flip;
+                    $hasTransform = true;
+                    $flipHorizontal = $flip === 'true';
+                }
+
+                $flip = $this->normalizedOnOffAttribute($transform, 'flipV');
+                if ($flip !== null) {
+                    $attributes['data-docx-shape-flip-vertical'] = $flip;
+                    $hasTransform = true;
+                    $flipVertical = $flip === 'true';
+                }
+
+                $offset = $this->firstChildElement($transform, self::DRAWINGML_MAIN_NS, 'off');
+                if ($offset instanceof \DOMElement) {
+                    foreach ([
+                        'x' => 'data-docx-shape-offset-x-emu',
+                        'y' => 'data-docx-shape-offset-y-emu',
+                    ] as $source => $target) {
+                        $value = trim($offset->getAttribute($source));
+                        if ($value !== '') {
+                            $attributes[$target] = $value;
+                            $hasTransform = true;
+                        }
+                    }
+                }
+
+                $extent = $this->firstChildElement($transform, self::DRAWINGML_MAIN_NS, 'ext');
+                if ($extent instanceof \DOMElement) {
+                    foreach ([
+                        'cx' => 'data-docx-shape-width-emu',
+                        'cy' => 'data-docx-shape-height-emu',
+                    ] as $source => $target) {
+                        $value = trim($extent->getAttribute($source));
+                        if ($value !== '') {
+                            $attributes[$target] = $value;
+                            $hasTransform = true;
+                        }
+                    }
+                }
+
+                if ($hasTransform) {
+                    $classes[] = 'docx-shape-transform';
+                    if ($flipHorizontal) {
+                        $classes[] = 'docx-shape-flip-horizontal';
+                    }
+                    if ($flipVertical) {
+                        $classes[] = 'docx-shape-flip-vertical';
+                    }
+                }
+            }
+
+            $presetGeometry = $this->firstChildElement($shapeProperties, self::DRAWINGML_MAIN_NS, 'prstGeom');
+            if ($presetGeometry instanceof \DOMElement) {
+                $preset = trim($presetGeometry->getAttribute('prst'));
+                if ($preset !== '') {
+                    $attributes['data-docx-shape-preset'] = $preset;
+                    $suffix = $this->metadataClassSuffix($preset);
+                    if ($suffix !== null) {
+                        $presetClass = 'docx-shape-preset-' . $suffix;
+                    }
+                }
+            }
+        }
+
+        if ($presetClass !== null) {
+            $classes[] = $presetClass;
+        }
+
+        $this->appendDrawingTextboxBodyPropertyAttrs($shape, $classes, $attributes);
+
+        if ($classes === ['docx-drawing-shape'] && $attributes === []) {
+            return [];
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendDrawingTextboxBodyPropertyAttrs(\DOMElement $shape, array &$classes, array &$attributes): void
+    {
+        $bodyProperties = $this->firstChildElement($shape, self::WORDPROCESSING_SHAPE_NS, 'bodyPr')
+            ?? $this->firstChildElement($shape, self::DRAWINGML_MAIN_NS, 'bodyPr');
+        if (!$bodyProperties instanceof \DOMElement) {
+            return;
+        }
+
+        $bodyClasses = [];
+        $hasBodyMetadata = false;
+        foreach ([
+            'anchor' => 'data-docx-textbox-anchor',
+            'wrap' => 'data-docx-textbox-wrap',
+            'vert' => 'data-docx-textbox-vertical',
+            'numCol' => 'data-docx-textbox-column-count',
+            'spcCol' => 'data-docx-textbox-column-spacing-emu',
+            'lIns' => 'data-docx-textbox-inset-left-emu',
+            'tIns' => 'data-docx-textbox-inset-top-emu',
+            'rIns' => 'data-docx-textbox-inset-right-emu',
+            'bIns' => 'data-docx-textbox-inset-bottom-emu',
+        ] as $source => $target) {
+            $value = trim($bodyProperties->getAttribute($source));
+            if ($value === '') {
+                continue;
+            }
+
+            $attributes[$target] = $value;
+            $hasBodyMetadata = true;
+            if (in_array($source, ['anchor', 'wrap', 'vert'], true)) {
+                $suffix = $this->metadataClassSuffix($value);
+                if ($suffix !== null) {
+                    $bodyClasses[] = match ($source) {
+                        'anchor' => 'docx-textbox-anchor-' . $suffix,
+                        'wrap' => 'docx-textbox-wrap-' . $suffix,
+                        default => 'docx-textbox-vertical-' . $suffix,
+                    };
+                }
+            }
+        }
+
+        foreach ([
+            'anchorCtr' => 'data-docx-textbox-anchor-center',
+            'upright' => 'data-docx-textbox-upright',
+            'rtlCol' => 'data-docx-textbox-rtl-columns',
+        ] as $source => $target) {
+            $value = $this->normalizedOnOffAttribute($bodyProperties, $source);
+            if ($value !== null) {
+                $attributes[$target] = $value;
+                $hasBodyMetadata = true;
+            }
+        }
+
+        $autofit = $this->drawingTextboxAutofitValue($bodyProperties);
+        if ($autofit !== null) {
+            $attributes['data-docx-textbox-autofit'] = $autofit;
+            $bodyClasses[] = 'docx-textbox-autofit-' . $autofit;
+            $hasBodyMetadata = true;
+        }
+
+        if ($hasBodyMetadata) {
+            $classes[] = 'docx-textbox-body-properties';
+            array_push($classes, ...$bodyClasses);
+        }
+    }
+
+    private function drawingTextboxAutofitValue(\DOMElement $bodyProperties): ?string
+    {
+        foreach ($bodyProperties->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAWINGML_MAIN_NS) {
+                continue;
+            }
+
+            if ($child->localName === 'noAutofit') {
+                return 'none';
+            }
+            if ($child->localName === 'normAutofit') {
+                return 'normal';
+            }
+            if ($child->localName === 'spAutoFit') {
+                return 'shape';
+            }
+        }
+
+        return null;
+    }
+
+    private function drawingWordprocessingShapeForElement(\DOMElement $element, \DOMElement $drawing): ?\DOMElement
+    {
+        $node = $element->parentNode;
+        while ($node instanceof \DOMElement) {
+            if ($node->namespaceURI === self::WORDPROCESSING_SHAPE_NS && $node->localName === 'wsp') {
+                return $node;
+            }
+            if ($node === $drawing) {
+                break;
+            }
+            $node = $node->parentNode;
+        }
+
+        return null;
+    }
+
+    private function normalizedOnOffAttribute(\DOMElement $element, string $name): ?string
+    {
+        $value = trim($element->getAttribute($name));
+        if ($value === '') {
+            return null;
+        }
+
+        $onOff = $this->onOffStringValue($value);
+        if ($onOff === null) {
+            return $value;
+        }
+
+        return $onOff ? 'true' : 'false';
     }
 
     private function vmlShapeForTextbox(\DOMElement $textbox, \DOMElement $pict): ?\DOMElement

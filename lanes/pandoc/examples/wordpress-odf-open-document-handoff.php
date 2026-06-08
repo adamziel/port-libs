@@ -29,6 +29,7 @@ $manifestXml = <<<'XML'
   <manifest:file-entry manifest:full-path="Object%202/oleObject.bin" manifest:media-type="application/vnd.openxmlformats-officedocument.oleObject" manifest:size="10"/>
   <manifest:file-entry manifest:full-path="Object%203/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>
   <manifest:file-entry manifest:full-path="Object%203/content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/review-bullet.svg" manifest:media-type="image/svg+xml"/>
 </manifest:manifest>
 XML;
 
@@ -38,6 +39,8 @@ $stylesXml = <<<'XML'
   xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
   xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
   xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
   xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
   <office:automatic-styles>
     <style:page-layout style:name="pmReview" style:page-usage="all">
@@ -82,6 +85,13 @@ $stylesXml = <<<'XML'
     <text:list-style style:name="ReviewSteps">
       <text:list-level-style-number text:level="1" style:num-format="1" style:num-prefix="(" style:num-suffix=")" text:start-value="1"/>
       <text:list-level-style-number text:level="2" style:num-format="a" style:num-suffix=")" text:start-value="4"/>
+    </text:list-style>
+    <text:list-style style:name="GraphicReviewBullets">
+      <text:list-level-style-image text:level="1" xlink:href="Pictures/review-bullet.svg" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad" xlink:title="Review badge" svg:width="0.18in" svg:height="0.18in">
+        <style:list-level-properties text:min-label-width="0.28in" text:list-level-position-and-space-mode="label-alignment">
+          <style:list-level-label-alignment text:label-followed-by="listtab" text:list-tab-stop-position="0.35in" fo:text-indent="-0.2in" fo:margin-left="0.45in"/>
+        </style:list-level-properties>
+      </text:list-level-style-image>
     </text:list-style>
     <table:table-template
       table:name="ReviewTemplate"
@@ -263,6 +273,9 @@ $contentXml = <<<'XML'
       <text:list text:style-name="ReviewSteps" text:continue-numbering="true" text:continue-list="review-checklist">
         <text:list-item><text:p>Publish continued review checklist</text:p></text:list-item>
       </text:list>
+      <text:list text:style-name="GraphicReviewBullets">
+        <text:list-item><text:p>Review image bullet metadata</text:p></text:list-item>
+      </text:list>
       <draw:frame draw:name="Source hero" draw:style-name="HeroFrame" draw:layer="review-media" text:anchor-type="paragraph" text:anchor-page-number="2" svg:x="1.2cm" svg:y="2.4cm" svg:width="6cm" svg:height="3.5cm" draw:z-index="5">
         <draw:image xlink:href="../Pictures/source%20hero.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad">
           <svg:title>Source hero</svg:title>
@@ -391,6 +404,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'Object 2/oleObject.bin', 'data' => 'OLEPAYLOAD'],
     ['name' => 'Object 3/content.xml', 'data' => $chartObjectXml],
     ['name' => 'Pictures/source hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+    ['name' => 'Pictures/review-bullet.svg', 'data' => '<svg/>', 'compressionMethod' => 0],
 ]);
 
 $reader = new OdfReader();
@@ -845,6 +859,16 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<ol start="3" data-odf-list-continue-list="review-checklist" data-odf-list-continued="true"><li>Publish continued review checklist</li></ol>')) {
         throw new RuntimeException('Expected ODT named continued list metadata to survive WordPress blocks');
+    }
+    if (($result['importReport']['content']['imageListStyleCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT image list style metadata to be counted in the import report');
+    }
+    if (!str_contains($blocks, '<ul data-odf-list-image-style="true" data-odf-list-image-href="Pictures/review-bullet.svg" data-odf-list-image-type="simple" data-odf-list-image-show="embed" data-odf-list-image-actuate="onLoad" data-odf-list-image-title="Review badge" data-odf-list-image-width="0.18in" data-odf-list-image-height="0.18in"')) {
+        throw new RuntimeException('Expected ODT image list style metadata to survive WordPress blocks');
+    }
+    if (!str_contains($blocks, 'data-odf-list-label-label-followed-by="listtab"')
+        || !str_contains($blocks, '<li>Review image bullet metadata</li></ul>')) {
+        throw new RuntimeException('Expected ODT image list alignment metadata to survive WordPress blocks');
     }
     if (!str_contains($blocks, '<ol start="4" type="a"><li>Check inherited nested checklist style')) {
         throw new RuntimeException('Expected ODT nested lists without explicit style names to inherit parent list style');

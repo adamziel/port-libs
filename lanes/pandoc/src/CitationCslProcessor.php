@@ -604,6 +604,11 @@ final class CitationCslProcessor
             $parts[] = $part;
         }
 
+        $source = trim((string) ($item['source'] ?? ''));
+        if ($source !== '') {
+            $parts[] = 'Source: ' . rtrim($source, '.') . '.';
+        }
+
         foreach ($this->relatedBibliographyParts($item) as $part) {
             $parts[] = $part;
         }
@@ -932,6 +937,7 @@ final class CitationCslProcessor
         return [
             'id' => $id,
             'type' => self::stringField($item, 'type'),
+            'source' => self::firstStringField($item, ['source', 'source-title', 'sourceTitle']),
             'citationAliases' => $citationAliases,
             'citationAliasSummary' => implode('; ', $citationAliases),
             'citationLabel' => self::firstStringField($item, ['citation-label', 'citationLabel', 'shorthand', 'label']),
@@ -4266,6 +4272,7 @@ final class CitationCslProcessor
             'event', 'event-title' => $this->normalizeSortText((string) $item['eventTitle']),
             'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
             'publisher' => $this->normalizeSortText((string) $item['publisher']),
+            'source' => $this->normalizeSortText((string) ($item['source'] ?? '')),
             'type' => $this->normalizeSortText((string) $item['type']),
             'citation-number' => sprintf('%08d', (int) $this->primaryCitationNumberForId((string) ($item['id'] ?? ''))),
             'id' => $this->normalizeSortText((string) $item['id']),
@@ -7782,6 +7789,7 @@ final class CitationCslProcessor
             'first-reference-note-number' => $this->firstReferenceNoteNumberValue($citation),
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
+            'source' => (string) ($item['source'] ?? ''),
             'citation-aliases', 'citation-alias' => implode(', ', is_array($item['citationAliases'] ?? null) ? $item['citationAliases'] : []),
             'citation-alias-summary', 'citation-aliases-summary' => (string) ($item['citationAliasSummary'] ?? ''),
             'citation-label' => (string) $item['citationLabel'],

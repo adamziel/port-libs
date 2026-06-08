@@ -232,12 +232,16 @@ final class SyntaxHighlighter
         'objectivec' => 'objectivec',
         'objectivecpp' => 'objectivec',
         'perl' => 'perl',
+        'perl6' => 'raku',
         'pl' => 'perl',
+        'pl6' => 'raku',
         'pgsql' => 'sql',
         'plpgsql' => 'sql',
         'pm' => 'perl',
+        'pm6' => 'raku',
         'posh' => 'powershell',
         'powershell' => 'powershell',
+        'p6' => 'raku',
         'php' => 'php',
         'postgres' => 'sql',
         'postgresql' => 'sql',
@@ -258,6 +262,10 @@ final class SyntaxHighlighter
         'rss' => 'xml',
         'r-script' => 'r',
         'rscript' => 'r',
+        'raku' => 'raku',
+        'rakudoc' => 'raku',
+        'rakumod' => 'raku',
+        'rakutest' => 'raku',
         'rake' => 'ruby',
         'rb' => 'ruby',
         'rest' => 'rst',
@@ -786,6 +794,7 @@ final class SyntaxHighlighter
             'powershell' => $this->tokenizePowerShell($code),
             'python' => $this->tokenizePython($code),
             'r' => $this->tokenizeR($code),
+            'raku' => $this->tokenizeRaku($code),
             'ruby' => $this->tokenizeRuby($code),
             'rst' => $this->tokenizeRest($code),
             'rust' => $this->tokenizeRust($code),
@@ -2912,6 +2921,34 @@ final class SyntaxHighlighter
             ['variable', '/^[A-Za-z_.][A-Za-z0-9_.]*/'],
             ['attribute', '/^(?:<<-|<-|->>|->|=(?!(?:=|>))|:=)/'],
             ['operator', '/^(?:\\*\\*|<=|>=|==|=>|!=|\\|>|\\|\\||&&|:::|::|%[^%\\s]+%|[{}()[\\],;+*\\/<>!|&:^@$~.-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeRaku(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^=(?:begin|for|head\\d|item|end)\\b[^\\n]*(?:\\n(?!=(?:end|begin|for|head\\d|item)\\b)[^\\n]*)*/'],
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^q[qxw]?(?:\\{(?:\\\\.|[^}\\\\])*\\}|\\[(?:\\\\.|[^\\]\\\\])*\\]|\\((?:\\\\.|[^)\\\\])*\\)|<(?:\\\\.|[^>\\\\])*>|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\')/s'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['string', '/^(?:rx|m|s)\\s*([#\\/|])(?:\\\\.|(?!\\1)[^\\n])*\\1(?:[A-Za-z]*)/'],
+            ['string', '/^\\/(?:\\\\.|[^\\/\\\\\\n])+\\//'],
+            ['attribute', '/^:[!?]?[A-Za-z_][A-Za-z0-9_-]*/'],
+            ['attribute', '/^\\b[A-Za-z_][A-Za-z0-9_-]*(?=\\s*=>)/'],
+            ['variable', '/^[\\$@%&](?:[.!?*])?(?:[A-Za-z_][A-Za-z0-9_-]*|[\\/_!])/'],
+            ['keyword', '/^\\b(?:also|augment|but|class|constant|default|does|else|elsif|enum|export|for|gather|given|grammar|has|if|import|is|last|loop|method|module|multi|my|need|next|of|only|our|proto|redo|repeat|require|return|role|rule|state|sub|subset|take|token|trusts|try|unit|unless|until|use|when|where|while|with|without)\\b/'],
+            ['constant', '/^\\b(?:Any|False|Mu|Nil|True|self)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*(?=\\s*(?:[({.:;,]|-->|\\b))/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f_]+|0[bB][01_]+|\\d+(?:_\\d+)*(?:\\.\\d+(?:_\\d+)*)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['operator', '/^\\b(?:and|cmp|div|eq|ge|gt|le|lt|mod|ne|or|x|xx|xor)\\b/'],
+            ['function', '/^\\b(?:dd|die|note|put|say|slurp|spurt)(?=$|[^A-Za-z0-9_-])/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_-]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
+            ['operator', '/^(?:-->|=>|~~|!~~|\\.\\.\\^?|\\.\\^|::|\\+\\+|--|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
         ]);
     }
 

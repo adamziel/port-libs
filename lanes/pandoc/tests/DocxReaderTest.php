@@ -2596,11 +2596,23 @@ $drawingTextBoxDocumentXml = <<<'XML'
       <w:r><w:t xml:space="preserve">Before DrawingML textbox </w:t></w:r>
       <w:r>
         <w:drawing>
-          <wp:inline>
+          <wp:inline distL="91440" distR="91440">
+            <wp:extent cx="1440000" cy="720000"/>
             <wp:docPr id="51" name="Drawing textbox" descr="Drawing textbox review note" title="Drawing textbox title"/>
             <a:graphic>
               <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
                 <wps:wsp>
+                  <wps:cNvSpPr txBox="1"/>
+                  <wps:spPr>
+                    <a:xfrm rot="2700000" flipV="1">
+                      <a:off x="12000" y="24000"/>
+                      <a:ext cx="1440000" cy="720000"/>
+                    </a:xfrm>
+                    <a:prstGeom prst="roundRect"/>
+                  </wps:spPr>
+                  <wps:bodyPr anchor="ctr" anchorCtr="1" wrap="square" vert="horz" upright="1" rtlCol="0" numCol="2" spcCol="45720" lIns="91440" tIns="45720" rIns="91440" bIns="45720">
+                    <a:noAutofit/>
+                  </wps:bodyPr>
                   <wps:txbx>
                     <w:txbxContent>
                       <w:p><w:r><w:t>DrawingML textbox heading</w:t></w:r></w:p>
@@ -7803,12 +7815,54 @@ return [
 
         $textbox = $document->children[1];
         $t->same('div', $textbox->type);
-        $t->same(['docx-textbox', 'docx-drawing-textbox'], $textbox->attr('classes'));
-        $t->same('drawingml', $textbox->attr('attributes')['data-docx-textbox-kind'] ?? null);
-        $t->same('51', $textbox->attr('attributes')['data-docx-docpr-id'] ?? null);
-        $t->same('Drawing textbox', $textbox->attr('attributes')['data-docx-docpr-name'] ?? null);
-        $t->same('Drawing textbox review note', $textbox->attr('attributes')['data-docx-docpr-description'] ?? null);
-        $t->same('Drawing textbox title', $textbox->attr('attributes')['data-docx-docpr-title'] ?? null);
+        $t->same([
+            'docx-textbox',
+            'docx-drawing-textbox',
+            'docx-drawing-geometry',
+            'docx-drawing-inline',
+            'docx-drawing-shape',
+            'docx-shape-textbox',
+            'docx-shape-transform',
+            'docx-shape-flip-vertical',
+            'docx-shape-preset-roundrect',
+            'docx-textbox-body-properties',
+            'docx-textbox-anchor-ctr',
+            'docx-textbox-wrap-square',
+            'docx-textbox-vertical-horz',
+            'docx-textbox-autofit-none',
+        ], $textbox->attr('classes'));
+        $attrs = $textbox->attr('attributes');
+        $t->same('drawingml', $attrs['data-docx-textbox-kind'] ?? null);
+        $t->same('51', $attrs['data-docx-docpr-id'] ?? null);
+        $t->same('Drawing textbox', $attrs['data-docx-docpr-name'] ?? null);
+        $t->same('Drawing textbox review note', $attrs['data-docx-docpr-description'] ?? null);
+        $t->same('Drawing textbox title', $attrs['data-docx-docpr-title'] ?? null);
+        $t->same('inline', $attrs['data-docx-drawing-placement'] ?? null);
+        $t->same('1440000', $attrs['data-docx-width-emu'] ?? null);
+        $t->same('720000', $attrs['data-docx-height-emu'] ?? null);
+        $t->same('91440', $attrs['data-docx-distance-left-emu'] ?? null);
+        $t->same('91440', $attrs['data-docx-distance-right-emu'] ?? null);
+        $t->same('true', $attrs['data-docx-shape-textbox'] ?? null);
+        $t->same('roundRect', $attrs['data-docx-shape-preset'] ?? null);
+        $t->same('2700000', $attrs['data-docx-shape-rotation'] ?? null);
+        $t->same('true', $attrs['data-docx-shape-flip-vertical'] ?? null);
+        $t->same('12000', $attrs['data-docx-shape-offset-x-emu'] ?? null);
+        $t->same('24000', $attrs['data-docx-shape-offset-y-emu'] ?? null);
+        $t->same('1440000', $attrs['data-docx-shape-width-emu'] ?? null);
+        $t->same('720000', $attrs['data-docx-shape-height-emu'] ?? null);
+        $t->same('ctr', $attrs['data-docx-textbox-anchor'] ?? null);
+        $t->same('true', $attrs['data-docx-textbox-anchor-center'] ?? null);
+        $t->same('square', $attrs['data-docx-textbox-wrap'] ?? null);
+        $t->same('horz', $attrs['data-docx-textbox-vertical'] ?? null);
+        $t->same('true', $attrs['data-docx-textbox-upright'] ?? null);
+        $t->same('false', $attrs['data-docx-textbox-rtl-columns'] ?? null);
+        $t->same('2', $attrs['data-docx-textbox-column-count'] ?? null);
+        $t->same('45720', $attrs['data-docx-textbox-column-spacing-emu'] ?? null);
+        $t->same('91440', $attrs['data-docx-textbox-inset-left-emu'] ?? null);
+        $t->same('45720', $attrs['data-docx-textbox-inset-top-emu'] ?? null);
+        $t->same('91440', $attrs['data-docx-textbox-inset-right-emu'] ?? null);
+        $t->same('45720', $attrs['data-docx-textbox-inset-bottom-emu'] ?? null);
+        $t->same('none', $attrs['data-docx-textbox-autofit'] ?? null);
         $t->same(2, count($textbox->children));
         $t->same('DrawingML textbox heading', $textbox->children[0]->children[0]->attr('text'));
 
@@ -7820,12 +7874,15 @@ return [
 
         $t->same(' after DrawingML textbox.', $document->children[2]->children[0]->attr('text'));
 
-        $t->contains("Before DrawingML textbox \n\n::: {.docx-textbox .docx-drawing-textbox", $markdown);
+        $t->contains("Before DrawingML textbox \n\n::: {.docx-textbox .docx-drawing-textbox .docx-drawing-geometry .docx-drawing-inline", $markdown);
         $t->contains("DrawingML textbox heading\n\n|", $markdown);
-        $t->contains('::: {.docx-textbox .docx-drawing-textbox data-docx-textbox-kind="drawingml" data-docx-docpr-id="51" data-docx-docpr-name="Drawing textbox"', $markdown);
+        $t->contains('data-docx-shape-preset="roundRect"', $markdown);
+        $t->contains('data-docx-textbox-autofit="none"', $markdown);
         $t->contains('| Reviewer field | DrawingML note |', $markdown);
         $t->contains('<p>Before DrawingML textbox </p>', $blocks);
-        $t->contains('<div class="docx-textbox docx-drawing-textbox" data-docx-textbox-kind="drawingml" data-docx-docpr-id="51" data-docx-docpr-name="Drawing textbox" data-docx-docpr-description="Drawing textbox review note" data-docx-docpr-title="Drawing textbox title">', $blocks);
+        $t->contains('<div class="docx-textbox docx-drawing-textbox docx-drawing-geometry docx-drawing-inline docx-drawing-shape docx-shape-textbox docx-shape-transform docx-shape-flip-vertical docx-shape-preset-roundrect docx-textbox-body-properties docx-textbox-anchor-ctr docx-textbox-wrap-square docx-textbox-vertical-horz docx-textbox-autofit-none"', $blocks);
+        $t->contains('data-docx-shape-preset="roundRect"', $blocks);
+        $t->contains('data-docx-textbox-autofit="none"', $blocks);
         $t->contains('<p>DrawingML textbox heading</p>', $blocks);
         $t->contains('<table><tbody><tr><td><p>Reviewer field</p></td><td><p>DrawingML note</p></td></tr></tbody></table>', $blocks);
         $t->contains('<p> after DrawingML textbox.</p>', $blocks);

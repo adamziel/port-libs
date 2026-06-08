@@ -385,11 +385,23 @@ XML],
       </w:r>
       <w:r>
         <w:drawing>
-          <wp:inline>
+          <wp:inline distL="91440" distR="91440">
+            <wp:extent cx="1200000" cy="480000"/>
             <wp:docPr id="81" name="Source DrawingML textbox" descr="Drawing textbox source note" title="Source callout"/>
             <a:graphic>
               <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
                 <wps:wsp>
+                  <wps:cNvSpPr txBox="1"/>
+                  <wps:spPr>
+                    <a:xfrm rot="900000">
+                      <a:off x="6000" y="12000"/>
+                      <a:ext cx="1200000" cy="480000"/>
+                    </a:xfrm>
+                    <a:prstGeom prst="rect"/>
+                  </wps:spPr>
+                  <wps:bodyPr anchor="ctr" wrap="square" lIns="91440" tIns="45720" rIns="91440" bIns="45720">
+                    <a:noAutofit/>
+                  </wps:bodyPr>
                   <wps:txbx>
                     <w:txbxContent>
                       <w:p><w:r><w:t>Source DrawingML textbox note.</w:t></w:r></w:p>
@@ -1333,7 +1345,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Source textbox note from VML shape.</p>',
         '<div class="docx-textbox docx-vml-textbox docx-vml-rect" data-docx-textbox-kind="vml" data-docx-shape-kind="rect" data-docx-shape-id="_x0000_s43" data-docx-shape-style="width:180pt;height:36pt" data-docx-textbox-inset="3pt,3pt,3pt,3pt"><p>Fallback textbox reminder.</p></div>',
         '<p>Fallback textbox reminder.</p>',
-        '<div class="docx-textbox docx-drawing-textbox" data-docx-textbox-kind="drawingml" data-docx-docpr-id="81" data-docx-docpr-name="Source DrawingML textbox" data-docx-docpr-description="Drawing textbox source note" data-docx-docpr-title="Source callout"><p>Source DrawingML textbox note.</p></div>',
+        '<div class="docx-textbox docx-drawing-textbox docx-drawing-geometry docx-drawing-inline docx-drawing-shape docx-shape-textbox docx-shape-transform docx-shape-preset-rect docx-textbox-body-properties docx-textbox-anchor-ctr docx-textbox-wrap-square docx-textbox-autofit-none" data-docx-textbox-kind="drawingml" data-docx-docpr-id="81" data-docx-docpr-name="Source DrawingML textbox" data-docx-docpr-description="Drawing textbox source note" data-docx-docpr-title="Source callout" data-docx-drawing-placement="inline" data-docx-distance-left-emu="91440" data-docx-distance-right-emu="91440" data-docx-width-emu="1200000" data-docx-height-emu="480000" data-docx-shape-textbox="true" data-docx-shape-rotation="900000" data-docx-shape-offset-x-emu="6000" data-docx-shape-offset-y-emu="12000" data-docx-shape-width-emu="1200000" data-docx-shape-height-emu="480000" data-docx-shape-preset="rect" data-docx-textbox-anchor="ctr" data-docx-textbox-wrap="square" data-docx-textbox-inset-left-emu="91440" data-docx-textbox-inset-top-emu="45720" data-docx-textbox-inset-right-emu="91440" data-docx-textbox-inset-bottom-emu="45720" data-docx-textbox-autofit="none"><p>Source DrawingML textbox note.</p></div>',
         '<p>Source DrawingML textbox note.</p>',
         '<p> textbox tail.</p>',
         '<p>Cross paragraph comment <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">starts here</span></p>',

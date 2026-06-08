@@ -1673,6 +1673,31 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color[]{red}{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color[HTML]{336699}'));
     },
+    'converts bounded tex colorbox and fcolorbox commands to mathml metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $backgroundMathml = $converter->texToMathMl('\\colorbox{yellow}{p_i + m_i} + \\colorbox[HTML]{fff9cc}{\\operatorname{media}}', true);
+        $framedMathml = $converter->texToMathMl('\\fcolorbox{red}{yellow}{p_i} + \\fcolorbox[RGB]{51,102,153}{255,249,204}{\\frac{a}{b}}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\fcolorbox{red}{yellow}{x_i}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $backgroundMathml);
+        $t->contains('<mstyle mathbackground="yellow"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mstyle>', $backgroundMathml);
+        $t->contains('<mstyle mathbackground="#fff9cc"><mi>media</mi></mstyle>', $backgroundMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\colorbox{yellow}{p_i + m_i} + \\colorbox[HTML]{fff9cc}{\\operatorname{media}}</annotation>', $backgroundMathml);
+        $t->contains('<menclose notation="box" mathbackground="yellow" data-tex-framecolor="red"><msub><mi>p</mi><mi>i</mi></msub></menclose>', $framedMathml);
+        $t->contains('<menclose notation="box" mathbackground="#fff9cc" data-tex-framecolor="#336699"><mfrac><mi>a</mi><mi>b</mi></mfrac></menclose>', $framedMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\fcolorbox{red}{yellow}{p_i} + \\fcolorbox[RGB]{51,102,153}{255,249,204}{\\frac{a}{b}}</annotation>', $framedMathml);
+        $t->contains('alttext="enclosed x sub i"', $accessibleMathml);
+        $t->contains('intent="enclose(subscript(x,i))"', $accessibleMathml);
+        $t->true(!str_contains($backgroundMathml . $framedMathml, '<mi>\\colorbox</mi>'));
+        $t->true(!str_contains($backgroundMathml . $framedMathml, '<mi>\\fcolorbox</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\colorbox{yellow}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\colorbox{}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\colorbox{yellow}{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\fcolorbox{red}{yellow}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\fcolorbox{red}{}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\fcolorbox[HTML]{336699}{fff9}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\fcolorbox[RGB]{51,102,153}[rgb]{1,1,1}{x}'));
+    },
     'converts bounded tex boxed expressions to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $boxedMathml = $converter->texToMathMl('\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j', true);
@@ -1773,6 +1798,8 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color{url(javascript:bad)}{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color{red}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textcolor{red}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\colorbox_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\fcolorbox{red}{yellow}_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\phantom'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\phantom{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hphantom_1'));

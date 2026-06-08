@@ -2048,6 +2048,102 @@ XML;
         $t->contains('<ol data-odf-list-id="unrelated-list" data-odf-list-id-attribute="text:id"><li>Unrelated inserted checklist</li></ol>', $blocksHtml);
         $t->contains('<ol start="3" data-odf-list-continue-list="review-list-a" data-odf-list-continued="true"><li>Third source step</li></ol>', $blocksHtml);
     },
+    'preserves ODT image list style metadata for WordPress review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $stylesWithImageList = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <text:list-style style:name="GraphicReviewBullets">
+      <text:list-level-style-image text:level="1" xlink:href="Pictures/review-bullet.svg" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad" xlink:title="Review badge" svg:width="0.18in" svg:height="0.18in">
+        <style:list-level-properties text:min-label-width="0.28in" text:space-before="0.05in" text:list-level-position-and-space-mode="label-alignment">
+          <style:list-level-label-alignment text:label-followed-by="listtab" text:list-tab-stop-position="0.35in" fo:text-indent="-0.2in" fo:margin-left="0.45in"/>
+        </style:list-level-properties>
+      </text:list-level-style-image>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithImageList = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:list text:style-name="GraphicReviewBullets">
+        <text:list-item><text:p>Review packet with graphic bullet</text:p></text:list-item>
+        <text:list-item><text:p>Second graphic bullet item</text:p></text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $manifestWithImageList = str_replace(
+            '</manifest:manifest>',
+            '<manifest:file-entry manifest:full-path="Pictures/review-bullet.svg" manifest:media-type="image/svg+xml"/></manifest:manifest>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithImageList, $manifestWithImageList, $stylesWithImageList, null, [
+            ['name' => 'Pictures/review-bullet.svg', 'data' => '<svg/>', 'compressionMethod' => 0],
+        ]));
+        $levels = $result['listStyles']['GraphicReviewBullets']['levels'];
+        $level = $levels[1];
+        $list = $result['document']->children[0];
+        $imageMetadata = $list->attr('listImageMetadata');
+        $levelProperties = $list->attr('listLevelProperties');
+        $htmlAttributes = $list->attr('htmlAttributes');
+
+        $t->same('image', $level['type']);
+        $t->same('Pictures/review-bullet.svg', $level['image']['href']);
+        $t->same('simple', $level['image']['type']);
+        $t->same('embed', $level['image']['show']);
+        $t->same('onLoad', $level['image']['actuate']);
+        $t->same('Review badge', $level['image']['title']);
+        $t->same('0.18in', $level['image']['width']);
+        $t->same('0.18in', $level['image']['height']);
+        $t->same('0.28in', $level['levelProperties']['minLabelWidth']);
+        $t->same('0.05in', $level['levelProperties']['spaceBefore']);
+        $t->same('label-alignment', $level['levelProperties']['positionAndSpaceMode']);
+        $t->same('listtab', $level['levelProperties']['labelAlignment']['labelFollowedBy']);
+        $t->same('0.35in', $level['levelProperties']['labelAlignment']['listTabStopPosition']);
+        $t->same('-0.2in', $level['levelProperties']['labelAlignment']['textIndent']);
+        $t->same('0.45in', $level['levelProperties']['labelAlignment']['marginLeft']);
+
+        $t->same('bullet_list', $list->type);
+        $t->same('image', $list->attr('format'));
+        $t->same(true, $list->attr('listImageStyle'));
+        $t->same('Pictures/review-bullet.svg', $imageMetadata['href']);
+        $t->same('Review badge', $imageMetadata['title']);
+        $t->same('0.28in', $levelProperties['minLabelWidth']);
+        $t->same('listtab', $levelProperties['labelAlignment']['labelFollowedBy']);
+        $t->same('Pictures/review-bullet.svg', $htmlAttributes['data-odf-list-image-href']);
+        $t->same('Review badge', $htmlAttributes['data-odf-list-image-title']);
+        $t->same('0.18in', $htmlAttributes['data-odf-list-image-width']);
+        $t->same('0.18in', $htmlAttributes['data-odf-list-image-height']);
+        $t->same('0.28in', $htmlAttributes['data-odf-list-level-min-label-width']);
+        $t->same('listtab', $htmlAttributes['data-odf-list-label-label-followed-by']);
+        $t->same('0.35in', $htmlAttributes['data-odf-list-label-list-tab-stop-position']);
+        $t->same(1, $result['importReport']['content']['imageListStyleCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $t->contains('- Review packet with graphic bullet', $markdown);
+        $t->contains('<ul data-odf-list-image-style="true" data-odf-list-image-href="Pictures/review-bullet.svg" data-odf-list-image-type="simple" data-odf-list-image-show="embed" data-odf-list-image-actuate="onLoad" data-odf-list-image-title="Review badge" data-odf-list-image-width="0.18in" data-odf-list-image-height="0.18in"', $blocksHtml);
+        $t->contains('data-odf-list-level-min-label-width="0.28in"', $blocksHtml);
+        $t->contains('data-odf-list-label-label-followed-by="listtab"', $blocksHtml);
+        $t->contains('<li>Second graphic bullet item</li>', $blocksHtml);
+        $t->same('image/svg+xml', $manifestByPath['Pictures/review-bullet.svg']['mediaType']);
+        $t->same(true, $manifestByPath['Pictures/review-bullet.svg']['exists']);
+    },
     'honors explicit ODT list start values before continued numbering' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithExplicitStartLists = <<<'XML'
 <office:document-styles

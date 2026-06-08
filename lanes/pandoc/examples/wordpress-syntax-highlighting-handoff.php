@@ -472,6 +472,12 @@ if (!$objectiveCCodeBlock instanceof PortLibs\Pandoc\AstNode || $objectiveCCodeB
 }
 $objectiveC = $highlighter->highlightCodeBlock($objectiveCCodeBlock, 'haddock');
 $objectiveCWordpressBlock = $highlighter->wordpressHtmlBlock($objectiveCCodeBlock, 'haddock');
+$rakuCodeBlock = $document->children[75] ?? null;
+if (!$rakuCodeBlock instanceof PortLibs\Pandoc\AstNode || $rakuCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Raku review code block');
+}
+$raku = $highlighter->highlightCodeBlock($rakuCodeBlock, 'breezedark');
+$rakuWordpressBlock = $highlighter->wordpressHtmlBlock($rakuCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2060,6 +2066,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($objectiveCWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
         throw new RuntimeException('Expected Objective-C WordPress style metadata');
     }
+    if (($raku['language'] ?? '') !== 'raku') {
+        throw new RuntimeException('Expected Raku language alias handoff');
+    }
+    if (($raku['lineNumbering']['start'] ?? null) !== 1160) {
+        throw new RuntimeException('Expected Raku source startFrom line-number handoff');
+    }
+    if (!str_contains($raku['html'], '<span class="kw">unit</span> <span class="kw">module</span> <span class="dt">WP::Import::Review</span>')) {
+        throw new RuntimeException('Expected Raku module token handoff');
+    }
+    if (!str_contains($raku['html'], '<span class="kw">sub</span> <span class="fu">normalize-title</span>')) {
+        throw new RuntimeException('Expected Raku sub token handoff');
+    }
+    if (!str_contains($raku['html'], '<span class="va">$title</span><span class="op">.</span><span class="fu">subst</span>')) {
+        throw new RuntimeException('Expected Raku method and regex token handoff');
+    }
+    if (!str_contains($rakuWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected Raku WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2154,6 +2178,7 @@ echo "schemeHighlightedHtml:\n" . $scheme['html'] . "\n";
 echo "csvHighlightedHtml:\n" . $csv['html'] . "\n";
 echo "erlangHighlightedHtml:\n" . $erlang['html'] . "\n";
 echo "objectiveCHighlightedHtml:\n" . $objectiveC['html'] . "\n";
+echo "rakuHighlightedHtml:\n" . $raku['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2219,4 +2244,5 @@ echo "schemeWordpressBlock:\n" . $schemeWordpressBlock . "\n";
 echo "csvWordpressBlock:\n" . $csvWordpressBlock . "\n";
 echo "erlangWordpressBlock:\n" . $erlangWordpressBlock . "\n";
 echo "objectiveCWordpressBlock:\n" . $objectiveCWordpressBlock . "\n";
+echo "rakuWordpressBlock:\n" . $rakuWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

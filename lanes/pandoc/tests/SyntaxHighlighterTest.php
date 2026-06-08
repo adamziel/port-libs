@@ -236,6 +236,11 @@ return [
         $t->same('r', SyntaxHighlighter::normalizeLanguage('Rscript'));
         $t->same('r', SyntaxHighlighter::normalizeLanguage('S'));
         $t->same('r', SyntaxHighlighter::normalizeLanguage('language-q'));
+        $t->same('raku', SyntaxHighlighter::normalizeLanguage('raku'));
+        $t->same('raku', SyntaxHighlighter::normalizeLanguage('perl6'));
+        $t->same('raku', SyntaxHighlighter::normalizeLanguage('pl6'));
+        $t->same('raku', SyntaxHighlighter::normalizeLanguage('rakumod'));
+        $t->same('raku', SyntaxHighlighter::normalizeLanguage('language-rakutest'));
         $t->same('typescript', SyntaxHighlighter::normalizeLanguage('ts'));
         $t->same('typescript', SyntaxHighlighter::normalizeLanguage('typescript'));
         $t->same('tsx', SyntaxHighlighter::normalizeLanguage('tsx'));
@@ -3631,6 +3636,60 @@ return [
         $t->same('objective-c++', $directObjectiveC['requestedLanguage']);
         $t->contains('<span class="kw">@interface</span> <span class="dt">Review</span> <span class="op">:</span> <span class="dt">NSObject</span>', $directObjectiveC['html']);
         $t->contains('<span class="kw">@property</span> <span class="op">(</span><span class="kw">nonatomic</span><span class="op">,</span> <span class="kw">copy</span><span class="op">)</span> <span class="dt">NSString</span> <span class="op">*</span><span class="va">title</span><span class="op">;</span>', $directObjectiveC['html']);
+    },
+    'highlights raku review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[75] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Raku review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directRaku = $highlighter->highlight(
+            'unit module Review; sub normalize(Str $title --> Str) is export { say $title.trim }',
+            'perl6'
+        );
+
+        $t->same('raku', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('raku', SyntaxHighlighter::normalizeLanguage('raku'));
+        $t->same('raku', SyntaxHighlighter::normalizeLanguage('perl6'));
+        $t->same('raku', SyntaxHighlighter::normalizeLanguage('pl6'));
+        $t->same('raku', SyntaxHighlighter::normalizeLanguage('rakumod'));
+        $t->same('raku', $highlighted['language']);
+        $t->same('raku', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1160, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource raku numberLines"><code class="sourceCode raku" style="counter-reset: source-line 1159;">', $highlighted['html']);
+        $t->contains('<span id="raku-review-1160"><a href="#raku-review-1160"></a><span class="co"># Raku WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">use</span> <span class="dt">JSON::Fast</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">unit</span> <span class="kw">module</span> <span class="dt">WP::Import::Review</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">class</span> <span class="dt">ReviewPacket</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">has</span> <span class="dt">Int</span> <span class="va">$.source-id</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">has</span> <span class="dt">Str</span> <span class="va">$.title</span> <span class="kw">is</span> <span class="va">rw</span> <span class="op">=</span> <span class="st">&quot;Untitled&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">sub</span> <span class="fu">normalize-title</span><span class="op">(</span><span class="dt">ReviewPacket</span> <span class="va">$packet</span> <span class="op">--&gt;</span> <span class="dt">Str</span><span class="op">)</span> <span class="kw">is</span> <span class="kw">export</span>', $highlighted['html']);
+        $t->contains('<span class="kw">my</span> <span class="dt">Str</span> <span class="va">$title</span> <span class="op">=</span> <span class="va">$packet</span><span class="op">.</span><span class="va">title</span><span class="op">.</span><span class="va">trim</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="st">&quot;Untitled&quot;</span> <span class="kw">if</span> <span class="va">$title</span> <span class="op">eq</span> <span class="st">&quot;&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="va">$title</span><span class="op">.</span><span class="fu">subst</span><span class="op">(</span><span class="st">/\\s+/</span><span class="op">,</span> <span class="st">&quot; &quot;</span><span class="op">,</span> <span class="ot">:g</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">multi</span> <span class="kw">sub</span> <span class="fu">blocks-to-html</span><span class="op">(</span><span class="dt">ReviewPacket</span> <span class="va">$packet</span> <span class="kw">where</span>', $highlighted['html']);
+        $t->contains('<span class="kw">gather</span> <span class="kw">for</span> <span class="va">$packet</span><span class="op">.</span><span class="va">blocks</span> <span class="op">-&gt;</span> <span class="va">%block</span>', $highlighted['html']);
+        $t->contains('<span class="kw">take</span> <span class="st">&quot;&lt;!-- wp:{%block&lt;name&gt;} --&gt;{%block&lt;content&gt;}&lt;!-- /wp:{%block&lt;name&gt;} --&gt;&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">say</span> <span class="fu">normalize-title</span><span class="op">(</span><span class="dt">ReviewPacket</span><span class="op">.</span><span class="fu">new</span><span class="op">(</span><span class="ot">source-id</span> <span class="op">=&gt;</span> <span class="dv">42</span>', $highlighted['html']);
+        $t->contains('<!-- wp:html -->', $wordpressBlock);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<pre class="sourceCode numberSource raku numberLines"><code class="sourceCode raku" style="counter-reset: source-line 1159;">', $wordpressBlock);
+        $t->same('raku', $directRaku['language']);
+        $t->same('perl6', $directRaku['requestedLanguage']);
+        $t->contains('<span class="kw">unit</span> <span class="kw">module</span> <span class="dt">Review</span><span class="op">;</span>', $directRaku['html']);
+        $t->contains('<span class="kw">sub</span> <span class="fu">normalize</span><span class="op">(</span><span class="dt">Str</span> <span class="va">$title</span> <span class="op">--&gt;</span> <span class="dt">Str</span><span class="op">)</span> <span class="kw">is</span> <span class="kw">export</span>', $directRaku['html']);
+        $t->contains('<span class="fu">say</span> <span class="va">$title</span><span class="op">.</span><span class="va">trim</span>', $directRaku['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

@@ -138,6 +138,7 @@ final class LegacyDocReader
         0x25 => 'pageref',
         0x26 => 'ask',
         0x27 => 'fillin',
+        0x28 => 'data',
         0x32 => 'gotobutton',
         0x33 => 'macrobutton',
         0x34 => 'autonumout',
@@ -1671,6 +1672,11 @@ final class LegacyDocReader
             return $setFieldAttrs;
         }
 
+        $mailMergeDataRedirectAttrs = $this->mailMergeDataRedirectFieldAttrs($fieldName, $tokens, $instruction);
+        if ($mailMergeDataRedirectAttrs !== null) {
+            return $mailMergeDataRedirectAttrs;
+        }
+
         $dataFieldAttrs = $this->dataFieldAttrs($fieldName, $tokens, $instruction);
         if ($dataFieldAttrs !== null) {
             return $dataFieldAttrs;
@@ -1958,6 +1964,168 @@ final class LegacyDocReader
             'classes' => ['legacy-doc-field', 'legacy-doc-set-field', 'legacy-doc-field-set'],
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function mailMergeDataRedirectFieldAttrs(string $fieldName, array $tokens, string $instruction): ?array
+    {
+        if ($fieldName !== 'DATA') {
+            return null;
+        }
+
+        $arguments = [];
+        $switches = [];
+        $switchValues = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (!str_starts_with($token, '\\')) {
+                $arguments[] = $token;
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if ($switch === '') {
+                continue;
+            }
+            if (($switch === '*' || $switch === '@' || $switch === '#') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                continue;
+            }
+
+            $switches[] = $switch;
+            if (count($arguments) >= 2 && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                $switchValues[$switch][] = $tokens[$index];
+            } else {
+                $switchValues[$switch] ??= [];
+            }
+        }
+
+        $dataSource = $arguments[0] ?? null;
+        if ($dataSource === null || $dataSource === '') {
+            return null;
+        }
+        $headerDocument = $arguments[1] ?? null;
+
+        $attributes = [
+            'data-legacy-doc-field' => 'data',
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-mail-merge-field-type' => 'data-source-redirect',
+            'data-legacy-doc-mail-merge-policy' => 'metadata-only-native-review',
+            'data-legacy-doc-mail-merge-data-source' => $dataSource,
+            'data-legacy-doc-mail-merge-data-source-kind' => preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $dataSource) === 1 ? 'external-url' : 'file-path',
+            'data-legacy-doc-mail-merge-data-source-basename' => $this->legacyPathBasename($dataSource),
+            'data-legacy-doc-mail-merge-can-expose-bytes' => 'false',
+        ];
+
+        if ($headerDocument !== null && $headerDocument !== '') {
+            $attributes['data-legacy-doc-mail-merge-header-document'] = $headerDocument;
+            $attributes['data-legacy-doc-mail-merge-header-document-kind'] = preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $headerDocument) === 1 ? 'external-url' : 'file-path';
+            $attributes['data-legacy-doc-mail-merge-header-document-basename'] = $this->legacyPathBasename($headerDocument);
+        }
+        if (count($arguments) > 2) {
+            $attributes['data-legacy-doc-mail-merge-extra-arguments'] = implode(' ', array_slice($arguments, 2));
+        }
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+
+        $associatedDataSource = $this->matchingAssociatedString($dataSource, 'mailMergeDataSource');
+        if ($associatedDataSource !== null) {
+            $record = $associatedDataSource['record'];
+            $attributes['data-legacy-doc-mail-merge-associated-data-source-table'] = 'SttbfAssoc';
+            $attributes['data-legacy-doc-mail-merge-associated-data-source-index'] = (string) ((int) ($record['index'] ?? 8));
+            $attributes['data-legacy-doc-mail-merge-associated-data-source-match'] = $associatedDataSource['matchedOn'];
+        }
+
+        if ($headerDocument !== null && $headerDocument !== '') {
+            $associatedHeaderDocument = $this->matchingAssociatedString($headerDocument, 'mailMergeHeaderDocument');
+            if ($associatedHeaderDocument !== null) {
+                $record = $associatedHeaderDocument['record'];
+                $attributes['data-legacy-doc-mail-merge-header-document-table'] = 'SttbfAssoc';
+                $attributes['data-legacy-doc-mail-merge-header-document-index'] = (string) ((int) ($record['index'] ?? 9));
+                $attributes['data-legacy-doc-mail-merge-header-document-match'] = $associatedHeaderDocument['matchedOn'];
+            }
+        }
+
+        $externalReference = $this->matchingExternalFileReference($dataSource, 'mail-merge-data-source');
+        if ($externalReference !== null) {
+            $reference = $externalReference['reference'];
+            $attributes['data-legacy-doc-mail-merge-external-reference-table'] = (string) ($reference['sourceTable'] ?? 'SttbFnm');
+            $attributes['data-legacy-doc-mail-merge-external-reference-index'] = (string) ((int) ($reference['index'] ?? 0));
+            $attributes['data-legacy-doc-mail-merge-external-reference-match'] = $externalReference['matchedOn'];
+            $attributes['data-legacy-doc-mail-merge-external-reference-type'] = 'mail-merge-data-source';
+            $attributes['data-legacy-doc-mail-merge-external-reference-document-index'] = (string) ((int) ($reference['documentIndex'] ?? 0));
+            $attributes['data-legacy-doc-mail-merge-external-reference-file-system'] = (string) ($reference['fileSystem'] ?? 'unknown');
+            $attributes['data-legacy-doc-mail-merge-external-reference-can-expose-bytes'] = ($reference['canExposeBytes'] ?? false) === true ? 'true' : 'false';
+        }
+
+        if ($switches !== []) {
+            $switches = array_values(array_unique($switches));
+            $attributes['data-legacy-doc-mail-merge-switches'] = implode(' ', $switches);
+            foreach ($switches as $switch) {
+                $attributeSwitch = preg_replace('/[^a-z0-9-]/', '', $switch);
+                if (!is_string($attributeSwitch) || $attributeSwitch === '') {
+                    continue;
+                }
+
+                $values = array_values(array_unique(array_map(
+                    static fn (mixed $value): string => (string) $value,
+                    $switchValues[$switch] ?? []
+                )));
+                $attributes['data-legacy-doc-mail-merge-switch-' . $attributeSwitch] = $values === []
+                    ? 'true'
+                    : implode('; ', $values);
+            }
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-mail-merge-data-field', 'legacy-doc-field-data'],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{record:array<string,mixed>,matchedOn:string}|null
+     */
+    private function matchingAssociatedString(string $source, string $role): ?array
+    {
+        if ($this->activeAssociatedStrings === []) {
+            return null;
+        }
+
+        $sourceKey = $this->externalFileReferenceMatchKey($source);
+        if ($sourceKey === '') {
+            return null;
+        }
+
+        foreach ($this->activeAssociatedStrings as $record) {
+            if (($record['role'] ?? null) !== $role) {
+                continue;
+            }
+
+            $candidate = $record['value'] ?? null;
+            if (!is_string($candidate) || $candidate === '') {
+                continue;
+            }
+            if ($this->externalFileReferenceMatchKey($candidate) === $sourceKey) {
+                return [
+                    'record' => $record,
+                    'matchedOn' => 'value',
+                ];
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -2285,7 +2453,7 @@ final class LegacyDocReader
     /**
      * @return array{reference:array<string,mixed>,matchedOn:string}|null
      */
-    private function matchingExternalFileReference(string $source): ?array
+    private function matchingExternalFileReference(string $source, ?string $referenceType = null): ?array
     {
         if ($this->activeExternalFileReferences === []) {
             return null;
@@ -2297,6 +2465,10 @@ final class LegacyDocReader
         }
 
         foreach ($this->activeExternalFileReferences as $reference) {
+            if ($referenceType !== null && ($reference['referenceType'] ?? null) !== $referenceType) {
+                continue;
+            }
+
             foreach ([
                 'path' => 'path',
                 'relativePath' => 'relative-path',

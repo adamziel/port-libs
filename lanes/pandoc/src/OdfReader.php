@@ -230,6 +230,7 @@ final class OdfReader
                     'preformattedCodeBlockCount' => $contentStats['preformattedCodeBlockCount'],
                     'continuedListCount' => $contentStats['continuedListCount'],
                     'listHeaderCount' => $contentStats['listHeaderCount'],
+                    'imageListStyleCount' => $contentStats['imageListStyleCount'],
                     'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
                     'tableColumnDefinitionCount' => $contentStats['tableColumnDefinitionCount'],
                     'hiddenTableColumnCount' => $contentStats['hiddenTableColumnCount'],
@@ -1319,8 +1320,17 @@ final class OdfReader
         if ($continueFromNamedList) {
             $htmlAttributes['data-odf-list-continued'] = 'true';
         }
-        if ($htmlAttributes !== []) {
-            $attrs['htmlAttributes'] = $htmlAttributes;
+        if (($definition['type'] ?? '') === 'image') {
+            $attrs['listImageStyle'] = true;
+            $imageMetadata = $definition['image'] ?? [];
+            if (is_array($imageMetadata) && $imageMetadata !== []) {
+                $attrs['listImageMetadata'] = $imageMetadata;
+            }
+            $levelProperties = $definition['levelProperties'] ?? [];
+            if (is_array($levelProperties) && $levelProperties !== []) {
+                $attrs['listLevelProperties'] = $levelProperties;
+            }
+            $this->addImageListStyleHtmlAttributes($htmlAttributes, $definition);
         }
         if ($ordered) {
             $attrs['style'] = $this->orderedListStyle((string) ($definition['format'] ?? '1'));
@@ -1345,7 +1355,12 @@ final class OdfReader
                 $attrs['numberSuffix'] = $numSuffix;
             }
         } else {
-            $attrs['format'] = (string) ($definition['bulletChar'] ?? 'bullet');
+            $attrs['format'] = ($definition['type'] ?? '') === 'image'
+                ? 'image'
+                : (string) ($definition['bulletChar'] ?? 'bullet');
+        }
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
         }
 
         $items = [];
@@ -1423,6 +1438,49 @@ final class OdfReader
         $this->currentListStyleNames[] = $styleName;
 
         return true;
+    }
+
+    /**
+     * @param array<string, string> $htmlAttributes
+     * @param array<string, mixed> $definition
+     */
+    private function addImageListStyleHtmlAttributes(array &$htmlAttributes, array $definition): void
+    {
+        $htmlAttributes['data-odf-list-image-style'] = 'true';
+
+        $imageMetadata = $definition['image'] ?? [];
+        if (is_array($imageMetadata)) {
+            foreach ($imageMetadata as $name => $value) {
+                if (!is_scalar($value) || (string) $value === '') {
+                    continue;
+                }
+                $htmlAttributes['data-odf-list-image-' . self::kebabCase((string) $name)] = is_bool($value)
+                    ? ($value ? 'true' : 'false')
+                    : (string) $value;
+            }
+        }
+
+        $levelProperties = $definition['levelProperties'] ?? [];
+        if (!is_array($levelProperties)) {
+            return;
+        }
+        foreach ($levelProperties as $name => $value) {
+            if ($name === 'labelAlignment' || !is_scalar($value) || (string) $value === '') {
+                continue;
+            }
+            $htmlAttributes['data-odf-list-level-' . self::kebabCase((string) $name)] = (string) $value;
+        }
+
+        $labelAlignment = $levelProperties['labelAlignment'] ?? [];
+        if (!is_array($labelAlignment)) {
+            return;
+        }
+        foreach ($labelAlignment as $name => $value) {
+            if (!is_scalar($value) || (string) $value === '') {
+                continue;
+            }
+            $htmlAttributes['data-odf-list-label-' . self::kebabCase((string) $name)] = (string) $value;
+        }
     }
 
     /**
@@ -7406,13 +7464,19 @@ final class OdfReader
         foreach (self::childElements($listStyle) as $levelStyle) {
             if (!$this->isElement($levelStyle, self::TEXT_NS, 'list-level-style-bullet')
                 && !$this->isElement($levelStyle, self::TEXT_NS, 'list-level-style-number')
+                && !$this->isElement($levelStyle, self::TEXT_NS, 'list-level-style-image')
             ) {
                 continue;
             }
 
             $level = max(1, self::intAttr($levelStyle, self::TEXT_NS, 'level', 1));
-            $levels[$level] = [
-                'type' => $levelStyle->localName === 'list-level-style-number' ? 'number' : 'bullet',
+            $type = match ($levelStyle->localName) {
+                'list-level-style-number' => 'number',
+                'list-level-style-image' => 'image',
+                default => 'bullet',
+            };
+            $levelDefinition = [
+                'type' => $type,
                 'level' => $level,
                 'format' => self::attr($levelStyle, self::STYLE_NS, 'num-format'),
                 'numPrefix' => self::attr($levelStyle, self::STYLE_NS, 'num-prefix'),
@@ -7420,12 +7484,71 @@ final class OdfReader
                 'bulletChar' => self::attr($levelStyle, self::TEXT_NS, 'bullet-char'),
                 'start' => self::intAttr($levelStyle, self::TEXT_NS, 'start-value', 1),
             ];
+            if ($type === 'image') {
+                $levelDefinition['image'] = $this->listLevelImageMetadata($levelStyle);
+            }
+            $levelProperties = $this->listLevelProperties($levelStyle);
+            if ($levelProperties !== []) {
+                $levelDefinition['levelProperties'] = $levelProperties;
+            }
+
+            $levels[$level] = $levelDefinition;
         }
 
         return [
             'name' => self::attr($listStyle, self::STYLE_NS, 'name'),
             'levels' => $levels,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function listLevelImageMetadata(\DOMElement $levelStyle): array
+    {
+        return self::withoutEmpty([
+            'href' => self::nullable(self::attr($levelStyle, self::XLINK_NS, 'href')),
+            'type' => self::nullable(self::attr($levelStyle, self::XLINK_NS, 'type')),
+            'show' => self::nullable(self::attr($levelStyle, self::XLINK_NS, 'show')),
+            'actuate' => self::nullable(self::attr($levelStyle, self::XLINK_NS, 'actuate')),
+            'title' => self::nullable(self::attr($levelStyle, self::XLINK_NS, 'title')),
+            'width' => self::nullable(self::attr($levelStyle, self::SVG_NS, 'width')),
+            'height' => self::nullable(self::attr($levelStyle, self::SVG_NS, 'height')),
+            'embeddedBinaryData' => self::firstChildElement($levelStyle, 'binary-data', self::OFFICE_NS) instanceof \DOMElement ? true : null,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function listLevelProperties(\DOMElement $levelStyle): array
+    {
+        $properties = self::firstChildElement($levelStyle, 'list-level-properties', self::STYLE_NS);
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = self::withoutEmpty([
+            'minLabelWidth' => self::nullable(self::attr($properties, self::TEXT_NS, 'min-label-width')),
+            'minLabelDistance' => self::nullable(self::attr($properties, self::TEXT_NS, 'min-label-distance')),
+            'spaceBefore' => self::nullable(self::attr($properties, self::TEXT_NS, 'space-before')),
+            'positionAndSpaceMode' => self::nullable(self::attr($properties, self::TEXT_NS, 'list-level-position-and-space-mode')),
+        ]);
+
+        $alignment = self::firstChildElement($properties, 'list-level-label-alignment', self::STYLE_NS);
+        if ($alignment instanceof \DOMElement) {
+            $metadata['labelAlignment'] = self::withoutEmpty([
+                'labelFollowedBy' => self::nullable(self::attr($alignment, self::TEXT_NS, 'label-followed-by')),
+                'listTabStopPosition' => self::nullable(self::attr($alignment, self::TEXT_NS, 'list-tab-stop-position')),
+                'textIndent' => self::nullable(self::attr($alignment, self::FO_NS, 'text-indent')),
+                'marginLeft' => self::nullable(self::attr($alignment, self::FO_NS, 'margin-left')),
+            ]);
+            if ($metadata['labelAlignment'] === []) {
+                unset($metadata['labelAlignment']);
+            }
+        }
+
+        return $metadata;
     }
 
     /**
@@ -7856,6 +7979,7 @@ final class OdfReader
             'preformattedCodeBlockCount' => 0,
             'continuedListCount' => 0,
             'listHeaderCount' => 0,
+            'imageListStyleCount' => 0,
             'tableTemplateReferenceCount' => 0,
             'tableColumnDefinitionCount' => 0,
             'hiddenTableColumnCount' => 0,
@@ -8056,6 +8180,9 @@ final class OdfReader
             }
             if ($node->type === 'list_item' && $node->attr('listHeader') === true) {
                 $stats['listHeaderCount']++;
+            }
+            if (($node->type === 'ordered_list' || $node->type === 'bullet_list') && $node->attr('listImageStyle') === true) {
+                $stats['imageListStyleCount']++;
             }
 
             $childStats = $this->contentNodeStats($node->children);

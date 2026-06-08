@@ -2534,6 +2534,10 @@ final class MathTexConverter
             return $this->parseColorCommand($source, $offset, $command);
         }
 
+        if ($command === 'colorbox' || $command === 'fcolorbox') {
+            return $this->parseColorBoxCommand($source, $offset, $command);
+        }
+
         if ($command === 'phantom' || $command === 'hphantom' || $command === 'vphantom') {
             return $this->parsePhantomCommand($source, $offset, $command);
         }
@@ -3163,10 +3167,27 @@ final class MathTexConverter
 
     private function parseColorCommand(string $source, int &$offset, string $command): string
     {
-        $color = $this->readMathColorArgument($source, $offset, $command);
+        $color = $this->readMathColorArgument($source, $offset, $command)['color'];
         $content = $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content');
 
         return '<mstyle mathcolor="' . $this->esc($color) . '">' . $content . '</mstyle>';
+    }
+
+    private function parseColorBoxCommand(string $source, int &$offset, string $command): string
+    {
+        $firstColor = $this->readMathColorArgument($source, $offset, $command);
+        if ($command === 'colorbox') {
+            $content = $this->parseRequiredNonEmptyGroup($source, $offset, 'colorbox content');
+
+            return '<mstyle mathbackground="' . $this->esc($firstColor['color']) . '">' . $content . '</mstyle>';
+        }
+
+        $backgroundColor = $this->readMathColorArgument($source, $offset, $command, $firstColor['model'])['color'];
+        $content = $this->parseRequiredNonEmptyGroup($source, $offset, 'fcolorbox content');
+
+        return '<menclose notation="box" mathbackground="' . $this->esc($backgroundColor) . '" data-tex-framecolor="' . $this->esc($firstColor['color']) . '">'
+            . $content
+            . '</menclose>';
     }
 
     private function readColorDeclarationCommand(string $source, int &$offset): ?string
@@ -3182,7 +3203,7 @@ final class MathTexConverter
         }
 
         try {
-            $color = $this->readMathColorArgument($source, $cursor, 'color');
+            $color = $this->readMathColorArgument($source, $cursor, 'color')['color'];
         } catch (\InvalidArgumentException) {
             return null;
         }
@@ -3204,11 +3225,18 @@ final class MathTexConverter
         return $color;
     }
 
-    private function readMathColorArgument(string $source, int &$offset, string $command): string
+    /**
+     * @return array{color:string, model:?string}
+     */
+    private function readMathColorArgument(string $source, int &$offset, string $command, ?string $inheritedModel = null): array
     {
         $this->skipWhitespace($source, $offset);
-        $model = null;
+        $model = $inheritedModel;
         if (($source[$offset] ?? '') === '[') {
+            if ($inheritedModel !== null) {
+                throw new \InvalidArgumentException('Unexpected TeX \\' . $command . ' repeated color model at offset ' . $offset);
+            }
+
             $argument = $this->readTexBracketArgument($source, $offset);
             if ($argument === null) {
                 throw new \InvalidArgumentException('Expected TeX \\' . $command . ' color model at offset ' . $offset);
@@ -3224,9 +3252,11 @@ final class MathTexConverter
 
         $color = $this->readRequiredGroupText($source, $offset);
 
-        return $model === null
+        $normalized = $model === null
             ? $this->normalizeMathColor($color)
             : $this->normalizeMathColorModel($model, $color, $command);
+
+        return ['color' => $normalized, 'model' => $model];
     }
 
     private function normalizeMathColorModel(string $model, string $color, string $command): string

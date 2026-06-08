@@ -133,8 +133,8 @@ final class WordPressBlockWriter
             }
             $tagAttrs = $this->renderOrderedListTagAttrs($node);
             $comment = '<!-- wp:list ' . json_encode($attrs, JSON_THROW_ON_ERROR) . ' -->';
-        } elseif ($node->attr('taskList') === true) {
-            $tagAttrs = ' class="task-list"';
+        } else {
+            $tagAttrs = $this->renderUnorderedListTagAttrs($node);
         }
         $items = [];
         $headers = [];
@@ -162,7 +162,7 @@ final class WordPressBlockWriter
     private function renderListHtml(AstNode $node, bool $ordered): string
     {
         $tag = $ordered ? 'ol' : 'ul';
-        $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : ($node->attr('taskList') === true ? ' class="task-list"' : '');
+        $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : $this->renderUnorderedListTagAttrs($node);
         $items = [];
         $headers = [];
         foreach ($node->children as $item) {
@@ -176,6 +176,13 @@ final class WordPressBlockWriter
         }
 
         return implode('', $headers) . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
+    }
+
+    private function renderUnorderedListTagAttrs(AstNode $node): string
+    {
+        $attrs = $node->attr('taskList') === true ? ' class="task-list"' : '';
+
+        return $attrs . $this->renderOdfListDataAttrs($node);
     }
 
     private function renderListHeaderHtml(AstNode $item): string
@@ -196,20 +203,28 @@ final class WordPressBlockWriter
             $attrs .= ' type="' . $this->esc($type) . '"';
         }
 
+        return $attrs . $this->renderOdfListDataAttrs($node);
+    }
+
+    private function renderOdfListDataAttrs(AstNode $node): string
+    {
+        $attrs = '';
         $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (is_array($htmlAttributes)) {
-            foreach ($htmlAttributes as $name => $value) {
-                if (!is_scalar($value)) {
-                    continue;
-                }
+        if (!is_array($htmlAttributes)) {
+            return $attrs;
+        }
 
-                $name = (string) $name;
-                if (!str_starts_with($name, 'data-odf-list-')) {
-                    continue;
-                }
-
-                $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        foreach ($htmlAttributes as $name => $value) {
+            if (!is_scalar($value)) {
+                continue;
             }
+
+            $name = (string) $name;
+            if (!str_starts_with($name, 'data-odf-list-')) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
         }
 
         return $attrs;

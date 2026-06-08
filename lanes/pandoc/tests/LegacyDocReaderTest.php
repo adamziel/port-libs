@@ -5644,6 +5644,109 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC data field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC DATA mail-merge redirect field provenance without fetching sources' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbfAssoc, $sttbFnm, $plcfldMom, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $dataSource = 'C:\Data\mailmerge-customers.csv';
+        $headerDocument = 'C:\Data\mailmerge-headers.doc';
+        $text = 'Merge setup '
+            . $fieldBegin . ' DATA "' . $dataSource . '" "' . $headerDocument . '" \m \* MERGEFORMAT '
+            . $fieldSeparator . 'mail merge source' . $fieldEnd
+            . ".\r";
+
+        $begin = strpos($text, $fieldBegin);
+        $separator = strpos($text, $fieldSeparator, (int) $begin);
+        $end = strpos($text, $fieldEnd, (int) $separator);
+        foreach ([$begin, $separator, $end] as $cp) {
+            if (!is_int($cp)) {
+                throw new RuntimeException('Unable to locate legacy DOC DATA field marker fixture');
+            }
+        }
+
+        $fieldTable = $plcfldMom([
+            ['cp' => $begin, 'character' => 0x13, 'typeCode' => 0x28],
+            ['cp' => $separator, 'character' => 0x14],
+            ['cp' => $end, 'character' => 0x15, 'endFlags' => 0x80],
+        ], strlen($text));
+        $associatedStringsTable = $sttbfAssoc([
+            8 => $dataSource,
+            9 => $headerDocument,
+        ]);
+        $externalFileTable = $sttbFnm([[
+            'path' => $dataSource,
+            'referenceTypeCode' => 3,
+            'documentIndex' => 11,
+            'ichRelative' => 0xff,
+            'fnfb' => 0x08,
+        ]]);
+        $tableStream = $fieldTable . $associatedStringsTable . $externalFileTable;
+        $wordDocument = $buildExtendedFibWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x019a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($associatedStringsTable)), 0x019e, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable) + strlen($associatedStringsTable)), 0x02da, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($externalFileTable)), 0x02de, 4);
+        $docBytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $tableStream,
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+        $dataField = $paragraph->children[1];
+        $attrs = $dataField->attr('attributes');
+
+        $t->same('data', $result['fields'][0]['type']);
+        $t->same(0x28, $result['fields'][0]['typeCode']);
+        $t->same(1, $result['metadata']['fieldCount']);
+        $t->same(3, $result['metadata']['fieldCharacterCount']);
+        $t->same('span', $dataField->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-mail-merge-data-field', 'legacy-doc-field-data'], $dataField->attr('classes'));
+        $t->same('data', $attrs['data-legacy-doc-field']);
+        $t->same('DATA "' . $dataSource . '" "' . $headerDocument . '" \m \* MERGEFORMAT', $attrs['data-legacy-doc-field-instruction']);
+        $t->same('data-source-redirect', $attrs['data-legacy-doc-mail-merge-field-type']);
+        $t->same('metadata-only-native-review', $attrs['data-legacy-doc-mail-merge-policy']);
+        $t->same($dataSource, $attrs['data-legacy-doc-mail-merge-data-source']);
+        $t->same('file-path', $attrs['data-legacy-doc-mail-merge-data-source-kind']);
+        $t->same('mailmerge-customers.csv', $attrs['data-legacy-doc-mail-merge-data-source-basename']);
+        $t->same($headerDocument, $attrs['data-legacy-doc-mail-merge-header-document']);
+        $t->same('file-path', $attrs['data-legacy-doc-mail-merge-header-document-kind']);
+        $t->same('mailmerge-headers.doc', $attrs['data-legacy-doc-mail-merge-header-document-basename']);
+        $t->same('false', $attrs['data-legacy-doc-mail-merge-can-expose-bytes']);
+        $t->same('MERGEFORMAT', $attrs['data-legacy-doc-field-format']);
+        $t->same('SttbfAssoc', $attrs['data-legacy-doc-mail-merge-associated-data-source-table']);
+        $t->same('8', $attrs['data-legacy-doc-mail-merge-associated-data-source-index']);
+        $t->same('value', $attrs['data-legacy-doc-mail-merge-associated-data-source-match']);
+        $t->same('SttbfAssoc', $attrs['data-legacy-doc-mail-merge-header-document-table']);
+        $t->same('9', $attrs['data-legacy-doc-mail-merge-header-document-index']);
+        $t->same('value', $attrs['data-legacy-doc-mail-merge-header-document-match']);
+        $t->same('SttbFnm', $attrs['data-legacy-doc-mail-merge-external-reference-table']);
+        $t->same('0', $attrs['data-legacy-doc-mail-merge-external-reference-index']);
+        $t->same('path', $attrs['data-legacy-doc-mail-merge-external-reference-match']);
+        $t->same('mail-merge-data-source', $attrs['data-legacy-doc-mail-merge-external-reference-type']);
+        $t->same('11', $attrs['data-legacy-doc-mail-merge-external-reference-document-index']);
+        $t->same('ntfs', $attrs['data-legacy-doc-mail-merge-external-reference-file-system']);
+        $t->same('false', $attrs['data-legacy-doc-mail-merge-external-reference-can-expose-bytes']);
+        $t->same('m', $attrs['data-legacy-doc-mail-merge-switches']);
+        $t->same('true', $attrs['data-legacy-doc-mail-merge-switch-m']);
+        $t->same('mail merge source', $dataField->children[0]->attr('text'));
+        $t->same($dataSource, $result['metadata']['mailMergeDataSource']);
+        $t->same($headerDocument, $result['metadata']['mailMergeHeaderDocument']);
+        $t->same(1, $result['metadata']['externalFileReferenceCount']);
+        $t->contains('[mail merge source]{.legacy-doc-field .legacy-doc-mail-merge-data-field .legacy-doc-field-data data-legacy-doc-field="data"', $markdown);
+        $t->contains('data-legacy-doc-mail-merge-data-source-basename="mailmerge-customers.csv"', $markdown);
+        $t->contains('data-legacy-doc-mail-merge-header-document-basename="mailmerge-headers.doc"', $blocks);
+        $t->contains('data-legacy-doc-mail-merge-external-reference-index="0"', $blocks);
+        $t->contains('data-legacy-doc-mail-merge-switch-m="true"', $blocks);
+        foreach (['DATA', $dataSource, $headerDocument] as $hiddenSource) {
+            $t->true(!str_contains(strip_tags($blocks), $hiddenSource), 'Legacy DOC DATA field instructions and sources should not render as visible text');
+        }
+    },
     'preserves legacy DOC document-information field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";

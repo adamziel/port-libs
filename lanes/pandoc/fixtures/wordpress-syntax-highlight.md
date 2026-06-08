@@ -1400,3 +1400,30 @@ int main(void) {
     return 0;
 }
 ```
+
+``` {.raku #raku-review .numberLines startFrom=1160}
+# Raku WordPress import review helper
+use JSON::Fast;
+
+unit module WP::Import::Review;
+
+class ReviewPacket {
+    has Int $.source-id;
+    has Str $.title is rw = "Untitled";
+    has @.blocks;
+}
+
+sub normalize-title(ReviewPacket $packet --> Str) is export {
+    my Str $title = $packet.title.trim;
+    return "Untitled" if $title eq "";
+    $title.subst(/\s+/, " ", :g);
+}
+
+multi sub blocks-to-html(ReviewPacket $packet where *.blocks.elems > 0) {
+    gather for $packet.blocks -> %block {
+        take "<!-- wp:{%block<name>} -->{%block<content>}<!-- /wp:{%block<name>} -->";
+    }
+}
+
+say normalize-title(ReviewPacket.new(source-id => 42, title => " Legacy "));
+```
