@@ -30904,6 +30904,7 @@ final class PdfTextExtractor
             }
         }
 
+        $currentObjectStreamOperandObjects = $this->currentUpdateObjectStreamOperandObjects($entries, $definitions);
         $seen = [];
         while ($pending !== [] && count($seen) < 128) {
             $pendingItem = array_shift($pending);
@@ -30952,6 +30953,7 @@ final class PdfTextExtractor
                         $generation,
                         $entries[$objectNumber],
                         $entries,
+                        $currentObjectStreamOperandObjects,
                         $previousOffset,
                         $currentXrefOffset,
                         $definitions
@@ -31004,6 +31006,7 @@ final class PdfTextExtractor
                 $objectNumber,
                 $generation,
                 $entries,
+                $currentObjectStreamOperandObjects,
                 $previousOffset,
                 $currentXrefOffset,
                 $definitions
@@ -31023,6 +31026,32 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * Build the smallest object map needed to decode object-stream operands in
+     * the current xref section. Missing graph rows are intentionally excluded;
+     * selected compressed helper members such as /N and /First are included.
+     *
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, string>
+     */
+    private function currentUpdateObjectStreamOperandObjects(array $entries, array $definitions): array
+    {
+        $objects = [];
+        foreach ($entries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 1) {
+                continue;
+            }
+
+            $definition = $this->xrefEntrySelectedDirectDefinition((int) $objectNumber, $entry, $definitions);
+            if ($definition !== null) {
+                $objects[(int) $objectNumber] = $definition['body'];
+            }
+        }
+
+        return $this->withObjectStreamObjects($objects, $entries);
     }
 
     /**
@@ -31066,6 +31095,7 @@ final class PdfTextExtractor
     /**
      * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      */
     private function currentUpdateObjectStreamMemberBodyForExistingGraphEntry(
@@ -31073,6 +31103,7 @@ final class PdfTextExtractor
         int $generation,
         array $entry,
         array $entries,
+        array $objects,
         int $previousOffset,
         int $currentXrefOffset,
         array $definitions
@@ -31097,7 +31128,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $memberTable = $this->decodedObjectStreamMemberTable($carrierDefinition['body'], []);
+        $memberTable = $this->decodedObjectStreamMemberTable($carrierDefinition['body'], $objects);
         if ($memberTable === null) {
             return null;
         }
@@ -31117,6 +31148,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array{entry: array{type: int, objectStream: int, objectStreamIsExplicit: bool, index: int, indexIsExplicit: bool}, body: string}|null
      */
@@ -31124,6 +31156,7 @@ final class PdfTextExtractor
         int $objectNumber,
         int $generation,
         array $entries,
+        array $objects,
         int $previousOffset,
         int $currentXrefOffset,
         array $definitions
@@ -31148,7 +31181,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $memberTable = $this->decodedObjectStreamMemberTable($carrierDefinition['body'], []);
+            $memberTable = $this->decodedObjectStreamMemberTable($carrierDefinition['body'], $objects);
             if ($memberTable === null) {
                 continue;
             }
