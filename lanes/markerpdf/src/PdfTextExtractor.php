@@ -23456,7 +23456,7 @@ final class PdfTextExtractor
 
             $charProc = $decoded;
         } else {
-            $charProc = trim($objectBody);
+            return null;
         }
         $operands = [];
         $compatibilityDepth = 0;
