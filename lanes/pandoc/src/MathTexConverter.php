@@ -715,6 +715,8 @@ final class MathTexConverter
     /** @var array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> */
     private array $equationReferenceLabels = [];
 
+    private string $mathChoiceStyle = 'text';
+
     public function latexFor(AstNode $node): string
     {
         $text = (string) $node->attr('text', '');
@@ -760,7 +762,9 @@ final class MathTexConverter
     public function texToMathMl(string $tex, bool $display = false, array $macros = [], array $referenceLabels = [], bool $includeAccessibility = false): string
     {
         $previousReferenceLabels = $this->equationReferenceLabels;
+        $previousMathChoiceStyle = $this->mathChoiceStyle;
         $this->equationReferenceLabels = $this->normalizeEquationReferenceLabels($referenceLabels);
+        $this->mathChoiceStyle = $display ? 'display' : 'text';
 
         try {
             $expandedTex = $this->expandRawTexMathMacros($tex, $this->normalizeMacroDefinitions($macros));
@@ -796,6 +800,7 @@ final class MathTexConverter
                 . '</math>';
         } finally {
             $this->equationReferenceLabels = $previousReferenceLabels;
+            $this->mathChoiceStyle = $previousMathChoiceStyle;
         }
     }
 
@@ -1809,6 +1814,10 @@ final class MathTexConverter
 
         if ($command === 'ensuremath') {
             return $this->parseRequiredNonEmptyGroup($source, $offset, 'ensuremath');
+        }
+
+        if ($command === 'mathchoice') {
+            return $this->parseMathChoiceCommand($source, $offset);
         }
 
         if ($command === 'stackrel') {
@@ -4751,7 +4760,13 @@ final class MathTexConverter
 
     private function parseStyleCommand(string $source, int &$offset, string $command): string
     {
-        $base = $this->parseStyleArgument($source, $offset, $command);
+        $style = $this->mathChoiceStyleForStyleCommand($command);
+        $base = $this->withMathChoiceStyle(
+            $style,
+            function () use ($source, &$offset, $command): string {
+                return $this->parseStyleArgument($source, $offset, $command);
+            }
+        );
         $attributes = match ($command) {
             'displaystyle' => ' displaystyle="true"',
             'textstyle' => ' displaystyle="false"',
@@ -4760,6 +4775,36 @@ final class MathTexConverter
         };
 
         return '<mstyle' . $attributes . '>' . $base . '</mstyle>';
+    }
+
+    private function parseMathChoiceCommand(string $source, int &$offset): string
+    {
+        $branchSources = [];
+        foreach (['display', 'text', 'script', 'scriptscript'] as $style) {
+            $this->skipWhitespace($source, $offset);
+            $start = $offset;
+            $argument = $this->readTexBraceArgument($source, $offset);
+            if ($argument === null) {
+                throw new \InvalidArgumentException('Expected TeX mathchoice ' . $style . ' group at offset ' . $offset);
+            }
+
+            if (trim($argument['value']) === '') {
+                throw new \InvalidArgumentException('Expected TeX mathchoice ' . $style . ' content at offset ' . $start);
+            }
+
+            $branchSources[$style] = $argument['value'];
+            $offset = $argument['next'];
+        }
+
+        $branches = [];
+        foreach ($branchSources as $style => $fragment) {
+            $branches[$style] = $this->withMathChoiceStyle(
+                $style,
+                fn (): string => $this->parseTexFragment($fragment, 'mathchoice ' . $style)
+            );
+        }
+
+        return $branches[$this->mathChoiceStyle] ?? $branches['text'];
     }
 
     private function parseStyleArgument(string $source, int &$offset, string $command): string
@@ -5017,16 +5062,52 @@ final class MathTexConverter
 
     private function parseScriptArgument(string $source, int &$offset): string
     {
-        $this->skipWhitespace($source, $offset);
-        if (($source[$offset] ?? '') === '{') {
-            $offset++;
-            $children = $this->parseExpression($source, $offset, '}');
-            $this->expectGroupEnd($source, $offset);
+        return $this->withMathChoiceStyle($this->nestedMathChoiceScriptStyle(), function () use ($source, &$offset): string {
+            $this->skipWhitespace($source, $offset);
+            if (($source[$offset] ?? '') === '{') {
+                $offset++;
+                $children = $this->parseExpression($source, $offset, '}');
+                $this->expectGroupEnd($source, $offset);
 
-            return $this->row($children);
+                return $this->row($children);
+            }
+
+            return $this->parseAtom($source, $offset);
+        });
+    }
+
+    private function mathChoiceStyleForStyleCommand(string $command): string
+    {
+        return match ($command) {
+            'displaystyle' => 'display',
+            'textstyle' => 'text',
+            'scriptstyle' => 'script',
+            'scriptscriptstyle' => 'scriptscript',
+        };
+    }
+
+    private function nestedMathChoiceScriptStyle(): string
+    {
+        if ($this->mathChoiceStyle === 'script' || $this->mathChoiceStyle === 'scriptscript') {
+            return 'scriptscript';
         }
 
-        return $this->parseAtom($source, $offset);
+        return 'script';
+    }
+
+    /**
+     * @param callable(): string $callback
+     */
+    private function withMathChoiceStyle(string $style, callable $callback): string
+    {
+        $previousStyle = $this->mathChoiceStyle;
+        $this->mathChoiceStyle = $style;
+
+        try {
+            return $callback();
+        } finally {
+            $this->mathChoiceStyle = $previousStyle;
+        }
     }
 
     private function parseAccentArgument(string $source, int &$offset, string $command): string

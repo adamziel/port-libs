@@ -96,6 +96,27 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hyperref[eq:review]{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hyperref[eq:review{x}'));
     },
+    'converts bounded tex mathchoice branches to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $displayMathml = $converter->texToMathMl('\\mathchoice{D}{T}{S}{SS} + x', true);
+        $inlineMathml = $converter->texToMathMl('\\mathchoice{D}{T}{S}{SS} + x');
+        $scriptMathml = $converter->texToMathMl('x_{\\mathchoice{D}{T}{S}{SS}}');
+        $scriptStyleMathml = $converter->texToMathMl('\\scriptstyle\\mathchoice{D}{T}{S}{SS} + q');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\mathchoice{\\text{display}}{\\text{text}}{\\text{script}}{\\text{scriptscript}} + x', true);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $displayMathml);
+        $t->contains('<mrow><mi>D</mi><mo>+</mo><mi>x</mi></mrow>', $displayMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\mathchoice{D}{T}{S}{SS} + x</annotation>', $displayMathml);
+        $t->contains('<mrow><mi>T</mi><mo>+</mo><mi>x</mi></mrow>', $inlineMathml);
+        $t->contains('<msub><mi>x</mi><mi>S</mi></msub>', $scriptMathml);
+        $t->contains('<mstyle scriptlevel="1"><mi>S</mi></mstyle><mo>+</mo><mi>q</mi>', $scriptStyleMathml);
+        $t->contains('alttext="display plus x"', $accessibleMathml);
+        $t->contains('intent="row(display,plus,x)"', $accessibleMathml);
+        $t->true(!str_contains($displayMathml . $inlineMathml . $scriptMathml, '<mi>\\mathchoice</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathchoice{D}{T}{S}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathchoice{D}{}{S}{SS}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathchoice{D}{T}{\\frac{a}}{SS}'));
+    },
     'converts bounded siunitx scalar commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $numberMathml = $converter->texToMathMl('\\num{1.25e3} + \\num{-0.5}');
