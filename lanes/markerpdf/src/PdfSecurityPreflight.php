@@ -102,6 +102,10 @@ final class PdfSecurityPreflight
             'standard_permission_print_quality_review' => is_array($permissionPreflight['standard_permission_print_quality_review'] ?? null)
                 ? $permissionPreflight['standard_permission_print_quality_review']
                 : [],
+            'standard_permission_text_extraction_review_count' => (int) ($permissionPreflight['standard_permission_text_extraction_review_count'] ?? 0),
+            'standard_permission_text_extraction_review' => is_array($permissionPreflight['standard_permission_text_extraction_review'] ?? null)
+                ? $permissionPreflight['standard_permission_text_extraction_review']
+                : [],
             'permission_handler_review' => is_array($permissionPreflight['permission_handler_review'] ?? null)
                 ? $permissionPreflight['permission_handler_review']
                 : [],
@@ -283,6 +287,11 @@ final class PdfSecurityPreflight
             $permissionBitsReliable && is_string($permissions['print_quality'] ?? null)
                 ? $permissions['print_quality']
                 : null
+        );
+        $standardPermissionTextExtractionReview = $this->standardPermissionTextExtractionReview(
+            $permissionBits,
+            $permissionBitsReliable,
+            $permissionAuthenticationTrustReview
         );
 
         if ($securityHandlerDeclarationFailClosed) {
@@ -521,6 +530,8 @@ final class PdfSecurityPreflight
             'standard_permission_operation_review' => $standardPermissionOperationReview,
             'standard_permission_print_quality_review_count' => ($standardPermissionPrintQualityReview['present'] ?? false) === true ? 1 : 0,
             'standard_permission_print_quality_review' => $standardPermissionPrintQualityReview,
+            'standard_permission_text_extraction_review_count' => ($standardPermissionTextExtractionReview['present'] ?? false) === true ? 1 : 0,
+            'standard_permission_text_extraction_review' => $standardPermissionTextExtractionReview,
             'copy_or_extract_allowed' => $copyAllowed,
             'accessibility_extract_allowed' => $accessibilityAllowed,
             'print_quality' => $permissionBitsReliable ? ($permissions['print_quality'] ?? null) : null,
@@ -1233,6 +1244,112 @@ final class PdfSecurityPreflight
             'executes_permission_enforcement' => false,
             'executes_decryption' => false,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $permissionBits
+     * @return array<string, mixed>
+     */
+    private function standardPermissionTextExtractionReview(
+        array $permissionBits,
+        bool $permissionBitsReliable,
+        array $permissionAuthenticationTrustReview
+    ): array {
+        $base = [
+            'source' => 'standard_permission_text_extraction_review',
+            'present' => false,
+            'permission_bits_reliable' => $permissionBitsReliable,
+            'copy_or_extract_allowed' => null,
+            'accessibility_extract_allowed' => null,
+            'wordpress_text_import_permission' => 'copy_or_extract',
+            'accessibility_permission' => 'extract_for_accessibility',
+            'text_import_allowed_after_decryption' => false,
+            'accessibility_extraction_allowed_after_decryption' => false,
+            'accessibility_permission_grants_wordpress_import' => false,
+            'copy_operation_status' => null,
+            'accessibility_operation_status' => null,
+            'copy_operation' => [],
+            'accessibility_operation' => [],
+            'status' => 'standard_permission_text_extraction_unavailable_or_unreliable',
+            'content_extraction_boundary' => $permissionAuthenticationTrustReview['trust_boundary'] ?? 'blocked_by_unreliable_standard_permission_bits',
+            'wordpress_import_policy' => 'blocked_by_unreliable_permission_bits',
+            'native_text_extraction_allowed_now' => false,
+            'password_validation_performed' => (bool) (
+                $permissionAuthenticationTrustReview['password_validation_performed'] ?? false
+            ),
+            'permissions_authenticated' => (bool) ($permissionAuthenticationTrustReview['permissions_authenticated'] ?? false),
+            'authenticated_permission_bits_reliable' => (bool) (
+                $permissionAuthenticationTrustReview['authenticated_permission_bits_reliable'] ?? false
+            ),
+            'review_only' => true,
+            'executes_permission_enforcement' => false,
+            'executes_decryption' => false,
+        ];
+
+        if (!$permissionBitsReliable || $permissionBits === []) {
+            return $base;
+        }
+
+        $copyBit = $this->standardPermissionBitByName($permissionBits, 'copy_or_extract');
+        $accessibilityBit = $this->standardPermissionBitByName($permissionBits, 'extract_for_accessibility');
+        if ($copyBit === null || $accessibilityBit === null) {
+            return $base;
+        }
+
+        $copyOperation = $this->standardPermissionOperationRow($copyBit, $permissionAuthenticationTrustReview);
+        $accessibilityOperation = $this->standardPermissionOperationRow($accessibilityBit, $permissionAuthenticationTrustReview);
+        $copyAllowed = (bool) ($copyBit['allowed'] ?? false);
+        $accessibilityAllowed = (bool) ($accessibilityBit['allowed'] ?? false);
+        $copyStatus = is_string($copyOperation['effective_status'] ?? null)
+            ? $copyOperation['effective_status']
+            : null;
+        $accessibilityStatus = is_string($accessibilityOperation['effective_status'] ?? null)
+            ? $accessibilityOperation['effective_status']
+            : null;
+
+        if (!$copyAllowed && $accessibilityAllowed) {
+            $status = 'accessibility_extract_allowed_but_copy_extract_denied';
+            $boundary = 'blocked_by_standard_copy_permission_bit';
+            $wordpressPolicy = 'blocked_by_copy_permission_denial_accessibility_review_only';
+            $textImportAllowedAfterDecryption = false;
+        } elseif (!$copyAllowed) {
+            $status = 'copy_extract_denied_by_permission_bit';
+            $boundary = 'blocked_by_standard_copy_permission_bit';
+            $wordpressPolicy = 'blocked_by_standard_permission_denial';
+            $textImportAllowedAfterDecryption = false;
+        } else {
+            $textImportAllowedAfterDecryption = true;
+            if ($copyStatus === 'allowed_by_permission_bit_pending_authentication') {
+                $status = 'copy_extract_allowed_after_decryption_pending_authentication';
+                $boundary = $copyOperation['permission_boundary'] ?? 'blocked_until_password_validation_and_permission_authentication';
+                $wordpressPolicy = 'review_only_until_password_validation_and_decryption';
+            } elseif (($copyOperation['native_import_allowed_now'] ?? false) === true) {
+                $status = 'copy_extract_native_allowed_by_authenticated_permission';
+                $boundary = null;
+                $wordpressPolicy = 'native_import_allowed_by_authenticated_permission_bit';
+            } else {
+                $status = 'copy_extract_allowed_after_decryption_review';
+                $boundary = $copyOperation['permission_boundary'] ?? 'blocked_until_decryption_password_available';
+                $wordpressPolicy = is_string($copyOperation['wordpress_import_policy'] ?? null)
+                    ? $copyOperation['wordpress_import_policy']
+                    : 'review_only_until_password_validation_and_decryption';
+            }
+        }
+
+        return array_merge($base, [
+            'present' => true,
+            'copy_or_extract_allowed' => $copyAllowed,
+            'accessibility_extract_allowed' => $accessibilityAllowed,
+            'text_import_allowed_after_decryption' => $textImportAllowedAfterDecryption,
+            'accessibility_extraction_allowed_after_decryption' => $accessibilityAllowed,
+            'copy_operation_status' => $copyStatus,
+            'accessibility_operation_status' => $accessibilityStatus,
+            'copy_operation' => $copyOperation,
+            'accessibility_operation' => $accessibilityOperation,
+            'status' => $status,
+            'content_extraction_boundary' => $boundary,
+            'wordpress_import_policy' => $wordpressPolicy,
+        ]);
     }
 
     /**
@@ -6481,6 +6598,11 @@ final class PdfSecurityPreflight
                 ? $permissions['print_quality']
                 : null
         );
+        $standardPermissionTextExtractionReview = $this->standardPermissionTextExtractionReview(
+            $permissionBits,
+            $permissionBitsReliable,
+            $permissionAuthenticationTrustReview
+        );
 
         return [
             'is_encrypted' => true,
@@ -6611,6 +6733,8 @@ final class PdfSecurityPreflight
             'standard_permission_operation_review' => $standardPermissionOperationReview,
             'standard_permission_print_quality_review_count' => ($standardPermissionPrintQualityReview['present'] ?? false) === true ? 1 : 0,
             'standard_permission_print_quality_review' => $standardPermissionPrintQualityReview,
+            'standard_permission_text_extraction_review_count' => ($standardPermissionTextExtractionReview['present'] ?? false) === true ? 1 : 0,
+            'standard_permission_text_extraction_review' => $standardPermissionTextExtractionReview,
             'copy_or_extract_allowed' => $permissionBitsReliable
                 ? in_array('copy_or_extract', $allowed, true)
                 : null,

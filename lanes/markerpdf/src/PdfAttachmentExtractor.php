@@ -5411,6 +5411,7 @@ final class PdfAttachmentExtractor
 
     private function pdfObjectEndOffset(string $pdfBytes, int $offset): ?int
     {
+        $objectBodyStart = $offset;
         $length = strlen($pdfBytes);
         while ($offset < $length) {
             $char = $pdfBytes[$offset];
@@ -5445,7 +5446,7 @@ final class PdfAttachmentExtractor
             }
 
             if ($this->pdfKeywordAt($pdfBytes, $offset, 'stream')) {
-                $streamEnd = $this->directObjectStreamEndOffset($pdfBytes, $offset);
+                $streamEnd = $this->directObjectStreamEndOffset($pdfBytes, $offset, $objectBodyStart);
                 if ($streamEnd !== null) {
                     $offset = $streamEnd + strlen('endstream');
                     continue;
@@ -5462,7 +5463,11 @@ final class PdfAttachmentExtractor
         return null;
     }
 
-    private function directObjectStreamEndOffset(string $pdfBytes, int $streamKeywordOffset): ?int
+    private function directObjectStreamEndOffset(
+        string $pdfBytes,
+        int $streamKeywordOffset,
+        ?int $objectBodyStart = null
+    ): ?int
     {
         $streamStart = $streamKeywordOffset + strlen('stream');
         if (substr($pdfBytes, $streamStart, 2) === "\r\n") {
@@ -5471,9 +5476,63 @@ final class PdfAttachmentExtractor
             $streamStart++;
         }
 
+        $declaredStreamEnd = $this->declaredLengthStreamTerminatorOffset(
+            $pdfBytes,
+            $streamStart,
+            $streamKeywordOffset,
+            $objectBodyStart
+        );
+        if ($declaredStreamEnd !== null) {
+            return $declaredStreamEnd;
+        }
+
         $streamEnd = strpos($pdfBytes, 'endstream', $streamStart);
 
         return is_int($streamEnd) ? $streamEnd : null;
+    }
+
+    private function declaredLengthStreamTerminatorOffset(
+        string $pdfBytes,
+        int $streamStart,
+        int $streamKeywordOffset,
+        ?int $objectBodyStart = null
+    ): ?int
+    {
+        if ($objectBodyStart === null || $objectBodyStart < 0 || $objectBodyStart >= $streamKeywordOffset) {
+            return null;
+        }
+
+        $prefix = substr($pdfBytes, $objectBodyStart, $streamKeywordOffset - $objectBodyStart);
+        $index = 0;
+        $value = $this->parseValue($prefix, $index);
+        $dict = $this->dict($value);
+        if ($dict === null) {
+            return null;
+        }
+
+        $length = $this->intValue($dict['Length'] ?? null);
+        if ($length === null || $length < 0) {
+            return null;
+        }
+
+        return $this->streamTerminatorOffsetAfterLength($pdfBytes, $streamStart, $length);
+    }
+
+    private function streamTerminatorOffsetAfterLength(string $pdfBytes, int $streamStart, int $length): ?int
+    {
+        $offset = $streamStart + $length;
+        if ($offset < $streamStart || $offset > strlen($pdfBytes)) {
+            return null;
+        }
+
+        $terminatorOffset = $offset;
+        if (substr($pdfBytes, $terminatorOffset, 2) === "\r\n") {
+            $terminatorOffset += 2;
+        } elseif (($pdfBytes[$terminatorOffset] ?? '') === "\n" || ($pdfBytes[$terminatorOffset] ?? '') === "\r") {
+            $terminatorOffset++;
+        }
+
+        return $this->pdfKeywordAt($pdfBytes, $terminatorOffset, 'endstream') ? $terminatorOffset : null;
     }
 
     /**
@@ -8522,16 +8581,24 @@ final class PdfAttachmentExtractor
             $index++;
         }
 
+        $length = $this->intValue($dict['Length'] ?? null);
+        if ($length === null && $objects !== []) {
+            $length = $this->intValue($this->resolveValue($dict['Length'] ?? null, $objects));
+        }
+
+        if ($length !== null && $length >= 0) {
+            $declaredStreamEnd = $this->streamTerminatorOffsetAfterLength($body, $index, $length);
+            if ($declaredStreamEnd !== null) {
+                return substr($body, $index, $length);
+            }
+        }
+
         $end = strpos($body, 'endstream', $index);
         if ($end === false) {
             return null;
         }
 
         $stream = substr($body, $index, $end - $index);
-        $length = $this->intValue($dict['Length'] ?? null);
-        if ($length === null && $objects !== []) {
-            $length = $this->intValue($this->resolveValue($dict['Length'] ?? null, $objects));
-        }
         $streamWithoutTrailingLineEnding = preg_replace("/\r\n$|\n$|\r$/", '', $stream) ?? $stream;
         if ($length !== null && $length >= 0 && $length <= strlen($stream)) {
             $declaredStream = substr($stream, 0, $length);

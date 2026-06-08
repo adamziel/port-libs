@@ -25243,13 +25243,23 @@ final class PdfTextExtractor
 
         $array = $this->pdfArrayFromValue($value, $objects, $seen);
         if ($array === null) {
-            return $reference === null ? [] : [$reference];
+            if ($reference === null) {
+                return [];
+            }
+
+            return $this->uniquePdfReferenceList(array_merge(
+                [$reference],
+                $this->type3CharProcsSiblingDictionaryReferencesForFallbackExclusion($reference, $seen)
+            ));
         }
 
         $references = [];
         if ($reference !== null) {
             $references[] = $reference;
             $seen[$reference['objectNumber'] . ':' . $reference['generation']] = true;
+            foreach ($this->type3CharProcsSiblingDictionaryReferencesForFallbackExclusion($reference, $seen) as $siblingReference) {
+                $references[] = $siblingReference;
+            }
         }
 
         foreach ($this->pdfArrayItems($array) as $item) {
@@ -25259,6 +25269,36 @@ final class PdfTextExtractor
         }
 
         return $this->uniquePdfReferenceList($references);
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     * @param array{objectNumber: int, generation: int} $reference
+     * @param array<string, true> $seen
+     */
+    private function type3CharProcsSiblingDictionaryReferencesForFallbackExclusion(
+        array $reference,
+        array $seen
+    ): array {
+        $references = [];
+        foreach ($this->currentDirectObjectBodiesByGeneration[$reference['objectNumber']] ?? [] as $generation => $_body) {
+            $generation = (int) $generation;
+            if ($generation === $reference['generation']) {
+                continue;
+            }
+
+            $key = $reference['objectNumber'] . ':' . $generation;
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $references[] = [
+                'objectNumber' => $reference['objectNumber'],
+                'generation' => $generation,
+            ];
+        }
+
+        return $references;
     }
 
     /**

@@ -6117,6 +6117,7 @@ final class PdfEmbeddedFileExtractor
 
     private function pdfObjectEndOffset(string $pdfBytes, int $offset): ?int
     {
+        $objectBodyStart = $offset;
         for ($index = $offset, $length = strlen($pdfBytes); $index < $length;) {
             $char = $pdfBytes[$index];
             if ($char === '%') {
@@ -6159,15 +6160,8 @@ final class PdfEmbeddedFileExtractor
             }
 
             if ($this->pdfKeywordAt($pdfBytes, $index, 'stream')) {
-                $streamStart = $index + strlen('stream');
-                if (substr($pdfBytes, $streamStart, 2) === "\r\n") {
-                    $streamStart += 2;
-                } elseif (($pdfBytes[$streamStart] ?? '') === "\n" || ($pdfBytes[$streamStart] ?? '') === "\r") {
-                    $streamStart++;
-                }
-
-                $streamEnd = strpos($pdfBytes, 'endstream', $streamStart);
-                if ($streamEnd !== false) {
+                $streamEnd = $this->directObjectStreamEndOffset($pdfBytes, $index, $objectBodyStart);
+                if ($streamEnd !== null) {
                     $index = $streamEnd + strlen('endstream');
                     continue;
                 }
@@ -6181,6 +6175,77 @@ final class PdfEmbeddedFileExtractor
         }
 
         return null;
+    }
+
+    private function directObjectStreamEndOffset(
+        string $pdfBytes,
+        int $streamKeywordOffset,
+        ?int $objectBodyStart = null
+    ): ?int
+    {
+        $streamStart = $streamKeywordOffset + strlen('stream');
+        if (substr($pdfBytes, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($pdfBytes[$streamStart] ?? '') === "\n" || ($pdfBytes[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
+        $declaredStreamEnd = $this->declaredLengthStreamTerminatorOffset(
+            $pdfBytes,
+            $streamStart,
+            $streamKeywordOffset,
+            $objectBodyStart
+        );
+        if ($declaredStreamEnd !== null) {
+            return $declaredStreamEnd;
+        }
+
+        $streamEnd = strpos($pdfBytes, 'endstream', $streamStart);
+
+        return is_int($streamEnd) ? $streamEnd : null;
+    }
+
+    private function declaredLengthStreamTerminatorOffset(
+        string $pdfBytes,
+        int $streamStart,
+        int $streamKeywordOffset,
+        ?int $objectBodyStart = null
+    ): ?int
+    {
+        if ($objectBodyStart === null || $objectBodyStart < 0 || $objectBodyStart >= $streamKeywordOffset) {
+            return null;
+        }
+
+        $prefix = substr($pdfBytes, $objectBodyStart, $streamKeywordOffset - $objectBodyStart);
+        $dictionaryOffset = $this->skipWhitespace($prefix, 0);
+        $dictionary = $this->readPdfDictionaryAt($prefix, $dictionaryOffset);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $length = $this->dictionaryIntegerValue($dictionary['body'], 'Length');
+        if ($length === null || $length < 0) {
+            return null;
+        }
+
+        return $this->streamTerminatorOffsetAfterLength($pdfBytes, $streamStart, $length);
+    }
+
+    private function streamTerminatorOffsetAfterLength(string $pdfBytes, int $streamStart, int $length): ?int
+    {
+        $offset = $streamStart + $length;
+        if ($offset < $streamStart || $offset > strlen($pdfBytes)) {
+            return null;
+        }
+
+        $terminatorOffset = $offset;
+        if (substr($pdfBytes, $terminatorOffset, 2) === "\r\n") {
+            $terminatorOffset += 2;
+        } elseif (($pdfBytes[$terminatorOffset] ?? '') === "\n" || ($pdfBytes[$terminatorOffset] ?? '') === "\r") {
+            $terminatorOffset++;
+        }
+
+        return $this->pdfKeywordAt($pdfBytes, $terminatorOffset, 'endstream') ? $terminatorOffset : null;
     }
 
     private function pdfKeywordAt(string $value, int $offset, string $keyword): bool
@@ -7448,22 +7513,32 @@ final class PdfEmbeddedFileExtractor
      */
     private function decodeStreamObject(string $objectBody, array $objects): ?array
     {
-        if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
+        $dictionaryOffset = $this->skipWhitespace($objectBody, 0);
+        $dictionaryToken = $this->readPdfDictionaryAt($objectBody, $dictionaryOffset);
+        if ($dictionaryToken === null) {
             return null;
         }
 
-        $dictionary = $match[1];
-        $stream = $match[2];
+        $dictionary = $dictionaryToken['body'];
+        $streamKeywordOffset = $this->skipWhitespace($objectBody, $dictionaryToken['end']);
+        if (!$this->pdfKeywordAt($objectBody, $streamKeywordOffset, 'stream')) {
+            return null;
+        }
+
+        $streamStart = $streamKeywordOffset + strlen('stream');
+        if (substr($objectBody, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($objectBody[$streamStart] ?? '') === "\n" || ($objectBody[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
+        $stream = $this->streamBytesFromObjectBody($objectBody, $streamStart, $dictionary, $objects);
+        if ($stream === null) {
+            return null;
+        }
+
         if ($this->streamDictionaryHasExtraFilterOperands($dictionary)) {
             return null;
-        }
-
-        $lengthValue = $this->dictionaryRawValue($dictionary, 'Length');
-        if ($this->objectReferenceFromValue($lengthValue) !== null) {
-            $declaredLength = $this->dictionaryIntegerValue($dictionary, 'Length', $objects);
-            if ($declaredLength !== null && $declaredLength >= 0 && $declaredLength <= strlen($stream)) {
-                $stream = substr($stream, 0, $declaredLength);
-            }
         }
 
         $filterSlots = $this->streamFilterSlots($dictionary, $objects);
@@ -7513,6 +7588,40 @@ final class PdfEmbeddedFileExtractor
             'content' => $stream,
             'filters' => $filters,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamBytesFromObjectBody(
+        string $objectBody,
+        int $streamStart,
+        string $dictionary,
+        array $objects
+    ): ?string
+    {
+        $lengthValue = $this->dictionaryRawValue($dictionary, 'Length');
+        $lengthIsIndirect = $this->objectReferenceFromValue($lengthValue) !== null;
+        $declaredLength = $this->dictionaryIntegerValue($dictionary, 'Length', $objects);
+        if ($declaredLength !== null && $declaredLength >= 0) {
+            $declaredStreamEnd = $this->streamTerminatorOffsetAfterLength($objectBody, $streamStart, $declaredLength);
+            if ($declaredStreamEnd !== null) {
+                return substr($objectBody, $streamStart, $declaredLength);
+            }
+        }
+
+        $streamEnd = strpos($objectBody, 'endstream', $streamStart);
+        if ($streamEnd === false) {
+            return null;
+        }
+
+        $stream = substr($objectBody, $streamStart, $streamEnd - $streamStart);
+        $streamWithoutTrailingLineEnding = preg_replace("/\r\n$|\n$|\r$/", '', $stream) ?? $stream;
+        if ($lengthIsIndirect && $declaredLength !== null && $declaredLength >= 0 && $declaredLength <= strlen($stream)) {
+            return substr($stream, 0, $declaredLength);
+        }
+
+        return $streamWithoutTrailingLineEnding;
     }
 
     /**
