@@ -3546,14 +3546,6 @@ final class PdfAttachmentExtractor
             }
         }
 
-        foreach ($ef as $key => $value) {
-            $objectId = $this->refObjectId($value);
-            $object = $this->objectForReference($value, $objects);
-            if ($objectId !== null && $object !== null) {
-                return ['objectId' => $objectId, 'key' => is_string($key) ? $key : 'unknown', 'object' => $object];
-            }
-        }
-
         return null;
     }
 

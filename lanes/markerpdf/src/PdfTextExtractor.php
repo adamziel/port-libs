@@ -23054,7 +23054,8 @@ final class PdfTextExtractor
                 break;
             }
 
-            if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($parentValue), $match) !== 1) {
+            $parentReference = $this->pdfIndirectReferenceValue($parentValue);
+            if ($parentReference === null) {
                 $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
                 if ($catalogLineage !== []) {
                     $lineage = $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
@@ -23064,8 +23065,8 @@ final class PdfTextExtractor
                 break;
             }
 
-            $parentObjectNumber = (int) $match[1];
-            $parentGeneration = (int) $match[2];
+            $parentObjectNumber = $parentReference['objectNumber'];
+            $parentGeneration = $parentReference['generation'];
             $resolvedParent = $this->resolvedPageTreeReference($objects, $parentObjectNumber, $parentGeneration);
             if (
                 $resolvedParent === null
@@ -26801,9 +26802,10 @@ final class PdfTextExtractor
 
         $value = $values[count($values) - 1];
         $value = trim($value);
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            $generation = (int) $match[2];
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference !== null) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
             $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
             if ($resolved === null || $this->objectBodyIsStreamObject($resolved['body'])) {
                 return null;

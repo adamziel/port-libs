@@ -17179,8 +17179,18 @@ final class PdfMetadataExtractor
                 }
             }
 
-            foreach ($this->xmpChildElements($description, $namespace, $localName) as $element) {
-                $value = $preferAlt ? $this->preferredAltText($element) : $this->xmpQualifiedTextValue($element);
+            $elements = $this->xmpChildElements($description, $namespace, $localName);
+            if ($preferAlt) {
+                $value = $this->xmpPreferredRepeatedPropertyText($elements);
+                if ($value !== null) {
+                    return $value;
+                }
+
+                continue;
+            }
+
+            foreach ($elements as $element) {
+                $value = $this->xmpQualifiedTextValue($element);
                 if ($value !== null) {
                     return $value;
                 }
@@ -17188,6 +17198,30 @@ final class PdfMetadataExtractor
         }
 
         return null;
+    }
+
+    /**
+     * Repeated simple XMP properties can carry language alternatives as
+     * sibling elements instead of an rdf:Alt container.
+     *
+     * @param list<DOMElement> $elements
+     */
+    private function xmpPreferredRepeatedPropertyText(array $elements): ?string
+    {
+        $first = null;
+        foreach ($elements as $element) {
+            $value = $this->preferredAltText($element);
+            if ($value === null) {
+                continue;
+            }
+
+            $first ??= $value;
+            if (strcasecmp($this->xmpInheritedXmlLang($element), 'x-default') === 0) {
+                return $value;
+            }
+        }
+
+        return $first;
     }
 
     /**
