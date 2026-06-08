@@ -4475,14 +4475,65 @@ final class PdfImageRenderer
             return $trimmed;
         }
 
-        return (string) preg_replace_callback(
-            '/\/([^\s\[\]()<>{}\/%]+)/',
-            function (array $match): string {
-                $name = $this->decodePdfName($match[1]);
-                return '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);
-            },
-            $trimmed
-        );
+        return $this->canonicalInlineImageArrayValue($trimmed);
+    }
+
+    private function canonicalInlineImageArrayValue(string $value): string
+    {
+        $canonical = '';
+        $index = 0;
+        $length = strlen($value);
+
+        while ($index < $length) {
+            $char = $value[$index];
+            if ($char === '(') {
+                $next = $this->skipPdfLiteralString($value, $index);
+                $canonical .= substr($value, $index, $next - $index);
+                $index = $next;
+                continue;
+            }
+
+            if ($char === '%') {
+                $next = $index + strcspn($value, "\r\n", $index);
+                $canonical .= substr($value, $index, $next - $index);
+                $index = $next;
+                continue;
+            }
+
+            if ($char === '<' && substr($value, $index, 2) === '<<') {
+                $dictionary = $this->readBalancedDictionary($value, $index);
+                if ($dictionary !== null) {
+                    $canonical .= $dictionary['value'];
+                    $index = $dictionary['next'];
+                    continue;
+                }
+            }
+
+            if ($char === '<') {
+                $next = strpos($value, '>', $index + 1);
+                if ($next === false) {
+                    $canonical .= substr($value, $index);
+                    break;
+                }
+
+                $canonical .= substr($value, $index, $next - $index + 1);
+                $index = $next + 1;
+                continue;
+            }
+
+            if ($char === '/') {
+                $next = $this->pdfNameTokenEndOffset($value, $index);
+                $name = $this->decodePdfName(substr($value, $index + 1, $next - $index - 1));
+                $canonical .= '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);
+                $index = $next;
+                continue;
+            }
+
+            $canonical .= $char;
+            $index++;
+        }
+
+        return $canonical;
     }
 
     private function imageFilterName(string $dictionary): ?string

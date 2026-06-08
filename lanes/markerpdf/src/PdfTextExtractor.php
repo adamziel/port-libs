@@ -41628,14 +41628,51 @@ final class PdfTextExtractor
             return $token;
         }
 
-        return (string) preg_replace_callback(
-            '/\/([^\s\[\]\(\)<>{}\/%]+)/',
-            function (array $match): string {
-                $name = $this->decodePdfName($match[1]);
-                return '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);
-            },
-            $token
-        );
+        return $this->canonicalInlineImageArrayValue($token);
+    }
+
+    private function canonicalInlineImageArrayValue(string $token): string
+    {
+        $canonical = '';
+        $index = 0;
+        $length = strlen($token);
+
+        while ($index < $length) {
+            $char = $token[$index];
+            if ($char === '(') {
+                $canonical .= $this->readLiteralToken($token, $index);
+                continue;
+            }
+
+            if ($char === '%') {
+                $start = $index;
+                $this->skipPdfComment($token, $index);
+                $canonical .= substr($token, $start, $index - $start);
+                continue;
+            }
+
+            if ($char === '<' && $index + 1 < $length && $token[$index + 1] === '<') {
+                $canonical .= $this->readDictionaryToken($token, $index);
+                continue;
+            }
+
+            if ($char === '<') {
+                $canonical .= $this->readHexToken($token, $index);
+                continue;
+            }
+
+            if ($char === '/') {
+                $nameToken = $this->readNameToken($token, $index);
+                $name = $this->decodePdfName(substr($nameToken, 1));
+                $canonical .= '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);
+                continue;
+            }
+
+            $canonical .= $char;
+            $index++;
+        }
+
+        return $canonical;
     }
 
     private function inlineImageDictionaryHasImageKeys(string $dictionary): bool
