@@ -35069,6 +35069,14 @@ final class PdfTextExtractor
                     $targetHex = $entry['target'] ?? '';
                     $source = $this->normalizeHexKey($sourceHex);
                     if ($source !== '' && strlen($source) <= 8) {
+                        $sameWidthCodeSpaceRanges = $this->codeSpaceRangesForHexWidth($cidRangeCodeSpaceRanges, strlen($source));
+                        if (
+                            $sameWidthCodeSpaceRanges !== []
+                            && !$this->sourceKeyMatchesAnyCodeSpaceRange($source, $sameWidthCodeSpaceRanges)
+                        ) {
+                            continue;
+                        }
+
                         $map[$source] = $this->decodeCMapUnicodeHex($targetHex);
                     }
                 }
