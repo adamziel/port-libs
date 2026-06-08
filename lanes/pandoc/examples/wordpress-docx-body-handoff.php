@@ -397,6 +397,26 @@ XML],
       <w:r><w:commentReference w:id="10"/></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Cross move destination </w:t></w:r>
+      <w:moveToRangeStart w:id="80" w:author="Migration Editor" w:date="2026-06-08T11:25:00Z" w:name="cross_move_destination"/>
+      <w:r><w:t>starts accepted</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>continues accepted</w:t></w:r>
+      <w:moveToRangeEnd w:id="80"/>
+      <w:r><w:t xml:space="preserve"> for publication.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Cross moved-from source </w:t></w:r>
+      <w:moveFromRangeStart w:id="81" w:author="Source Editor" w:date="2026-06-08T11:20:00Z" w:name="cross_obsolete_source"/>
+      <w:r><w:delText>old cross source begins</w:delText></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:delText>old cross source continues</w:delText></w:r>
+      <w:moveFromRangeEnd w:id="81"/>
+      <w:r><w:t xml:space="preserve"> stays visible after source.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:bookmarkStart w:id="14" w:name="source_packet_anchor"/>
       <w:bookmarkStart w:id="15" w:name="_GoBack"/>
       <w:bookmarkEnd w:id="15"/>
@@ -959,7 +979,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['media']['items'][2]['id'] ?? '') !== 'rIdVmlBadge' || ($summary['importReport']['media']['items'][2]['usedCount'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing VML image media handoff');
     }
-    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 5 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 7) {
+    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 6 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 8) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
     }
     if (($summary['importReport']['revisions']['formattingCount'] ?? 0) !== 2) {
@@ -1117,6 +1137,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($blocks, 'ranged moved from discarded section')) {
         throw new RuntimeException('DOCX body handoff self-test rendered moved-from tracked-change range text');
     }
+    if (str_contains($blocks, 'old cross source begins') || str_contains($blocks, 'old cross source continues')) {
+        throw new RuntimeException('DOCX body handoff self-test rendered cross-paragraph moved-from range text');
+    }
     if (str_contains($blocks, 'Deleted block revision should stay report-only.')) {
         throw new RuntimeException('DOCX body handoff self-test rendered deleted block tracked-change text');
     }
@@ -1170,6 +1193,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p> textbox tail.</p>',
         '<p>Cross paragraph comment <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">starts here</span></p>',
         '<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">continues here</span> for import review',
+        '<p>Cross move destination <span class="docx-move-to-range" data-docx-change="move-to-range" data-docx-change-id="80" data-docx-author="Migration Editor" data-docx-date="2026-06-08T11:25:00Z" data-docx-move-range-name="cross_move_destination">starts accepted</span></p>',
+        '<p><span class="docx-move-to-range" data-docx-change="move-to-range" data-docx-change-id="80" data-docx-author="Migration Editor" data-docx-date="2026-06-08T11:25:00Z" data-docx-move-range-name="cross_move_destination">continues accepted</span> for publication.</p>',
+        '<p>Cross moved-from source </p>',
+        '<p> stays visible after source.</p>',
         '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
         '<a href="https://example.test/source-packet?post=42" title="Source packet tooltip" class="docx-hyperlink" data-docx-tooltip="Source packet tooltip" data-docx-relationship-id="rIdSource" data-docx-doc-location="ReviewSection" data-docx-target-frame="_blank" data-docx-history="true">the source link</a>',
         '<span id="review_column_range" class="anchor docx-bookmark docx-bookmark-column-range" data-docx-bookmark-id="21" data-docx-bookmark-name="review_column_range" data-docx-bookmark-col-first="0" data-docx-bookmark-col-last="1"></span>Reviewed table scope',

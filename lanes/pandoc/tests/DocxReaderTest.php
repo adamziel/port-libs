@@ -1393,6 +1393,33 @@ $moveRangeTrackedChangesDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$crossParagraphMoveRangeDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Move destination </w:t></w:r>
+      <w:moveToRangeStart w:id="77" w:author="Migration Editor" w:date="2026-06-08T11:25:00Z" w:name="review_destination"/>
+      <w:r><w:t>starts here</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>continues here</w:t></w:r>
+      <w:moveToRangeEnd w:id="77"/>
+      <w:r><w:t xml:space="preserve"> after move.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Suppressed source </w:t></w:r>
+      <w:moveFromRangeStart w:id="78" w:author="Source Editor" w:date="2026-06-08T11:20:00Z" w:name="obsolete_source"/>
+      <w:r><w:delText>old source starts</w:delText></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:delText>old source continues</w:delText></w:r>
+      <w:moveFromRangeEnd w:id="78"/>
+      <w:r><w:t xml:space="preserve"> visible after deletion.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $blockTrackedChangesDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -3009,6 +3036,14 @@ $buildMoveRangeTrackedChangesPackage = static function () use ($contentTypesXml,
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $moveRangeTrackedChangesDocumentXml],
+    ]);
+};
+
+$buildCrossParagraphMoveRangePackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $crossParagraphMoveRangeDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $crossParagraphMoveRangeDocumentXml],
     ]);
 };
 
@@ -5209,6 +5244,50 @@ return [
         $t->same('Migration Editor', $revisions['items'][1]['author']);
         $t->same('2026-06-05T08:12:00Z', $revisions['items'][1]['date']);
         $t->same('moved range wording', $revisions['items'][1]['text']);
+    },
+    'keeps DOCX move ranges active across paragraph boundaries' => static function (TestRunner $t) use ($buildCrossParagraphMoveRangePackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildCrossParagraphMoveRangePackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+
+        $firstParagraph = $document->children[0];
+        $t->same('paragraph', $firstParagraph->type);
+        $t->same('Move destination ', $firstParagraph->children[0]->attr('text'));
+        $firstMoveTo = $firstParagraph->children[1];
+        $t->same('span', $firstMoveTo->type);
+        $t->same(['docx-move-to-range'], $firstMoveTo->attr('classes'));
+        $t->same('move-to-range', $firstMoveTo->attr('attributes')['data-docx-change']);
+        $t->same('77', $firstMoveTo->attr('attributes')['data-docx-change-id']);
+        $t->same('Migration Editor', $firstMoveTo->attr('attributes')['data-docx-author']);
+        $t->same('2026-06-08T11:25:00Z', $firstMoveTo->attr('attributes')['data-docx-date']);
+        $t->same('review_destination', $firstMoveTo->attr('attributes')['data-docx-move-range-name']);
+        $t->same('starts here', $firstMoveTo->children[0]->attr('text'));
+
+        $secondParagraph = $document->children[1];
+        $secondMoveTo = $secondParagraph->children[0];
+        $t->same('span', $secondMoveTo->type);
+        $t->same(['docx-move-to-range'], $secondMoveTo->attr('classes'));
+        $t->same('move-to-range', $secondMoveTo->attr('attributes')['data-docx-change']);
+        $t->same('77', $secondMoveTo->attr('attributes')['data-docx-change-id']);
+        $t->same('continues here', $secondMoveTo->children[0]->attr('text'));
+        $t->same(' after move.', $secondParagraph->children[1]->attr('text'));
+
+        $t->same('Suppressed source ', $document->children[2]->children[0]->attr('text'));
+        $t->same(' visible after deletion.', $document->children[3]->children[0]->attr('text'));
+
+        $t->contains('Move destination [starts here]{.docx-move-to-range data-docx-change="move-to-range" data-docx-change-id="77" data-docx-author="Migration Editor" data-docx-date="2026-06-08T11:25:00Z" data-docx-move-range-name="review_destination"}', $markdown);
+        $t->contains('[continues here]{.docx-move-to-range data-docx-change="move-to-range" data-docx-change-id="77" data-docx-author="Migration Editor" data-docx-date="2026-06-08T11:25:00Z" data-docx-move-range-name="review_destination"} after move.', $markdown);
+        $t->true(!str_contains($markdown, 'old source starts'), 'Moved-from range text should stay suppressed before a paragraph boundary');
+        $t->true(!str_contains($markdown, 'old source continues'), 'Moved-from range text should stay suppressed after a paragraph boundary');
+
+        $t->contains('<p>Move destination <span class="docx-move-to-range" data-docx-change="move-to-range" data-docx-change-id="77" data-docx-author="Migration Editor" data-docx-date="2026-06-08T11:25:00Z" data-docx-move-range-name="review_destination">starts here</span></p>', $blocks);
+        $t->contains('<p><span class="docx-move-to-range" data-docx-change="move-to-range" data-docx-change-id="77" data-docx-author="Migration Editor" data-docx-date="2026-06-08T11:25:00Z" data-docx-move-range-name="review_destination">continues here</span> after move.</p>', $blocks);
+        $t->true(!str_contains($blocks, 'old source starts'), 'Moved-from range text should not render to WordPress blocks before a paragraph boundary');
+        $t->true(!str_contains($blocks, 'old source continues'), 'Moved-from range text should not render to WordPress blocks after a paragraph boundary');
     },
     'preserves accepted DOCX block revisions and reports suppressed block wrappers' => static function (TestRunner $t) use ($buildBlockTrackedChangesPackage): void {
         $reader = new DocxReader();
