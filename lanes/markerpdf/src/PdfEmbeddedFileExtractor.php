@@ -23,6 +23,8 @@ final class PdfEmbeddedFileExtractor
 
     private const FILE_SPEC_METADATA_BOUNDARY_KEYS = ['FS', 'ID', 'V'];
 
+    private const FILE_SPEC_COLLECTION_ITEM_BOUNDARY_KEYS = ['CI'];
+
     private const FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS = ['RF'];
 
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
@@ -1042,10 +1044,14 @@ final class PdfEmbeddedFileExtractor
                 $file['portfolio'] = $portfolioMetadata;
             }
 
-            $portfolioItemValue = $this->dictionaryRawValue($body, 'CI');
-            $portfolioItem = $this->collectionItemMetadata($portfolioItemValue, $objects);
+            $collectionItemMalformed = $this->dictionaryHasDuplicateKeys($body, self::FILE_SPEC_COLLECTION_ITEM_BOUNDARY_KEYS)
+                || $this->dictionaryHasTrailingOperandsAfterKeys($body, self::FILE_SPEC_COLLECTION_ITEM_BOUNDARY_KEYS);
+            $portfolioItemValue = $collectionItemMalformed ? null : $this->dictionaryRawValue($body, 'CI');
+            $portfolioItem = $collectionItemMalformed ? [] : $this->collectionItemMetadata($portfolioItemValue, $objects);
             if ($portfolioItem !== []) {
                 $file['portfolio_item'] = $portfolioItem;
+            } elseif ($collectionItemMalformed) {
+                $file['portfolio_item_status'] = 'malformed_filespec_collection_item_omitted';
             }
 
             $pieceInfo = $this->pieceInfoMetadata($this->dictionaryRawValue($body, 'PieceInfo'), $objects);

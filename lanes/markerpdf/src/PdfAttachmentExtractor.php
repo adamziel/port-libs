@@ -45,6 +45,8 @@ final class PdfAttachmentExtractor
 
     private const FILE_SPEC_METADATA_BOUNDARY_KEYS = ['FS', 'ID', 'V'];
 
+    private const FILE_SPEC_COLLECTION_ITEM_BOUNDARY_KEYS = ['CI'];
+
     private const FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS = ['RF'];
 
     private const FILE_ATTACHMENT_ANNOTATION_BOUNDARY_KEYS = ['FS'];
@@ -1851,7 +1853,13 @@ final class PdfAttachmentExtractor
             $fileIdentifier = $this->fileSpecIdentifierReview($fileSpec['ID'] ?? null, $objects);
             $volatile = $this->boolValue($this->resolveValue($fileSpec['V'] ?? null, $objects));
         }
-        $portfolioItem = $this->collectionItemReview($fileSpec['CI'] ?? null, $objects);
+        $collectionItemMalformed = $fileSpecDictionaryBody !== null
+            && (
+                $this->dictionaryHasDuplicateKeys($fileSpecDictionaryBody, self::FILE_SPEC_COLLECTION_ITEM_BOUNDARY_KEYS)
+                || $this->dictionaryHasTrailingOperandsAfterKeys($fileSpecDictionaryBody, self::FILE_SPEC_COLLECTION_ITEM_BOUNDARY_KEYS)
+            );
+        $collectionItemValue = $collectionItemMalformed ? null : ($fileSpec['CI'] ?? null);
+        $portfolioItem = $collectionItemMalformed ? [] : $this->collectionItemReview($collectionItemValue, $objects);
         $macFileInfo = $this->embeddedFileMacInfoReview($params['Mac'] ?? null, $objects, $encryptionPolicy);
 
         $createdAt = $this->stringValue($this->resolveValue($params['CreationDate'] ?? null, $objects));
@@ -1932,6 +1940,8 @@ final class PdfAttachmentExtractor
         if ($portfolioItem !== []) {
             $attachment['portfolio_item'] = $portfolioItem;
             $attachment['portfolio_item_count'] = count($portfolioItem);
+        } elseif ($collectionItemMalformed) {
+            $attachment['portfolio_item_status'] = 'malformed_filespec_collection_item_omitted';
         }
         if ($macFileInfo !== []) {
             $attachment['mac_file_info'] = $macFileInfo;
@@ -1939,7 +1949,7 @@ final class PdfAttachmentExtractor
         $portfolio = is_array($attachment['portfolio'] ?? null) ? $attachment['portfolio'] : [];
         $portfolioFieldValues = $this->collectionFieldValueReview(
             $portfolio,
-            $fileSpec['CI'] ?? null,
+            $collectionItemValue,
             $objects,
             $attachment
         );

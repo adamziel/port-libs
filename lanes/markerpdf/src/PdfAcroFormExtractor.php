@@ -6485,7 +6485,7 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $equivalentIndex = $this->equivalentWidgetReferenceIndex($refs, $widgetObject, $objects);
+            $equivalentIndex = $this->equivalentWidgetReferenceIndex($refs, $widgetObject, $objects, $fieldObject);
             if ($equivalentIndex !== null) {
                 $refs[$equivalentIndex] = $widgetObject;
                 continue;
@@ -6518,10 +6518,10 @@ final class PdfAcroFormExtractor
      * @param list<int> $refs
      * @param array<int, string> $objects
      */
-    private function equivalentWidgetReferenceIndex(array $refs, int $widgetObject, array $objects): ?int
+    private function equivalentWidgetReferenceIndex(array $refs, int $widgetObject, array $objects, int $fieldObject): ?int
     {
         foreach ($refs as $index => $ref) {
-            if ($this->widgetDictionariesEquivalent($ref, $widgetObject, $objects)) {
+            if ($this->widgetReferencesEquivalentForField($fieldObject, $ref, $widgetObject, $objects)) {
                 return $index;
             }
         }
@@ -10142,7 +10142,7 @@ final class PdfAcroFormExtractor
 
             if (
                 $kidRef === $targetObject
-                || $this->widgetDictionariesEquivalent($kidRef, $targetObject, $objects)
+                || $this->widgetReferencesEquivalentForField($rootObject, $kidRef, $targetObject, $objects)
                 || $this->fieldTreeContainsObject($kidRef, $targetObject, $objects, $seen)
             ) {
                 return true;
@@ -10150,6 +10150,69 @@ final class PdfAcroFormExtractor
         }
 
         return $this->directKidWidgetDictionaryMatchesTarget($rootObject, $body, $targetObject, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function widgetReferencesEquivalentForField(int $fieldObject, int $leftObject, int $rightObject, array $objects): bool
+    {
+        return $this->widgetDictionariesEquivalent($leftObject, $rightObject, $objects)
+            || $this->syntheticDirectWidgetDictionaryEquivalent($fieldObject, $leftObject, $rightObject, $objects)
+            || $this->syntheticDirectWidgetDictionaryEquivalent($fieldObject, $rightObject, $leftObject, $objects);
+    }
+
+    /**
+     * Direct widget dictionaries materialized from a synthetic direct /Parent
+     * field keep their original /Parent shape, while the page annotation widget
+     * is rewritten to the synthetic parent object. Compare only that bounded
+     * synthetic-child case with /Parent ignored.
+     *
+     * @param array<int, string> $objects
+     */
+    private function syntheticDirectWidgetDictionaryEquivalent(
+        int $parentObject,
+        int $syntheticWidgetObject,
+        int $targetWidgetObject,
+        array $objects
+    ): bool {
+        if (($this->syntheticDirectFieldParents[$syntheticWidgetObject] ?? null) !== $parentObject) {
+            return false;
+        }
+
+        if (!isset($objects[$syntheticWidgetObject]) || !isset($objects[$targetWidgetObject])) {
+            return false;
+        }
+
+        $syntheticBody = $this->completeAcroFormDictionaryObjectBody($syntheticWidgetObject, $objects);
+        $targetBody = $this->completeAcroFormDictionaryObjectBody($targetWidgetObject, $objects);
+        if ($syntheticBody === null || $targetBody === null) {
+            return false;
+        }
+
+        if (!$this->isWidget($syntheticBody, $objects) || !$this->isWidget($targetBody, $objects)) {
+            return false;
+        }
+
+        $syntheticParentValue = $this->lastTopLevelValueAfterName($syntheticBody, 'Parent');
+        if ($syntheticParentValue !== null) {
+            $syntheticParentValue = trim($syntheticParentValue);
+            $resolvedSyntheticParent = $this->validObjectReferenceFromValue($syntheticParentValue, $objects);
+            if ($resolvedSyntheticParent !== null && $resolvedSyntheticParent !== $parentObject) {
+                return false;
+            }
+            if ($resolvedSyntheticParent === null && !str_starts_with($syntheticParentValue, '<<')) {
+                return false;
+            }
+        }
+
+        $targetParentValue = $this->lastTopLevelValueAfterName($targetBody, 'Parent');
+        if ($targetParentValue === null || $this->validObjectReferenceFromValue($targetParentValue, $objects) !== $parentObject) {
+            return false;
+        }
+
+        return $this->canonicalDictionaryComparisonBodyWithoutNames($syntheticBody, ['Parent'])
+            === $this->canonicalDictionaryComparisonBodyWithoutNames($targetBody, ['Parent']);
     }
 
     /**
@@ -10242,8 +10305,19 @@ final class PdfAcroFormExtractor
 
     private function canonicalDictionaryComparisonBody(string $body): string
     {
+        return $this->canonicalDictionaryComparisonBodyWithoutNames($body, []);
+    }
+
+    /**
+     * @param list<string> $ignoredNames
+     */
+    private function canonicalDictionaryComparisonBodyWithoutNames(string $body, array $ignoredNames): string
+    {
         $dictionaryBody = $this->topLevelDictionaryBody($body) ?? $body;
         $entries = $this->topLevelDictionaryComparisonEntries($dictionaryBody);
+        foreach ($ignoredNames as $ignoredName) {
+            unset($entries[$ignoredName]);
+        }
         if ($entries === []) {
             return preg_replace('/\s+/', ' ', trim($dictionaryBody)) ?? trim($dictionaryBody);
         }

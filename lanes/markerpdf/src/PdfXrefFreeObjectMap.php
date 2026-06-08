@@ -1773,7 +1773,12 @@ final class PdfXrefFreeObjectMap
         while ($offset < $length) {
             $char = $bytes[$offset];
             if (!self::isPdfWhitespace($char)) {
-                break;
+                if ($char !== '%') {
+                    break;
+                }
+
+                self::skipComment($bytes, $offset);
+                continue;
             }
             $offset++;
         }

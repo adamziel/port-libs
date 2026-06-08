@@ -12842,6 +12842,21 @@ final class PdfMetadataExtractor
         }
         $selectedRecipientSources = $this->uniqueStrings($selectedRecipientSources);
 
+        $selectedRecipientPermissionsMissing = $recipientCount > 0
+            && $selectedRecipientCount === 0
+            && $recipientDeclarationSummary['recipient_declaration_fail_closed'] !== true
+            && !$cryptFilterRoleDeclarationFailClosed;
+        $permissionDecodeStatus = 'public_key_recipient_envelopes_missing';
+        if ($recipientDeclarationSummary['recipient_declaration_fail_closed'] === true) {
+            $permissionDecodeStatus = 'public_key_recipient_declaration_malformed_review';
+        } elseif ($cryptFilterRoleDeclarationFailClosed) {
+            $permissionDecodeStatus = 'public_key_crypt_filter_role_declaration_malformed_review';
+        } elseif ($selectedRecipientPermissionsMissing) {
+            $permissionDecodeStatus = 'public_key_selected_recipient_envelopes_missing';
+        } elseif ($recipientCount > 0) {
+            $permissionDecodeStatus = 'cms_pkcs7_permission_decode_unavailable';
+        }
+
         return [
             'source' => 'public_key_security_handler',
             'handler' => $handler,
@@ -12888,14 +12903,9 @@ final class PdfMetadataExtractor
                 && $recipientDeclarationSummary['recipient_declaration_fail_closed'] !== true,
             'selected_permissions_available_in_recipient_envelopes' => $selectedRecipientCount > 0
                 && $recipientDeclarationSummary['recipient_declaration_fail_closed'] !== true,
+            'selected_recipient_permissions_missing' => $selectedRecipientPermissionsMissing,
             'permissions_decoded' => false,
-            'permission_decode_status' => $recipientDeclarationSummary['recipient_declaration_fail_closed'] === true
-                ? 'public_key_recipient_declaration_malformed_review'
-                : ($cryptFilterRoleDeclarationFailClosed
-                    ? 'public_key_crypt_filter_role_declaration_malformed_review'
-                    : ($recipientCount > 0
-                    ? 'cms_pkcs7_permission_decode_unavailable'
-                    : 'public_key_recipient_envelopes_missing')),
+            'permission_decode_status' => $permissionDecodeStatus,
             'requires_private_key_for_permission_review' => true,
             'recipient_bytes_exposed' => false,
             'recipient_certificates_exposed' => false,
