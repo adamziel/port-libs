@@ -6895,7 +6895,7 @@ final class PdfMetadataExtractor
             return $review;
         }
 
-        $dictionaryBoundaryReview = $this->metadataStreamDictionaryTypeBoundaryReview($stream['dictionary'], $objects);
+        $dictionaryBoundaryReview = $this->documentOutlineMetadataStreamTypeBoundaryReview($stream['dictionary'], $objects);
         if ($dictionaryBoundaryReview !== []) {
             $review = $base + $referenceReview + $dictionaryBoundaryReview + [
                 'bytes' => strlen($stream['content']),
@@ -6973,6 +6973,25 @@ final class PdfMetadataExtractor
         if ($xmpSummary !== []) {
             $review['xmp_summary'] = $xmpSummary;
         }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function documentOutlineMetadataStreamTypeBoundaryReview(string $dictionary, array $objects): array
+    {
+        $review = $this->metadataStreamDictionaryTypeBoundaryReview($dictionary, $objects);
+        if (($review['status'] ?? null) !== 'rejected_tailed_metadata_stream_role_operand') {
+            return $review;
+        }
+
+        $review['status'] = 'rejected_tailed_outline_item_metadata_stream_role_operand';
+        $review['role_operand_boundary'] = 'single_name_token';
+        $review['role_operand_boundary_rejected'] = true;
+        $review['role_operand_policy'] = 'reject_tailed_outline_metadata_stream_role_operands';
 
         return $review;
     }

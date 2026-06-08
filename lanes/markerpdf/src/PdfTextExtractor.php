@@ -38687,7 +38687,11 @@ final class PdfTextExtractor
 
             if ($char === '[') {
                 $arrayBody = $this->readPdfArrayAt($cmap, $offset);
-                $offset = $arrayBody === null ? $offset + 1 : $offset + strlen($arrayBody) + 2;
+                if ($arrayBody === null) {
+                    return null;
+                }
+
+                $offset += strlen($arrayBody) + 2;
                 continue;
             }
 

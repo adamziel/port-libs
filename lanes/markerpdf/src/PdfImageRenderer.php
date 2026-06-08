@@ -8615,6 +8615,9 @@ final class PdfImageRenderer
         if ($decodeParms === null || trim($decodeParms) === '') {
             return false;
         }
+        if ($this->duplicatePdfNameDeclarationCount($decodeParms, 'Name') > 0) {
+            return false;
+        }
 
         $value = $this->pdfDictionaryValueForName($decodeParms, 'Name');
         if ($value === null) {
