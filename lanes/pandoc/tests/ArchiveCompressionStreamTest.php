@@ -6827,6 +6827,85 @@ return [
         ));
     },
 
+    'inspects lz4 frame block size policy without extracting packages' => static function (TestRunner $t): void {
+        $payload = '';
+        for ($index = 0; $index < 320; $index++) {
+            $payload .= hash('sha256', 'lz4-block-size-policy:' . $index, true);
+        }
+
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/content.bin',
+                'data' => $payload,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $skippable = Lz4Frame::skippableFrame('wordpress-lz4-block-size-review', 15);
+        $lz4Stream = $skippable . Lz4Frame::build($tarBytes, [
+            'blockMaxSize' => 262144,
+            'blockChecksum' => true,
+            'contentChecksum' => true,
+        ]);
+
+        $inspection = ArchiveCompressionStream::inspectLz4BlockSizePolicy($lz4Stream, 4096);
+
+        $t->same('lz4', $inspection['format']);
+        $t->same('lz4-block-size-policy', $inspection['type']);
+        $t->same(strlen($lz4Stream), $inspection['compressedSize']);
+        $t->same(2, $inspection['frameCount']);
+        $t->same(1, $inspection['dataFrameCount']);
+        $t->same(1, $inspection['skippableFrameCount']);
+        $t->same(0, $inspection['dictionaryFrameCount']);
+        $t->same(1, $inspection['blockCount']);
+        $t->same(4096, $inspection['maxBlockPayloadBytes']);
+        $t->same(1, $inspection['declaredOverLimitFrameCount']);
+        $t->same(1, $inspection['payloadOverLimitBlockCount']);
+        $t->same(0, $inspection['firstOverLimitDataFrameIndex']);
+        $t->same(262144, $inspection['largestDeclaredBlockMaxSize']);
+        $t->true($inspection['largestBlockPayloadSize'] > 4096);
+        $t->same('review-before-conversion', $inspection['handoffPolicy']);
+        $t->same('lz4-block-size-review', $inspection['extractionPolicy']);
+        $t->same([
+            'lz4-declared-block-max-size-exceeds-threshold',
+            'lz4-block-payload-size-exceeds-threshold',
+        ], $inspection['diagnostics']);
+        $t->same('metadata-only-no-extraction', $inspection['stream']['extractionPolicy']);
+        $t->same('skippable', $inspection['stream']['frames'][0]['type']);
+        $t->same('metadata-only-no-extraction', $inspection['stream']['frames'][0]['policy']);
+        $t->same('frame', $inspection['stream']['frames'][1]['type']);
+        $t->same(0, $inspection['stream']['frames'][1]['dataFrameIndex']);
+        $t->same(262144, $inspection['stream']['frames'][1]['blockMaxSize']);
+        $t->same(true, $inspection['stream']['frames'][1]['declaredBlockMaxOverLimit']);
+        $t->same(1, $inspection['stream']['frames'][1]['payloadOverLimitBlockCount']);
+        $t->same(1, $inspection['stream']['frames'][1]['blockCount']);
+        $t->same(1, count($inspection['stream']['frames'][1]['blocks']));
+        $t->same(0, $inspection['stream']['frames'][1]['blocks'][0]['blockIndex']);
+        $t->true($inspection['stream']['frames'][1]['blocks'][0]['payloadSize'] > 4096);
+        $t->same(true, $inspection['stream']['frames'][1]['blocks'][0]['overLimit']);
+        $t->same('review-before-conversion', $inspection['stream']['frames'][1]['blocks'][0]['policy']);
+        $t->same(['lz4-block-payload-size-exceeds-threshold'], $inspection['stream']['frames'][1]['blocks'][0]['diagnostics']);
+        $t->same([
+            'lz4-declared-block-max-size-exceeds-threshold',
+            'lz4-block-payload-size-exceeds-threshold',
+        ], $inspection['stream']['frames'][1]['diagnostics']);
+        $t->same($tarBytes, Lz4Frame::decode($lz4Stream));
+        $t->same(false, isset($inspection['stream']['frames'][1]['data']));
+
+        $smallStream = Lz4Frame::build('small package marker', [
+            'blockMaxSize' => 65536,
+            'contentChecksum' => true,
+        ]);
+        $smallInspection = ArchiveCompressionStream::inspectLz4BlockSizePolicy($smallStream, 65536);
+        $t->same('within-thresholds', $smallInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $smallInspection['extractionPolicy']);
+        $t->same(0, $smallInspection['declaredOverLimitFrameCount']);
+        $t->same(0, $smallInspection['payloadOverLimitBlockCount']);
+        $t->same([], $smallInspection['diagnostics']);
+        $t->same(false, $smallInspection['stream']['frames'][0]['declaredBlockMaxOverLimit']);
+
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectLz4BlockSizePolicy($smallStream, 0));
+    },
+
     'rejects malformed lz4 frame descriptors checksums and limits' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
         $valid = Lz4Frame::build('review source', [
             'blockChecksum' => true,

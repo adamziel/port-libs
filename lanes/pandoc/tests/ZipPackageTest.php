@@ -1089,6 +1089,7 @@ return [
         $t->same([], $summary['localExtraFieldIds']);
         $t->same(false, $summary['hasCentralExtraFields']);
         $t->same(false, $summary['hasLocalExtraFields']);
+        $t->same(false, $summary['usesDataDescriptor']);
         $t->same(strlen($odtMimetype), $summary['expectedBytes']);
         $t->same(strlen($odtMimetype), $summary['contentBytes']);
         $t->same(true, $summary['contentsMatch']);
@@ -1116,9 +1117,34 @@ return [
         $t->same([0xcafe], $extraSummary['localExtraFieldIds']);
         $t->same(true, $extraSummary['hasCentralExtraFields']);
         $t->same(true, $extraSummary['hasLocalExtraFields']);
+        $t->same(false, $extraSummary['usesDataDescriptor']);
         $t->same(false, $extraSummary['isValid']);
         $t->contains('must not carry ZIP extra fields', implode('; ', $extraSummary['diagnostics']));
         $t->throws(\RuntimeException::class, static fn (): array => $extraFieldPackage->assertStoredFirstEntry('mimetype', $odtMimetype, 'ODT mimetype entry'));
+
+        $descriptorPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => $odtMimetype,
+                'method' => 0,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'content.xml',
+                'data' => '<office:document-content/>',
+                'method' => 8,
+            ],
+        ]));
+        $descriptorSummary = $descriptorPackage->storedFirstEntryPreflight('mimetype', $odtMimetype);
+        $t->same(true, $descriptorSummary['isFirstLocalEntry']);
+        $t->same(true, $descriptorSummary['isStored']);
+        $t->same(true, $descriptorSummary['usesDataDescriptor']);
+        $t->same([], $descriptorSummary['centralExtraFieldIds']);
+        $t->same([], $descriptorSummary['localExtraFieldIds']);
+        $t->same(true, $descriptorSummary['contentsMatch']);
+        $t->same(false, $descriptorSummary['isValid']);
+        $t->contains('must not use a ZIP data descriptor', implode('; ', $descriptorSummary['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): array => $descriptorPackage->assertStoredFirstEntry('mimetype', $odtMimetype, 'ODT mimetype entry'));
 
         $notFirstPackage = ZipPackage::fromString($buildZipPackage([
             [

@@ -344,6 +344,7 @@ final class PdfEngineHandoff
      *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatureSubFilters: array<string, int>,
      *     pdfSignatureByteRangePolicy: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
+     *     pdfSignatureRevisionMetadata: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, signingTime:string|null, byteRangeEnd:int|null, revision:int|null, revisionStartXref:int|null, revisionPrev:int|null, revisionRoot:string|null, revisionInfo:string|null, revisionEncrypt:string|null, revisionByteEnd:int|null, coversRevisionEnd:bool|null, latestRevision:int|null, laterRevisions:int, reviewStatus:string}>,
      *     pdfDocumentSecurityStore: array<string, mixed>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
@@ -800,6 +801,7 @@ final class PdfEngineHandoff
         $pdfSignatures = [];
         $pdfSignatureSubFilters = [];
         $pdfSignatureByteRangePolicy = [];
+        $pdfSignatureRevisionMetadata = [];
         $pdfDocumentSecurityStore = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
@@ -914,6 +916,7 @@ final class PdfEngineHandoff
                 $pdfSignatures = $pdfInspection['signatures'];
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
                 $pdfSignatureByteRangePolicy = $pdfInspection['signatureByteRangePolicy'];
+                $pdfSignatureRevisionMetadata = $pdfInspection['signatureRevisionMetadata'];
                 $pdfDocumentSecurityStore = $pdfInspection['documentSecurityStore'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
@@ -2352,6 +2355,27 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-signature-byte-range-contents-fit:' . $contentsFitCount;
                     }
                 }
+                if ($pdfSignatureRevisionMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-signature-revisions:' . count($pdfSignatureRevisionMetadata);
+                    $statusCounts = [];
+                    $supersededCount = 0;
+                    foreach ($pdfSignatureRevisionMetadata as $revisionMetadata) {
+                        $reviewStatus = is_string($revisionMetadata['reviewStatus'] ?? null) && $revisionMetadata['reviewStatus'] !== ''
+                            ? $revisionMetadata['reviewStatus']
+                            : 'unknown';
+                        $statusCounts[$reviewStatus] = ($statusCounts[$reviewStatus] ?? 0) + 1;
+                        if (($revisionMetadata['laterRevisions'] ?? 0) > 0) {
+                            $supersededCount++;
+                        }
+                    }
+                    ksort($statusCounts);
+                    foreach ($statusCounts as $reviewStatus => $count) {
+                        $diagnostics[] = 'pdf-byte-signature-revision-status:' . $reviewStatus . ':' . $count;
+                    }
+                    if ($supersededCount > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-revision-superseded:' . $supersededCount;
+                    }
+                }
                 if ($pdfDocumentSecurityStore !== []) {
                     $diagnostics[] = 'pdf-byte-dss';
                     $dssCerts = is_array($pdfDocumentSecurityStore['certs'] ?? null) ? $pdfDocumentSecurityStore['certs'] : [];
@@ -2926,6 +2950,7 @@ final class PdfEngineHandoff
             'pdfSignatures' => $pdfSignatures,
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
             'pdfSignatureByteRangePolicy' => $pdfSignatureByteRangePolicy,
+            'pdfSignatureRevisionMetadata' => $pdfSignatureRevisionMetadata,
             'pdfDocumentSecurityStore' => $pdfDocumentSecurityStore,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
@@ -3310,6 +3335,7 @@ final class PdfEngineHandoff
             'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
             'finalPdfSignatureByteRangePolicy' => is_array($finalRun) && is_array($finalRun['pdfSignatureByteRangePolicy'] ?? null) ? $finalRun['pdfSignatureByteRangePolicy'] : [],
+            'finalPdfSignatureRevisionMetadata' => is_array($finalRun) && is_array($finalRun['pdfSignatureRevisionMetadata'] ?? null) ? $finalRun['pdfSignatureRevisionMetadata'] : [],
             'finalPdfDocumentSecurityStore' => is_array($finalRun) && is_array($finalRun['pdfDocumentSecurityStore'] ?? null) ? $finalRun['pdfDocumentSecurityStore'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
@@ -4431,6 +4457,7 @@ final class PdfEngineHandoff
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatureSubFilters:array<string, int>,
      *     signatureByteRangePolicy:list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
+     *     signatureRevisionMetadata:list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, signingTime:string|null, byteRangeEnd:int|null, revision:int|null, revisionStartXref:int|null, revisionPrev:int|null, revisionRoot:string|null, revisionInfo:string|null, revisionEncrypt:string|null, revisionByteEnd:int|null, coversRevisionEnd:bool|null, latestRevision:int|null, laterRevisions:int, reviewStatus:string}>,
      *     documentSecurityStore:array<string, mixed>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
@@ -4596,6 +4623,7 @@ final class PdfEngineHandoff
             'signatures' => $signatures,
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
             'signatureByteRangePolicy' => $this->summarizePdfSignatureByteRangePolicy($signatures, $catalogPermissions, strlen($pdfBytes)),
+            'signatureRevisionMetadata' => $this->summarizePdfSignatureRevisionMetadata($signatures, $catalogPermissions, $trailerRevisions, $pdfBytes),
             'documentSecurityStore' => $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
@@ -12126,6 +12154,190 @@ final class PdfEngineHandoff
         }
 
         return 'review';
+    }
+
+    /**
+     * @param list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, signingTime:string|null, byteRange:list<int>}> $signatures
+     * @param list<array{permission:string, signatureObject:string|null, signingTime:string|null, byteRange:list<int>}> $catalogPermissions
+     * @param list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}> $trailerRevisions
+     * @return list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, signingTime:string|null, byteRangeEnd:int|null, revision:int|null, revisionStartXref:int|null, revisionPrev:int|null, revisionRoot:string|null, revisionInfo:string|null, revisionEncrypt:string|null, revisionByteEnd:int|null, coversRevisionEnd:bool|null, latestRevision:int|null, laterRevisions:int, reviewStatus:string}>
+     */
+    private function summarizePdfSignatureRevisionMetadata(
+        array $signatures,
+        array $catalogPermissions,
+        array $trailerRevisions,
+        string $pdfBytes
+    ): array {
+        $revisionBoundaries = $this->pdfTrailerRevisionBoundaries($pdfBytes, $trailerRevisions);
+        $metadata = [];
+        foreach ($signatures as $signature) {
+            $metadata[] = $this->summarizePdfSignatureRevisionMetadataEntry(
+                'signature',
+                null,
+                $signature,
+                $revisionBoundaries
+            );
+        }
+
+        foreach ($catalogPermissions as $permission) {
+            $permissionName = is_string($permission['permission'] ?? null) && $permission['permission'] !== ''
+                ? $permission['permission']
+                : null;
+            $metadata[] = $this->summarizePdfSignatureRevisionMetadataEntry(
+                'catalog-permission',
+                $permissionName,
+                $permission,
+                $revisionBoundaries
+            );
+        }
+
+        usort(
+            $metadata,
+            static fn (array $a, array $b): int => [
+                $a['source'],
+                $a['permission'] ?? '',
+                $a['fieldName'] ?? '',
+                $a['signatureObject'] ?? '',
+            ] <=> [
+                $b['source'],
+                $b['permission'] ?? '',
+                $b['fieldName'] ?? '',
+                $b['signatureObject'] ?? '',
+            ]
+        );
+
+        return $metadata;
+    }
+
+    /**
+     * @param array{permission?:string, fieldName?:string|null, fieldObject?:string|null, signatureObject?:string|null, signingTime?:string|null, byteRange?:list<int>} $signature
+     * @param list<array{revision:int, startxref:int|null, prev:int|null, root:string|null, info:string|null, encrypt:string|null, revisionByteEnd:int|null}> $revisionBoundaries
+     * @return array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, signingTime:string|null, byteRangeEnd:int|null, revision:int|null, revisionStartXref:int|null, revisionPrev:int|null, revisionRoot:string|null, revisionInfo:string|null, revisionEncrypt:string|null, revisionByteEnd:int|null, coversRevisionEnd:bool|null, latestRevision:int|null, laterRevisions:int, reviewStatus:string}
+     */
+    private function summarizePdfSignatureRevisionMetadataEntry(
+        string $source,
+        ?string $permission,
+        array $signature,
+        array $revisionBoundaries
+    ): array {
+        $byteRangeEnd = $this->pdfSignatureByteRangeEnd($signature['byteRange'] ?? []);
+        $latestRevision = null;
+        if ($revisionBoundaries !== []) {
+            $latest = $revisionBoundaries[count($revisionBoundaries) - 1];
+            $latestRevision = $latest['revision'];
+        }
+
+        $matchedRevision = null;
+        if ($byteRangeEnd !== null) {
+            foreach ($revisionBoundaries as $revision) {
+                if (($revision['revisionByteEnd'] ?? null) === null) {
+                    continue;
+                }
+                if ($byteRangeEnd <= $revision['revisionByteEnd']) {
+                    $matchedRevision = $revision;
+                    break;
+                }
+            }
+        }
+
+        $revisionNumber = is_array($matchedRevision) ? $matchedRevision['revision'] : null;
+        $revisionByteEnd = is_array($matchedRevision) ? $matchedRevision['revisionByteEnd'] : null;
+        $coversRevisionEnd = $byteRangeEnd !== null && $revisionByteEnd !== null
+            ? $byteRangeEnd === $revisionByteEnd
+            : null;
+        $laterRevisions = $revisionNumber !== null && $latestRevision !== null
+            ? max(0, $latestRevision - $revisionNumber)
+            : 0;
+
+        return [
+            'source' => $source,
+            'permission' => $permission,
+            'fieldName' => is_string($signature['fieldName'] ?? null) && $signature['fieldName'] !== '' ? $signature['fieldName'] : null,
+            'fieldObject' => is_string($signature['fieldObject'] ?? null) && $signature['fieldObject'] !== '' ? $signature['fieldObject'] : null,
+            'signatureObject' => is_string($signature['signatureObject'] ?? null) && $signature['signatureObject'] !== '' ? $signature['signatureObject'] : null,
+            'signingTime' => is_string($signature['signingTime'] ?? null) && $signature['signingTime'] !== '' ? $signature['signingTime'] : null,
+            'byteRangeEnd' => $byteRangeEnd,
+            'revision' => $revisionNumber,
+            'revisionStartXref' => is_array($matchedRevision) ? $matchedRevision['startxref'] : null,
+            'revisionPrev' => is_array($matchedRevision) ? $matchedRevision['prev'] : null,
+            'revisionRoot' => is_array($matchedRevision) ? $matchedRevision['root'] : null,
+            'revisionInfo' => is_array($matchedRevision) ? $matchedRevision['info'] : null,
+            'revisionEncrypt' => is_array($matchedRevision) ? $matchedRevision['encrypt'] : null,
+            'revisionByteEnd' => $revisionByteEnd,
+            'coversRevisionEnd' => $coversRevisionEnd,
+            'latestRevision' => $latestRevision,
+            'laterRevisions' => $laterRevisions,
+            'reviewStatus' => $this->pdfSignatureRevisionReviewStatus($byteRangeEnd, $matchedRevision, $coversRevisionEnd, $laterRevisions),
+        ];
+    }
+
+    /**
+     * @param list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}> $trailerRevisions
+     * @return list<array{revision:int, startxref:int|null, prev:int|null, root:string|null, info:string|null, encrypt:string|null, revisionByteEnd:int|null}>
+     */
+    private function pdfTrailerRevisionBoundaries(string $pdfBytes, array $trailerRevisions): array
+    {
+        preg_match_all('/%%EOF\b/', $pdfBytes, $matches, PREG_OFFSET_CAPTURE);
+        $eofMatches = is_array($matches[0] ?? null) ? $matches[0] : [];
+        $boundaries = [];
+        foreach ($trailerRevisions as $index => $revision) {
+            $eofOffset = isset($eofMatches[$index][1]) && is_int($eofMatches[$index][1])
+                ? $eofMatches[$index][1]
+                : null;
+            $boundaries[] = [
+                'revision' => $revision['revision'],
+                'startxref' => $revision['startxref'],
+                'prev' => $revision['prev'],
+                'root' => $revision['root'],
+                'info' => $revision['info'],
+                'encrypt' => $revision['encrypt'],
+                'revisionByteEnd' => $eofOffset === null ? null : $eofOffset + strlen('%%EOF'),
+            ];
+        }
+
+        return $boundaries;
+    }
+
+    /**
+     * @param list<int> $byteRange
+     */
+    private function pdfSignatureByteRangeEnd(array $byteRange): ?int
+    {
+        $rangeCount = count($byteRange);
+        if ($rangeCount < 2 || $rangeCount % 2 !== 0) {
+            return null;
+        }
+
+        $end = null;
+        for ($index = 0; $index < $rangeCount; $index += 2) {
+            $offset = $byteRange[$index];
+            $length = $byteRange[$index + 1];
+            if (!is_int($offset) || !is_int($length) || $offset < 0 || $length < 0) {
+                return null;
+            }
+            $candidateEnd = $offset + $length;
+            $end = $end === null ? $candidateEnd : max($end, $candidateEnd);
+        }
+
+        return $end;
+    }
+
+    private function pdfSignatureRevisionReviewStatus(?int $byteRangeEnd, mixed $matchedRevision, ?bool $coversRevisionEnd, int $laterRevisions): string
+    {
+        if ($byteRangeEnd === null) {
+            return 'missing-byte-range';
+        }
+        if (!is_array($matchedRevision)) {
+            return 'outside-revision-chain';
+        }
+        if ($laterRevisions > 0) {
+            return 'superseded-by-incremental-update';
+        }
+        if ($coversRevisionEnd === false) {
+            return 'revision-partial-coverage';
+        }
+
+        return 'current-revision';
     }
 
     /**

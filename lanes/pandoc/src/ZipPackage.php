@@ -1300,6 +1300,8 @@ final class ZipPackage
      *     isFirstLocalEntry:bool,
      *     compressionMethod:?int,
      *     compressionMethodName:?string,
+     *     generalPurposeFlags:?int,
+     *     usesDataDescriptor:bool,
      *     isStored:bool,
      *     centralExtraFieldIds:list<int>,
      *     localExtraFieldIds:list<int>,
@@ -1321,6 +1323,8 @@ final class ZipPackage
         $diagnostics = [];
         $compressionMethod = null;
         $compressionMethodName = null;
+        $generalPurposeFlags = null;
+        $usesDataDescriptor = false;
         $isStored = false;
         $centralExtraFieldIds = [];
         $localExtraFieldIds = [];
@@ -1339,6 +1343,8 @@ final class ZipPackage
             $entry = $this->entriesByName[$name];
             $compressionMethod = $entry->compressionMethod;
             $compressionMethodName = self::compressionMethodName($compressionMethod);
+            $generalPurposeFlags = $entry->generalPurposeFlags;
+            $usesDataDescriptor = ($generalPurposeFlags & 0x0008) !== 0;
             $isStored = $compressionMethod === 0;
             $centralExtraFieldIds = array_map(
                 static fn (array $field): int => $field['id'],
@@ -1351,6 +1357,10 @@ final class ZipPackage
 
             if (!$isStored) {
                 $diagnostics[] = "entry {$name} must use stored compression";
+            }
+
+            if ($usesDataDescriptor) {
+                $diagnostics[] = "entry {$name} must not use a ZIP data descriptor";
             }
 
             if ($centralExtraFieldIds !== [] || $localExtraFieldIds !== []) {
@@ -1376,6 +1386,8 @@ final class ZipPackage
             'isFirstLocalEntry' => $firstLocalEntryName === $name,
             'compressionMethod' => $compressionMethod,
             'compressionMethodName' => $compressionMethodName,
+            'generalPurposeFlags' => $generalPurposeFlags,
+            'usesDataDescriptor' => $usesDataDescriptor,
             'isStored' => $isStored,
             'centralExtraFieldIds' => $centralExtraFieldIds,
             'localExtraFieldIds' => $localExtraFieldIds,
@@ -1397,6 +1409,8 @@ final class ZipPackage
      *     isFirstLocalEntry:bool,
      *     compressionMethod:?int,
      *     compressionMethodName:?string,
+     *     generalPurposeFlags:?int,
+     *     usesDataDescriptor:bool,
      *     isStored:bool,
      *     centralExtraFieldIds:list<int>,
      *     localExtraFieldIds:list<int>,

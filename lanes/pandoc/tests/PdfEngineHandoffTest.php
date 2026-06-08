@@ -7464,6 +7464,136 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfSignatureByteRangePolicy']);
     },
 
+    'fake runner maps pdf signatures to incremental trailer revisions' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/incremental-signature.pdf']);
+        $signatureBytes = hex2bin('3082010A0282010100AABBCC') ?: '';
+        $signatureHex = strtoupper(bin2hex($signatureBytes));
+        $buildPdf = static function (array $byteRange) use ($signatureHex): string {
+            return implode("\n", [
+                '%PDF-1.7',
+                '1 0 obj',
+                '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R /Perms << /DocMDP 9 0 R >> >>',
+                'endobj',
+                '2 0 obj',
+                '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+                'endobj',
+                '3 0 obj',
+                '<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>',
+                'endobj',
+                '4 0 obj',
+                '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.signature) /V 9 0 R >>',
+                'endobj',
+                '8 0 obj',
+                '<< /Fields [4 0 R] /SigFlags 3 >>',
+                'endobj',
+                '9 0 obj',
+                '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.CAdES.detached /Name (Migration Desk) /M (D:20260608231000Z) /ByteRange [' . implode(' ', $byteRange) . '] /Contents <' . $signatureHex . '> >>',
+                'endobj',
+                'trailer',
+                '<< /Size 10 /Root 1 0 R >>',
+                'startxref',
+                '512',
+                '%%EOF',
+                '12 0 obj',
+                '<< /Producer (WordPress review appender) >>',
+                'endobj',
+                'trailer',
+                '<< /Size 13 /Root 1 0 R /Info 12 0 R /Prev 512 >>',
+                'startxref',
+                '1024',
+                '%%EOF',
+                '',
+            ]);
+        };
+
+        $pdfBytes = $buildPdf([0, 30, 50, 0]);
+        $byteRange = [0, 30, 50, 0];
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $firstEofOffset = strpos($pdfBytes, '%%EOF');
+            $t->true($firstEofOffset !== false, 'First EOF marker is present');
+            $firstRevisionEnd = (int) $firstEofOffset + strlen('%%EOF');
+            $nextRange = [0, 30, 50, max(0, $firstRevisionEnd - 50)];
+            $nextPdf = $buildPdf($nextRange);
+            if ($nextRange === $byteRange && strlen($nextPdf) === strlen($pdfBytes)) {
+                break;
+            }
+            $byteRange = $nextRange;
+            $pdfBytes = $nextPdf;
+        }
+
+        $firstEofOffset = strpos($pdfBytes, '%%EOF');
+        $t->true($firstEofOffset !== false, 'First EOF marker is present after ByteRange stabilization');
+        $firstRevisionEnd = (int) $firstEofOffset + strlen('%%EOF');
+        $byteRange = [0, 30, 50, max(0, $firstRevisionEnd - 50)];
+        $pdfBytes = $buildPdf($byteRange);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/incremental-signature.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/incremental-signature.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'source' => 'catalog-permission',
+                'permission' => 'DocMDP',
+                'fieldName' => null,
+                'fieldObject' => null,
+                'signatureObject' => '9 0 R',
+                'signingTime' => 'D:20260608231000Z',
+                'byteRangeEnd' => $firstRevisionEnd,
+                'revision' => 1,
+                'revisionStartXref' => 512,
+                'revisionPrev' => null,
+                'revisionRoot' => '1 0 R',
+                'revisionInfo' => null,
+                'revisionEncrypt' => null,
+                'revisionByteEnd' => $firstRevisionEnd,
+                'coversRevisionEnd' => true,
+                'latestRevision' => 2,
+                'laterRevisions' => 1,
+                'reviewStatus' => 'superseded-by-incremental-update',
+            ],
+            [
+                'source' => 'signature',
+                'permission' => null,
+                'fieldName' => 'review.signature',
+                'fieldObject' => '4 0 R',
+                'signatureObject' => '9 0 R',
+                'signingTime' => 'D:20260608231000Z',
+                'byteRangeEnd' => $firstRevisionEnd,
+                'revision' => 1,
+                'revisionStartXref' => 512,
+                'revisionPrev' => null,
+                'revisionRoot' => '1 0 R',
+                'revisionInfo' => null,
+                'revisionEncrypt' => null,
+                'revisionByteEnd' => $firstRevisionEnd,
+                'coversRevisionEnd' => true,
+                'latestRevision' => 2,
+                'laterRevisions' => 1,
+                'reviewStatus' => 'superseded-by-incremental-update',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfSignatureRevisionMetadata']);
+        $t->contains('pdf-byte-signature-revisions:2', $diagnostics);
+        $t->contains('pdf-byte-signature-revision-status:superseded-by-incremental-update:2', $diagnostics);
+        $t->contains('pdf-byte-signature-revision-superseded:2', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfSignatureRevisionMetadata']);
+    },
+
     'fake runner extracts bounded pdf catalog permission signatures from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/permissions.pdf']);

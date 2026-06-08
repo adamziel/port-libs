@@ -963,6 +963,27 @@ $lz4SkippableStream = Lz4Frame::skippableFrame($lz4SkippableSmallPayload, 2)
     ])
     . Lz4Frame::skippableFrame($lz4SkippableLargePayload, 15);
 $lz4SkippableInspection = ArchiveCompressionStream::inspectLz4SkippableFramePolicy($lz4SkippableStream, 32);
+$lz4BlockSizePayload = '';
+for ($index = 0; $index < 320; $index++) {
+    $lz4BlockSizePayload .= hash('sha256', 'wordpress-lz4-block-size-policy:' . $index, true);
+}
+$lz4BlockSizeArchiveBytes = TarArchive::fromEntries([
+    [
+        'name' => 'packet/content.bin',
+        'data' => $lz4BlockSizePayload,
+    ],
+])->bytes();
+$lz4BlockSizeThreshold = 4096;
+$lz4BlockSizeStream = Lz4Frame::skippableFrame('wordpress-lz4-block-size-review', 15)
+    . Lz4Frame::build($lz4BlockSizeArchiveBytes, [
+        'blockMaxSize' => 262144,
+        'blockChecksum' => true,
+        'contentChecksum' => true,
+    ]);
+$lz4BlockSizeInspection = ArchiveCompressionStream::inspectLz4BlockSizePolicy(
+    $lz4BlockSizeStream,
+    $lz4BlockSizeThreshold
+);
 $lz4SuppliedDictionary = 'packet/word/document.xml:';
 $lz4SuppliedDecodedPayload = $lz4SuppliedDictionary . 'wp' . $lz4SuppliedDictionary . 'ok';
 $lz4SuppliedDictionaryStream = Lz4Frame::skippableFrame('dictionary-id:0x1a2b3c4d', 12)
@@ -1572,6 +1593,19 @@ if (in_array('--self-test', $argv, true)) {
         'lz4SkippableFirstPayloadSha' => hash('sha256', $lz4SkippableSmallPayload),
         'lz4SkippableFirstPreview' => $lz4SkippableSmallPayload,
         'lz4SkippableLargePolicy' => 'review-before-conversion',
+        'lz4BlockSizePolicyType' => 'lz4-block-size-policy',
+        'lz4BlockSizeHandoffPolicy' => 'review-before-conversion',
+        'lz4BlockSizeExtractionPolicy' => 'lz4-block-size-review',
+        'lz4BlockSizeFrameCount' => 2,
+        'lz4BlockSizeBlockCount' => 1,
+        'lz4BlockSizeThreshold' => $lz4BlockSizeThreshold,
+        'lz4BlockSizeDeclaredOverLimitFrameCount' => 1,
+        'lz4BlockSizePayloadOverLimitBlockCount' => 1,
+        'lz4BlockSizeDeclaredMax' => 262144,
+        'lz4BlockSizeDiagnostics' => [
+            'lz4-declared-block-max-size-exceeds-threshold',
+            'lz4-block-payload-size-exceeds-threshold',
+        ],
         'lz4SuppliedDecodedPayload' => $lz4SuppliedDecodedPayload,
         'lz4SuppliedFrameCount' => 2,
         'lz4SuppliedBlockCount' => 2,
@@ -2039,6 +2073,21 @@ if (in_array('--self-test', $argv, true)) {
         || ($lz4SkippableInspection['stream']['frames'][2]['diagnostics'] ?? []) !== ['lz4-skippable-frame-byte-limit-over-limit']
         || isset($lz4SkippableInspection['stream']['frames'][0]['data'])
         || isset($lz4SkippableInspection['stream']['frames'][2]['data'])
+        || $lz4BlockSizeInspection['type'] !== $expected['lz4BlockSizePolicyType']
+        || $lz4BlockSizeInspection['handoffPolicy'] !== $expected['lz4BlockSizeHandoffPolicy']
+        || $lz4BlockSizeInspection['extractionPolicy'] !== $expected['lz4BlockSizeExtractionPolicy']
+        || $lz4BlockSizeInspection['frameCount'] !== $expected['lz4BlockSizeFrameCount']
+        || $lz4BlockSizeInspection['blockCount'] !== $expected['lz4BlockSizeBlockCount']
+        || $lz4BlockSizeInspection['maxBlockPayloadBytes'] !== $expected['lz4BlockSizeThreshold']
+        || $lz4BlockSizeInspection['declaredOverLimitFrameCount'] !== $expected['lz4BlockSizeDeclaredOverLimitFrameCount']
+        || $lz4BlockSizeInspection['payloadOverLimitBlockCount'] !== $expected['lz4BlockSizePayloadOverLimitBlockCount']
+        || $lz4BlockSizeInspection['diagnostics'] !== $expected['lz4BlockSizeDiagnostics']
+        || ($lz4BlockSizeInspection['stream']['frames'][0]['policy'] ?? null) !== 'metadata-only-no-extraction'
+        || ($lz4BlockSizeInspection['stream']['frames'][1]['blockMaxSize'] ?? null) !== $expected['lz4BlockSizeDeclaredMax']
+        || ($lz4BlockSizeInspection['stream']['frames'][1]['payloadOverLimitBlockCount'] ?? null) !== 1
+        || ($lz4BlockSizeInspection['stream']['frames'][1]['blocks'][0]['overLimit'] ?? null) !== true
+        || ($lz4BlockSizeInspection['stream']['frames'][1]['blocks'][0]['payloadSize'] ?? 0) <= $expected['lz4BlockSizeThreshold']
+        || isset($lz4BlockSizeInspection['stream']['frames'][1]['data'])
         || $lz4SuppliedDecodedPayloadActual !== $expected['lz4SuppliedDecodedPayload']
         || count($lz4SuppliedFrames) !== $expected['lz4SuppliedFrameCount']
         || !$lz4SuppliedMissingDictionaryBlocked
@@ -2403,6 +2452,9 @@ echo 'lz4Skippable.handoffPolicy=' . $lz4SkippableInspection['handoffPolicy'] . 
 echo 'lz4Skippable.overLimitCount=' . $lz4SkippableInspection['overLimitSkippableFrameCount'] . "\n";
 echo 'lz4Skippable.payloadSha256=' . $lz4SkippableInspection['stream']['frames'][0]['payloadSha256'] . "\n";
 echo 'lz4Skippable.largePolicy=' . $lz4SkippableInspection['stream']['frames'][2]['policy'] . "\n";
+echo 'lz4BlockSize.handoffPolicy=' . $lz4BlockSizeInspection['handoffPolicy'] . "\n";
+echo 'lz4BlockSize.payloadOverLimitBlockCount=' . $lz4BlockSizeInspection['payloadOverLimitBlockCount'] . "\n";
+echo 'lz4BlockSize.diagnostics=' . implode(',', $lz4BlockSizeInspection['diagnostics']) . "\n";
 echo 'zlibDictionary.kind=' . $zlibDictionaryInspection['kind'] . "\n";
 echo 'zlibDictionary.format=' . $zlibDictionaryInspection['format'] . "\n";
 echo 'zlibDictionary.dictionaryId=' . $zlibDictionaryInspection['stream']['presetDictionaryId'] . "\n";

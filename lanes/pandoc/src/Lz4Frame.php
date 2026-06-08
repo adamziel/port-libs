@@ -238,6 +238,8 @@ final class Lz4Frame
             $blockChecksum = ($flags & self::FLAG_BLOCK_CHECKSUM) !== 0;
             $blockCount = 0;
             $blockTypes = [];
+            $blockPayloadSizes = [];
+            $largestBlockPayloadSize = 0;
             $compressedSize = 0;
             while (true) {
                 self::assertRange($bytes, $cursor, 4, 'block size');
@@ -255,6 +257,8 @@ final class Lz4Frame
 
                 self::assertRange($bytes, $cursor, $blockSize, 'block payload');
                 $cursor += $blockSize;
+                $blockPayloadSizes[] = $blockSize;
+                $largestBlockPayloadSize = max($largestBlockPayloadSize, $blockSize);
                 $compressedSize += $blockSize;
 
                 if ($blockChecksum) {
@@ -288,6 +292,8 @@ final class Lz4Frame
                 'contentChecksum' => $contentChecksum,
                 'blockCount' => $blockCount,
                 'blockTypes' => $blockTypes,
+                'blockPayloadSizes' => $blockPayloadSizes,
+                'largestBlockPayloadSize' => $largestBlockPayloadSize,
                 'compressedSize' => $compressedSize,
                 'frameOffset' => $frameStart,
                 'frameSize' => $cursor - $frameStart,

@@ -241,6 +241,53 @@ $buildDescriptorBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildStoredFirstDescriptorBackedPackage = static function (string $contents) use ($crc32): string {
+    $name = 'mimetype';
+    $crc = $crc32($contents);
+    $flags = 0x0808;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        strlen($name),
+        0
+    );
+    $body .= $name . $contents . "PK\x07\x08" . pack('VVV', $crc, strlen($contents), strlen($contents));
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($contents),
+        strlen($contents),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildDescriptorPlaceholderMismatchBackedPackage = static function () use ($crc32): string {
     $name = 'word/comments.xml';
     $data = '<w:comments><w:comment>Descriptor local header placeholders should stay blocked</w:comment></w:comments>';
@@ -2696,6 +2743,14 @@ try {
 } catch (RuntimeException $exception) {
     $odtMimetypeExtraFieldRejected = str_contains($exception->getMessage(), 'must not carry ZIP extra fields');
 }
+$odtMimetypeDescriptorPackage = ZipPackage::fromString($buildStoredFirstDescriptorBackedPackage($odtMimetype));
+$odtMimetypeDescriptorPreflight = $odtMimetypeDescriptorPackage->storedFirstEntryPreflight('mimetype', $odtMimetype);
+$odtMimetypeDescriptorRejected = false;
+try {
+    $odtMimetypeDescriptorPackage->assertStoredFirstEntry('mimetype', $odtMimetype, 'ODT mimetype entry');
+} catch (RuntimeException $exception) {
+    $odtMimetypeDescriptorRejected = str_contains($exception->getMessage(), 'must not use a ZIP data descriptor');
+}
 $packageCommentPolicyRejected = false;
 try {
     $package->assertNoPackageOrEntryComments();
@@ -4295,6 +4350,18 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($odtMimetypeDescriptorPreflight['entryName'] ?? null) !== 'mimetype'
+        || ($odtMimetypeDescriptorPreflight['isFirstLocalEntry'] ?? null) !== true
+        || ($odtMimetypeDescriptorPreflight['isStored'] ?? null) !== true
+        || ($odtMimetypeDescriptorPreflight['usesDataDescriptor'] ?? null) !== true
+        || ($odtMimetypeDescriptorPreflight['contentsMatch'] ?? null) !== true
+        || ($odtMimetypeDescriptorPreflight['isValid'] ?? null) !== false
+        || !$odtMimetypeDescriptorRejected
+    ) {
+        throw new RuntimeException('Expected ODT mimetype ZIP data descriptors to be rejected before package import');
+    }
+
+    if (
         !$corruptPayloadRejected
         || ($corruptPayloadPreflight['failedEntryCount'] ?? null) !== 1
         || ($corruptPayloadPreflight['failedEntries'][0]['name'] ?? null) !== 'word/document.xml'
@@ -5666,6 +5733,7 @@ echo 'localOrder=' . implode(',', $package->localNames()) . "\n";
 echo 'odtMimetypeStoredFirst=' . ($odtMimetypePreflight['isValid'] ? 'yes' : 'no') . "\n";
 echo 'odtMimetypeLocalFirst=' . ($odtMimetypePreflight['firstLocalEntryName'] ?? 'none') . "\n";
 echo 'zipStoredFirstMimetypeExtraFieldPolicy=' . ($odtMimetypeExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipStoredFirstMimetypeDescriptorPolicy=' . ($odtMimetypeDescriptorRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'packageLocalHeaders.entryCount=' . $packageLocalHeaderPreflight['entryCount'] . "\n";
 echo 'packageLocalHeaders.firstLocalEntry=' . ($packageLocalHeaderPreflight['firstLocalEntryName'] ?? 'none') . "\n";
 echo 'packageLocalHeaders.lastRecordEnd=' . ($packageLocalHeaderPreflight['entries'][2]['recordEnd'] ?? 'none') . "\n";

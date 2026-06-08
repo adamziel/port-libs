@@ -1426,6 +1426,180 @@ final class ArchiveCompressionStream
      *     format:string,
      *     type:string,
      *     compressedSize:int,
+     *     frameCount:int,
+     *     dataFrameCount:int,
+     *     skippableFrameCount:int,
+     *     dictionaryFrameCount:int,
+     *     blockCount:int,
+     *     maxBlockPayloadBytes:int,
+     *     declaredOverLimitFrameCount:int,
+     *     payloadOverLimitBlockCount:int,
+     *     firstOverLimitFrameIndex:?int,
+     *     firstOverLimitDataFrameIndex:?int,
+     *     largestDeclaredBlockMaxSize:int,
+     *     largestBlockPayloadSize:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectLz4BlockSizePolicy(string $bytes, int $maxBlockPayloadBytes): array
+    {
+        if ($maxBlockPayloadBytes <= 0) {
+            throw new \RuntimeException('LZ4 block payload byte limit must be positive');
+        }
+
+        $policy = Lz4Frame::dictionaryPolicyPreflight($bytes);
+        $frames = [];
+        $dataFrameIndex = 0;
+        $blockCount = 0;
+        $declaredOverLimitFrameCount = 0;
+        $payloadOverLimitBlockCount = 0;
+        $firstOverLimitFrameIndex = null;
+        $firstOverLimitDataFrameIndex = null;
+        $largestDeclaredBlockMaxSize = 0;
+        $largestBlockPayloadSize = 0;
+        $diagnostics = [];
+
+        foreach ($policy['frames'] as $frameIndex => $frame) {
+            if (($frame['type'] ?? null) === 'skippable') {
+                $payload = (string) ($frame['data'] ?? '');
+                $frames[] = [
+                    'type' => 'skippable',
+                    'frameIndex' => $frameIndex,
+                    'id' => (int) $frame['id'],
+                    'payloadSize' => strlen($payload),
+                    'payloadSha256' => hash('sha256', $payload),
+                    'payloadPreview' => self::boundedPrintablePreview($payload, 64),
+                    'frameOffset' => (int) $frame['frameOffset'],
+                    'frameSize' => (int) $frame['frameSize'],
+                    'policy' => 'metadata-only-no-extraction',
+                    'diagnostics' => [],
+                ];
+                continue;
+            }
+
+            $blockMaxSize = (int) $frame['blockMaxSize'];
+            $declaredOverLimit = $blockMaxSize > $maxBlockPayloadBytes;
+            $frameDiagnostics = $frame['diagnostics'];
+            if ($declaredOverLimit) {
+                $frameDiagnostics[] = 'lz4-declared-block-max-size-exceeds-threshold';
+                $diagnostics[] = 'lz4-declared-block-max-size-exceeds-threshold';
+                $declaredOverLimitFrameCount++;
+                if ($firstOverLimitFrameIndex === null) {
+                    $firstOverLimitFrameIndex = $frameIndex;
+                }
+                if ($firstOverLimitDataFrameIndex === null) {
+                    $firstOverLimitDataFrameIndex = $dataFrameIndex;
+                }
+            }
+
+            $largestDeclaredBlockMaxSize = max($largestDeclaredBlockMaxSize, $blockMaxSize);
+            $framePayloadOverLimitBlockCount = 0;
+            $frameLargestBlockPayloadSize = 0;
+            $blocks = [];
+            foreach (($frame['blockPayloadSizes'] ?? []) as $blockIndex => $payloadSize) {
+                $payloadSize = (int) $payloadSize;
+                $blockOverLimit = $payloadSize > $maxBlockPayloadBytes;
+                $blockDiagnostics = $blockOverLimit ? ['lz4-block-payload-size-exceeds-threshold'] : [];
+                if ($blockOverLimit) {
+                    $diagnostics[] = 'lz4-block-payload-size-exceeds-threshold';
+                    $framePayloadOverLimitBlockCount++;
+                    $payloadOverLimitBlockCount++;
+                    if ($firstOverLimitFrameIndex === null) {
+                        $firstOverLimitFrameIndex = $frameIndex;
+                    }
+                    if ($firstOverLimitDataFrameIndex === null) {
+                        $firstOverLimitDataFrameIndex = $dataFrameIndex;
+                    }
+                }
+
+                $frameLargestBlockPayloadSize = max($frameLargestBlockPayloadSize, $payloadSize);
+                $largestBlockPayloadSize = max($largestBlockPayloadSize, $payloadSize);
+                $blocks[] = [
+                    'blockIndex' => $blockIndex,
+                    'type' => $frame['blockTypes'][$blockIndex] ?? 'unknown',
+                    'payloadSize' => $payloadSize,
+                    'overLimit' => $blockOverLimit,
+                    'policy' => $blockOverLimit ? 'review-before-conversion' : 'metadata-only-no-extraction',
+                    'diagnostics' => $blockDiagnostics,
+                ];
+            }
+
+            if ($framePayloadOverLimitBlockCount > 0) {
+                $frameDiagnostics[] = 'lz4-block-payload-size-exceeds-threshold';
+            }
+            $frameDiagnostics = array_values(array_unique($frameDiagnostics));
+            $blockCount += (int) $frame['blockCount'];
+
+            $frames[] = [
+                'type' => 'frame',
+                'frameIndex' => $frameIndex,
+                'dataFrameIndex' => $dataFrameIndex,
+                'dictionaryId' => $frame['dictionaryId'],
+                'contentSize' => $frame['contentSize'],
+                'blockMaxSize' => $blockMaxSize,
+                'declaredBlockMaxOverLimit' => $declaredOverLimit,
+                'blockIndependent' => (bool) $frame['blockIndependent'],
+                'blockChecksum' => (bool) $frame['blockChecksum'],
+                'contentChecksum' => (bool) $frame['contentChecksum'],
+                'blockCount' => (int) $frame['blockCount'],
+                'blockTypes' => $frame['blockTypes'],
+                'blocks' => $blocks,
+                'largestBlockPayloadSize' => $frameLargestBlockPayloadSize,
+                'payloadOverLimitBlockCount' => $framePayloadOverLimitBlockCount,
+                'compressedSize' => (int) $frame['compressedSize'],
+                'frameOffset' => (int) $frame['frameOffset'],
+                'frameSize' => (int) $frame['frameSize'],
+                'policy' => $frameDiagnostics === []
+                    ? 'metadata-only-no-extraction'
+                    : 'review-before-conversion',
+                'diagnostics' => $frameDiagnostics,
+            ];
+            $dataFrameIndex++;
+        }
+
+        $diagnostics = array_values(array_unique($diagnostics));
+        $handoffPolicy = $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion';
+
+        return [
+            'format' => 'lz4',
+            'type' => 'lz4-block-size-policy',
+            'compressedSize' => strlen($bytes),
+            'frameCount' => $policy['frameCount'],
+            'dataFrameCount' => $policy['dataFrameCount'],
+            'skippableFrameCount' => $policy['skippableFrameCount'],
+            'dictionaryFrameCount' => $policy['dictionaryFrameCount'],
+            'blockCount' => $blockCount,
+            'maxBlockPayloadBytes' => $maxBlockPayloadBytes,
+            'declaredOverLimitFrameCount' => $declaredOverLimitFrameCount,
+            'payloadOverLimitBlockCount' => $payloadOverLimitBlockCount,
+            'firstOverLimitFrameIndex' => $firstOverLimitFrameIndex,
+            'firstOverLimitDataFrameIndex' => $firstOverLimitDataFrameIndex,
+            'largestDeclaredBlockMaxSize' => $largestDeclaredBlockMaxSize,
+            'largestBlockPayloadSize' => $largestBlockPayloadSize,
+            'handoffPolicy' => $handoffPolicy,
+            'extractionPolicy' => $handoffPolicy === 'within-thresholds'
+                ? 'metadata-only-no-extraction'
+                : 'lz4-block-size-review',
+            'diagnostics' => $diagnostics,
+            'stream' => [
+                'frameCount' => $policy['frameCount'],
+                'dataFrameCount' => $policy['dataFrameCount'],
+                'skippableFrameCount' => $policy['skippableFrameCount'],
+                'dictionaryFrameCount' => $policy['dictionaryFrameCount'],
+                'extractionPolicy' => 'metadata-only-no-extraction',
+                'frames' => $frames,
+            ],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     type:string,
+     *     compressedSize:int,
      *     dictionaryStreamCount:int,
      *     extractionPolicy:string,
      *     stream:array<string, mixed>
