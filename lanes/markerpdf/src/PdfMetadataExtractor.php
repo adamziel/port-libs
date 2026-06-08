@@ -5901,6 +5901,10 @@ final class PdfMetadataExtractor
         $destination = $this->documentOutlineItemDestination($dictionary, $objects);
         $destinationOperandBoundaryReview = $this->documentOutlineDestinationActionOperandBoundaryReview($dictionary, 'Dest');
         $actionOperandBoundaryReview = $this->documentOutlineDestinationActionOperandBoundaryReview($dictionary, 'A');
+        $actionDestinationOperandBoundaryReview = $this->documentOutlineItemActionDestinationOperandBoundaryReview(
+            $dictionary,
+            $objects
+        );
 
         $row = [
             'title' => $title,
@@ -5966,6 +5970,9 @@ final class PdfMetadataExtractor
         }
         if ($actionOperandBoundaryReview !== []) {
             $row['action_operand_boundary_review'] = $actionOperandBoundaryReview;
+        }
+        if ($actionDestinationOperandBoundaryReview !== []) {
+            $row['action_destination_operand_boundary_review'] = $actionDestinationOperandBoundaryReview;
         }
 
         $metadataStreamValues = $this->dictionaryTopLevelRawValues($dictionary, 'Metadata');
@@ -7053,6 +7060,14 @@ final class PdfMetadataExtractor
 
         $actionType = $this->dictionaryNameValue($action['body'], 'S', $objects);
         $actionDestination = $this->dictionaryTopLevelRawValue($action['body'], 'D');
+        if ($actionType === 'GoTo' && $this->dictionaryTopLevelSelectedValueHasTrailingOperands($action['body'], 'D')) {
+            return [
+                'value' => null,
+                'name' => null,
+                'action_type' => $actionType,
+                'action_object' => $action['object'],
+            ];
+        }
 
         return [
             'value' => $actionType === 'GoTo' ? $actionDestination : null,
@@ -7063,15 +7078,37 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * Outline item /Dest and /A entries are single-value navigation trust
-     * boundaries. Extra top-level operands before the next key keep the row
-     * review-only instead of promoting a partial destination or action.
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function documentOutlineItemActionDestinationOperandBoundaryReview(string $dictionary, array $objects): array
+    {
+        if ($this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'A')) {
+            return [];
+        }
+
+        $action = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($dictionary, 'A'), $objects);
+        if ($action === null) {
+            return [];
+        }
+        if ($this->dictionaryNameValue($action['body'], 'S', $objects) !== 'GoTo') {
+            return [];
+        }
+
+        return $this->documentOutlineDestinationActionOperandBoundaryReview($action['body'], 'D');
+    }
+
+    /**
+     * Outline item /Dest, outline item /A, and GoTo action /D entries are
+     * single-value navigation trust boundaries. Extra top-level operands before
+     * the next key keep the row review-only instead of promoting a partial
+     * destination or action.
      *
      * @return array<string, mixed>
      */
     private function documentOutlineDestinationActionOperandBoundaryReview(string $dictionary, string $key): array
     {
-        if ($key !== 'Dest' && $key !== 'A') {
+        if (!in_array($key, ['Dest', 'A', 'D'], true)) {
             return [];
         }
 
@@ -7115,18 +7152,27 @@ final class PdfMetadataExtractor
                 continue;
             }
 
-            $isAction = $key === 'A';
+            $boundary = match ($key) {
+                'A' => [
+                    'source' => 'outline_item_action_operand_boundary',
+                    'status' => 'rejected_malformed_outline_item_action_operand',
+                ],
+                'D' => [
+                    'source' => 'outline_action_destination_operand_boundary',
+                    'status' => 'rejected_malformed_outline_action_d_operand',
+                ],
+                default => [
+                    'source' => 'outline_item_destination_operand_boundary',
+                    'status' => 'rejected_malformed_outline_item_dest_operand',
+                ],
+            };
             $review = [
-                'source' => $isAction
-                    ? 'outline_item_action_operand_boundary'
-                    : 'outline_item_destination_operand_boundary',
+                'source' => $boundary['source'],
                 'review_only' => true,
                 'payload_included' => false,
                 'visible_text_source' => false,
                 'navigation_promoted' => false,
-                'status' => $isAction
-                    ? 'rejected_malformed_outline_item_action_operand'
-                    : 'rejected_malformed_outline_item_dest_operand',
+                'status' => $boundary['status'],
                 'key' => $key,
                 'entry_count' => count($this->dictionaryTopLevelRawValues($dictionary, $key)),
                 'selected_entry_index' => $entryIndex,

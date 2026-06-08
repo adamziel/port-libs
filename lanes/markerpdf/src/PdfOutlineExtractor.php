@@ -2174,7 +2174,11 @@ final class PdfOutlineExtractor
             }
         }
 
-        if (($type === null || $type === 'GoTo') && array_key_exists('D', $dict)) {
+        if (
+            ($type === null || $type === 'GoTo')
+            && array_key_exists('D', $dict)
+            && !$this->actionDictionaryValueHasTrailingOperands($value, 'D')
+        ) {
             $destinationName = $this->stringOrNameValue($this->resolveValue($dict['D'], $objects));
             $details = $this->destinationViewDetails(
                 $dict['D'],
@@ -5143,6 +5147,10 @@ final class PdfOutlineExtractor
 
         $type = $this->nameValue($action['S'] ?? null);
         if ($type === 'GoTo' && array_key_exists('D', $action)) {
+            if ($this->actionDictionaryValueHasTrailingOperands($value, 'D')) {
+                return null;
+            }
+
             return $this->localOpenDestinationReview($action['D'], $objects, $pageIndexes, $destinations);
         }
 
@@ -5792,7 +5800,12 @@ final class PdfOutlineExtractor
             ? $this->reviewAction('JavaScript', 'blocked-javascript', null, null, null, null, null, null, null)
             : $this->openActionReviewAction($value, $objects, $pageIndexes, $destinations);
         $destinationActionRows = [];
-        if ($action === null && $type === 'GoTo' && array_key_exists('D', $dict)) {
+        if (
+            $action === null
+            && $type === 'GoTo'
+            && array_key_exists('D', $dict)
+            && !$this->actionDictionaryValueHasTrailingOperands($value, 'D')
+        ) {
             $destinationAction = $this->destinationActionReviewValue($dict['D'], $objects, $destinations);
             if ($destinationAction !== null) {
                 foreach ($this->reviewActionsFromValue($destinationAction['value'], $objects, $pageIndexes, $destinations, $seen, $depth + 1) as $destinationActionRow) {
@@ -5837,6 +5850,11 @@ final class PdfOutlineExtractor
     private function actionDictionaryReferenceHasTrailingOperands(?int $objectNumber, string $key): bool
     {
         return $objectNumber !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($objectNumber, $key);
+    }
+
+    private function actionDictionaryValueHasTrailingOperands(mixed $value, string $key): bool
+    {
+        return $this->actionDictionaryReferenceHasTrailingOperands($this->referenceObjectNumber($value), $key);
     }
 
     private function directionValue(mixed $value): float|string|null
@@ -6160,6 +6178,9 @@ final class PdfOutlineExtractor
         if ($action === null || $this->nameValue($action['S'] ?? null) !== 'GoTo' || !array_key_exists('D', $action)) {
             return ['name' => null, 'value' => null];
         }
+        if ($this->actionDictionaryValueHasTrailingOperands($outline['A'] ?? null, 'D')) {
+            return ['name' => null, 'value' => null];
+        }
 
         return [
             'name' => $this->destinationNameValue($action['D'], $objects),
@@ -6285,7 +6306,10 @@ final class PdfOutlineExtractor
 
         $dict = $this->dictionaryItems($resolved);
         if ($dict !== null) {
-            if ($this->resolvedDictionaryHasDuplicateBoundaryKeys($destination, $objects, self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)) {
+            if (
+                $this->resolvedDictionaryHasDuplicateBoundaryKeys($destination, $objects, self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)
+                || $this->actionDictionaryValueHasTrailingOperands($destination, 'D')
+            ) {
                 return null;
             }
 
@@ -6488,7 +6512,10 @@ final class PdfOutlineExtractor
 
         $dict = $this->dictionaryItems($resolved);
         if ($dict !== null) {
-            if ($this->resolvedDictionaryHasDuplicateBoundaryKeys($destination, $objects, self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)) {
+            if (
+                $this->resolvedDictionaryHasDuplicateBoundaryKeys($destination, $objects, self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)
+                || $this->actionDictionaryValueHasTrailingOperands($destination, 'D')
+            ) {
                 return null;
             }
 
