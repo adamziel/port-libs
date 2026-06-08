@@ -604,10 +604,10 @@ final class SuppliedDocumentConverter
     private function pageResultRowsColsAliases(string $field): array
     {
         if ($field === 'rows') {
-            return ['rows', 'row_bboxes', 'row_boxes', 'row_bounds'];
+            return ['rows', 'row_bboxes', 'row_boxes', 'row_bounds', 'row', 'row_bbox', 'row_box', 'row_bound'];
         }
 
-        return ['cols', 'columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes'];
+        return ['cols', 'columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes', 'column', 'col', 'column_bbox', 'col_bbox', 'column_box', 'col_box'];
     }
 
     /**

@@ -2254,14 +2254,14 @@ final class TableRecognizer
             $table,
             'rows',
             'rows_source_alias',
-            ['row_bboxes', 'row_boxes', 'row_bounds']
+            ['row_bboxes', 'row_boxes', 'row_bounds', 'row', 'row_bbox', 'row_box', 'row_bound']
         );
 
         $table = $this->canonicalizedRecognizedTableGeometryAlias(
             $table,
             'cols',
             'cols_source_alias',
-            ['columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes']
+            ['columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes', 'column', 'col', 'column_bbox', 'col_bbox', 'column_box', 'col_box']
         );
 
         $table = $this->canonicalizedRecognizedTableRowsColsContainer($table);
@@ -2457,10 +2457,10 @@ final class TableRecognizer
     private function rowsColsGeometryAliases(string $field): array
     {
         if ($field === 'rows') {
-            return ['rows', 'row_bboxes', 'row_boxes', 'row_bounds'];
+            return ['rows', 'row_bboxes', 'row_boxes', 'row_bounds', 'row', 'row_bbox', 'row_box', 'row_bound'];
         }
 
-        return ['cols', 'columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes'];
+        return ['cols', 'columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes', 'column', 'col', 'column_bbox', 'col_bbox', 'column_box', 'col_box'];
     }
 
     /**

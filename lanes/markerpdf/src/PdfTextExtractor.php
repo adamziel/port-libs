@@ -24975,7 +24975,10 @@ final class PdfTextExtractor
             }
 
             if ($token === 'd1') {
-                if (!$this->type3CharProcHasNumericOperands($operands, 6)) {
+                if (
+                    !$this->type3CharProcHasNumericOperands($operands, 6)
+                    || !$this->type3CharProcD1BBoxOperandsAreOrdered($operands)
+                ) {
                     return null;
                 }
 
@@ -25360,6 +25363,28 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function type3CharProcD1BBoxOperandsAreOrdered(array $operands): bool
+    {
+        if (count($operands) !== 6) {
+            return false;
+        }
+
+        $llx = $this->numericOperand($operands[2]);
+        $lly = $this->numericOperand($operands[3]);
+        $urx = $this->numericOperand($operands[4]);
+        $ury = $this->numericOperand($operands[5]);
+
+        return $llx !== null
+            && $lly !== null
+            && $urx !== null
+            && $ury !== null
+            && $llx <= $urx
+            && $lly <= $ury;
     }
 
     /**
