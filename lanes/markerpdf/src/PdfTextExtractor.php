@@ -7983,6 +7983,7 @@ final class PdfTextExtractor
         $duplicateFilterDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($stream['dict'], 'Filter');
         $reviewFilters = $filters;
         $filterOperandBoundaryFilters = [];
+        $filterExtraOperand = $this->imageXObjectFilterExtraOperand($stream['dict']);
         if ($reviewFilters === null && $duplicateFilterDeclarationCount > 0) {
             $reviewFilters = $this->imageXObjectDuplicateFilterDeclarationReviewFilters($stream['dict'], $objects);
         } elseif ($reviewFilters === null) {
@@ -8436,7 +8437,7 @@ final class PdfTextExtractor
                 'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
                 'filter_operand_policy' => 'reject_duplicate_filter_declarations',
             ] : []),
-            ...$this->imageXObjectFilterOperandBoundaryMetadata($filterOperandBoundaryFilters),
+            ...$this->imageXObjectFilterOperandBoundaryMetadata($filterOperandBoundaryFilters, $filterExtraOperand),
             'dctdecode_filter_boundary' => $dctDecodeFilterBoundary,
             'dctdecode_stream_boundary' => $dctStreamBoundary,
             ...($rawDctPreviewBoundary ? [
@@ -10848,9 +10849,10 @@ final class PdfTextExtractor
 
     /**
      * @param list<string> $filters
-     * @return array<string, int|string>
+     * @param array{type: string, preview: string, name?: string, after_comment?: bool}|null $extraOperand
+     * @return array<string, bool|int|string>
      */
-    private function imageXObjectFilterOperandBoundaryMetadata(array $filters): array
+    private function imageXObjectFilterOperandBoundaryMetadata(array $filters, ?array $extraOperand = null): array
     {
         if ($filters === []) {
             return [];
@@ -10872,7 +10874,20 @@ final class PdfTextExtractor
                 : 'reject_unresolved_filter_operands',
             'malformed_filter_operand_count' => $malformedCount,
             'unresolved_filter_operand_count' => $unresolvedCount,
+            ...($extraOperand !== null && ($extraOperand['after_comment'] ?? false) === true ? [
+                'extra_filter_operand_after_comment' => true,
+            ] : []),
         ];
+    }
+
+    /**
+     * @return array{type: string, preview: string, name?: string, after_comment?: bool}|null
+     */
+    private function imageXObjectFilterExtraOperand(string $dictionary): ?array
+    {
+        $offset = $this->topLevelNameValueOffset($dictionary, 'Filter');
+
+        return $offset === null ? null : $this->directFilterExtraOperand($dictionary, $offset);
     }
 
     /**

@@ -480,6 +480,7 @@ final class PdfImageRenderer
         ));
         $previewOnlyFilters = $this->publicImageFilterList($previewOnlyFilterValues);
         $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($imageFilterValues);
+        $filterExtraOperand = $this->imageFilterExtraOperandBoundary($imageDictionary);
         $jpxSoftMaskInData = $this->jpxSoftMaskInDataDetails($imageDictionary, $imageFilterValues, $objects);
         $jpxEmbeddedSoftMaskPresent = is_array($jpxSoftMaskInData)
             && ($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true;
@@ -725,7 +726,7 @@ final class PdfImageRenderer
                 'preview_only_filters' => $previewOnlyFilters,
                 'jbig2_globals_present' => $this->jbig2GlobalsPresent($imageDictionary, $objects),
                 'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [],
-                ...$this->imageFilterOperandBoundaryMetadata($operandBoundaryFilters),
+                ...$this->imageFilterOperandBoundaryMetadata($operandBoundaryFilters, $filterExtraOperand),
                 ...($duplicateFilterDeclarationCount > 0 ? [
                     'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
                     'filter_operand_policy' => 'reject_duplicate_filter_declarations',
@@ -5024,7 +5025,7 @@ final class PdfImageRenderer
      * @param list<string> $filters
      * @return array<string, int|string>
      */
-    private function imageFilterOperandBoundaryMetadata(array $filters): array
+    private function imageFilterOperandBoundaryMetadata(array $filters, ?array $extraOperand = null): array
     {
         if ($filters === []) {
             return [];
@@ -5046,6 +5047,9 @@ final class PdfImageRenderer
                 : 'reject_unresolved_filter_operands',
             'malformed_filter_operand_count' => $malformedCount,
             'unresolved_filter_operand_count' => $unresolvedCount,
+            ...($extraOperand !== null && ($extraOperand['after_comment'] ?? false) === true ? [
+                'extra_filter_operand_after_comment' => true,
+            ] : []),
         ];
     }
 
@@ -10349,6 +10353,14 @@ final class PdfImageRenderer
 
     private function imageFilterHasMalformedExtraOperand(string $dictionary): bool
     {
+        return $this->imageFilterExtraOperandBoundary($dictionary) !== null;
+    }
+
+    /**
+     * @return array{after_comment: bool}|null
+     */
+    private function imageFilterExtraOperandBoundary(string $dictionary): ?array
+    {
         $body = trim($dictionary);
         if (str_starts_with($body, '<<')) {
             $read = $this->readBalancedDictionary($body, 0);
@@ -10372,57 +10384,71 @@ final class PdfImageRenderer
 
             if (
                 $this->pdfNameValue($key['value']) === 'Filter'
-                && $this->imageFilterExtraOperandAfterValue($body, $value['next'])
             ) {
-                return true;
+                return $this->imageFilterExtraOperandAfterValueBoundary($body, $value['next']);
             }
 
             $offset = $value['next'];
         }
 
-        return false;
+        return null;
     }
 
     private function imageFilterExtraOperandAfterValue(string $body, int $offset): bool
     {
-        $offset = $this->skipPdfWhitespace($body, $offset);
+        return $this->imageFilterExtraOperandAfterValueBoundary($body, $offset) !== null;
+    }
+
+    /**
+     * @return array{after_comment: bool}|null
+     */
+    private function imageFilterExtraOperandAfterValueBoundary(string $body, int $offset): ?array
+    {
+        $extraOperandAfterComment = false;
+        $skippedComment = false;
+        $offset = $this->skipPdfWhitespaceTrackingComments($body, $offset, $skippedComment);
+        $extraOperandAfterComment = $extraOperandAfterComment || $skippedComment;
         $length = strlen($body);
         while ($offset < $length) {
             if (substr($body, $offset, 2) === '>>' || ($body[$offset] ?? '') === ']') {
-                return false;
+                return null;
             }
 
             if (($body[$offset] ?? '') !== '/') {
-                return true;
+                return ['after_comment' => $extraOperandAfterComment];
             }
 
             $nameEnd = $this->pdfNameTokenEndOffset($body, $offset);
             if ($nameEnd <= $offset + 1) {
-                return false;
+                return null;
             }
 
             $name = $this->decodePdfName(substr($body, $offset + 1, $nameEnd - $offset - 1));
             if ($this->imageFilterNameLooksLikeDecoder($name) || $this->imageFilterUnknownNamePrecedesLength($body, $nameEnd)) {
-                return true;
+                return ['after_comment' => $extraOperandAfterComment];
             }
 
             $value = $this->readPdfValueWithOffset($body, $nameEnd);
             if ($value === null || $value['next'] <= $nameEnd) {
-                return true;
+                return ['after_comment' => $extraOperandAfterComment];
             }
 
             if ($name === 'DecodeParms') {
                 $extraOperandEnd = $this->imageDecodeParmsExtraOperandEndAfterValue($body, $value['next']);
                 if ($extraOperandEnd !== null) {
-                    $offset = $this->skipPdfWhitespace($body, $extraOperandEnd);
+                    $skippedComment = false;
+                    $offset = $this->skipPdfWhitespaceTrackingComments($body, $extraOperandEnd, $skippedComment);
+                    $extraOperandAfterComment = $extraOperandAfterComment || $skippedComment;
                     continue;
                 }
             }
 
-            $offset = $this->skipPdfWhitespace($body, $value['next']);
+            $skippedComment = false;
+            $offset = $this->skipPdfWhitespaceTrackingComments($body, $value['next'], $skippedComment);
+            $extraOperandAfterComment = $extraOperandAfterComment || $skippedComment;
         }
 
-        return false;
+        return null;
     }
 
     private function imageFilterUnknownNamePrecedesLength(string $body, int $offset): bool
@@ -10909,6 +10935,26 @@ final class PdfImageRenderer
         while ($offset < $length) {
             $char = $source[$offset];
             if ($char === '%') {
+                $lineEnd = strcspn($source, "\r\n", $offset);
+                $offset += $lineEnd;
+                continue;
+            }
+            if (!str_contains(" \t\r\n\f\0", $char)) {
+                break;
+            }
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private function skipPdfWhitespaceTrackingComments(string $source, int $offset, bool &$skippedComment): int
+    {
+        $length = strlen($source);
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($char === '%') {
+                $skippedComment = true;
                 $lineEnd = strcspn($source, "\r\n", $offset);
                 $offset += $lineEnd;
                 continue;

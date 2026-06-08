@@ -19053,8 +19053,18 @@ final class PdfMetadataExtractor
             return $entries;
         }
 
+        $decodedLength = strlen($decoded);
+        if ($decodedLength % $entryWidth !== 0) {
+            return $entries;
+        }
+
+        $decodedEntryCount = intdiv($decodedLength, $entryWidth);
+        $explicitIndexEntryCount = $this->xrefStreamExplicitIndexEntryCount($body, $operandObjects);
+        if ($explicitIndexEntryCount !== null && $explicitIndexEntryCount > $decodedEntryCount) {
+            return $entries;
+        }
+
         $xrefOffset = (int) $definition['offset'];
-        $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
         $previousOffset = $definitions === null
             ? null
             : (
@@ -19609,6 +19619,23 @@ final class PdfMetadataExtractor
         }
 
         return [];
+    }
+
+    private function xrefStreamExplicitIndexEntryCount(string $xrefBody, array $objects = []): ?int
+    {
+        $indexValue = $this->resolvedDictionaryRawValue($xrefBody, 'Index', $objects === [] ? null : $objects);
+        $indexBody = $indexValue === null ? null : $this->arrayBody($indexValue);
+        if ($indexBody === null) {
+            return null;
+        }
+
+        $values = $this->integersFromPdfArray($indexBody);
+        $entryCount = 0;
+        for ($index = 0, $count = count($values); $index + 1 < $count; $index += 2) {
+            $entryCount += max(0, $values[$index + 1]);
+        }
+
+        return $entryCount;
     }
 
     /**

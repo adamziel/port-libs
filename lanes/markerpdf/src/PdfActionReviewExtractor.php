@@ -1122,12 +1122,21 @@ final class PdfActionReviewExtractor
 
         $name = $this->stringOrNameValue($resolved);
         if ($name !== null) {
-            if (isset($seenNames[$name]) || !array_key_exists($name, $this->destinations)) {
+            $lookupKey = $this->destinationLookupKeyForNameValue($resolved, $name);
+            if (!array_key_exists($lookupKey, $this->destinations)) {
+                $lookupKey = $name;
+            }
+
+            if (isset($seenNames[$lookupKey]) || !array_key_exists($lookupKey, $this->destinations)) {
                 return null;
             }
-            $seenNames[$name] = true;
+            $seenNames[$lookupKey] = true;
 
-            return $this->destinationViewDetails($this->destinations[$name], $name, $seenNames);
+            return $this->destinationViewDetails(
+                $this->destinations[$lookupKey],
+                $this->destinationNameFromMapKey($lookupKey),
+                $seenNames
+            );
         }
 
         $dict = $this->dictionaryItems($resolved);
@@ -3659,7 +3668,7 @@ final class PdfActionReviewExtractor
             }
 
             foreach ($this->nameTreeLeafEntriesSortedByNameBytes($leafEntries) as $entry) {
-                $destinations[$entry['name']] = $entry['value'];
+                $this->addNameTreeDestinationMapEntry($destinations, $entry);
             }
         }
 
@@ -3726,6 +3735,43 @@ final class PdfActionReviewExtractor
                 return true;
             }
             $seen[$entry['name']] = true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $destinations
+     * @param array{name: string, name_bytes: string, value: mixed, order: int} $entry
+     */
+    private function addNameTreeDestinationMapEntry(array &$destinations, array $entry): void
+    {
+        $name = $entry['name'];
+        $rawKey = $this->destinationNameEntryKey($name, $entry['name_bytes']);
+        $hasDecodedCollision = $this->destinationMapHasDifferentRawKey($destinations, $name, $rawKey);
+
+        $destinations[$rawKey] = $entry['value'];
+        if ($hasDecodedCollision) {
+            unset($destinations[$name]);
+            return;
+        }
+
+        $destinations[$name] = $entry['value'];
+    }
+
+    /**
+     * @param array<string, mixed> $destinations
+     */
+    private function destinationMapHasDifferentRawKey(array $destinations, string $name, string $rawKey): bool
+    {
+        foreach (array_keys($destinations) as $key) {
+            if (!is_string($key) || $key === $rawKey || !$this->destinationMapKeyHasRawBytes($key)) {
+                continue;
+            }
+
+            if ($this->destinationNameFromMapKey($key) === $name) {
+                return true;
+            }
         }
 
         return false;
@@ -4478,6 +4524,43 @@ final class PdfActionReviewExtractor
             'text' => $value['value'],
             'bytes' => is_string($value['bytes'] ?? null) ? $value['bytes'] : $value['value'],
         ];
+    }
+
+    private function destinationLookupKeyForNameValue(mixed $value, string $name): string
+    {
+        $string = $this->pdfStringDetails($value);
+        if ($string === null) {
+            return $name;
+        }
+
+        return $this->destinationNameEntryKey($string['text'], $string['bytes']);
+    }
+
+    private function destinationNameEntryKey(string $name, string $bytes): string
+    {
+        return $name . "\0" . bin2hex($bytes);
+    }
+
+    private function destinationNameFromMapKey(string $key): string
+    {
+        $offset = strrpos($key, "\0");
+        if ($offset === false || !$this->destinationMapKeyHasRawBytes($key)) {
+            return $key;
+        }
+
+        return substr($key, 0, $offset);
+    }
+
+    private function destinationMapKeyHasRawBytes(string $key): bool
+    {
+        $offset = strrpos($key, "\0");
+        if ($offset === false) {
+            return false;
+        }
+
+        $suffix = substr($key, $offset + 1);
+
+        return $suffix !== '' && strlen($suffix) % 2 === 0 && preg_match('/^[\da-f]+$/', $suffix) === 1;
     }
 
     private function stringOrNameValue(mixed $value): ?string

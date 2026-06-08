@@ -7868,8 +7868,18 @@ final class PdfAttachmentExtractor
             return [];
         }
 
+        $decodedLength = strlen($decoded);
+        if ($decodedLength % $entryWidth !== 0) {
+            return [];
+        }
+
+        $decodedEntryCount = intdiv($decodedLength, $entryWidth);
+        $explicitIndexEntryCount = $this->xrefStreamExplicitIndexEntryCount($section, $definitions);
+        if ($explicitIndexEntryCount !== null && $explicitIndexEntryCount > $decodedEntryCount) {
+            return [];
+        }
+
         $xrefOffset = (int) ($section['offset'] ?? -1);
-        $decodedEntryCount = intdiv(strlen($decoded), $entryWidth);
         $previousOffset = $definitions !== [] && isset($section['offset'])
             ? (
                 $pdfBytes === null
@@ -8284,6 +8294,29 @@ final class PdfAttachmentExtractor
         }
 
         return $ranges;
+    }
+
+    /**
+     * @param array{dictionary: array<string, mixed>, stream: string, offset?: int} $section
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function xrefStreamExplicitIndexEntryCount(array $section, array $definitions = []): ?int
+    {
+        $index = $this->arrayValue($this->xrefStreamDictionaryValue($section, 'Index', $definitions));
+        if ($index === null || $index === []) {
+            return null;
+        }
+
+        $entryCount = 0;
+        for ($offset = 0, $count = count($index); $offset + 1 < $count; $offset += 2) {
+            if (!is_int($index[$offset]) || !is_int($index[$offset + 1]) || $index[$offset + 1] < 0) {
+                continue;
+            }
+
+            $entryCount += $index[$offset + 1];
+        }
+
+        return $entryCount;
     }
 
     private function xrefStreamFieldValue(string $bytes, int &$offset, int $width): int

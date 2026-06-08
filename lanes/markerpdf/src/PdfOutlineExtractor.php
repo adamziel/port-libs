@@ -2364,12 +2364,23 @@ final class PdfOutlineExtractor
         $resolved = $this->resolveValue($destination, $objects);
         $name = $this->stringOrNameValue($resolved);
         if ($name !== null && $name !== '') {
-            if (isset($seenNames[$name]) || !array_key_exists($name, $destinations)) {
+            $lookupKey = $this->destinationLookupKeyForNameValue($resolved, $name);
+            if (!array_key_exists($lookupKey, $destinations)) {
+                $lookupKey = $name;
+            }
+
+            if (isset($seenNames[$lookupKey]) || !array_key_exists($lookupKey, $destinations)) {
                 return null;
             }
-            $seenNames[$name] = true;
+            $seenNames[$lookupKey] = true;
 
-            return $this->destinationActionReviewValue($destinations[$name], $objects, $destinations, $name, $seenNames);
+            return $this->destinationActionReviewValue(
+                $destinations[$lookupKey],
+                $objects,
+                $destinations,
+                $this->destinationNameFromMapKey($lookupKey),
+                $seenNames
+            );
         }
 
         $dict = $this->dictionaryItems($resolved);
@@ -3957,7 +3968,7 @@ final class PdfOutlineExtractor
                     $this->nameWithinNameTreeLimits($name['text'], $entryLimits, $name['bytes'])
                     && $this->destinationValueAllowedForMap($names[$index + 1], $objects, $pageIndexes)
                 ) {
-                    $destinations[$name['text']] = $names[$index + 1];
+                    $this->addNameTreeDestinationMapEntry($destinations, $name, $names[$index + 1]);
                 }
                 $index += 2;
             }
@@ -4058,7 +4069,7 @@ final class PdfOutlineExtractor
                     $this->nameWithinNameTreeLimits($name['text'], $entryLimits, $name['bytes'])
                     && $this->destinationActionValueAllowedForMap($names[$index + 1], $objects)
                 ) {
-                    $destinations[$name['text']] = $names[$index + 1];
+                    $this->addNameTreeDestinationMapEntry($destinations, $name, $names[$index + 1]);
                 }
                 $index += 2;
             }
@@ -4898,16 +4909,22 @@ final class PdfOutlineExtractor
      */
     private function destinationAliasReview(mixed $value, array $objects, array $destinations): array
     {
-        $firstName = $this->stringOrNameValue($this->resolveValue($value, $objects));
+        $firstResolved = $this->resolveValue($value, $objects);
+        $firstName = $this->stringOrNameValue($firstResolved);
         if ($firstName === null) {
             return [];
+        }
+        $firstKey = $this->destinationLookupKeyForNameValue($firstResolved, $firstName);
+        if (!array_key_exists($firstKey, $destinations)) {
+            $firstKey = $firstName;
         }
 
         $chain = [];
         $seen = [];
-        $currentName = $firstName;
+        $currentKey = $firstKey;
         for ($depth = 0; $depth < 32; $depth++) {
-            if (isset($seen[$currentName])) {
+            $currentName = $this->destinationNameFromMapKey($currentKey);
+            if (isset($seen[$currentKey])) {
                 $chain[] = $currentName;
 
                 return [
@@ -4920,8 +4937,8 @@ final class PdfOutlineExtractor
             }
 
             $chain[] = $currentName;
-            $seen[$currentName] = true;
-            if (!array_key_exists($currentName, $destinations)) {
+            $seen[$currentKey] = true;
+            if (!array_key_exists($currentKey, $destinations)) {
                 if (count($chain) < 2) {
                     return [];
                 }
@@ -4935,7 +4952,8 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            $nextName = $this->stringOrNameValue($this->resolveValue($destinations[$currentName], $objects));
+            $nextResolved = $this->resolveValue($destinations[$currentKey], $objects);
+            $nextName = $this->stringOrNameValue($nextResolved);
             if ($nextName === null) {
                 if (count($chain) < 2) {
                     return [];
@@ -4950,7 +4968,8 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            $currentName = $nextName;
+            $nextKey = $this->destinationLookupKeyForNameValue($nextResolved, $nextName);
+            $currentKey = array_key_exists($nextKey, $destinations) ? $nextKey : $nextName;
         }
 
         return [
@@ -5342,12 +5361,17 @@ final class PdfOutlineExtractor
         $resolved = $this->resolveValue($destination, $objects);
         $name = $this->stringOrNameValue($resolved);
         if ($name !== null) {
-            if (isset($seenNames[$name]) || !array_key_exists($name, $destinations)) {
+            $lookupKey = $this->destinationLookupKeyForNameValue($resolved, $name);
+            if (!array_key_exists($lookupKey, $destinations)) {
+                $lookupKey = $name;
+            }
+
+            if (isset($seenNames[$lookupKey]) || !array_key_exists($lookupKey, $destinations)) {
                 return null;
             }
-            $seenNames[$name] = true;
+            $seenNames[$lookupKey] = true;
 
-            return $this->remoteGoToTargetFromDestination($destinations[$name], $objects, $destinations, $seenNames);
+            return $this->remoteGoToTargetFromDestination($destinations[$lookupKey], $objects, $destinations, $seenNames);
         }
 
         $dict = $this->dictionaryItems($resolved);
@@ -6479,6 +6503,94 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * @param array<string, mixed> $destinations
+     * @param array{text: string, bytes: string} $name
+     */
+    private function addNameTreeDestinationMapEntry(array &$destinations, array $name, mixed $value): void
+    {
+        $rawKey = $this->destinationNameEntryKey($name['text'], $name['bytes']);
+        $hasDecodedCollision = $this->destinationMapHasDifferentRawKey($destinations, $name['text'], $rawKey);
+
+        $destinations[$rawKey] = $value;
+        if ($hasDecodedCollision) {
+            unset($destinations[$name['text']]);
+            return;
+        }
+
+        $destinations[$name['text']] = $value;
+    }
+
+    /**
+     * @param array<string, mixed> $destinations
+     */
+    private function destinationMapHasDifferentRawKey(array $destinations, string $name, string $rawKey): bool
+    {
+        foreach (array_keys($destinations) as $key) {
+            if (!is_string($key) || $key === $rawKey || !$this->destinationMapKeyHasRawBytes($key)) {
+                continue;
+            }
+
+            if ($this->destinationNameFromMapKey($key) === $name) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function destinationLookupKeyForNameValue(mixed $value, string $name): string
+    {
+        $string = $this->pdfStringDetails($value);
+        if ($string === null) {
+            return $name;
+        }
+
+        return $this->destinationNameEntryKey($string['text'], $string['bytes']);
+    }
+
+    private function destinationNameEntryKey(string $name, string $bytes): string
+    {
+        return $name . "\0" . bin2hex($bytes);
+    }
+
+    private function destinationNameFromMapKey(string $key): string
+    {
+        $offset = strrpos($key, "\0");
+        if ($offset === false || !$this->destinationMapKeyHasRawBytes($key)) {
+            return $key;
+        }
+
+        return substr($key, 0, $offset);
+    }
+
+    private function destinationMapKeyHasRawBytes(string $key): bool
+    {
+        $offset = strrpos($key, "\0");
+        if ($offset === false) {
+            return false;
+        }
+
+        $suffix = substr($key, $offset + 1);
+
+        return $suffix !== '' && strlen($suffix) % 2 === 0 && preg_match('/^[\da-f]+$/', $suffix) === 1;
+    }
+
+    /**
+     * @return array{text: string, bytes: string}|null
+     */
+    private function pdfStringDetails(mixed $value): ?array
+    {
+        if (!is_array($value) || ($value['pdfType'] ?? null) !== 'string' || !is_string($value['value'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'text' => $value['value'],
+            'bytes' => is_string($value['bytes'] ?? null) ? $value['bytes'] : $value['value'],
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $catalog
      * @param array<int, mixed> $objects
      * @return array{name: string|null, value: mixed}|null
@@ -6554,17 +6666,22 @@ final class PdfOutlineExtractor
         $resolved = $this->resolveValue($destination, $objects);
         $name = $this->stringOrNameValue($resolved);
         if ($name !== null) {
-            if (isset($seenNames[$name]) || !array_key_exists($name, $destinations)) {
+            $lookupKey = $this->destinationLookupKeyForNameValue($resolved, $name);
+            if (!array_key_exists($lookupKey, $destinations)) {
+                $lookupKey = $name;
+            }
+
+            if (isset($seenNames[$lookupKey]) || !array_key_exists($lookupKey, $destinations)) {
                 return null;
             }
-            $seenNames[$name] = true;
+            $seenNames[$lookupKey] = true;
 
             return $this->destinationViewDetails(
-                $destinations[$name],
+                $destinations[$lookupKey],
                 $objects,
                 $pageIndexes,
                 $destinations,
-                $destinationName ?? $name,
+                $destinationName ?? $this->destinationNameFromMapKey($lookupKey),
                 $seenNames
             );
         }
@@ -6775,12 +6892,17 @@ final class PdfOutlineExtractor
         $resolved = $this->resolveValue($destination, $objects);
         $name = $this->stringOrNameValue($resolved);
         if ($name !== null) {
-            if (isset($seenNames[$name]) || !array_key_exists($name, $destinations)) {
+            $lookupKey = $this->destinationLookupKeyForNameValue($resolved, $name);
+            if (!array_key_exists($lookupKey, $destinations)) {
+                $lookupKey = $name;
+            }
+
+            if (isset($seenNames[$lookupKey]) || !array_key_exists($lookupKey, $destinations)) {
                 return null;
             }
-            $seenNames[$name] = true;
+            $seenNames[$lookupKey] = true;
 
-            return $this->destinationPageIndex($destinations[$name], $objects, $pageIndexes, $destinations, $seenNames);
+            return $this->destinationPageIndex($destinations[$lookupKey], $objects, $pageIndexes, $destinations, $seenNames);
         }
 
         $dict = $this->dictionaryItems($resolved);
