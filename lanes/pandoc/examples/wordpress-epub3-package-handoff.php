@@ -783,6 +783,15 @@ XML;
     if (($result['metadata']['linksByRel']['record'][0]['id'] ?? null) !== 'review-record') {
         throw new RuntimeException('Expected EPUB OPF metadata links to be indexed by rel');
     }
+    if (($result['metadata']['linkVocabulary']['relTokenCount'] ?? null) !== 6 || ($result['metadata']['linkVocabulary']['propertyTokenCount'] ?? null) !== 5) {
+        throw new RuntimeException('Expected EPUB OPF metadata link vocabulary tokens to be summarized');
+    }
+    if (($result['metadata']['linkVocabulary']['rels']['record'] ?? null) !== 3 || ($result['metadata']['linkVocabulary']['properties']['schema-org'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB OPF metadata link vocabulary rel/property counts to be preserved');
+    }
+    if (($result['metadata']['linkVocabulary']['diagnosticCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected EPUB OPF metadata link vocabulary summary to stay diagnostic-free for the smoke fixture');
+    }
     if (($result['metadata']['linkedResourceSummary']['subjectCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB OPF metadata link refinements to summarize linked review subjects');
     }
@@ -1304,6 +1313,10 @@ echo 'metadataRecordTarget=' . ($result['metadata']['links'][0]['target'] ?? '')
 echo 'metadataRecordLanguage=' . ($result['metadata']['links'][0]['language'] ?? '') . "\n";
 echo 'metadataRecordDirection=' . ($result['metadata']['links'][0]['direction'] ?? '') . "\n";
 echo 'metadataRecordSha256=' . ($result['metadata']['links'][0]['byteSha256'] ?? '') . "\n";
+echo 'metadataLinkRelTokens=' . ($result['metadata']['linkVocabulary']['relTokenCount'] ?? 0) . "\n";
+echo 'metadataLinkPropertyTokens=' . ($result['metadata']['linkVocabulary']['propertyTokenCount'] ?? 0) . "\n";
+echo 'metadataLinkRecordRels=' . ($result['metadata']['linkVocabulary']['rels']['record'] ?? 0) . "\n";
+echo 'metadataLinkDiagnostics=' . ($result['metadata']['linkVocabulary']['diagnosticCount'] ?? 0) . "\n";
 echo 'metadataLinkedResourceSubjects=' . ($result['metadata']['linkedResourceSummary']['subjectCount'] ?? 0) . "\n";
 echo 'metadataCreatorLinkedResources=' . count($result['metadata']['dc']['creator'][0]['linkedResources'] ?? []) . "\n";
 echo 'metadataCreatorDirection=' . ($result['metadata']['creatorDetails'][0]['direction'] ?? '') . "\n";
