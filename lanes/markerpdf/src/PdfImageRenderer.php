@@ -4358,8 +4358,7 @@ final class PdfImageRenderer
                     return true;
                 }
             }
-
-            $offset = $value['next'];
+            $offset = $this->pdfDictionaryScanOffsetAfterValue($body, $key['value'], $value['next']);
         }
 
         return false;
@@ -4436,8 +4435,14 @@ final class PdfImageRenderer
             if ($value === null) {
                 return false;
             }
+            if (
+                $canonicalKey === 'DecodeParms'
+                && $this->imageDecodeParmsExtraOperandEndAfterValue($body, $value['next']) !== null
+            ) {
+                return true;
+            }
 
-            $offset = $value['next'];
+            $offset = $this->pdfDictionaryScanOffsetAfterValue($body, $key['value'], $value['next']);
         }
 
         return false;
@@ -5048,7 +5053,7 @@ final class PdfImageRenderer
                 return $value['value'];
             }
 
-            $offset = $value['next'];
+            $offset = $this->pdfDictionaryScanOffsetAfterValue($body, $key['value'], $value['next']);
         }
 
         return null;
@@ -5216,6 +5221,7 @@ final class PdfImageRenderer
         $hasNativeDecodeParms = false;
         $review = ['type' => $filter];
         $invalidFields = [];
+        $resolvedDecodeParms = trim($decodeParms);
 
         foreach ($fields as $name => $key) {
             $hasField = $this->decodeParmsHasName($decodeParms, $name);
@@ -5229,6 +5235,16 @@ final class PdfImageRenderer
 
         if (!$hasNativeDecodeParms) {
             return null;
+        }
+
+        if (str_starts_with($resolvedDecodeParms, '<<')) {
+            $dictionaryOperand = $this->readBalancedDictionary($resolvedDecodeParms, 0);
+            if (
+                $dictionaryOperand === null
+                || $this->skipPdfWhitespace($resolvedDecodeParms, $dictionaryOperand['next']) !== strlen($resolvedDecodeParms)
+            ) {
+                $invalidFields[] = 'decode_parms_operand';
+            }
         }
 
         $predictor = $review['predictor'];
@@ -8341,7 +8357,13 @@ final class PdfImageRenderer
             return false;
         }
 
-        return !str_starts_with($resolved, '<<');
+        if (!str_starts_with($resolved, '<<')) {
+            return true;
+        }
+
+        $dictionary = $this->readBalancedDictionary($resolved, 0);
+
+        return $dictionary === null || $this->skipPdfWhitespace($resolved, $dictionary['next']) !== strlen($resolved);
     }
 
     /**
@@ -10264,8 +10286,11 @@ final class PdfImageRenderer
     private function pdfDictionaryValuesForName(string $dictionary, string $name): array
     {
         $body = trim($dictionary);
-        if (str_starts_with($body, '<<') && str_ends_with($body, '>>')) {
-            $body = trim(substr($body, 2, -2));
+        if (str_starts_with($body, '<<')) {
+            $dictionary = $this->readBalancedDictionary($body, 0);
+            if ($dictionary !== null) {
+                $body = trim(substr($dictionary['value'], 2, -2));
+            }
         }
 
         $offset = 0;
@@ -10286,10 +10311,25 @@ final class PdfImageRenderer
                 $values[] = $value['value'];
             }
 
-            $offset = $value['next'];
+            $offset = $this->pdfDictionaryScanOffsetAfterValue($body, $key['value'], $value['next']);
         }
 
         return $values;
+    }
+
+    private function pdfDictionaryScanOffsetAfterValue(string $body, string $keyValue, int $valueNext): int
+    {
+        $keyName = $this->pdfNameValue($keyValue);
+        if ($keyName === null) {
+            return $valueNext;
+        }
+
+        $canonicalKey = self::INLINE_IMAGE_KEY_ABBREVIATIONS[$keyName] ?? $keyName;
+        if ($canonicalKey !== 'DecodeParms') {
+            return $valueNext;
+        }
+
+        return $this->imageDecodeParmsExtraOperandEndAfterValue($body, $valueNext) ?? $valueNext;
     }
 
     private function readPdfValueAt(string $source, int $offset): ?string
