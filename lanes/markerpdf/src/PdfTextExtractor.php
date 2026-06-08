@@ -37432,6 +37432,7 @@ final class PdfTextExtractor
             if ($overwrite) {
                 $this->removeCidMappingsInSourceRange($cidMap, $source, $last, $sourceWidth, $sameWidthCodeSpaceRanges);
             }
+            $priorCidRanges = $cidRanges ?? [];
 
             if ($cidRanges !== null) {
                 $cidRange = [
@@ -37464,7 +37465,13 @@ final class PdfTextExtractor
 
                 $currentCid = $overwrite ? $cid + $mappedCount : $cid;
                 if ($currentCid >= 0 && $currentCid <= 0xffff) {
-                    if (!$overwrite && array_key_exists($sourceKey, $cidMap)) {
+                    if (
+                        !$overwrite
+                        && (
+                            array_key_exists($sourceKey, $cidMap)
+                            || $this->cidFromCidRangesForSourceKey($sourceKey, ['cidRanges' => $priorCidRanges]) !== null
+                        )
+                    ) {
                         $source++;
                         $mappedCount++;
                         continue;
