@@ -20700,7 +20700,7 @@ final class PdfTextExtractor
         $bytesPerPixel = max(1, intdiv(($colors * $bitsPerComponent) + 7, 8));
 
         if ($predictor === 2) {
-            return $this->applyTiffPredictor($bytes, $rowLength, $bytesPerPixel);
+            return $this->applyTiffPredictor($bytes, $rowLength, $bytesPerPixel, $colors, $bitsPerComponent, $columns);
         }
 
         if ($predictor < 10 || $predictor > 15) {
@@ -20809,7 +20809,59 @@ final class PdfTextExtractor
         return null;
     }
 
-    private function applyTiffPredictor(string $bytes, int $rowLength, int $bytesPerPixel): ?string
+    private function applyTiffPredictor(
+        string $bytes,
+        int $rowLength,
+        int $bytesPerPixel,
+        int $colors,
+        int $bitsPerComponent,
+        int $columns
+    ): ?string {
+        if ($rowLength < 1 || strlen($bytes) % $rowLength !== 0) {
+            return null;
+        }
+
+        if ($bitsPerComponent === 8) {
+            return $this->applyByteAlignedTiffPredictor($bytes, $rowLength, $bytesPerPixel);
+        }
+
+        if (!in_array($bitsPerComponent, [1, 2, 4, 16], true)) {
+            return null;
+        }
+
+        $samplesPerRow = $colors * $columns;
+        if ($colors < 1 || $columns < 1 || $samplesPerRow < 1) {
+            return null;
+        }
+
+        $expectedRowLength = intdiv(($samplesPerRow * $bitsPerComponent) + 7, 8);
+        if ($expectedRowLength !== $rowLength) {
+            return null;
+        }
+
+        $maxSampleValue = (1 << $bitsPerComponent) - 1;
+        $out = '';
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $rowLength) {
+            $samples = $this->unpackPredictorSamples(substr($bytes, $offset, $rowLength), $bitsPerComponent, $samplesPerRow);
+            if ($samples === null) {
+                return null;
+            }
+
+            for ($index = $colors; $index < $samplesPerRow; $index++) {
+                $samples[$index] = ($samples[$index] + $samples[$index - $colors]) & $maxSampleValue;
+            }
+
+            $packed = $this->packPredictorSamples($samples, $bitsPerComponent);
+            if ($packed === null || strlen($packed) !== $rowLength) {
+                return null;
+            }
+            $out .= $packed;
+        }
+
+        return $out;
+    }
+
+    private function applyByteAlignedTiffPredictor(string $bytes, int $rowLength, int $bytesPerPixel): ?string
     {
         if ($rowLength < 1 || strlen($bytes) % $rowLength !== 0) {
             return null;
@@ -20825,6 +20877,63 @@ final class PdfTextExtractor
         }
 
         return $out;
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private function unpackPredictorSamples(string $row, int $bitsPerComponent, int $sampleCount): ?array
+    {
+        if ($sampleCount < 0 || $bitsPerComponent < 1 || ($sampleCount * $bitsPerComponent) > strlen($row) * 8) {
+            return null;
+        }
+
+        $samples = [];
+        for ($sampleIndex = 0; $sampleIndex < $sampleCount; $sampleIndex++) {
+            $sample = 0;
+            for ($bit = 0; $bit < $bitsPerComponent; $bit++) {
+                $absoluteBit = ($sampleIndex * $bitsPerComponent) + $bit;
+                $byte = ord($row[intdiv($absoluteBit, 8)]);
+                $shift = 7 - ($absoluteBit % 8);
+                $sample = ($sample << 1) | (($byte >> $shift) & 1);
+            }
+            $samples[] = $sample;
+        }
+
+        return $samples;
+    }
+
+    /**
+     * @param list<int> $samples
+     */
+    private function packPredictorSamples(array $samples, int $bitsPerComponent): ?string
+    {
+        if ($bitsPerComponent < 1 || $bitsPerComponent > 16) {
+            return null;
+        }
+
+        $bitLength = count($samples) * $bitsPerComponent;
+        $bytes = str_repeat("\0", intdiv($bitLength + 7, 8));
+        $maxSampleValue = (1 << $bitsPerComponent) - 1;
+        foreach ($samples as $sampleIndex => $sample) {
+            if (!is_int($sample) || $sample < 0 || $sample > $maxSampleValue) {
+                return null;
+            }
+
+            for ($bit = 0; $bit < $bitsPerComponent; $bit++) {
+                $sourceShift = $bitsPerComponent - 1 - $bit;
+                if ((($sample >> $sourceShift) & 1) === 0) {
+                    continue;
+                }
+
+                $absoluteBit = ($sampleIndex * $bitsPerComponent) + $bit;
+                $byteIndex = intdiv($absoluteBit, 8);
+                $targetShift = 7 - ($absoluteBit % 8);
+                $bytes[$byteIndex] = chr(ord($bytes[$byteIndex]) | (1 << $targetShift));
+            }
+        }
+
+        return $bytes;
     }
 
     private function applyPngPredictor(string $bytes, int $rowLength, int $bytesPerPixel): ?string
