@@ -12603,8 +12603,13 @@ final class PdfAcroFormExtractor
 
     private function dictionaryObjectBody(string $objectBody): ?string
     {
-        $offset = strpos($objectBody, '<<');
-        return $offset === false ? null : $this->readPdfDictionaryAt($objectBody, $offset);
+        $offset = 0;
+        $this->skipWhitespace($objectBody, $offset);
+        if (substr($objectBody, $offset, 2) !== '<<') {
+            return null;
+        }
+
+        return $this->readPdfDictionaryAt($objectBody, $offset);
     }
 
     private function arrayBodyFromValue(string $value): ?string

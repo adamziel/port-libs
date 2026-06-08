@@ -2788,6 +2788,10 @@ final class PdfTextExtractor
                     ? $appearance['stream']
                     : $expanded['stream'] . "\n" . $appearance['stream'];
                 $expanded['fontToUnicodeMaps'] = $appearance['fontToUnicodeMaps'];
+                $expanded['markedContentProperties'] = array_replace(
+                    $expanded['markedContentProperties'],
+                    $appearance['markedContentProperties'] ?? []
+                );
             }
 
             if (trim($expanded['stream']) === '') {
@@ -12454,8 +12458,13 @@ final class PdfTextExtractor
         return 'Ap' . $appearanceObjectNumber . '_' . bin2hex($resourceName);
     }
 
+    private function appearanceMarkedContentPropertyAlias(int $appearanceObjectNumber, string $resourceName): string
+    {
+        return 'ApProp' . $appearanceObjectNumber . '_' . bin2hex($resourceName);
+    }
+
     /**
-     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}>
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}>
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
@@ -12705,7 +12714,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>}|null
+     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}|null
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
@@ -12749,6 +12758,13 @@ final class PdfTextExtractor
             $fontAliases[$name] = $alias;
             $expandedFontToUnicodeMaps[$alias] = $map;
         }
+        $markedContentPropertyAliases = [];
+        $appearanceMarkedContentProperties = [];
+        foreach ($this->markedContentPropertiesForResourceOwnerBody($resourceOwnerBody, $objects) as $name => $property) {
+            $alias = $this->appearanceMarkedContentPropertyAlias($appearanceObjectNumber, $name);
+            $markedContentPropertyAliases[$name] = $alias;
+            $appearanceMarkedContentProperties[$alias] = $property;
+        }
 
         $decoded = $this->filterOptionalContentMarkedBlocks(
             $decoded,
@@ -12762,12 +12778,15 @@ final class PdfTextExtractor
         );
 
         return $this->expandFormXObjectInvocations(
-            $this->rewriteFontResourceOperands($decoded, $fontAliases),
+            $this->rewriteMarkedContentPropertyOperands(
+                $this->rewriteFontResourceOperands($decoded, $fontAliases),
+                $markedContentPropertyAliases
+            ),
             $resourceOwnerBody,
             $objects,
             $fontObjectMaps,
             $expandedFontToUnicodeMaps,
-            [],
+            $appearanceMarkedContentProperties,
             [],
             $optionalContentStates,
             [],

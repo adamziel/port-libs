@@ -723,11 +723,11 @@ final class SingleDocumentConverter
     private function runtimeArgumentIntegerValue(string $value): ?int
     {
         $trimmed = trim($value);
-        if (preg_match('/^[+-]?\d+$/', $trimmed) !== 1) {
+        if (preg_match('/^[+-]?\d+(?:_\d+)*$/', $trimmed) !== 1) {
             return null;
         }
 
-        return (int) $trimmed;
+        return (int) str_replace('_', '', $trimmed);
     }
 
     private function runtimeArgumentMissingOptionValue(string $token): bool

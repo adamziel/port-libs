@@ -108,6 +108,11 @@ final class CorePdfConverter
 
         $outMetadata['pdf_toc'] = $toc;
         $outMetadata['pages'] = count($pages);
+        $pageLabelRows = $this->suppliedPageLabelRows($pages);
+        if ($pageLabelRows !== []) {
+            $outMetadata['page_labels'] = array_column($pageLabelRows, 'page_label');
+            $outMetadata['page_label_rows'] = $pageLabelRows;
+        }
         $lowresImagePlan = $this->lowresImagePlan(
             count($pages),
             $documentPageCount,
@@ -123,6 +128,10 @@ final class CorePdfConverter
             'lowres_image_count' => count($lowresImagePlan),
             'stage' => 'supplied-pages',
         ]);
+        if ($pageLabelRows !== []) {
+            $context['page_labels'] = array_column($pageLabelRows, 'page_label');
+            $context['page_label_rows'] = $pageLabelRows;
+        }
 
         $conversion = $this->normalizeConversion($pipeline(array_values($pages), $context));
 
@@ -182,6 +191,29 @@ final class CorePdfConverter
         }
 
         return max(0, $documentPageCount - $startPage);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $pages
+     * @return list<array{page_index: int, page_number: int, page_label: string}>
+     */
+    private function suppliedPageLabelRows(array $pages): array
+    {
+        $rows = [];
+        foreach (array_values($pages) as $index => $page) {
+            $label = $page['page_label'] ?? null;
+            if (!is_string($label) || $label === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'page_index' => $index,
+                'page_number' => $index + 1,
+                'page_label' => $label,
+            ];
+        }
+
+        return $rows;
     }
 
     /**
