@@ -14727,42 +14727,84 @@ final class PdfTextExtractor
         $references = [];
         foreach ($objects as $body) {
             $dictionary = $this->dictionaryObjectBody($body);
+            if ($dictionary === null) {
+                continue;
+            }
+
             if (
-                $dictionary === null
-                || (
-                    !$this->dictionaryLooksLikeOutlineItem($dictionary, $objects)
-                    && !$this->dictionaryLooksLikeOutlineRoot($dictionary, $objects)
-                )
+                $this->dictionaryLooksLikeOutlineItem($dictionary, $objects)
+                || $this->dictionaryLooksLikeOutlineRoot($dictionary, $objects)
             ) {
-                continue;
+                $this->collectOutlineMetadataStreamGenerationsFromDictionary($dictionary, $objects, $references);
             }
 
-            $metadataValues = $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, 'Metadata');
-            if ($metadataValues === []) {
-                continue;
-            }
-
-            foreach ($metadataValues as $metadataValue) {
-                $offset = 0;
-                $reference = $this->readPdfIndirectReferenceToken($metadataValue, $offset);
-                if ($reference === null) {
-                    continue;
-                }
-
-                $metadataBody = $this->objectBodyForExactReference(
-                    $objects,
-                    $reference['objectNumber'],
-                    $reference['generation']
-                );
-                if ($metadataBody === null || $this->streamDictionaryAndPayload($metadataBody, $objects) === null) {
-                    continue;
-                }
-
-                $references[$reference['objectNumber']][$reference['generation']] = true;
-            }
+            $this->collectDirectCatalogOutlineRootMetadataStreamGenerations($dictionary, $objects, $references);
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array<int, true>> $references
+     */
+    private function collectDirectCatalogOutlineRootMetadataStreamGenerations(
+        string $dictionary,
+        array $objects,
+        array &$references
+    ): void {
+        if ($this->pdfNameValueAfterNameResolvingObjects($dictionary, 'Type', $objects) !== 'Catalog') {
+            return;
+        }
+
+        $outlineRootValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Outlines');
+        if ($outlineRootValue === null) {
+            return;
+        }
+
+        $outlineRootValue = trim($outlineRootValue);
+        if (!str_starts_with($outlineRootValue, '<<')) {
+            return;
+        }
+
+        $outlineRootDictionary = $this->readPdfDictionaryAt($outlineRootValue, 0);
+        if (
+            $outlineRootDictionary === null
+            || !$this->dictionaryLooksLikeOutlineRoot($outlineRootDictionary, $objects)
+        ) {
+            return;
+        }
+
+        $this->collectOutlineMetadataStreamGenerationsFromDictionary($outlineRootDictionary, $objects, $references);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array<int, true>> $references
+     */
+    private function collectOutlineMetadataStreamGenerationsFromDictionary(
+        string $dictionary,
+        array $objects,
+        array &$references
+    ): void {
+        foreach ($this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, 'Metadata') as $metadataValue) {
+            $offset = 0;
+            $reference = $this->readPdfIndirectReferenceToken($metadataValue, $offset);
+            if ($reference === null) {
+                continue;
+            }
+
+            $metadataBody = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($metadataBody === null || $this->streamDictionaryAndPayload($metadataBody, $objects) === null) {
+                continue;
+            }
+
+            $references[$reference['objectNumber']][$reference['generation']] = true;
+        }
     }
 
     /**
