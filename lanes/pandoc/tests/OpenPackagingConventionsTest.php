@@ -4806,6 +4806,198 @@ XML;
         $t->same(true, $commentRoles['rIdCommentImage']['valid']);
         $t->same([], $commentRoles['rIdCommentImage']['issues']);
     },
+    'preflights DOCX reader supplemental relationship role content types' => static function (TestRunner $t): void {
+        $commentsExtendedType = OpcRelationshipGraph::WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE;
+        $glossaryType = OpcRelationshipGraph::WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE;
+        $altChunkType = OpcRelationshipGraph::WORDPROCESSING_ALTERNATIVE_FORMAT_IMPORT_RELATIONSHIP_TYPE;
+        $chartType = OpcRelationshipGraph::DRAWINGML_CHART_RELATIONSHIP_TYPE;
+        $diagramDataType = OpcRelationshipGraph::DRAWINGML_DIAGRAM_DATA_RELATIONSHIP_TYPE;
+        $diagramLayoutType = OpcRelationshipGraph::DRAWINGML_DIAGRAM_LAYOUT_RELATIONSHIP_TYPE;
+        $diagramQuickStyleType = OpcRelationshipGraph::DRAWINGML_DIAGRAM_QUICK_STYLE_RELATIONSHIP_TYPE;
+        $diagramColorsType = OpcRelationshipGraph::DRAWINGML_DIAGRAM_COLORS_RELATIONSHIP_TYPE;
+
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/commentsExtended.xml" ContentType="application/vnd.ms-word.commentsExt+xml"/>
+  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>
+  <Override PartName="/word/chunks/review.html" ContentType="text/html"/>
+  <Override PartName="/word/chunks/plain-review.txt" ContentType="text/plain; charset=utf-8"/>
+  <Override PartName="/word/chunks/review.xhtml" ContentType="application/xhtml+xml"/>
+  <Override PartName="/word/chunks/source.rtf" ContentType="application/rtf"/>
+  <Override PartName="/word/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/word/diagrams/data1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml"/>
+  <Override PartName="/word/diagrams/layout1.xml" ContentType="application/xml"/>
+  <Override PartName="/word/diagrams/quickStyle1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml"/>
+  <Override PartName="/word/diagrams/colors1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentsExtended" Type="{$commentsExtendedType}" Target="commentsExtended.xml"/>
+  <Relationship Id="rIdGlossary" Type="{$glossaryType}" Target="glossary/document.xml"/>
+  <Relationship Id="rIdHtmlChunk" Type="{$altChunkType}" Target="chunks/review.html"/>
+  <Relationship Id="rIdPlainTextChunk" Type="{$altChunkType}" Target="chunks/plain-review.txt"/>
+  <Relationship Id="rIdXhtmlChunk" Type="{$altChunkType}" Target="chunks/review.xhtml"/>
+  <Relationship Id="rIdUnsupportedChunk" Type="{$altChunkType}" Target="chunks/source.rtf"/>
+  <Relationship Id="rIdExternalChunk" Type="{$altChunkType}" Target="https://example.test/review.html" TargetMode="External"/>
+  <Relationship Id="rIdChart" Type="{$chartType}" Target="charts/chart1.xml"/>
+  <Relationship Id="rIdDiagramData" Type="{$diagramDataType}" Target="diagrams/data1.xml"/>
+  <Relationship Id="rIdDiagramLayoutWrongType" Type="{$diagramLayoutType}" Target="diagrams/layout1.xml"/>
+  <Relationship Id="rIdDiagramStyle" Type="{$diagramQuickStyleType}" Target="diagrams/quickStyle1.xml"/>
+  <Relationship Id="rIdDiagramColorsExternal" Type="{$diagramColorsType}" Target="https://example.test/diagramColors.xml" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentThread" Type="{$commentsExtendedType}" Target="commentsExtended.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/commentsExtended.xml', 'data' => '<w15:commentsEx/>'],
+            ['name' => 'word/glossary/document.xml', 'data' => '<w:glossaryDocument/>'],
+            ['name' => 'word/chunks/review.html', 'data' => '<p>Review</p>'],
+            ['name' => 'word/chunks/plain-review.txt', 'data' => 'Review'],
+            ['name' => 'word/chunks/review.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Review</p></body></html>'],
+            ['name' => 'word/chunks/source.rtf', 'data' => '{\\rtf1 Review}'],
+            ['name' => 'word/charts/chart1.xml', 'data' => '<c:chartSpace/>'],
+            ['name' => 'word/diagrams/data1.xml', 'data' => '<dgm:dataModel/>'],
+            ['name' => 'word/diagrams/layout1.xml', 'data' => '<dgm:layoutDef/>'],
+            ['name' => 'word/diagrams/quickStyle1.xml', 'data' => '<dgm:styleDef/>'],
+        ]));
+
+        $roles = [];
+        foreach ($graph->preflightWordprocessingDocumentRelationships('/word/document.xml') as $role) {
+            $roles[$role['id']] = $role;
+        }
+
+        $t->same([
+            'rIdCommentsExtended',
+            'rIdGlossary',
+            'rIdHtmlChunk',
+            'rIdPlainTextChunk',
+            'rIdXhtmlChunk',
+            'rIdUnsupportedChunk',
+            'rIdExternalChunk',
+            'rIdChart',
+            'rIdDiagramData',
+            'rIdDiagramLayoutWrongType',
+            'rIdDiagramStyle',
+            'rIdDiagramColorsExternal',
+        ], array_keys($roles));
+
+        $t->same('comments-extended', $roles['rIdCommentsExtended']['role']);
+        $t->same($commentsExtendedType, $roles['rIdCommentsExtended']['type']);
+        $t->same('/word/commentsExtended.xml', $roles['rIdCommentsExtended']['targetPart']);
+        $t->same('application/vnd.ms-word.commentsExt+xml', $roles['rIdCommentsExtended']['contentType']);
+        $t->same('application/vnd.ms-word.commentsExt+xml', $roles['rIdCommentsExtended']['expectedContentType']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES, $roles['rIdCommentsExtended']['expectedSourceContentTypes']);
+        $t->same(false, $roles['rIdCommentsExtended']['expectedExternal']);
+        $t->same(true, $roles['rIdCommentsExtended']['valid']);
+        $t->same([], $roles['rIdCommentsExtended']['issues']);
+
+        $t->same('glossary-document', $roles['rIdGlossary']['role']);
+        $t->same('/word/glossary/document.xml', $roles['rIdGlossary']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml', $roles['rIdGlossary']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml', $roles['rIdGlossary']['expectedContentType']);
+        $t->same(true, $roles['rIdGlossary']['valid']);
+        $t->same([], $roles['rIdGlossary']['issues']);
+
+        foreach ([
+            'rIdHtmlChunk' => ['targetPart' => '/word/chunks/review.html', 'contentType' => 'text/html'],
+            'rIdPlainTextChunk' => ['targetPart' => '/word/chunks/plain-review.txt', 'contentType' => 'text/plain; charset=utf-8'],
+            'rIdXhtmlChunk' => ['targetPart' => '/word/chunks/review.xhtml', 'contentType' => 'application/xhtml+xml'],
+        ] as $id => $expected) {
+            $t->same('alternative-format-import', $roles[$id]['role']);
+            $t->same($altChunkType, $roles[$id]['type']);
+            $t->same($expected['targetPart'], $roles[$id]['targetPart']);
+            $t->same($expected['contentType'], $roles[$id]['contentType']);
+            $t->same(['text/html', 'application/xhtml+xml', 'text/plain'], $roles[$id]['expectedContentTypes']);
+            $t->same(null, $roles[$id]['expectedContentType']);
+            $t->same(false, $roles[$id]['expectedExternal']);
+            $t->same(true, $roles[$id]['valid']);
+            $t->same([], $roles[$id]['issues']);
+        }
+
+        $t->same('alternative-format-import', $roles['rIdUnsupportedChunk']['role']);
+        $t->same('application/rtf', $roles['rIdUnsupportedChunk']['contentType']);
+        $t->same(['text/html', 'application/xhtml+xml', 'text/plain'], $roles['rIdUnsupportedChunk']['expectedContentTypes']);
+        $t->same(false, $roles['rIdUnsupportedChunk']['valid']);
+        $t->same(['invalid-alternative-format-import-content-type'], $roles['rIdUnsupportedChunk']['issues']);
+
+        $t->same('alternative-format-import', $roles['rIdExternalChunk']['role']);
+        $t->same(true, $roles['rIdExternalChunk']['external']);
+        $t->same(null, $roles['rIdExternalChunk']['targetPart']);
+        $t->same(false, $roles['rIdExternalChunk']['expectedExternal']);
+        $t->same(false, $roles['rIdExternalChunk']['valid']);
+        $t->same(['external-alternative-format-import-target'], $roles['rIdExternalChunk']['issues']);
+
+        $t->same('chart', $roles['rIdChart']['role']);
+        $t->same('/word/charts/chart1.xml', $roles['rIdChart']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.drawingml.chart+xml', $roles['rIdChart']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.drawingml.chart+xml', $roles['rIdChart']['expectedContentType']);
+        $t->same(true, $roles['rIdChart']['valid']);
+        $t->same([], $roles['rIdChart']['issues']);
+
+        $t->same('diagram-data', $roles['rIdDiagramData']['role']);
+        $t->same('/word/diagrams/data1.xml', $roles['rIdDiagramData']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml', $roles['rIdDiagramData']['contentType']);
+        $t->same(true, $roles['rIdDiagramData']['valid']);
+        $t->same([], $roles['rIdDiagramData']['issues']);
+
+        $t->same('diagram-layout', $roles['rIdDiagramLayoutWrongType']['role']);
+        $t->same('/word/diagrams/layout1.xml', $roles['rIdDiagramLayoutWrongType']['targetPart']);
+        $t->same('application/xml', $roles['rIdDiagramLayoutWrongType']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml', $roles['rIdDiagramLayoutWrongType']['expectedContentType']);
+        $t->same(false, $roles['rIdDiagramLayoutWrongType']['valid']);
+        $t->same(['invalid-diagram-layout-content-type'], $roles['rIdDiagramLayoutWrongType']['issues']);
+
+        $t->same('diagram-quick-style', $roles['rIdDiagramStyle']['role']);
+        $t->same('/word/diagrams/quickStyle1.xml', $roles['rIdDiagramStyle']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml', $roles['rIdDiagramStyle']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml', $roles['rIdDiagramStyle']['expectedContentType']);
+        $t->same(true, $roles['rIdDiagramStyle']['valid']);
+        $t->same([], $roles['rIdDiagramStyle']['issues']);
+
+        $t->same('diagram-colors', $roles['rIdDiagramColorsExternal']['role']);
+        $t->same(true, $roles['rIdDiagramColorsExternal']['external']);
+        $t->same(false, $roles['rIdDiagramColorsExternal']['expectedExternal']);
+        $t->same(false, $roles['rIdDiagramColorsExternal']['valid']);
+        $t->same(['external-diagram-colors-target'], $roles['rIdDiagramColorsExternal']['issues']);
+
+        $commentRoles = [];
+        foreach ($graph->preflightWordprocessingDocumentRelationships('/word/comments.xml') as $role) {
+            $commentRoles[$role['id']] = $role;
+        }
+
+        $t->same(['rIdCommentThread'], array_keys($commentRoles));
+        $t->same('comments-extended', $commentRoles['rIdCommentThread']['role']);
+        $t->same('/word/comments.xml', $commentRoles['rIdCommentThread']['source']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $commentRoles['rIdCommentThread']['sourceContentType']);
+        $t->same('/word/commentsExtended.xml', $commentRoles['rIdCommentThread']['targetPart']);
+        $t->same('application/vnd.ms-word.commentsExt+xml', $commentRoles['rIdCommentThread']['contentType']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES, $commentRoles['rIdCommentThread']['expectedSourceContentTypes']);
+        $t->same(false, $commentRoles['rIdCommentThread']['valid']);
+        $t->same(['invalid-comments-extended-source-content-type'], $commentRoles['rIdCommentThread']['issues']);
+    },
     'preflights OPC package and part thumbnail relationships' => static function (TestRunner $t): void {
         $thumbnailType = OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE;
         $contentTypesXml = <<<'XML'

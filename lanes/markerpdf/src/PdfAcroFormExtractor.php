@@ -10304,10 +10304,24 @@ final class PdfAcroFormExtractor
                 return null;
             }
 
-            return $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
+            return $this->completeDictionaryObjectBody($objects[$objectNumber] ?? '');
         }
 
         return null;
+    }
+
+    private function completeDictionaryObjectBody(string $objectBody): ?string
+    {
+        $offset = 0;
+        $this->skipWhitespace($objectBody, $offset);
+
+        $endOffset = null;
+        $body = $this->readPdfDictionaryAt($objectBody, $offset, $endOffset);
+        if ($body === null || $endOffset === null) {
+            return null;
+        }
+
+        return $this->hasOnlyPdfWhitespaceOrCommentsAfter($objectBody, $endOffset) ? $body : null;
     }
 
     /**

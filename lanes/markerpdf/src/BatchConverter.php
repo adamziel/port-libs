@@ -3623,6 +3623,13 @@ final class BatchConverter
         $reached = $totalProcesses >= 1;
         $usesWorkerModelLoad = $reached && (bool) ($modelHandoff['worker_loads_models_when_init_arg_null'] ?? false);
         $reusesParentModelList = $reached && !$usesWorkerModelLoad;
+        $shareMemoryReview = is_array($modelHandoff['model_share_memory_review'] ?? null)
+            ? $modelHandoff['model_share_memory_review']
+            : [];
+        $sharedModelIsEmptyList = $reusesParentModelList && ($shareMemoryReview['model_list_empty'] ?? false) === true;
+        $downstreamModelUnpackBoundary = $sharedModelIsEmptyList
+            ? 'convert-single-pdf-model-unpack-failed'
+            : null;
 
         return [
             'source' => 'convert.py worker_init shared_model boundary',
@@ -3633,17 +3640,23 @@ final class BatchConverter
             'initializer_argument_name' => 'shared_model',
             'pool_initargs_source' => 'initargs=(model_lst,)',
             'processes' => $totalProcesses,
-            'shared_model_value' => $reached ? ($usesWorkerModelLoad ? 'None' : 'model_lst') : null,
+            'shared_model_value' => $reached
+                ? ($usesWorkerModelLoad ? 'None' : ($sharedModelIsEmptyList ? '[]' : 'model_lst'))
+                : null,
             'shared_model_is_none' => $usesWorkerModelLoad,
+            'shared_model_is_empty_list' => $sharedModelIsEmptyList,
+            'worker_init_reload_condition' => 'shared_model is None',
             'loads_models_in_worker' => $usesWorkerModelLoad,
             'parent_shared_model_reused' => $reusesParentModelList,
+            'empty_list_does_not_trigger_worker_load' => $sharedModelIsEmptyList,
             'load_all_models_call' => $usesWorkerModelLoad ? 'load_all_models()' : null,
             'worker_global_variable' => 'model_refs',
             'model_refs_assignment' => 'model_refs = shared_model',
             'model_refs_source' => $reached
-                ? ($usesWorkerModelLoad ? 'worker-loaded-model-list' : 'parent-shared-model-list')
+                ? ($usesWorkerModelLoad ? 'worker-loaded-model-list' : ($sharedModelIsEmptyList ? 'parent-shared-empty-model-list' : 'parent-shared-model-list'))
                 : null,
             'process_single_pdf_after_initializer' => $reached,
+            'downstream_convert_single_pdf_model_unpack_boundary' => $downstreamModelUnpackBoundary,
             'upstream_worker_model_execution_required' => $usesWorkerModelLoad,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
@@ -3850,6 +3863,19 @@ final class BatchConverter
             'main_load_all_models' => $reached && !$usesMps,
             'share_memory_before_pool' => $reached && !$usesMps,
             'model_share_memory_loop_reached' => $reached && !$usesMps,
+            'model_list_empty' => ($shareMemoryReview['model_list_empty'] ?? false) === true,
+            'worker_init_receives_empty_model_list' => ($shareMemoryReview['model_list_empty'] ?? false) === true,
+            'worker_loads_models_when_empty_list' => false,
+            'empty_model_list_conversion_error_boundary' => ($shareMemoryReview['model_list_empty'] ?? false) === true
+                ? 'convert-single-pdf-model-unpack-failed'
+                : null,
+            'empty_model_list_conversion_error_class' => ($shareMemoryReview['model_list_empty'] ?? false) === true
+                ? 'ValueError'
+                : null,
+            'empty_model_list_conversion_error_message' => ($shareMemoryReview['model_list_empty'] ?? false) === true
+                ? 'not enough values to unpack (expected 6, got 0)'
+                : null,
+            'empty_model_list_caught_by_process_single_pdf' => ($shareMemoryReview['model_list_empty'] ?? false) === true,
             'worker_init_argument' => !$reached || $usesMps || $shareMemoryErrorBoundary !== null ? null : 'model_lst',
             'worker_loads_models_when_init_arg_null' => $usesMps,
             'warning' => $usesMps
@@ -3950,7 +3976,18 @@ final class BatchConverter
         }
 
         $fixtureUsed = $reviewReached && $modelSlots !== null;
+        $modelListEmpty = $fixtureUsed && $modelSlots === [];
         $shareMemoryErrorFound = $shareMemoryErrorSlotIndexes !== [];
+        $modelListValue = null;
+        if ($modelHandoffReached) {
+            if ($usesMps) {
+                $modelListValue = 'None';
+            } elseif ($modelListEmpty) {
+                $modelListValue = '[]';
+            } else {
+                $modelListValue = 'model_lst';
+            }
+        }
 
         return [
             'source' => 'convert.py load_all_models share_memory slot boundary',
@@ -3958,7 +3995,10 @@ final class BatchConverter
             'review_reached' => $reviewReached,
             'blocked_by' => $effectiveBlockedBy,
             'model_list_source' => $reviewReached ? 'load_all_models()' : null,
-            'model_list_value' => $modelHandoffReached ? ($usesMps ? 'None' : 'model_lst') : null,
+            'model_list_value' => $modelListValue,
+            'model_list_fixture_used' => $fixtureUsed,
+            'model_list_empty' => $fixtureUsed ? $modelListEmpty : null,
+            'model_list_python_truthy' => $fixtureUsed ? !$modelListEmpty : null,
             'model_slot_fixture_used' => $fixtureUsed,
             'model_slot_count' => $fixtureUsed ? count($modelSlots) : null,
             'model_slots' => $slotRows,

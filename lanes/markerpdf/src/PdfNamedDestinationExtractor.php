@@ -1187,6 +1187,10 @@ final class PdfNamedDestinationExtractor
             return [];
         }
 
+        if ($inheritedLimits === null && $this->nameTreeNodeHasMalformedRootLimits($dictionary, $objects, $cache)) {
+            return [];
+        }
+
         $kids = $this->arrayValues($this->resolve($dictionary['Kids'] ?? null, $objects, $cache));
         if ($kids !== [] && $this->nameTreeLocalLimitsDisjointFromInherited($dictionary, $objects, $cache, $inheritedLimits)) {
             return [];
@@ -1446,6 +1450,17 @@ final class PdfNamedDestinationExtractor
             'lower_bytes' => $lower['bytes'],
             'upper_bytes' => $upper['bytes'],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function nameTreeNodeHasMalformedRootLimits(array $node, array $objects, array &$cache): bool
+    {
+        return array_key_exists('Limits', $node)
+            && $this->nameTreeNodeLimits($node, $objects, $cache) === null;
     }
 
     /**

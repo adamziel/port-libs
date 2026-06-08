@@ -296,6 +296,7 @@ final class PdfEngineHandoff
      *     pdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
      *     pdfOutlineDisplayMetadata: list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}>,
      *     pdfDocumentInfo: array<string, string>,
+     *     pdfDocumentInfoDateMetadata: list<array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}>,
      *     pdfXmpMetadata: array<string, mixed>,
      *     pdfPageMetadata: list<array<string, mixed>>,
      *     pdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
@@ -733,6 +734,7 @@ final class PdfEngineHandoff
         $pdfOutlines = [];
         $pdfOutlineDisplayMetadata = [];
         $pdfDocumentInfo = [];
+        $pdfDocumentInfoDateMetadata = [];
         $pdfXmpMetadata = [];
         $pdfPageMetadata = [];
         $pdfPieceInfo = [];
@@ -828,6 +830,7 @@ final class PdfEngineHandoff
                 $pdfOutlines = $pdfInspection['outlines'];
                 $pdfOutlineDisplayMetadata = $pdfInspection['outlineDisplayMetadata'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
+                $pdfDocumentInfoDateMetadata = $pdfInspection['documentInfoDateMetadata'];
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
                 $pdfPageMetadata = $pdfInspection['pageMetadata'];
                 $pdfPieceInfo = $pdfInspection['pieceInfo'];
@@ -1378,6 +1381,32 @@ final class PdfEngineHandoff
                 }
                 if ($pdfDocumentInfo !== []) {
                     $diagnostics[] = 'pdf-byte-document-info:' . count($pdfDocumentInfo);
+                }
+                if ($pdfDocumentInfoDateMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-document-info-dates:' . count($pdfDocumentInfoDateMetadata);
+                    $normalizedDateCount = 0;
+                    $timezoneDateCount = 0;
+                    $invalidDateCount = 0;
+                    foreach ($pdfDocumentInfoDateMetadata as $dateMetadata) {
+                        if (($dateMetadata['valid'] ?? false) === true && is_string($dateMetadata['normalized'] ?? null)) {
+                            $normalizedDateCount++;
+                        }
+                        if (is_string($dateMetadata['timezone'] ?? null)) {
+                            $timezoneDateCount++;
+                        }
+                        if (($dateMetadata['valid'] ?? true) !== true) {
+                            $invalidDateCount++;
+                        }
+                    }
+                    if ($normalizedDateCount > 0) {
+                        $diagnostics[] = 'pdf-byte-document-info-date-normalized:' . $normalizedDateCount;
+                    }
+                    if ($timezoneDateCount > 0) {
+                        $diagnostics[] = 'pdf-byte-document-info-date-timezones:' . $timezoneDateCount;
+                    }
+                    if ($invalidDateCount > 0) {
+                        $diagnostics[] = 'pdf-byte-document-info-date-invalid:' . $invalidDateCount;
+                    }
                 }
                 if ($pdfXmpMetadata !== []) {
                     if (($pdfXmpMetadata['skipped'] ?? null) === 'filtered') {
@@ -2291,6 +2320,7 @@ final class PdfEngineHandoff
             'pdfOutlines' => $pdfOutlines,
             'pdfOutlineDisplayMetadata' => $pdfOutlineDisplayMetadata,
             'pdfDocumentInfo' => $pdfDocumentInfo,
+            'pdfDocumentInfoDateMetadata' => $pdfDocumentInfoDateMetadata,
             'pdfXmpMetadata' => $pdfXmpMetadata,
             'pdfPageMetadata' => $pdfPageMetadata,
             'pdfPieceInfo' => $pdfPieceInfo,
@@ -2407,6 +2437,7 @@ final class PdfEngineHandoff
      *     finalPdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
      *     finalPdfOutlineDisplayMetadata: list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}>,
      *     finalPdfDocumentInfo: array<string, string>,
+     *     finalPdfDocumentInfoDateMetadata: list<array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}>,
      *     finalPdfXmpMetadata: array<string, mixed>,
      *     finalPdfPageMetadata: list<array<string, mixed>>,
      *     finalPdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
@@ -2637,6 +2668,7 @@ final class PdfEngineHandoff
             'finalPdfOutlines' => is_array($finalRun) && is_array($finalRun['pdfOutlines'] ?? null) ? $finalRun['pdfOutlines'] : [],
             'finalPdfOutlineDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfOutlineDisplayMetadata'] ?? null) ? $finalRun['pdfOutlineDisplayMetadata'] : [],
             'finalPdfDocumentInfo' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfo'] ?? null) ? $finalRun['pdfDocumentInfo'] : [],
+            'finalPdfDocumentInfoDateMetadata' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfoDateMetadata'] ?? null) ? $finalRun['pdfDocumentInfoDateMetadata'] : [],
             'finalPdfXmpMetadata' => is_array($finalRun) && is_array($finalRun['pdfXmpMetadata'] ?? null) ? $finalRun['pdfXmpMetadata'] : [],
             'finalPdfPageMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageMetadata'] ?? null) ? $finalRun['pdfPageMetadata'] : [],
             'finalPdfPieceInfo' => is_array($finalRun) && is_array($finalRun['pdfPieceInfo'] ?? null) ? $finalRun['pdfPieceInfo'] : [],
@@ -3752,6 +3784,7 @@ final class PdfEngineHandoff
      *     outlines:list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
      *     outlineDisplayMetadata:list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}>,
      *     documentInfo:array<string, string>,
+     *     documentInfoDateMetadata:list<array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}>,
      *     xmpMetadata:array<string, mixed>,
      *     pageMetadata:list<array<string, mixed>>,
      *     pieceInfo:list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
@@ -3828,6 +3861,7 @@ final class PdfEngineHandoff
         $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
         $annotationAppearances = $this->extractPdfAnnotationAppearances($pdfBytes, $catalog);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
+        $documentInfo = $this->extractPdfDocumentInfo($pdfBytes);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
         foreach ($embeddedFiles as $embeddedFile) {
             if (($embeddedFile['name'] ?? '') !== '') {
@@ -3874,7 +3908,8 @@ final class PdfEngineHandoff
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
             'outlines' => $this->extractPdfOutlines($pdfBytes, $catalog),
             'outlineDisplayMetadata' => $this->extractPdfOutlineDisplayMetadata($pdfBytes, $catalog),
-            'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
+            'documentInfo' => $documentInfo,
+            'documentInfoDateMetadata' => $this->extractPdfDocumentInfoDateMetadata($documentInfo),
             'xmpMetadata' => $this->extractPdfXmpMetadata($pdfBytes, $catalog),
             'pageMetadata' => $this->extractPdfPageMetadata($pdfBytes, $catalog),
             'pieceInfo' => $this->extractPdfPieceInfo($pdfBytes, $catalog),
@@ -4418,6 +4453,142 @@ final class PdfEngineHandoff
         }
 
         return $info;
+    }
+
+    /**
+     * @param array<string, string> $documentInfo
+     * @return list<array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}>
+     */
+    private function extractPdfDocumentInfoDateMetadata(array $documentInfo): array
+    {
+        $dates = [];
+        foreach (['CreationDate', 'ModDate'] as $key) {
+            $raw = trim($documentInfo[$key] ?? '');
+            if ($raw === '') {
+                continue;
+            }
+
+            $dates[] = $this->parsePdfDocumentInfoDate($key, $raw);
+        }
+
+        return $dates;
+    }
+
+    /**
+     * @return array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}
+     */
+    private function parsePdfDocumentInfoDate(string $key, string $raw): array
+    {
+        $metadata = [
+            'key' => $key,
+            'source' => 'Info.' . $key,
+            'raw' => $raw,
+            'normalized' => null,
+            'precision' => null,
+            'timezone' => null,
+            'timezoneOffsetMinutes' => null,
+            'year' => null,
+            'month' => null,
+            'day' => null,
+            'hour' => null,
+            'minute' => null,
+            'second' => null,
+            'valid' => false,
+        ];
+
+        if (preg_match('/\A(?:D:)?(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?(?:(Z|z)|([+\-])(\d{2})\'?(\d{2})?\'?)?\z/', $raw, $matches) !== 1) {
+            return $metadata;
+        }
+
+        $year = (int) $matches[1];
+        $month = isset($matches[2]) && $matches[2] !== '' ? (int) $matches[2] : null;
+        $day = isset($matches[3]) && $matches[3] !== '' ? (int) $matches[3] : null;
+        $hour = isset($matches[4]) && $matches[4] !== '' ? (int) $matches[4] : null;
+        $minute = isset($matches[5]) && $matches[5] !== '' ? (int) $matches[5] : null;
+        $second = isset($matches[6]) && $matches[6] !== '' ? (int) $matches[6] : null;
+        $precision = 'year';
+        if ($month !== null) {
+            $precision = 'month';
+        }
+        if ($day !== null) {
+            $precision = 'day';
+        }
+        if ($hour !== null) {
+            $precision = 'hour';
+        }
+        if ($minute !== null) {
+            $precision = 'minute';
+        }
+        if ($second !== null) {
+            $precision = 'second';
+        }
+
+        $metadata['year'] = $year;
+        $metadata['month'] = $month;
+        $metadata['day'] = $day;
+        $metadata['hour'] = $hour;
+        $metadata['minute'] = $minute;
+        $metadata['second'] = $second;
+        $metadata['precision'] = $precision;
+
+        $valid = true;
+        if ($month !== null && ($month < 1 || $month > 12)) {
+            $valid = false;
+        }
+        if ($day !== null && !checkdate($month ?? 1, $day, $year)) {
+            $valid = false;
+        }
+        if ($hour !== null && ($hour < 0 || $hour > 23)) {
+            $valid = false;
+        }
+        if ($minute !== null && ($minute < 0 || $minute > 59)) {
+            $valid = false;
+        }
+        if ($second !== null && ($second < 0 || $second > 59)) {
+            $valid = false;
+        }
+
+        if (isset($matches[7]) && $matches[7] !== '') {
+            $metadata['timezone'] = 'Z';
+            $metadata['timezoneOffsetMinutes'] = 0;
+        } elseif (isset($matches[8]) && $matches[8] !== '') {
+            $tzHour = isset($matches[9]) && $matches[9] !== '' ? (int) $matches[9] : 0;
+            $tzMinute = isset($matches[10]) && $matches[10] !== '' ? (int) $matches[10] : 0;
+            if ($tzHour > 23 || $tzMinute > 59) {
+                $valid = false;
+            }
+
+            $metadata['timezone'] = sprintf('%s%02d:%02d', $matches[8], $tzHour, $tzMinute);
+            $metadata['timezoneOffsetMinutes'] = ($matches[8] === '-' ? -1 : 1) * (($tzHour * 60) + $tzMinute);
+        }
+
+        $metadata['valid'] = $valid;
+        if (!$valid) {
+            return $metadata;
+        }
+
+        $normalized = sprintf('%04d', $year);
+        if ($month !== null) {
+            $normalized .= sprintf('-%02d', $month);
+        }
+        if ($day !== null) {
+            $normalized .= sprintf('-%02d', $day);
+        }
+        if ($hour !== null) {
+            $normalized .= sprintf('T%02d', $hour);
+            if ($minute !== null) {
+                $normalized .= sprintf(':%02d', $minute);
+                if ($second !== null) {
+                    $normalized .= sprintf(':%02d', $second);
+                }
+            }
+            if (is_string($metadata['timezone'])) {
+                $normalized .= $metadata['timezone'];
+            }
+        }
+        $metadata['normalized'] = $normalized;
+
+        return $metadata;
     }
 
     /**

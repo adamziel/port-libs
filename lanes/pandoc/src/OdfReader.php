@@ -1952,6 +1952,14 @@ final class OdfReader
      */
     private function frameBlockNode(\DOMElement $frame, ZipPackage $package, array $catalog): ?AstNode
     {
+        $textBoxCaptionImage = $this->frameTextBoxCaptionImageNode($frame, $catalog, $package);
+        if ($textBoxCaptionImage instanceof AstNode) {
+            return new AstNode('figure', [
+                'sourceFormat' => 'odt',
+                'caption' => (string) $textBoxCaptionImage->attr('alt', ''),
+            ], [$textBoxCaptionImage]);
+        }
+
         $textBox = self::firstChildElement($frame, 'text-box', self::DRAW_NS);
         if ($textBox instanceof \DOMElement) {
             $name = self::attr($frame, self::DRAW_NS, 'name');

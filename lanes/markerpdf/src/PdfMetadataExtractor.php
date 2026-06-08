@@ -7123,6 +7123,10 @@ final class PdfMetadataExtractor
             return;
         }
 
+        if ($inheritedLimits === null && $this->nameTreeNodeHasMalformedRootLimits($node, $objects)) {
+            return;
+        }
+
         $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
         if ($kids !== [] && $this->nameTreeLocalLimitsDisjointFromInherited($node, $objects, $inheritedLimits)) {
             return;
@@ -7660,6 +7664,16 @@ final class PdfMetadataExtractor
             'lower_bytes' => $lower['bytes'],
             'upper_bytes' => $upper['bytes'],
         ];
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $node
+     * @param array<int, string> $objects
+     */
+    private function nameTreeNodeHasMalformedRootLimits(array $node, array $objects): bool
+    {
+        return $this->dictionaryTopLevelRawValue($node['body'], 'Limits') !== null
+            && $this->nameTreeNodeLimits($node, $objects) === null;
     }
 
     /**
@@ -13624,21 +13638,6 @@ final class PdfMetadataExtractor
         return $about !== '';
     }
 
-    /**
-     * @return list<DOMElement>
-     */
-    private function xmpTopLevelPropertyElements(DOMDocument $document, string $namespace, string $localName): array
-    {
-        $properties = [];
-        foreach ($this->xmpTopLevelDescriptions($document) as $description) {
-            foreach ($this->xmpChildElements($description, $namespace, $localName) as $child) {
-                $properties[] = $child;
-            }
-        }
-
-        return $properties;
-    }
-
     private function looksLikeXmlPacket(string $xml): bool
     {
         return str_contains($xml, '<')
@@ -14730,21 +14729,19 @@ final class PdfMetadataExtractor
 
     private function xmpSingleValue(DOMDocument $document, string $namespace, string $localName, bool $preferAlt): ?string
     {
-        foreach ($this->xmpTopLevelPropertyElements($document, $namespace, $localName) as $element) {
-            $value = $preferAlt ? $this->preferredAltText($element) : $this->xmpQualifiedTextValue($element);
-            if ($value !== null) {
-                return $value;
-            }
-        }
-
         foreach ($this->xmpTopLevelDescriptions($document) as $description) {
-            if (!$description instanceof DOMElement || !$description->hasAttributeNS($namespace, $localName)) {
-                continue;
+            if ($description->hasAttributeNS($namespace, $localName)) {
+                $value = $this->cleanText($description->getAttributeNS($namespace, $localName));
+                if ($value !== null) {
+                    return $value;
+                }
             }
 
-            $value = $this->cleanText($description->getAttributeNS($namespace, $localName));
-            if ($value !== null) {
-                return $value;
+            foreach ($this->xmpChildElements($description, $namespace, $localName) as $element) {
+                $value = $preferAlt ? $this->preferredAltText($element) : $this->xmpQualifiedTextValue($element);
+                if ($value !== null) {
+                    return $value;
+                }
             }
         }
 
@@ -14756,43 +14753,39 @@ final class PdfMetadataExtractor
      */
     private function xmpListValues(DOMDocument $document, string $namespace, string $localName): array
     {
-        foreach ($this->xmpTopLevelPropertyElements($document, $namespace, $localName) as $element) {
-            $values = $this->xmpRdfCollectionTextValues($element);
-            if ($values !== []) {
-                $cleanValues = $this->cleanList($values);
-                if ($cleanValues !== []) {
-                    return $cleanValues;
-                }
-            }
-
-            $value = $this->xmpQualifiedTextValue($element);
-            if ($value !== null) {
-                if ($namespace === self::NS_DC && $localName === 'subject') {
-                    $keywords = $this->splitKeywords($value);
-                    return $keywords === [] ? [$value] : $keywords;
-                }
-
-                return [$value];
-            }
-        }
-
         foreach ($this->xmpTopLevelDescriptions($document) as $description) {
-            if (!$description instanceof DOMElement || !$description->hasAttributeNS($namespace, $localName)) {
-                continue;
+            if ($description->hasAttributeNS($namespace, $localName)) {
+                $value = $this->cleanText($description->getAttributeNS($namespace, $localName));
+                if ($value !== null) {
+                    if ($namespace === self::NS_DC && $localName === 'creator') {
+                        return [$value];
+                    }
+
+                    $values = $this->splitKeywords($value);
+                    if ($values !== []) {
+                        return $values;
+                    }
+                }
             }
 
-            $value = $this->cleanText($description->getAttributeNS($namespace, $localName));
-            if ($value === null) {
-                return [];
-            }
+            foreach ($this->xmpChildElements($description, $namespace, $localName) as $element) {
+                $values = $this->xmpRdfCollectionTextValues($element);
+                if ($values !== []) {
+                    $cleanValues = $this->cleanList($values);
+                    if ($cleanValues !== []) {
+                        return $cleanValues;
+                    }
+                }
 
-            if ($namespace === self::NS_DC && $localName === 'creator') {
-                return [$value];
-            }
+                $value = $this->xmpQualifiedTextValue($element);
+                if ($value !== null) {
+                    if ($namespace === self::NS_DC && $localName === 'subject') {
+                        $keywords = $this->splitKeywords($value);
+                        return $keywords === [] ? [$value] : $keywords;
+                    }
 
-            $values = $this->splitKeywords($value);
-            if ($values !== []) {
-                return $values;
+                    return [$value];
+                }
             }
         }
 
@@ -19128,12 +19121,38 @@ final class PdfMetadataExtractor
                 $items = [trim($streamValues)];
             }
 
-            foreach ($items as $relatedFileIndex => $streamValue) {
-                $streamMetadata = $this->embeddedFileStreamReviewMetadata($streamValue, $objects);
-                if ($streamMetadata === null) {
+            $hasFilenamePairs = $this->relatedFileItemsContainFilenamePairs($items);
+            $relatedFileIndex = 0;
+            for ($index = 0, $count = count($items); $index < $count; $index++) {
+                $relatedFilename = $this->stringValueFromRaw($items[$index]);
+                if ($relatedFilename !== null && $relatedFilename !== '' && $index + 1 < $count) {
+                    $streamMetadata = $this->embeddedFileStreamReviewMetadata($items[$index + 1], $objects);
+                    if ($streamMetadata !== null) {
+                        $row = [
+                            'source' => 'filespec_related_files',
+                            'rf_key' => $rfKey,
+                            'related_file_index' => $relatedFileIndex,
+                            'related_filename' => $relatedFilename,
+                            'related_filename_source' => 'rf_name_pair',
+                        ];
+                        foreach ($streamMetadata as $key => $metadataValue) {
+                            $row[$key] = $metadataValue;
+                        }
+                        $rows[] = $row;
+                        $relatedFileIndex++;
+                        $index++;
+                        continue;
+                    }
+                }
+
+                if ($hasFilenamePairs) {
                     continue;
                 }
 
+                $streamMetadata = $this->embeddedFileStreamReviewMetadata($items[$index], $objects);
+                if ($streamMetadata === null) {
+                    continue;
+                }
                 $row = [
                     'source' => 'filespec_related_files',
                     'rf_key' => $rfKey,
@@ -19143,10 +19162,26 @@ final class PdfMetadataExtractor
                     $row[$key] = $metadataValue;
                 }
                 $rows[] = $row;
+                $relatedFileIndex++;
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<string> $items
+     */
+    private function relatedFileItemsContainFilenamePairs(array $items): bool
+    {
+        for ($index = 0, $count = count($items); $index + 1 < $count; $index++) {
+            $relatedFilename = $this->stringValueFromRaw($items[$index]);
+            if ($relatedFilename !== null && $relatedFilename !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

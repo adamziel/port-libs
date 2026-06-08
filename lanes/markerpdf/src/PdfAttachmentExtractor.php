@@ -2650,6 +2650,7 @@ final class PdfAttachmentExtractor
                 $items = [$streamValues];
             }
 
+            $hasFilenamePairs = $this->relatedFileItemsContainFilenamePairs($items, $objects);
             $relatedFileIndex = 0;
             for ($index = 0, $count = count($items); $index < $count; $index++) {
                 $relatedFilename = $this->stringValue($this->resolveValue($items[$index], $objects));
@@ -2670,6 +2671,10 @@ final class PdfAttachmentExtractor
                     }
                 }
 
+                if ($hasFilenamePairs) {
+                    continue;
+                }
+
                 $row = $this->relatedFileRowFromStreamValue(
                     $items[$index],
                     $objects,
@@ -2686,6 +2691,22 @@ final class PdfAttachmentExtractor
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function relatedFileItemsContainFilenamePairs(array $items, array $objects): bool
+    {
+        for ($index = 0, $count = count($items); $index + 1 < $count; $index++) {
+            $relatedFilename = $this->stringValue($this->resolveValue($items[$index], $objects));
+            if ($relatedFilename !== null && $relatedFilename !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

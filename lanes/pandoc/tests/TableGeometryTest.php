@@ -1651,7 +1651,7 @@ return [
         $t->same([], TableGeometry::writerDowngradeDiagnostics($plainTable, 'wordpress'));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
-    'reports rst grid-table requirements for rowspanned writer handoff' => static function (TestRunner $t) use ($buildSectionGridDocument): void {
+    'reports rst grid-table requirements for spanned writer handoff' => static function (TestRunner $t) use ($buildSectionGridDocument): void {
         $table = $buildSectionGridDocument()->children[0];
         $diagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'restructuredtext');
         $packet = TableGeometry::reviewPacket($table, [
@@ -1659,23 +1659,47 @@ return [
             'writers' => ['markdown', 'rst'],
         ]);
 
-        $t->same(['rst-grid-table-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $diagnostics));
-        $t->same('rst', $diagnostics[0]['writer']);
-        $t->same('body', $diagnostics[0]['section']);
+        $t->same([
+            'rst-grid-table-required',
+            'rst-grid-table-required',
+            'rst-grid-table-required',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $diagnostics));
+        $t->same(['rst'], array_values(array_unique(array_map(static fn (array $diagnostic): string => $diagnostic['writer'], $diagnostics))));
+        $t->same('head', $diagnostics[0]['section']);
         $t->same(0, $diagnostics[0]['row']);
         $t->same(0, $diagnostics[0]['column']);
         $t->same([0, 1], $diagnostics[0]['columns']);
-        $t->same(2, $diagnostics[0]['rawRowspan']);
-        $t->same('rowspan', $diagnostics[0]['reason']);
+        $t->same(2, $diagnostics[0]['rawColspan']);
+        $t->same('colspan', $diagnostics[0]['reason']);
         $t->same('grid-table', $diagnostics[0]['requiredFeature']);
+        $t->same([
+            ['row' => 0, 'column' => 1, 'covering' => 'colspan'],
+        ], $diagnostics[0]['requiredSlots']);
+        $t->same('body', $diagnostics[1]['section']);
+        $t->same(0, $diagnostics[1]['row']);
+        $t->same(0, $diagnostics[1]['column']);
+        $t->same([0, 1], $diagnostics[1]['columns']);
+        $t->same(2, $diagnostics[1]['rawColspan']);
+        $t->same('colspan', $diagnostics[1]['reason']);
+        $t->same('grid-table', $diagnostics[1]['requiredFeature']);
+        $t->same([
+            ['row' => 0, 'column' => 1, 'covering' => 'colspan'],
+        ], $diagnostics[1]['requiredSlots']);
+        $t->same('body', $diagnostics[2]['section']);
+        $t->same(0, $diagnostics[2]['row']);
+        $t->same(0, $diagnostics[2]['column']);
+        $t->same([0, 1], $diagnostics[2]['columns']);
+        $t->same(2, $diagnostics[2]['rawRowspan']);
+        $t->same('rowspan', $diagnostics[2]['reason']);
+        $t->same('grid-table', $diagnostics[2]['requiredFeature']);
         $t->same([
             ['row' => 1, 'column' => 0, 'covering' => 'rowspan'],
             ['row' => 1, 'column' => 1, 'covering' => 'rowspan-colspan'],
-        ], $diagnostics[0]['requiredSlots']);
+        ], $diagnostics[2]['requiredSlots']);
         $t->same($diagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'rst-grid-table'));
         $t->same(['markdown', 'rst'], array_keys($packet['writerDowngrades']));
         $t->same($diagnostics, $packet['writerDowngrades']['rst'] ?? null);
-        $t->same(5, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(7, $packet['summary']['writerDowngradeCount'] ?? null);
         $t->same(['markdown-column-widths-approximated', 'markdown-colspan-flattened', 'markdown-rowspan-flattened', 'rst-grid-table-required'], $packet['summary']['writerDowngradeCodes'] ?? null);
         $t->same(['markdown', 'rst'], $packet['summary']['writerDowngradeWriters'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);

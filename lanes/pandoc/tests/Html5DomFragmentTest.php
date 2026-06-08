@@ -266,6 +266,56 @@ return [
         $t->true(!str_contains($html, "\n"), 'Expected newline-containing URL attributes to be canonicalized');
         $t->true(!str_contains($html, 'javascript:'), 'Expected control-separated unsafe schemes to be stripped');
     },
+    'rejects percent-encoded active URL schemes before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<p>'
+            . '<a href="java%0ascript:alert(1)">encoded control</a>'
+            . '<a href="jav%61script:alert(1)">encoded scheme</a>'
+            . '<img src="data%3Atext/html;base64,PHNjcmlwdD4=" alt="Encoded data">'
+            . '<img src="https://cdn.example.test/%63over.png" alt="Cover">'
+            . '<a href="https://example.test/%7Ereview/%2e%2e/admin">review path</a>'
+            . '<img src="/media/fallback.png" srcset="jav%0dascript:alert(1) 2x, /media/%63over.png 640w" alt="Fallback">'
+            . '</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/percent-encoded-url-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<p><a>encoded control</a><a>encoded scheme</a>'
+            . '<span data-pandoc-image-alt-fallback="true">Encoded data</span>'
+            . '<img src="https://cdn.example.test/%63over.png" alt="Cover">'
+            . '<a href="https://example.test/%7Ereview/%2e%2e/admin">review path</a>'
+            . '<img src="https://source.example.test/media/fallback.png" srcset="https://source.example.test/media/%63over.png 640w" alt="Fallback"></p>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('encoded controlencoded schemeEncoded datareview path', $fragment->textContent());
+        $t->same(['a', 'img', 'p', 'span'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['href', 'src', 'srcset'], $summary['filteredAttributes']);
+        $t->same(6, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'unsafe-url', 'unsafe-url', 'unsafe-url', 'image-alt-fallback', 'unsafe-url'], $fragment->diagnosticCodes());
+        $t->same([], $nodes[0]['children'][0]['attrs']);
+        $t->same([], $nodes[0]['children'][1]['attrs']);
+        $t->same('Encoded data', $nodes[0]['children'][2]['children'][0]['text']);
+        $t->same('https://cdn.example.test/%63over.png', $nodes[0]['children'][3]['attrs']['src']);
+        $t->same('https://example.test/%7Ereview/%2e%2e/admin', $nodes[0]['children'][4]['attrs']['href']);
+        $t->same('https://source.example.test/media/%63over.png 640w', $nodes[0]['children'][5]['attrs']['srcset']);
+        $t->same('/migration/percent-encoded-url-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach (['java%0ascript:', 'jav%61script:', 'data%3Atext/html', 'jav%0dascript:'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected percent-encoded active URL to be stripped: ' . $blocked);
+        }
+        foreach (['%63over.png', '%7Ereview/%2e%2e/admin'] as $preserved) {
+            $t->true(str_contains($html, $preserved), 'Expected ordinary percent-encoded path bytes to stay intact: ' . $preserved);
+        }
+    },
     'unwraps visible form content while dropping active controls before review handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<form action="/submit" onsubmit="alert(1)">'

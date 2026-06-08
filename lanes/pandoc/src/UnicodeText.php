@@ -1919,6 +1919,61 @@ final class UnicodeText
         return self::decodedResult($text, $repairs === 0 ? 'utf-8' : 'utf-8-repaired', $bom, $repairs, $normalizationForm);
     }
 
+    /**
+     * @return array{encoding:string|null, label:string|null, source:string|null, offset:int|null, diagnostics:list<string>}
+     */
+    public static function declaredCharset(string $bytes, ?string $contentType = null): array
+    {
+        if ($contentType !== null) {
+            $candidate = self::contentTypeCharsetCandidate($contentType);
+            if ($candidate !== null) {
+                return self::declaredCharsetResult($candidate['label'], 'content-type', $candidate['offset']);
+            }
+        }
+
+        $probe = substr($bytes, 0, 4096);
+        if (preg_match('/<\?xml\b[^>]{0,512}\bencoding\s*=\s*(?:"([^"]+)"|\'([^\']+)\')/i', $probe, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            $label = $matches[1][1] >= 0 ? $matches[1][0] : $matches[2][0];
+            $offset = $matches[1][1] >= 0 ? $matches[1][1] : $matches[2][1];
+
+            return self::declaredCharsetResult($label, 'xml-declaration', $offset);
+        }
+
+        if (preg_match_all('/<meta\b[^>]{0,1024}>/i', $probe, $metaMatches, PREG_OFFSET_CAPTURE) > 0) {
+            foreach ($metaMatches[0] as [$tag, $tagOffset]) {
+                $attribute = self::htmlAttributeValue($tag, 'charset');
+                if ($attribute !== null) {
+                    return self::declaredCharsetResult($attribute['value'], 'html-meta-charset', $tagOffset + $attribute['offset']);
+                }
+            }
+
+            foreach ($metaMatches[0] as [$tag, $tagOffset]) {
+                $httpEquiv = self::htmlAttributeValue($tag, 'http-equiv');
+                if ($httpEquiv === null || strtolower(trim($httpEquiv['value'])) !== 'content-type') {
+                    continue;
+                }
+
+                $content = self::htmlAttributeValue($tag, 'content');
+                if ($content === null) {
+                    continue;
+                }
+
+                $candidate = self::contentTypeCharsetCandidate($content['value']);
+                if ($candidate !== null) {
+                    return self::declaredCharsetResult($candidate['label'], 'html-meta-http-equiv', $tagOffset + $content['offset'] + $candidate['offset']);
+                }
+            }
+        }
+
+        return [
+            'encoding' => null,
+            'label' => null,
+            'source' => null,
+            'offset' => null,
+            'diagnostics' => [],
+        ];
+    }
+
     public static function repair(string $text): string
     {
         return self::repairUtf8($text)[0];
@@ -2394,6 +2449,122 @@ final class UnicodeText
             'hzgb2312', 'hz' => 'hz-gb-2312',
             default => 'utf-8',
         };
+    }
+
+    /**
+     * @return array{label:string, offset:int}|null
+     */
+    private static function contentTypeCharsetCandidate(string $contentType): ?array
+    {
+        if (preg_match('/(?:^|;)\s*charset\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^;\s]+))/i', $contentType, $matches, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        foreach ([1, 2, 3] as $index) {
+            if (($matches[$index][1] ?? -1) < 0) {
+                continue;
+            }
+
+            $label = trim($matches[$index][0]);
+            if ($label !== '') {
+                return ['label' => $label, 'offset' => $matches[$index][1]];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{value:string, offset:int}|null
+     */
+    private static function htmlAttributeValue(string $tag, string $name): ?array
+    {
+        if (preg_match('/^<\s*[a-z0-9:-]+/i', $tag, $matches) !== 1) {
+            return null;
+        }
+
+        $target = strtolower($name);
+        $length = strlen($tag);
+        $offset = strlen($matches[0]);
+        while ($offset < $length) {
+            while ($offset < $length && (ctype_space($tag[$offset]) || $tag[$offset] === '/')) {
+                ++$offset;
+            }
+            if ($offset >= $length || $tag[$offset] === '>') {
+                break;
+            }
+
+            $attributeNameOffset = $offset;
+            while ($offset < $length && !ctype_space($tag[$offset]) && $tag[$offset] !== '=' && $tag[$offset] !== '/' && $tag[$offset] !== '>') {
+                ++$offset;
+            }
+            $attributeName = strtolower(substr($tag, $attributeNameOffset, $offset - $attributeNameOffset));
+            while ($offset < $length && ctype_space($tag[$offset])) {
+                ++$offset;
+            }
+            if ($offset >= $length || $tag[$offset] !== '=') {
+                continue;
+            }
+
+            ++$offset;
+            while ($offset < $length && ctype_space($tag[$offset])) {
+                ++$offset;
+            }
+            if ($offset >= $length) {
+                break;
+            }
+
+            $quote = $tag[$offset];
+            if ($quote === '"' || $quote === "'") {
+                ++$offset;
+                $valueOffset = $offset;
+                while ($offset < $length && $tag[$offset] !== $quote) {
+                    ++$offset;
+                }
+                $value = substr($tag, $valueOffset, $offset - $valueOffset);
+                if ($offset < $length) {
+                    ++$offset;
+                }
+            } else {
+                $valueOffset = $offset;
+                while ($offset < $length && !ctype_space($tag[$offset]) && $tag[$offset] !== '/' && $tag[$offset] !== '>') {
+                    ++$offset;
+                }
+                $value = substr($tag, $valueOffset, $offset - $valueOffset);
+            }
+
+            if ($attributeName === $target) {
+                return ['value' => trim($value), 'offset' => $valueOffset];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{encoding:string|null, label:string|null, source:string|null, offset:int|null, diagnostics:list<string>}
+     */
+    private static function declaredCharsetResult(string $label, string $source, int $offset): array
+    {
+        $label = trim($label);
+        $encoding = self::normalizeEncoding($label);
+        $diagnostics = [];
+        if ($encoding === 'utf-8' && !self::isExplicitUtf8EncodingLabel($label)) {
+            $diagnostics[] = 'unknown-charset-label-defaulted-to-utf-8';
+        }
+
+        return [
+            'encoding' => $encoding,
+            'label' => $label,
+            'source' => $source,
+            'offset' => $offset,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private static function isExplicitUtf8EncodingLabel(string $label): bool
+    {
+        return strtolower(str_replace(['-', '_', ' '], '', trim($label))) === 'utf8';
     }
 
     private static function normalizeNormalizationForm(string $form): string

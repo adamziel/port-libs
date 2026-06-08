@@ -26,6 +26,14 @@ final class OpcRelationshipGraph
     public const WORDPROCESSING_FOOTER_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     public const WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     public const WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+    public const WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE = 'http://schemas.microsoft.com/office/2011/relationships/commentsExtended';
+    public const WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
+    public const WORDPROCESSING_ALTERNATIVE_FORMAT_IMPORT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
+    public const DRAWINGML_CHART_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+    public const DRAWINGML_DIAGRAM_DATA_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+    public const DRAWINGML_DIAGRAM_LAYOUT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout';
+    public const DRAWINGML_DIAGRAM_QUICK_STYLE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle';
+    public const DRAWINGML_DIAGRAM_COLORS_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors';
     public const RELATIONSHIP_TRANSFORM_ALGORITHM = 'http://schemas.openxmlformats.org/package/2006/RelationshipTransform';
     public const XML_SIGNATURE_NAMESPACE_URI = 'http://www.w3.org/2000/09/xmldsig#';
     public const DIGITAL_SIGNATURE_NAMESPACE_URI = 'http://schemas.openxmlformats.org/package/2006/digital-signature';
@@ -56,6 +64,13 @@ final class OpcRelationshipGraph
     private const WORDPROCESSING_WEB_SETTINGS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml';
     private const WORDPROCESSING_HEADER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
     private const WORDPROCESSING_FOOTER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
+    private const WORDPROCESSING_COMMENTS_EXTENDED_CONTENT_TYPE = 'application/vnd.ms-word.commentsExt+xml';
+    private const WORDPROCESSING_GLOSSARY_DOCUMENT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml';
+    private const DRAWINGML_CHART_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+    private const DRAWINGML_DIAGRAM_DATA_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml';
+    private const DRAWINGML_DIAGRAM_LAYOUT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml';
+    private const DRAWINGML_DIAGRAM_QUICK_STYLE_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml';
+    private const DRAWINGML_DIAGRAM_COLORS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml';
     private const OFFICE_THEME_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.theme+xml';
 
     /**
@@ -1456,7 +1471,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{source:string, sourceContentType:?string, id:string, role:string, type:string, target:string, targetPart:?string, contentType:?string, expectedContentType:?string, expectedContentTypePrefix:?string, expectedSourceContentTypes:?list<string>, expectedExternal:?bool, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
+     * @return list<array{source:string, sourceContentType:?string, id:string, role:string, type:string, target:string, targetPart:?string, contentType:?string, expectedContentType:?string, expectedContentTypes:?list<string>, expectedContentTypePrefix:?string, expectedSourceContentTypes:?list<string>, expectedExternal:?bool, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function preflightWordprocessingDocumentRelationships(string $sourcePartName): array
     {
@@ -1475,6 +1490,7 @@ final class OpcRelationshipGraph
             $definition = $definitions[$target['type']];
             $role = $definition['role'];
             $expectedContentType = $definition['expectedContentType'] ?? null;
+            $expectedContentTypes = $definition['expectedContentTypes'] ?? null;
             $expectedContentTypePrefix = $definition['expectedContentTypePrefix'] ?? null;
             $expectedSourceContentTypes = $definition['expectedSourceContentTypes'] ?? null;
             $expectedExternal = $definition['expectedExternal'] ?? null;
@@ -1503,6 +1519,15 @@ final class OpcRelationshipGraph
 
             if (
                 !$target['external']
+                && $expectedContentTypes !== null
+                && $target['contentType'] !== null
+                && !self::contentTypeMediaTypeMatchesAny($target['contentType'], $expectedContentTypes)
+            ) {
+                $issues[] = 'invalid-' . $role . '-content-type';
+            }
+
+            if (
+                !$target['external']
                 && $expectedContentTypePrefix !== null
                 && $target['contentType'] !== null
                 && !self::contentTypeHasPrefix($target['contentType'], $expectedContentTypePrefix)
@@ -1521,6 +1546,7 @@ final class OpcRelationshipGraph
                 'targetPart' => $targetPart,
                 'contentType' => $target['contentType'],
                 'expectedContentType' => $expectedContentType,
+                'expectedContentTypes' => $expectedContentTypes,
                 'expectedContentTypePrefix' => $expectedContentTypePrefix,
                 'expectedSourceContentTypes' => $expectedSourceContentTypes,
                 'expectedExternal' => $expectedExternal,
@@ -2918,7 +2944,8 @@ final class OpcRelationshipGraph
     private static function contentTypeComparisonKey(string $contentType): string
     {
         $segments = explode(';', $contentType);
-        $mediaType = strtolower(trim((string) array_shift($segments)));
+        $mediaType = self::contentTypeMediaTypeKey($contentType);
+        array_shift($segments);
         $parameters = array_values(array_filter(
             array_map(static fn (string $parameter): string => trim($parameter), $segments),
             static fn (string $parameter): bool => $parameter !== '',
@@ -2931,9 +2958,33 @@ final class OpcRelationshipGraph
         return $mediaType . ';' . implode(';', $parameters);
     }
 
+    /**
+     * @param list<string> $expectedContentTypes
+     */
+    private static function contentTypeMediaTypeMatchesAny(?string $actual, array $expectedContentTypes): bool
+    {
+        if ($actual === null) {
+            return false;
+        }
+
+        $actualMediaType = self::contentTypeMediaTypeKey($actual);
+        foreach ($expectedContentTypes as $expectedContentType) {
+            if ($actualMediaType === self::contentTypeMediaTypeKey($expectedContentType)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function contentTypeMediaTypeKey(string $contentType): string
+    {
+        return strtolower(trim(explode(';', $contentType, 2)[0]));
+    }
+
     private static function contentTypeHasPrefix(string $contentType, string $prefix): bool
     {
-        return str_starts_with(strtolower(trim(explode(';', $contentType, 2)[0])), strtolower($prefix));
+        return str_starts_with(self::contentTypeMediaTypeKey($contentType), strtolower($prefix));
     }
 
     private static function isImageContentType(string $contentType): bool
@@ -2942,7 +2993,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array<string, array{role:string, expectedContentType?:string, expectedContentTypePrefix?:string, expectedSourceContentTypes?:list<string>, expectedExternal?:bool}>
+     * @return array<string, array{role:string, expectedContentType?:string, expectedContentTypes?:list<string>, expectedContentTypePrefix?:string, expectedSourceContentTypes?:list<string>, expectedExternal?:bool}>
      */
     private static function wordprocessingDocumentRelationshipRoleDefinitions(): array
     {
@@ -3020,6 +3071,53 @@ final class OpcRelationshipGraph
             self::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE => [
                 'role' => 'hyperlink',
                 'expectedExternal' => true,
+            ],
+            self::WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE => [
+                'role' => 'comments-extended',
+                'expectedContentType' => self::WORDPROCESSING_COMMENTS_EXTENDED_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE => [
+                'role' => 'glossary-document',
+                'expectedContentType' => self::WORDPROCESSING_GLOSSARY_DOCUMENT_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_ALTERNATIVE_FORMAT_IMPORT_RELATIONSHIP_TYPE => [
+                'role' => 'alternative-format-import',
+                'expectedContentTypes' => [
+                    'text/html',
+                    'application/xhtml+xml',
+                    'text/plain',
+                ],
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
+                'expectedExternal' => false,
+            ],
+            self::DRAWINGML_CHART_RELATIONSHIP_TYPE => [
+                'role' => 'chart',
+                'expectedContentType' => self::DRAWINGML_CHART_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::DRAWINGML_DIAGRAM_DATA_RELATIONSHIP_TYPE => [
+                'role' => 'diagram-data',
+                'expectedContentType' => self::DRAWINGML_DIAGRAM_DATA_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::DRAWINGML_DIAGRAM_LAYOUT_RELATIONSHIP_TYPE => [
+                'role' => 'diagram-layout',
+                'expectedContentType' => self::DRAWINGML_DIAGRAM_LAYOUT_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::DRAWINGML_DIAGRAM_QUICK_STYLE_RELATIONSHIP_TYPE => [
+                'role' => 'diagram-quick-style',
+                'expectedContentType' => self::DRAWINGML_DIAGRAM_QUICK_STYLE_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::DRAWINGML_DIAGRAM_COLORS_RELATIONSHIP_TYPE => [
+                'role' => 'diagram-colors',
+                'expectedContentType' => self::DRAWINGML_DIAGRAM_COLORS_CONTENT_TYPE,
+                'expectedExternal' => false,
             ],
         ];
     }

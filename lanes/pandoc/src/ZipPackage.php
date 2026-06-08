@@ -2062,7 +2062,21 @@ final class ZipPackage
      *     zip64EndOfCentralDirectoryLocatorOffset:?int,
      *     zip64EndOfCentralDirectoryOffset:?int,
      *     zip64EndOfCentralDirectorySize:?int,
-     *     zip64TotalDisks:?int
+     *     zip64EndOfCentralDirectoryPayloadSize:?int,
+     *     zip64LocatorDiskWithEndOfCentralDirectory:?int,
+     *     zip64TotalDisks:?int,
+     *     zip64VersionMadeBy:?int,
+     *     zip64VersionNeededToExtract:?int,
+     *     zip64DiskNumber:?int,
+     *     zip64CentralDirectoryDisk:?int,
+     *     zip64DiskEntryCount:?int,
+     *     zip64TotalEntryCount:?int,
+     *     zip64CentralDirectorySize:?int,
+     *     zip64CentralDirectoryOffset:?int,
+     *     zip64CentralDirectoryEnd:?int,
+     *     zip64IsSingleDisk:?bool,
+     *     zip64CentralDirectoryEndMatchesRecordOffset:?bool,
+     *     zip64Issues:list<string>
      * }
      */
     public static function endOfCentralDirectoryPreflight(string $bytes): array
@@ -2103,7 +2117,105 @@ final class ZipPackage
             'zip64EndOfCentralDirectoryLocatorOffset' => $zip64['zip64EndOfCentralDirectoryLocatorOffset'],
             'zip64EndOfCentralDirectoryOffset' => $zip64['zip64EndOfCentralDirectoryOffset'],
             'zip64EndOfCentralDirectorySize' => $zip64['zip64EndOfCentralDirectorySize'],
+            'zip64EndOfCentralDirectoryPayloadSize' => $zip64['zip64EndOfCentralDirectoryPayloadSize'],
+            'zip64LocatorDiskWithEndOfCentralDirectory' => $zip64['zip64LocatorDiskWithEndOfCentralDirectory'],
             'zip64TotalDisks' => $zip64['zip64TotalDisks'],
+            'zip64VersionMadeBy' => $zip64['zip64VersionMadeBy'],
+            'zip64VersionNeededToExtract' => $zip64['zip64VersionNeededToExtract'],
+            'zip64DiskNumber' => $zip64['zip64DiskNumber'],
+            'zip64CentralDirectoryDisk' => $zip64['zip64CentralDirectoryDisk'],
+            'zip64DiskEntryCount' => $zip64['zip64DiskEntryCount'],
+            'zip64TotalEntryCount' => $zip64['zip64TotalEntryCount'],
+            'zip64CentralDirectorySize' => $zip64['zip64CentralDirectorySize'],
+            'zip64CentralDirectoryOffset' => $zip64['zip64CentralDirectoryOffset'],
+            'zip64CentralDirectoryEnd' => $zip64['zip64CentralDirectoryEnd'],
+            'zip64IsSingleDisk' => $zip64['zip64IsSingleDisk'],
+            'zip64CentralDirectoryEndMatchesRecordOffset' => $zip64['zip64CentralDirectoryEndMatchesRecordOffset'],
+            'zip64Issues' => $zip64['zip64Issues'],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     eocdOffset:int,
+     *     requiresZip64:bool,
+     *     hasZip64EndOfCentralDirectoryLocator:bool,
+     *     hasZip64EndOfCentralDirectory:bool,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     locatorOffset:?int,
+     *     locatorDiskWithEndOfCentralDirectory:?int,
+     *     locatorRecordOffset:?int,
+     *     locatorTotalDisks:?int,
+     *     recordOffset:?int,
+     *     recordSize:?int,
+     *     recordPayloadSize:?int,
+     *     versionMadeBy:?int,
+     *     versionNeededToExtract:?int,
+     *     diskNumber:?int,
+     *     centralDirectoryDisk:?int,
+     *     diskEntryCount:?int,
+     *     totalEntryCount:?int,
+     *     centralDirectorySize:?int,
+     *     centralDirectoryOffset:?int,
+     *     centralDirectoryEnd:?int,
+     *     isSingleDisk:?bool,
+     *     centralDirectoryEndMatchesRecordOffset:?bool,
+     *     eocdDiskNumber:int,
+     *     eocdCentralDirectoryDisk:int,
+     *     eocdDiskEntryCount:int,
+     *     eocdTotalEntryCount:int,
+     *     eocdCentralDirectorySize:int,
+     *     eocdCentralDirectoryOffset:int
+     * }
+     */
+    public static function zip64EndOfCentralDirectoryAccountingPreflight(string $bytes): array
+    {
+        $eocdOffset = self::findEndOfCentralDirectory($bytes);
+        $zip64 = self::zip64EndOfCentralDirectoryPreflight($bytes, $eocdOffset);
+        $eocdTotalEntryCount = self::readUInt16($bytes, $eocdOffset + 10);
+        $eocdCentralDirectorySize = self::readUInt32($bytes, $eocdOffset + 12);
+        $eocdCentralDirectoryOffset = self::readUInt32($bytes, $eocdOffset + 16);
+        $requiresZip64 = $zip64['hasZip64EndOfCentralDirectoryLocator']
+            || $eocdTotalEntryCount === 0xffff
+            || $eocdCentralDirectorySize === 0xffffffff
+            || $eocdCentralDirectoryOffset === 0xffffffff;
+        $issues = $zip64['zip64Issues'];
+        if ($requiresZip64 && $issues === []) {
+            $issues[] = 'zip64-end-of-central-directory-required';
+        }
+
+        return [
+            'eocdOffset' => $eocdOffset,
+            'requiresZip64' => $requiresZip64,
+            'hasZip64EndOfCentralDirectoryLocator' => $zip64['hasZip64EndOfCentralDirectoryLocator'],
+            'hasZip64EndOfCentralDirectory' => $zip64['hasZip64EndOfCentralDirectory'],
+            'isSupportedByBoundedReader' => !$requiresZip64,
+            'issues' => $issues,
+            'locatorOffset' => $zip64['zip64EndOfCentralDirectoryLocatorOffset'],
+            'locatorDiskWithEndOfCentralDirectory' => $zip64['zip64LocatorDiskWithEndOfCentralDirectory'],
+            'locatorRecordOffset' => $zip64['zip64EndOfCentralDirectoryOffset'],
+            'locatorTotalDisks' => $zip64['zip64TotalDisks'],
+            'recordOffset' => $zip64['zip64EndOfCentralDirectoryOffset'],
+            'recordSize' => $zip64['zip64EndOfCentralDirectorySize'],
+            'recordPayloadSize' => $zip64['zip64EndOfCentralDirectoryPayloadSize'],
+            'versionMadeBy' => $zip64['zip64VersionMadeBy'],
+            'versionNeededToExtract' => $zip64['zip64VersionNeededToExtract'],
+            'diskNumber' => $zip64['zip64DiskNumber'],
+            'centralDirectoryDisk' => $zip64['zip64CentralDirectoryDisk'],
+            'diskEntryCount' => $zip64['zip64DiskEntryCount'],
+            'totalEntryCount' => $zip64['zip64TotalEntryCount'],
+            'centralDirectorySize' => $zip64['zip64CentralDirectorySize'],
+            'centralDirectoryOffset' => $zip64['zip64CentralDirectoryOffset'],
+            'centralDirectoryEnd' => $zip64['zip64CentralDirectoryEnd'],
+            'isSingleDisk' => $zip64['zip64IsSingleDisk'],
+            'centralDirectoryEndMatchesRecordOffset' => $zip64['zip64CentralDirectoryEndMatchesRecordOffset'],
+            'eocdDiskNumber' => self::readUInt16($bytes, $eocdOffset + 4),
+            'eocdCentralDirectoryDisk' => self::readUInt16($bytes, $eocdOffset + 6),
+            'eocdDiskEntryCount' => self::readUInt16($bytes, $eocdOffset + 8),
+            'eocdTotalEntryCount' => $eocdTotalEntryCount,
+            'eocdCentralDirectorySize' => $eocdCentralDirectorySize,
+            'eocdCentralDirectoryOffset' => $eocdCentralDirectoryOffset,
         ];
     }
 
@@ -2602,7 +2714,21 @@ final class ZipPackage
      *     zip64EndOfCentralDirectoryLocatorOffset:?int,
      *     zip64EndOfCentralDirectoryOffset:?int,
      *     zip64EndOfCentralDirectorySize:?int,
+     *     zip64EndOfCentralDirectoryPayloadSize:?int,
+     *     zip64LocatorDiskWithEndOfCentralDirectory:?int,
      *     zip64TotalDisks:?int,
+     *     zip64VersionMadeBy:?int,
+     *     zip64VersionNeededToExtract:?int,
+     *     zip64DiskNumber:?int,
+     *     zip64CentralDirectoryDisk:?int,
+     *     zip64DiskEntryCount:?int,
+     *     zip64TotalEntryCount:?int,
+     *     zip64CentralDirectorySize:?int,
+     *     zip64CentralDirectoryOffset:?int,
+     *     zip64CentralDirectoryEnd:?int,
+     *     zip64IsSingleDisk:?bool,
+     *     zip64CentralDirectoryEndMatchesRecordOffset:?bool,
+     *     zip64Issues:list<string>,
      *     hasCentralDirectorySignature:bool,
      *     centralDirectorySignatureOffset:?int,
      *     centralDirectorySignatureLength:int
@@ -4789,7 +4915,21 @@ final class ZipPackage
      *     zip64EndOfCentralDirectoryLocatorOffset:?int,
      *     zip64EndOfCentralDirectoryOffset:?int,
      *     zip64EndOfCentralDirectorySize:?int,
-     *     zip64TotalDisks:?int
+     *     zip64EndOfCentralDirectoryPayloadSize:?int,
+     *     zip64LocatorDiskWithEndOfCentralDirectory:?int,
+     *     zip64TotalDisks:?int,
+     *     zip64VersionMadeBy:?int,
+     *     zip64VersionNeededToExtract:?int,
+     *     zip64DiskNumber:?int,
+     *     zip64CentralDirectoryDisk:?int,
+     *     zip64DiskEntryCount:?int,
+     *     zip64TotalEntryCount:?int,
+     *     zip64CentralDirectorySize:?int,
+     *     zip64CentralDirectoryOffset:?int,
+     *     zip64CentralDirectoryEnd:?int,
+     *     zip64IsSingleDisk:?bool,
+     *     zip64CentralDirectoryEndMatchesRecordOffset:?bool,
+     *     zip64Issues:list<string>
      * }
      */
     private static function zip64EndOfCentralDirectoryPreflight(string $bytes, int $eocdOffset): array
@@ -4800,7 +4940,21 @@ final class ZipPackage
             'zip64EndOfCentralDirectoryLocatorOffset' => null,
             'zip64EndOfCentralDirectoryOffset' => null,
             'zip64EndOfCentralDirectorySize' => null,
+            'zip64EndOfCentralDirectoryPayloadSize' => null,
+            'zip64LocatorDiskWithEndOfCentralDirectory' => null,
             'zip64TotalDisks' => null,
+            'zip64VersionMadeBy' => null,
+            'zip64VersionNeededToExtract' => null,
+            'zip64DiskNumber' => null,
+            'zip64CentralDirectoryDisk' => null,
+            'zip64DiskEntryCount' => null,
+            'zip64TotalEntryCount' => null,
+            'zip64CentralDirectorySize' => null,
+            'zip64CentralDirectoryOffset' => null,
+            'zip64CentralDirectoryEnd' => null,
+            'zip64IsSingleDisk' => null,
+            'zip64CentralDirectoryEndMatchesRecordOffset' => null,
+            'zip64Issues' => [],
         ];
 
         $locatorOffset = $eocdOffset - 20;
@@ -4809,18 +4963,52 @@ final class ZipPackage
         }
 
         self::assertRange($bytes, $locatorOffset, 20, 'ZIP64 end-of-central-directory locator');
+        $locatorDiskWithEndOfCentralDirectory = self::readUInt32($bytes, $locatorOffset + 4);
         $recordOffset = self::readUInt64($bytes, $locatorOffset + 8);
         $totalDisks = self::readUInt32($bytes, $locatorOffset + 16);
         if (substr($bytes, $recordOffset, 4) !== self::ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE) {
             throw new \RuntimeException('ZIP64 end-of-central-directory locator points to an invalid record');
         }
 
-        self::assertRange($bytes, $recordOffset, 12, 'ZIP64 end-of-central-directory record');
+        self::assertRange($bytes, $recordOffset, 56, 'ZIP64 end-of-central-directory record');
         $declaredRecordPayloadSize = self::readUInt64($bytes, $recordOffset + 4);
         $recordSize = 12 + $declaredRecordPayloadSize;
         self::assertRange($bytes, $recordOffset, $recordSize, 'ZIP64 end-of-central-directory record');
         if ($recordOffset + $recordSize !== $locatorOffset) {
             throw new \RuntimeException('ZIP64 end-of-central-directory record does not end before its locator');
+        }
+
+        $versionMadeBy = self::readUInt16($bytes, $recordOffset + 12);
+        $versionNeededToExtract = self::readUInt16($bytes, $recordOffset + 14);
+        $diskNumber = self::readUInt32($bytes, $recordOffset + 16);
+        $centralDirectoryDisk = self::readUInt32($bytes, $recordOffset + 20);
+        $diskEntryCount = self::readUInt64($bytes, $recordOffset + 24);
+        $totalEntryCount = self::readUInt64($bytes, $recordOffset + 32);
+        $centralDirectorySize = self::readUInt64($bytes, $recordOffset + 40);
+        $centralDirectoryOffset = self::readUInt64($bytes, $recordOffset + 48);
+        if ($centralDirectoryOffset > PHP_INT_MAX - $centralDirectorySize) {
+            throw new \RuntimeException('ZIP64 central directory end offset is too large for this platform');
+        }
+
+        $centralDirectoryEnd = $centralDirectoryOffset + $centralDirectorySize;
+        $isSingleDisk = $locatorDiskWithEndOfCentralDirectory === 0
+            && $totalDisks === 1
+            && $diskNumber === 0
+            && $centralDirectoryDisk === 0
+            && $diskEntryCount === $totalEntryCount;
+        $centralDirectoryEndMatchesRecordOffset = $centralDirectoryEnd === $recordOffset;
+        $issues = ['zip64-end-of-central-directory'];
+        if (!$isSingleDisk) {
+            $issues[] = 'zip64-split-archive';
+        }
+        if ($locatorDiskWithEndOfCentralDirectory !== $diskNumber) {
+            $issues[] = 'zip64-locator-record-disk-mismatch';
+        }
+        if ($totalDisks !== $diskNumber + 1) {
+            $issues[] = 'zip64-locator-total-disks-mismatch';
+        }
+        if (!$centralDirectoryEndMatchesRecordOffset) {
+            $issues[] = 'zip64-central-directory-accounting-mismatch';
         }
 
         return [
@@ -4829,7 +5017,21 @@ final class ZipPackage
             'zip64EndOfCentralDirectoryLocatorOffset' => $locatorOffset,
             'zip64EndOfCentralDirectoryOffset' => $recordOffset,
             'zip64EndOfCentralDirectorySize' => $recordSize,
+            'zip64EndOfCentralDirectoryPayloadSize' => $declaredRecordPayloadSize,
+            'zip64LocatorDiskWithEndOfCentralDirectory' => $locatorDiskWithEndOfCentralDirectory,
             'zip64TotalDisks' => $totalDisks,
+            'zip64VersionMadeBy' => $versionMadeBy,
+            'zip64VersionNeededToExtract' => $versionNeededToExtract,
+            'zip64DiskNumber' => $diskNumber,
+            'zip64CentralDirectoryDisk' => $centralDirectoryDisk,
+            'zip64DiskEntryCount' => $diskEntryCount,
+            'zip64TotalEntryCount' => $totalEntryCount,
+            'zip64CentralDirectorySize' => $centralDirectorySize,
+            'zip64CentralDirectoryOffset' => $centralDirectoryOffset,
+            'zip64CentralDirectoryEnd' => $centralDirectoryEnd,
+            'zip64IsSingleDisk' => $isSingleDisk,
+            'zip64CentralDirectoryEndMatchesRecordOffset' => $centralDirectoryEndMatchesRecordOffset,
+            'zip64Issues' => $issues,
         ];
     }
 

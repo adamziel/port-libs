@@ -2163,6 +2163,57 @@ HTML,
         ], null, 'docx'));
     },
 
+    'renders bounded pandoc default icml template resource and alias' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $icml = $renderer->renderResource('templates/default', [], [
+            'title-prefix' => 'WordPress Import',
+            'pagetitle' => 'ICML Review Packet',
+            'charStyles' => '<CharacterStyle Self="CharacterStyle/ReviewCode" Name="ReviewCode" />',
+            'parStyles' => '<ParagraphStyle Self="ParagraphStyle/ReviewPara" Name="ReviewPara" />',
+            'objectStyles' => '<ObjectStyle Self="ObjectStyle/ReviewFrame" Name="ReviewFrame" />',
+            'body' => '<ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/ReviewPara"><CharacterStyleRange AppliedCharacterStyle="CharacterStyle/ReviewCode"><Content>Native ICML body.</Content></CharacterStyleRange></ParagraphStyleRange>',
+            'hyperlinks' => '<Hyperlink Self="Hyperlink/review" Name="Review link" />',
+        ], null, 'icml');
+
+        foreach ([
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+            '<?aid SnippetType="InCopyInterchange"?>',
+            '<Document DOMVersion="8.0" Self="pandoc_doc">',
+            '<RootCharacterStyleGroup Self="pandoc_character_styles">',
+            '<CharacterStyle Self="$ID/NormalCharacterStyle" Name="Default" />',
+            '<CharacterStyle Self="CharacterStyle/ReviewCode" Name="ReviewCode" />',
+            '<RootParagraphStyleGroup Self="pandoc_paragraph_styles">',
+            '<ParagraphStyle Self="$ID/NormalParagraphStyle" Name="$ID/NormalParagraphStyle"',
+            '<ParagraphStyle Self="ParagraphStyle/ReviewPara" Name="ReviewPara" />',
+            '<RootObjectStyleGroup Self="pandoc_object_styles">',
+            '<ObjectStyle Self="ObjectStyle/ReviewFrame" Name="ReviewFrame" />',
+            'StoryTitle="WordPress Import – ICML Review Packet"',
+            '<StoryPreference OpticalMarginAlignment="true" OpticalMarginSize="12" />',
+            '<!-- body needs to be non-indented, otherwise code blocks are indented too far -->',
+            '<ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/ReviewPara">',
+            '<Content>Native ICML body.</Content>',
+            '<Hyperlink Self="Hyperlink/review" Name="Review link" />',
+            '</Document>',
+        ] as $needle) {
+            $t->contains($needle, $icml);
+        }
+
+        $direct = $renderer->renderResource('templates/default.icml', [], [
+            'pagetitle' => 'Direct ICML Review',
+            'body' => '<Content>Direct ICML body.</Content>',
+        ]);
+        $t->contains('StoryTitle="Direct ICML Review"', $direct);
+        $t->contains('<Content>Direct ICML body.</Content>', $direct);
+        $t->same(false, str_contains($direct, '<RootObjectStyleGroup Self="pandoc_object_styles">'));
+
+        $t->same('custom icml', $renderer->renderResource('templates/default', [
+            'templates/default.icml' => 'custom $body$',
+        ], [
+            'body' => 'icml',
+        ], null, 'icml'));
+    },
+
     'renders bounded pandoc default docbook5 template resource and alias' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

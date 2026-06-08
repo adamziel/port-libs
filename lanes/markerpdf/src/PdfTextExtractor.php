@@ -443,6 +443,7 @@ final class PdfTextExtractor
      *     compressed_generation_zero_boundary_count: int,
      *     strict_dependency_rejection_count: int,
      *     stream_member_rejection_count: int,
+     *     indirect_member_wrapper_rejection_count: int,
      *     duplicate_header_object_number_rejection_count: int,
      *     duplicate_member_offset_rejection_count: int,
      *     out_of_range_member_index_rejection_count: int,
@@ -482,6 +483,7 @@ final class PdfTextExtractor
             'compressed_generation_zero_boundary_count' => 0,
             'strict_dependency_rejection_count' => 0,
             'stream_member_rejection_count' => 0,
+            'indirect_member_wrapper_rejection_count' => 0,
             'duplicate_header_object_number_rejection_count' => 0,
             'duplicate_member_offset_rejection_count' => 0,
             'out_of_range_member_index_rejection_count' => 0,
@@ -660,7 +662,13 @@ final class PdfTextExtractor
                 && !$selectedMemberInvalidOffset
                 ? $this->objectStreamMemberBody($memberTable, $selectedMember)
                 : null;
+            $selectedMemberIsIndirectWrapper = $selectedMemberBody !== null
+                && $this->objectStreamMemberIsIndirectObjectWrapper($selectedMemberBody);
+            if ($selectedMemberIsIndirectWrapper) {
+                $review['indirect_member_wrapper_rejection_count']++;
+            }
             $selectedMemberIsStream = $selectedMemberBody !== null
+                && !$selectedMemberIsIndirectWrapper
                 && $this->objectStreamMemberIsTopLevelStreamObject($selectedMemberBody);
             $objectStreamCarrierHasFilter = isset($objects[$objectStreamNumber])
                 && $this->objectStreamCarrierHasFilters($objects[$objectStreamNumber], $objects);
@@ -727,6 +735,8 @@ final class PdfTextExtractor
                 'invalid_object_stream_carrier_rejected' => !$objectStreamCarrierResolved,
                 'object_stream_member_is_stream' => $selectedMemberIsStream,
                 'stream_member_rejected' => $streamMemberRejected,
+                'indirect_object_wrapper_member' => $selectedMemberIsIndirectWrapper,
+                'indirect_object_wrapper_rejected' => $selectedMemberIsIndirectWrapper,
                 'duplicate_header_object_number_rejected' => $duplicateHeaderObjectNumber,
                 'duplicate_member_offset_rejected' => $selectedMemberDuplicateOffset,
                 'out_of_range_member_index_rejected' => $memberIndexOutOfRange,
@@ -744,7 +754,8 @@ final class PdfTextExtractor
                     $selectedMemberDuplicateOffset,
                     $memberIndexOutOfRange,
                     $selectedMemberInvalidOffset,
-                    $duplicateHeaderObjectNumber
+                    $duplicateHeaderObjectNumber,
+                    $selectedMemberIsIndirectWrapper
                 ),
                 'review_only' => true,
             ];
@@ -6408,13 +6419,13 @@ final class PdfTextExtractor
             return [];
         }
 
-        $usedGlyphsByFont = $this->type3UsedGlyphNamesByFontResource($decodedContents, $type3Fonts, $objects);
-        if ($usedGlyphsByFont === []) {
+        $glyphPaintCountsByFont = $this->type3GlyphPaintCountsByFontResource($decodedContents, $type3Fonts, $objects);
+        if ($glyphPaintCountsByFont === []) {
             return [];
         }
 
         $entries = [];
-        foreach ($usedGlyphsByFont as $fontResourceName => $glyphNames) {
+        foreach ($glyphPaintCountsByFont as $fontResourceName => $glyphPaintCounts) {
             $font = $type3Fonts[$fontResourceName] ?? null;
             if (!is_array($font) || !is_string($font['body'] ?? null)) {
                 continue;
@@ -6425,9 +6436,9 @@ final class PdfTextExtractor
                 continue;
             }
 
-            foreach ($glyphNames as $glyphName) {
+            foreach ($glyphPaintCounts as $glyphName => $glyphPaintCount) {
                 $reference = $charProcReferences[$glyphName] ?? null;
-                if ($reference === null) {
+                if ($reference === null || $glyphPaintCount <= 0) {
                     continue;
                 }
 
@@ -6450,6 +6461,10 @@ final class PdfTextExtractor
                     $charProcObjectBody,
                     $objects
                 );
+                $charProcInvocationStates = $this->repeatImageInvocationStatesForType3GlyphPaints(
+                    $baseInvocationStates,
+                    $glyphPaintCount
+                );
                 foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
                     $pageIndex,
                     $pageObjectNumber,
@@ -6462,7 +6477,7 @@ final class PdfTextExtractor
                     [],
                     null,
                     false,
-                    $baseInvocationStates,
+                    $charProcInvocationStates,
                     $pageBoundaryClipReview,
                     $pageResourceReview
                 ) as $entry) {
@@ -6472,6 +6487,7 @@ final class PdfTextExtractor
                         'type3_font_object' => $font['objectNumber'],
                         'type3_font_generation' => $font['generation'],
                         'type3_glyph_name' => $glyphName,
+                        'type3_glyph_paint_count' => $glyphPaintCount,
                         'type3_charproc_object' => $reference['objectNumber'],
                         'type3_charproc_generation' => $reference['generation'],
                         'type3_charproc_image_review' => true,
@@ -6481,6 +6497,29 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $baseInvocationStates
+     * @return list<array<string, mixed>>
+     */
+    private function repeatImageInvocationStatesForType3GlyphPaints(array $baseInvocationStates, int $paintCount): array
+    {
+        if ($paintCount <= 1) {
+            return $baseInvocationStates;
+        }
+
+        $baseInvocationStates = $baseInvocationStates === []
+            ? $this->normalizedInvocationBaseStates([])
+            : $baseInvocationStates;
+        $repeated = [];
+        for ($index = 0; $index < $paintCount; $index++) {
+            foreach ($baseInvocationStates as $state) {
+                $repeated[] = $state;
+            }
+        }
+
+        return $repeated;
     }
 
     /**
@@ -6536,9 +6575,9 @@ final class PdfTextExtractor
      * @param list<string> $decodedContents
      * @param array<string, array{objectNumber: int|null, generation: int|null, body: string}> $type3Fonts
      * @param array<int, string> $objects
-     * @return array<string, list<string>>
+     * @return array<string, array<string, int>>
      */
-    private function type3UsedGlyphNamesByFontResource(array $decodedContents, array $type3Fonts, array $objects): array
+    private function type3GlyphPaintCountsByFontResource(array $decodedContents, array $type3Fonts, array $objects): array
     {
         $glyphNamesByFont = [];
         $cidEncodingMapsByFont = [];
@@ -6592,7 +6631,7 @@ final class PdfTextExtractor
                         $glyphNamesByFont[$currentFontResource] ?? [],
                         $cidEncodingMapsByFont[$currentFontResource] ?? null
                     ) as $glyphName) {
-                        $used[$currentFontResource][$glyphName] = true;
+                        $used[$currentFontResource][$glyphName] = ($used[$currentFontResource][$glyphName] ?? 0) + 1;
                     }
                 }
             }
@@ -6601,8 +6640,11 @@ final class PdfTextExtractor
         }
 
         $normalized = [];
-        foreach ($used as $fontResourceName => $glyphLookup) {
-            $normalized[$fontResourceName] = array_keys($glyphLookup);
+        foreach ($used as $fontResourceName => $glyphPaintCounts) {
+            $normalized[$fontResourceName] = array_filter(
+                $glyphPaintCounts,
+                static fn (int $count): bool => $count > 0
+            );
         }
 
         return $normalized;
@@ -6689,7 +6731,7 @@ final class PdfTextExtractor
                     $cid = $this->cidForWidthSourceKey($sourceKey, $sourceMap);
                     $glyphName = $glyphNamesByCode[$cid] ?? null;
                     if (is_string($glyphName) && $glyphName !== '') {
-                        $glyphNames[$glyphName] = true;
+                        $glyphNames[] = $glyphName;
                     }
                 }
             }
@@ -6700,12 +6742,12 @@ final class PdfTextExtractor
             for ($index = 0, $length = strlen($bytes); $index < $length; $index++) {
                 $glyphName = $glyphNamesByCode[ord($bytes[$index])] ?? null;
                 if (is_string($glyphName) && $glyphName !== '') {
-                    $glyphNames[$glyphName] = true;
+                    $glyphNames[] = $glyphName;
                 }
             }
         }
 
-        return array_keys($glyphNames);
+        return $glyphNames;
     }
 
     private function type3TextOperandBytes(string $operand): string
@@ -13391,6 +13433,13 @@ final class PdfTextExtractor
         array &$references,
         array $seen = []
     ): void {
+        $this->collectType3PrivateStreamValuedResourceCategoryGenerations(
+            $resourceOwnerBody,
+            $objects,
+            $references,
+            $seen
+        );
+
         foreach ($this->xObjectResourceReferences($resourceOwnerBody, $objects) as $reference) {
             $key = $reference['objectNumber'] . ':' . $reference['generation'];
             if (isset($seen[$key])) {
@@ -13460,6 +13509,64 @@ final class PdfTextExtractor
 
         foreach ($this->type3PrivateFontResourceValues($resourceOwnerBody, $objects) as $value) {
             $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array<int, true>> $references
+     * @param array<string, true> $seen
+     */
+    private function collectType3PrivateStreamValuedResourceCategoryGenerations(
+        string $resourceOwnerBody,
+        array $objects,
+        array &$references,
+        array &$seen
+    ): void {
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return;
+        }
+
+        $dictionary = trim($resourceDictionary);
+        if (str_starts_with($dictionary, '<<')) {
+            $body = $this->readPdfDictionaryAt($dictionary, 0);
+            if ($body === null) {
+                return;
+            }
+            $dictionary = $body;
+        }
+
+        foreach (['XObject', 'Pattern', 'ExtGState', 'ColorSpace', 'Shading', 'Properties', 'Font'] as $category) {
+            $values = $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, $category);
+            if ($values === []) {
+                continue;
+            }
+
+            $value = trim($values[count($values) - 1]);
+            $offset = 0;
+            $reference = $this->readPdfIndirectReferenceToken($value, $offset);
+            if ($reference === null) {
+                continue;
+            }
+
+            $resolved = $this->resolvedExactResourceReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($resolved === null || !$this->objectBodyIsStreamObject($resolved['body'])) {
+                continue;
+            }
+
+            $this->collectType3PrivateStreamGenerationFromResolvedBody(
+                $resolved['object'],
+                $resolved['generation'],
+                $resolved['body'],
+                $objects,
+                $references,
+                $seen
+            );
         }
     }
 
@@ -13611,6 +13718,34 @@ final class PdfTextExtractor
 
             $this->collectType3PrivateStreamGenerationsFromValue($body, $objects, $references, $seen);
         }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array<int, true>> $references
+     * @param array<string, true> $seen
+     */
+    private function collectType3PrivateStreamGenerationFromResolvedBody(
+        int $objectNumber,
+        int $generation,
+        string $body,
+        array $objects,
+        array &$references,
+        array &$seen
+    ): void {
+        $key = $objectNumber . ':' . $generation;
+        if (isset($seen[$key])) {
+            return;
+        }
+
+        $stream = $this->streamDictionaryAndPayload($body, $objects);
+        if ($stream === null) {
+            return;
+        }
+
+        $references[$objectNumber][$generation] = true;
+        $seen[$key] = true;
+        $this->collectType3PrivateStreamGenerationsFromValue($stream['dict'], $objects, $references, $seen);
     }
 
     /**
@@ -23940,7 +24075,7 @@ final class PdfTextExtractor
 
         $numbers = [];
         foreach ($items as $item) {
-            $number = $this->pdfNumberValueAt($item, 0, $objects);
+            $number = $this->pdfSingleNumberFromValue($item, $objects);
             if ($number === null || !is_finite($number)) {
                 return null;
             }
@@ -23978,7 +24113,7 @@ final class PdfTextExtractor
 
         $numbers = [];
         for ($index = 0; $index < 6; $index++) {
-            $number = $this->pdfNumberValueAt($items[$index], 0, $objects);
+            $number = $this->pdfSingleNumberFromValue($items[$index], $objects);
             if ($number === null || !is_finite($number)) {
                 return null;
             }
@@ -31325,6 +31460,10 @@ final class PdfTextExtractor
                     continue;
                 }
 
+                if ($this->objectStreamMemberIsIndirectObjectWrapper($memberBody)) {
+                    continue;
+                }
+
                 if (
                     $this->objectStreamMemberIsTopLevelStreamObject($memberBody)
                     && !isset($referencedPageContentObjectNumbers[$objectNumber])
@@ -31553,6 +31692,23 @@ final class PdfTextExtractor
         return $this->isDelimiter($decoded[$absoluteOffset - 1]);
     }
 
+    private function objectStreamMemberIsIndirectObjectWrapper(string $memberBody): bool
+    {
+        $offset = $this->skipPdfWhitespace($memberBody, 0);
+        if (preg_match('/\G\d+\s+\d+\s+obj\b/s', $memberBody, $match, 0, $offset) === 1) {
+            return true;
+        }
+
+        $valueEndOffset = $this->skipPdfValueAt($memberBody, $offset);
+        if ($valueEndOffset <= $offset) {
+            return false;
+        }
+
+        $tailOffset = $this->skipPdfWhitespace($memberBody, $valueEndOffset);
+        return $this->pdfKeywordAt($memberBody, $tailOffset, 'endobj')
+            && $this->skipPdfWhitespace($memberBody, $tailOffset + strlen('endobj')) === strlen($memberBody);
+    }
+
     private function objectStreamMemberIsTopLevelStreamObject(string $memberBody): bool
     {
         $dictionaryOffset = $this->skipPdfWhitespace($memberBody, 0);
@@ -31587,7 +31743,8 @@ final class PdfTextExtractor
         bool $duplicateMemberOffset = false,
         bool $memberIndexOutOfRange = false,
         bool $invalidMemberOffset = false,
-        bool $duplicateHeaderObjectNumber = false
+        bool $duplicateHeaderObjectNumber = false,
+        bool $indirectObjectWrapperMember = false
     ): string
     {
         if ($invalidMemberOffset) {
@@ -31608,6 +31765,10 @@ final class PdfTextExtractor
 
         if ($duplicateHeaderObjectNumber) {
             return 'duplicate_header_object_number';
+        }
+
+        if ($indirectObjectWrapperMember) {
+            return 'indirect_object_wrapper_member';
         }
 
         if ($strictMemberMatch) {
@@ -35215,7 +35376,7 @@ final class PdfTextExtractor
         }
 
         $start = $end;
-        while ($start > 0 && ctype_digit($cmap[$start - 1])) {
+        while ($start > 0 && !$this->isBareTokenDelimiter($cmap[$start - 1])) {
             $start--;
         }
 
@@ -35223,29 +35384,16 @@ final class PdfTextExtractor
             return null;
         }
 
-        if ($start > 0 && $cmap[$start - 1] === '-') {
-            $signStart = $start - 1;
-            if ($signStart > 0 && !$this->isDelimiter($cmap[$signStart - 1])) {
-                return null;
-            }
-
-            return (int) substr($cmap, $signStart, $end - $signStart);
+        $token = substr($cmap, $start, $end - $start);
+        if (preg_match('/^[+-]?\d+$/', $token) === 1) {
+            return str_starts_with($token, '-')
+                ? (int) $token
+                : max(0, (int) $token);
         }
 
-        if ($start > 0 && $cmap[$start - 1] === '+') {
-            $signStart = $start - 1;
-            if ($signStart > 0 && !$this->isDelimiter($cmap[$signStart - 1])) {
-                return null;
-            }
-
-            return max(0, (int) substr($cmap, $signStart, $end - $signStart));
-        }
-
-        if ($start > 0 && !$this->isDelimiter($cmap[$start - 1])) {
-            return null;
-        }
-
-        return max(0, (int) substr($cmap, $start, $end - $start));
+        return preg_match('/^[+-]?(?:(?:\d+\.\d*)|(?:\.\d+)|(?:\d+))(?:[eE][+-]?\d+)?$/', $token) === 1
+            ? -1
+            : null;
     }
 
     /**

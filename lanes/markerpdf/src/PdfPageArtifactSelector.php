@@ -242,7 +242,15 @@ final class PdfPageArtifactSelector
         $artifacts = [];
         foreach ($value as $key => $candidate) {
             $pageKey = self::integerArrayKey($key);
-            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate)) {
+            if ($pageKey === null) {
+                if (self::isIgnorableArtifactMapEntry($candidate)) {
+                    continue;
+                }
+
+                return null;
+            }
+
+            if (!is_array($candidate) || array_is_list($candidate)) {
                 return null;
             }
 
@@ -410,20 +418,40 @@ final class PdfPageArtifactSelector
         $dictionaryCount = 0;
         $payload = null;
         $payloadKey = null;
+        $ignoredEntries = 0;
         foreach ($value as $key => $candidate) {
+            $pageKey = self::integerArrayKey($key);
             if (!is_array($candidate) || array_is_list($candidate)) {
+                if ($pageKey === null) {
+                    $ignoredEntries++;
+                    continue;
+                }
+
+                $dictionaryCount++;
                 continue;
             }
 
-            $dictionaryCount++;
             if (self::hasDirectArtifactPayload($candidate)) {
                 if ($payload !== null) {
                     return null;
                 }
 
                 $payload = $candidate;
-                $payloadKey = self::integerArrayKey($key);
+                $payloadKey = $pageKey;
+                $dictionaryCount++;
+                continue;
             }
+
+            if ($pageKey === null) {
+                $ignoredEntries++;
+                continue;
+            }
+
+            $dictionaryCount++;
+        }
+
+        if ($payload !== null && $payloadKey === null && $ignoredEntries > 0) {
+            return null;
         }
 
         if ($payload !== null && $payloadKey !== null && !self::hasPotentialPageMarker($payload)) {
@@ -450,7 +478,15 @@ final class PdfPageArtifactSelector
         $artifacts = [];
         foreach ($value as $key => $candidate) {
             $pageKey = self::integerArrayKey($key);
-            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate)) {
+            if ($pageKey === null) {
+                if (self::isIgnorableArtifactMapEntry($candidate)) {
+                    continue;
+                }
+
+                return null;
+            }
+
+            if (!is_array($candidate) || array_is_list($candidate)) {
                 return null;
             }
 
@@ -461,6 +497,11 @@ final class PdfPageArtifactSelector
         }
 
         return count($artifacts) > 1 ? $artifacts : null;
+    }
+
+    private static function isIgnorableArtifactMapEntry(mixed $candidate): bool
+    {
+        return !is_array($candidate) || !self::hasDirectArtifactPayload($candidate);
     }
 
     private static function integerArrayKey(int|string $key): ?int

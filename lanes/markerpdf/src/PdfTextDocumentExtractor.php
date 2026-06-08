@@ -169,21 +169,23 @@ final class PdfTextDocumentExtractor
         }
 
         if (array_is_list($pages)) {
-            return array_map(
-                fn (mixed $page): mixed => $this->unwrapSuppliedDictionaryPageEntry($page),
-                array_values($pages)
-            );
+            return $this->suppliedDictionaryPageListFallback($pages);
         }
 
         $keyedPages = [];
         foreach ($pages as $key => $page) {
             $page = $this->unwrapSuppliedDictionaryPageEntry($page);
             $pageKey = $this->integerArrayKey($key);
-            if ($pageKey === null || !is_array($page) || !array_key_exists('blocks', $page)) {
-                return array_map(
-                    fn (mixed $page): mixed => $this->unwrapSuppliedDictionaryPageEntry($page),
-                    array_values($pages)
-                );
+            if ($pageKey === null) {
+                if (is_array($page) && array_key_exists('blocks', $page)) {
+                    return $this->suppliedDictionaryPageListFallback($pages);
+                }
+
+                continue;
+            }
+
+            if (!is_array($page) || !array_key_exists('blocks', $page)) {
+                return $this->suppliedDictionaryPageListFallback($pages);
             }
 
             $keyedPages[] = [
@@ -193,6 +195,10 @@ final class PdfTextDocumentExtractor
             ];
         }
 
+        if ($keyedPages === []) {
+            return $this->suppliedDictionaryPageListFallback($pages);
+        }
+
         usort(
             $keyedPages,
             static fn (array $left, array $right): int => ($left['key'] <=> $right['key'])
@@ -200,6 +206,18 @@ final class PdfTextDocumentExtractor
         );
 
         return array_map(static fn (array $entry): mixed => $entry['page'], $keyedPages);
+    }
+
+    /**
+     * @param array<mixed> $pages
+     * @return list<mixed>
+     */
+    private function suppliedDictionaryPageListFallback(array $pages): array
+    {
+        return array_map(
+            fn (mixed $page): mixed => $this->unwrapSuppliedDictionaryPageEntry($page),
+            array_values($pages)
+        );
     }
 
     /**

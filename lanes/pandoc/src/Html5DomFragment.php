@@ -3660,6 +3660,10 @@ final class Html5DomFragment
 
     private static function isSafeFetchUrl(string $value): bool
     {
+        if (self::hasUnsafePercentDecodedUrlScheme($value)) {
+            return false;
+        }
+
         $trimmed = trim(preg_replace('/[\x00-\x20]+/', '', $value) ?? $value);
         if ($trimmed === '' || str_starts_with($trimmed, '#') || str_starts_with($trimmed, '/')) {
             return true;
@@ -3745,6 +3749,10 @@ final class Html5DomFragment
 
     private static function isSafeUrl(string $value): bool
     {
+        if (self::hasUnsafePercentDecodedUrlScheme($value)) {
+            return false;
+        }
+
         $trimmed = trim(preg_replace('/[\x00-\x20]+/', '', $value) ?? $value);
         if ($trimmed === '' || str_starts_with($trimmed, '#') || str_starts_with($trimmed, '/')) {
             return true;
@@ -3943,6 +3951,9 @@ final class Html5DomFragment
         if (self::isSafeRasterImageDataUrl($trimmed)) {
             return true;
         }
+        if (self::hasUnsafePercentDecodedUrlScheme($value)) {
+            return false;
+        }
         if ($trimmed === '' || str_starts_with($trimmed, '#') || str_starts_with($trimmed, '/')) {
             return true;
         }
@@ -3965,6 +3976,26 @@ final class Html5DomFragment
         }
 
         return base64_decode((string) $matches[1], true) !== false;
+    }
+
+    private static function hasUnsafePercentDecodedUrlScheme(string $value): bool
+    {
+        if (stripos($value, '%') === false) {
+            return false;
+        }
+
+        $decoded = preg_replace_callback(
+            '/%([0-9A-Fa-f]{2})/',
+            static fn (array $matches): string => chr(hexdec((string) $matches[1])),
+            $value
+        );
+        if (!is_string($decoded) || $decoded === $value) {
+            return false;
+        }
+
+        $compact = strtolower(preg_replace('/[\x00-\x20]+/', '', $decoded) ?? $decoded);
+
+        return preg_match('/^(?:javascript|vbscript|data):/', $compact) === 1;
     }
 
     /**

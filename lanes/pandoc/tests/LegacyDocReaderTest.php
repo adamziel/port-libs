@@ -1681,6 +1681,14 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
+    'rejects unsupported CFB minor versions before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u16): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+
+        $unsupportedMinor = substr_replace($bytes, $u16(0x003d), 24, 2);
+        $t->throws(\InvalidArgumentException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($unsupportedMinor));
+    },
     'rejects invalid CFB header versions and directory-sector counts before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u16, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',

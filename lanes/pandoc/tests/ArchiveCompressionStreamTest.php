@@ -1386,6 +1386,120 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($globalMultiVolume));
     },
 
+    'rejects tar incremental snapshot metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $gnuDumpdirType = $rawTarHeader('packet/snapshot/', 'D', "Ycontent.md\0Nmedia/old.png\0Dassets/\0");
+        $paxDumpdirRegular = $rawTarHeader('PaxHeaders/incremental', 'x', $paxPayload([
+            'path' => 'packet/incremental/current.md',
+            'GNU.dumpdir' => "Ycurrent.md\nNold.md\n",
+        ]), 0, false)
+            . $rawTarHeader('placeholder-incremental.md', '0', '# Incremental snapshot source', 0, false)
+            . str_repeat("\0", 1024);
+        $globalDumpdir = $rawTarHeader('GlobalHead/incremental', 'g', $paxPayload([
+            'GNU.dumpdir' => "Ycontent.md\n",
+        ]), 0, false)
+            . $rawTarHeader('packet/content.md', '0', 'content', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($gnuDumpdirType));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($paxDumpdirRegular));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($globalDumpdir));
+    },
+
+    'preflights tar incremental snapshot policy without exposing dumpdir entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $typePayload = "Ycontent.md\0Nmedia/old.png\0Dassets/\0";
+        $paxPayloadValue = "Ycurrent.md\nNold.md\n";
+        $archiveBytes = $rawTarHeader('packet/snapshot/', 'D', $typePayload, 1780479090, false)
+            . $rawTarHeader('PaxHeaders/incremental-pax', 'x', $paxPayload([
+                'path' => 'packet/incremental/current.md',
+                'GNU.dumpdir' => $paxPayloadValue,
+            ]), 0, false)
+            . $rawTarHeader('placeholder-incremental.md', '0', '# Incremental snapshot source', 1780479091, false)
+            . str_repeat("\0", 1024);
+        $gzip = GzipStream::build($archiveBytes, [
+            'filename' => 'wordpress-incremental-snapshot-policy.tar',
+            'comment' => 'incremental dumpdir metadata stays blocked for extraction',
+        ]);
+
+        $policy = TarArchive::incrementalSnapshotPolicyPreflight($archiveBytes);
+        $streamPolicy = ArchiveCompressionStream::inspectTarIncrementalSnapshotPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes)
+        );
+
+        $t->same(2, $policy['entryCount']);
+        $t->same(2, $policy['incrementalEntryCount']);
+        $t->same(1, $policy['typeflagEntryCount']);
+        $t->same(1, $policy['paxMetadataEntryCount']);
+        $t->same(5, $policy['dumpdirRecordCount']);
+        $t->same(2, $policy['deletedRecordCount']);
+        $t->same(1, $policy['directoryRecordCount']);
+        $t->same('incremental-snapshot-entries-blocked', $policy['extractionPolicy']);
+        $t->same('packet/snapshot/', $policy['entries'][0]['name']);
+        $t->same('gnu-dumpdir-typeflag', $policy['entries'][0]['incrementalType']);
+        $t->same(['gnu-typeflag'], $policy['entries'][0]['incrementalHeaderFamilies']);
+        $t->same([], $policy['entries'][0]['incrementalHeaderKeys']);
+        $t->same(3, $policy['entries'][0]['dumpdirRecordCount']);
+        $t->same(1, $policy['entries'][0]['deletedRecordCount']);
+        $t->same(1, $policy['entries'][0]['directoryRecordCount']);
+        $t->same(strlen($typePayload), $policy['entries'][0]['payloadSize']);
+        $t->same('typeflag-payload', $policy['entries'][0]['dumpdirRecords'][0]['source']);
+        $t->same('Y', $policy['entries'][0]['dumpdirRecords'][0]['marker']);
+        $t->same('present', $policy['entries'][0]['dumpdirRecords'][0]['action']);
+        $t->same('content.md', $policy['entries'][0]['dumpdirRecords'][0]['name']);
+        $t->same('N', $policy['entries'][0]['dumpdirRecords'][1]['marker']);
+        $t->same('deleted', $policy['entries'][0]['dumpdirRecords'][1]['action']);
+        $t->same('media/old.png', $policy['entries'][0]['dumpdirRecords'][1]['name']);
+        $t->same(['tar-incremental-snapshot-not-extracted', 'gnu-typeflag'], $policy['entries'][0]['diagnostics']);
+        $t->same('packet/incremental/current.md', $policy['entries'][1]['name']);
+        $t->same('pax-gnu-dumpdir-metadata', $policy['entries'][1]['incrementalType']);
+        $t->same(['gnu-pax'], $policy['entries'][1]['incrementalHeaderFamilies']);
+        $t->same(['GNU.dumpdir'], $policy['entries'][1]['incrementalHeaderKeys']);
+        $t->same(2, $policy['entries'][1]['dumpdirRecordCount']);
+        $t->same('pax-gnu-dumpdir', $policy['entries'][1]['dumpdirRecords'][0]['source']);
+        $t->same('current.md', $policy['entries'][1]['dumpdirRecords'][0]['name']);
+        $t->same('old.md', $policy['entries'][1]['dumpdirRecords'][1]['name']);
+        $t->same('pax-path', $policy['entries'][1]['nameSource']);
+        $t->same(['tar-incremental-snapshot-not-extracted', 'gnu-pax'], $policy['entries'][1]['diagnostics']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $streamPolicy['format']);
+        $t->same(strlen($archiveBytes), $streamPolicy['uncompressedSize']);
+        $t->same('gzip', $streamPolicy['stream']['type']);
+        $t->same('wordpress-incremental-snapshot-policy.tar', $streamPolicy['stream']['members'][0]['filename']);
+        $t->same(2, $streamPolicy['incrementalEntryCount']);
+        $t->same('packet/incremental/current.md', $streamPolicy['entries'][1]['name']);
+        $t->same('old.md', $streamPolicy['entries'][1]['dumpdirRecords'][1]['name']);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($archiveBytes));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarIncrementalSnapshotPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes) - 1
+        ));
+    },
+
+    'rejects malformed tar incremental snapshot policy metadata before diagnostics are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $incrementalArchive = static function (array $headers) use ($rawTarHeader, $paxPayload): string {
+            return $rawTarHeader('PaxHeaders/incremental', 'x', $paxPayload($headers), 0, false)
+                . $rawTarHeader('placeholder-incremental.md', '0', '# Incremental snapshot source', 0, false)
+                . str_repeat("\0", 1024);
+        };
+
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::incrementalSnapshotPolicyPreflight($incrementalArchive([
+            'path' => 'packet/invalid-marker.md',
+            'GNU.dumpdir' => "Xcontent.md\n",
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::incrementalSnapshotPolicyPreflight($incrementalArchive([
+            'path' => 'packet/unsafe-dumpdir.md',
+            'GNU.dumpdir' => "N../old.md\n",
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::incrementalSnapshotPolicyPreflight(
+            $rawTarHeader('GlobalHead/incremental', 'g', $paxPayload([
+                'GNU.dumpdir' => "Ycontent.md\n",
+            ]), 0, false)
+            . $rawTarHeader('packet/content.md', '0', 'content', 0, false)
+            . str_repeat("\0", 1024)
+        ));
+    },
+
     'preflights tar multi-volume policy without exposing split entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload, $rewriteTarHeaderFields): void {
         $octal12 = static fn (int $value): string => str_pad(decoct($value), 11, '0', STR_PAD_LEFT) . "\0";
         $typePayload = 'gnu multi-volume payload fragment';

@@ -911,6 +911,11 @@ final class BibtexCslParser
             if ($relatedString !== '') {
                 $item['relatedString'] = $relatedString;
             }
+
+            $relatedOptions = self::biblatexOptionList($fields['relatedoptions'] ?? '');
+            if ($relatedOptions !== []) {
+                $item['related-options'] = $relatedOptions;
+            }
         }
 
         $xref = self::biblatexKeyList($fields['xref'] ?? '');
@@ -1078,6 +1083,24 @@ final class BibtexCslParser
         return array_values(array_filter(
             array_map(static fn (string $keyword): string => trim($keyword), $keywords),
             static fn (string $keyword): bool => $keyword !== ''
+        ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function biblatexOptionList(string $value): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(
+                static fn (string $option): string => self::cleanBibtexText($option),
+                self::splitTopLevel($value, ',')
+            ),
+            static fn (string $option): bool => $option !== ''
         ));
     }
 

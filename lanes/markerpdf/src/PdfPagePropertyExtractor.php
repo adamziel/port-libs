@@ -1582,7 +1582,7 @@ final class PdfPagePropertyExtractor
             return [];
         }
 
-        $subdictionary = $this->resolveDictionaryFromValue($value, $objects);
+        $subdictionary = $this->resolveResourceCategoryDictionaryFromValue($value, $objects);
         if ($subdictionary === null) {
             return [];
         }
@@ -1692,6 +1692,59 @@ final class PdfPagePropertyExtractor
         );
 
         return $resolved !== null && $this->objectBodyIsStreamObject($resolved['body']);
+    }
+
+    /**
+     * Resource category values are dictionary operands, not arbitrary object
+     * bodies. A referenced object like `<<...>> 99 0 R` must fail closed even
+     * though generic metadata resolvers may inspect stream dictionaries.
+     *
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null, generation: int|null}|null
+     */
+    private function resolveResourceCategoryDictionaryFromValue(?string $value, array $objects): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $resolved = $this->resolvedObjectValueFromReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($resolved === null) {
+                return null;
+            }
+
+            $body = $this->singleDictionaryObjectBody($resolved['body']);
+            return $body === null
+                ? null
+                : [
+                    'body' => $body,
+                    'object' => $resolved['object'],
+                    'generation' => $resolved['generation'],
+                ];
+        }
+
+        $resolved = $this->resolveRawValue($value, $objects);
+        if ($resolved === null) {
+            return null;
+        }
+
+        $trimmed = trim($resolved);
+        $dictionary = $this->readPdfDictionaryAt($trimmed, 0);
+        if ($dictionary === null || $this->skipWhitespace($trimmed, $dictionary['end']) < strlen($trimmed)) {
+            return null;
+        }
+
+        return [
+            'body' => $dictionary['body'],
+            'object' => null,
+            'generation' => null,
+        ];
     }
 
     /**

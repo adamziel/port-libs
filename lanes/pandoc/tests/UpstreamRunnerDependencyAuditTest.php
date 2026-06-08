@@ -531,6 +531,12 @@ return [
         $t->same(UpstreamRunnerDependencyAudit::expectedProjectConstraints(), $audit['projectConstraintClosure']['presentConstraints']);
         $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
         $t->same([], $audit['projectConstraintClosure']['mismatchedConstraints']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedProjectUnconditionalFields(), $audit['projectUnconditionalFieldClosure']['expectedFields']);
+        $t->same([
+            'constraints',
+            'packages',
+        ], $audit['projectUnconditionalFieldClosure']['presentFields']);
+        $t->same([], $audit['projectUnconditionalFieldClosure']['unexpectedFields']);
         $t->same(UpstreamRunnerDependencyAudit::expectedCompilerGhcVersions(), $audit['compilerTestedWithClosure']['presentGhcVersions']);
         $t->same([], $audit['compilerTestedWithClosure']['missingGhcVersions']);
         $t->same('9.10.3', $audit['compilerTestedWithClosure']['toolGhcVersion']);
@@ -872,6 +878,49 @@ return [
         $t->contains('no unexpected cabal.project source-repository packages', $audit['activationGate']);
         $t->contains('no unexpected cabal.project package entries or flags', $audit['activationGate']);
         $t->contains('no unexpected cabal.project solver constraints', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks unexpected cabal project unconditional plan fields before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $project = $pinnedProject() . "\n" . implode("\n", [
+            'allow-newer: all:base, all:text',
+            'tests: False',
+            'benchmarks: True',
+            'with-compiler: ghc-9.12.2',
+        ]);
+
+        $root = $makeTree($requiredFiles($project));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['missing']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectPackageClosure']['missingFlags']);
+        $t->same([], $audit['projectPackageClosure']['mismatchedFlags']);
+        $t->same([], $audit['projectPackageClosure']['unexpectedFlags']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['projectConstraintClosure']['mismatchedConstraints']);
+        $t->same([], $audit['projectConstraintClosure']['unexpectedConstraints']);
+        $t->same([
+            'allow-newer',
+            'benchmarks',
+            'tests',
+            'with-compiler',
+        ], $audit['projectUnconditionalFieldClosure']['unexpectedFields']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected cabal.project unconditional plan fields: allow-newer, benchmarks, tests, with-compiler', $blocked);
+        $t->contains('no unexpected cabal.project unconditional plan fields', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks stale tested-with ghc matrix and unsupported local ghc before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
@@ -3569,6 +3618,7 @@ return [
         $t->same([], $audit['projectPackageClosure']['mismatchedFlags']);
         $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
         $t->same([], $audit['projectSourceRepositoryClosure']['mismatched']);
+        $t->same([], $audit['projectUnconditionalFieldClosure']['unexpectedFields']);
         $t->same([], $audit['blockedReasons']);
     },
 ];

@@ -62,12 +62,16 @@ final class CompoundFileBinary
             throw new \RuntimeException('CFB header reserved bytes must be zero');
         }
 
+        $minorVersion = self::u16($bytes, 24);
         $majorVersion = self::u16($bytes, 26);
         $byteOrder = self::u16($bytes, 28);
         $sectorShift = self::u16($bytes, 30);
         $miniSectorShift = self::u16($bytes, 32);
         if ($byteOrder !== 0xfffe) {
             throw new \InvalidArgumentException('CFB file must use little-endian byte order');
+        }
+        if ($minorVersion !== 0x003e) {
+            throw new \InvalidArgumentException('CFB file uses an unsupported minor version');
         }
         if (!in_array($majorVersion, [3, 4], true)) {
             throw new \InvalidArgumentException('CFB file uses an unsupported major version');

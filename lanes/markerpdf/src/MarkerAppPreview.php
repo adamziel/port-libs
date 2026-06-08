@@ -868,6 +868,18 @@ final class MarkerAppPreview
         $bodyRanges = $this->directObjectBodyRanges($pdfBytes);
         $startxrefOffset = $this->latestStartxrefTokenOffset($pdfBytes, $bodyRanges);
         $beforeOffset = $startxrefOffset ?? strlen($pdfBytes);
+        if ($startxrefOffset !== null) {
+            $declaredOffset = $this->startxrefDeclaredOffsetFromOperand(
+                substr($pdfBytes, $startxrefOffset + strlen('startxref'), 64)
+            );
+            if ($declaredOffset !== null) {
+                $xrefStreamRoot = $this->xrefStreamRootReferenceAtOffset($pdfBytes, $declaredOffset);
+                if ($xrefStreamRoot !== null) {
+                    return $xrefStreamRoot;
+                }
+            }
+        }
+
         if (preg_match_all('/\btrailer\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
@@ -907,6 +919,35 @@ final class MarkerAppPreview
         }
 
         return null;
+    }
+
+    /**
+     * @return array{object_id: int, generation: int}|null
+     */
+    private function xrefStreamRootReferenceAtOffset(string $pdfBytes, int $offset): ?array
+    {
+        if ($offset < 0 || $offset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        if (preg_match('/\G(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $body = $match[3];
+        if ($this->objectType($body) !== 'XRef') {
+            return null;
+        }
+
+        $root = $this->valueAfterName($body, 'Root');
+        if ($root === null || preg_match('/^(\d+)\s+(\d+)\s+R$/', trim($root), $reference) !== 1) {
+            return null;
+        }
+
+        return [
+            'object_id' => (int) $reference[1],
+            'generation' => (int) $reference[2],
+        ];
     }
 
     /**

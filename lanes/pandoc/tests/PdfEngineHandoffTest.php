@@ -2314,6 +2314,114 @@ MARKDOWN);
         $t->same('en-US', $sequence['finalPdfLanguage']);
     },
 
+    'fake runner normalizes bounded pdf document info date metadata' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/dates.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            "<< /CreationDate (D:20260605050300Z) /ModDate (D:20260605050430-05'30') >>",
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R /Info 8 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/dates.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/dates.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'key' => 'CreationDate',
+                'source' => 'Info.CreationDate',
+                'raw' => 'D:20260605050300Z',
+                'normalized' => '2026-06-05T05:03:00Z',
+                'precision' => 'second',
+                'timezone' => 'Z',
+                'timezoneOffsetMinutes' => 0,
+                'year' => 2026,
+                'month' => 6,
+                'day' => 5,
+                'hour' => 5,
+                'minute' => 3,
+                'second' => 0,
+                'valid' => true,
+            ],
+            [
+                'key' => 'ModDate',
+                'source' => 'Info.ModDate',
+                'raw' => "D:20260605050430-05'30'",
+                'normalized' => '2026-06-05T05:04:30-05:30',
+                'precision' => 'second',
+                'timezone' => '-05:30',
+                'timezoneOffsetMinutes' => -330,
+                'year' => 2026,
+                'month' => 6,
+                'day' => 5,
+                'hour' => 5,
+                'minute' => 4,
+                'second' => 30,
+                'valid' => true,
+            ],
+        ];
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfDocumentInfoDateMetadata']);
+        $t->contains('pdf-byte-document-info-dates:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-document-info-date-normalized:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-document-info-date-timezones:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfDocumentInfoDateMetadata']);
+
+        $invalidPdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /CreationDate (D:20261305050300Z) >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R /Info 8 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+        $invalidResult = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/dates.pdf' => $invalidPdfBytes,
+            ],
+        ]);
+        $t->same(true, $invalidResult['ok']);
+        $t->same(null, $invalidResult['pdfDocumentInfoDateMetadata'][0]['normalized']);
+        $t->same(false, $invalidResult['pdfDocumentInfoDateMetadata'][0]['valid']);
+        $t->contains('pdf-byte-document-info-date-invalid:1', implode(',', $invalidResult['diagnostics']));
+    },
+
     'fake runner extracts bounded pdf xmp metadata and pdfa pdfua identification from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/xmp.pdf']);

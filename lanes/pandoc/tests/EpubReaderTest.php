@@ -3315,6 +3315,91 @@ CSS;
         $t->same(false, $remoteResources['observedItemsByPart']['/OEBPS/styles/theme.css']['manifestDeclared']);
         $t->same('undeclared-css-remote-resources', $remoteResources['diagnostics'][0]['type']);
     },
+    'reports EPUB stylesheet image-set candidates for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithImageSet = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/image-set.css" media-type="text/css" properties="remote-resources"/>'
+            . '<item id="cover-hidpi" href="images/cover@2x.png" media-type="image/png"/>',
+            $opfXml
+        );
+        $imageSetCss = <<<'CSS'
+.hero {
+  background-image: image-set(
+    "../images/cover.png" 1x,
+    url("../images/cover@2x.png") 2x type("image/png"),
+    "https://cdn.example.test/epub/cover@3x.png" 3x,
+    "../images/missing-cover.png" type("image/png")
+  );
+}
+.icon { background-image: image-set(url(data:image/png;base64,AAAA) 1x, "../images/cover.png" 2x); }
+CSS;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithImageSet,
+            null,
+            [
+                ['name' => 'OEBPS/styles/image-set.css', 'data' => $imageSetCss],
+                ['name' => 'OEBPS/images/cover@2x.png', 'data' => 'HIDPI-PNG', 'compressionMethod' => 0],
+            ]
+        ));
+
+        $css = $result['cssResourceReport'];
+        $style = $css['itemsByPart']['/OEBPS/styles/image-set.css'];
+
+        $t->same(1, $css['assetCount']);
+        $t->same(5, $css['referenceCount']);
+        $t->same(5, $css['imageSetReferenceCount']);
+        $t->same(0, $css['urlReferenceCount']);
+        $t->same(1, $css['externalReferenceCount']);
+        $t->same(1, $css['missingReferenceCount']);
+        $t->same(['remote-resources', 'missing-references'], $style['reviewFlags']);
+        $t->same(5, $style['imageSetReferenceCount']);
+        $t->same(5, count($style['references']));
+
+        $standard = $style['references'][0];
+        $t->same('image-set', $standard['kind']);
+        $t->same('../images/cover.png', $standard['href']);
+        $t->same('/OEBPS/images/cover.png', $standard['part']);
+        $t->same('cover-image', $standard['manifestId']);
+        $t->same(0, $standard['imageSetCandidateIndex']);
+        $t->same('1x', $standard['imageSetDescriptor']);
+        $t->same(null, $standard['imageSetType']);
+
+        $hidpi = $style['references'][1];
+        $t->same('image-set', $hidpi['kind']);
+        $t->same('../images/cover@2x.png', $hidpi['href']);
+        $t->same('/OEBPS/images/cover@2x.png', $hidpi['part']);
+        $t->same('cover-hidpi', $hidpi['manifestId']);
+        $t->same(1, $hidpi['imageSetCandidateIndex']);
+        $t->same('2x type("image/png")', $hidpi['imageSetDescriptor']);
+        $t->same('image/png', $hidpi['imageSetType']);
+
+        $remote = $style['references'][2];
+        $t->same(true, $remote['external']);
+        $t->same('https://cdn.example.test/epub/cover@3x.png', $remote['target']);
+        $t->same('3x', $remote['imageSetDescriptor']);
+        $t->same('external-css-resource-reference', $remote['diagnostics'][0]['type']);
+
+        $missing = $style['references'][3];
+        $t->same('/OEBPS/images/missing-cover.png', $missing['part']);
+        $t->same(false, $missing['exists']);
+        $t->same('image/png', $missing['imageSetType']);
+        $t->same('missing-css-resource-reference', $missing['diagnostics'][0]['type']);
+
+        $iconFallback = $style['references'][4];
+        $t->same('../images/cover.png', $iconFallback['href']);
+        $t->same(1, $iconFallback['imageSetCandidateIndex']);
+        $t->same('2x', $iconFallback['imageSetDescriptor']);
+
+        $remoteResources = $result['remoteResources'];
+        $t->same(1, $remoteResources['observedAssetCount']);
+        $t->same(1, $remoteResources['remoteReferenceCount']);
+        $t->same(1, $remoteResources['cssExternalReferenceCount']);
+        $t->same(0, $remoteResources['undeclaredAssetCount']);
+        $t->same(true, $remoteResources['observedItemsByPart']['/OEBPS/styles/image-set.css']['manifestDeclared']);
+        $t->same($css, $result['importReport']['cssResourceReport']);
+        $t->same($css, $result['document']->attr('cssResourceReport'));
+    },
     'flags EPUB switch XHTML content for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $switchXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

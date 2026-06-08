@@ -2238,6 +2238,76 @@ $noteReferencePropertiesEndnotesXml = <<<'XML'
 </w:endnotes>
 XML;
 
+$sectionRestartNoteDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">First section notes </w:t></w:r>
+      <w:r><w:footnoteReference w:id="2"/></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:footnoteReference w:id="3"/></w:r>
+      <w:r><w:t xml:space="preserve"> plus endnote </w:t></w:r>
+      <w:r><w:endnoteReference w:id="6"/></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:sectPr>
+          <w:footnotePr>
+            <w:numFmt w:val="lowerLetter"/>
+            <w:numStart w:val="2"/>
+            <w:numRestart w:val="eachSect"/>
+          </w:footnotePr>
+          <w:endnotePr>
+            <w:numFmt w:val="upperRoman"/>
+            <w:numStart w:val="4"/>
+            <w:numRestart w:val="eachSect"/>
+          </w:endnotePr>
+        </w:sectPr>
+      </w:pPr>
+      <w:r><w:t>Section boundary.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Second section notes </w:t></w:r>
+      <w:r><w:footnoteReference w:id="4"/></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:footnoteReference w:id="5"/></w:r>
+      <w:r><w:t xml:space="preserve"> plus endnote </w:t></w:r>
+      <w:r><w:endnoteReference w:id="7"/></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:sectPr>
+      <w:footnotePr>
+        <w:numFmt w:val="lowerLetter"/>
+        <w:numStart w:val="2"/>
+        <w:numRestart w:val="eachSect"/>
+      </w:footnotePr>
+      <w:endnotePr>
+        <w:numFmt w:val="upperRoman"/>
+        <w:numStart w:val="4"/>
+        <w:numRestart w:val="eachSect"/>
+      </w:endnotePr>
+    </w:sectPr>
+  </w:body>
+</w:document>
+XML;
+
+$sectionRestartNoteFootnotesXml = <<<'XML'
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="2"><w:p><w:r><w:t>First section source note.</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="3"><w:p><w:r><w:t>First section second source note.</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="4"><w:p><w:r><w:t>Second section source note.</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="5"><w:p><w:r><w:t>Second section second source note.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+XML;
+
+$sectionRestartNoteEndnotesXml = <<<'XML'
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="6"><w:p><w:r><w:t>First section source endnote.</w:t></w:r></w:p></w:endnote>
+  <w:endnote w:id="7"><w:p><w:r><w:t>Second section source endnote.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+XML;
+
 $noteSeparatorDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
@@ -3020,6 +3090,24 @@ $buildNoteReferencePropertiesPackage = static function () use (
         ['name' => 'word/_rels/document.xml.rels', 'data' => $noteReferencePropertiesDocumentRelationshipsXml],
         ['name' => 'word/footnotes.xml', 'data' => $noteReferencePropertiesFootnotesXml],
         ['name' => 'word/endnotes.xml', 'data' => $noteReferencePropertiesEndnotesXml],
+    ]);
+};
+
+$buildSectionRestartNotePackage = static function () use (
+    $contentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $noteReferencePropertiesDocumentRelationshipsXml,
+    $sectionRestartNoteDocumentXml,
+    $sectionRestartNoteFootnotesXml,
+    $sectionRestartNoteEndnotesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $sectionRestartNoteDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $noteReferencePropertiesDocumentRelationshipsXml],
+        ['name' => 'word/footnotes.xml', 'data' => $sectionRestartNoteFootnotesXml],
+        ['name' => 'word/endnotes.xml', 'data' => $sectionRestartNoteEndnotesXml],
     ]);
 };
 
@@ -6272,6 +6360,75 @@ return [
         $t->contains('<li id="fn-3"> <a href="#fnref-3" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-4"><p>Auto-numbered footnote body.</p> <a href="#fnref-4" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-5"><p>Auto-numbered endnote body.</p> <a href="#fnref-5" aria-label="Back to content">Back</a></li>', $blocks);
+    },
+    'restarts DOCX footnote and endnote numbering at section boundaries' => static function (TestRunner $t) use ($buildSectionRestartNotePackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildSectionRestartNotePackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $first = $document->children[0];
+        $t->same('paragraph', $first->type);
+        $t->same('First section notes ', $first->children[0]->attr('text'));
+        $t->same('2', $first->children[1]->attr('id'));
+        $t->same(2, $first->children[1]->attr('referenceNumber'));
+        $t->same('b', $first->children[1]->attr('referenceLabel'));
+        $t->same('lowerLetter', $first->children[1]->attr('referenceFormat'));
+        $t->same('eachSect', $first->children[1]->attr('referenceRestart'));
+        $t->same('3', $first->children[3]->attr('id'));
+        $t->same(3, $first->children[3]->attr('referenceNumber'));
+        $t->same('c', $first->children[3]->attr('referenceLabel'));
+        $t->same('6', $first->children[5]->attr('id'));
+        $t->same(4, $first->children[5]->attr('referenceNumber'));
+        $t->same('IV', $first->children[5]->attr('referenceLabel'));
+        $t->same('upperRoman', $first->children[5]->attr('referenceFormat'));
+        $t->same('eachSect', $first->children[5]->attr('referenceRestart'));
+
+        $boundary = $document->children[1];
+        $t->same('Section boundary.', $boundary->children[0]->attr('text'));
+
+        $second = $document->children[2];
+        $t->same('paragraph', $second->type);
+        $t->same('Second section notes ', $second->children[0]->attr('text'));
+        $t->same('4', $second->children[1]->attr('id'));
+        $t->same(2, $second->children[1]->attr('referenceNumber'));
+        $t->same('b', $second->children[1]->attr('referenceLabel'));
+        $t->same('lowerLetter', $second->children[1]->attr('referenceFormat'));
+        $t->same('eachSect', $second->children[1]->attr('referenceRestart'));
+        $t->same('5', $second->children[3]->attr('id'));
+        $t->same(3, $second->children[3]->attr('referenceNumber'));
+        $t->same('c', $second->children[3]->attr('referenceLabel'));
+        $t->same('7', $second->children[5]->attr('id'));
+        $t->same(4, $second->children[5]->attr('referenceNumber'));
+        $t->same('IV', $second->children[5]->attr('referenceLabel'));
+        $t->same('upperRoman', $second->children[5]->attr('referenceFormat'));
+        $t->same('eachSect', $second->children[5]->attr('referenceRestart'));
+
+        $sections = $document->attr('sectionProperties');
+        $t->same(2, count($sections));
+        $t->same('paragraph', $sections[0]['source']);
+        $t->same('body', $sections[1]['source']);
+        $t->same('eachSect', $sections[0]['footnoteProperties']['numberRestart']);
+        $t->same('eachSect', $sections[1]['footnoteProperties']['numberRestart']);
+        $t->same(2, $sections[0]['footnoteProperties']['numberStart']);
+        $t->same(2, $sections[1]['footnoteProperties']['numberStart']);
+
+        $notes = $result['importReport']['notes'];
+        $t->same(6, $notes['count']);
+        $t->same(4, $notes['footnoteCount']);
+        $t->same(2, $notes['endnoteCount']);
+        $t->same(['b', 'c', 'IV', 'b', 'c', 'IV'], array_map(static fn (array $item): ?string => $item['referenceLabel'], $notes['items']));
+        $t->same([2, 3, 4, 2, 3, 4], array_map(static fn (array $item): ?int => $item['referenceNumber'], $notes['items']));
+        $t->same(['footnote', 'footnote', 'endnote', 'footnote', 'footnote', 'endnote'], array_map(static fn (array $item): string => $item['sourceType'], $notes['items']));
+
+        $t->contains('First section notes [^1] and [^2] plus endnote [^3].', $markdown);
+        $t->contains('Second section notes [^4] and [^5] plus endnote [^6].', $markdown);
+        $t->contains('[^1]: First section source note.', $markdown);
+        $t->contains('[^4]: Second section source note.', $markdown);
+        $t->contains('<p>First section notes <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> and <sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup> plus endnote <sup id="fnref-3"><a href="#fn-3" role="doc-noteref">3</a></sup>.</p>', $blocks);
+        $t->contains('<p>Second section notes <sup id="fnref-4"><a href="#fn-4" role="doc-noteref">4</a></sup> and <sup id="fnref-5"><a href="#fn-5" role="doc-noteref">5</a></sup> plus endnote <sup id="fnref-6"><a href="#fn-6" role="doc-noteref">6</a></sup>.</p>', $blocks);
     },
     'reports DOCX footnote and endnote separator special notes without rendering them' => static function (TestRunner $t) use ($buildNoteSeparatorPackage): void {
         $reader = new DocxReader();

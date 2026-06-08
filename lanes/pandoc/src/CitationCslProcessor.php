@@ -817,6 +817,7 @@ final class CitationCslProcessor
             'relatedKeys' => self::stringListFromFirstField($item, ['relatedKeys', 'related-keys', 'related']),
             'relatedType' => self::firstStringField($item, ['relatedType', 'related-type', 'relatedtype']),
             'relatedString' => self::firstStringField($item, ['relatedString', 'related-string', 'relatedstring']),
+            'relatedOptions' => self::stringListFromFirstField($item, ['relatedOptions', 'related-options', 'relatedoptions']),
             'relatedItems' => self::relatedItemSummaries($item['relatedItems'] ?? [], $id),
             'missingRelatedKeys' => self::stringListFromFirstField($item, ['missingRelatedKeys', 'missing-related-keys']),
             'xrefKeys' => self::stringListFromFirstField($item, ['xrefKeys', 'xref-keys', 'xref']),
@@ -4743,8 +4744,19 @@ final class CitationCslProcessor
     private function relatedBibliographyParts(array $item): array
     {
         $summary = $this->relatedSummary($item);
+        $parts = $summary === '' ? [] : [$this->withTerminalPunctuation($summary)];
+        $options = $item['relatedOptions'] ?? [];
+        if (is_array($options)) {
+            $options = array_values(array_filter(
+                array_map(static fn (mixed $option): string => trim((string) $option), $options),
+                static fn (string $option): bool => $option !== ''
+            ));
+            if ($options !== []) {
+                $parts[] = 'Related options: ' . implode('; ', $options) . '.';
+            }
+        }
 
-        return $summary === '' ? [] : [$this->withTerminalPunctuation($summary)];
+        return $parts;
     }
 
     /**
@@ -6272,6 +6284,7 @@ final class CitationCslProcessor
             'related-keys' => implode(', ', is_array($item['relatedKeys'] ?? null) ? $item['relatedKeys'] : []),
             'related-type', 'relatedtype' => (string) ($item['relatedType'] ?? ''),
             'related-string', 'relatedstring' => (string) ($item['relatedString'] ?? ''),
+            'related-options', 'relatedoptions' => implode(', ', is_array($item['relatedOptions'] ?? null) ? $item['relatedOptions'] : []),
             'missing-related-keys' => implode(', ', is_array($item['missingRelatedKeys'] ?? null) ? $item['missingRelatedKeys'] : []),
             'xref' => $this->xrefSummaryValues($item),
             'xref-summary' => $this->xrefSummary($item),
@@ -6391,11 +6404,18 @@ final class CitationCslProcessor
      */
     private function renderTextVariableValue(array $item, string $variable, string $form, string $scope, ?AstNode $citation = null): string
     {
-        if (strtolower(trim($form)) !== 'short') {
+        $normalizedForm = strtolower(trim($form));
+        $normalizedVariable = strtolower(trim($variable));
+
+        if ($normalizedVariable === 'citation-number' && in_array($normalizedForm, ['numeric', 'ordinal', 'long-ordinal', 'roman'], true)) {
+            return $this->formatCslNumber($this->renderVariableValue($item, $variable, $scope, $citation), $normalizedForm);
+        }
+
+        if ($normalizedForm !== 'short') {
             return $this->renderVariableValue($item, $variable, $scope, $citation);
         }
 
-        return match (strtolower(trim($variable))) {
+        return match ($normalizedVariable) {
             'title' => (string) ($item['shortTitle'] !== '' ? $item['shortTitle'] : $item['title']),
             'container-title' => (string) ($item['containerTitleShort'] !== '' ? $item['containerTitleShort'] : $item['containerTitle']),
             default => $this->renderVariableValue($item, $variable, $scope, $citation),

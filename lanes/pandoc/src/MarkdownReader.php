@@ -940,6 +940,19 @@ final class MarkdownReader
         }
     }
 
+    private function retargetYamlAnchorProvenanceFrom(int $start, int|string $segment): void
+    {
+        $count = count($this->yamlMetadataAnchorProvenance);
+        if ($start >= $count) {
+            return;
+        }
+
+        $path = $this->yamlMetadataPathWithSegment($segment);
+        for ($index = $start; $index < $count; $index++) {
+            $this->yamlMetadataAnchorProvenance[$index]['path'] = $path;
+        }
+    }
+
     private function recordYamlStandaloneCommentProvenance(string $trimmed): void
     {
         if (!str_starts_with($trimmed, '#')) {
@@ -1291,6 +1304,7 @@ final class MarkdownReader
         $keyValue = null;
         $quotedKey = false;
         $keyTagStart = count($this->yamlMetadataTagProvenance);
+        $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
         $separatorComments = [];
         $startIndent = $this->countIndentColumns($line);
         if ($keySource === '') {
@@ -1345,6 +1359,7 @@ final class MarkdownReader
         }
 
         $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+        $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
         foreach ($separatorComments as [$comment, $commentSourceLine]) {
             $this->withYamlMetadataPathSegment(
                 $key,
@@ -1380,6 +1395,7 @@ final class MarkdownReader
         $keyValue = null;
         $quotedKey = false;
         $keyTagStart = count($this->yamlMetadataTagProvenance);
+        $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
         $cursor = $start + 1;
 
         $startIndent = $this->countIndentColumns($line);
@@ -1427,6 +1443,7 @@ final class MarkdownReader
         }
 
         $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+        $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
 
         return [$key, $cursor, $quotedKey];
     }
@@ -2779,9 +2796,11 @@ final class MarkdownReader
             $mapping = $this->splitYamlFlowMappingItem($item);
             if ($mapping === null) {
                 $keyTagStart = count($this->yamlMetadataTagProvenance);
+                $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
                 $key = $this->normalizeYamlFlowKeyOnlyItem($item);
                 if ($key !== '') {
                     $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+                    $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
                     if (array_key_exists($key, $seenKeys)) {
                         $this->recordYamlDuplicateKeyDiagnostic($key);
                     }
@@ -2796,12 +2815,14 @@ final class MarkdownReader
 
             [$sourceKey, $value] = $mapping;
             $keyTagStart = count($this->yamlMetadataTagProvenance);
+            $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
             $key = $this->normalizeYamlFlowKey($sourceKey);
             if ($key === '') {
                 continue;
             }
 
             $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+            $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
             $value = $this->withYamlMetadataPathSegment(
                 (string) $key,
                 fn (): mixed => $this->parseYamlScalarValue($value)
@@ -2890,12 +2911,14 @@ final class MarkdownReader
             }
 
             $keyTagStart = count($this->yamlMetadataTagProvenance);
+            $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
             $key = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarValue($item));
             if ($key === null || $key === '') {
                 continue;
             }
 
             $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+            $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
             $set[$key] = null;
         }
 
@@ -2924,6 +2947,7 @@ final class MarkdownReader
             }
 
             $keyTagStart = count($this->yamlMetadataTagProvenance);
+            $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
             if ($this->isYamlExplicitMappingKeyLine($trimmed)) {
                 $keySource = trim(substr($trimmed, 1));
                 if ($keySource === '') {
@@ -2965,6 +2989,7 @@ final class MarkdownReader
             }
 
             $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+            $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
             $set[$key] = null;
         }
 

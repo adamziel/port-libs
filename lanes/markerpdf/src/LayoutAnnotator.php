@@ -495,13 +495,23 @@ final class LayoutAnnotator
 
         $mapped = [];
         foreach ($value as $key => $candidate) {
-            if (is_array($candidate) && !array_is_list($candidate)) {
-                $pageKey = $this->integerValue($key);
-                if ($pageKey !== null && $this->hasLayoutPayload($candidate)) {
-                    $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
+            $pageKey = $this->integerValue($key);
+            if (!is_array($candidate) || array_is_list($candidate)) {
+                if ($pageKey !== null) {
+                    return $candidates;
                 }
-                $mapped[] = $candidate;
+
+                continue;
             }
+
+            if (!$this->hasLayoutPayload($candidate) && $pageKey === null) {
+                continue;
+            }
+
+            if ($pageKey !== null && $this->hasLayoutPayload($candidate)) {
+                $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
+            }
+            $mapped[] = $candidate;
         }
 
         return $mapped;

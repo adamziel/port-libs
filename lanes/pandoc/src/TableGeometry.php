@@ -3848,6 +3848,18 @@ final class TableGeometry
 
             $diagnostics = [];
             foreach ($coverage as $record) {
+                $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
+                if ($rawColspan > 1) {
+                    $diagnostics[] = self::writerRequirementRecord(
+                        'rst-grid-table-required',
+                        $writer,
+                        $record,
+                        'colspan',
+                        'grid-table',
+                        self::flattenedSlotRecords($record, 'colspan')
+                    );
+                }
+
                 $rawRowspan = max(1, (int) ($record['rawRowspan'] ?? 1));
                 if ($rawRowspan <= 1) {
                     continue;

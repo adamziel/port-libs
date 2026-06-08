@@ -22,6 +22,7 @@ final class TarArchive
     private const TYPE_GNU_LONG_LINK = 'K';
     private const TYPE_GNU_SPARSE = 'S';
     private const TYPE_GNU_MULTIVOLUME = 'M';
+    private const TYPE_GNU_DUMPDIR = 'D';
     private const TYPE_CONTIGUOUS_FILE = '7';
     private const PAX_HDRCHARSET_BINARY = 'BINARY';
     private const PAX_HDRCHARSET_UTF8 = 'ISO-IR 10646 2000 UTF-8';
@@ -151,6 +152,10 @@ final class TarArchive
 
             if ($typeFlag === self::TYPE_GNU_MULTIVOLUME || self::hasMultiVolumePaxHeaders($metadataHeaders)) {
                 throw new \RuntimeException("TAR multi-volume entries are not supported by the pandoc archive reader: {$name}");
+            }
+
+            if ($typeFlag === self::TYPE_GNU_DUMPDIR || self::hasIncrementalSnapshotPaxHeaders($metadataHeaders)) {
+                throw new \RuntimeException("TAR incremental snapshot entries are not supported by the pandoc archive reader: {$name}");
             }
 
             if ($typeFlag !== self::TYPE_REGULAR
@@ -1056,6 +1061,242 @@ final class TarArchive
             'paxMetadataEntryCount' => $paxMetadataEntryCount,
             'extractionPolicy' => $multiVolumeEntries === [] ? 'no-multi-volume-entries' : 'multi-volume-entries-blocked',
             'entries' => $multiVolumeEntries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     incrementalEntryCount:int,
+     *     typeflagEntryCount:int,
+     *     paxMetadataEntryCount:int,
+     *     dumpdirRecordCount:int,
+     *     deletedRecordCount:int,
+     *     directoryRecordCount:int,
+     *     extractionPolicy:string,
+     *     entries:list<array{
+     *         name:string,
+     *         incrementalType:string,
+     *         incrementalHeaderFamilies:list<string>,
+     *         incrementalHeaderKeys:list<string>,
+     *         dumpdirRecordCount:int,
+     *         deletedRecordCount:int,
+     *         directoryRecordCount:int,
+     *         dumpdirRecords:list<array{source:string, marker:string, name:string, action:string, raw:string}>,
+     *         payloadSize:int,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>
+     * }
+     */
+    public static function incrementalSnapshotPolicyPreflight(string $bytes): array
+    {
+        if ($bytes === '') {
+            throw new \RuntimeException('TAR archive is empty');
+        }
+
+        if (strlen($bytes) % self::BLOCK_SIZE !== 0) {
+            throw new \RuntimeException('TAR archive length must be aligned to 512-byte records');
+        }
+
+        $cursor = 0;
+        $length = strlen($bytes);
+        $pendingPaxHeaders = [];
+        $globalPaxHeaders = [];
+        $pendingGnuLongName = null;
+        $pendingGnuLongLink = null;
+        $entryCount = 0;
+        $incrementalEntries = [];
+        $typeflagEntryCount = 0;
+        $paxMetadataEntryCount = 0;
+        $dumpdirRecordCount = 0;
+        $deletedRecordCount = 0;
+        $directoryRecordCount = 0;
+        $sawEndMarker = false;
+
+        while ($cursor < $length) {
+            $headerOffset = $cursor;
+            $header = substr($bytes, $cursor, self::BLOCK_SIZE);
+            if (self::isZeroBlock($header)) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                self::assertTrailingZeroBlocks($bytes, $cursor);
+                $sawEndMarker = true;
+                break;
+            }
+
+            self::validateHeaderChecksum($header);
+
+            $typeFlag = substr($header, 156, 1);
+            if ($typeFlag === "\0" || $typeFlag === '') {
+                $typeFlag = self::TYPE_REGULAR;
+            }
+
+            $headerSize = self::readNumericField(substr($header, 124, 12), 'TAR entry size');
+            $dataOffset = $cursor + self::BLOCK_SIZE;
+            self::assertRange($bytes, $dataOffset, $headerSize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($headerSize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_NAME) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_LINK) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongLink = self::parseGnuLongLink(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
+                $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $headerSize));
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($typeFlag === self::TYPE_PAX_EXTENDED) {
+                    self::assertLinkPolicyLocalPaxHeaders($headers);
+                    $pendingPaxHeaders = $headers;
+                } else {
+                    self::assertGlobalPaxHeaders($headers);
+                    $globalPaxHeaders = self::applyPaxHeaderRecords($globalPaxHeaders, $headers);
+                }
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            $metadataHeaders = self::mergePaxHeaderRecords($globalPaxHeaders, $pendingPaxHeaders);
+            $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            $nameSource = self::resolvedNameSourceFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            self::assertSafePath($name, 'TAR entry name');
+            $entrySize = self::resolvedSizeFromHeader($header, $metadataHeaders);
+            self::assertRange($bytes, $dataOffset, $entrySize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($entrySize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+            $entryCount++;
+
+            if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
+                self::assertSafePath(
+                    self::resolvedLinkTargetFromHeader($header, $metadataHeaders, $pendingGnuLongLink),
+                    'TAR link target'
+                );
+            } elseif ($pendingGnuLongLink !== null) {
+                throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+            }
+
+            $isGnuDumpdirType = $typeFlag === self::TYPE_GNU_DUMPDIR;
+            $incrementalHeaderKeys = self::incrementalSnapshotPaxHeaderKeys($metadataHeaders);
+            if ($isGnuDumpdirType || $incrementalHeaderKeys !== []) {
+                if ($isGnuDumpdirType) {
+                    $typeflagEntryCount++;
+                }
+                if ($incrementalHeaderKeys !== []) {
+                    $paxMetadataEntryCount++;
+                }
+
+                $families = self::incrementalSnapshotHeaderFamilies($metadataHeaders, $isGnuDumpdirType);
+                $records = self::incrementalSnapshotDumpdirRecords(
+                    substr($bytes, $dataOffset, $entrySize),
+                    $metadataHeaders,
+                    $isGnuDumpdirType
+                );
+                $entryDeletedRecordCount = 0;
+                $entryDirectoryRecordCount = 0;
+                foreach ($records as $record) {
+                    if ($record['action'] === 'deleted') {
+                        $entryDeletedRecordCount++;
+                    } elseif ($record['action'] === 'directory') {
+                        $entryDirectoryRecordCount++;
+                    }
+                }
+
+                $dumpdirRecordCount += count($records);
+                $deletedRecordCount += $entryDeletedRecordCount;
+                $directoryRecordCount += $entryDirectoryRecordCount;
+                $diagnostics = ['tar-incremental-snapshot-not-extracted'];
+                foreach ($families as $family) {
+                    $diagnostics[] = $family;
+                }
+
+                $incrementalEntries[] = [
+                    'name' => $name,
+                    'incrementalType' => $isGnuDumpdirType ? 'gnu-dumpdir-typeflag' : 'pax-gnu-dumpdir-metadata',
+                    'incrementalHeaderFamilies' => $families,
+                    'incrementalHeaderKeys' => $incrementalHeaderKeys,
+                    'dumpdirRecordCount' => count($records),
+                    'deletedRecordCount' => $entryDeletedRecordCount,
+                    'directoryRecordCount' => $entryDirectoryRecordCount,
+                    'dumpdirRecords' => $records,
+                    'payloadSize' => $entrySize,
+                    'nameSource' => $nameSource,
+                    'headerOffset' => $headerOffset,
+                    'dataOffset' => $dataOffset,
+                    'policy' => 'blocked',
+                    'diagnostics' => $diagnostics,
+                ];
+            }
+
+            $pendingPaxHeaders = [];
+            $pendingGnuLongName = null;
+            $pendingGnuLongLink = null;
+            $cursor = $nextCursor;
+        }
+
+        if (!$sawEndMarker) {
+            throw new \RuntimeException('TAR archive is missing the required two-block end marker');
+        }
+
+        return [
+            'entryCount' => $entryCount,
+            'incrementalEntryCount' => count($incrementalEntries),
+            'typeflagEntryCount' => $typeflagEntryCount,
+            'paxMetadataEntryCount' => $paxMetadataEntryCount,
+            'dumpdirRecordCount' => $dumpdirRecordCount,
+            'deletedRecordCount' => $deletedRecordCount,
+            'directoryRecordCount' => $directoryRecordCount,
+            'extractionPolicy' => $incrementalEntries === [] ? 'no-incremental-snapshot-entries' : 'incremental-snapshot-entries-blocked',
+            'entries' => $incrementalEntries,
         ];
     }
 
@@ -2260,6 +2501,127 @@ final class TarArchive
 
     /**
      * @param array<string, string> $headers
+     */
+    private static function hasIncrementalSnapshotPaxHeaders(array $headers): bool
+    {
+        return self::incrementalSnapshotPaxHeaderKeys($headers) !== [];
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return list<string>
+     */
+    private static function incrementalSnapshotPaxHeaderKeys(array $headers): array
+    {
+        $keys = [];
+        foreach ($headers as $key => $value) {
+            if ($value !== '' && str_starts_with($key, 'GNU.dumpdir')) {
+                $keys[] = $key;
+            }
+        }
+
+        sort($keys);
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return list<string>
+     */
+    private static function incrementalSnapshotHeaderFamilies(array $headers, bool $isGnuDumpdirType): array
+    {
+        $families = [];
+        if ($isGnuDumpdirType) {
+            $families['gnu-typeflag'] = true;
+        }
+
+        foreach ($headers as $key => $value) {
+            if ($value !== '' && str_starts_with($key, 'GNU.dumpdir')) {
+                $families['gnu-pax'] = true;
+            }
+        }
+
+        return array_keys($families);
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return list<array{source:string, marker:string, name:string, action:string, raw:string}>
+     */
+    private static function incrementalSnapshotDumpdirRecords(
+        string $payload,
+        array $headers,
+        bool $isGnuDumpdirType
+    ): array {
+        $records = [];
+        if ($isGnuDumpdirType) {
+            $records = array_merge(
+                $records,
+                self::parseIncrementalSnapshotDumpdirList($payload, 'typeflag-payload', 'TAR GNU dumpdir payload')
+            );
+        }
+
+        foreach ($headers as $key => $value) {
+            if ($value === '' || !str_starts_with($key, 'GNU.dumpdir')) {
+                continue;
+            }
+
+            $records = array_merge(
+                $records,
+                self::parseIncrementalSnapshotDumpdirList($value, 'pax-gnu-dumpdir', "TAR PAX {$key} metadata")
+            );
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array{source:string, marker:string, name:string, action:string, raw:string}>
+     */
+    private static function parseIncrementalSnapshotDumpdirList(string $bytes, string $source, string $label): array
+    {
+        $separator = str_contains($bytes, "\0") ? "\0" : "\n";
+        $records = [];
+        foreach (explode($separator, $bytes) as $record) {
+            $record = trim($record, "\r\n");
+            if ($record === '') {
+                continue;
+            }
+
+            $marker = $record[0];
+            $name = substr($record, 1);
+            if ($name === '') {
+                throw new \RuntimeException("{$label} contains an empty incremental member name");
+            }
+
+            $action = self::incrementalSnapshotAction($marker, $label);
+            self::assertSafePath($name, "{$label} member name");
+            $records[] = [
+                'source' => $source,
+                'marker' => $marker,
+                'name' => $name,
+                'action' => $action,
+                'raw' => $record,
+            ];
+        }
+
+        return $records;
+    }
+
+    private static function incrementalSnapshotAction(string $marker, string $label): string
+    {
+        return match ($marker) {
+            'Y' => 'present',
+            'N' => 'deleted',
+            'D' => 'directory',
+            'R' => 'renamed',
+            default => throw new \RuntimeException("{$label} contains unsupported incremental marker {$marker}"),
+        };
+    }
+
+    /**
+     * @param array<string, string> $headers
      * @return list<string>
      */
     private static function multiVolumePaxHeaderKeys(array $headers): array
@@ -2641,6 +3003,10 @@ final class TarArchive
 
             if (str_starts_with($key, 'GNU.volume.')) {
                 throw new \RuntimeException("TAR global PAX multi-volume header {$key} is not supported");
+            }
+
+            if (str_starts_with($key, 'GNU.dumpdir')) {
+                throw new \RuntimeException("TAR global PAX incremental snapshot header {$key} is not supported");
             }
         }
     }

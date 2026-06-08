@@ -384,11 +384,21 @@ final class PdfActionReviewExtractor
      */
     private function reviewActionFromDictionary(array $action, mixed $originalValue, ?string $type): ?array
     {
+        $malformedValueKeys = $this->dictionaryMalformedValueOperandKeySet($this->resolveValue($originalValue));
+
         if ($type === 'GoTo' && array_key_exists('D', $action)) {
+            if (isset($malformedValueKeys['D'])) {
+                return $this->malformedActionDictionaryReview('GoTo');
+            }
+
             return $this->localDestinationReview($action['D']);
         }
 
         if ($type === 'URI') {
+            if (isset($malformedValueKeys['URI'])) {
+                return $this->malformedActionDictionaryReview('URI');
+            }
+
             $uri = $this->stringOrNameValue($this->resolveValue($action['URI'] ?? null));
             if ($uri === null || trim($uri) === '') {
                 return null;
@@ -419,6 +429,10 @@ final class PdfActionReviewExtractor
         }
 
         if ($type === 'GoToR') {
+            if (isset($malformedValueKeys['F']) || isset($malformedValueKeys['D'])) {
+                return $this->malformedActionDictionaryReview('GoToR');
+            }
+
             $target = $this->remoteGoToTargetFromAction($action);
             if ($target === null) {
                 return null;
@@ -441,8 +455,16 @@ final class PdfActionReviewExtractor
         }
 
         if ($type === 'Launch') {
+            if (isset($malformedValueKeys['F']) || isset($malformedValueKeys['Win'])) {
+                return $this->malformedActionDictionaryReview('Launch');
+            }
+
             $file = $this->fileSpecValue($action['F'] ?? null);
             $win = $this->resolveDictionary($action['Win'] ?? null);
+            $winMalformedValueKeys = $this->dictionaryMalformedValueOperandKeySet($this->resolveValue($action['Win'] ?? null));
+            if ($file === null && isset($winMalformedValueKeys['F'])) {
+                return $this->malformedActionDictionaryReview('Launch');
+            }
             if ($file === null && $win !== null) {
                 $file = $this->fileSpecValue($win['F'] ?? null);
             }
@@ -473,18 +495,38 @@ final class PdfActionReviewExtractor
         }
 
         if ($type === 'Named') {
+            if (isset($malformedValueKeys['N'])) {
+                return $this->malformedActionDictionaryReview('Named');
+            }
+
             return $this->namedActionReview($action);
         }
 
         if ($type === 'ImportData') {
+            if (isset($malformedValueKeys['F'])) {
+                return $this->malformedActionDictionaryReview('ImportData');
+            }
+
             return $this->importDataActionReview($action);
         }
 
         if ($type === 'Hide') {
+            if (isset($malformedValueKeys['T']) || isset($malformedValueKeys['H'])) {
+                return $this->malformedActionDictionaryReview('Hide');
+            }
+
             return $this->hideActionReview($action);
         }
 
         if ($type === 'SubmitForm' || $type === 'ResetForm') {
+            if (
+                isset($malformedValueKeys['Fields'])
+                || isset($malformedValueKeys['Flags'])
+                || ($type === 'SubmitForm' && isset($malformedValueKeys['F']))
+            ) {
+                return $this->malformedActionDictionaryReview($type);
+            }
+
             return $this->formActionReview($action, $type);
         }
 
@@ -493,6 +535,11 @@ final class PdfActionReviewExtractor
         }
 
         return null;
+    }
+
+    private function malformedActionDictionaryReview(string $type): array
+    {
+        return $this->reviewAction($type, 'malformed-action-dictionary', null, null, null, [], [], null, null, null, null);
     }
 
     /**
@@ -2752,6 +2799,10 @@ final class PdfActionReviewExtractor
             return;
         }
 
+        if ($inheritedLimits === null && $this->nameTreeNodeHasMalformedRootLimits($node)) {
+            return;
+        }
+
         $kids = $this->resolveArray($node['Kids'] ?? null) ?? [];
         if ($kids !== [] && $this->nameTreeLocalLimitsDisjointFromInherited($node, $inheritedLimits)) {
             return;
@@ -3010,6 +3061,15 @@ final class PdfActionReviewExtractor
             'lower_bytes' => $lower['bytes'],
             'upper_bytes' => $upper['bytes'],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function nameTreeNodeHasMalformedRootLimits(array $node): bool
+    {
+        return array_key_exists('Limits', $node)
+            && $this->nameTreeNodeLimits($node) === null;
     }
 
     /**

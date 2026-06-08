@@ -8565,6 +8565,7 @@ final class EpubReader
         $referenceCount = 0;
         $importReferenceCount = 0;
         $urlReferenceCount = 0;
+        $imageSetReferenceCount = 0;
         $fontFaceCount = 0;
         $reviewRequiredCount = 0;
 
@@ -8597,6 +8598,7 @@ final class EpubReader
                     'referenceCount' => 0,
                     'importReferenceCount' => 0,
                     'urlReferenceCount' => 0,
+                    'imageSetReferenceCount' => 0,
                     'fontFaceCount' => 0,
                     'reviewFlags' => ['missing-references'],
                     'references' => [],
@@ -8612,9 +8614,12 @@ final class EpubReader
             $assetDiagnostics = [];
             $assetImportCount = 0;
             $assetUrlCount = 0;
+            $assetImageSetCount = 0;
             foreach ($references as $reference) {
                 if (($reference['kind'] ?? null) === 'import') {
                     ++$assetImportCount;
+                } elseif (($reference['kind'] ?? null) === 'image-set') {
+                    ++$assetImageSetCount;
                 } else {
                     ++$assetUrlCount;
                 }
@@ -8652,6 +8657,7 @@ final class EpubReader
                 'referenceCount' => count($references),
                 'importReferenceCount' => $assetImportCount,
                 'urlReferenceCount' => $assetUrlCount,
+                'imageSetReferenceCount' => $assetImageSetCount,
                 'fontFaceCount' => $assetFontFaceCount,
                 'reviewFlags' => $reviewFlags,
                 'references' => $references,
@@ -8661,6 +8667,7 @@ final class EpubReader
             $referenceCount += $item['referenceCount'];
             $importReferenceCount += $assetImportCount;
             $urlReferenceCount += $assetUrlCount;
+            $imageSetReferenceCount += $assetImageSetCount;
             $fontFaceCount += $assetFontFaceCount;
             foreach ($assetDiagnostics as $diagnostic) {
                 $diagnostics[] = ['part' => $part] + $diagnostic;
@@ -8676,6 +8683,7 @@ final class EpubReader
             'referenceCount' => $referenceCount,
             'importReferenceCount' => $importReferenceCount,
             'urlReferenceCount' => $urlReferenceCount,
+            'imageSetReferenceCount' => $imageSetReferenceCount,
             'fontFaceCount' => $fontFaceCount,
             'externalReferenceCount' => count($externalReferences),
             'missingReferenceCount' => count($missingReferences),
@@ -8739,19 +8747,25 @@ final class EpubReader
                 'canExposeBytes' => $reference['canExposeBytes'],
                 'diagnostics' => $diagnostics,
             ];
+            foreach (['imageSetCandidateIndex', 'imageSetCandidate', 'imageSetDescriptor', 'imageSetType'] as $tokenKey) {
+                if (array_key_exists($tokenKey, $token)) {
+                    $references[array_key_last($references)][$tokenKey] = $token[$tokenKey];
+                }
+            }
         }
 
         return $references;
     }
 
     /**
-     * @return list<array{kind:string, href:string, raw:string}>
+     * @return list<array<string, mixed>>
      */
     private static function cssReferenceTokens(string $css): array
     {
         $tokens = [];
         $stripped = self::stripCssComments($css);
-        $importSpans = [];
+        $urlSkipSpans = [];
+        $sequence = 0;
         $importMatchCount = preg_match_all(
             '/@import\s+(?:url\(\s*)?(["\']?)([^"\'\)\s;]+)\1\s*\)?/i',
             $stripped,
@@ -8763,7 +8777,7 @@ final class EpubReader
                 $raw = (string) ($match[0][0] ?? '');
                 $start = is_int($match[0][1] ?? null) ? $match[0][1] : null;
                 if ($start !== null) {
-                    $importSpans[] = [$start, $start + strlen($raw)];
+                    $urlSkipSpans[] = [$start, $start + strlen($raw)];
                 }
 
                 $href = trim((string) ($match[2][0] ?? ''));
@@ -8775,6 +8789,25 @@ final class EpubReader
                     'kind' => 'import',
                     'href' => $href,
                     'raw' => $raw === '' ? $href : $raw,
+                    '_offset' => $start ?? 0,
+                    '_sequence' => $sequence++,
+                ];
+            }
+        }
+
+        foreach (self::cssImageSetFunctions($stripped) as $imageSet) {
+            $urlSkipSpans[] = [$imageSet['start'], $imageSet['end']];
+            foreach (self::cssImageSetCandidateTokens($imageSet['body']) as $candidate) {
+                $tokens[] = [
+                    'kind' => 'image-set',
+                    'href' => $candidate['href'],
+                    'raw' => $candidate['raw'],
+                    'imageSetCandidateIndex' => $candidate['index'],
+                    'imageSetCandidate' => $candidate['candidate'],
+                    'imageSetDescriptor' => $candidate['descriptor'],
+                    'imageSetType' => $candidate['type'],
+                    '_offset' => $imageSet['start'],
+                    '_sequence' => $sequence++,
                 ];
             }
         }
@@ -8784,7 +8817,7 @@ final class EpubReader
             foreach ($urls as $match) {
                 $start = is_int($match[0][1] ?? null) ? $match[0][1] : null;
                 if ($start !== null) {
-                    foreach ($importSpans as [$importStart, $importEnd]) {
+                    foreach ($urlSkipSpans as [$importStart, $importEnd]) {
                         if ($start >= $importStart && $start < $importEnd) {
                             continue 2;
                         }
@@ -8800,11 +8833,252 @@ final class EpubReader
                     'kind' => 'url',
                     'href' => $href,
                     'raw' => (string) ($match[0][0] ?? $href),
+                    '_offset' => $start ?? 0,
+                    '_sequence' => $sequence++,
                 ];
             }
         }
 
+        usort(
+            $tokens,
+            static fn (array $left, array $right): int => (($left['_offset'] ?? 0) <=> ($right['_offset'] ?? 0))
+                ?: (($left['_sequence'] ?? 0) <=> ($right['_sequence'] ?? 0))
+        );
+        foreach ($tokens as $index => $token) {
+            unset($token['_offset'], $token['_sequence']);
+            $tokens[$index] = $token;
+        }
+
         return $tokens;
+    }
+
+    /**
+     * @return list<array{body:string, raw:string, start:int, end:int}>
+     */
+    private static function cssImageSetFunctions(string $css): array
+    {
+        $functions = [];
+        $matchCount = preg_match_all(
+            '/(?:^|[^A-Za-z0-9_-])((?:-webkit-)?image-set)\s*\(/i',
+            $css,
+            $matches,
+            \PREG_SET_ORDER | \PREG_OFFSET_CAPTURE
+        );
+        if (!is_int($matchCount) || $matchCount === 0) {
+            return $functions;
+        }
+
+        foreach ($matches as $match) {
+            $functionName = (string) ($match[1][0] ?? '');
+            $functionStart = is_int($match[1][1] ?? null) ? $match[1][1] : null;
+            if ($functionName === '' || $functionStart === null) {
+                continue;
+            }
+
+            $open = strpos($css, '(', $functionStart + strlen($functionName));
+            if ($open === false) {
+                continue;
+            }
+
+            $close = self::cssMatchingParenOffset($css, $open);
+            if ($close === null) {
+                continue;
+            }
+
+            $functions[] = [
+                'body' => substr($css, $open + 1, $close - $open - 1),
+                'raw' => substr($css, $functionStart, $close - $functionStart + 1),
+                'start' => $functionStart,
+                'end' => $close + 1,
+            ];
+        }
+
+        return $functions;
+    }
+
+    private static function cssMatchingParenOffset(string $css, int $open): ?int
+    {
+        $length = strlen($css);
+        $depth = 0;
+        $quote = null;
+        $escaped = false;
+        for ($offset = $open; $offset < $length; ++$offset) {
+            $char = $css[$offset];
+            if ($quote !== null) {
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+                if ($char === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                ++$depth;
+                continue;
+            }
+            if ($char === ')') {
+                --$depth;
+                if ($depth === 0) {
+                    return $offset;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{index:int, href:string, raw:string, candidate:string, descriptor:?string, type:?string}>
+     */
+    private static function cssImageSetCandidateTokens(string $body): array
+    {
+        $tokens = [];
+        foreach (self::splitCssTopLevelCommaList($body) as $index => $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                continue;
+            }
+
+            $parsed = self::cssImageSetReferenceCandidate($candidate);
+            if ($parsed === null || preg_match('/^data:/i', $parsed['href']) === 1) {
+                continue;
+            }
+
+            $descriptor = trim($parsed['descriptor']);
+            $type = null;
+            if (preg_match('/\btype\(\s*(["\']?)(.*?)\1\s*\)/i', $descriptor, $typeMatch) === 1) {
+                $type = trim((string) ($typeMatch[2] ?? ''));
+                $type = $type === '' ? null : $type;
+            }
+
+            $tokens[] = [
+                'index' => $index,
+                'href' => $parsed['href'],
+                'raw' => $parsed['raw'],
+                'candidate' => $candidate,
+                'descriptor' => $descriptor === '' ? null : $descriptor,
+                'type' => $type,
+            ];
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitCssTopLevelCommaList(string $value): array
+    {
+        $items = [];
+        $start = 0;
+        $length = strlen($value);
+        $depth = 0;
+        $quote = null;
+        $escaped = false;
+
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $char = $value[$offset];
+            if ($quote !== null) {
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+                if ($char === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                ++$depth;
+                continue;
+            }
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+            if ($char === ',' && $depth === 0) {
+                $items[] = substr($value, $start, $offset - $start);
+                $start = $offset + 1;
+            }
+        }
+
+        $items[] = substr($value, $start);
+
+        return $items;
+    }
+
+    /**
+     * @return array{href:string, raw:string, descriptor:string}|null
+     */
+    private static function cssImageSetReferenceCandidate(string $candidate): ?array
+    {
+        if (preg_match('/^url\(\s*(["\']?)(.*?)\1\s*\)(.*)$/is', $candidate, $match) === 1) {
+            $href = trim((string) ($match[2] ?? ''));
+            if ($href === '') {
+                return null;
+            }
+
+            return [
+                'href' => $href,
+                'raw' => trim((string) ($match[0] ?? $href)),
+                'descriptor' => trim((string) ($match[3] ?? '')),
+            ];
+        }
+
+        $first = $candidate[0] ?? '';
+        if ($first !== '"' && $first !== "'") {
+            return null;
+        }
+
+        $length = strlen($candidate);
+        $escaped = false;
+        for ($offset = 1; $offset < $length; ++$offset) {
+            $char = $candidate[$offset];
+            if ($escaped) {
+                $escaped = false;
+                continue;
+            }
+            if ($char === '\\') {
+                $escaped = true;
+                continue;
+            }
+            if ($char !== $first) {
+                continue;
+            }
+
+            $href = trim(substr($candidate, 1, $offset - 1));
+            if ($href === '') {
+                return null;
+            }
+
+            return [
+                'href' => $href,
+                'raw' => substr($candidate, 0, $offset + 1),
+                'descriptor' => trim(substr($candidate, $offset + 1)),
+            ];
+        }
+
+        return null;
     }
 
     private static function stripCssComments(string $css): string

@@ -829,7 +829,7 @@ final class DocxReader
         $previousStyles = $this->currentStyles;
         $this->currentStyles = $styles;
         try {
-            $this->noteReferenceState = $this->newNoteReferenceState($this->bodyNoteNumberingPolicies($body));
+            $this->noteReferenceState = $this->newNoteReferenceState([]);
             $blocks = $this->bodyChildren(
                 $body,
                 $package,
@@ -856,11 +856,11 @@ final class DocxReader
     }
 
     /**
-     * @return array{footnote?:array<string, int|string>, endnote?:array<string, int|string>}
+     * @return list<array{footnote?:array<string, int|string>, endnote?:array<string, int|string>}>
      */
-    private function bodyNoteNumberingPolicies(\DOMElement $body): array
+    private function bodyNoteNumberingPolicySequence(\DOMElement $body): array
     {
-        $policies = [];
+        $sections = [];
         foreach ($body->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
@@ -868,10 +868,7 @@ final class DocxReader
 
             $sectionProperties = null;
             if ($this->isWordElement($child, 'p')) {
-                $paragraphProperties = $this->firstChildElement($child, self::WORDPROCESSINGML_NS, 'pPr');
-                $sectionProperties = $paragraphProperties instanceof \DOMElement
-                    ? $this->firstChildElement($paragraphProperties, self::WORDPROCESSINGML_NS, 'sectPr')
-                    : null;
+                $sectionProperties = $this->paragraphSectionProperties($child);
             } elseif ($this->isWordElement($child, 'sectPr')) {
                 $sectionProperties = $child;
             }
@@ -880,18 +877,39 @@ final class DocxReader
                 continue;
             }
 
-            $footnoteProperties = $this->sectionNoteProperties($sectionProperties, 'footnotePr');
-            if ($footnoteProperties !== []) {
-                $policies['footnote'] = $footnoteProperties;
-            }
+            $sections[] = $this->sectionNoteNumberingPolicies($sectionProperties);
+        }
 
-            $endnoteProperties = $this->sectionNoteProperties($sectionProperties, 'endnotePr');
-            if ($endnoteProperties !== []) {
-                $policies['endnote'] = $endnoteProperties;
-            }
+        return $sections;
+    }
+
+    /**
+     * @return array{footnote?:array<string, int|string>, endnote?:array<string, int|string>}
+     */
+    private function sectionNoteNumberingPolicies(\DOMElement $sectionProperties): array
+    {
+        $policies = [];
+
+        $footnoteProperties = $this->sectionNoteProperties($sectionProperties, 'footnotePr');
+        if ($footnoteProperties !== []) {
+            $policies['footnote'] = $footnoteProperties;
+        }
+
+        $endnoteProperties = $this->sectionNoteProperties($sectionProperties, 'endnotePr');
+        if ($endnoteProperties !== []) {
+            $policies['endnote'] = $endnoteProperties;
         }
 
         return $policies;
+    }
+
+    private function paragraphSectionProperties(\DOMElement $paragraph): ?\DOMElement
+    {
+        $paragraphProperties = $this->firstChildElement($paragraph, self::WORDPROCESSINGML_NS, 'pPr');
+
+        return $paragraphProperties instanceof \DOMElement
+            ? $this->firstChildElement($paragraphProperties, self::WORDPROCESSINGML_NS, 'sectPr')
+            : null;
     }
 
     /**
@@ -926,6 +944,27 @@ final class DocxReader
         }
 
         return $state;
+    }
+
+    /**
+     * @param array{footnote?:array<string, int|string>, endnote?:array<string, int|string>} $policies
+     */
+    private function transitionNoteReferenceStateForSection(array $policies): void
+    {
+        $nextState = $this->newNoteReferenceState($policies);
+        foreach (['footnote', 'endnote'] as $sourceType) {
+            $policy = $nextState[$sourceType]['policy'] ?? null;
+            $previousNext = $this->noteReferenceState[$sourceType]['next'] ?? null;
+            if (
+                is_array($policy)
+                && ($policy['numberRestart'] ?? 'continuous') !== 'eachSect'
+                && is_int($previousNext)
+            ) {
+                $nextState[$sourceType]['next'] = $previousNext;
+            }
+        }
+
+        $this->noteReferenceState = $nextState;
     }
 
     /**
@@ -1297,6 +1336,12 @@ final class DocxReader
         $blocks = [];
         $pendingListParagraphs = [];
         $activeCommentRangeId = null;
+        $sectionNotePolicies = $this->isWordElement($container, 'body') ? $this->bodyNoteNumberingPolicySequence($container) : [];
+        $sectionNotePolicyIndex = 0;
+        if ($sectionNotePolicies !== []) {
+            $this->noteReferenceState = $this->newNoteReferenceState($sectionNotePolicies[0]);
+        }
+
         foreach ($container->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
@@ -1357,6 +1402,12 @@ final class DocxReader
                     $this->appendListParagraphs($blocks, $pendingListParagraphs);
                     array_push($blocks, ...$paragraphBlocks);
                 }
+                if ($sectionNotePolicies !== [] && $this->paragraphSectionProperties($child) instanceof \DOMElement) {
+                    $sectionNotePolicyIndex++;
+                    if (isset($sectionNotePolicies[$sectionNotePolicyIndex])) {
+                        $this->transitionNoteReferenceStateForSection($sectionNotePolicies[$sectionNotePolicyIndex]);
+                    }
+                }
                 continue;
             }
 
@@ -1387,6 +1438,14 @@ final class DocxReader
             if ($this->isWordElement($child, 'altChunk')) {
                 $this->appendListParagraphs($blocks, $pendingListParagraphs);
                 array_push($blocks, ...$this->alternativeFormatBlocks($child, $package, $relationships));
+                continue;
+            }
+
+            if ($sectionNotePolicies !== [] && $this->isWordElement($child, 'sectPr')) {
+                $sectionNotePolicyIndex++;
+                if (isset($sectionNotePolicies[$sectionNotePolicyIndex])) {
+                    $this->transitionNoteReferenceStateForSection($sectionNotePolicies[$sectionNotePolicyIndex]);
+                }
                 continue;
             }
 

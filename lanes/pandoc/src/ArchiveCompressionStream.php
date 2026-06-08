@@ -676,6 +676,57 @@ final class ArchiveCompressionStream
      *     tarBytes:string,
      *     uncompressedSize:int,
      *     entryCount:int,
+     *     incrementalEntryCount:int,
+     *     typeflagEntryCount:int,
+     *     paxMetadataEntryCount:int,
+     *     dumpdirRecordCount:int,
+     *     deletedRecordCount:int,
+     *     directoryRecordCount:int,
+     *     extractionPolicy:string,
+     *     entries:list<array{
+     *         name:string,
+     *         incrementalType:string,
+     *         incrementalHeaderFamilies:list<string>,
+     *         incrementalHeaderKeys:list<string>,
+     *         dumpdirRecordCount:int,
+     *         deletedRecordCount:int,
+     *         directoryRecordCount:int,
+     *         dumpdirRecords:list<array{source:string, marker:string, name:string, action:string, raw:string}>,
+     *         payloadSize:int,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectTarIncrementalSnapshotPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $tarBytes = self::decodeTarBytes($bytes, $format, $maxUncompressedBytes);
+        $policy = TarArchive::incrementalSnapshotPolicyPreflight($tarBytes);
+
+        return [
+            'format' => $format,
+            'tarBytes' => $tarBytes,
+            'uncompressedSize' => strlen($tarBytes),
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     tarBytes:string,
+     *     uncompressedSize:int,
+     *     entryCount:int,
      *     paxEntryCount:int,
      *     duplicatePaxEntryCount:int,
      *     duplicateKeywordCount:int,

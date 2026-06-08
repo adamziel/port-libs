@@ -2574,6 +2574,70 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
 
+    'preflights zip64 end of central directory accounting before package import' => static function (TestRunner $t) use ($buildZip64EndOfCentralDirectoryPackage, $buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZip64EndOfCentralDirectoryPackage();
+        $summary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($zip);
+        $eocdSummary = ZipPackage::endOfCentralDirectoryPreflight($zip);
+
+        $t->same(true, $summary['requiresZip64']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(true, $summary['hasZip64EndOfCentralDirectoryLocator']);
+        $t->same(true, $summary['hasZip64EndOfCentralDirectory']);
+        $t->same(['zip64-end-of-central-directory'], $summary['issues']);
+        $t->same($eocdSummary['eocdOffset'], $summary['eocdOffset']);
+        $t->same($eocdSummary['zip64EndOfCentralDirectoryLocatorOffset'], $summary['locatorOffset']);
+        $t->same($eocdSummary['zip64EndOfCentralDirectoryOffset'], $summary['recordOffset']);
+        $t->same(44, $summary['recordPayloadSize']);
+        $t->same(56, $summary['recordSize']);
+        $t->same(45, $summary['versionMadeBy']);
+        $t->same(45, $summary['versionNeededToExtract']);
+        $t->same(0, $summary['locatorDiskWithEndOfCentralDirectory']);
+        $t->same(1, $summary['locatorTotalDisks']);
+        $t->same(0, $summary['diskNumber']);
+        $t->same(0, $summary['centralDirectoryDisk']);
+        $t->same(1, $summary['diskEntryCount']);
+        $t->same(1, $summary['totalEntryCount']);
+        $t->same($eocdSummary['zip64TotalEntryCount'], $summary['totalEntryCount']);
+        $t->same($eocdSummary['zip64CentralDirectoryOffset'], $summary['centralDirectoryOffset']);
+        $t->same($eocdSummary['zip64CentralDirectorySize'], $summary['centralDirectorySize']);
+        $t->same($summary['centralDirectoryOffset'] + $summary['centralDirectorySize'], $summary['centralDirectoryEnd']);
+        $t->same($summary['recordOffset'], $summary['centralDirectoryEnd']);
+        $t->same(true, $summary['centralDirectoryEndMatchesRecordOffset']);
+        $t->same(true, $summary['isSingleDisk']);
+
+        $locatorOffset = $summary['locatorOffset'];
+        if ($locatorOffset === null) {
+            throw new \RuntimeException('Expected ZIP64 locator offset in fixture');
+        }
+        $mismatchedLocatorZip = substr_replace($zip, pack('V', 2), $locatorOffset + 16, 4);
+        $mismatchedLocatorSummary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($mismatchedLocatorZip);
+        $t->same(2, $mismatchedLocatorSummary['locatorTotalDisks']);
+        $t->same(false, $mismatchedLocatorSummary['isSingleDisk']);
+        $t->same([
+            'zip64-end-of-central-directory',
+            'zip64-split-archive',
+            'zip64-locator-total-disks-mismatch',
+        ], $mismatchedLocatorSummary['issues']);
+
+        $sentinelOnlyZip = $rewriteEndOfCentralDirectory($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>zip64 sentinel accounting</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]), [
+            'totalEntryCount' => 0xffff,
+            'centralDirectorySize' => 0xffffffff,
+        ]);
+        $sentinelOnlySummary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($sentinelOnlyZip);
+        $t->same(true, $sentinelOnlySummary['requiresZip64']);
+        $t->same(false, $sentinelOnlySummary['hasZip64EndOfCentralDirectoryLocator']);
+        $t->same(false, $sentinelOnlySummary['hasZip64EndOfCentralDirectory']);
+        $t->same(false, $sentinelOnlySummary['isSupportedByBoundedReader']);
+        $t->same(['zip64-end-of-central-directory-required'], $sentinelOnlySummary['issues']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($sentinelOnlyZip));
+    },
+
     'decodes cp437 zip entry names and comments when utf8 flag is absent' => static function (TestRunner $t) use ($buildZipPackage): void {
         $rawName = "word/media/caf\x82.png";
         $decodedName = "word/media/caf\u{00e9}.png";

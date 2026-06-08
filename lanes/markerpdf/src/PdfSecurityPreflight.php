@@ -332,6 +332,12 @@ final class PdfSecurityPreflight
             $boundary = $cryptFilterTextBoundary;
             $source = 'standard_security_handler_crypt_filter_preflight';
         }
+        $encryptDictionaryPermissionReview = $this->encryptDictionaryPermissionReview(
+            $encryption,
+            $policy,
+            $boundary,
+            $permissionBitsReliable
+        );
 
         return [
             'source' => $source,
@@ -445,6 +451,10 @@ final class PdfSecurityPreflight
             'encrypt_trailing_operand_name' => $encryption['encrypt_trailing_operand_name'] ?? null,
             'encrypt_trailing_operand_object_number' => $encryption['encrypt_trailing_operand_object_number'] ?? null,
             'encrypt_trailing_operand_generation' => $encryption['encrypt_trailing_operand_generation'] ?? null,
+            'encrypt_dictionary_permission_review' => $encryptDictionaryPermissionReview,
+            'encrypt_dictionary_permission_status' => $encryptDictionaryPermissionReview['status'] ?? null,
+            'encrypt_dictionary_permission_fail_closed' => (bool) ($encryptDictionaryPermissionReview['fail_closed'] ?? false),
+            'encrypt_dictionary_permission_boundary' => $encryptDictionaryPermissionReview['content_extraction_boundary'] ?? null,
             'encrypt_metadata' => $encryption['encrypt_metadata'] ?? null,
             'encrypt_metadata_explicit' => (bool) ($encryption['encrypt_metadata_explicit'] ?? false),
             'encrypt_metadata_trusted' => (bool) ($encryption['encrypt_metadata_trusted'] ?? true),
@@ -512,6 +522,84 @@ final class PdfSecurityPreflight
             'raw_key_material_exposed' => false,
             'recipient_bytes_exposed' => false,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $encryption
+     * @return array<string, mixed>
+     */
+    private function encryptDictionaryPermissionReview(
+        array $encryption,
+        string $permissionPolicy,
+        string $contentExtractionBoundary,
+        bool $permissionBitsReliable
+    ): array {
+        $malformed = ($encryption['malformed_encrypt_dictionary'] ?? false) === true;
+        $resolved = array_key_exists('encrypt_dictionary_resolved', $encryption)
+            ? (bool) $encryption['encrypt_dictionary_resolved']
+            : null;
+        $operandStatus = is_string($encryption['encrypt_operand_status'] ?? null)
+            ? $encryption['encrypt_operand_status']
+            : null;
+        $operandShape = is_string($encryption['encrypt_operand_shape'] ?? null)
+            ? $encryption['encrypt_operand_shape']
+            : null;
+        $status = $malformed
+            ? match ($operandStatus) {
+                'duplicate_encrypt_dictionary_entries_review' => 'malformed_duplicate_encrypt_dictionary_entries',
+                'encrypt_dictionary_trailing_operand_review' => 'malformed_trailing_encrypt_operand',
+                'encrypt_dictionary_unresolved_reference' => 'malformed_unresolved_encrypt_reference',
+                'encrypt_dictionary_malformed_direct_dictionary' => 'malformed_direct_encrypt_dictionary',
+                'encrypt_dictionary_non_dictionary_operand' => 'malformed_non_dictionary_encrypt_operand',
+                default => 'malformed_encrypt_dictionary',
+            }
+            : ($resolved === true ? 'encrypt_dictionary_resolved_for_permission_preflight' : 'encrypt_dictionary_not_resolved_for_permission_preflight');
+        $review = [
+            'source' => 'encrypt_dictionary_permission_preflight',
+            'present' => $malformed || $resolved !== null || $operandStatus !== null,
+            'malformed_encrypt_dictionary' => $malformed,
+            'encrypt_dictionary_resolved' => $resolved,
+            'encrypt_operand_shape' => $operandShape,
+            'encrypt_operand_status' => $operandStatus,
+            'encrypt_operand_single_value' => $encryption['encrypt_operand_single_value'] ?? null,
+            'duplicate_encrypt_dictionary_entries' => false,
+            'encrypt_dictionary_declared_entry_count' => 0,
+            'encrypt_dictionary_resolved_entry_count' => 0,
+            'encrypt_dictionary_entry_statuses' => [],
+            'encrypt_dictionary_entry_shapes' => [],
+            'status' => $status,
+            'fail_closed' => $malformed,
+            'permission_policy' => $permissionPolicy,
+            'content_extraction_boundary' => $contentExtractionBoundary,
+            'permission_bits_reliable' => $malformed ? false : $permissionBitsReliable,
+            'review_only' => true,
+            'decryption_performed' => false,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        foreach ([
+            'object_number',
+            'object_generation',
+            'duplicate_encrypt_dictionary_entries',
+            'encrypt_dictionary_declared_entry_count',
+            'encrypt_dictionary_resolved_entry_count',
+            'encrypt_dictionary_entry_statuses',
+            'encrypt_dictionary_entry_shapes',
+            'encrypt_trailing_operand',
+            'encrypt_trailing_operand_shape',
+            'encrypt_trailing_operand_preview',
+            'encrypt_trailing_operand_name',
+            'encrypt_trailing_operand_object_number',
+            'encrypt_trailing_operand_generation',
+        ] as $key) {
+            if (array_key_exists($key, $encryption)) {
+                $review[$key] = $encryption[$key];
+            }
+        }
+
+        return $review;
     }
 
     /**

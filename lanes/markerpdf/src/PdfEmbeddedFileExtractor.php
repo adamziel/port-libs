@@ -1038,6 +1038,7 @@ final class PdfEmbeddedFileExtractor
                 $items = [trim($streamValues)];
             }
 
+            $hasFilenamePairs = $this->relatedFileItemsContainFilenamePairs($items, $objects);
             $relatedFileIndex = 0;
             for ($index = 0, $count = count($items); $index < $count; $index++) {
                 $relatedFilename = $this->stringValueFromRaw($items[$index], $objects);
@@ -1071,6 +1072,10 @@ final class PdfEmbeddedFileExtractor
                     }
                 }
 
+                if ($hasFilenamePairs) {
+                    continue;
+                }
+
                 $stream = $payloadEncrypted
                     ? $this->embeddedFileStreamReviewFromValue($items[$index], $objects)
                     : $this->embeddedFileStreamFromValue($items[$index], $objects);
@@ -1090,6 +1095,22 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<string> $items
+     * @param array<int, string> $objects
+     */
+    private function relatedFileItemsContainFilenamePairs(array $items, array $objects): bool
+    {
+        for ($index = 0, $count = count($items); $index + 1 < $count; $index++) {
+            $relatedFilename = $this->stringValueFromRaw($items[$index], $objects);
+            if ($relatedFilename !== null && $relatedFilename !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

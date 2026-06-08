@@ -713,6 +713,79 @@ XML);
             'relatedItems' => ['source-a'],
         ]]));
     },
+    'maps bounded biblatex related options into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@set{migration-review-set,
+  title    = {Migration Review Set},
+  date     = {2026-06-05},
+  entryset = {audit-paper}
+}
+
+@inproceedings{audit-paper,
+  options = {dataonly},
+  author  = {Smith, Ada},
+  title   = {Packet Audit Trails},
+  date    = {2026}
+}
+
+@book{related-options-manual,
+  author         = {Curator, Eli},
+  title          = {Related Options Manual},
+  date           = {2024},
+  related        = {migration-review-set},
+  relatedtype    = {companion},
+  relatedoptions = {skipbib=false, dataonly=false, useeditor=true}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same(['skipbib=false', 'dataonly=false', 'useeditor=true'], $items[1]['related-options'] ?? null);
+        $t->same('skipbib=false, dataonly=false, useeditor=true', $items[1]['rawBibtex']['fields']['relatedoptions'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('related-options-manual');
+        $t->same(['migration-review-set'], $manual['relatedKeys'] ?? null);
+        $t->same(['skipbib=false', 'dataonly=false', 'useeditor=true'], $manual['relatedOptions'] ?? null);
+        $t->same(
+            'Curator, Eli. Related Options Manual. 2024. Related source (companion): Migration Review Set (2026-06-05). Related options: skipbib=false; dataonly=false; useeditor=true.',
+            $processor->renderBibliographyEntry('related-options-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-options"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-options"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('Related Options Manual | skipbib=false, dataonly=false, useeditor=true', $styled->renderCitationCluster([$citation('related-options-manual', '[@related-options-manual]')]));
+        $t->same('Related Options Manual :: skipbib=false, dataonly=false, useeditor=true', $styled->renderBibliographyEntry('related-options-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-related-options',
+            'title' => 'Manual Related Options',
+            'related-options' => 'skipbib=true, useprefix=false',
+        ]])->item('manual-related-options');
+        $t->same(['skipbib=true', 'useprefix=false'], $direct['relatedOptions'] ?? null);
+
+        $document = (new MarkdownReader())->read('Related options source @related-options-manual keeps related-entry switches visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Related options source Curator (2024) keeps related-entry switches visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Related Options Manual. 2024. Related source (companion): Migration Review Set (2026-06-05). Related options: skipbib=false; dataonly=false; useeditor=true.</dd>', $blocks);
+    },
     'preserves bounded biblatex xref metadata without crossref inheritance' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{xref-dossier,
@@ -9712,6 +9785,89 @@ XML
         $t->same('3', $group instanceof AstNode ? ($group->children[0]->attr('cslItem')['citationNumber'] ?? null) : null);
         $t->same('1', $group instanceof AstNode ? ($group->children[1]->attr('cslItem')['citationNumber'] ?? null) : null);
         $t->same('2', $group instanceof AstNode ? ($group->children[2]->attr('cslItem')['citationNumber'] ?? null) : null);
+    },
+    'formats bounded csl citation-number text variables with number forms' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'zeta',
+                'type' => 'report',
+                'title' => 'Zeta Packet',
+                'author' => [
+                    ['family' => 'Zeta', 'given' => 'Zoe'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'alpha',
+                'type' => 'report',
+                'title' => 'Alpha Packet',
+                'author' => [
+                    ['family' => 'Alpha', 'given' => 'Ava'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'middle',
+                'type' => 'report',
+                'title' => 'Middle Packet',
+                'author' => [
+                    ['family' => 'Middle', 'given' => 'Mia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Citation Number Text Form Review Style</title>
+    <id>https://example.test/styles/bounded-citation-number-text-form-review</id>
+    <updated>2026-06-08T01:55:17+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <text variable="citation-number" form="ordinal"/>
+    </layout>
+  </citation>
+  <bibliography second-field-align="flush">
+    <sort>
+      <key variable="author"/>
+    </sort>
+    <layout delimiter=" ">
+      <text variable="citation-number" form="roman" display="left-margin" prefix="[" suffix="]"/>
+      <group display="right-inline" delimiter=". " suffix=".">
+        <names variable="author">
+          <name initialize-with=". " name-as-sort-order="all"/>
+        </names>
+        <text variable="title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('text', $summary['citationRendering'][0]['type'] ?? null);
+        $t->same('ordinal', $summary['citationRendering'][0]['form'] ?? null);
+        $t->same('roman', $summary['bibliographyRendering'][0]['form'] ?? null);
+        $t->same(
+            '(3rd; 1st; 2nd)',
+            $processor->renderCitationCluster([
+                new AstNode('citation', ['id' => 'zeta', 'text' => '[@zeta]']),
+                new AstNode('citation', ['id' => 'alpha', 'text' => '[@alpha]']),
+                new AstNode('citation', ['id' => 'middle', 'text' => '[@middle]']),
+            ])
+        );
+        $t->same('[iii] Zeta, Z. Zeta Packet. 2026.', $processor->renderBibliographyEntry('zeta'));
+
+        $document = (new MarkdownReader())->read('Text citation numbers [@zeta; @alpha; @middle] keep CSL text forms.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Numbered Sources'));
+        $t->contains('<p>Text citation numbers (3rd; 1st; 2nd) keep CSL text forms.</p>', $blocks);
+        $t->contains('<dt>Alpha 2024</dt><dd><div class="csl-entry"><div class="csl-left-margin">[i]</div><div class="csl-right-inline">Alpha, A. Alpha Packet. 2024.</div></div></dd>', $blocks);
+        $t->contains('<dt>Middle 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin">[ii]</div><div class="csl-right-inline">Middle, M. Middle Packet. 2025.</div></div></dd>', $blocks);
+        $t->contains('<dt>Zeta 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">[iii]</div><div class="csl-right-inline">Zeta, Z. Zeta Packet. 2026.</div></div></dd>', $blocks);
     },
     'collapses bounded csl citation-number ranges for numeric styles' => static function (TestRunner $t): void {
         $items = [

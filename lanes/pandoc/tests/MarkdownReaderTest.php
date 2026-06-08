@@ -1905,6 +1905,48 @@ return [
         $t->same('anchor-provenance-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="anchor-provenance-body">Anchor provenance body</h1>', $blocks);
     },
+    'records pandoc yaml anchor provenance paths for explicit mapping keys' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Key anchor provenance **Packet**',
+            '? &source_key "source:key"',
+            ': metadata value',
+            'review:',
+            '  ? &review_uri [source, uri]',
+            '  : https://example.test/import#key-anchor',
+            '  flow: {? &flow_key "source:uri": https://example.test/import#flow-key, ? &flow_null "source:ticket"}',
+            '  labels: !!set',
+            '    ? &set_key [qa, true]',
+            '...',
+            '',
+            '# Key anchor provenance body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataAnchorProvenance', []);
+        $pairs = [];
+        foreach ($provenance as $entry) {
+            $pairs[] = ($entry['anchor'] ?? '') . "\0" . ($entry['path'] ?? '') . "\0" . ($entry['kind'] ?? '');
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Key anchor provenance **Packet**', $meta['title']);
+        $t->same('metadata value', $meta['source:key']);
+        $t->same('https://example.test/import#key-anchor', $meta['review']['[source, uri]']);
+        $t->same('https://example.test/import#flow-key', $meta['review']['flow']['source:uri']);
+        $t->true(array_key_exists('source:ticket', $meta['review']['flow']) && $meta['review']['flow']['source:ticket'] === null);
+        $t->true(array_key_exists('[qa, true]', $meta['review']['labels']) && $meta['review']['labels']['[qa, true]'] === null);
+        foreach ([
+            "&source_key\0/source:key\0scalar",
+            "&review_uri\0/review/[source, uri]\0sequence",
+            "&flow_key\0/review/flow/source:uri\0scalar",
+            "&flow_null\0/review/flow/source:ticket\0scalar",
+            "&set_key\0/review/labels/[qa, true]\0sequence",
+        ] as $expectedPair) {
+            $t->true(in_array($expectedPair, $pairs, true), 'missing YAML key anchor provenance ' . str_replace("\0", ' ', $expectedPair));
+        }
+        $t->same('key-anchor-provenance-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="key-anchor-provenance-body">Key anchor provenance body</h1>', $blocks);
+    },
     'maps pandoc yaml alias diagnostics without hiding metadata values' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

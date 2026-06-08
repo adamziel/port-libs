@@ -2204,7 +2204,60 @@ final class TableRecognizer
             ['columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes']
         );
 
-        return $this->canonicalizedRecognizedTableRowsColsContainer($table);
+        $table = $this->canonicalizedRecognizedTableRowsColsContainer($table);
+
+        return $this->withSavedTabledResultRowsColsCoordinateOrder($table);
+    }
+
+    /**
+     * Upstream tabled saved TableResult dictionaries keep table/cell bboxes in
+     * xyxy form, while row/column band arrays are emitted as x1,x2,y1,y2.
+     *
+     * @param array<string, mixed> $table
+     * @return array<string, mixed>
+     */
+    private function withSavedTabledResultRowsColsCoordinateOrder(array $table): array
+    {
+        if (!$this->isSavedTabledResultRecord($table)) {
+            return $table;
+        }
+
+        if (!$this->tableHasAnyScalarKey($table, $this->tableGeometryCoordinateOrderKeys('rows'))) {
+            $table['rows_bbox_order'] = 'x1_x2_y1_y2';
+        }
+        if (!$this->tableHasAnyScalarKey($table, $this->tableGeometryCoordinateOrderKeys('cols'))) {
+            $table['cols_bbox_order'] = 'x1_x2_y1_y2';
+        }
+
+        return $table;
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     */
+    private function isSavedTabledResultRecord(array $table): bool
+    {
+        if (!array_key_exists('pnum', $table) || !array_key_exists('tnum', $table)) {
+            return false;
+        }
+        if (isset($table['rows_source_alias']) || isset($table['cols_source_alias'])) {
+            return false;
+        }
+        foreach (['rows', 'cols', 'cells'] as $field) {
+            if (!isset($table[$field]) || !is_array($table[$field])) {
+                return false;
+            }
+        }
+
+        return $this->hasPositiveBboxValue($table['bbox'] ?? null)
+            && $this->hasPositiveBboxValue($table['image_bbox'] ?? null);
+    }
+
+    private function hasPositiveBboxValue(mixed $value): bool
+    {
+        $bbox = $this->bboxFromValue($value);
+
+        return $bbox !== null && $this->positiveArea($bbox) > 0.0;
     }
 
     /**

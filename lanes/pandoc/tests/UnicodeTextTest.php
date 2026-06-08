@@ -435,6 +435,42 @@ return [
         $t->same(["Audit Ti\u{00EA}\u{0301}ng", "  Vi\u{00EA}\u{0323}t tail"], $wrapped);
         $t->contains("<p>Gia \u{20AB} 20; \u{0110}\u{00F4}\u{0301}ng \u{01B0}u ti\u{00EA}n: \u{01A0}\u{0309}, \u{01B0}\u{0303}, a\u{0300}, e\u{0323}.</p>", $blocks);
     },
+    'detects declared html and xml charset labels before byte decoding' => static function (TestRunner $t): void {
+        $transport = UnicodeText::declaredCharset('<meta charset=windows-1258><p>x</p>', 'text/html; charset="windows-1257"');
+        $html = "<!doctype html><meta charset=windows-1258><p>Ti\xEA\xECng Vi\xEA\xF2t</p>";
+        $meta = UnicodeText::declaredCharset($html);
+        $decodedHtml = UnicodeText::decodeBytes($html, $meta['encoding']);
+        $httpEquivBytes = '<meta http-equiv="content-type" content="text/html; charset=iso-ir-199"><p>Celtic ' . "\xD0\xF0" . '</p>';
+        $httpEquiv = UnicodeText::declaredCharset($httpEquivBytes);
+        $decodedHttpEquiv = UnicodeText::decodeBytes($httpEquivBytes, $httpEquiv['encoding']);
+        $xmlBytes = "<?xml version=\"1.0\" encoding=\"ISO-8859-7\"?><root>\xD3\xF5\xED</root>";
+        $xml = UnicodeText::declaredCharset($xmlBytes);
+        $decodedXml = UnicodeText::decodeBytes($xmlBytes, $xml['encoding']);
+        $unknown = UnicodeText::declaredCharset('<meta charset="x-user-defined"><p>raw</p>');
+        $none = UnicodeText::declaredCharset('<p>No declaration</p>');
+
+        $t->same('content-type', $transport['source']);
+        $t->same('windows-1257', $transport['label']);
+        $t->same('windows-1257', $transport['encoding']);
+        $t->same([], $transport['diagnostics']);
+        $t->true(is_int($transport['offset']) && $transport['offset'] > 0, 'transport charset offset should point into the header value');
+        $t->same('html-meta-charset', $meta['source']);
+        $t->same('windows-1258', $meta['encoding']);
+        $t->same([], $meta['diagnostics']);
+        $t->contains("Ti\u{00EA}\u{0301}ng Vi\u{00EA}\u{0323}t", $decodedHtml['text']);
+        $t->same(10, UnicodeText::displayWidth("Ti\u{00EA}\u{0301}ng Vi\u{00EA}\u{0323}t"));
+        $t->same('html-meta-http-equiv', $httpEquiv['source']);
+        $t->same('iso-ir-199', $httpEquiv['label']);
+        $t->same('iso-8859-14', $httpEquiv['encoding']);
+        $t->contains('Celtic Ŵŵ', $decodedHttpEquiv['text']);
+        $t->same('xml-declaration', $xml['source']);
+        $t->same('iso-8859-7', $xml['encoding']);
+        $t->contains('Συν', $decodedXml['text']);
+        $t->same('utf-8', $unknown['encoding']);
+        $t->same('x-user-defined', $unknown['label']);
+        $t->same(['unknown-charset-label-defaulted-to-utf-8'], $unknown['diagnostics']);
+        $t->same(['encoding' => null, 'label' => null, 'source' => null, 'offset' => null, 'diagnostics' => []], $none);
+    },
     'decodes iso 8859 7 greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xC5\xEB\xEB\xE7\xED\xE9\xEA\xDC\n\n\xD3\xF5\xED\xF4\xDC\xEA\xF4\xE7\xF2 \xAB\xEA\xE5\xDF\xEC\xE5\xED\xEF\xBB \xAF \xA420; \xD4\xFC\xED\xEF\xF2 \xEA\xE1\xE9 \xEF\xF2.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-126');

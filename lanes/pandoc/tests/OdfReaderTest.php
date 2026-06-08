@@ -4128,6 +4128,53 @@ XML;
         $t->contains('![Recovered hero caption.](Pictures/hero.png "fig:Original hero title"){.odf-text-box-image-caption data-odf-text-box-caption="true" data-odf-text-box-frame-name="Captioned hero"}', $markdown);
         $t->contains('<img src="Pictures/hero.png" alt="Recovered hero caption." title="fig:Original hero title" class="odf-text-box-image-caption" data-odf-text-box-caption="true" data-odf-text-box-frame-name="Captioned hero"/>', $blocksHtml);
     },
+    'maps block-level ODT frame text-box image captions into figure handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithBlockTextBoxCaption = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <draw:frame draw:name="Block captioned hero">
+        <draw:text-box>
+          <text:p><draw:frame draw:name="Nested block hero"><draw:image xlink:href="Pictures/hero.png"><svg:title>Block hero title</svg:title><svg:desc>Block hero fallback alt</svg:desc></draw:image></draw:frame>Block-level recovered caption.</text:p>
+        </draw:text-box>
+      </draw:frame>
+      <text:p>Following paragraph remains separate.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithBlockTextBoxCaption));
+        $blocks = $result['document']->children;
+        $figure = $blocks[0];
+        $image = $figure->children[0];
+        $paragraph = $blocks[1];
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same(2, count($blocks));
+        $t->same('figure', $figure->type);
+        $t->same('Block-level recovered caption.', $figure->attr('caption'));
+        $t->same('image', $image->type);
+        $t->same('Pictures/hero.png', $image->attr('url'));
+        $t->same('Pictures/hero.png', $image->attr('sourcePart'));
+        $t->same(7, $image->attr('bytes'));
+        $t->same('Block-level recovered caption.', $image->attr('alt'));
+        $t->same('fig:Block hero title', $image->attr('title'));
+        $t->same(['odf-text-box-image-caption'], $image->attr('classes'));
+        $t->same('true', $image->attr('attributes')['data-odf-text-box-caption']);
+        $t->same('Block captioned hero', $image->attr('attributes')['data-odf-text-box-frame-name']);
+        $t->same('Block-level recovered caption.', $image->children[0]->attr('text'));
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Following paragraph remains separate.', $paragraph->attr('text'));
+        $t->contains('![Block-level recovered caption.](Pictures/hero.png "fig:Block hero title"){.odf-text-box-image-caption data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"}', $markdown);
+        $t->contains('<figure class="wp-block-image"><img src="Pictures/hero.png" alt="Block-level recovered caption." title="fig:Block hero title" class="odf-text-box-image-caption" data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"/><figcaption>Block-level recovered caption.</figcaption></figure>', $blocksHtml);
+    },
     'preserves ODT frame image dimensions for Markdown and WordPress handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSizedImages = <<<'XML'
 <office:document-content
