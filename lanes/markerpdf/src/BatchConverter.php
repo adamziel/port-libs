@@ -2993,7 +2993,15 @@ final class BatchConverter
         $parentConflict = $this->outputFolderParentConflict($absoluteOutputFolder);
         $targetBlocked = ($exists && !$isDirectory) || ($isSymlink && !$isDirectory);
         $parentBlocked = $parentConflict !== null;
-        $blocked = $targetBlocked || $parentBlocked;
+        $creationRequired = !$isDirectory;
+        $permissionPlan = $this->outputFolderCreationPermissionPlan(
+            $absoluteOutputFolder,
+            $creationRequired,
+            $targetBlocked,
+            $parentBlocked
+        );
+        $permissionBlocked = $permissionPlan['output_folder_parent_permission_blocked'];
+        $blocked = $targetBlocked || $parentBlocked || $permissionBlocked;
         $symlinkTargetExists = $isSymlink && $exists;
         $symlinkTargetType = $isSymlink
             ? ($symlinkTargetExists ? $this->filesystemPathType($absoluteOutputFolder) : 'missing')
@@ -3015,6 +3023,10 @@ final class BatchConverter
                 $errorClass = 'NotADirectoryError';
                 $errorMessage = "[Errno 20] Not a directory: '" . $absoluteOutputFolder . "'";
             }
+        } elseif ($permissionBlocked) {
+            $errorBoundary = 'output-folder-parent-permission-denied';
+            $errorClass = 'PermissionError';
+            $errorMessage = "[Errno 13] Permission denied: '" . $absoluteOutputFolder . "'";
         }
 
         return [
@@ -3033,9 +3045,10 @@ final class BatchConverter
             'output_folder_parent_conflict_path' => $parentConflict['path'] ?? null,
             'output_folder_parent_conflict_type' => $parentConflict['type'] ?? null,
             'output_folder_parent_creation_blocked' => $parentBlocked,
+            ...$permissionPlan,
             'upstream_creates_output_folder' => true,
             'native_plan_creates_output_folder' => false,
-            'output_folder_creation_required' => !$isDirectory,
+            'output_folder_creation_required' => $creationRequired,
             'output_folder_creation_call' => 'os.makedirs(out_folder, exist_ok=True)',
             'output_folder_creation_order' => 'after_list_input_files_before_chunk_files',
             'output_folder_creation_blocked' => $blocked,
@@ -3173,6 +3186,59 @@ final class BatchConverter
 
         if ($parent !== '' && (file_exists($parent) || is_link($parent)) && !is_dir($parent)) {
             return ['path' => $parent, 'type' => $this->filesystemPathType($parent)];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{output_folder_creation_permission_path: string|null, output_folder_creation_permission_path_type: string|null, output_folder_creation_parent_writable: bool|null, output_folder_creation_parent_searchable: bool|null, output_folder_parent_permission_blocked: bool}
+     */
+    private function outputFolderCreationPermissionPlan(
+        string $absoluteOutputFolder,
+        bool $creationRequired,
+        bool $targetBlocked,
+        bool $parentBlocked
+    ): array {
+        $permissionPath = null;
+        $permissionPathType = null;
+        $parentWritable = null;
+        $parentSearchable = null;
+        $permissionBlocked = false;
+
+        if ($creationRequired && !$targetBlocked && !$parentBlocked) {
+            $permissionPath = $this->nearestExistingOutputCreationParent($absoluteOutputFolder);
+            if ($permissionPath !== null) {
+                $permissionPathType = $this->filesystemPathType($permissionPath);
+                $parentWritable = is_writable($permissionPath);
+                $parentSearchable = is_executable($permissionPath);
+                $permissionBlocked = $permissionPathType === 'directory'
+                    && (!$parentWritable || !$parentSearchable);
+            }
+        }
+
+        return [
+            'output_folder_creation_permission_path' => $permissionPath,
+            'output_folder_creation_permission_path_type' => $permissionPathType,
+            'output_folder_creation_parent_writable' => $parentWritable,
+            'output_folder_creation_parent_searchable' => $parentSearchable,
+            'output_folder_parent_permission_blocked' => $permissionBlocked,
+        ];
+    }
+
+    private function nearestExistingOutputCreationParent(string $absoluteOutputFolder): ?string
+    {
+        $parent = dirname($absoluteOutputFolder);
+        while ($parent !== '' && $parent !== dirname($parent)) {
+            if (file_exists($parent) || is_link($parent)) {
+                return is_dir($parent) ? $parent : null;
+            }
+
+            $parent = dirname($parent);
+        }
+
+        if ($parent !== '' && is_dir($parent)) {
+            return $parent;
         }
 
         return null;
