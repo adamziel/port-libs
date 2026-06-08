@@ -75,6 +75,17 @@ typed-block-review:
     reviewer note is intentionally nulled
   invalid-priority: !!int >-
     not-a-number
+typed-sequence-review:
+  - !!int
+    0x2A
+  - !!bool >-
+    true
+  - !!timestamp
+    2026-06-08 12:34:56Z
+  - !!null |-
+    reviewer note is intentionally nulled
+  - !!int
+    not-a-number
 source-captured-at: !!timestamp 2026-06-05 06:46:51Z
 review-binary:
   note-bytes: !!binary "UmV2aWV3IG1ldGFkYXRh"
@@ -850,6 +861,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['typed-block-review']['invalid-priority'] ?? '') !== 'not-a-number') {
         throw new RuntimeException('YAML metadata self-test did not preserve invalid explicit block integer source text');
     }
+    if (($meta['typed-sequence-review'][0] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missing explicit nested sequence integer tag coercion');
+    }
+    if (($meta['typed-sequence-review'][1] ?? null) !== true) {
+        throw new RuntimeException('YAML metadata self-test missing explicit nested sequence bool tag coercion');
+    }
+    if (($meta['typed-sequence-review'][2] ?? '') !== '2026-06-08T12:34:56Z') {
+        throw new RuntimeException('YAML metadata self-test missing explicit nested sequence timestamp tag normalization');
+    }
+    if (!array_key_exists(3, $meta['typed-sequence-review'] ?? []) || $meta['typed-sequence-review'][3] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing explicit nested sequence null tag coercion');
+    }
+    if (($meta['typed-sequence-review'][4] ?? '') !== 'not-a-number') {
+        throw new RuntimeException('YAML metadata self-test did not preserve invalid explicit nested sequence integer source text');
+    }
     if (($meta['source-captured-at'] ?? '') !== '2026-06-05T06:46:51Z') {
         throw new RuntimeException('YAML metadata self-test missing explicit timestamp tag normalization');
     }
@@ -1066,6 +1092,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '/typed-block-review/priority' => ['number', 'int', '0x2A'],
         '/typed-block-review/captured-at' => ['timestamp', 'timestamp', '2026-06-08 10:15:30Z'],
         '/typed-block-review/withdrawn' => ['null', 'null', 'reviewer note is intentionally nulled'],
+        '/typed-sequence-review/0' => ['number', 'int', '0x2A'],
+        '/typed-sequence-review/1' => ['boolean', 'bool', 'true'],
+        '/typed-sequence-review/2' => ['timestamp', 'timestamp', '2026-06-08 12:34:56Z'],
+        '/typed-sequence-review/3' => ['null', 'null', 'reviewer note is intentionally nulled'],
         '/source-captured-at' => ['timestamp', 'timestamp', '2026-06-05 06:46:51Z'],
         '/typed-flow-review/elapsed' => ['number', 'int', '0:01:05'],
         '/boolean-synonym-flow-review/published' => ['boolean', null, 'y'],
@@ -1086,6 +1116,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (array_key_exists('/typed-block-review/invalid-priority', $yamlTypedScalarProvenance)) {
         throw new RuntimeException('YAML metadata self-test recorded invalid explicit block integer as a typed scalar');
+    }
+    if (array_key_exists('/typed-sequence-review/4', $yamlTypedScalarProvenance)) {
+        throw new RuntimeException('YAML metadata self-test recorded invalid explicit nested sequence integer as a typed scalar');
     }
     $yamlQuotedScalarProvenance = [];
     foreach ($yamlScalarProvenance as $entry) {

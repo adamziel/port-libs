@@ -1981,6 +1981,39 @@ return [
         $t->same(2, $safeSummary['knownHostSystemEntryCount']);
         $t->same(0, $safeSummary['unknownHostSystemEntryCount']);
         $t->same([], $safeSummary['unknownEntries']);
+
+        $rawZip = $buildZipPackage([
+            [
+                'name' => 'word/media/strong-unknown-host.bin',
+                'data' => 'raw creator host metadata should survive unsupported flags',
+                'method' => 0,
+                'flags' => 0x0840,
+                'versionMadeBy' => 0x3f14,
+            ],
+        ]);
+        $rawCreatorHosts = ZipPackage::creatorHostSystemPolicyPreflight($rawZip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($rawZip, 512, 20.0, 512);
+
+        $t->same(1, $rawCreatorHosts['entryCount']);
+        $t->same(0, $rawCreatorHosts['knownHostSystemEntryCount']);
+        $t->same(1, $rawCreatorHosts['unknownHostSystemEntryCount']);
+        $t->same(1, $rawCreatorHosts['blockedEntryCount']);
+        $t->same(false, $rawCreatorHosts['isSupportedByBoundedReader']);
+        $t->same(['unknown-creator-host-systems'], $rawCreatorHosts['issues']);
+        $t->same('word/media/strong-unknown-host.bin', $rawCreatorHosts['unknownEntries'][0]['name']);
+        $t->same(63, $rawCreatorHosts['unknownEntries'][0]['madeByHostSystem']);
+        $t->same('unknown', $rawCreatorHosts['unknownEntries'][0]['madeByHostSystemName']);
+        $t->same('blocked', $rawCreatorHosts['unknownEntries'][0]['policy']);
+        $t->same(['zip-unknown-creator-host-system'], $rawCreatorHosts['unknownEntries'][0]['diagnostics']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->same($rawCreatorHosts, $rawStrict['creatorHostSystems']);
+        $t->same(1, $rawStrict['encryption']['strongEncryptionEntryCount']);
+        $t->contains('unknown-creator-host-systems', implode(',', $rawStrict['diagnostics']));
+        $t->contains('encrypted-zip-entries', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
     },
 
     'preflights zip DOS hidden system and volume label attributes before media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {

@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'value-metadata-review', 'output-metadata-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'value-metadata-review', 'output-metadata-review', 'referrer-policy-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -1888,6 +1888,14 @@ final class Html5DomFragment
      */
     private static function normalizeIframeReferrerPolicyAttribute(string $value, array &$diagnostics): ?string
     {
+        return self::normalizeHtmlReferrerPolicyAttribute($value, 'iframe', $diagnostics);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlReferrerPolicyAttribute(string $value, string $tagName, array &$diagnostics): ?string
+    {
         $policy = strtolower(self::cleanHtmlMetadataAttribute($value));
         if (in_array($policy, [
             'no-referrer',
@@ -1904,12 +1912,32 @@ final class Html5DomFragment
 
         $diagnostics[] = [
             'code' => 'unsafe-attribute',
-            'tag' => 'iframe',
+            'tag' => $tagName,
             'attribute' => 'referrerpolicy',
             'value' => $policy,
         ];
 
         return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlReferrerPolicyReviewDiagnostic(array &$diagnostics, string $tagName): void
+    {
+        $diagnostics[] = [
+            'code' => 'referrer-policy-review',
+            'tag' => $tagName,
+            'attribute' => 'referrerpolicy',
+            'reason' => 'referrer-policy-preserved-as-review-metadata',
+        ];
+    }
+
+    private static function isHtmlElementReferrerPolicyAttribute(string $tagName, string $name, ?string $foreignContext): bool
+    {
+        return $foreignContext === null
+            && $name === 'referrerpolicy'
+            && in_array(strtolower($tagName), ['a', 'img'], true);
     }
 
     /**
@@ -2348,6 +2376,18 @@ final class Html5DomFragment
             }
         }
 
+        if ($element->hasAttribute('referrerpolicy')) {
+            $referrerPolicy = self::normalizeHtmlReferrerPolicyAttribute(
+                $element->getAttribute('referrerpolicy'),
+                'area',
+                $diagnostics
+            );
+            if ($referrerPolicy !== null) {
+                $attrs['data-pandoc-referrerpolicy'] = $referrerPolicy;
+                self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, 'area');
+            }
+        }
+
         return [[
             'type' => 'element',
             'name' => 'a',
@@ -2517,6 +2557,18 @@ final class Html5DomFragment
             $value = self::cleanHtmlMetadataAttribute($element->getAttribute($attributeName));
             if ($value !== '') {
                 $attrs[$attributeName] = $value;
+            }
+        }
+
+        if ($element->hasAttribute('referrerpolicy')) {
+            $referrerPolicy = self::normalizeHtmlReferrerPolicyAttribute(
+                $element->getAttribute('referrerpolicy'),
+                'link',
+                $diagnostics
+            );
+            if ($referrerPolicy !== null) {
+                $attrs['data-pandoc-referrerpolicy'] = $referrerPolicy;
+                self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, 'link');
             }
         }
 
@@ -3731,6 +3783,15 @@ final class Html5DomFragment
                 $translationState = self::normalizeHtmlTranslationStateAttribute($value, $tagName, $diagnostics);
                 if ($translationState !== null) {
                     $attrs['data-pandoc-translate-state'] = $translationState;
+                }
+                continue;
+            }
+
+            if ($mode === 'html' && self::isHtmlElementReferrerPolicyAttribute($tagName, $name, $foreignContext)) {
+                $referrerPolicy = self::normalizeHtmlReferrerPolicyAttribute($value, strtolower($tagName), $diagnostics);
+                if ($referrerPolicy !== null) {
+                    $attrs['data-pandoc-referrerpolicy'] = $referrerPolicy;
+                    self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, strtolower($tagName));
                 }
                 continue;
             }

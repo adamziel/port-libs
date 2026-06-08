@@ -3964,6 +3964,7 @@ XML;
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
   <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
   <Override PartName="/customXml/item1.xml" ContentType="application/xml"/>
   <Override PartName="/_xmlsignatures/sig-content-type.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
@@ -3996,6 +3997,12 @@ XML;
         $customXmlRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdCustomImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/custom.png"/>
+</Relationships>
+XML;
+
+        $settingsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSettingsImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/settings.png"/>
 </Relationships>
 XML;
 
@@ -4042,6 +4049,14 @@ XML;
         <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
       </ds:Transforms>
     </ds:Reference>
+    <ds:Reference URI="/word/_rels/settings.xml.rels?ContentType=application/xml%20bad">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdSettingsImage"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
   </ds:SignedInfo>
 </ds:Signature>
 XML;
@@ -4055,18 +4070,21 @@ XML;
             ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
             ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/settings.xml', 'data' => '<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/settings.xml.rels', 'data' => $settingsRelationshipsXml],
             ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
             ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $customXmlRelationshipsXml],
             ['name' => 'word/media/hero.png', 'data' => 'PNG'],
             ['name' => 'word/media/footnote.png', 'data' => 'PNG'],
             ['name' => 'word/media/comment.png', 'data' => 'PNG'],
             ['name' => 'word/media/custom.png', 'data' => 'PNG'],
+            ['name' => 'word/media/settings.png', 'data' => 'PNG'],
             ['name' => '_xmlsignatures/sig-content-type.xml', 'data' => $signatureXml],
         ]));
 
         $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-content-type.xml');
 
-        $t->same(5, count($transforms));
+        $t->same(6, count($transforms));
         $t->same('/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml', $transforms[0]['referenceUri']);
         $t->same('/word/_rels/document.xml.rels', $transforms[0]['relationshipPartName']);
         $t->same('application/vnd.openxmlformats-package.relationships+xml', $transforms[0]['referenceTargetContentType']);
@@ -4104,6 +4122,18 @@ XML;
         $t->same('/customXml/_rels/item1.xml.rels', $transforms[4]['relationshipPartName']);
         $t->same(['rIdCustomImage'], $transforms[4]['relationshipIds']);
         $t->contains('malformed percent escape', $transforms[4]['parseError'] ?? '');
+
+        $t->same('/word/_rels/settings.xml.rels?ContentType=application/xml%20bad', $transforms[5]['referenceUri']);
+        $t->same('/word/_rels/settings.xml.rels', $transforms[5]['relationshipPartName']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $transforms[5]['referenceTargetContentType']);
+        $t->same('application/xml bad', $transforms[5]['referenceContentType']);
+        $t->same(false, $transforms[5]['referenceContentTypeMatches']);
+        $t->same(false, $transforms[5]['valid']);
+        $t->same([
+            'invalid-reference-content-type-query',
+            'reference-content-type-mismatch',
+        ], $transforms[5]['issues']);
+        $t->same(['rIdSettingsImage'], $transforms[5]['relationshipIds']);
     },
     'preflights OPC signature relationship transform referenced relationship part content types' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

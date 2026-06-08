@@ -2627,7 +2627,12 @@ final class MarkdownReader
                 )
             );
             if ($multilineFlow !== null) {
-                $multilineFlow = $this->applyYamlExplicitScalarTagToParsedValue($multilineFlow, $tags);
+                $multilineFlow = $this->applyYamlExplicitScalarTagToSequenceItemValue(
+                    $multilineFlow,
+                    $tags,
+                    $itemPath,
+                    $sourceLine
+                );
                 $this->withYamlMetadataSourceLine(
                     $sourceLine,
                     function () use ($anchorName, $multilineFlow): void {
@@ -2661,7 +2666,7 @@ final class MarkdownReader
                         $blockScalarHeader['indent']
                     );
                 }
-                $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
+                $value = $this->applyYamlExplicitScalarTagToSequenceItemValue($value, $tags, $itemPath, $sourceLine);
                 $this->withYamlMetadataSourceLine(
                     $sourceLine,
                     function () use ($anchorName, $value): void {
@@ -2692,7 +2697,12 @@ final class MarkdownReader
                         )
                     )
                 );
-                $multiline = $this->applyYamlExplicitScalarTagToParsedValue($multiline, $tags);
+                $multiline = $this->applyYamlExplicitScalarTagToSequenceItemValue(
+                    $multiline,
+                    $tags,
+                    $itemPath,
+                    $sourceLine
+                );
                 $this->withYamlMetadataSourceLine(
                     $sourceLine,
                     function () use ($anchorName, $multiline): void {
@@ -2704,11 +2714,29 @@ final class MarkdownReader
             }
 
             if ($sourceValue === '') {
+                [$handledExplicitScalarChild, $explicitScalarChildValue] = $this->parseYamlExplicitScalarSequenceChildValue(
+                    $children,
+                    $childrenSourceLines,
+                    $tags,
+                    $itemPath,
+                    $sourceLine
+                );
+                if ($handledExplicitScalarChild) {
+                    $this->withYamlMetadataSourceLine(
+                        $sourceLine,
+                        function () use ($anchorName, $explicitScalarChildValue): void {
+                            $this->rememberYamlAnchor($anchorName, $explicitScalarChildValue);
+                        }
+                    );
+                    $items[] = $explicitScalarChildValue;
+                    continue;
+                }
+
                 $value = $this->withYamlMetadataPathSegment(
                     $itemPath,
                     fn (): mixed => $this->parseYamlIndentedValue($children, $childrenSourceLines, $collectionTag)
                 );
-                $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
+                $value = $this->applyYamlExplicitScalarTagToSequenceItemValue($value, $tags, $itemPath, $sourceLine);
                 $this->withYamlMetadataSourceLine(
                     $sourceLine,
                     function () use ($anchorName, $value): void {
@@ -2795,7 +2823,7 @@ final class MarkdownReader
                     )
                 );
                 $value = $this->parseYamlPlainMultilineScalar(array_merge([$sourceValue], $childLines));
-                $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
+                $value = $this->applyYamlExplicitScalarTagToSequenceItemValue($value, $tags, $itemPath, $sourceLine);
                 $this->withYamlMetadataSourceLine(
                     $sourceLine,
                     function () use ($anchorName, $value): void {
@@ -4736,6 +4764,82 @@ final class MarkdownReader
         }
 
         return $parsed;
+    }
+
+    /**
+     * @param list<string> $tags
+     */
+    private function applyYamlExplicitScalarTagToSequenceItemValue(
+        mixed $value,
+        array $tags,
+        string $itemPath,
+        ?int $sourceLine
+    ): mixed {
+        return $this->withYamlMetadataPathSegment(
+            $itemPath,
+            fn (): mixed => $this->withYamlMetadataSourceLine(
+                $sourceLine,
+                fn (): mixed => $this->applyYamlExplicitScalarTagToParsedValue($value, $tags)
+            )
+        );
+    }
+
+    /**
+     * @param list<string> $children
+     * @param list<int|null> $childrenSourceLines
+     * @param list<string> $tags
+     * @return array{0:bool, 1:mixed}
+     */
+    private function parseYamlExplicitScalarSequenceChildValue(
+        array $children,
+        array $childrenSourceLines,
+        array $tags,
+        string $itemPath,
+        ?int $sourceLine
+    ): array {
+        if ($this->yamlExplicitScalarTag($tags) === null) {
+            return [false, null];
+        }
+
+        $normalized = $this->stripYamlCommonIndent($children);
+        while ($normalized !== [] && trim($normalized[0]) === '') {
+            array_shift($normalized);
+            array_shift($childrenSourceLines);
+        }
+        while ($normalized !== [] && trim((string) end($normalized)) === '') {
+            array_pop($normalized);
+            array_pop($childrenSourceLines);
+        }
+
+        if ($normalized === [] || preg_match('/^-[ \t]?(.*)$/', $normalized[0]) === 1 || $this->startsWithYamlMapping($normalized)) {
+            return [false, null];
+        }
+
+        $source = count($normalized) === 1
+            ? trim($this->stripYamlTrailingComment($normalized[0]))
+            : $this->parseYamlPlainMultilineScalar($normalized);
+        $childSourceLine = $childrenSourceLines[0] ?? null;
+        $quotedStyle = count($normalized) === 1 ? $this->yamlQuotedScalarStyle($source) : null;
+        if ($quotedStyle !== null) {
+            $this->withYamlMetadataPathSegment(
+                $itemPath,
+                fn (): mixed => $this->withYamlMetadataSourceLine(
+                    $childSourceLine,
+                    fn (): mixed => $this->recordYamlQuotedScalarProvenance(
+                        $source,
+                        $quotedStyle,
+                        $childSourceLine,
+                        [],
+                        $this->yamlExplicitScalarTag($tags)
+                    )
+                )
+            );
+        }
+
+        return [
+            true,
+            $this->applyYamlExplicitScalarTagToSequenceItemValue($source, $tags, $itemPath, $sourceLine),
+        ];
     }
 
     private function parseYamlExplicitIntegerScalar(string $value): int|string

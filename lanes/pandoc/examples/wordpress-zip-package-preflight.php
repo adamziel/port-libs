@@ -1563,7 +1563,7 @@ $buildUnsupportedCompressionMethodBackedPackage = static function () use ($crc32
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
-$buildUnknownCreatorHostBackedPackage = static function () use ($crc32): string {
+$buildUnknownCreatorHostBackedPackage = static function (int $flags = 0x0800) use ($crc32): string {
     $name = 'word/media/unknown-host-review.bin';
     $data = "Unknown ZIP creator host metadata should stay reviewable\n";
     $crc = $crc32($data);
@@ -1572,7 +1572,7 @@ $buildUnknownCreatorHostBackedPackage = static function () use ($crc32): string 
         'VvvvvvVVVvv',
         0x04034b50,
         20,
-        0x0800,
+        $flags,
         0,
         0,
         0,
@@ -1589,7 +1589,7 @@ $buildUnknownCreatorHostBackedPackage = static function () use ($crc32): string 
         0x02014b50,
         0x3f14,
         20,
-        0x0800,
+        $flags,
         0,
         0,
         0,
@@ -2710,6 +2710,9 @@ try {
 }
 $unknownCreatorHostPackage = ZipPackage::fromString($buildUnknownCreatorHostBackedPackage());
 $unknownCreatorHostPreflight = $unknownCreatorHostPackage->creatorHostSystemPreflight();
+$rawUnknownCreatorHostBytes = $buildUnknownCreatorHostBackedPackage(0x0840);
+$unknownCreatorHostRawPolicy = ZipPackage::creatorHostSystemPolicyPreflight($rawUnknownCreatorHostBytes);
+$unknownCreatorHostRawStrict = ZipPackage::rawStrictImportPreflight($rawUnknownCreatorHostBytes, 4096, 100.0, 4096);
 $unknownCreatorHostRejected = false;
 try {
     $unknownCreatorHostPackage->assertKnownCreatorHostSystems();
@@ -4435,6 +4438,12 @@ if (in_array('--self-test', $argv, true)) {
         || ($unknownCreatorHostPreflight['unknownHostSystemEntryCount'] ?? null) !== 1
         || ($unknownCreatorHostPreflight['unknownEntries'][0]['madeByHostSystem'] ?? null) !== 63
         || ($unknownCreatorHostPreflight['unknownEntries'][0]['name'] ?? null) !== 'word/media/unknown-host-review.bin'
+        || ($unknownCreatorHostRawPolicy['unknownHostSystemEntryCount'] ?? null) !== 1
+        || ($unknownCreatorHostRawPolicy['blockedEntryCount'] ?? null) !== 1
+        || ($unknownCreatorHostRawPolicy['unknownEntries'][0]['policy'] ?? null) !== 'blocked'
+        || ($unknownCreatorHostRawStrict['canInstantiate'] ?? null) !== false
+        || ($unknownCreatorHostRawStrict['creatorHostSystems'] ?? null) !== $unknownCreatorHostRawPolicy
+        || !in_array('unknown-creator-host-systems', $unknownCreatorHostRawStrict['diagnostics'] ?? [], true)
     ) {
         throw new RuntimeException('Expected unknown ZIP creator host systems to stay blocked for reviewer import');
     }
@@ -5686,6 +5695,8 @@ echo 'zipDosHiddenSystemVolumeStrictPolicy=' . ($hiddenDosAttributeStrictRejecte
 echo 'zipDosHiddenSystemVolumeEntry=' . ($hiddenDosAttributePreflight['hiddenSystemOrVolumeLabelEntries'][0]['name'] ?? 'none') . "\n";
 echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";
 echo 'packageCreatorUnknownEntries=' . $packageCreatorHostPreflight['unknownHostSystemEntryCount'] . "\n";
+echo 'zipRawCreatorHostPolicy=' . ($unknownCreatorHostRawStrict['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawCreatorHostUnknownEntries=' . $unknownCreatorHostRawPolicy['unknownHostSystemEntryCount'] . "\n";
 echo 'packageExtraFields.duplicateEntryCount=' . $packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] . "\n";
 echo 'packageUnixOwners.ownerMetadataEntryCount=' . $packageUnixOwnerPreflight['ownerMetadataEntryCount'] . "\n";
 echo 'packagePathHierarchy.collisionEntryCount=' . $packagePathHierarchyPreflight['collisionEntryCount'] . "\n";

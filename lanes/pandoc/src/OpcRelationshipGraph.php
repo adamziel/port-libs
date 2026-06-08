@@ -3909,6 +3909,9 @@ final class OpcRelationshipGraph
             }
 
             $contentType = $value;
+            if (!OpcContentTypes::isValidContentType($value)) {
+                self::appendUniqueString($issues, 'invalid-reference-content-type-query');
+            }
         }
 
         return [

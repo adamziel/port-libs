@@ -4624,6 +4624,66 @@ return [
         $t->same('typed-block-scalar-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="typed-block-scalar-yaml-body">Typed block scalar YAML body</h1>', $blocks);
     },
+    'records pandoc yaml explicit typed nested sequence scalar provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Typed sequence scalar **Packet**',
+            'review-items:',
+            '  - !!int',
+            '    0x2A',
+            '  - !!bool >-',
+            '    true',
+            '  - !!timestamp',
+            '    2026-06-08 12:34:56Z',
+            '  - !!null |-',
+            '    reviewer note is intentionally nulled',
+            '  - !!int',
+            '    not-a-number',
+            '...',
+            '',
+            '# Typed sequence scalar YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataScalarProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Typed sequence scalar **Packet**', $meta['title']);
+        $t->same(42, $meta['review-items'][0]);
+        $t->same(true, $meta['review-items'][1]);
+        $t->same('2026-06-08T12:34:56Z', $meta['review-items'][2]);
+        $t->true(array_key_exists(3, $meta['review-items']) && $meta['review-items'][3] === null);
+        $t->same('not-a-number', $meta['review-items'][4]);
+        $t->same(false, array_key_exists('__yamlMetadataScalarProvenance', $meta));
+
+        $typed = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        $t->same(4, count($typed));
+        $t->same('number', $typed['/review-items/0']['scalarType'] ?? null);
+        $t->same('int', $typed['/review-items/0']['explicitTag'] ?? null);
+        $t->same('0x2A', $typed['/review-items/0']['source'] ?? null);
+        $t->same('4', $typed['/review-items/0']['sourceLine'] ?? null);
+        $t->same('boolean', $typed['/review-items/1']['scalarType'] ?? null);
+        $t->same('bool', $typed['/review-items/1']['explicitTag'] ?? null);
+        $t->same('true', $typed['/review-items/1']['source'] ?? null);
+        $t->same('6', $typed['/review-items/1']['sourceLine'] ?? null);
+        $t->same('timestamp', $typed['/review-items/2']['scalarType'] ?? null);
+        $t->same('timestamp', $typed['/review-items/2']['explicitTag'] ?? null);
+        $t->same('2026-06-08 12:34:56Z', $typed['/review-items/2']['source'] ?? null);
+        $t->same('8', $typed['/review-items/2']['sourceLine'] ?? null);
+        $t->same('null', $typed['/review-items/3']['scalarType'] ?? null);
+        $t->same('null', $typed['/review-items/3']['explicitTag'] ?? null);
+        $t->same('reviewer note is intentionally nulled', $typed['/review-items/3']['source'] ?? null);
+        $t->same('10', $typed['/review-items/3']['sourceLine'] ?? null);
+        $t->same(false, array_key_exists('/review-items/4', $typed));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('typed-sequence-scalar-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="typed-sequence-scalar-yaml-body">Typed sequence scalar YAML body</h1>', $blocks);
+    },
     'records pandoc yaml quoted scalar source provenance' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

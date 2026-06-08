@@ -3462,6 +3462,148 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     entryCount:int,
+     *     knownHostSystemEntryCount:int,
+     *     unknownHostSystemEntryCount:int,
+     *     blockedEntryCount:int,
+     *     hostSystems:list<array{id:int, name:string, isKnown:bool, entryCount:int}>,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     unknownEntries:list<array<string, mixed>>,
+     *     blockedEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function creatorHostSystemPolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before creator host systems can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $unknownEntries = [];
+        $blockedEntries = [];
+        $hostSystems = [];
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $versionMadeBy = self::readUInt16($bytes, $cursor + 4);
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $hostSystem = ($versionMadeBy >> 8) & 0xff;
+            $hostSystemName = self::creatorHostSystemName($hostSystem);
+            $isKnown = self::isKnownCreatorHostSystem($hostSystem);
+            $diagnostics = $isKnown ? [] : ['zip-unknown-creator-host-system'];
+            $issues = $isKnown ? [] : ['unknown-creator-host-system'];
+
+            if (!isset($hostSystems[$hostSystem])) {
+                $hostSystems[$hostSystem] = [
+                    'id' => $hostSystem,
+                    'name' => $hostSystemName,
+                    'isKnown' => $isKnown,
+                    'entryCount' => 0,
+                ];
+            }
+            $hostSystems[$hostSystem]['entryCount']++;
+
+            $entry = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'madeByHostSystem' => $hostSystem,
+                'madeByHostSystemName' => $hostSystemName,
+                'madeByVersion' => $versionMadeBy & 0xff,
+                'versionMadeBy' => $versionMadeBy,
+                'isKnown' => $isKnown,
+                'policy' => $diagnostics === [] ? 'metadata' : 'blocked',
+                'diagnostics' => $diagnostics,
+                'issues' => $issues,
+            ];
+            $entries[] = $entry;
+            if (!$isKnown) {
+                $unknownEntries[] = $entry;
+                $blockedEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            $index++;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($unknownEntries !== []) {
+            $issues[] = 'unknown-creator-host-systems';
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'knownHostSystemEntryCount' => count($entries) - count($unknownEntries),
+            'unknownHostSystemEntryCount' => count($unknownEntries),
+            'blockedEntryCount' => count($blockedEntries),
+            'hostSystems' => array_values($hostSystems),
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'unknownEntries' => $unknownEntries,
+            'blockedEntries' => $blockedEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     eocdOffset:int,
      *     diskNumber:int,
      *     centralDirectoryDisk:int,
@@ -4626,6 +4768,7 @@ final class ZipPackage
      *     archiveExtraDataRecords:?array<string, mixed>,
      *     encryption:?array<string, mixed>,
      *     compressionMethods:?array<string, mixed>,
+     *     creatorHostSystems:?array<string, mixed>,
      *     zip64ExtraFields:?array<string, mixed>,
      *     dataDescriptors:?array<string, mixed>,
      *     strictImport:?array<string, mixed>,
@@ -4707,6 +4850,7 @@ final class ZipPackage
                 'archiveExtraDataRecords' => null,
                 'encryption' => null,
                 'compressionMethods' => null,
+                'creatorHostSystems' => null,
                 'zip64ExtraFields' => null,
                 'dataDescriptors' => null,
                 'strictImport' => null,
@@ -4730,6 +4874,7 @@ final class ZipPackage
         $archiveExtraDataRecords = null;
         $encryption = null;
         $compressionMethods = null;
+        $creatorHostSystems = null;
         $zip64ExtraFields = null;
         $dataDescriptors = null;
         $strictImport = null;
@@ -4805,6 +4950,14 @@ final class ZipPackage
                 $addDiagnostics($compressionMethods['issues']);
             }
 
+            $creatorHostSystems = $runPreflight(
+                'creator-host-system-policy',
+                static fn (): array => self::creatorHostSystemPolicyPreflight($bytes)
+            );
+            if ($creatorHostSystems !== null && !$creatorHostSystems['isSupportedByBoundedReader']) {
+                $addDiagnostics($creatorHostSystems['issues']);
+            }
+
             $zip64ExtraFields = $runPreflight(
                 'zip64-extra-fields',
                 static fn (): array => self::zip64ExtraFieldPreflight($bytes)
@@ -4853,6 +5006,7 @@ final class ZipPackage
             ?? $splitArchive['entryCount']
             ?? $encryption['entryCount']
             ?? $compressionMethods['entryCount']
+            ?? $creatorHostSystems['entryCount']
             ?? $archiveExtraDataRecords['entryCount']
             ?? $zip64ExtraFields['entryCount']
             ?? $dataDescriptors['entryCount']
@@ -4880,6 +5034,7 @@ final class ZipPackage
             'archiveExtraDataRecords' => $archiveExtraDataRecords,
             'encryption' => $encryption,
             'compressionMethods' => $compressionMethods,
+            'creatorHostSystems' => $creatorHostSystems,
             'zip64ExtraFields' => $zip64ExtraFields,
             'dataDescriptors' => $dataDescriptors,
             'strictImport' => $strictImport,

@@ -3701,6 +3701,69 @@ return [
         $t->true(!str_contains($blocks, 'target='), 'Expected WordPress blocks to omit target attributes');
         $t->true(!str_contains($blocks, 'download='), 'Expected WordPress blocks to omit download attributes');
     },
+    'converts element referrer policies into inert reviewer metadata' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<link rel="canonical" href="./canonical.html" referrerpolicy="origin-when-cross-origin" title="Canonical policy">'
+            . '<p>'
+            . '<a href="./packet.html" referrerpolicy=" Strict-Origin ">packet</a>'
+            . '<img src="./cover.png" referrerpolicy="no-referrer" alt="Cover">'
+            . '<a href="./bad.html" referrerpolicy="bad policy">bad</a>'
+            . '<map name="review-map"><area href="./map.html" alt="map" referrerpolicy="unsafe-url"></map>'
+            . '</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/referrer-policy-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<a href="https://source.example.test/import/posts/canonical.html" data-pandoc-link-rel="canonical" title="Canonical policy" data-pandoc-referrerpolicy="origin-when-cross-origin">Canonical policy</a>'
+            . '<p><a href="https://source.example.test/import/posts/packet.html" data-pandoc-referrerpolicy="strict-origin">packet</a>'
+            . '<img src="https://source.example.test/import/posts/cover.png" data-pandoc-referrerpolicy="no-referrer" alt="Cover">'
+            . '<a href="https://source.example.test/import/posts/bad.html">bad</a>'
+            . '<a href="https://source.example.test/import/posts/map.html" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-alt="map" data-pandoc-referrerpolicy="unsafe-url">map</a></p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Canonical policypacketbadmap', $fragment->textContent());
+        $t->same(['a', 'img', 'p'], $summary['elementNames']);
+        $t->same(['area', 'base', 'link', 'map'], $summary['blockedTags']);
+        $t->same(['referrerpolicy'], $summary['filteredAttributes']);
+        $t->same([
+            'blocked-tag',
+            'blocked-tag',
+            'referrer-policy-review',
+            'referrer-policy-review',
+            'referrer-policy-review',
+            'unsafe-attribute',
+            'blocked-tag',
+            'blocked-tag',
+            'referrer-policy-review',
+        ], $policyDiagnostics);
+        $t->same('a', $nodes[0]['name']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/canonical.html',
+            'data-pandoc-link-rel' => 'canonical',
+            'title' => 'Canonical policy',
+            'data-pandoc-referrerpolicy' => 'origin-when-cross-origin',
+        ], $nodes[0]['attrs']);
+        $t->same('strict-origin', $nodes[1]['children'][0]['attrs']['data-pandoc-referrerpolicy']);
+        $t->same('no-referrer', $nodes[1]['children'][1]['attrs']['data-pandoc-referrerpolicy']);
+        $t->same('unsafe-url', $nodes[1]['children'][3]['attrs']['data-pandoc-referrerpolicy']);
+        $t->same('/migration/referrer-policy-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, ' referrerpolicy='), 'Expected live referrerpolicy attributes to be replaced by inert metadata');
+        $t->true(!str_contains($html, 'bad policy'), 'Expected invalid referrer policy values to stay hidden');
+        $t->true(!str_contains($blocks, ' referrerpolicy='), 'Expected WordPress blocks to omit live referrerpolicy attributes');
+    },
     'converts base target defaults into inert browsing-context metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<template><base target="inactive-frame"><a href="template-note.html">template note</a></template>'

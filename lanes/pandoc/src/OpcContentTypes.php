@@ -246,24 +246,33 @@ final class OpcContentTypes
         return strtolower($partName);
     }
 
-    private static function assertContentType(string $contentType): void
+    public static function isValidContentType(string $contentType): bool
     {
         if ($contentType === '' || preg_match('/[\x00-\x1F\x7F]/', $contentType) === 1) {
-            throw new \InvalidArgumentException('OPC content type must be a non-empty MIME type');
+            return false;
         }
 
         $token = '[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+';
         if (preg_match('/\A' . $token . '\/' . $token . '/', $contentType, $matches) !== 1 || $matches[0] === '') {
-            throw new \InvalidArgumentException('OPC content type must be a non-empty MIME type');
+            return false;
         }
 
         $rest = substr($contentType, strlen($matches[0]));
         while ($rest !== '') {
             if (preg_match('/\A\s*;\s*' . $token . '\s*=\s*(?:' . $token . '|"(?:[^"\\\\\x00-\x1F\x7F]|\\\\[\x20-\x7E])*")/', $rest, $parameter) !== 1) {
-                throw new \InvalidArgumentException('OPC content type must be a non-empty MIME type');
+                return false;
             }
 
             $rest = substr($rest, strlen($parameter[0]));
+        }
+
+        return true;
+    }
+
+    private static function assertContentType(string $contentType): void
+    {
+        if (!self::isValidContentType($contentType)) {
+            throw new \InvalidArgumentException('OPC content type must be a non-empty MIME type');
         }
     }
 
