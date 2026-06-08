@@ -10,7 +10,7 @@ use PortLibs\Pandoc\ZipPackage;
 
 $manifestXml = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
-  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:preferred-view-mode="edit"/>
   <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
@@ -240,6 +240,9 @@ return [
         }
         $t->same(OdfReader::MIMETYPE, $manifestByPath['/']['mediaType']);
         $t->same('1.3', $manifestByPath['/']['version']);
+        $t->same('edit', $manifestByPath['/']['preferredViewMode']);
+        $t->same('1.3', $document->attr('manifest')['version']);
+        $t->same('1.3', $result['importReport']['manifest']['version']);
         $t->same(true, $manifestByPath['content.xml']['exists']);
         $t->same('text/xml', $manifestByPath['styles.xml']['mediaType']);
         $t->same(true, $manifestByPath['Pictures/hero.png']['exists']);
@@ -257,6 +260,26 @@ return [
         $t->same(2, count($result['listStyles']));
         $t->same(5, $result['importReport']['manifest']['count']);
         $t->same(0, count($result['importReport']['manifest']['missingItems']));
+    },
+    'preserves ODT manifest version and preferred view mode provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithPreferredViewModes = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:preferred-view-mode="presentation-slide-show"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithPreferredViewModes));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+
+        $t->same('1.3', $result['document']->attr('manifest')['version']);
+        $t->same('1.3', $result['importReport']['manifest']['version']);
+        $t->same('edit', $manifestByPath['/']['preferredViewMode']);
+        $t->same('presentation-slide-show', $manifestByPath['Pictures/hero.png']['preferredViewMode']);
+        $t->same('presentation-slide-show', $result['media'][0]['preferredViewMode']);
+        $t->same('presentation-slide-show', $result['importReport']['media']['items'][0]['preferredViewMode']);
     },
     'preserves typed ODT meta user-defined fields for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $metaWithTypedUserDefined = <<<'XML'

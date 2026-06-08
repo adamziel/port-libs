@@ -31,6 +31,8 @@ final class OdfReader
     /** @var array<string, array<string, mixed>> */
     private array $manifestByPart = [];
 
+    private string $manifestVersion = '';
+
     /** @var array<string, array<string, mixed>> */
     private array $formControlsById = [];
 
@@ -89,6 +91,7 @@ final class OdfReader
             'title' => (string) ($metadata['title'] ?? ''),
             'manifest' => [
                 'mimetype' => self::MIMETYPE,
+                'version' => $this->manifestVersion === '' ? null : $this->manifestVersion,
                 'items' => $manifest,
             ],
             'styles' => [
@@ -136,6 +139,7 @@ final class OdfReader
                 'mimetype' => self::MIMETYPE,
                 'manifest' => [
                     'count' => count($manifest),
+                    'version' => $this->manifestVersion === '' ? null : $this->manifestVersion,
                     'items' => $manifest,
                     'missingItems' => array_values(array_filter(
                         $manifest,
@@ -293,6 +297,7 @@ final class OdfReader
             throw new \InvalidArgumentException('ODT manifest XML must use manifest:manifest as its root element');
         }
 
+        $this->manifestVersion = self::attr($root, self::MANIFEST_NS, 'version');
         $items = [];
         foreach (self::childElements($root, 'file-entry', self::MANIFEST_NS) as $entryElement) {
             $fullPath = self::attr($entryElement, self::MANIFEST_NS, 'full-path');
@@ -302,6 +307,7 @@ final class OdfReader
 
             $mediaType = self::attr($entryElement, self::MANIFEST_NS, 'media-type');
             $version = self::attr($entryElement, self::MANIFEST_NS, 'version');
+            $preferredViewMode = self::attr($entryElement, self::MANIFEST_NS, 'preferred-view-mode');
             $declaredSize = self::nullableInt(self::attr($entryElement, self::MANIFEST_NS, 'size'));
             $encryptionElement = self::firstChildElement($entryElement, 'encryption-data', self::MANIFEST_NS);
             $encrypted = $encryptionElement instanceof \DOMElement;
@@ -314,6 +320,7 @@ final class OdfReader
                 'part' => $part,
                 'mediaType' => $mediaType,
                 'version' => $version === '' ? null : $version,
+                'preferredViewMode' => $preferredViewMode === '' ? null : $preferredViewMode,
                 'exists' => $exists,
                 'byteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'crc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
@@ -7885,6 +7892,7 @@ final class OdfReader
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
+                'preferredViewMode' => $item['preferredViewMode'] ?? null,
                 'encrypted' => $encrypted,
                 'canExposeBytes' => !$encrypted,
                 'encryption' => $item['encryption'] ?? null,

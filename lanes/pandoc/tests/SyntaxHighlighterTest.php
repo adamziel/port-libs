@@ -58,6 +58,9 @@ return [
         $t->same('elixir', SyntaxHighlighter::normalizeLanguage('ex'));
         $t->same('elixir', SyntaxHighlighter::normalizeLanguage('exs'));
         $t->same('elixir', SyntaxHighlighter::normalizeLanguage('language-ex'));
+        $t->same('fennel', SyntaxHighlighter::normalizeLanguage('fennel'));
+        $t->same('fennel', SyntaxHighlighter::normalizeLanguage('fnl'));
+        $t->same('fennel', SyntaxHighlighter::normalizeLanguage('language-fennel-lang'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('graphviz'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('gv'));
         $t->same('apache', SyntaxHighlighter::normalizeLanguage('apache'));
@@ -3690,6 +3693,52 @@ return [
         $t->contains('<span class="kw">unit</span> <span class="kw">module</span> <span class="dt">Review</span><span class="op">;</span>', $directRaku['html']);
         $t->contains('<span class="kw">sub</span> <span class="fu">normalize</span><span class="op">(</span><span class="dt">Str</span> <span class="va">$title</span> <span class="op">--&gt;</span> <span class="dt">Str</span><span class="op">)</span> <span class="kw">is</span> <span class="kw">export</span>', $directRaku['html']);
         $t->contains('<span class="fu">say</span> <span class="va">$title</span><span class="op">.</span><span class="va">trim</span>', $directRaku['html']);
+    },
+    'highlights fennel review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[76] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Fennel review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $directFennel = $highlighter->highlight('(fn review [packet] (print (or packet.title "Untitled")))', 'fennel-lang');
+
+        $t->same('fnl', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('fennel', SyntaxHighlighter::normalizeLanguage('fennel'));
+        $t->same('fennel', SyntaxHighlighter::normalizeLanguage('fnl'));
+        $t->same('fennel', SyntaxHighlighter::normalizeLanguage('language-fennel-lang'));
+        $t->same('fennel', $highlighted['language']);
+        $t->same('fnl', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1180, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource fnl numberLines"><code class="sourceCode fennel" style="counter-reset: source-line 1179;">', $highlighted['html']);
+        $t->contains('<span id="fennel-review-1180"><a href="#fennel-review-1180"></a><span class="co">; Fennel WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">local</span> <span class="va">json</span> <span class="op">(</span><span class="fu">require</span> <span class="ot">:json</span><span class="op">))</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">fn</span> <span class="fu">normalize-title</span> <span class="op">[</span><span class="va">packet</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">let</span> <span class="op">[</span><span class="va">title</span> <span class="op">(</span><span class="kw">or</span> <span class="va">packet.title</span> <span class="st">&quot;Untitled&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="va">trimmed</span> <span class="op">(</span><span class="fu">string.gsub</span> <span class="va">title</span> <span class="st">&quot;^%s*(.-)%s*$&quot;</span> <span class="st">&quot;%1&quot;</span><span class="op">)]</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">if</span> <span class="op">(=</span> <span class="va">trimmed</span> <span class="st">&quot;&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">collect</span> <span class="op">[</span><span class="va">_</span> <span class="va">block</span> <span class="op">(</span><span class="fu">ipairs</span> <span class="va">packet.blocks</span><span class="op">)]</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">when</span> <span class="op">(not=</span> <span class="va">block.name</span> <span class="cn">nil</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="ot">:source-id</span> <span class="va">packet.source_id</span>', $highlighted['html']);
+        $t->contains('<span class="ot">:html</span> <span class="op">(</span><span class="fu">string.format</span> <span class="st">&quot;&lt;!-- wp:%s --&gt;%s&lt;!-- /wp:%s --&gt;&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="fu">print</span> <span class="op">(</span><span class="va">normalize-title</span> <span class="op">{</span><span class="ot">:title</span> <span class="st">&quot; Legacy &quot;</span> <span class="ot">:source_id</span> <span class="dv">42</span><span class="op">}))</span>', $highlighted['html']);
+        $t->contains('<!-- wp:html -->', $wordpressBlock);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<pre class="sourceCode numberSource fnl numberLines"><code class="sourceCode fennel" style="counter-reset: source-line 1179;">', $wordpressBlock);
+        $t->same('fennel', $directFennel['language']);
+        $t->same('fennel-lang', $directFennel['requestedLanguage']);
+        $t->contains('<span class="op">(</span><span class="kw">fn</span> <span class="fu">review</span> <span class="op">[</span><span class="va">packet</span><span class="op">]</span>', $directFennel['html']);
+        $t->contains('<span class="fu">print</span> <span class="op">(</span><span class="kw">or</span> <span class="va">packet.title</span> <span class="st">&quot;Untitled&quot;</span><span class="op">)))</span>', $directFennel['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

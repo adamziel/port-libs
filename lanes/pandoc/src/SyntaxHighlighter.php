@@ -101,6 +101,9 @@ final class SyntaxHighlighter
         'erlang-header' => 'erlang',
         'ex' => 'elixir',
         'exs' => 'elixir',
+        'fennel' => 'fennel',
+        'fennel-lang' => 'fennel',
+        'fnl' => 'fennel',
         'flutter' => 'dart',
         'fish' => 'fish',
         'fish-shell' => 'fish',
@@ -763,6 +766,7 @@ final class SyntaxHighlighter
             'elm' => $this->tokenizeElm($code),
             'elixir' => $this->tokenizeElixir($code),
             'erlang' => $this->tokenizeErlang($code),
+            'fennel' => $this->tokenizeFennel($code),
             'fish' => $this->tokenizeFish($code),
             'go' => $this->tokenizeGo($code),
             'graphql' => $this->tokenizeGraphql($code),
@@ -3047,6 +3051,29 @@ final class SyntaxHighlighter
             ['datatype', '/^[A-Z][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
             ['variable', '/^[A-Za-z*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*/'],
             ['operator', '/^(?:#\\(|#\\[|#\\{|,@|[{}()[\\]\'`.,])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeFennel(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^;[^\\n]*/'],
+            ['string', '/^\\[(=*)\\[[\\s\\S]*?\\]\\1\\]/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['attribute', '/^:[A-Za-z*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*/'],
+            ['keyword', '/^(?:accumulate|and|case|collect|do|each|eval-compiler|fn|for|global|icollect|if|lambda|let|local|macro|macros|match|not|or|partial|quote|set|set-forcibly|tset|try|values|var|when|while|λ)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['constant', '/^(?:false|nil|true)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['function', '/^(?:assert|error|ipairs|length|pairs|print|require|select|string\\.[A-Za-z_][A-Za-z0-9_-]*|table\\.[A-Za-z_][A-Za-z0-9_-]*|tonumber|tostring|type|view)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['datatype', '/^(?:boolean|function|number|string|table|thread|userdata)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['number', '/^-?(?:0[xX][0-9A-Fa-f]+|(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?)(?=$|[^A-Za-z0-9_])/'],
+            ['datatype', '/^[A-Z][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['function', '/^[A-Za-z*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*(?=\\s*\\[)/'],
+            ['operator', '/^(?:not=|~=|==|<=|>=|=>|->|=|<|>)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['variable', '/^[A-Za-z*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*/'],
+            ['operator', '/^(?:#\\{|#\\(|#\\[|[{}()[\\]\'`~@^.,#])/'],
         ]);
     }
 

@@ -11,14 +11,14 @@ use PortLibs\Pandoc\ZipPackage;
 
 $manifestXml = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
-  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:preferred-view-mode="edit"/>
   <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="Object%201/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>
   <manifest:file-entry manifest:full-path="Object%201/content.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="Pictures/source%20hero.png" manifest:media-type="image/png" manifest:size="2048">
+  <manifest:file-entry manifest:full-path="Pictures/source%20hero.png" manifest:media-type="image/png" manifest:size="2048" manifest:preferred-view-mode="presentation-slide-show">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="review-checksum">
       <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="review-iv"/>
       <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="1024" manifest:salt="review-salt"/>
@@ -459,6 +459,11 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['media'][0]['canExposeBytes'] ?? true) !== false) {
         throw new RuntimeException('Expected encrypted ODT media bytes to stay unavailable for import');
+    }
+    if (($result['document']->attr('manifest')['version'] ?? '') !== '1.3'
+        || (($result['manifest'][0]['preferredViewMode'] ?? '') !== 'edit')
+        || (($result['media'][0]['preferredViewMode'] ?? '') !== 'presentation-slide-show')) {
+        throw new RuntimeException('Expected ODT manifest version and preferred-view metadata to survive import review');
     }
     $imageNode = null;
     foreach ($result['document']->children as $block) {

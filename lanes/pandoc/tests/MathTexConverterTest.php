@@ -697,6 +697,31 @@ return [
         $t->true(!str_contains($combinedMathml, '<mi>\\longmapsto</mi>'));
         $t->true(!str_contains($combinedMathml, '<mi>\\blacklozenge</mi>'));
     },
+    'converts bounded texmath extended named and relation aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $identifierMathml = $converter->texToMathMl('\\beth + \\gimel + \\daleth + \\eth + \\imath + \\jmath + \\Finv + \\Game', true);
+        $orderMathml = $converter->texToMathMl('a \\leqq b + c \\geqq d + e \\lneqq f + g \\gneqq h + i \\lessgtr j + k \\gtrless l + m \\lll n + o \\ggg p');
+        $dottedMathml = $converter->texToMathMl('x \\doteq y + u \\Doteq v + p \\fallingdotseq q + r \\risingdotseq s + A \\triangleq B + C \\backsimeq D');
+        $negatedMathml = $converter->texToMathMl('P \\nsubseteq Q + R \\nsupseteq S + x \\nmid y + u \\nparallel v + A \\nprec B + C \\nsucceq D');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\beth + a \\leqq b + x \\nparallel y');
+        $combinedMathml = $identifierMathml . $orderMathml . $dottedMathml . $negatedMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $identifierMathml);
+        $t->contains('<mi>ℶ</mi><mo>+</mo><mi>ℷ</mi><mo>+</mo><mi>ℸ</mi><mo>+</mo><mi>ð</mi><mo>+</mo><mi>ı</mi><mo>+</mo><mi>ȷ</mi><mo>+</mo><mi>Ⅎ</mi><mo>+</mo><mi>⅁</mi>', $identifierMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\beth + \\gimel + \\daleth + \\eth + \\imath + \\jmath + \\Finv + \\Game</annotation>', $identifierMathml);
+        $t->contains('<mi>a</mi><mo>≦</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>≧</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>≨</mo><mi>f</mi><mo>+</mo><mi>g</mi><mo>≩</mo><mi>h</mi>', $orderMathml);
+        $t->contains('<mi>i</mi><mo>≶</mo><mi>j</mi><mo>+</mo><mi>k</mi><mo>≷</mo><mi>l</mi><mo>+</mo><mi>m</mi><mo>⋘</mo><mi>n</mi><mo>+</mo><mi>o</mi><mo>⋙</mo><mi>p</mi>', $orderMathml);
+        $t->contains('<mi>x</mi><mo>≐</mo><mi>y</mi><mo>+</mo><mi>u</mi><mo>≑</mo><mi>v</mi><mo>+</mo><mi>p</mi><mo>≒</mo><mi>q</mi><mo>+</mo><mi>r</mi><mo>≓</mo><mi>s</mi>', $dottedMathml);
+        $t->contains('<mi>A</mi><mo>≜</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>⋍</mo><mi>D</mi>', $dottedMathml);
+        $t->contains('<mi>P</mi><mo>⊈</mo><mi>Q</mi><mo>+</mo><mi>R</mi><mo>⊉</mo><mi>S</mi><mo>+</mo><mi>x</mi><mo>∤</mo><mi>y</mi><mo>+</mo><mi>u</mi><mo>∦</mo><mi>v</mi>', $negatedMathml);
+        $t->contains('<mi>A</mi><mo>⊀</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>⋡</mo><mi>D</mi>', $negatedMathml);
+        $t->contains('alttext="beth plus a less than over equal b plus x not parallel y"', $accessibleMathml);
+        $t->contains('intent="row(beth,plus,a,less_than_over_equal,b,plus,x,not_parallel,y)"', $accessibleMathml);
+        $t->true(!str_contains($combinedMathml, '<mi>\\beth</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\leqq</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\doteq</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\nsubseteq</mi>'));
+    },
     'converts bounded tex explicit operator limits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $limitsMathml = $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\prod\\limits^{N} q', true);

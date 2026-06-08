@@ -2429,7 +2429,7 @@ XML;
         $t->same(2, $result['document']->children[1]->attr('pageBreakCount'));
         $t->same('2 note', $result['document']->children[1]->attr('pageBreaks')[1]['label']);
     },
-    'builds EPUB page-break report from legacy NCX pageList when nav page-list is absent' => static function (TestRunner $t) use ($buildEpubPackage): void {
+    'builds EPUB page-break report from legacy NCX pageList when nav page-list is absent' => static function (TestRunner $t) use ($buildEpubPackage, $chapter1Xhtml): void {
         $tocOnlyNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
   <body>
@@ -2450,11 +2450,11 @@ XML;
       <content src="text/chapter1.xhtml#intro"/>
     </navPoint>
   </navMap>
-  <pageList id="print-pages">
-    <navLabel><text>Print page list</text></navLabel>
-    <pageTarget id="page-1" type="normal" value="1" playOrder="10">
-      <navLabel><text>1</text></navLabel>
-      <content src="text/chapter1.xhtml#page-1"/>
+  <pageList id="print-pages" class="legacy-pages print-pages" xml:lang="en" dir="ltr">
+    <navLabel id="print-pages-label" class="page-list-label"><text id="print-pages-title">Print page list</text></navLabel>
+    <pageTarget id="page-1" type="normal" value="1" playOrder="10" class="main-page first" xml:lang="fr" dir="rtl" aria-hidden="true">
+      <navLabel id="page-one-label" class="page-label"><text id="page-one-text">1</text></navLabel>
+      <content id="page-one-content" src="text/chapter1.xhtml#page-1" data-review="pagebreak"/>
     </pageTarget>
     <pageTarget id="page-appendix" type="front" value="iii" playOrder="11" class="frontmatter">
       <navLabel><text>iii</text></navLabel>
@@ -2479,12 +2479,37 @@ XML;
         ));
 
         $ncx = $result['ncx'];
+        $t->same(3, $ncx['pageListCount']);
+        $t->same(true, $ncx['pageListReport']['present']);
+        $t->same('print-pages', $ncx['pageListReport']['id']);
+        $t->same('legacy-pages print-pages', $ncx['pageListReport']['class']);
+        $t->same(['legacy-pages', 'print-pages'], $ncx['pageListReport']['classes']);
+        $t->same('en', $ncx['pageListReport']['language']);
+        $t->same('ltr', $ncx['pageListReport']['direction']);
+        $t->same('Print page list', $ncx['pageListReport']['title']);
+        $t->same(['class' => 'legacy-pages print-pages', 'dir' => 'ltr', 'id' => 'print-pages', 'lang' => 'en'], $ncx['pageListReport']['attributes']);
+        $t->same(3, $ncx['pageListReport']['itemCount']);
+        $t->same(1, $ncx['pageListReport']['diagnosticCount']);
+        $t->same('external-ncx-page-list-reference', $ncx['pageListDiagnostics'][0]['type']);
+        $t->same(2, $ncx['pageListDiagnostics'][0]['targetIndex']);
+        $t->same('page-remote', $ncx['pageListDiagnostics'][0]['targetId']);
         $t->same(3, count($ncx['pageList']));
         $t->same('page-1', $ncx['pageList'][0]['id']);
         $t->same('normal', $ncx['pageList'][0]['type']);
         $t->same('1', $ncx['pageList'][0]['value']);
         $t->same('10', $ncx['pageList'][0]['playOrder']);
+        $t->same('main-page first', $ncx['pageList'][0]['class']);
+        $t->same(['main-page', 'first'], $ncx['pageList'][0]['classes']);
+        $t->same('fr', $ncx['pageList'][0]['language']);
+        $t->same('rtl', $ncx['pageList'][0]['direction']);
+        $t->same(true, $ncx['pageList'][0]['hidden']);
         $t->same('/OEBPS/text/chapter1.xhtml#page-1', $ncx['pageList'][0]['target']);
+        $t->same(strlen($chapter1Xhtml), $ncx['pageList'][0]['byteLength']);
+        $t->same(hash('crc32b', $chapter1Xhtml), $ncx['pageList'][0]['crc32']);
+        $t->same(['aria-hidden' => 'true', 'class' => 'main-page first', 'dir' => 'rtl', 'id' => 'page-1', 'lang' => 'fr', 'playOrder' => '10', 'type' => 'normal', 'value' => '1'], $ncx['pageList'][0]['attributes']);
+        $t->same(['class' => 'page-label', 'id' => 'page-one-label'], $ncx['pageList'][0]['labelAttributes']);
+        $t->same(['id' => 'page-one-text'], $ncx['pageList'][0]['labelTextAttributes']);
+        $t->same(['data-review' => 'pagebreak', 'id' => 'page-one-content', 'src' => 'text/chapter1.xhtml#page-1'], $ncx['pageList'][0]['contentAttributes']);
         $t->same('frontmatter', $ncx['pageList'][1]['class']);
         $t->same(true, $ncx['pageList'][2]['external']);
         $t->same('external-ncx-page-list-reference', $ncx['pageList'][2]['diagnostics'][0]['type']);
@@ -2505,6 +2530,16 @@ XML;
         $t->same('page-1', $first['fragment']);
         $t->same('normal', $first['type']);
         $t->same(['normal'], $first['types']);
+        $t->same(['main-page', 'first'], $first['classes']);
+        $t->same('fr', $first['language']);
+        $t->same('rtl', $first['direction']);
+        $t->same(true, $first['hidden']);
+        $t->same(['data-review' => 'pagebreak', 'id' => 'page-one-content', 'src' => 'text/chapter1.xhtml#page-1'], $first['contentAttributes']);
+        $t->same(['id' => 'page-one-text'], $first['labelTextAttributes']);
+        $t->same(strlen($chapter1Xhtml), $first['byteLength']);
+        $t->same(hash('crc32b', $chapter1Xhtml), $first['crc32']);
+        $t->same(false, $first['encrypted']);
+        $t->same(true, $first['canExposeBytes']);
         $t->same('1', $first['value']);
         $t->same('10', $first['playOrder']);
         $t->same(0, $first['spineIndex']);

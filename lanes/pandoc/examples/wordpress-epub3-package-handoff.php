@@ -794,10 +794,11 @@ if (($argv[1] ?? '') === '--self-test') {
 XML;
     $ncxWithPageList = str_replace(
         '</ncx>',
-        '  <pageList id="print-pages">' . "\n"
-        . '    <pageTarget id="print-page-1" type="normal" value="1" playOrder="20">' . "\n"
-        . '      <navLabel><text>1</text></navLabel>' . "\n"
-        . '      <content src="text/chapter.xhtml#page-1"/>' . "\n"
+        '  <pageList id="print-pages" class="legacy-pages print-pages" xml:lang="en" dir="ltr">' . "\n"
+        . '    <navLabel id="print-pages-label"><text id="print-pages-title">Print pages</text></navLabel>' . "\n"
+        . '    <pageTarget id="print-page-1" type="normal" value="1" playOrder="20" class="legacy-page" xml:lang="en">' . "\n"
+        . '      <navLabel id="print-page-label"><text id="print-page-text">1</text></navLabel>' . "\n"
+        . '      <content id="print-page-content" src="text/chapter.xhtml#page-1" data-review="legacy-page-list"/>' . "\n"
         . '    </pageTarget>' . "\n"
         . '  </pageList>' . "\n"
         . '</ncx>',
@@ -812,11 +813,23 @@ XML;
     if (($ncxPageListResult['pageBreaks']['source'] ?? null) !== 'ncx-page-list') {
         throw new RuntimeException('Expected legacy NCX pageList to supply page-break metadata when nav page-list is absent');
     }
+    if (($ncxPageListResult['ncx']['pageListReport']['itemCount'] ?? null) !== 1 || ($ncxPageListResult['ncx']['pageListReport']['class'] ?? null) !== 'legacy-pages print-pages') {
+        throw new RuntimeException('Expected NCX pageList review report to preserve source list attributes');
+    }
     if (($ncxPageListResult['ncx']['pageList'][0]['value'] ?? null) !== '1' || ($ncxPageListResult['pageBreaks']['items'][0]['source'] ?? null) !== 'ncx') {
         throw new RuntimeException('Expected NCX pageTarget metadata to remain visible in the WordPress page-break handoff');
     }
+    if (($ncxPageListResult['ncx']['pageList'][0]['classes'] ?? []) !== ['legacy-page'] || ($ncxPageListResult['ncx']['pageList'][0]['byteLength'] ?? null) !== strlen($chapterXhtml)) {
+        throw new RuntimeException('Expected NCX pageTarget provenance to include classes and resolved package byte length');
+    }
+    if (($ncxPageListResult['ncx']['pageList'][0]['crc32'] ?? null) !== hash('crc32b', $chapterXhtml) || ($ncxPageListResult['ncx']['pageList'][0]['contentAttributes']['data-review'] ?? null) !== 'legacy-page-list') {
+        throw new RuntimeException('Expected NCX pageTarget content attributes and CRC to remain reviewable');
+    }
     if (($ncxPageListResult['document']->children[0]->attr('pageBreaks')[0]['playOrder'] ?? null) !== '20') {
         throw new RuntimeException('Expected WordPress spine block to expose NCX pageTarget playOrder metadata');
+    }
+    if (($ncxPageListResult['document']->children[0]->attr('pageBreaks')[0]['contentAttributes']['data-review'] ?? null) !== 'legacy-page-list' || ($ncxPageListResult['document']->children[0]->attr('pageBreaks')[0]['byteLength'] ?? null) !== strlen($chapterXhtml)) {
+        throw new RuntimeException('Expected WordPress spine block to expose NCX pageTarget resolved-byte provenance');
     }
     if (($result['guide']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB OPF guide text target to resolve to the source chapter');

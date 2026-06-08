@@ -478,6 +478,12 @@ if (!$rakuCodeBlock instanceof PortLibs\Pandoc\AstNode || $rakuCodeBlock->type !
 }
 $raku = $highlighter->highlightCodeBlock($rakuCodeBlock, 'breezedark');
 $rakuWordpressBlock = $highlighter->wordpressHtmlBlock($rakuCodeBlock, 'breezedark');
+$fennelCodeBlock = $document->children[76] ?? null;
+if (!$fennelCodeBlock instanceof PortLibs\Pandoc\AstNode || $fennelCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Fennel review code block');
+}
+$fennel = $highlighter->highlightCodeBlock($fennelCodeBlock, 'zenburn');
+$fennelWordpressBlock = $highlighter->wordpressHtmlBlock($fennelCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2084,6 +2090,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($rakuWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
         throw new RuntimeException('Expected Raku WordPress style metadata');
     }
+    if (($fennel['language'] ?? '') !== 'fennel') {
+        throw new RuntimeException('Expected Fennel language alias handoff');
+    }
+    if (($fennel['requestedLanguage'] ?? '') !== 'fnl') {
+        throw new RuntimeException('Expected FNL requested-language wrapper handoff');
+    }
+    if (($fennel['lineNumbering']['start'] ?? null) !== 1180) {
+        throw new RuntimeException('Expected Fennel source startFrom line-number handoff');
+    }
+    if (!str_contains($fennel['html'], '<span class="kw">fn</span> <span class="fu">normalize-title</span>')) {
+        throw new RuntimeException('Expected Fennel function declaration token handoff');
+    }
+    if (!str_contains($fennel['html'], '<span class="kw">collect</span> <span class="op">[</span><span class="va">_</span> <span class="va">block</span>')) {
+        throw new RuntimeException('Expected Fennel collect binding token handoff');
+    }
+    if (!str_contains($fennel['html'], '<span class="ot">:source-id</span> <span class="va">packet.source_id</span>')) {
+        throw new RuntimeException('Expected Fennel table keyword token handoff');
+    }
+    if (!str_contains($fennelWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected Fennel WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2179,6 +2206,7 @@ echo "csvHighlightedHtml:\n" . $csv['html'] . "\n";
 echo "erlangHighlightedHtml:\n" . $erlang['html'] . "\n";
 echo "objectiveCHighlightedHtml:\n" . $objectiveC['html'] . "\n";
 echo "rakuHighlightedHtml:\n" . $raku['html'] . "\n";
+echo "fennelHighlightedHtml:\n" . $fennel['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2245,4 +2273,5 @@ echo "csvWordpressBlock:\n" . $csvWordpressBlock . "\n";
 echo "erlangWordpressBlock:\n" . $erlangWordpressBlock . "\n";
 echo "objectiveCWordpressBlock:\n" . $objectiveCWordpressBlock . "\n";
 echo "rakuWordpressBlock:\n" . $rakuWordpressBlock . "\n";
+echo "fennelWordpressBlock:\n" . $fennelWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

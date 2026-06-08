@@ -1427,3 +1427,24 @@ multi sub blocks-to-html(ReviewPacket $packet where *.blocks.elems > 0) {
 
 say normalize-title(ReviewPacket.new(source-id => 42, title => " Legacy "));
 ```
+
+``` {.fnl #fennel-review .numberLines startFrom=1180}
+; Fennel WordPress import review helper
+(local json (require :json))
+
+(fn normalize-title [packet]
+  (let [title (or packet.title "Untitled")
+        trimmed (string.gsub title "^%s*(.-)%s*$" "%1")]
+    (if (= trimmed "")
+        "Untitled"
+        trimmed)))
+
+(fn packet->blocks [packet]
+  (collect [_ block (ipairs packet.blocks)]
+    (when (not= block.name nil)
+      {:source-id packet.source_id
+       :block-name (or block.name "core/paragraph")
+       :html (string.format "<!-- wp:%s -->%s<!-- /wp:%s -->" block.name block.content block.name)})))
+
+(print (normalize-title {:title " Legacy " :source_id 42}))
+```
