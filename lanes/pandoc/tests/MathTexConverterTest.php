@@ -375,6 +375,33 @@ return [
             new AstNode('raw_tex', ['tex' => '\\DeclareMathOperator{\\bad}{}']),
         ])));
     },
+    'captures starred declared math operators from markdown for mathml handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '\\DeclareMathOperator*{\\argreview}{arg\\,review}',
+            '',
+            '$\\argreview_{p_i \\in P}^{\\text{draft}} f(p_i)$',
+        ]));
+        $declaration = $document->children[0];
+        $math = $document->children[1]->children[0];
+        $macros = $converter->macroDefinitionsFromDocument($document);
+        $mathml = $converter->texToMathMl('\\argreview_{p_i \\in P}^{\\text{draft}} f(p_i)', true, $macros);
+        $readerMathml = $converter->mathMlFor($math);
+
+        $t->same('raw_tex', $declaration->type);
+        $t->same('DeclareMathOperator', $declaration->attr('command'));
+        $t->same('\\DeclareMathOperator*{\\argreview}{arg\\,review}', $declaration->attr('tex'));
+        $t->same([
+            'argreview' => ['arity' => 0, 'template' => '\\operatorname*{arg review}'],
+        ], $macros);
+        $t->same('math', $math->type);
+        $t->same('\\operatorname*{arg\\,review}_{p_i \\in P}^{\\text{draft}} f(p_i)', $math->attr('text'));
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+        $t->contains('<munderover><mi>arg review</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">\\argreview_{p_i \\in P}^{\\text{draft}} f(p_i)</annotation>', $mathml);
+        $t->contains('<munderover><mi>arg review</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover>', $readerMathml);
+        $t->true(!str_contains($mathml . $readerMathml, '<mi>\\argreview</mi>'));
+    },
     'rejects unsupported bounded tex macro definitions before mathml conversion' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 

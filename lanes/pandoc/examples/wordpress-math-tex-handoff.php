@@ -16,12 +16,15 @@ $markdown = <<<'MARKDOWN'
 \newcommand{\wptuple}[1]{\langle #1 \rangle}
 \newcommand{\wpreview}[2][draft]{#2 + #1}
 \DeclareMathOperator{\wpreviewscore}{review\,score}
+\DeclareMathOperator*{\wpargreview}{arg\,review}
 
 Reviewer equation $\wptuple{post_id,media_id}$ stays editable.
 
 Optional macro audit $\wpreview{p_i} + \wpreview[final]{m_i}$ stays editable.
 
 Declared operator audit $\wpreviewscore_i(p_i)$ stays semantic.
+
+Starred declared operator audit $\wpargreview_{p_i \in P}^{\text{draft}} f(p_i)$ stays semantic.
 
 Text alias audit $\mbox{review mode} + \textrm{media label} + \textbf{draft} + \textit{review} + \texttt{code_1} + \textsf{sans group}$ stays semantic.
 
@@ -177,6 +180,7 @@ $summary = [
     'macroExpandedMathml' => $converter->texToMathMl('\\wptuple{post_id,media_id}', false, $converter->macroDefinitionsFromDocument($document)),
     'optionalMacroMathml' => $converter->texToMathMl('\\wpreview{p_i} + \\wpreview[final]{m_i}', false, $converter->macroDefinitionsFromDocument($document)),
     'declaredOperatorMathml' => $converter->texToMathMl('\\wpreviewscore_i(p_i)', false, $converter->macroDefinitionsFromDocument($document)),
+    'starredDeclaredOperatorMathml' => $converter->texToMathMl('\\wpargreview_{p_i \\in P}^{\\text{draft}} f(p_i)', true, $converter->macroDefinitionsFromDocument($document)),
     'textAliasMathml' => $converter->texToMathMl('\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}'),
     'dotRelationSymbolAliasMathml' => $converter->texToMathMl('\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot'),
     'arrayClineMathml' => $converter->texToMathMl('\\begin{array}{l|c|r}p_i & m_i & 1 \\\\ \\cline{2-3} q_i & n_i & 2 \\\\ \\cline{1-1}\\cline{3-3} r_i & s_i & 3\\end{array}'),
@@ -260,6 +264,10 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Math TeX handoff self-test left declared operator macro unexpanded');
     }
 
+    if (str_contains($summary['starredDeclaredOperatorMathml'], '<mi>\\wpargreview</mi>')) {
+        throw new RuntimeException('Math TeX handoff self-test left starred declared operator macro unexpanded');
+    }
+
     if (str_contains($summary['allowBreakMathml'], '<mi>\\allowbreak</mi>')) {
         throw new RuntimeException('Math TeX handoff self-test emitted allowbreak as a literal identifier');
     }
@@ -289,7 +297,8 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<span class="math inline">\\(\\langle post_id,media_id \\rangle\\)</span>',
         '<span class="math inline">\\(\\wpreview{p_i} + \\wpreview[final]{m_i}\\)</span>',
-        '<span class="math inline">\\(\\wpreviewscore_i(p_i)\\)</span>',
+        '<span class="math inline">\\(\\operatorname{review\\,score}_i(p_i)\\)</span>',
+        '<span class="math inline">\\(\\operatorname*{arg\\,review}_{p_i \\in P}^{\\text{draft}} f(p_i)\\)</span>',
         '<span class="math inline">\\(\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}\\)</span>',
         '<span class="math inline">\\(\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot\\)</span>',
         '<span class="math display">\\[\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\sqrt[3]{x_i + y_i} + \\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c} + \\dfrac{q_i}{r_i} + \\genfrac{\\langle}{\\rangle}{0pt}{0}{n}{k} + \\widehat{\\operatorname{quality}} + \\vec{v}_i + \\begin{pmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{pmatrix} + \\begin{aligned}x_i &amp;= \\operatorname{score}(p_i) \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{aligned} + \\begin{array}{l|c|r}\\alpha &amp; \\beta &amp; \\omega \\\\ \\hline 1 &amp; 2 &amp; 3\\end{array} + \\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases} + \\forall p_i \\in P \\Rightarrow p_i \\notin \\emptyset + \\alpha \\times \\omega\\]</span>',
@@ -353,6 +362,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\wpreview{p_i} + \\wpreview[final]{m_i}</annotation>',
         '<msub><mi>review score</mi><mi>i</mi></msub><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>',
         '<annotation encoding="application/x-tex">\\wpreviewscore_i(p_i)</annotation>',
+        '<munderover><mi>arg review</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>',
+        '<annotation encoding="application/x-tex">\\wpargreview_{p_i \\in P}^{\\text{draft}} f(p_i)</annotation>',
         '<mtext>review mode</mtext><mo>+</mo><mstyle mathvariant="normal"><mtext>media label</mtext></mstyle>',
         '<mstyle mathvariant="bold"><mtext>draft</mtext></mstyle><mo>+</mo><mstyle mathvariant="italic"><mtext>review</mtext></mstyle>',
         '<mstyle mathvariant="monospace"><mtext>code_1</mtext></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mtext>sans group</mtext></mstyle>',

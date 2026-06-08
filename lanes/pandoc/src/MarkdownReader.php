@@ -8646,6 +8646,21 @@ final class MarkdownReader
     {
         if (
             preg_match(
+                '/^ {0,3}\\\\(DeclareMathOperator)(\*)?\{\\\\([A-Za-z]+)\}\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
+                $line,
+                $m
+            ) === 1
+        ) {
+            return [
+                'command' => $m[1],
+                'name' => $m[3],
+                'arity' => 0,
+                'template' => '\\operatorname' . (($m[2] ?? '') === '*' ? '*' : '') . '{' . $m[4] . '}',
+            ];
+        }
+
+        if (
+            preg_match(
                 '/^ {0,3}\\\\((?:re)?newcommand|providecommand)\{\\\\([A-Za-z]+)\}(?:\[(\d+)])?(?:\[[^\]\r\n]*])?\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
                 $line,
                 $m
