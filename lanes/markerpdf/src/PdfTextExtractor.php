@@ -18752,6 +18752,19 @@ final class PdfTextExtractor
         $end = $this->dctStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects) ?? $end;
         $end = $this->ccittFaxStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects) ?? $end;
         $end = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects) ?? $end;
+        if ($end !== null) {
+            $postCcittFilterTerminator = $this->postCcittFilterPayloadEndstreamTerminatorOffset(
+                $value,
+                $streamStart,
+                $dict,
+                $objects,
+                $end,
+                $end + strlen('endstream')
+            );
+            if ($postCcittFilterTerminator !== null) {
+                $end = $postCcittFilterTerminator;
+            }
+        }
         if ($end === null) {
             return null;
         }
@@ -30807,28 +30820,44 @@ final class PdfTextExtractor
                 }
 
                 $streamEnd = null;
+                $filterObjects = null;
                 if ($dict !== null) {
+                    $filterObjects = $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart);
                     $streamEnd = $this->filteredEndstreamTerminatorOffset(
                         $pdfBytes,
                         $streamStart,
                         $dict,
-                        $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
+                        $filterObjects
                     );
                     $streamEnd ??= $this->dctStreamEndstreamTerminatorOffset(
                         $pdfBytes,
                         $streamStart,
                         $dict,
-                        $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
+                        $filterObjects
                     );
                     $streamEnd ??= $this->ccittFaxStreamEndstreamTerminatorOffset(
                         $pdfBytes,
                         $streamStart,
                         $dict,
-                        $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
+                        $filterObjects
                     );
                     $streamEnd ??= $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict);
                 }
                 $streamEnd ??= $this->endstreamTerminatorOffset($pdfBytes, $streamStart, null);
+                if ($dict !== null && $streamEnd !== null) {
+                    $filterObjects ??= $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart);
+                    $postCcittFilterTerminator = $this->postCcittFilterObjectEndstreamTerminatorOffset(
+                        $pdfBytes,
+                        $streamStart,
+                        $dict,
+                        $filterObjects,
+                        $streamEnd,
+                        $streamEnd + strlen('endstream')
+                    );
+                    if ($postCcittFilterTerminator !== null) {
+                        $streamEnd = $postCcittFilterTerminator;
+                    }
+                }
                 if ($streamEnd !== null) {
                     $index = $streamEnd + strlen('endstream');
                     continue;
