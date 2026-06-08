@@ -333,8 +333,10 @@ final class UpstreamRunnerDependencyAudit
         'js-sources',
         'asm-sources',
         'cmm-sources',
+        'extra-bundled-libraries',
         'extra-libraries',
         'extra-lib-dirs',
+        'extra-lib-dirs-static',
         'include-dirs',
         'includes',
         'install-includes',
@@ -345,6 +347,11 @@ final class UpstreamRunnerDependencyAudit
         'ld-options',
         'cc-options',
         'cxx-options',
+        'asm-options',
+        'cmm-options',
+        'js-options',
+        'hsc2hs-options',
+        'c2hs-options',
     ];
 
     private const BENCHMARK_ARTIFACTS = [
@@ -3416,6 +3423,16 @@ final class UpstreamRunnerDependencyAudit
         return implode("\n", $lines);
     }
 
+    private static function stripCabalOptionLineComments(string $raw): string
+    {
+        $lines = [];
+        foreach (preg_split('/\R/', $raw) ?: [] as $line) {
+            $lines[] = preg_replace('/(^|\s)--(?:\s|$).*$/', '$1', $line) ?? $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
     private static function normalizeCabalProjectForUnconditionalAudit(string $raw): string
     {
         return self::stripCabalConditionalBlocks(self::stripCabalLineComments($raw));
@@ -3756,7 +3773,10 @@ final class UpstreamRunnerDependencyAudit
      */
     private static function extractCabalNativeSystemFieldItems(string $field, string $raw): array
     {
-        $raw = self::stripCabalLineComments($raw);
+        $optionsFields = ['ld-options', 'cc-options', 'cxx-options', 'asm-options', 'cmm-options', 'js-options', 'hsc2hs-options', 'c2hs-options'];
+        $raw = in_array($field, $optionsFields, true)
+            ? self::stripCabalOptionLineComments($raw)
+            : self::stripCabalLineComments($raw);
         if (trim($raw) === '') {
             return [];
         }
@@ -3768,8 +3788,8 @@ final class UpstreamRunnerDependencyAudit
                     $items[] = $item;
                 }
             }
-        } elseif (in_array($field, ['ld-options', 'cc-options', 'cxx-options'], true)) {
-            foreach (self::splitWords($raw) as $item) {
+        } elseif (in_array($field, $optionsFields, true)) {
+            foreach (self::splitWords($raw, false) as $item) {
                 if ($item !== '' && !in_array($item, $items, true)) {
                     $items[] = $item;
                 }
@@ -3831,9 +3851,11 @@ final class UpstreamRunnerDependencyAudit
     /**
      * @return list<string>
      */
-    private static function splitWords(string $raw): array
+    private static function splitWords(string $raw, bool $stripComments = true): array
     {
-        $raw = self::stripCabalLineComments($raw);
+        if ($stripComments) {
+            $raw = self::stripCabalLineComments($raw);
+        }
         $words = [];
         foreach (preg_split('/\s+/', trim(str_replace("\n", ' ', $raw))) ?: [] as $word) {
             if ($word !== '' && !in_array($word, $words, true)) {

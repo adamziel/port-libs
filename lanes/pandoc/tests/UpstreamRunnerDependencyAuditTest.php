@@ -3105,6 +3105,134 @@ return [
         $t->contains('no unexpected runner or benchmark native/system dependency fields', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks runner and benchmark native preprocessor field drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            "common common-executable\n  import: common-options",
+            implode("\n", [
+                'common common-executable',
+                '  import: common-options',
+                '  hsc2hs-options: --cross-compile --template=test/template.hsc',
+                '  c2hs-options: --cppopts=-DTEST_RUNNER_AUDIT',
+                '  asm-options: -Wa,--fatal-warnings',
+                '  js-options: --no-minify',
+                '  extra-lib-dirs-static: /opt/pandoc-runner/static',
+            ]),
+            $files['pandoc.cabal']
+        );
+        $files['pandoc.cabal'] = str_replace(
+            "benchmark benchmark-pandoc\n  import: common-executable",
+            implode("\n", [
+                'benchmark benchmark-pandoc',
+                '  import: common-executable',
+                '  cmm-options: -DCMM_BENCHMARK_AUDIT',
+                '  extra-bundled-libraries: bundled-pandoc-bench',
+            ]),
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            "common test-options\n  build-depends: base >= 4.12 && < 5",
+            implode("\n", [
+                'common test-options',
+                '  build-depends: base >= 4.12 && < 5',
+                '  hsc2hs-options: --lua-cross',
+                '  c2hs-options: --cppopts=-DLUA_RUNNER_AUDIT',
+                '  extra-bundled-libraries: bundled-lua-audit',
+            ]),
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $target = 'benchmark:benchmark-pandoc';
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDependencyConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedMixins']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedBuildTools']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedCppOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedAutogenModules']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedReexportedModules']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingTargets']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedDependencyConstraints']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedMixins']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedBuildTools']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedCppOptions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedAutogenModules']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedReexportedModules']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedRunnerNativeSystemFields(), $audit['runnerDependencyClosure']['expectedNativeSystemFields']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedBenchmarkNativeSystemFields(), $audit['benchmarkDependencyClosure']['expectedNativeSystemFields']);
+        $t->same([
+            'asm-options' => ['-Wa,--fatal-warnings'],
+            'c2hs-options' => ['--cppopts=-DTEST_RUNNER_AUDIT'],
+            'extra-lib-dirs-static' => ['/opt/pandoc-runner/static'],
+            'hsc2hs-options' => ['--cross-compile', '--template=test/template.hsc'],
+            'js-options' => ['--no-minify'],
+        ], $audit['runnerDependencyClosure']['present']['test:test-pandoc']['nativeSystemFields']);
+        $t->same([
+            'c2hs-options' => ['--cppopts=-DLUA_RUNNER_AUDIT'],
+            'extra-bundled-libraries' => ['bundled-lua-audit'],
+            'hsc2hs-options' => ['--lua-cross'],
+        ], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['nativeSystemFields']);
+        $t->same([
+            'asm-options' => ['-Wa,--fatal-warnings'],
+            'c2hs-options' => ['--cppopts=-DTEST_RUNNER_AUDIT'],
+            'cmm-options' => ['-DCMM_BENCHMARK_AUDIT'],
+            'extra-bundled-libraries' => ['bundled-pandoc-bench'],
+            'extra-lib-dirs-static' => ['/opt/pandoc-runner/static'],
+            'hsc2hs-options' => ['--cross-compile', '--template=test/template.hsc'],
+            'js-options' => ['--no-minify'],
+        ], $audit['benchmarkDependencyClosure']['present'][$target]['nativeSystemFields']);
+        $t->same([
+            'asm-options: -Wa,--fatal-warnings',
+            'c2hs-options: --cppopts=-DTEST_RUNNER_AUDIT',
+            'extra-lib-dirs-static: /opt/pandoc-runner/static',
+            'hsc2hs-options: --cross-compile',
+            'hsc2hs-options: --template=test/template.hsc',
+            'js-options: --no-minify',
+        ], $audit['runnerDependencyClosure']['unexpectedNativeSystemFields']['test:test-pandoc']);
+        $t->same([
+            'c2hs-options: --cppopts=-DLUA_RUNNER_AUDIT',
+            'extra-bundled-libraries: bundled-lua-audit',
+            'hsc2hs-options: --lua-cross',
+        ], $audit['runnerDependencyClosure']['unexpectedNativeSystemFields']['test:test-pandoc-lua-engine']);
+        $t->same([
+            'asm-options: -Wa,--fatal-warnings',
+            'c2hs-options: --cppopts=-DTEST_RUNNER_AUDIT',
+            'cmm-options: -DCMM_BENCHMARK_AUDIT',
+            'extra-bundled-libraries: bundled-pandoc-bench',
+            'extra-lib-dirs-static: /opt/pandoc-runner/static',
+            'hsc2hs-options: --cross-compile',
+            'hsc2hs-options: --template=test/template.hsc',
+            'js-options: --no-minify',
+        ], $audit['benchmarkDependencyClosure']['unexpectedNativeSystemFields'][$target]);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected Cabal runner native/system dependencies: test:test-pandoc (asm-options: -Wa,--fatal-warnings, c2hs-options: --cppopts=-DTEST_RUNNER_AUDIT, extra-lib-dirs-static: /opt/pandoc-runner/static, hsc2hs-options: --cross-compile, hsc2hs-options: --template=test/template.hsc, js-options: --no-minify); test:test-pandoc-lua-engine (c2hs-options: --cppopts=-DLUA_RUNNER_AUDIT, extra-bundled-libraries: bundled-lua-audit, hsc2hs-options: --lua-cross)', $blocked);
+        $t->contains('unexpected Cabal benchmark native/system dependencies: benchmark:benchmark-pandoc (asm-options: -Wa,--fatal-warnings, c2hs-options: --cppopts=-DTEST_RUNNER_AUDIT, cmm-options: -DCMM_BENCHMARK_AUDIT, extra-bundled-libraries: bundled-pandoc-bench, extra-lib-dirs-static: /opt/pandoc-runner/static, hsc2hs-options: --cross-compile, hsc2hs-options: --template=test/template.hsc, js-options: --no-minify)', $blocked);
+        $t->contains('no unexpected runner or benchmark native/system dependency fields', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'blocks runner and benchmark extra source file drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $files['pandoc.cabal'] = str_replace(
