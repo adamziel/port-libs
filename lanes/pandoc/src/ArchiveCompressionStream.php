@@ -217,6 +217,39 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @param array<int|string, string> $dictionaries
+     * @return array<string, mixed>
+     */
+    public static function inspectPackageStreamWithZlibDictionaries(
+        string $bytes,
+        string $format,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        return match ($format) {
+            self::FORMAT_ZLIB_TAR => [
+                'kind' => self::PACKAGE_KIND_TAR,
+            ] + self::inspectTarStreamWithZlibDictionaries(
+                $bytes,
+                $format,
+                $dictionaries,
+                $maxUncompressedBytes,
+                $maxUnpackedBytes
+            ),
+            self::FORMAT_ZLIB_ZIP => [
+                'kind' => self::PACKAGE_KIND_ZIP,
+            ] + self::inspectZipStreamWithZlibDictionaries(
+                $bytes,
+                $format,
+                $dictionaries,
+                $maxUncompressedBytes
+            ),
+            default => throw new \RuntimeException("ZLIB dictionary package inspection requires a ZLIB archive stream format: {$format}"),
+        };
+    }
+
+    /**
      * @return array{
      *     kind:string,
      *     format:string,
@@ -483,6 +516,37 @@ final class ArchiveCompressionStream
             $candidate['tarBytes'],
             $candidate['archive'],
             $maxUncompressedBytes
+        );
+    }
+
+    /**
+     * @param array<int|string, string> $dictionaries
+     * @return array<string, mixed>
+     */
+    public static function inspectTarStreamWithZlibDictionaries(
+        string $bytes,
+        string $format,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+        if ($format !== self::FORMAT_ZLIB_TAR) {
+            throw new \RuntimeException("ZLIB dictionary TAR inspection requires ZLIB TAR stream format: {$format}");
+        }
+
+        $metadata = DeflateStream::inspectZlibWithDictionaries($bytes, $dictionaries, $maxUncompressedBytes);
+        $tarBytes = $metadata['data'];
+        $archive = TarArchive::fromString($tarBytes, $maxUnpackedBytes);
+
+        return self::tarStreamInspection(
+            $bytes,
+            $format,
+            $tarBytes,
+            $archive,
+            $maxUncompressedBytes,
+            self::zlibDictionaryStreamInspection($bytes, $metadata)
         );
     }
 
@@ -914,6 +978,35 @@ final class ArchiveCompressionStream
         );
     }
 
+    /**
+     * @param array<int|string, string> $dictionaries
+     * @return array<string, mixed>
+     */
+    public static function inspectZipStreamWithZlibDictionaries(
+        string $bytes,
+        string $format,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_ZLIB_ZIP) {
+            throw new \RuntimeException("ZLIB dictionary ZIP inspection requires ZLIB ZIP stream format: {$format}");
+        }
+
+        $metadata = DeflateStream::inspectZlibWithDictionaries($bytes, $dictionaries, $maxUncompressedBytes);
+        $zipBytes = $metadata['data'];
+        $package = ZipPackage::fromString($zipBytes);
+
+        return self::zipStreamInspection(
+            $bytes,
+            $format,
+            $zipBytes,
+            $package,
+            $maxUncompressedBytes,
+            self::zlibDictionaryStreamInspection($bytes, $metadata)
+        );
+    }
+
     public static function decodeTarBytes(
         string $bytes,
         string $format,
@@ -1204,7 +1297,8 @@ final class ArchiveCompressionStream
         string $format,
         string $tarBytes,
         TarArchive $archive,
-        ?int $maxUncompressedBytes
+        ?int $maxUncompressedBytes,
+        ?array $streamInspection = null
     ): array {
         $entryNames = $archive->names();
         $endMarkerOffset = self::tarEndMarkerOffset($tarBytes);
@@ -1229,7 +1323,7 @@ final class ArchiveCompressionStream
             'endMarkerOffset' => $endMarkerOffset,
             'trailingZeroBytes' => strlen($tarBytes) - $endMarkerOffset,
             'entryLayouts' => $entryLayouts,
-            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+            'stream' => $streamInspection ?? self::streamInspection($bytes, $format, $maxUncompressedBytes),
         ];
     }
 
@@ -1250,7 +1344,8 @@ final class ArchiveCompressionStream
         string $format,
         string $zipBytes,
         ZipPackage $package,
-        ?int $maxUncompressedBytes
+        ?int $maxUncompressedBytes,
+        ?array $streamInspection = null
     ): array {
         $entryNames = $package->names();
 
@@ -1262,7 +1357,7 @@ final class ArchiveCompressionStream
             'entryCount' => count($entryNames),
             'packageByteSize' => strlen($zipBytes),
             'entryUncompressedSize' => self::zipPackageUncompressedSize($package),
-            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+            'stream' => $streamInspection ?? self::streamInspection($bytes, $format, $maxUncompressedBytes),
         ];
     }
 
@@ -1569,6 +1664,38 @@ final class ArchiveCompressionStream
             'compressionMethod' => $metadata['compressionMethod'],
             'windowSize' => $metadata['windowSize'],
             'compressionLevelHint' => $metadata['compressionLevelHint'],
+            'adler32' => $metadata['adler32'],
+            'adler32Hex' => $metadata['adler32Hex'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private static function zlibDictionaryStreamInspection(string $bytes, array $metadata): array
+    {
+        return [
+            'type' => 'zlib-deflate',
+            'memberCount' => 1,
+            'compressedSize' => strlen($bytes),
+            'compressedPayloadSize' => $metadata['compressedSize'],
+            'headerSize' => $metadata['headerSize'],
+            'compressedPayloadOffset' => $metadata['compressedPayloadOffset'],
+            'trailerOffset' => $metadata['trailerOffset'],
+            'trailerSize' => $metadata['trailerSize'],
+            'consumedBytes' => $metadata['consumedBytes'],
+            'uncompressedSize' => $metadata['uncompressedSize'],
+            'compressionMethod' => $metadata['compressionMethod'],
+            'windowSize' => $metadata['windowSize'],
+            'compressionLevelHint' => $metadata['compressionLevelHint'],
+            'hasPresetDictionary' => $metadata['hasPresetDictionary'],
+            'presetDictionaryId' => $metadata['presetDictionaryId'],
+            'presetDictionaryIdHex' => $metadata['presetDictionaryIdHex'],
+            'dictionarySupplied' => $metadata['dictionarySupplied'],
+            'dictionarySize' => $metadata['dictionarySize'],
+            'dictionaryAdler32' => $metadata['dictionaryAdler32'],
+            'dictionaryAdler32Hex' => $metadata['dictionaryAdler32Hex'],
             'adler32' => $metadata['adler32'],
             'adler32Hex' => $metadata['adler32Hex'],
         ];

@@ -3734,6 +3734,121 @@ return [
         ));
     },
 
+    'inspects zlib preset dictionary package streams with supplied fixture dictionaries' => static function (TestRunner $t) use ($zlibDictionaryStream): void {
+        $tarArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"zlib-dictionary-inspection","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# ZLIB dictionary inspection\n\nReady for WordPress archive review.\n",
+                'modifiedAt' => 1780479092,
+            ],
+        ]);
+        $tarBytes = $tarArchive->bytes();
+        $tarDictionary = 'packet/content.md:inspection-dictionary';
+        $tarDictionaryId = intval(hash('adler32', $tarDictionary), 16);
+        $zlibTar = $zlibDictionaryStream($tarDictionary, $tarBytes);
+
+        $tarInspection = ArchiveCompressionStream::inspectPackageStreamWithZlibDictionaries(
+            $zlibTar,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            [$tarDictionaryId => $tarDictionary],
+            strlen($tarBytes),
+            512
+        );
+        $directTarInspection = ArchiveCompressionStream::inspectTarStreamWithZlibDictionaries(
+            $zlibTar,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            [$tarDictionaryId => $tarDictionary],
+            strlen($tarBytes),
+            512
+        );
+
+        $zipPackage = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>ZLIB package inspection</w:p></w:body></w:document>',
+            ],
+        ]);
+        $zipBytes = $zipPackage->bytes();
+        $zipDictionary = '[Content_Types].xml:word/document.xml:inspection';
+        $zipDictionaryId = intval(hash('adler32', $zipDictionary), 16);
+        $zlibZip = $zlibDictionaryStream($zipDictionary, $zipBytes);
+        $zipInspection = ArchiveCompressionStream::inspectPackageStreamWithZlibDictionaries(
+            $zlibZip,
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP,
+            [$zipDictionaryId => $zipDictionary],
+            strlen($zipBytes)
+        );
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $tarInspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZLIB_TAR, $tarInspection['format']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $tarInspection['entryNames']);
+        $t->same(2, $tarInspection['entryCount']);
+        $t->same(2, $tarInspection['regularFileCount']);
+        $t->same(strlen($tarBytes), $tarInspection['uncompressedSize']);
+        $t->same("# ZLIB dictionary inspection\n\nReady for WordPress archive review.\n", $tarInspection['archive']->read('/packet/content.md'));
+        $t->same(1780479092, $tarInspection['entryLayouts'][1]['modifiedAt']);
+        $t->same($tarInspection['entryNames'], $directTarInspection['entryNames']);
+        $t->same('zlib-deflate', $tarInspection['stream']['type']);
+        $t->same(1, $tarInspection['stream']['memberCount']);
+        $t->true($tarInspection['stream']['hasPresetDictionary']);
+        $t->true($tarInspection['stream']['dictionarySupplied']);
+        $t->same($tarDictionaryId, $tarInspection['stream']['presetDictionaryId']);
+        $t->same(sprintf('%08x', $tarDictionaryId), $tarInspection['stream']['presetDictionaryIdHex']);
+        $t->same(strlen($tarDictionary), $tarInspection['stream']['dictionarySize']);
+        $t->same($tarDictionaryId, $tarInspection['stream']['dictionaryAdler32']);
+        $t->same(sprintf('%08x', $tarDictionaryId), $tarInspection['stream']['dictionaryAdler32Hex']);
+        $t->same(strlen($tarBytes), $tarInspection['stream']['uncompressedSize']);
+        $t->same(strlen($zlibTar), $tarInspection['stream']['compressedSize']);
+        $t->same(strlen($zlibTar), $tarInspection['stream']['consumedBytes']);
+        $t->same(6, $tarInspection['stream']['headerSize']);
+        $t->same(4, $tarInspection['stream']['trailerSize']);
+        $t->same(strlen($zlibTar) - 10, $tarInspection['stream']['compressedPayloadSize']);
+        $t->same(intval(hash('adler32', $tarBytes), 16), $tarInspection['stream']['adler32']);
+        $t->same(sprintf('%08x', intval(hash('adler32', $tarBytes), 16)), $tarInspection['stream']['adler32Hex']);
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $zipInspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZLIB_ZIP, $zipInspection['format']);
+        $t->same(['[Content_Types].xml', 'word/document.xml'], $zipInspection['entryNames']);
+        $t->same(2, $zipInspection['entryCount']);
+        $t->same(strlen($zipBytes), $zipInspection['packageByteSize']);
+        $t->same('<w:document><w:body><w:p>ZLIB package inspection</w:p></w:body></w:document>', $zipInspection['package']->read('/word/document.xml'));
+        $t->same('zlib-deflate', $zipInspection['stream']['type']);
+        $t->same($zipDictionaryId, $zipInspection['stream']['presetDictionaryId']);
+        $t->same(strlen($zipDictionary), $zipInspection['stream']['dictionarySize']);
+        $t->same(strlen($zipBytes), $zipInspection['stream']['uncompressedSize']);
+        $t->same(strlen($zlibZip), $zipInspection['stream']['compressedSize']);
+
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamWithZlibDictionaries(
+            $zlibTar,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            [],
+            strlen($tarBytes),
+            512
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamWithZlibDictionaries(
+            $zlibTar,
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR,
+            [$tarDictionaryId => $tarDictionary],
+            strlen($tarBytes),
+            512
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectZipStreamWithZlibDictionaries(
+            $zlibZip,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            [$zipDictionaryId => $zipDictionary],
+            strlen($zipBytes)
+        ));
+    },
+
     'preflights zlib preset dictionary policy without exposing package bytes' => static function (TestRunner $t) use ($zlibDictionaryStream): void {
         $archive = TarArchive::fromEntries([
             [

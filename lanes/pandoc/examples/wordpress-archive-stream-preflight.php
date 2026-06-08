@@ -64,6 +64,20 @@ $paxPayload = static function (array $headers): string {
     return $payload;
 };
 
+$zlibPresetDictionaryStream = static function (string $dictionary, string $payload): string {
+    $context = deflate_init(ZLIB_ENCODING_DEFLATE, ['dictionary' => $dictionary]);
+    if ($context === false) {
+        throw new RuntimeException('Unable to initialize zlib preset-dictionary preflight fixture');
+    }
+
+    $encoded = deflate_add($context, $payload, ZLIB_FINISH);
+    if ($encoded === false) {
+        throw new RuntimeException('Unable to build zlib preset-dictionary preflight fixture');
+    }
+
+    return $encoded;
+};
+
 $rewriteTarHeaderFields = static function (string $archive, array $fields): string {
     $header = substr($archive, 0, 512);
     foreach ($fields as $offset => $field) {
@@ -151,6 +165,8 @@ $signedChecksumContentBytes = "# Signed checksum source packet\n\nReady for Word
 $charsetContentBytes = "# PAX charset source packet\n\nReady for WordPress archive charset review.\n";
 $duplicatePaxContentBytes = "# Duplicate PAX source packet\n\nReady for WordPress archive duplicate-key review.\n";
 $lz4DictionaryPayload = 'packet/word/document.xml needs an external LZ4 dictionary';
+$zlibDictionaryManifestBytes = '{"source":"zlib-dictionary-inspection","target":"wordpress"}';
+$zlibDictionaryContentBytes = "# ZLIB dictionary inspection\n\nReady for WordPress archive review.\n";
 $nestedSourceBytes = "# Nested archive source\n\nReady for WordPress nested archive review.\n";
 $nestedWordXml = '<w:document><w:body><w:p>Nested DOCX review packet</w:p></w:body></w:document>';
 $archiveBombContentBytes = str_repeat('A', 4096);
@@ -503,6 +519,38 @@ try {
 } catch (RuntimeException) {
     $lz4SuppliedMissingDictionaryBlocked = true;
 }
+$zlibDictionaryArchiveBytes = TarArchive::fromEntries([
+    [
+        'name' => 'packet/manifest.json',
+        'data' => $zlibDictionaryManifestBytes,
+    ],
+    [
+        'name' => 'packet/content.md',
+        'data' => $zlibDictionaryContentBytes,
+        'modifiedAt' => 1780479092,
+    ],
+])->bytes();
+$zlibDictionary = 'packet/content.md:wordpress-zlib-dictionary';
+$zlibDictionaryId = intval(hash('adler32', $zlibDictionary), 16);
+$zlibDictionaryStream = $zlibPresetDictionaryStream($zlibDictionary, $zlibDictionaryArchiveBytes);
+$zlibDictionaryInspection = ArchiveCompressionStream::inspectPackageStreamWithZlibDictionaries(
+    $zlibDictionaryStream,
+    ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+    [$zlibDictionaryId => $zlibDictionary],
+    strlen($zlibDictionaryArchiveBytes),
+    strlen($zlibDictionaryManifestBytes) + strlen($zlibDictionaryContentBytes)
+);
+$zlibDictionaryMissingBlocked = false;
+try {
+    ArchiveCompressionStream::inspectPackageStreamWithZlibDictionaries(
+        $zlibDictionaryStream,
+        ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+        [],
+        strlen($zlibDictionaryArchiveBytes)
+    );
+} catch (RuntimeException) {
+    $zlibDictionaryMissingBlocked = true;
+}
 $nestedZipPackage = ZipPackage::fromParts([
     [
         'name' => '[Content_Types].xml',
@@ -665,6 +713,12 @@ if (in_array('--self-test', $argv, true)) {
         'lz4SuppliedDecodedPayload' => $lz4SuppliedDecodedPayload,
         'lz4SuppliedFrameCount' => 2,
         'lz4SuppliedBlockCount' => 2,
+        'zlibDictionaryKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
+        'zlibDictionaryFormat' => ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+        'zlibDictionaryEntryCount' => 2,
+        'zlibDictionaryId' => $zlibDictionaryId,
+        'zlibDictionarySize' => strlen($zlibDictionary),
+        'zlibDictionaryContent' => $zlibDictionaryContentBytes,
         'nestedRootKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'nestedRootFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'nestedCandidateCount' => 4,
@@ -816,6 +870,17 @@ if (in_array('--self-test', $argv, true)) {
         || ($lz4SuppliedFrames[1]['dictionaryId'] ?? null) !== $expected['lz4DictionaryId']
         || ($lz4SuppliedFrames[1]['blockCount'] ?? null) !== $expected['lz4SuppliedBlockCount']
         || ($lz4SuppliedFrames[1]['blockTypes'] ?? []) !== ['compressed', 'compressed']
+        || $zlibDictionaryInspection['kind'] !== $expected['zlibDictionaryKind']
+        || $zlibDictionaryInspection['format'] !== $expected['zlibDictionaryFormat']
+        || $zlibDictionaryInspection['entryCount'] !== $expected['zlibDictionaryEntryCount']
+        || ($zlibDictionaryInspection['stream']['type'] ?? null) !== 'zlib-deflate'
+        || ($zlibDictionaryInspection['stream']['hasPresetDictionary'] ?? null) !== true
+        || ($zlibDictionaryInspection['stream']['dictionarySupplied'] ?? null) !== true
+        || ($zlibDictionaryInspection['stream']['presetDictionaryId'] ?? null) !== $expected['zlibDictionaryId']
+        || ($zlibDictionaryInspection['stream']['dictionarySize'] ?? null) !== $expected['zlibDictionarySize']
+        || $zlibDictionaryInspection['archive']->read('/packet/content.md') !== $expected['zlibDictionaryContent']
+        || ($zlibDictionaryInspection['entryLayouts'][1]['modifiedAt'] ?? null) !== 1780479092
+        || !$zlibDictionaryMissingBlocked
         || $nestedInspection['rootKind'] !== $expected['nestedRootKind']
         || $nestedInspection['rootFormat'] !== $expected['nestedRootFormat']
         || $nestedInspection['candidateCount'] !== $expected['nestedCandidateCount']
@@ -926,6 +991,12 @@ echo 'lz4Dictionary.dictionaryFrameCount=' . $lz4DictionaryInspection['dictionar
 echo 'lz4Dictionary.dictionaryId=' . $lz4DictionaryInspection['stream']['frames'][1]['dictionaryId'] . "\n";
 echo 'lz4Dictionary.payloadSize=' . $lz4DictionaryInspection['stream']['frames'][1]['contentSize'] . "\n";
 echo 'lz4Dictionary.extractionBlocked=' . ($lz4DictionaryExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zlibDictionary.kind=' . $zlibDictionaryInspection['kind'] . "\n";
+echo 'zlibDictionary.format=' . $zlibDictionaryInspection['format'] . "\n";
+echo 'zlibDictionary.dictionaryId=' . $zlibDictionaryInspection['stream']['presetDictionaryId'] . "\n";
+echo 'zlibDictionary.dictionarySize=' . $zlibDictionaryInspection['stream']['dictionarySize'] . "\n";
+echo 'zlibDictionary.content.md=' . $zlibDictionaryInspection['archive']->read('/packet/content.md') . "\n";
+echo 'zlibDictionary.missingBlocked=' . ($zlibDictionaryMissingBlocked ? 'yes' : 'no') . "\n";
 echo 'nested.rootKind=' . $nestedInspection['rootKind'] . "\n";
 echo 'nested.rootFormat=' . $nestedInspection['rootFormat'] . "\n";
 echo 'nested.candidateCount=' . $nestedInspection['candidateCount'] . "\n";
