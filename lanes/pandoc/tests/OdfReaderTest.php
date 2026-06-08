@@ -2988,6 +2988,123 @@ XML;
         $t->same(2, $result['importReport']['content']['databaseSubtotalFieldCount'] ?? null);
         $t->same('Database ranges stay metadata-only.', $result['document']->children[0]->attr('text'));
     },
+    'maps ODT data pilot tables into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithDataPilotTables = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:data-pilot-tables>
+        <table:data-pilot-table
+          table:name="ReadyPostPivot"
+          table:application-data="wp-import-review"
+          table:target-range-address="Pivot.A1:Pivot.D8"
+          table:buttons="true"
+          table:show-filter-button="true"
+          table:grand-total="both"
+          table:ignore-empty-rows="true"
+          table:identify-categories="false">
+          <table:source-cell-range table:cell-range-address="Review.A1:Review.D12"/>
+          <table:data-pilot-field table:source-field-name="status" table:orientation="row" table:used-hierarchy="1">
+            <table:data-pilot-level table:show-empty="false" table:repeat-item-labels="true">
+              <table:data-pilot-subtotals>
+                <table:data-pilot-subtotal table:function="count"/>
+                <table:data-pilot-subtotal table:function="sum"/>
+              </table:data-pilot-subtotals>
+              <table:data-pilot-members>
+                <table:data-pilot-member table:name="ready" table:display="true" table:show-details="true"/>
+                <table:data-pilot-member table:name="draft" table:display="false"/>
+              </table:data-pilot-members>
+            </table:data-pilot-level>
+          </table:data-pilot-field>
+          <table:data-pilot-field table:source-field-name="total" table:orientation="data" table:function="sum"/>
+        </table:data-pilot-table>
+        <table:data-pilot-table table:name="ServicePivot" table:target-range-address="Pivot.F1:Pivot.H4">
+          <table:source-service table:name="ExternalImport" table:source-name="reports" table:object-name="ApprovedPosts" table:user-name="importer" table:password="do-not-expose"/>
+        </table:data-pilot-table>
+        <table:data-pilot-table table:target-range-address="Ignored.A1:A2">
+          <table:source-cell-range table:cell-range-address="Ignored.A1:A2"/>
+        </table:data-pilot-table>
+      </table:data-pilot-tables>
+      <text:p>Data pilot tables stay metadata-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDataPilotTables));
+        $declarations = $result['contentDeclarations'];
+        $tables = is_array($declarations['dataPilotTables'] ?? null) ? $declarations['dataPilotTables'] : [];
+        $tablesByName = is_array($declarations['dataPilotTablesByName'] ?? null) ? $declarations['dataPilotTablesByName'] : [];
+        $ready = is_array($tablesByName['ReadyPostPivot'] ?? null) ? $tablesByName['ReadyPostPivot'] : [];
+        $service = is_array($tablesByName['ServicePivot'] ?? null) ? $tablesByName['ServicePivot'] : [];
+        $readyFields = is_array($ready['fields'] ?? null) ? $ready['fields'] : [];
+        $statusField = is_array($readyFields[0] ?? null) ? $readyFields[0] : [];
+        $statusLevel = is_array($statusField['levels'][0] ?? null) ? $statusField['levels'][0] : [];
+        $subtotals = is_array($statusLevel['subtotals'] ?? null) ? $statusLevel['subtotals'] : [];
+        $members = is_array($statusLevel['members'] ?? null) ? $statusLevel['members'] : [];
+        $totalField = is_array($readyFields[1] ?? null) ? $readyFields[1] : [];
+        $serviceSource = is_array($service['source'] ?? null) ? $service['source'] : [];
+
+        $t->same(2, $declarations['dataPilotTableCount']);
+        $t->same(2, count($tables));
+        $t->same(['ReadyPostPivot', 'ServicePivot'], array_column($tables, 'name'));
+        $t->same(2, $declarations['dataPilotFieldCount']);
+        $t->same(2, $declarations['dataPilotSubtotalCount']);
+        $t->same(2, $declarations['dataPilotMemberCount']);
+        $t->same('wp-import-review', $ready['applicationData'] ?? null);
+        $t->same('Pivot.A1:Pivot.D8', $ready['targetRangeAddress'] ?? null);
+        $t->same(true, $ready['buttons'] ?? null);
+        $t->same(true, $ready['showFilterButton'] ?? null);
+        $t->same('both', $ready['grandTotal'] ?? null);
+        $t->same(true, $ready['ignoreEmptyRows'] ?? null);
+        $t->same(false, $ready['identifyCategories'] ?? null);
+        $t->same('cell-range', $ready['source']['type'] ?? null);
+        $t->same('Review.A1:Review.D12', $ready['source']['cellRangeAddress'] ?? null);
+        $t->same(2, $ready['fieldCount'] ?? null);
+        $t->same('status', $statusField['sourceFieldName'] ?? null);
+        $t->same('row', $statusField['orientation'] ?? null);
+        $t->same(1, $statusField['usedHierarchy'] ?? null);
+        $t->same(1, $statusField['levelCount'] ?? null);
+        $t->same(false, $statusLevel['showEmpty'] ?? null);
+        $t->same(true, $statusLevel['repeatItemLabels'] ?? null);
+        $t->same(2, $statusLevel['subtotalCount'] ?? null);
+        $t->same('count', $subtotals[0]['function'] ?? null);
+        $t->same('sum', $subtotals[1]['function'] ?? null);
+        $t->same(2, $statusLevel['memberCount'] ?? null);
+        $t->same('ready', $members[0]['name'] ?? null);
+        $t->same(true, $members[0]['display'] ?? null);
+        $t->same(true, $members[0]['showDetails'] ?? null);
+        $t->same('draft', $members[1]['name'] ?? null);
+        $t->same(false, $members[1]['display'] ?? null);
+        $t->same('total', $totalField['sourceFieldName'] ?? null);
+        $t->same('data', $totalField['orientation'] ?? null);
+        $t->same('sum', $totalField['function'] ?? null);
+        $t->same('service', $serviceSource['type'] ?? null);
+        $t->same('ExternalImport', $serviceSource['name'] ?? null);
+        $t->same('reports', $serviceSource['sourceName'] ?? null);
+        $t->same('ApprovedPosts', $serviceSource['objectName'] ?? null);
+        $t->same('importer', $serviceSource['userName'] ?? null);
+        $t->same(true, $serviceSource['passwordPresent'] ?? null);
+        $t->true(!isset($serviceSource['password']), 'ODF data-pilot source-service passwords must not be exposed');
+        $t->same($declarations, $result['document']->attr('contentDeclarations'));
+        $t->same(2, $result['importReport']['contentDeclarations']['dataPilotTableCount'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['dataPilotFieldCount'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['dataPilotSubtotalCount'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['dataPilotMemberCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['dataPilotTableCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['dataPilotFieldCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['dataPilotSubtotalCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['dataPilotMemberCount'] ?? null);
+        $t->same('Data pilot tables stay metadata-only.', $result['document']->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Data pilot tables stay metadata-only.', $markdown);
+        $t->contains('<p>Data pilot tables stay metadata-only.</p>', $blocksHtml);
+    },
     'maps ODT named ranges and expressions into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNamedExpressions = <<<'XML'
 <office:document-content

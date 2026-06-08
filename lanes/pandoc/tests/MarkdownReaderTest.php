@@ -1571,7 +1571,12 @@ return [
             '# Flow comment YAML body',
         ]));
         $meta = $document->attr('meta');
+        $comments = $document->attr('yamlMetadataCommentProvenance', []);
         $blocks = (new WordPressBlockWriter())->write($document);
+        $flowComments = array_values(array_filter(
+            $comments,
+            static fn (array $entry): bool => ($entry['context'] ?? '') === 'flow'
+        ));
 
         $t->same('Flow comments **Packet**', $meta['title']);
         $t->same(['migration', 'WordPress #import', 'wordpress'], $meta['keywords']);
@@ -1582,6 +1587,19 @@ return [
         $t->same(false, array_key_exists("# reviewer state\n  labels", $meta['review']));
         $t->same('flow-comment-ref', $meta['references'][0]['id']);
         $t->same(['yaml', 'metadata'], $meta['references'][0]['keywords']);
+        $t->same([
+            'source label',
+            'reviewer state',
+            'imported source',
+            'ignored inside flow sequence',
+        ], array_column($flowComments, 'comment'));
+        $t->same([
+            '/keywords',
+            '/review',
+            '/review',
+            '/references/0/keywords',
+        ], array_column($flowComments, 'path'));
+        $t->same(['4', '9', '10', '18'], array_column($flowComments, 'sourceLine'));
         $t->same('heading', $document->children[0]->type);
         $t->same('flow-comment-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="flow-comment-yaml-body">Flow comment YAML body</h1>', $blocks);

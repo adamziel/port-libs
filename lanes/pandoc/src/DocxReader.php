@@ -3338,7 +3338,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{instruction:string, collectingResult:bool, resultNodes:list<AstNode>}
+     * @return array{instruction:string, collectingResult:bool, resultNodes:list<AstNode>, formField:array{classes:list<string>, attributes:array<string, string>}|null}
      */
     private function newFieldState(): array
     {
@@ -3346,6 +3346,7 @@ final class DocxReader
             'instruction' => '',
             'collectingResult' => false,
             'resultNodes' => [],
+            'formField' => null,
         ];
     }
 
@@ -3355,7 +3356,7 @@ final class DocxReader
     }
 
     /**
-     * @param array{instruction:string, collectingResult:bool, resultNodes:list<AstNode>} $field
+     * @param array{instruction:string, collectingResult:bool, resultNodes:list<AstNode>, formField:array{classes:list<string>, attributes:array<string, string>}|null} $field
      * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>|null finalized field nodes, or null while the field remains active
      */
@@ -3369,6 +3370,11 @@ final class DocxReader
         $fieldCharType = $this->isWordElement($element, 'r') ? $this->runFieldCharType($element) : null;
         if ($fieldCharType === 'begin') {
             $field['instruction'] .= $this->runInstructionText($element);
+            $formField = $this->runFormFieldAttrs($element);
+            if ($formField !== null) {
+                $field['formField'] = $formField;
+            }
+
             return null;
         }
         if ($fieldCharType === 'separate') {
@@ -3394,7 +3400,7 @@ final class DocxReader
     }
 
     /**
-     * @param array{instruction:string, collectingResult:bool, resultNodes:list<AstNode>} $field
+     * @param array{instruction:string, collectingResult:bool, resultNodes:list<AstNode>, formField:array{classes:list<string>, attributes:array<string, string>}|null} $field
      * @return list<AstNode>
      */
     private function fieldResultNodes(array $field): array
@@ -3406,7 +3412,7 @@ final class DocxReader
 
         $attrs = $this->hyperlinkFieldAttrs($field['instruction']);
         if ($attrs === null) {
-            $attrs = $this->fieldSpanAttrs($field['instruction']);
+            $attrs = $this->fieldSpanAttrs($field['instruction'], $field['formField']);
             if ($attrs === null) {
                 return $resultNodes;
             }
@@ -5688,7 +5694,7 @@ final class DocxReader
 
         $attrs = $this->hyperlinkFieldAttrs((string) $this->wordAttr($field, 'instr'));
         if ($attrs === null) {
-            $attrs = $this->fieldSpanAttrs((string) $this->wordAttr($field, 'instr'));
+            $attrs = $this->fieldSpanAttrs((string) $this->wordAttr($field, 'instr'), null);
             if ($attrs === null) {
                 return $children;
             }
@@ -5752,9 +5758,10 @@ final class DocxReader
     }
 
     /**
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $formField
      * @return array{classes:list<string>, attributes:array<string, string>}|null
      */
-    private function fieldSpanAttrs(string $instruction): ?array
+    private function fieldSpanAttrs(string $instruction, ?array $formField): ?array
     {
         $tokens = $this->fieldInstructionTokens($instruction);
         if ($tokens === []) {
@@ -5776,10 +5783,25 @@ final class DocxReader
             'PAGEREF' => 'pageref',
             'NOTEREF' => 'noteref',
         ];
+        $formFieldNames = [
+            'FORMTEXT' => ['field' => 'formtext', 'type' => 'text'],
+            'FORMCHECKBOX' => ['field' => 'formcheckbox', 'type' => 'checkbox'],
+            'FORMDROPDOWN' => ['field' => 'formdropdown', 'type' => 'dropdown'],
+        ];
 
         $fieldName = strtoupper(array_shift($tokens));
         if ($fieldName === 'SEQ') {
             return $this->sequenceFieldSpanAttrs($tokens, $instruction);
+        }
+
+        if (isset($formFieldNames[$fieldName])) {
+            return $this->formFieldSpanAttrs(
+                $formFieldNames[$fieldName]['field'],
+                $formFieldNames[$fieldName]['type'],
+                $tokens,
+                $instruction,
+                $formField
+            );
         }
 
         if (isset($crossReferenceFieldNames[$fieldName])) {
@@ -5805,6 +5827,219 @@ final class DocxReader
             'classes' => ['docx-field', 'docx-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $formField
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function formFieldSpanAttrs(
+        string $fieldKey,
+        string $formType,
+        array $tokens,
+        string $instruction,
+        ?array $formField
+    ): array {
+        $classes = ['docx-field', 'docx-field-' . $fieldKey, 'docx-form-field', 'docx-form-field-' . $formType];
+        $attributes = [
+            'data-docx-field' => $fieldKey,
+            'data-docx-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-docx-form-field-type' => $formType,
+        ];
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-docx-field-format'] = $format;
+        }
+
+        if ($formField !== null) {
+            array_push($classes, ...$formField['classes']);
+            foreach ($formField['attributes'] as $name => $value) {
+                $attributes[$name] = $value;
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function runFormFieldAttrs(\DOMElement $run): ?array
+    {
+        $fieldChar = $this->firstChildElement($run, self::WORDPROCESSINGML_NS, 'fldChar');
+        if (!$fieldChar instanceof \DOMElement) {
+            return null;
+        }
+
+        $formField = $this->firstChildElement($fieldChar, self::WORDPROCESSINGML_NS, 'ffData');
+        if (!$formField instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->formFieldMetadataAttrs($formField);
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function formFieldMetadataAttrs(\DOMElement $formField): ?array
+    {
+        $classes = [];
+        $attributes = [];
+
+        $name = $this->wordChildValue($formField, 'name');
+        if ($name !== null) {
+            $classes[] = 'docx-form-field-named';
+            $attributes['data-docx-form-field-name'] = $name;
+        }
+
+        $enabled = $this->formFieldOnOffChildValue($formField, 'enabled');
+        if ($enabled !== null) {
+            $classes[] = $enabled ? 'docx-form-field-enabled' : 'docx-form-field-disabled';
+            $attributes['data-docx-form-field-enabled'] = $enabled ? 'true' : 'false';
+        }
+
+        $calcOnExit = $this->formFieldOnOffChildValue($formField, 'calcOnExit');
+        if ($calcOnExit !== null) {
+            if ($calcOnExit) {
+                $classes[] = 'docx-form-field-calc-on-exit';
+            }
+            $attributes['data-docx-form-field-calc-on-exit'] = $calcOnExit ? 'true' : 'false';
+        }
+
+        foreach ([
+            'entryMacro' => 'entry-macro',
+            'exitMacro' => 'exit-macro',
+        ] as $localName => $targetName) {
+            $value = $this->wordChildValue($formField, $localName);
+            if ($value !== null) {
+                $attributes['data-docx-form-field-' . $targetName] = $value;
+            }
+        }
+
+        foreach ([
+            'helpText' => 'help-text',
+            'statusText' => 'status-text',
+        ] as $localName => $targetName) {
+            $text = $this->firstChildElement($formField, self::WORDPROCESSINGML_NS, $localName);
+            if (!$text instanceof \DOMElement) {
+                continue;
+            }
+
+            $value = trim((string) ($this->wordAttr($text, 'val') ?? ''));
+            if ($value !== '') {
+                $attributes['data-docx-form-field-' . $targetName] = $value;
+            }
+
+            $type = trim((string) ($this->wordAttr($text, 'type') ?? ''));
+            if ($type !== '') {
+                $attributes['data-docx-form-field-' . $targetName . '-type'] = $type;
+            }
+        }
+
+        $textInput = $this->firstChildElement($formField, self::WORDPROCESSINGML_NS, 'textInput');
+        if ($textInput instanceof \DOMElement) {
+            $classes[] = 'docx-form-field-text-input';
+            foreach ([
+                'type' => 'text-type',
+                'default' => 'text-default',
+                'format' => 'text-format',
+            ] as $localName => $targetName) {
+                $value = $this->wordChildValue($textInput, $localName);
+                if ($value !== null) {
+                    $attributes['data-docx-form-field-' . $targetName] = $value;
+                }
+            }
+
+            $maxLength = $this->formFieldIntChildValue($textInput, 'maxLength');
+            if ($maxLength !== null) {
+                $attributes['data-docx-form-field-text-max-length'] = (string) $maxLength;
+            }
+        }
+
+        $checkBox = $this->firstChildElement($formField, self::WORDPROCESSINGML_NS, 'checkBox');
+        if ($checkBox instanceof \DOMElement) {
+            $classes[] = 'docx-form-field-checkbox-data';
+            $size = $this->formFieldIntChildValue($checkBox, 'size');
+            if ($size !== null) {
+                $attributes['data-docx-form-field-checkbox-size-half-points'] = (string) $size;
+            }
+
+            foreach ([
+                'default' => 'checkbox-default',
+                'checked' => 'checkbox-checked',
+                'sizeAuto' => 'checkbox-size-auto',
+            ] as $localName => $targetName) {
+                $value = $this->formFieldOnOffChildValue($checkBox, $localName);
+                if ($value !== null) {
+                    $attributes['data-docx-form-field-' . $targetName] = $value ? 'true' : 'false';
+                }
+            }
+        }
+
+        $dropdown = $this->firstChildElement($formField, self::WORDPROCESSINGML_NS, 'ddList');
+        if ($dropdown instanceof \DOMElement) {
+            $classes[] = 'docx-form-field-dropdown-data';
+            foreach ([
+                'default' => 'dropdown-default-index',
+                'result' => 'dropdown-result-index',
+            ] as $localName => $targetName) {
+                $value = $this->formFieldIntChildValue($dropdown, $localName);
+                if ($value !== null) {
+                    $attributes['data-docx-form-field-' . $targetName] = (string) $value;
+                }
+            }
+
+            $entries = [];
+            foreach ($dropdown->childNodes as $child) {
+                if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'listEntry')) {
+                    continue;
+                }
+
+                $value = trim((string) ($this->wordAttr($child, 'val') ?? ''));
+                if ($value !== '') {
+                    $entries[] = $value;
+                }
+            }
+
+            if ($entries !== []) {
+                $attributes['data-docx-form-field-dropdown-entry-count'] = (string) count($entries);
+                foreach ($entries as $index => $entry) {
+                    $attributes['data-docx-form-field-dropdown-entry-' . ($index + 1)] = $entry;
+                }
+            }
+        }
+
+        if ($classes === [] && $attributes === []) {
+            return null;
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function formFieldOnOffChildValue(\DOMElement $element, string $localName): ?bool
+    {
+        $child = $this->firstChildElement($element, self::WORDPROCESSINGML_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->onOffWordAttr($child, 'val', true);
+    }
+
+    private function formFieldIntChildValue(\DOMElement $element, string $localName): ?int
+    {
+        $child = $this->firstChildElement($element, self::WORDPROCESSINGML_NS, $localName);
+
+        return $child instanceof \DOMElement ? $this->optionalIntWordAttr($child, 'val') : null;
     }
 
     /**

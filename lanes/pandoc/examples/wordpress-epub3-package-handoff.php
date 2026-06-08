@@ -819,6 +819,28 @@ XML;
     if (($result['metadata']['linkVocabulary']['diagnosticCount'] ?? null) !== 0) {
         throw new RuntimeException('Expected EPUB OPF metadata link vocabulary summary to stay diagnostic-free for the smoke fixture');
     }
+    $metadataLinkTargets = $result['metadata']['linkTargetReport'] ?? [];
+    if (($metadataLinkTargets['linkCount'] ?? null) !== 4 || ($metadataLinkTargets['publicationLinkCount'] ?? null) !== 3 || ($metadataLinkTargets['refinedLinkCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB OPF metadata link target report to separate publication and refined links');
+    }
+    if (($metadataLinkTargets['unmanifestedLocalLinkCount'] ?? null) !== 2 || ($metadataLinkTargets['externalLinkCount'] ?? null) !== 1 || ($metadataLinkTargets['missingLinkCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB OPF metadata link target report to flag unmanifested, external, and missing records');
+    }
+    if (($metadataLinkTargets['byteExposedLinkCount'] ?? null) !== 2 || ($metadataLinkTargets['diagnosticCount'] ?? null) !== 4) {
+        throw new RuntimeException('Expected EPUB OPF metadata link target report to expose local record hashes and diagnostics');
+    }
+    if (($metadataLinkTargets['publicationItems'][0]['diagnostics'][0]['type'] ?? null) !== 'unmanifested-publication-metadata-link') {
+        throw new RuntimeException('Expected EPUB OPF metadata publication record to report unmanifested package bytes');
+    }
+    if (($metadataLinkTargets['publicationItems'][1]['diagnostics'][0]['type'] ?? null) !== 'external-publication-metadata-link') {
+        throw new RuntimeException('Expected EPUB OPF metadata remote record to report external publication metadata');
+    }
+    if (($metadataLinkTargets['refinedItems'][0]['diagnostics'][0]['type'] ?? null) !== 'missing-refined-metadata-link') {
+        throw new RuntimeException('Expected EPUB OPF metadata refined link target to preserve missing-resource diagnostics');
+    }
+    if (($result['document']->attr('metadata')['linkTargetReport'] ?? null) !== $metadataLinkTargets) {
+        throw new RuntimeException('Expected WordPress EPUB AST metadata to expose OPF metadata link target policy');
+    }
     if (($result['metadata']['linkedResourceSummary']['subjectCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB OPF metadata link refinements to summarize linked review subjects');
     }
@@ -1365,6 +1387,8 @@ echo 'metadataLinkRelTokens=' . ($result['metadata']['linkVocabulary']['relToken
 echo 'metadataLinkPropertyTokens=' . ($result['metadata']['linkVocabulary']['propertyTokenCount'] ?? 0) . "\n";
 echo 'metadataLinkRecordRels=' . ($result['metadata']['linkVocabulary']['rels']['record'] ?? 0) . "\n";
 echo 'metadataLinkDiagnostics=' . ($result['metadata']['linkVocabulary']['diagnosticCount'] ?? 0) . "\n";
+echo 'metadataLinkTargets=' . ($result['metadata']['linkTargetReport']['linkCount'] ?? 0) . "\n";
+echo 'metadataLinkTargetDiagnostics=' . ($result['metadata']['linkTargetReport']['diagnosticCount'] ?? 0) . "\n";
 echo 'metadataLinkedResourceSubjects=' . ($result['metadata']['linkedResourceSummary']['subjectCount'] ?? 0) . "\n";
 echo 'metadataCreatorLinkedResources=' . count($result['metadata']['dc']['creator'][0]['linkedResources'] ?? []) . "\n";
 echo 'metadataCreatorDirection=' . ($result['metadata']['creatorDetails'][0]['direction'] ?? '') . "\n";

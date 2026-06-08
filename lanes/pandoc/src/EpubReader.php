@@ -2497,6 +2497,7 @@ final class EpubReader
         $metadata['links'] = $links;
         $metadata['linksByRel'] = self::linksByRel($links);
         $metadata['linkVocabulary'] = self::metadataLinkVocabularySummary($links);
+        $metadata['linkTargetReport'] = self::metadataLinkTargetReport($links);
         $metadata['linksByRefinedId'] = self::metadataLinksByRefinedId($links);
         $metadata['linkedResourcesById'] = $metadata['linksByRefinedId'];
         $metadata['linkedResourceSummary'] = self::metadataLinkedResourceSummary($metadata['linksByRefinedId']);
@@ -2730,6 +2731,191 @@ final class EpubReader
             'rels' => $rels,
             'properties' => $properties,
             'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataLinkTargetReport(array $links): array
+    {
+        $items = [];
+        $publicationItems = [];
+        $refinedItems = [];
+        $itemsByRel = [];
+        $rels = [];
+        $diagnostics = [];
+        $localLinkCount = 0;
+        $existingLocalLinkCount = 0;
+        $manifestLinkCount = 0;
+        $unmanifestedLocalLinkCount = 0;
+        $externalLinkCount = 0;
+        $missingLinkCount = 0;
+        $encryptedLinkCount = 0;
+        $byteExposedLinkCount = 0;
+
+        foreach ($links as $index => $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $item = self::metadataLinkTargetReportItem($link, (int) $index);
+            $items[] = $item;
+            if ($item['scope'] === 'publication') {
+                $publicationItems[] = $item;
+            } else {
+                $refinedItems[] = $item;
+            }
+
+            foreach ($item['rel'] as $rel) {
+                if (!is_string($rel) || $rel === '') {
+                    continue;
+                }
+                $rels[$rel] = ($rels[$rel] ?? 0) + 1;
+                $itemsByRel[$rel][] = $item;
+            }
+
+            $isLocal = ($item['external'] ?? false) !== true && is_string($item['part'] ?? null) && $item['part'] !== '';
+            if ($isLocal) {
+                ++$localLinkCount;
+            }
+            if ($isLocal && ($item['exists'] ?? false) === true) {
+                ++$existingLocalLinkCount;
+            }
+            if (is_string($item['manifestId'] ?? null) && $item['manifestId'] !== '') {
+                ++$manifestLinkCount;
+            }
+            if ($isLocal && ($item['exists'] ?? false) === true && !is_string($item['manifestId'] ?? null)) {
+                ++$unmanifestedLocalLinkCount;
+            }
+            if (($item['external'] ?? false) === true) {
+                ++$externalLinkCount;
+            }
+            if (($item['external'] ?? false) !== true && ($item['exists'] ?? false) !== true) {
+                ++$missingLinkCount;
+            }
+            if (($item['encrypted'] ?? false) === true) {
+                ++$encryptedLinkCount;
+            }
+            if (is_string($item['byteSha256'] ?? null) && $item['byteSha256'] !== '') {
+                ++$byteExposedLinkCount;
+            }
+
+            foreach ($item['diagnostics'] as $diagnostic) {
+                if (is_array($diagnostic)) {
+                    $diagnostics[] = $diagnostic;
+                }
+            }
+        }
+
+        ksort($rels, SORT_STRING);
+        ksort($itemsByRel, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'linkCount' => count($items),
+            'publicationLinkCount' => count($publicationItems),
+            'refinedLinkCount' => count($refinedItems),
+            'localLinkCount' => $localLinkCount,
+            'existingLocalLinkCount' => $existingLocalLinkCount,
+            'manifestLinkCount' => $manifestLinkCount,
+            'unmanifestedLocalLinkCount' => $unmanifestedLocalLinkCount,
+            'externalLinkCount' => $externalLinkCount,
+            'missingLinkCount' => $missingLinkCount,
+            'encryptedLinkCount' => $encryptedLinkCount,
+            'byteExposedLinkCount' => $byteExposedLinkCount,
+            'rels' => $rels,
+            'items' => $items,
+            'publicationItems' => $publicationItems,
+            'refinedItems' => $refinedItems,
+            'itemsByRel' => $itemsByRel,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $link
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataLinkTargetReportItem(array $link, int $index): array
+    {
+        $subjectId = is_string($link['subjectId'] ?? null) && $link['subjectId'] !== ''
+            ? (string) $link['subjectId']
+            : null;
+        $scope = $subjectId === null ? 'publication' : 'refined-subject';
+        $item = [
+            'index' => $index,
+            'id' => is_string($link['id'] ?? null) ? $link['id'] : null,
+            'scope' => $scope,
+            'subjectId' => $subjectId,
+            'rel' => is_array($link['rel'] ?? null) ? array_values($link['rel']) : [],
+            'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+            'target' => is_string($link['target'] ?? null) ? $link['target'] : null,
+            'part' => is_string($link['part'] ?? null) ? $link['part'] : null,
+            'fragment' => is_string($link['fragment'] ?? null) ? $link['fragment'] : null,
+            'fragmentKind' => is_string($link['fragmentKind'] ?? null) ? $link['fragmentKind'] : null,
+            'mediaType' => is_string($link['mediaType'] ?? null) ? $link['mediaType'] : null,
+            'manifestId' => is_string($link['manifestId'] ?? null) ? $link['manifestId'] : null,
+            'manifestMediaType' => is_string($link['manifestMediaType'] ?? null) ? $link['manifestMediaType'] : null,
+            'external' => (bool) ($link['external'] ?? false),
+            'exists' => (bool) ($link['exists'] ?? false),
+            'encrypted' => (bool) ($link['encrypted'] ?? false),
+            'canExposeBytes' => (bool) ($link['canExposeBytes'] ?? false),
+            'byteLength' => is_int($link['byteLength'] ?? null) ? $link['byteLength'] : null,
+            'byteSha256' => is_string($link['byteSha256'] ?? null) ? $link['byteSha256'] : null,
+            'sourceDiagnostics' => is_array($link['diagnostics'] ?? null) ? array_values($link['diagnostics']) : [],
+            'diagnostics' => [],
+        ];
+
+        $scopePrefix = $scope === 'publication' ? 'publication' : 'refined';
+        $isLocal = ($item['external'] ?? false) !== true && is_string($item['part'] ?? null) && $item['part'] !== '';
+
+        if (($item['external'] ?? false) === true) {
+            $item['diagnostics'][] = self::metadataLinkTargetDiagnostic('external', $scopePrefix, $item);
+        } elseif (($item['exists'] ?? false) !== true) {
+            $item['diagnostics'][] = self::metadataLinkTargetDiagnostic('missing', $scopePrefix, $item);
+        } elseif ($isLocal && !is_string($item['manifestId'] ?? null)) {
+            $item['diagnostics'][] = self::metadataLinkTargetDiagnostic('unmanifested', $scopePrefix, $item);
+        }
+
+        if (($item['encrypted'] ?? false) === true) {
+            $item['diagnostics'][] = self::metadataLinkTargetDiagnostic('encrypted', $scopePrefix, $item);
+        }
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataLinkTargetDiagnostic(string $kind, string $scopePrefix, array $item): array
+    {
+        $message = match ($kind) {
+            'external' => 'EPUB OPF metadata link points outside the package and was not fetched',
+            'missing' => 'EPUB OPF metadata link target is missing from the package',
+            'unmanifested' => 'EPUB OPF metadata link resolves to package bytes that are not declared in the OPF manifest',
+            'encrypted' => 'EPUB OPF metadata link target is encrypted and cannot expose package bytes',
+            default => 'EPUB OPF metadata link target requires package review',
+        };
+
+        return [
+            'type' => $kind . '-' . $scopePrefix . '-metadata-link',
+            'index' => (int) ($item['index'] ?? 0),
+            'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
+            'scope' => is_string($item['scope'] ?? null) ? $item['scope'] : null,
+            'subjectId' => is_string($item['subjectId'] ?? null) ? $item['subjectId'] : null,
+            'rel' => is_array($item['rel'] ?? null) ? array_values($item['rel']) : [],
+            'href' => is_string($item['href'] ?? null) ? $item['href'] : null,
+            'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+            'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
+            'manifestId' => is_string($item['manifestId'] ?? null) ? $item['manifestId'] : null,
+            'message' => $message,
         ];
     }
 

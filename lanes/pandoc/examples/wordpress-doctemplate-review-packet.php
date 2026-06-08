@@ -389,6 +389,57 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    $chunkedDefault = (new DocTemplate())->renderResource('templates/default', [], [
+        'lang' => 'en',
+        'dir' => 'ltr',
+        'title-prefix' => 'WordPress Import',
+        'pagetitle' => 'Chunked Review Packet',
+        'title' => 'Chunked Template Review',
+        'subtitle' => 'Native split-page metadata',
+        'author' => ['Migration bot', 'Content editor'],
+        'author-meta' => ['Migration bot', 'Content editor'],
+        'date' => '2026-06-08',
+        'date-meta' => '2026-06-08',
+        'keywords' => ['migration', 'wordpress', 'chunked'],
+        'description-meta' => 'Chunked HTML review packet',
+        'css' => ['chunked-review.css'],
+        'header-includes' => ['<meta name="robots" content="noindex">'],
+        'math' => '<script type="math/tex">queued</script>',
+        'include-before' => ['<main class="chunked-before">Queued</main>'],
+        'up' => ['url' => '../index.html', 'title' => 'Manual Root'],
+        'next' => ['url' => 'next.html', 'title' => 'Next Chunk'],
+        'previous' => ['url' => 'previous.html', 'title' => 'Previous Chunk'],
+        'abstract-title' => 'Abstract',
+        'abstract' => '<p>Chunked abstract survives.</p>',
+        'toc' => true,
+        'idprefix' => 'wp-chunked-',
+        'toc-title' => 'Chunk Contents',
+        'table-of-contents' => '<ul><li>Chunk body</li></ul>',
+        'body' => '<!-- wp:paragraph --><p>Chunked body.</p><!-- /wp:paragraph -->',
+        'include-after' => ['<footer>Chunk done</footer>'],
+        'document-css' => true,
+        'mainfont' => 'Atkinson Hyperlegible',
+        'csl-css' => true,
+        'csl-entry-spacing' => '0.25em',
+    ], null, 'chunkedhtml+smart');
+    foreach ([
+        '<title>WordPress Import – Chunked Review Packet</title>',
+        'div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }',
+        'font-family: Atkinson Hyperlegible;',
+        '/* CSS for citations */',
+        '<span class="navlink-label">Up:</span> <a href="../index.html" accesskey="u" rel="up">Manual Root</a>',
+        '<span class="navlink-label">Next:</span> <a href="next.html" accesskey="n" rel="next">Next Chunk</a>',
+        '<span class="navlink-label">Previous:</span> <a href="previous.html" accesskey="p" rel="previous">Previous Chunk</a>',
+        '<h1 class="title">Chunked Template Review</h1>',
+        '<nav id="wp-chunked-TOC" role="doc-toc">',
+        '<!-- wp:paragraph --><p>Chunked body.</p><!-- /wp:paragraph -->',
+    ] as $needle) {
+        if (!str_contains($chunkedDefault, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate chunkedhtml default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $nestedDefaultPartialFallback = (new DocTemplate())->renderResource('packets/review.html', [
         'packets/review.html' => <<<'HTML'
 <article class="nested-default-partial">

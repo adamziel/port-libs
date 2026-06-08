@@ -1748,6 +1748,80 @@ $fieldMetadataDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$legacyFormFieldDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Reviewer </w:t></w:r>
+      <w:r>
+        <w:fldChar w:fldCharType="begin">
+          <w:ffData>
+            <w:name w:val="ReviewerName"/>
+            <w:enabled/>
+            <w:calcOnExit w:val="1"/>
+            <w:entryMacro w:val="BeforeReviewer"/>
+            <w:exitMacro w:val="AfterReviewer"/>
+            <w:helpText w:type="text" w:val="Enter reviewer name"/>
+            <w:statusText w:type="text" w:val="Required for migration"/>
+            <w:textInput>
+              <w:type w:val="regular"/>
+              <w:default w:val="Migration Desk"/>
+              <w:format w:val="Title Case"/>
+              <w:maxLength w:val="32"/>
+            </w:textInput>
+          </w:ffData>
+        </w:fldChar>
+      </w:r>
+      <w:r><w:instrText xml:space="preserve"> FORMTEXT \* MERGEFORMAT </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>Migration Desk</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> approved </w:t></w:r>
+      <w:r>
+        <w:fldChar w:fldCharType="begin">
+          <w:ffData>
+            <w:name w:val="Reviewed"/>
+            <w:checkBox>
+              <w:size w:val="24"/>
+              <w:default w:val="1"/>
+              <w:checked w:val="true"/>
+            </w:checkBox>
+          </w:ffData>
+        </w:fldChar>
+      </w:r>
+      <w:r><w:instrText xml:space="preserve"> FORMCHECKBOX </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>[x]</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Status </w:t></w:r>
+      <w:r>
+        <w:fldChar w:fldCharType="begin">
+          <w:ffData>
+            <w:name w:val="ApprovalStatus"/>
+            <w:enabled w:val="0"/>
+            <w:ddList>
+              <w:default w:val="1"/>
+              <w:result w:val="2"/>
+              <w:listEntry w:val="Draft"/>
+              <w:listEntry w:val="Approved for staging"/>
+              <w:listEntry w:val="Published"/>
+            </w:ddList>
+          </w:ffData>
+        </w:fldChar>
+      </w:r>
+      <w:r><w:instrText xml:space="preserve"> FORMDROPDOWN </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>Approved for staging</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $proofPermissionRangeDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -3320,6 +3394,14 @@ $buildFieldMetadataPackage = static function () use ($contentTypesXml, $packageR
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $fieldMetadataDocumentXml],
+    ]);
+};
+
+$buildLegacyFormFieldPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $legacyFormFieldDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $legacyFormFieldDocumentXml],
     ]);
 };
 
@@ -6048,6 +6130,110 @@ return [
         $t->contains('<span class="docx-field docx-field-seq" data-docx-field="seq" data-docx-field-instruction="SEQ Figure \* ARABIC" data-docx-field-sequence="Figure" data-docx-field-format="ARABIC">4</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-seq docx-field-current-sequence" data-docx-field="seq" data-docx-field-instruction="SEQ Figure \c" data-docx-field-sequence="Figure" data-docx-field-current-sequence="true">4</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-seq docx-field-reset-number docx-field-reset-heading-level" data-docx-field="seq" data-docx-field-instruction="SEQ Table \* roman \r 3 \s 2" data-docx-field-sequence="Table" data-docx-field-format="roman" data-docx-field-reset-number="3" data-docx-field-reset-heading-level="2">iii</span>', $blocks);
+    },
+    'preserves DOCX legacy form-field metadata around displayed results' => static function (TestRunner $t) use ($buildLegacyFormFieldPackage): void {
+        $document = (new DocxReader())->readDocument($buildLegacyFormFieldPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+
+        $review = $document->children[0];
+        $t->same('paragraph', $review->type);
+        $t->same('Reviewer ', $review->children[0]->attr('text'));
+
+        $textField = $review->children[1];
+        $t->same('span', $textField->type);
+        $t->same([
+            'docx-field',
+            'docx-field-formtext',
+            'docx-form-field',
+            'docx-form-field-text',
+            'docx-form-field-named',
+            'docx-form-field-enabled',
+            'docx-form-field-calc-on-exit',
+            'docx-form-field-text-input',
+        ], $textField->attr('classes'));
+        $textAttrs = $textField->attr('attributes');
+        $t->same('formtext', $textAttrs['data-docx-field']);
+        $t->same('FORMTEXT \* MERGEFORMAT', $textAttrs['data-docx-field-instruction']);
+        $t->same('text', $textAttrs['data-docx-form-field-type']);
+        $t->same('ReviewerName', $textAttrs['data-docx-form-field-name']);
+        $t->same('true', $textAttrs['data-docx-form-field-enabled']);
+        $t->same('true', $textAttrs['data-docx-form-field-calc-on-exit']);
+        $t->same('BeforeReviewer', $textAttrs['data-docx-form-field-entry-macro']);
+        $t->same('AfterReviewer', $textAttrs['data-docx-form-field-exit-macro']);
+        $t->same('Enter reviewer name', $textAttrs['data-docx-form-field-help-text']);
+        $t->same('text', $textAttrs['data-docx-form-field-help-text-type']);
+        $t->same('Required for migration', $textAttrs['data-docx-form-field-status-text']);
+        $t->same('text', $textAttrs['data-docx-form-field-status-text-type']);
+        $t->same('regular', $textAttrs['data-docx-form-field-text-type']);
+        $t->same('Migration Desk', $textAttrs['data-docx-form-field-text-default']);
+        $t->same('Title Case', $textAttrs['data-docx-form-field-text-format']);
+        $t->same('32', $textAttrs['data-docx-form-field-text-max-length']);
+        $t->same('Migration Desk', $textField->children[0]->attr('text'));
+
+        $t->same(' approved ', $review->children[2]->attr('text'));
+        $checkboxField = $review->children[3];
+        $t->same('span', $checkboxField->type);
+        $t->same([
+            'docx-field',
+            'docx-field-formcheckbox',
+            'docx-form-field',
+            'docx-form-field-checkbox',
+            'docx-form-field-named',
+            'docx-form-field-checkbox-data',
+        ], $checkboxField->attr('classes'));
+        $checkboxAttrs = $checkboxField->attr('attributes');
+        $t->same('formcheckbox', $checkboxAttrs['data-docx-field']);
+        $t->same('checkbox', $checkboxAttrs['data-docx-form-field-type']);
+        $t->same('Reviewed', $checkboxAttrs['data-docx-form-field-name']);
+        $t->same('24', $checkboxAttrs['data-docx-form-field-checkbox-size-half-points']);
+        $t->same('true', $checkboxAttrs['data-docx-form-field-checkbox-default']);
+        $t->same('true', $checkboxAttrs['data-docx-form-field-checkbox-checked']);
+        $t->same('[x]', $checkboxField->children[0]->attr('text'));
+        $t->same('.', $review->children[4]->attr('text'));
+
+        $status = $document->children[1];
+        $t->same('paragraph', $status->type);
+        $t->same('Status ', $status->children[0]->attr('text'));
+        $dropdownField = $status->children[1];
+        $t->same('span', $dropdownField->type);
+        $t->same([
+            'docx-field',
+            'docx-field-formdropdown',
+            'docx-form-field',
+            'docx-form-field-dropdown',
+            'docx-form-field-named',
+            'docx-form-field-disabled',
+            'docx-form-field-dropdown-data',
+        ], $dropdownField->attr('classes'));
+        $dropdownAttrs = $dropdownField->attr('attributes');
+        $t->same('formdropdown', $dropdownAttrs['data-docx-field']);
+        $t->same('dropdown', $dropdownAttrs['data-docx-form-field-type']);
+        $t->same('ApprovalStatus', $dropdownAttrs['data-docx-form-field-name']);
+        $t->same('false', $dropdownAttrs['data-docx-form-field-enabled']);
+        $t->same('1', $dropdownAttrs['data-docx-form-field-dropdown-default-index']);
+        $t->same('2', $dropdownAttrs['data-docx-form-field-dropdown-result-index']);
+        $t->same('3', $dropdownAttrs['data-docx-form-field-dropdown-entry-count']);
+        $t->same('Draft', $dropdownAttrs['data-docx-form-field-dropdown-entry-1']);
+        $t->same('Approved for staging', $dropdownAttrs['data-docx-form-field-dropdown-entry-2']);
+        $t->same('Published', $dropdownAttrs['data-docx-form-field-dropdown-entry-3']);
+        $t->same('Approved for staging', $dropdownField->children[0]->attr('text'));
+        $t->same('.', $status->children[2]->attr('text'));
+
+        $t->contains('[Migration Desk]{.docx-field .docx-field-formtext .docx-form-field .docx-form-field-text', $markdown);
+        $t->contains('data-docx-form-field-text-default="Migration Desk"', $markdown);
+        $t->contains('[\\[x\\]]{.docx-field .docx-field-formcheckbox .docx-form-field .docx-form-field-checkbox', $markdown);
+        $t->contains('[Approved for staging]{.docx-field .docx-field-formdropdown .docx-form-field .docx-form-field-dropdown', $markdown);
+        $t->contains('data-docx-form-field-dropdown-entry-2="Approved for staging"', $markdown);
+
+        $t->contains('<span class="docx-field docx-field-formtext docx-form-field docx-form-field-text docx-form-field-named docx-form-field-enabled docx-form-field-calc-on-exit docx-form-field-text-input"', $blocks);
+        $t->contains('data-docx-form-field-text-max-length="32">Migration Desk</span>', $blocks);
+        $t->contains('<span class="docx-field docx-field-formcheckbox docx-form-field docx-form-field-checkbox docx-form-field-named docx-form-field-checkbox-data"', $blocks);
+        $t->contains('data-docx-form-field-checkbox-checked="true">[x]</span>', $blocks);
+        $t->contains('<span class="docx-field docx-field-formdropdown docx-form-field docx-form-field-dropdown docx-form-field-named docx-form-field-disabled docx-form-field-dropdown-data"', $blocks);
+        $t->contains('data-docx-form-field-dropdown-entry-2="Approved for staging" data-docx-form-field-dropdown-entry-3="Published">Approved for staging</span>', $blocks);
     },
     'preserves DOCX proof-error and permission ranges as reviewer spans' => static function (TestRunner $t) use ($buildProofPermissionRangePackage): void {
         $document = (new DocxReader())->readDocument($buildProofPermissionRangePackage());

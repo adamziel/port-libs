@@ -6762,6 +6762,7 @@ final class CitationCslProcessor
             'number-of-volumes' => 'volume',
             'chapter-number' => 'chapter',
             'collection-number' => 'number',
+            'part-number' => 'part',
             default => $variable,
         };
     }
@@ -7153,7 +7154,7 @@ final class CitationCslProcessor
             'number-of-volumes' => (string) $item['numberOfVolumes'],
             'number-of-pages' => (string) $item['numberOfPages'],
             'chapter-number' => (string) $item['chapterNumber'],
-            'part' => (string) $item['part'],
+            'part', 'part-number' => (string) $item['part'],
             'genre' => (string) $item['genre'],
             'entry-subtype', 'entrysubtype' => (string) $item['entrySubtype'],
             'gender', 'biblatex-gender', 'biblatexgender' => (string) ($item['biblatexGender'] ?? $item['gender'] ?? ''),
@@ -7305,6 +7306,8 @@ final class CitationCslProcessor
             'number-of-pages',
             'number-of-volumes',
             'collection-number',
+            'part-number',
+            'part',
         ], true);
     }
 

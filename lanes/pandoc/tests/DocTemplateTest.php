@@ -1270,6 +1270,112 @@ HTML,
         ], null, 'html4'));
     },
 
+    'renders bounded pandoc default chunkedhtml template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $chunked = $renderer->renderResource('templates/default', [], [
+            'lang' => 'en',
+            'dir' => 'ltr',
+            'title-prefix' => 'WordPress Import',
+            'pagetitle' => 'Chunked Review Packet',
+            'title' => 'Chunked Review',
+            'subtitle' => 'Native split-page metadata',
+            'author' => ['Migration bot', 'Content editor'],
+            'author-meta' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-08',
+            'date-meta' => '2026-06-08',
+            'keywords' => ['migration', 'wordpress', 'chunked'],
+            'description-meta' => 'Chunked HTML review packet',
+            'css' => ['chunked-review.css'],
+            'header-includes' => ['<meta name="robots" content="noindex">'],
+            'math' => '<script type="math/tex">queued</script>',
+            'include-before' => ['<main class="chunked-before">Queued</main>'],
+            'up' => ['url' => '../index.html', 'title' => 'Manual Root'],
+            'next' => ['url' => 'next.html', 'title' => 'Next Chunk'],
+            'previous' => ['url' => 'previous.html', 'title' => 'Previous Chunk'],
+            'abstract-title' => 'Abstract',
+            'abstract' => '<p>Chunked abstract survives.</p>',
+            'toc' => true,
+            'idprefix' => 'wp-chunked-',
+            'toc-title' => 'Chunk Contents',
+            'table-of-contents' => '<ul><li>Chunk body</li></ul>',
+            'body' => '<!-- wp:paragraph --><p>Chunked body.</p><!-- /wp:paragraph -->',
+            'include-after' => ['<footer>Chunk done</footer>'],
+            'document-css' => true,
+            'mainfont' => 'Atkinson Hyperlegible',
+            'csl-css' => true,
+            'csl-entry-spacing' => '0.25em',
+        ], null, 'chunkedhtml');
+
+        foreach ([
+            '<!DOCTYPE html>',
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" dir="ltr">',
+            '<meta name="generator" content="pandoc" />',
+            '<meta name="author" content="Migration bot" />',
+            '<meta name="dcterms.date" content="2026-06-08" />',
+            '<meta name="keywords" content="migration, wordpress, chunked" />',
+            '<meta name="description" content="Chunked HTML review packet" />',
+            '<title>WordPress Import – Chunked Review Packet</title>',
+            'div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }',
+            'font-family: Atkinson Hyperlegible;',
+            '/* CSS for citations */',
+            'margin-bottom: 0.25em;',
+            '<link rel="stylesheet" href="chunked-review.css" />',
+            '<meta name="robots" content="noindex">',
+            '<script type="math/tex">queued</script>',
+            '<main class="chunked-before">Queued</main>',
+            '<span class="navlink-label">Up:</span> <a href="../index.html" accesskey="u" rel="up">Manual Root</a>',
+            '<span class="navlink-label">Next:</span> <a href="next.html" accesskey="n" rel="next">Next Chunk</a>',
+            '<span class="navlink-label">Previous:</span> <a href="previous.html" accesskey="p" rel="previous">Previous Chunk</a>',
+            '<h1 class="title">Chunked Review</h1>',
+            '<p class="subtitle">Native split-page metadata</p>',
+            '<p class="author">Migration bot</p>',
+            '<div class="abstract-title">Abstract</div>',
+            '<nav id="wp-chunked-TOC" role="doc-toc">',
+            '<h2 id="wp-chunked-toc-title">Chunk Contents</h2>',
+            '<ul><li>Chunk body</li></ul>',
+            '<!-- wp:paragraph --><p>Chunked body.</p><!-- /wp:paragraph -->',
+            '<footer>Chunk done</footer>',
+        ] as $needle) {
+            $t->contains($needle, $chunked);
+        }
+
+        $topPage = $renderer->renderResource('templates/default.chunkedhtml', [], [
+            'lang' => 'en',
+            'pagetitle' => 'Chunked Top Packet',
+            'top' => ['url' => 'index.html', 'title' => 'Top Chunk'],
+            'title' => 'Suppressed Top Title',
+            'body' => '<p>Top body.</p>',
+        ], null, 'chunkedhtml+smart');
+        $t->contains('<span class="navlink-label">Top:</span> <a href="index.html" accesskey="t" rel="top">Top Chunk</a>', $topPage);
+        $t->same(false, str_contains($topPage, '<h1 class="title">Suppressed Top Title</h1>'));
+
+        $extensionQualified = $renderer->renderResource('templates/default', [], [
+            'lang' => 'en',
+            'pagetitle' => 'Chunked Extension Packet',
+            'body' => '<p>Chunked extension body.</p>',
+        ], null, 'chunkedhtml+smart');
+        $t->contains('<title>Chunked Extension Packet</title>', $extensionQualified);
+        $t->contains('<p>Chunked extension body.</p>', $extensionQualified);
+
+        $wrappedDefault = $renderer->renderResource('templates/review.html', [
+            'templates/review.html' => '<article class="wrapped-chunked">${ default.chunkedhtml() }</article>',
+        ], [
+            'lang' => 'en',
+            'pagetitle' => 'Wrapped Chunked Packet',
+            'body' => '<p>Wrapped chunked body.</p>',
+        ], null, 'html');
+        $t->contains('<article class="wrapped-chunked"><!DOCTYPE html>', $wrappedDefault);
+        $t->contains('<title>Wrapped Chunked Packet</title>', $wrappedDefault);
+        $t->contains('<p>Wrapped chunked body.</p>', $wrappedDefault);
+
+        $t->same('custom chunkedhtml Exact chunked override', $renderer->renderResource('templates/default', [
+            'templates/default.chunkedhtml' => 'custom chunkedhtml $body$',
+        ], [
+            'body' => 'Exact chunked override',
+        ], null, 'chunkedhtml'));
+    },
+
     'renders bounded pandoc default html5 template resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

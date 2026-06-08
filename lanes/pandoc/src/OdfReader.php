@@ -235,6 +235,10 @@ final class OdfReader
                     'databaseRangeCount' => (int) ($content['contentDeclarations']['databaseRangeCount'] ?? 0),
                     'databaseSubtotalRuleCount' => (int) ($content['contentDeclarations']['databaseSubtotalRuleCount'] ?? 0),
                     'databaseSubtotalFieldCount' => (int) ($content['contentDeclarations']['databaseSubtotalFieldCount'] ?? 0),
+                    'dataPilotTableCount' => (int) ($content['contentDeclarations']['dataPilotTableCount'] ?? 0),
+                    'dataPilotFieldCount' => (int) ($content['contentDeclarations']['dataPilotFieldCount'] ?? 0),
+                    'dataPilotSubtotalCount' => (int) ($content['contentDeclarations']['dataPilotSubtotalCount'] ?? 0),
+                    'dataPilotMemberCount' => (int) ($content['contentDeclarations']['dataPilotMemberCount'] ?? 0),
                     'ddeConnectionDeclarationCount' => (int) ($content['contentDeclarations']['ddeConnectionDeclarationCount'] ?? 0),
                 ],
             ],
@@ -2543,6 +2547,31 @@ final class OdfReader
             $databaseSubtotalFieldCount += (int) ($subtotalRules['fieldCount'] ?? 0);
         }
 
+        $dataPilotTables = $this->dataPilotTablesFromText($text);
+        $dataPilotTablesByName = [];
+        $dataPilotFieldCount = 0;
+        $dataPilotSubtotalCount = 0;
+        $dataPilotMemberCount = 0;
+        foreach ($dataPilotTables as $table) {
+            $name = (string) ($table['name'] ?? '');
+            if ($name !== '') {
+                $dataPilotTablesByName[$name] = $table;
+            }
+
+            $fields = $table['fields'] ?? [];
+            if (!is_array($fields)) {
+                continue;
+            }
+            $dataPilotFieldCount += count($fields);
+            foreach ($fields as $field) {
+                if (!is_array($field)) {
+                    continue;
+                }
+                $dataPilotSubtotalCount += $this->dataPilotFieldSubtotalCount($field);
+                $dataPilotMemberCount += $this->dataPilotFieldMemberCount($field);
+            }
+        }
+
         $ddeConnectionDeclarations = $this->ddeConnectionDeclarationsFromText($text);
         $ddeConnectionDeclarationsByName = [];
         foreach ($ddeConnectionDeclarations as $declaration) {
@@ -2572,6 +2601,12 @@ final class OdfReader
             'databaseRangesByName' => $databaseRangesByName,
             'databaseSubtotalRuleCount' => $databaseSubtotalRuleCount,
             'databaseSubtotalFieldCount' => $databaseSubtotalFieldCount,
+            'dataPilotTableCount' => count($dataPilotTables),
+            'dataPilotFieldCount' => $dataPilotFieldCount,
+            'dataPilotSubtotalCount' => $dataPilotSubtotalCount,
+            'dataPilotMemberCount' => $dataPilotMemberCount,
+            'dataPilotTables' => $dataPilotTables,
+            'dataPilotTablesByName' => $dataPilotTablesByName,
             'ddeConnectionDeclarationCount' => count($ddeConnectionDeclarations),
             'ddeConnectionDeclarations' => $ddeConnectionDeclarations,
             'ddeConnectionDeclarationsByName' => $ddeConnectionDeclarationsByName,
@@ -2941,6 +2976,283 @@ final class OdfReader
             'fields' => $fields,
             'fieldCount' => $fields === [] ? null : count($fields),
         ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function dataPilotTablesFromText(\DOMElement $text): array
+    {
+        $tables = [];
+        foreach (self::childElements($text, 'data-pilot-tables', self::TABLE_NS) as $container) {
+            foreach (self::childElements($container, 'data-pilot-table', self::TABLE_NS) as $table) {
+                $definition = $this->dataPilotTableDefinition($table);
+                if ($definition !== []) {
+                    $tables[] = $definition;
+                }
+            }
+        }
+
+        return $tables;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotTableDefinition(\DOMElement $table): array
+    {
+        $name = self::attr($table, self::TABLE_NS, 'name');
+        if ($name === '') {
+            return [];
+        }
+
+        $fields = [];
+        foreach (self::childElements($table, 'data-pilot-field', self::TABLE_NS) as $field) {
+            $definition = $this->dataPilotFieldDefinition($field);
+            if ($definition !== []) {
+                $fields[] = $definition;
+            }
+        }
+
+        $definition = self::withoutEmpty([
+            'name' => $name,
+            'applicationData' => self::nullable(self::attr($table, self::TABLE_NS, 'application-data')),
+            'targetRangeAddress' => self::nullable(self::attr($table, self::TABLE_NS, 'target-range-address')),
+            'buttons' => self::nullableBool(self::attr($table, self::TABLE_NS, 'buttons')),
+            'showFilterButton' => self::nullableBool(self::attr($table, self::TABLE_NS, 'show-filter-button')),
+            'drillDownOnDoubleClick' => self::nullableBool(self::attr($table, self::TABLE_NS, 'drill-down-on-double-click')),
+            'grandTotal' => self::nullable(self::attr($table, self::TABLE_NS, 'grand-total')),
+            'ignoreEmptyRows' => self::nullableBool(self::attr($table, self::TABLE_NS, 'ignore-empty-rows')),
+            'identifyCategories' => self::nullableBool(self::attr($table, self::TABLE_NS, 'identify-categories')),
+            'source' => $this->dataPilotSourceDefinition($table),
+            'fields' => $fields,
+            'fieldCount' => $fields === [] ? null : count($fields),
+        ]);
+
+        return $definition;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotSourceDefinition(\DOMElement $table): array
+    {
+        foreach (self::childElements($table) as $child) {
+            if ($child->namespaceURI !== self::TABLE_NS) {
+                continue;
+            }
+
+            if ($child->localName === 'source-cell-range') {
+                return self::withoutEmpty([
+                    'type' => 'cell-range',
+                    'cellRangeAddress' => self::nullable(self::attr($child, self::TABLE_NS, 'cell-range-address')),
+                ]);
+            }
+
+            if ($child->localName === 'source-sql') {
+                return self::withoutEmpty([
+                    'type' => 'sql',
+                    'databaseName' => self::nullable(self::attr($child, self::TABLE_NS, 'database-name')),
+                    'sqlStatement' => self::nullable(self::attr($child, self::TABLE_NS, 'sql-statement')),
+                    'parseSqlStatement' => self::nullableBool(self::attr($child, self::TABLE_NS, 'parse-sql-statement')),
+                ]);
+            }
+
+            if ($child->localName === 'source-table') {
+                return self::withoutEmpty([
+                    'type' => 'table',
+                    'databaseName' => self::nullable(self::attr($child, self::TABLE_NS, 'database-name')),
+                    'tableName' => self::nullable(self::attr($child, self::TABLE_NS, 'table-name')),
+                ]);
+            }
+
+            if ($child->localName === 'source-query') {
+                return self::withoutEmpty([
+                    'type' => 'query',
+                    'databaseName' => self::nullable(self::attr($child, self::TABLE_NS, 'database-name')),
+                    'queryName' => self::nullable(self::attr($child, self::TABLE_NS, 'query-name')),
+                ]);
+            }
+
+            if ($child->localName === 'source-service') {
+                return self::withoutEmpty([
+                    'type' => 'service',
+                    'name' => self::nullable(self::attr($child, self::TABLE_NS, 'name')),
+                    'sourceName' => self::nullable(self::attr($child, self::TABLE_NS, 'source-name')),
+                    'objectName' => self::nullable(self::attr($child, self::TABLE_NS, 'object-name')),
+                    'userName' => self::nullable(self::attr($child, self::TABLE_NS, 'user-name')),
+                    'passwordPresent' => self::attr($child, self::TABLE_NS, 'password') !== '' ? true : null,
+                ]);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotFieldDefinition(\DOMElement $field): array
+    {
+        $levels = [];
+        foreach (self::childElements($field, 'data-pilot-level', self::TABLE_NS) as $level) {
+            $definition = $this->dataPilotLevelDefinition($level);
+            if ($definition !== []) {
+                $levels[] = $definition;
+            }
+        }
+
+        $subtotals = $this->dataPilotSubtotalsFromContainer($field);
+        $members = $this->dataPilotMembersFromContainer($field);
+
+        return self::withoutEmpty([
+            'sourceFieldName' => self::nullable(self::attr($field, self::TABLE_NS, 'source-field-name')),
+            'orientation' => self::nullable(self::attr($field, self::TABLE_NS, 'orientation')),
+            'function' => self::nullable(self::attr($field, self::TABLE_NS, 'function')),
+            'usedHierarchy' => self::nullableInt(self::attr($field, self::TABLE_NS, 'used-hierarchy')),
+            'selectedPage' => self::nullable(self::attr($field, self::TABLE_NS, 'selected-page')),
+            'levels' => $levels,
+            'levelCount' => $levels === [] ? null : count($levels),
+            'subtotals' => $subtotals,
+            'subtotalCount' => $subtotals === [] ? null : count($subtotals),
+            'members' => $members,
+            'memberCount' => $members === [] ? null : count($members),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotLevelDefinition(\DOMElement $level): array
+    {
+        $subtotals = $this->dataPilotSubtotalsFromContainer($level);
+        $members = $this->dataPilotMembersFromContainer($level);
+
+        return self::withoutEmpty([
+            'showEmpty' => self::nullableBool(self::attr($level, self::TABLE_NS, 'show-empty')),
+            'displayEmpty' => self::nullableBool(self::attr($level, self::TABLE_NS, 'display-empty')),
+            'repeatItemLabels' => self::nullableBool(self::attr($level, self::TABLE_NS, 'repeat-item-labels')),
+            'subtotals' => $subtotals,
+            'subtotalCount' => $subtotals === [] ? null : count($subtotals),
+            'members' => $members,
+            'memberCount' => $members === [] ? null : count($members),
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function dataPilotSubtotalsFromContainer(\DOMElement $container): array
+    {
+        $subtotals = [];
+        foreach (self::childElements($container) as $child) {
+            if ($this->isElement($child, self::TABLE_NS, 'data-pilot-subtotals')) {
+                foreach (self::childElements($child, 'data-pilot-subtotal', self::TABLE_NS) as $subtotal) {
+                    $definition = $this->dataPilotSubtotalDefinition($subtotal);
+                    if ($definition !== []) {
+                        $subtotals[] = $definition;
+                    }
+                }
+                continue;
+            }
+
+            if ($this->isElement($child, self::TABLE_NS, 'data-pilot-subtotal')) {
+                $definition = $this->dataPilotSubtotalDefinition($child);
+                if ($definition !== []) {
+                    $subtotals[] = $definition;
+                }
+            }
+        }
+
+        return $subtotals;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotSubtotalDefinition(\DOMElement $subtotal): array
+    {
+        return self::withoutEmpty([
+            'function' => self::nullable(self::attr($subtotal, self::TABLE_NS, 'function')),
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function dataPilotMembersFromContainer(\DOMElement $container): array
+    {
+        $members = [];
+        foreach (self::childElements($container) as $child) {
+            if ($this->isElement($child, self::TABLE_NS, 'data-pilot-members')) {
+                foreach (self::childElements($child, 'data-pilot-member', self::TABLE_NS) as $member) {
+                    $definition = $this->dataPilotMemberDefinition($member);
+                    if ($definition !== []) {
+                        $members[] = $definition;
+                    }
+                }
+                continue;
+            }
+
+            if ($this->isElement($child, self::TABLE_NS, 'data-pilot-member')) {
+                $definition = $this->dataPilotMemberDefinition($child);
+                if ($definition !== []) {
+                    $members[] = $definition;
+                }
+            }
+        }
+
+        return $members;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotMemberDefinition(\DOMElement $member): array
+    {
+        return self::withoutEmpty([
+            'name' => self::nullable(self::attr($member, self::TABLE_NS, 'name')),
+            'display' => self::nullableBool(self::attr($member, self::TABLE_NS, 'display')),
+            'showDetails' => self::nullableBool(self::attr($member, self::TABLE_NS, 'show-details')),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $field
+     */
+    private function dataPilotFieldSubtotalCount(array $field): int
+    {
+        $count = is_array($field['subtotals'] ?? null) ? count($field['subtotals']) : 0;
+        $levels = $field['levels'] ?? [];
+        if (!is_array($levels)) {
+            return $count;
+        }
+        foreach ($levels as $level) {
+            if (is_array($level) && is_array($level['subtotals'] ?? null)) {
+                $count += count($level['subtotals']);
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string, mixed> $field
+     */
+    private function dataPilotFieldMemberCount(array $field): int
+    {
+        $count = is_array($field['members'] ?? null) ? count($field['members']) : 0;
+        $levels = $field['levels'] ?? [];
+        if (!is_array($levels)) {
+            return $count;
+        }
+        foreach ($levels as $level) {
+            if (is_array($level) && is_array($level['members'] ?? null)) {
+                $count += count($level['members']);
+            }
+        }
+
+        return $count;
     }
 
     /**

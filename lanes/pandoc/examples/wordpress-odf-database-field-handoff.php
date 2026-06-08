@@ -48,6 +48,24 @@ $contentXml = <<<'XML'
         <table:named-range table:name="ReadyPostRows" table:cell-range-address="Review.A2:Review.D12" table:base-cell-address="Review.A1" table:range-usable-as="filter"/>
         <table:named-expression table:name="ReadyPostCount" table:expression="of:=COUNTIF([.B2:.B12];&quot;ready&quot;)" table:base-cell-address="Review.A1"/>
       </table:named-expressions>
+      <table:data-pilot-tables>
+        <table:data-pilot-table table:name="ReadyPostPivot" table:application-data="wp-import-review" table:target-range-address="Pivot.A1:Pivot.D8" table:buttons="true" table:show-filter-button="true" table:grand-total="both" table:ignore-empty-rows="true" table:identify-categories="false">
+          <table:source-cell-range table:cell-range-address="Review.A1:Review.D12"/>
+          <table:data-pilot-field table:source-field-name="status" table:orientation="row" table:used-hierarchy="1">
+            <table:data-pilot-level table:show-empty="false" table:repeat-item-labels="true">
+              <table:data-pilot-subtotals>
+                <table:data-pilot-subtotal table:function="count"/>
+                <table:data-pilot-subtotal table:function="sum"/>
+              </table:data-pilot-subtotals>
+              <table:data-pilot-members>
+                <table:data-pilot-member table:name="ready" table:display="true" table:show-details="true"/>
+                <table:data-pilot-member table:name="draft" table:display="false"/>
+              </table:data-pilot-members>
+            </table:data-pilot-level>
+          </table:data-pilot-field>
+          <table:data-pilot-field table:source-field-name="total" table:orientation="data" table:function="sum"/>
+        </table:data-pilot-table>
+      </table:data-pilot-tables>
       <text:p>Import source <text:database-display text:database-name="ImportDS" text:table-name="wp_posts" text:table-type="table" text:column-name="post_title">Imported post title</text:database-display> moved to row <text:database-row-number text:database-name="ImportDS" text:table-name="wp_posts" text:row-number="12"/>.</text:p>
     </office:text>
   </office:body>
@@ -116,6 +134,34 @@ if (in_array('--self-test', $argv, true)) {
     }
     if (!is_array($readyCount) || ($readyCount['expression'] ?? '') !== 'of:=COUNTIF([.B2:.B12];"ready")') {
         throw new RuntimeException('Expected ODT named expression formula metadata to be preserved');
+    }
+    $dataPilotTables = $result['document']->attr('contentDeclarations')['dataPilotTablesByName'] ?? [];
+    $readyPivot = is_array($dataPilotTables) ? ($dataPilotTables['ReadyPostPivot'] ?? null) : null;
+    if (!is_array($readyPivot) || ($readyPivot['source']['cellRangeAddress'] ?? '') !== 'Review.A1:Review.D12') {
+        throw new RuntimeException('Expected ODT data-pilot source cell range metadata to be preserved');
+    }
+    if (($declarations['dataPilotTableCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT data-pilot table to be counted in the import report');
+    }
+    if (($declarations['dataPilotFieldCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT data-pilot fields to be counted in the import report');
+    }
+    if (($declarations['dataPilotSubtotalCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT data-pilot subtotals to be counted in the import report');
+    }
+    if (($declarations['dataPilotMemberCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT data-pilot members to be counted in the import report');
+    }
+    $pivotFields = $readyPivot['fields'] ?? [];
+    if (!is_array($pivotFields)) {
+        throw new RuntimeException('Expected ODT data-pilot field metadata to be preserved');
+    }
+    $statusLevel = is_array($pivotFields[0]['levels'][0] ?? null) ? $pivotFields[0]['levels'][0] : [];
+    if (($pivotFields[0]['orientation'] ?? '') !== 'row' || ($pivotFields[1]['function'] ?? '') !== 'sum') {
+        throw new RuntimeException('Expected ODT data-pilot field orientation and aggregation metadata to be preserved');
+    }
+    if (($statusLevel['subtotals'][0]['function'] ?? '') !== 'count' || ($statusLevel['members'][0]['name'] ?? '') !== 'ready') {
+        throw new RuntimeException('Expected ODT data-pilot level subtotals and members to be preserved');
     }
     if (($subtotalRules['sortGroups']['sortBy'][0]['fieldNumber'] ?? null) !== 2) {
         throw new RuntimeException('Expected ODT subtotal sort group field metadata to be preserved');

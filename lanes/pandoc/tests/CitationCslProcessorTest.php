@@ -14360,6 +14360,82 @@ XML);
         $t->contains('<li id="fn-3"><p>Repeated footnote cites first-note 1st raw 1 Smith 2026.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. First Note Source A.</dd>', $blocks);
     },
+    'applies bounded csl part number labels and text forms' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'part-source',
+                'type' => 'report',
+                'title' => 'Migration Part Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'part' => '2',
+            ],
+            [
+                'id' => 'part-range',
+                'type' => 'report',
+                'title' => 'Range Part Packet',
+                'author' => [
+                    ['family' => 'Doe', 'given' => 'Jane'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'part' => '3-4',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Part Number Review</title>
+    <id>https://example.test/styles/bounded-part-number-review</id>
+    <updated>2026-06-08T17:04:47+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <label variable="part-number" form="short"/>
+        <number variable="part-number" form="roman"/>
+        <text variable="part-number" form="ordinal" prefix="(" suffix=")"/>
+        <names variable="author"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="part-number"/>
+        <number variable="part-number" form="ordinal"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $children = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('part-number', $children[0]['variable'] ?? null);
+        $t->same('short', $children[0]['form'] ?? null);
+        $t->same('part-number', $children[1]['variable'] ?? null);
+        $t->same('roman', $children[1]['form'] ?? null);
+        $t->same('part-number', $children[2]['variable'] ?? null);
+        $t->same('ordinal', $children[2]['form'] ?? null);
+
+        $cluster = $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'part-source', 'text' => '[@part-source]']),
+            new AstNode('citation', ['id' => 'part-range', 'text' => '[@part-range]']),
+        ]);
+        $t->same('(pt. ii (2nd) Smith; pts. iii-iv (3rd-4th) Doe)', $cluster);
+        $t->same('Smith, Ada. Migration Part Packet. part 2nd.', $processor->renderBibliographyEntry('part-source'));
+        $t->same('Doe, Jane. Range Part Packet. parts 3rd-4th.', $processor->renderBibliographyEntry('part-range'));
+
+        $document = (new MarkdownReader())->read('Part source [@part-source; @part-range] keeps part numbering.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Part source (pt. ii (2nd) Smith; pts. iii-iv (3rd-4th) Doe) keeps part numbering.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Part Packet. part 2nd.</dd>', $blocks);
+        $t->contains('<dt>Doe 2025</dt><dd>Doe, Jane. Range Part Packet. parts 3rd-4th.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

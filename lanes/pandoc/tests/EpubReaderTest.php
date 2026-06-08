@@ -2995,6 +2995,92 @@ XML;
         );
         $t->same(false, in_array('/OEBPS/meta/review-record.json', $unmanifestedParts, true));
     },
+    'reports OPF metadata link target policy for publication resources' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $reviewRecordBytes = '{"@context":"https://schema.org","name":"Publication review record"}';
+        $manifestRecordBytes = '{"@context":"https://schema.org","name":"Manifested publication record"}';
+        $opfWithMetadataLinks = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="publication-record" href="meta/publication-record.json" media-type="application/ld+json"/>'
+            . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithMetadataLinks = str_replace(
+            '</metadata>',
+            '<link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer"/>'
+            . '<link id="manifested-record" rel="record" href="meta/publication-record.json" media-type="application/ld+json"/>'
+            . '<link id="remote-onix" rel="record" href="https://metadata.example.test/onix/source.xml" media-type="application/xml"/>'
+            . '<link id="missing-record" rel="record" href="meta/missing-record.json" media-type="application/json"/>'
+            . '<link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg"/>'
+            . '</metadata>',
+            $opfWithMetadataLinks
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithMetadataLinks,
+            null,
+            [
+                ['name' => 'OEBPS/meta/review-record.json', 'data' => $reviewRecordBytes],
+                ['name' => 'OEBPS/meta/publication-record.json', 'data' => $manifestRecordBytes],
+            ]
+        ));
+
+        $report = $result['metadata']['linkTargetReport'];
+        $t->same(true, $report['present']);
+        $t->same(5, $report['linkCount']);
+        $t->same(4, $report['publicationLinkCount']);
+        $t->same(1, $report['refinedLinkCount']);
+        $t->same(4, $report['localLinkCount']);
+        $t->same(2, $report['existingLocalLinkCount']);
+        $t->same(1, $report['manifestLinkCount']);
+        $t->same(1, $report['unmanifestedLocalLinkCount']);
+        $t->same(1, $report['externalLinkCount']);
+        $t->same(2, $report['missingLinkCount']);
+        $t->same(2, $report['byteExposedLinkCount']);
+        $t->same(4, $report['diagnosticCount']);
+        $t->same(4, $report['rels']['record']);
+        $t->same(1, $report['rels']['alternate']);
+        $t->same(1, $report['rels']['voicing']);
+
+        $publication = $report['publicationItems'];
+        $t->same(4, count($publication));
+        $t->same('review-record', $publication[0]['id']);
+        $t->same('publication', $publication[0]['scope']);
+        $t->same('/OEBPS/meta/review-record.json', $publication[0]['part']);
+        $t->same(true, $publication[0]['exists']);
+        $t->same(null, $publication[0]['manifestId']);
+        $t->same(hash('sha256', $reviewRecordBytes), $publication[0]['byteSha256']);
+        $t->same('unmanifested-publication-metadata-link', $publication[0]['diagnostics'][0]['type']);
+
+        $t->same('manifested-record', $publication[1]['id']);
+        $t->same('publication-record', $publication[1]['manifestId']);
+        $t->same('/OEBPS/meta/publication-record.json', $publication[1]['part']);
+        $t->same(hash('sha256', $manifestRecordBytes), $publication[1]['byteSha256']);
+        $t->same([], $publication[1]['diagnostics']);
+
+        $t->same('remote-onix', $publication[2]['id']);
+        $t->same(true, $publication[2]['external']);
+        $t->same(null, $publication[2]['part']);
+        $t->same('external-publication-metadata-link', $publication[2]['diagnostics'][0]['type']);
+
+        $t->same('missing-record', $publication[3]['id']);
+        $t->same('/OEBPS/meta/missing-record.json', $publication[3]['part']);
+        $t->same(false, $publication[3]['exists']);
+        $t->same('missing-publication-metadata-link', $publication[3]['diagnostics'][0]['type']);
+
+        $refined = $report['refinedItems'][0];
+        $t->same('creator-voicing', $refined['id']);
+        $t->same('refined-subject', $refined['scope']);
+        $t->same('creator', $refined['subjectId']);
+        $t->same('/OEBPS/audio/creator-name.mp3', $refined['part']);
+        $t->same('missing-refined-metadata-link', $refined['diagnostics'][0]['type']);
+
+        $t->same(['unmanifested-publication-metadata-link', 'external-publication-metadata-link', 'missing-publication-metadata-link', 'missing-refined-metadata-link'], array_column($report['diagnostics'], 'type'));
+        $t->same(4, count($report['itemsByRel']['record']));
+        $t->same('manifested-record', $report['itemsByRel']['record'][1]['id']);
+        $t->same(1, count($report['itemsByRel']['voicing']));
+        $t->same($report, $result['importReport']['metadata']['linkTargetReport']);
+        $t->same($report, $result['document']->attr('metadata')['linkTargetReport']);
+    },
     'reports OPF metadata link vocabulary tokens for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $reviewRecordBytes = '{"@context":"https://schema.org","name":"Vocabulary review record"}';
         $opfWithLinkVocabulary = str_replace(

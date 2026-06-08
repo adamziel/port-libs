@@ -1435,6 +1435,9 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         "/title\0source export title",
         "/keywords\0reviewer labels",
+        "/flow-comment-labels\0source label",
+        "/flow-comment-review\0reviewer queue state",
+        "/flow-comment-review\0reviewer import tag",
         "/source-summary\0folded source note for reviewer queue",
         "/source-review-log\0folded reviewer log with preserved nested lines",
         "/summary\0later metadata block overrides the first review status",

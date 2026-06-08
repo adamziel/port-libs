@@ -1796,7 +1796,7 @@ final class MarkdownReader
         }
 
         $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
-        $multilineFlow = $this->parseYamlMultilineFlowCollection($sourceValue, $children);
+        $multilineFlow = $this->parseYamlMultilineFlowCollection($sourceValue, $children, $childrenSourceLines);
         $tagsApplied = false;
 
         if ($multilineFlow !== null) {
@@ -2426,7 +2426,7 @@ final class MarkdownReader
                 $itemPath,
                 fn (): mixed => $this->withYamlMetadataSourceLine(
                     $sourceLine,
-                    fn (): mixed => $this->parseYamlMultilineFlowCollection($sourceValue, $children)
+                    fn (): mixed => $this->parseYamlMultilineFlowCollection($sourceValue, $children, $childrenSourceLines)
                 )
             );
             if ($multilineFlow !== null) {
@@ -3022,7 +3022,11 @@ final class MarkdownReader
     /**
      * @param list<string> $continuationLines
      */
-    private function parseYamlMultilineFlowCollection(string $sourceValue, array $continuationLines): mixed
+    private function parseYamlMultilineFlowCollection(
+        string $sourceValue,
+        array $continuationLines,
+        ?array $continuationSourceLines = null
+    ): mixed
     {
         $sourceValue = ltrim($sourceValue);
         if (
@@ -3033,8 +3037,9 @@ final class MarkdownReader
             return null;
         }
 
+        $rawSource = $sourceValue . "\n" . implode("\n", $continuationLines);
         $candidate = $this->stripYamlTrailingComment(
-            trim($this->stripYamlFlowComments($sourceValue . "\n" . implode("\n", $continuationLines)))
+            trim($this->stripYamlFlowComments($rawSource))
         );
         if ($candidate === '') {
             return null;
@@ -3045,7 +3050,84 @@ final class MarkdownReader
             return null;
         }
 
+        $this->recordYamlFlowCommentProvenance(
+            $rawSource,
+            array_merge([$this->yamlMetadataCurrentSourceLine], $continuationSourceLines ?? [])
+        );
+
         return $this->parseYamlScalarValue($candidate);
+    }
+
+    /**
+     * @param list<int|null> $sourceLines
+     */
+    private function recordYamlFlowCommentProvenance(string $source, array $sourceLines = []): void
+    {
+        $quote = null;
+        $inVerbatimTag = false;
+        $lineIndex = 0;
+        $length = strlen($source);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $source[$offset];
+            if ($char === "\n") {
+                $lineIndex++;
+                continue;
+            }
+
+            if ($quote !== null) {
+                if ($quote === "'" && $char === "'" && ($source[$offset + 1] ?? '') === "'") {
+                    $offset++;
+                    continue;
+                }
+
+                if ($char === $quote && ($quote === "'" || $source[$offset - 1] !== '\\')) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($inVerbatimTag) {
+                if ($char === '>') {
+                    $inVerbatimTag = false;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($this->isYamlVerbatimTagStart($source, $offset)) {
+                $inVerbatimTag = true;
+                continue;
+            }
+
+            if ($char !== '#' || ($offset !== 0 && !ctype_space($source[$offset - 1]))) {
+                continue;
+            }
+
+            $lineEnd = strpos($source, "\n", $offset);
+            if ($lineEnd === false) {
+                $lineEnd = $length;
+            }
+            $comment = trim(substr($source, $offset + 1, $lineEnd - $offset - 1));
+            if ($comment !== '') {
+                $entry = [
+                    'type' => 'yaml-comment',
+                    'context' => 'flow',
+                    'comment' => $comment,
+                    'path' => $this->currentYamlMetadataDiagnosticPath() ?? '',
+                ];
+                $sourceLine = $sourceLines[$lineIndex] ?? null;
+                if ($sourceLine !== null) {
+                    $entry['sourceLine'] = (string) $sourceLine;
+                }
+                $this->yamlMetadataCommentProvenance[] = $entry;
+            }
+
+            $offset = $lineEnd - 1;
+        }
     }
 
     private function stripYamlFlowComments(string $source): string

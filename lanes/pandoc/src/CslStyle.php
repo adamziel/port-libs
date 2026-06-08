@@ -1576,6 +1576,8 @@ final class CslStyle
             'number-of-pages',
             'number-of-volumes',
             'collection-number',
+            'part-number',
+            'part',
         ];
     }
 
