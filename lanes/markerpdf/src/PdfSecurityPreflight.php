@@ -6347,6 +6347,9 @@ final class PdfSecurityPreflight
                 if (($permissionPreflight['encrypt_operand_status'] ?? null) === 'encrypt_dictionary_trailing_operand_review') {
                     $reasons[] = 'encrypt_dictionary_trailing_operand';
                 }
+                if (($permissionPreflight['encrypt_operand_status'] ?? null) === 'encrypt_dictionary_non_dictionary_operand') {
+                    $reasons[] = 'encrypt_dictionary_non_dictionary_operand';
+                }
             } elseif ($permissionPolicy === 'permissions_malformed_blocked_without_decryption') {
                 if (($permissionPreflight['security_handler_declaration_fail_closed'] ?? false) === true) {
                     $reasons[] = 'security_handler_declaration_malformed';
