@@ -237,6 +237,24 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $extensionQualifiedFallback = (new DocTemplate())->renderResource('packets/review', [
+        'packets/review.html' => '<p class="extension-qualified">$body$</p>',
+    ], [
+        'body' => 'Extension-qualified format fallback',
+    ], null, 'html+smart-native_divs');
+    if ($extensionQualifiedFallback !== '<p class="extension-qualified">Extension-qualified format fallback</p>') {
+        fwrite(STDERR, "Missing expected doctemplate extension-qualified format fallback\n");
+        exit(1);
+    }
+
+    $extensionQualifiedDefault = (new DocTemplate())->renderResource('templates/default', [], [
+        'body' => 'Extension-qualified Markdown default fallback',
+    ], null, 'markdown_strict+emoji-hard_line_breaks');
+    if ($extensionQualifiedDefault !== "Extension-qualified Markdown default fallback\n") {
+        fwrite(STDERR, "Missing expected doctemplate extension-qualified default fallback\n");
+        exit(1);
+    }
+
     $nestedDefaultPartialFallback = (new DocTemplate())->renderResource('packets/review.html', [
         'packets/review.html' => <<<'HTML'
 <article class="nested-default-partial">

@@ -1131,6 +1131,62 @@ HTML,
         ], ['title' => 'Bad format'], null, '../html'));
     },
 
+    'resolves pandoc extension-qualified output formats to base templates' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $custom = $renderer->renderResource('templates/review', [
+            'templates/review.html' => '<article class="format-extension">$body$</article>',
+        ], [
+            'body' => 'Custom HTML extension packet',
+        ], null, 'html+smart-native_divs');
+        $t->same('<article class="format-extension">Custom HTML extension packet</article>', $custom);
+
+        $exactExtensionResource = $renderer->renderResource('templates/review', [
+            'templates/review.html+smart' => '<article class="exact-extension">$body$</article>',
+            'templates/review.html' => '<article class="base-extension">$body$</article>',
+        ], [
+            'body' => 'Exact resource packet',
+        ], null, 'html+smart');
+        $t->same('<article class="exact-extension">Exact resource packet</article>', $exactExtensionResource);
+
+        $htmlDefault = $renderer->renderResource('templates/default', [], [
+            'pandoc-version' => '3.7.0',
+            'pagetitle' => 'Extension Default Packet',
+            'body' => '<p>HTML extension default body.</p>',
+        ], null, 'html+smart-raw_html');
+        $t->contains('<!DOCTYPE html>', $htmlDefault);
+        $t->contains('<title>Extension Default Packet</title>', $htmlDefault);
+        $t->contains('<p>HTML extension default body.</p>', $htmlDefault);
+
+        $markdownDefault = $renderer->renderResource('templates/default', [], [
+            'body' => 'Markdown extension default body',
+        ], null, 'markdown_strict+emoji-hard_line_breaks');
+        $t->same("Markdown extension default body\n", $markdownDefault);
+
+        $gfmDefault = $renderer->renderResource('templates/default', [], [
+            'body' => 'GFM extension default body',
+        ], null, 'gfm+emoji');
+        $t->same("GFM extension default body\n", $gfmDefault);
+
+        $docxDefault = $renderer->renderResource('templates/default', [], [
+            'body' => '<w:p>DOCX extension default body.</w:p>',
+            'sectpr' => '<w:sectPr/>',
+        ], null, 'docx+styles');
+        $t->contains('<w:p>DOCX extension default body.</w:p>', $docxDefault);
+        $t->contains('<w:sectPr/>', $docxDefault);
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $renderer->renderResource('templates/review', [
+            'templates/review.html' => '$body$',
+        ], [
+            'body' => 'Bad extension',
+        ], null, 'html+../raw_html'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $renderer->renderResource('templates/review', [
+            'templates/review.html' => '$body$',
+        ], [
+            'body' => 'Bad extension',
+        ], null, 'html+'));
+    },
+
     'renders bounded pandoc default html5 template resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

@@ -275,21 +275,39 @@ final class DocTemplate
             return $templatePath;
         }
 
-        if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]*$/', $format)) {
-            throw new \InvalidArgumentException('Invalid doctemplate output format');
-        }
-
+        $formatBase = $this->normalizeTemplateOutputFormat($format);
         $candidate = $templatePath . '.' . $format;
         if (array_key_exists($candidate, $resources) || $this->defaultTemplateResource($candidate) !== null) {
             return $candidate;
         }
 
-        $defaultCandidate = $this->defaultTemplateResourcePathFor($templatePath, $format);
+        if ($formatBase !== $format) {
+            $baseCandidate = $templatePath . '.' . $formatBase;
+            if (array_key_exists($baseCandidate, $resources) || $this->defaultTemplateResource($baseCandidate) !== null) {
+                return $baseCandidate;
+            }
+        }
+
+        $defaultCandidate = $this->defaultTemplateResourcePathFor($templatePath, $formatBase);
         if ($defaultCandidate !== null && (array_key_exists($defaultCandidate, $resources) || $this->defaultTemplateResource($defaultCandidate) !== null)) {
             return $defaultCandidate;
         }
 
         return $templatePath;
+    }
+
+    private function normalizeTemplateOutputFormat(string $format): string
+    {
+        if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9_]*(?:[+-][A-Za-z0-9_]+)*$/', $format)) {
+            throw new \InvalidArgumentException('Invalid doctemplate output format');
+        }
+
+        $extensionOffset = strcspn($format, '+-');
+        if ($extensionOffset === 0) {
+            throw new \InvalidArgumentException('Invalid doctemplate output format');
+        }
+
+        return substr($format, 0, $extensionOffset);
     }
 
     /**
