@@ -1438,6 +1438,56 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'Geometric emoji wrapped line exceeds requested width');
         }
     },
+    'measures east asian wide divination and counting symbols for display columns' => static function (TestRunner $t): void {
+        $trigrams = "\u{2630}\u{2637}";
+        $monogramsAndDigrams = "\u{268A}\u{268B}\u{268C}";
+        $taiXuan = "\u{1D300}\u{1D306}\u{1D356}";
+        $countingRods = "\u{1D360}\u{1D369}\u{1D376}";
+        $sample = "\u{2630}\u{268A}\u{1D300}\u{1D360}X";
+        $wrapped = UnicodeText::wrapByDisplayWidth("Audit {$sample} tail", 10, '  ');
+
+        $t->same(4, UnicodeText::displayWidth($trigrams));
+        $t->same(6, UnicodeText::displayWidth($monogramsAndDigrams));
+        $t->same(6, UnicodeText::displayWidth($taiXuan));
+        $t->same(6, UnicodeText::displayWidth($countingRods));
+        $t->same(["\u{2630}", "\u{268A}", "\u{1D300}", "\u{1D360}", 'X'], UnicodeText::splitByDisplayBreakpoints($sample, [2, 4, 6, 8]));
+        $t->same(["\u{2630}\u{268A}", "\u{1D300}\u{1D360}X"], UnicodeText::splitAtDisplayWidth($sample, 3));
+        $t->same("  \u{1D360}", UnicodeText::padDisplay("\u{1D360}", 4, 'right'));
+        $t->same(['Audit', "  \u{2630}\u{268A}\u{1D300}\u{1D360}", '  X tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'Divination/counting symbol wrapped line exceeds requested width');
+        }
+
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'alignments' => ['default', 'default'],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', ['header' => true], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Symbol'])]),
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Width'])]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => "\u{2630}\u{268A}"])]),
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => '4'])]),
+                    ]),
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => "\u{1D300}\u{1D360}"])]),
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => '4'])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '| Symbol | Width |',
+            '|------|-----|',
+            "| \u{2630}\u{268A}   | 4     |",
+            "| \u{1D300}\u{1D360}   | 4     |",
+        ]), (new MarkdownWriter())->write($document));
+    },
     'applies east asian ambiguous width policy for display columns' => static function (TestRunner $t): void {
         $ambiguous = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
         $combining = "A\u{0301}\u{00B7}";

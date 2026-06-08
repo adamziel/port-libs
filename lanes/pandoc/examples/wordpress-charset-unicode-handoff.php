@@ -184,6 +184,8 @@ $bmpWideEmojiText = "\u{231A}\u{2705}\u{2B50}\u{26FD}";
 $bmpWideEmojiSlices = UnicodeText::splitByDisplayBreakpoints($bmpWideEmojiText, [2, 4, 6]);
 $geometricEmojiText = "\u{1F7E0}\u{1F7E9}\u{1F7F0}";
 $geometricEmojiSlices = UnicodeText::splitByDisplayBreakpoints($geometricEmojiText, [2, 4]);
+$divinationWideText = "\u{2630}\u{268A}\u{1D300}\u{1D360}";
+$divinationWideSlices = UnicodeText::splitByDisplayBreakpoints($divinationWideText . 'X', [2, 4, 6, 8]);
 $defaultIgnorableText = "soft\u{00AD}hyphen / \u{FEFF}Title";
 $defaultIgnorableWidth = UnicodeText::displayWidth("soft\u{00AD}hyphen") . ',' . UnicodeText::displayWidth("\u{FEFF}Title");
 $formatControlText = "\u{0600}رقم \u{070F}ܣܘܪܝܝܐ \u{110BD}kaithi";
@@ -363,6 +365,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Geometric emoji wide'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $geometricEmojiSlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $geometricEmojiSlices))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'I Ching/counting wide'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $divinationWideSlices)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $divinationWideSlices))])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Default ignorables'])]),
@@ -670,6 +677,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Geometric emoji wide</td><td>\u{1F7E0} / \u{1F7E9} / \u{1F7F0}</td><td>2,2,2</td>")) {
         throw new RuntimeException('charset handoff self-test missing geometric emoji wide audit');
+    }
+    if (!str_contains($blocks, "<td>I Ching/counting wide</td><td>\u{2630} / \u{268A} / \u{1D300} / \u{1D360} / X</td><td>2,2,2,2,1</td>")) {
+        throw new RuntimeException('charset handoff self-test missing I Ching/counting symbol width audit');
     }
     if (!str_contains($blocks, "<td>Default ignorables</td><td>soft\u{00AD}hyphen / \u{FEFF}Title</td><td>10,5</td>")) {
         throw new RuntimeException('charset handoff self-test missing default-ignorable width audit');

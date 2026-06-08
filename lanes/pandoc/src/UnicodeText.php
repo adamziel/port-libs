@@ -4387,8 +4387,10 @@ final class UnicodeText
             || $codepoint === 0x23f3
             || ($codepoint >= 0x25fd && $codepoint <= 0x25fe)
             || ($codepoint >= 0x2614 && $codepoint <= 0x2615)
+            || ($codepoint >= 0x2630 && $codepoint <= 0x2637)
             || ($codepoint >= 0x2648 && $codepoint <= 0x2653)
             || $codepoint === 0x267f
+            || ($codepoint >= 0x268a && $codepoint <= 0x268f)
             || $codepoint === 0x2693
             || $codepoint === 0x26a1
             || ($codepoint >= 0x26aa && $codepoint <= 0x26ab)
@@ -4435,6 +4437,8 @@ final class UnicodeText
             || $codepoint === 0x1b155
             || ($codepoint >= 0x1b164 && $codepoint <= 0x1b167)
             || ($codepoint >= 0x1b170 && $codepoint <= 0x1b2fb)
+            || ($codepoint >= 0x1d300 && $codepoint <= 0x1d356)
+            || ($codepoint >= 0x1d360 && $codepoint <= 0x1d376)
             || $codepoint === 0x1f004
             || $codepoint === 0x1f0cf
             || $codepoint === 0x1f18e
