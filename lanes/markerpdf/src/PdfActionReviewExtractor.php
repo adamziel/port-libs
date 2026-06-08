@@ -2277,10 +2277,16 @@ final class PdfActionReviewExtractor
         if ($start < 0 || $start >= strlen($data)) {
             return null;
         }
+        if (!$this->objectStreamMemberOffsetHasTokenBoundary($data, $start)) {
+            return null;
+        }
 
         $end = strlen($data);
         foreach ($members as $index => $member) {
             if ($index === $memberIndex || $member['offset'] <= $start) {
+                continue;
+            }
+            if (!$this->objectStreamMemberOffsetHasTokenBoundary($data, $member['offset'])) {
                 continue;
             }
             $end = min($end, $member['offset']);
@@ -2348,20 +2354,66 @@ final class PdfActionReviewExtractor
      */
     private function objectStreamHeaderMembers(string $header, int $declaredCount): array
     {
-        if (preg_match_all('/\d+/', $header, $matches) < 1) {
-            return [];
-        }
-
         $members = [];
-        $tokens = $matches[0];
-        for ($index = 0, $count = count($tokens); $index + 1 < $count && count($members) < $declaredCount; $index += 2) {
+        $offset = 0;
+        for ($index = 0; $index < $declaredCount; $index++) {
+            $objectNumber = $this->readObjectStreamHeaderUnsignedInteger($header, $offset);
+            if ($objectNumber === null) {
+                return [];
+            }
+
+            $memberOffset = $this->readObjectStreamHeaderUnsignedInteger($header, $offset);
+            if ($memberOffset === null) {
+                return [];
+            }
+
             $members[] = [
-                'object_id' => (int) $tokens[$index],
-                'offset' => (int) $tokens[$index + 1],
+                'object_id' => $objectNumber,
+                'offset' => $memberOffset,
             ];
         }
 
+        $this->skipObjectStreamHeaderWhitespaceAndComments($header, $offset);
+        if ($offset !== strlen($header)) {
+            return [];
+        }
+
         return $members;
+    }
+
+    private function readObjectStreamHeaderUnsignedInteger(string $header, int &$offset): ?int
+    {
+        $this->skipObjectStreamHeaderWhitespaceAndComments($header, $offset);
+        if (preg_match('/\G\+?(\d+)/s', $header, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $offset += strlen($match[0]);
+        if ($offset < strlen($header) && !$this->isDelimiter($header[$offset])) {
+            return null;
+        }
+
+        return (int) $match[1];
+    }
+
+    private function skipObjectStreamHeaderWhitespaceAndComments(string $header, int &$offset): void
+    {
+        $length = strlen($header);
+        while ($offset < $length) {
+            if (ctype_space($header[$offset])) {
+                $offset++;
+                continue;
+            }
+
+            if ($header[$offset] === '%') {
+                while ($offset < $length && $header[$offset] !== "\n" && $header[$offset] !== "\r") {
+                    $offset++;
+                }
+                continue;
+            }
+
+            break;
+        }
     }
 
     /**
@@ -2382,6 +2434,138 @@ final class PdfActionReviewExtractor
         foreach ($members as $index => $member) {
             if ($member['object_id'] === $requestedObjectNumber) {
                 return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function objectStreamMemberOffsetHasTokenBoundary(string $data, int $offset): bool
+    {
+        $length = strlen($data);
+        if ($offset < 0 || $offset >= $length) {
+            return false;
+        }
+
+        if (ctype_space($data[$offset]) || $data[$offset] === '%') {
+            return false;
+        }
+
+        if ($offset === 0) {
+            return true;
+        }
+
+        $index = 0;
+        while ($index < $offset && $index < $length) {
+            $char = $data[$index];
+            if ($char === '(') {
+                $end = $index;
+                $this->readLiteralToken($data, $end);
+                if ($end <= $index || $offset < $end) {
+                    return false;
+                }
+                $index = $end;
+                continue;
+            }
+
+            if ($char === '%') {
+                $end = $index;
+                while ($end < $length && $data[$end] !== "\n" && $data[$end] !== "\r") {
+                    $end++;
+                }
+                if ($end <= $index || $offset < $end) {
+                    return false;
+                }
+                $index = $end;
+                continue;
+            }
+
+            if ($char === '<' && substr($data, $index, 2) === '<<') {
+                $end = $this->dictionaryEndOffset($data, $index);
+                if ($end !== null) {
+                    if ($end <= $index || $offset < $end) {
+                        return false;
+                    }
+                    $index = $end;
+                    continue;
+                }
+            }
+
+            if ($char === '<') {
+                $end = $index;
+                $this->readHexToken($data, $end);
+                if ($end <= $index || $offset < $end) {
+                    return false;
+                }
+                $index = $end;
+                continue;
+            }
+
+            if ($char === '[') {
+                $end = $this->arrayEndOffset($data, $index);
+                if ($end !== null) {
+                    if ($end <= $index || $offset < $end) {
+                        return false;
+                    }
+                    $index = $end;
+                    continue;
+                }
+            }
+
+            $index++;
+        }
+
+        if ($index !== $offset) {
+            return false;
+        }
+
+        $previous = $data[$offset - 1] ?? '';
+        return $previous !== '' && $this->isDelimiter($previous);
+    }
+
+    private function arrayEndOffset(string $value, int $offset): ?int
+    {
+        $depth = 0;
+        for ($index = $offset, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char === '(') {
+                $this->readLiteralToken($value, $index);
+                $index--;
+                continue;
+            }
+
+            if ($char === '%') {
+                while ($index < $length && $value[$index] !== "\n" && $value[$index] !== "\r") {
+                    $index++;
+                }
+                continue;
+            }
+
+            if ($char === '<' && substr($value, $index, 2) === '<<') {
+                $dictionaryEnd = $this->dictionaryEndOffset($value, $index);
+                if ($dictionaryEnd === null) {
+                    return null;
+                }
+                $index = $dictionaryEnd - 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                $this->readHexToken($value, $index);
+                $index--;
+                continue;
+            }
+
+            if ($char === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $depth--;
+                if ($depth === 0) {
+                    return $index + 1;
+                }
             }
         }
 
