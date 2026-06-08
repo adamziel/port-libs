@@ -3903,6 +3903,12 @@ final class PdfActionReviewExtractor
         if ($limits === null || count($limits) !== 2) {
             return null;
         }
+        if (
+            $this->valueHasTrailingOperandAfterResolution($limits[0])
+            || $this->valueHasTrailingOperandAfterResolution($limits[1])
+        ) {
+            return null;
+        }
 
         $lower = $this->pdfStringDetails($this->resolveValue($limits[0]));
         $upper = $this->pdfStringDetails($this->resolveValue($limits[1]));

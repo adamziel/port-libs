@@ -7473,7 +7473,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->decodeStream($stream['dict'], $stream['stream'], $objects);
+        return $this->decodeStream($stream['dict'], $stream['stream'], $objects, false, true, true);
     }
 
     /**
@@ -24254,7 +24254,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $decoded = $this->decodeStream($stream['dict'], $stream['stream'], $objects);
+            $decoded = $this->decodeStream($stream['dict'], $stream['stream'], $objects, false, true, true);
             if ($decoded === null) {
                 return null;
             }

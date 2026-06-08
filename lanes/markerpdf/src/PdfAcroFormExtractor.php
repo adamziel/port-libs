@@ -6494,9 +6494,7 @@ final class PdfAcroFormExtractor
             return false;
         }
 
-        $kids = $this->lastTopLevelValueAfterName($body, 'Kids');
-
-        return $kids !== null && $this->arrayBodyFromValueOrReference($kids, $objects) !== null;
+        return $this->topLevelArrayBodyAfterName($body, 'Kids', $objects) !== null;
     }
 
     /**
@@ -9399,12 +9397,7 @@ final class PdfAcroFormExtractor
      */
     private function fieldReferencesFromAcroForm(string $acroForm, array $objects): array
     {
-        $fields = $this->lastTopLevelValueAfterName($acroForm, 'Fields');
-        if ($fields === null) {
-            return [];
-        }
-
-        $body = $this->arrayBodyFromValueOrReference($fields, $objects);
+        $body = $this->topLevelArrayBodyAfterName($acroForm, 'Fields', $objects);
         return $body === null ? [] : $this->validObjectReferences($body, $objects);
     }
 
@@ -9692,6 +9685,9 @@ final class PdfAcroFormExtractor
 
         $span = $this->lastTopLevelValueSpanAfterName($dictionaryBody, $name);
         if ($span === null) {
+            return $empty;
+        }
+        if ($this->topLevelValueSpanHasTrailingOperand($dictionaryBody, $span)) {
             return $empty;
         }
 
@@ -10361,12 +10357,7 @@ final class PdfAcroFormExtractor
      */
     private function kidReferences(string $body, array $objects): array
     {
-        $kids = $this->lastTopLevelValueAfterName($body, 'Kids');
-        if ($kids === null) {
-            return [];
-        }
-
-        $body = $this->arrayBodyFromValueOrReference($kids, $objects);
+        $body = $this->topLevelArrayBodyAfterName($body, 'Kids', $objects);
         return $body === null ? [] : $this->validObjectReferences($body, $objects);
     }
 
@@ -10379,6 +10370,19 @@ final class PdfAcroFormExtractor
         $target = $this->arrayBodyTargetFromValueOrReference($value, $objects, $seen);
 
         return $target['body'] ?? null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function topLevelArrayBodyAfterName(string $dictionaryBody, string $name, array $objects): ?string
+    {
+        $span = $this->lastTopLevelValueSpanAfterName($dictionaryBody, $name);
+        if ($span === null || $this->topLevelValueSpanHasTrailingOperand($dictionaryBody, $span)) {
+            return null;
+        }
+
+        return $this->arrayBodyFromValueOrReference($span['value'], $objects);
     }
 
     /**

@@ -8294,6 +8294,12 @@ final class PdfMetadataExtractor
         if (count($items) !== 2) {
             return null;
         }
+        if (
+            !$this->rawValueTargetsSingleTopLevelValue($items[0], $objects)
+            || !$this->rawValueTargetsSingleTopLevelValue($items[1], $objects)
+        ) {
+            return null;
+        }
 
         $lower = $this->destinationNameDetailsFromRaw($items[0], $objects);
         $upper = $this->destinationNameDetailsFromRaw($items[1], $objects);
@@ -8320,6 +8326,21 @@ final class PdfMetadataExtractor
     {
         return $this->dictionaryTopLevelRawValue($node['body'], 'Limits') !== null
             && $this->nameTreeNodeLimits($node, $objects) === null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function rawValueTargetsSingleTopLevelValue(string $value, array $objects): bool
+    {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return true;
+        }
+
+        $body = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+
+        return $body !== null && $this->objectBodyHasSingleTopLevelValue($body);
     }
 
     /**

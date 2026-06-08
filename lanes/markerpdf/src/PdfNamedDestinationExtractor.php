@@ -1632,6 +1632,13 @@ final class PdfNamedDestinationExtractor
             return null;
         }
 
+        if (
+            $this->valueHasTrailingOperandAfterResolution($limits[0], $objects, $cache)
+            || $this->valueHasTrailingOperandAfterResolution($limits[1], $objects, $cache)
+        ) {
+            return null;
+        }
+
         $lower = $this->destinationNameDetails($limits[0], $objects, $cache);
         $upper = $this->destinationNameDetails($limits[1], $objects, $cache);
         if ($lower === null || $upper === null || $lower['text'] === '' || $upper['text'] === '') {

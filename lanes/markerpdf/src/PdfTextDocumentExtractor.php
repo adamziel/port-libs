@@ -143,10 +143,10 @@ final class PdfTextDocumentExtractor
                 return [$pages];
             }
 
-            if (!array_key_exists('blocks', $pages) && array_key_exists('pages', $pages)) {
-                $nestedPages = $this->normalizeSuppliedDictionaryEnvelopeValue($pages['pages']);
-                if (is_array($nestedPages)) {
-                    return $this->orderedSuppliedDictionaryPageList($nestedPages);
+            if (!array_key_exists('blocks', $pages)) {
+                $nestedPages = $this->nestedSuppliedDictionaryPageMap($pages);
+                if ($nestedPages !== null) {
+                    return $nestedPages;
                 }
             }
 
@@ -269,13 +269,10 @@ final class PdfTextDocumentExtractor
                 return $candidate;
             }
 
-            if (array_key_exists('pages', $candidate)) {
-                $candidatePages = $this->normalizeSuppliedDictionaryEnvelopeValue($candidate['pages']);
-                if (is_array($candidatePages)) {
-                    $pageList = $this->orderedSuppliedDictionaryPageList($candidatePages);
-                    if (count($pageList) === 1 && is_array($pageList[0]) && array_key_exists('blocks', $pageList[0])) {
-                        return $pageList[0];
-                    }
+            $candidatePageList = $this->nestedSuppliedDictionaryPageMap($candidate);
+            if ($candidatePageList !== null) {
+                if (count($candidatePageList) === 1 && is_array($candidatePageList[0]) && array_key_exists('blocks', $candidatePageList[0])) {
+                    return $candidatePageList[0];
                 }
             }
 
@@ -362,21 +359,57 @@ final class PdfTextDocumentExtractor
             }
         }
 
-        if (array_key_exists('pages', $value)) {
-            $pages = $this->normalizeSuppliedDictionaryEnvelopeValue($value['pages']);
-            if (is_array($pages)) {
-                if ($pages === []) {
-                    return [];
-                }
-                $pageList = $this->orderedSuppliedDictionaryPageList($pages);
+        foreach (['pages', 'page_map', 'pageMap'] as $pageListKey) {
+            if (!array_key_exists($pageListKey, $value)) {
+                continue;
+            }
 
-                return $this->allSuppliedDictionaryPages($pageList) ? $pageList : null;
+            $pages = $this->normalizeSuppliedDictionaryEnvelopeValue($value[$pageListKey]);
+            if (!is_array($pages)) {
+                continue;
+            }
+
+            if ($pages === []) {
+                return [];
+            }
+
+            $pageList = $this->orderedSuppliedDictionaryPageList($pages);
+            if ($this->allSuppliedDictionaryPages($pageList)) {
+                return $pageList;
+            }
+
+            if ($pageListKey === 'pages') {
+                return null;
             }
         }
 
         $pageList = $this->orderedSuppliedDictionaryPageList($value);
 
         return $this->allSuppliedDictionaryPages($pageList) ? $pageList : null;
+    }
+
+    /**
+     * @param array<mixed> $value
+     * @return list<mixed>|null
+     */
+    private function nestedSuppliedDictionaryPageMap(array $value): ?array
+    {
+        foreach (['pages', 'page_map', 'pageMap'] as $pageListKey) {
+            if (!array_key_exists($pageListKey, $value)) {
+                continue;
+            }
+
+            $pages = $this->normalizeSuppliedDictionaryEnvelopeValue($value[$pageListKey]);
+            if (is_array($pages)) {
+                if ($pages === []) {
+                    return [];
+                }
+
+                return $this->orderedSuppliedDictionaryPageList($pages);
+            }
+        }
+
+        return null;
     }
 
     /**

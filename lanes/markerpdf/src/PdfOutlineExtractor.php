@@ -4297,6 +4297,12 @@ final class PdfOutlineExtractor
         if ($limits === null || count($limits) !== 2) {
             return null;
         }
+        if (
+            ($this->isReferenceValue($limits[0]) && !$this->referenceTargetsSingleTopLevelValue($limits[0], $objects))
+            || ($this->isReferenceValue($limits[1]) && !$this->referenceTargetsSingleTopLevelValue($limits[1], $objects))
+        ) {
+            return null;
+        }
 
         $lower = $this->destinationNameDetails($limits[0], $objects);
         $upper = $this->destinationNameDetails($limits[1], $objects);
