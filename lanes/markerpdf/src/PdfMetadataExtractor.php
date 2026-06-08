@@ -9902,6 +9902,7 @@ final class PdfMetadataExtractor
         $entryCounts = [];
         $duplicateNames = [];
         $malformedNames = [];
+        $indirectNames = [];
 
         foreach ([
             'Filter' => 'filter',
@@ -9919,9 +9920,11 @@ final class PdfMetadataExtractor
             $entries = [];
             foreach ($valueReviews as $index => $valueReview) {
                 $value = is_string($valueReview['value'] ?? null) ? $valueReview['value'] : '';
+                $reference = $this->objectReferenceFromValue($value);
                 $resolved = $this->resolvePdfValue($value, $objects);
                 $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
                 $operandShape = $this->standardSecurityHandlerParameterOperandShape($valueForReview);
+                $rawOperandShape = $this->standardSecurityHandlerParameterOperandShape($value);
                 $firstToken = $this->firstPdfValueToken($valueForReview);
                 $integerValue = $pdfName !== 'Filter' && $operandShape === 'token' && preg_match('/^[+-]?\d+$/', $firstToken) === 1
                     ? (int) $firstToken
@@ -9947,6 +9950,7 @@ final class PdfMetadataExtractor
                     'metadata_key' => $metadataKey,
                     'resolved' => $resolved !== null,
                     'operand_shape' => $operandShape,
+                    'raw_operand_shape' => $rawOperandShape,
                     'integer' => $integerValue !== null,
                     'integer_value' => $integerValue,
                     'name_value' => $nameValue,
@@ -9954,6 +9958,14 @@ final class PdfMetadataExtractor
                     'status' => $status,
                     'review_only' => true,
                 ];
+                if ($reference !== null) {
+                    $entry['reference_object_number'] = $reference['objectNumber'];
+                    $entry['reference_generation'] = $reference['generation'];
+                    if ($resolved !== null) {
+                        $entry['resolved_object_number'] = $reference['objectNumber'];
+                        $entry['resolved_generation'] = $reference['generation'];
+                    }
+                }
                 if ($trailingOperand) {
                     $entry += $this->topLevelTrailingOperandReviewFromValueReview($valueReview);
                 }
@@ -9963,6 +9975,13 @@ final class PdfMetadataExtractor
             $duplicate = $entryCount > 1;
             if ($duplicate) {
                 $duplicateNames[] = $pdfName;
+            }
+            $indirectEntries = array_values(array_filter(
+                $entries,
+                static fn (array $entry): bool => is_int($entry['reference_object_number'] ?? null)
+            ));
+            if ($indirectEntries !== []) {
+                $indirectNames[] = $pdfName;
             }
             $malformedEntries = array_values(array_filter(
                 $entries,
@@ -9983,13 +10002,33 @@ final class PdfMetadataExtractor
                 'selected_entry_index' => $selectedEntryIndex,
                 'selected_entry_status' => is_string($selectedEntry['status'] ?? null) ? $selectedEntry['status'] : null,
                 'selected_entry_operand_shape' => is_string($selectedEntry['operand_shape'] ?? null) ? $selectedEntry['operand_shape'] : null,
+                'selected_entry_raw_operand_shape' => is_string($selectedEntry['raw_operand_shape'] ?? null) ? $selectedEntry['raw_operand_shape'] : null,
                 'selected_entry_resolved' => (bool) ($selectedEntry['resolved'] ?? false),
                 'selected_entry_integer' => (bool) ($selectedEntry['integer'] ?? false),
                 'selected_integer_value' => is_int($selectedEntry['integer_value'] ?? null) ? $selectedEntry['integer_value'] : null,
                 'selected_name_value' => is_string($selectedEntry['name_value'] ?? null) ? $selectedEntry['name_value'] : null,
+                'selected_entry_reference_object_number' => is_int($selectedEntry['reference_object_number'] ?? null)
+                    ? $selectedEntry['reference_object_number']
+                    : null,
+                'selected_entry_reference_generation' => is_int($selectedEntry['reference_generation'] ?? null)
+                    ? $selectedEntry['reference_generation']
+                    : null,
+                'selected_entry_resolved_object_number' => is_int($selectedEntry['resolved_object_number'] ?? null)
+                    ? $selectedEntry['resolved_object_number']
+                    : null,
+                'selected_entry_resolved_generation' => is_int($selectedEntry['resolved_generation'] ?? null)
+                    ? $selectedEntry['resolved_generation']
+                    : null,
                 'entry_operand_shapes' => $this->uniqueStrings(array_values(array_filter(
                     array_map(
                         static fn (array $entry): mixed => $entry['operand_shape'] ?? null,
+                        $entries
+                    ),
+                    static fn (mixed $shape): bool => is_string($shape)
+                ))),
+                'entry_raw_operand_shapes' => $this->uniqueStrings(array_values(array_filter(
+                    array_map(
+                        static fn (array $entry): mixed => $entry['raw_operand_shape'] ?? null,
                         $entries
                     ),
                     static fn (mixed $shape): bool => is_string($shape)
@@ -10010,9 +10049,10 @@ final class PdfMetadataExtractor
             ];
         }
 
-        if ($duplicateNames === [] && $malformedNames === []) {
+        if ($duplicateNames === [] && $malformedNames === [] && $indirectNames === []) {
             return [];
         }
+        $failClosed = $duplicateNames !== [] || $malformedNames !== [];
 
         return [
             'source' => 'standard_security_handler_parameter_declaration_review',
@@ -10020,11 +10060,15 @@ final class PdfMetadataExtractor
             'duplicate_parameter_count' => count($duplicateNames),
             'malformed_parameter_names' => $malformedNames,
             'malformed_parameter_count' => count($malformedNames),
+            'indirect_parameter_names' => $indirectNames,
+            'indirect_parameter_count' => count($indirectNames),
             'parameter_entry_counts' => $entryCounts,
             'status' => $duplicateNames !== []
                 ? 'duplicate_standard_security_handler_parameter_entries_review'
-                : 'malformed_standard_security_handler_parameter_entries_review',
-            'fail_closed' => true,
+                : ($malformedNames !== []
+                    ? 'malformed_standard_security_handler_parameter_entries_review'
+                    : 'well_formed_indirect_standard_security_handler_parameter_entries_review'),
+            'fail_closed' => $failClosed,
             'rows' => $rows,
             'review_only' => true,
             'executes_decryption' => false,
