@@ -18917,7 +18917,7 @@ final class PdfMetadataExtractor
         array $definitions,
         array $objects = []
     ): ?int {
-        $previousOffset = $this->dictionaryIntegerValue($sectionBody, 'Prev', $objects);
+        $previousOffset = $this->dictionaryXrefPrevOffsetValue($sectionBody, $objects);
         if ($previousOffset === null && $objects !== []) {
             $helperObjects = $this->objectsWithCompressedXrefPrevOperandHelpers(
                 $sectionBody,
@@ -18926,7 +18926,7 @@ final class PdfMetadataExtractor
                 $currentOffset
             );
             if ($helperObjects !== $objects) {
-                $previousOffset = $this->dictionaryIntegerValue($sectionBody, 'Prev', $helperObjects);
+                $previousOffset = $this->dictionaryXrefPrevOffsetValue($sectionBody, $helperObjects);
             }
         }
 
@@ -18944,6 +18944,35 @@ final class PdfMetadataExtractor
 
         return $this->latestXrefSectionOffsetBefore($pdfBytes, $previousOffset + 1, $definitions)
             ?? $this->latestXrefSectionOffsetBefore($pdfBytes, $currentOffset, $definitions);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dictionaryXrefPrevOffsetValue(string $dictionary, array $objects): ?int
+    {
+        $offset = $this->dictionaryIntegerValue($dictionary, 'Prev', $objects);
+        if ($offset !== null) {
+            return $offset;
+        }
+
+        $value = $this->dictionaryRawValue($dictionary, 'Prev');
+        if ($value === null) {
+            return null;
+        }
+
+        $items = $this->arrayItemsFromValue($value, $objects);
+        if (count($items) !== 1) {
+            return null;
+        }
+
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($items[0], $objects) ?? $items[0]);
+        $token = $this->firstPdfValueToken($resolved);
+        if (!$this->pdfValueIsSingleToken($resolved, $token) || preg_match('/^[+-]?\d+$/', $token) !== 1) {
+            return null;
+        }
+
+        return (int) $token;
     }
 
     /**

@@ -32840,7 +32840,15 @@ final class PdfTextExtractor
      */
     private function previousXrefOffsetFromSectionBody(string $pdfBytes, string $sectionBody, array $objects = []): ?int
     {
-        $previousOffset = $this->topLevelPdfLastIntegerValueAfterNameResolvingObjects($sectionBody, 'Prev', $objects);
+        $value = $this->topLevelPdfLastValueAfterName($sectionBody, 'Prev');
+        if ($value === null) {
+            return null;
+        }
+
+        $previousOffset = $this->streamLengthValueAt($value, 0, $objects);
+        if ($previousOffset === null) {
+            $previousOffset = $this->singleElementArrayXrefPrevOffset($value, $objects);
+        }
         if ($previousOffset === null || $previousOffset < 0) {
             return $previousOffset;
         }
@@ -32848,6 +32856,29 @@ final class PdfTextExtractor
         return $this->offsetInPdfByteRanges($previousOffset, $this->linearizedHintTableRanges($pdfBytes))
             ? null
             : $previousOffset;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function singleElementArrayXrefPrevOffset(string $value, array $objects): ?int
+    {
+        $body = $this->readPdfArrayAt(trim($value), 0);
+        if ($body === null) {
+            return null;
+        }
+
+        $item = $this->pdfValueAtOffset($body, 0);
+        if ($item === null) {
+            return null;
+        }
+
+        $afterItem = $this->skipPdfWhitespace($body, strlen($item));
+        if ($afterItem !== strlen($body)) {
+            return null;
+        }
+
+        return $this->streamLengthValueAt($item, 0, $objects);
     }
 
     /**

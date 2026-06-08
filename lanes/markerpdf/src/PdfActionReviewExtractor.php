@@ -1716,6 +1716,14 @@ final class PdfActionReviewExtractor
      */
     private function previousXrefOffsetFromValue(mixed $value, array $definitions, int $currentOffset): ?int
     {
+        $arrayItems = $this->arrayItems($value);
+        if ($arrayItems !== null) {
+            if (count($arrayItems) !== 1) {
+                return null;
+            }
+            $value = $arrayItems[0];
+        }
+
         $seenReferences = [];
         for ($depth = 0; $depth < 8; $depth++) {
             $offset = $this->directIntegerValue($value);

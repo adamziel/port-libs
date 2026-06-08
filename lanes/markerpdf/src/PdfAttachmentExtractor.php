@@ -7685,6 +7685,14 @@ final class PdfAttachmentExtractor
     private function previousXrefOffsetFromTableTrailer(array $trailer, array $definitions, int $beforeOffset): ?int
     {
         $previous = $trailer['Prev'] ?? null;
+        $arrayItems = $this->arrayValue($previous);
+        if ($arrayItems !== null) {
+            if (count($arrayItems) !== 1) {
+                return null;
+            }
+            $previous = $arrayItems[0];
+        }
+
         $direct = $this->intValue($previous);
         if ($direct !== null) {
             return $direct;
@@ -8063,6 +8071,16 @@ final class PdfAttachmentExtractor
         $value = $section['dictionary'][$name] ?? null;
         if ($definitions === [] || !isset($section['offset'])) {
             return $value;
+        }
+
+        if ($name === 'Prev') {
+            $arrayItems = $this->arrayValue($value);
+            if ($arrayItems !== null) {
+                if (count($arrayItems) !== 1) {
+                    return $value;
+                }
+                $value = $arrayItems[0];
+            }
         }
 
         $reference = $this->refObjectReference($value);
