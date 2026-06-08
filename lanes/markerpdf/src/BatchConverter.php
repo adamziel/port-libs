@@ -584,6 +584,9 @@ final class BatchConverter
                     'file_basenames' => $inputListing['file_basenames'],
                     'skipped_non_file_count' => count($inputListing['skipped_non_file_basenames']),
                     'skipped_non_file_basenames' => $inputListing['skipped_non_file_basenames'],
+                    'skipped_non_file_records' => $inputListing['skipped_non_file_records'],
+                    'special_file_basenames' => $inputListing['special_file_basenames'],
+                    'fifo_basenames' => $inputListing['fifo_basenames'],
                     'symlink_filter' => 'os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks',
                     'symlink_basenames' => $inputListing['symlink_basenames'],
                     'file_symlink_basenames' => $inputListing['file_symlink_basenames'],
@@ -745,6 +748,9 @@ final class BatchConverter
                     'file_basenames' => $inputListing['file_basenames'],
                     'skipped_non_file_count' => count($inputListing['skipped_non_file_basenames']),
                     'skipped_non_file_basenames' => $inputListing['skipped_non_file_basenames'],
+                    'skipped_non_file_records' => $inputListing['skipped_non_file_records'],
+                    'special_file_basenames' => $inputListing['special_file_basenames'],
+                    'fifo_basenames' => $inputListing['fifo_basenames'],
                     'symlink_filter' => 'os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks',
                     'symlink_basenames' => $inputListing['symlink_basenames'],
                     'file_symlink_basenames' => $inputListing['file_symlink_basenames'],
@@ -894,6 +900,9 @@ final class BatchConverter
                     'file_basenames' => $inputListing['file_basenames'],
                     'skipped_non_file_count' => count($inputListing['skipped_non_file_basenames']),
                     'skipped_non_file_basenames' => $inputListing['skipped_non_file_basenames'],
+                    'skipped_non_file_records' => $inputListing['skipped_non_file_records'],
+                    'special_file_basenames' => $inputListing['special_file_basenames'],
+                    'fifo_basenames' => $inputListing['fifo_basenames'],
                     'symlink_filter' => 'os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks',
                     'symlink_basenames' => $inputListing['symlink_basenames'],
                     'file_symlink_basenames' => $inputListing['file_symlink_basenames'],
@@ -1043,6 +1052,9 @@ final class BatchConverter
                     'file_basenames' => $inputListing['file_basenames'],
                     'skipped_non_file_count' => count($inputListing['skipped_non_file_basenames']),
                     'skipped_non_file_basenames' => $inputListing['skipped_non_file_basenames'],
+                    'skipped_non_file_records' => $inputListing['skipped_non_file_records'],
+                    'special_file_basenames' => $inputListing['special_file_basenames'],
+                    'fifo_basenames' => $inputListing['fifo_basenames'],
                     'symlink_filter' => 'os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks',
                     'symlink_basenames' => $inputListing['symlink_basenames'],
                     'file_symlink_basenames' => $inputListing['file_symlink_basenames'],
@@ -1177,6 +1189,9 @@ final class BatchConverter
                     'file_basenames' => $inputListing['file_basenames'],
                     'skipped_non_file_count' => count($inputListing['skipped_non_file_basenames']),
                     'skipped_non_file_basenames' => $inputListing['skipped_non_file_basenames'],
+                    'skipped_non_file_records' => $inputListing['skipped_non_file_records'],
+                    'special_file_basenames' => $inputListing['special_file_basenames'],
+                    'fifo_basenames' => $inputListing['fifo_basenames'],
                     'symlink_filter' => 'os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks',
                     'symlink_basenames' => $inputListing['symlink_basenames'],
                     'file_symlink_basenames' => $inputListing['file_symlink_basenames'],
@@ -1360,6 +1375,9 @@ final class BatchConverter
                 'file_basenames' => $inputListing['file_basenames'],
                 'skipped_non_file_count' => count($inputListing['skipped_non_file_basenames']),
                 'skipped_non_file_basenames' => $inputListing['skipped_non_file_basenames'],
+                'skipped_non_file_records' => $inputListing['skipped_non_file_records'],
+                'special_file_basenames' => $inputListing['special_file_basenames'],
+                'fifo_basenames' => $inputListing['fifo_basenames'],
                 'symlink_filter' => 'os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks',
                 'symlink_basenames' => $inputListing['symlink_basenames'],
                 'file_symlink_basenames' => $inputListing['file_symlink_basenames'],
@@ -1608,6 +1626,9 @@ final class BatchConverter
                     'file_basenames' => $successfulInputListing['file_basenames'] ?? [],
                     'skipped_non_file_count' => $successfulInputListing === null ? 0 : count($successfulInputListing['skipped_non_file_basenames']),
                     'skipped_non_file_basenames' => $successfulInputListing['skipped_non_file_basenames'] ?? [],
+                    'skipped_non_file_records' => $successfulInputListing['skipped_non_file_records'] ?? [],
+                    'special_file_basenames' => $successfulInputListing['special_file_basenames'] ?? [],
+                    'fifo_basenames' => $successfulInputListing['fifo_basenames'] ?? [],
                     'symlink_filter' => 'os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks',
                     'symlink_basenames' => $successfulInputListing['symlink_basenames'] ?? [],
                     'file_symlink_basenames' => $successfulInputListing['file_symlink_basenames'] ?? [],
@@ -3168,7 +3189,7 @@ final class BatchConverter
     }
 
     /**
-     * @return array{entry_order_source: string, sort_applied_before_chunking: bool, preserves_os_listdir_order: bool, entry_basenames: list<string>, file_paths: list<string>, file_basenames: list<string>, skipped_non_file_basenames: list<string>, non_pdf_file_basenames: list<string>, symlink_basenames: list<string>, file_symlink_basenames: list<string>, skipped_symlink_basenames: list<string>, broken_symlink_basenames: list<string>}
+     * @return array{entry_order_source: string, sort_applied_before_chunking: bool, preserves_os_listdir_order: bool, entry_basenames: list<string>, file_paths: list<string>, file_basenames: list<string>, skipped_non_file_basenames: list<string>, skipped_non_file_records: list<array{basename: string, path: string, path_type: string, is_symlink: bool, os_path_isfile: false, task_candidate: false}>, special_file_basenames: list<string>, fifo_basenames: list<string>, non_pdf_file_basenames: list<string>, symlink_basenames: list<string>, file_symlink_basenames: list<string>, skipped_symlink_basenames: list<string>, broken_symlink_basenames: list<string>}
      */
     private function inputDirectoryListing(string $inputFolder, bool $preserveDirectoryOrder = false): array
     {
@@ -3186,6 +3207,9 @@ final class BatchConverter
         $entryBasenames = [];
         $filePathsByBasename = [];
         $skippedNonFileBasenames = [];
+        $skippedNonFileRecords = [];
+        $specialFileBasenames = [];
+        $fifoBasenames = [];
         $symlinkBasenames = [];
         $fileSymlinkBasenames = [];
         $skippedSymlinkBasenames = [];
@@ -3221,6 +3245,21 @@ final class BatchConverter
             }
 
             $skippedNonFileBasenames[] = $entry;
+            $pathType = $this->filesystemPathType($path);
+            $skippedNonFileRecords[] = [
+                'basename' => $entry,
+                'path' => $path,
+                'path_type' => $pathType,
+                'is_symlink' => $isSymlink,
+                'os_path_isfile' => false,
+                'task_candidate' => false,
+            ];
+            if (!in_array($pathType, ['directory', 'broken-symlink', 'missing'], true)) {
+                $specialFileBasenames[] = $entry;
+            }
+            if ($pathType === 'fifo') {
+                $fifoBasenames[] = $entry;
+            }
             if ($isSymlink) {
                 $skippedSymlinkBasenames[] = $entry;
             }
@@ -3230,6 +3269,12 @@ final class BatchConverter
             sort($entryBasenames, SORT_STRING);
             ksort($filePathsByBasename, SORT_STRING);
             sort($skippedNonFileBasenames, SORT_STRING);
+            usort(
+                $skippedNonFileRecords,
+                static fn (array $left, array $right): int => strcmp($left['basename'], $right['basename'])
+            );
+            sort($specialFileBasenames, SORT_STRING);
+            sort($fifoBasenames, SORT_STRING);
             sort($symlinkBasenames, SORT_STRING);
             sort($fileSymlinkBasenames, SORT_STRING);
             sort($skippedSymlinkBasenames, SORT_STRING);
@@ -3247,6 +3292,9 @@ final class BatchConverter
             'file_paths' => array_values($filePathsByBasename),
             'file_basenames' => array_values($fileBasenames),
             'skipped_non_file_basenames' => array_values($skippedNonFileBasenames),
+            'skipped_non_file_records' => array_values($skippedNonFileRecords),
+            'special_file_basenames' => array_values($specialFileBasenames),
+            'fifo_basenames' => array_values($fifoBasenames),
             'non_pdf_file_basenames' => $this->nonPdfBasenames($fileBasenames),
             'symlink_basenames' => array_values($symlinkBasenames),
             'file_symlink_basenames' => array_values($fileSymlinkBasenames),
@@ -4803,6 +4851,11 @@ final class BatchConverter
             return 'file';
         }
         if (file_exists($path)) {
+            $type = @filetype($path);
+            if (is_string($type) && $type !== '') {
+                return $type;
+            }
+
             return 'other';
         }
         if (is_link($path)) {

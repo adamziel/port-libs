@@ -4433,7 +4433,7 @@ final class PdfImageRenderer
 
             $value = $this->readPdfValueWithOffset($body, $key['next']);
             if ($value === null) {
-                return false;
+                return $sawImageKey;
             }
             if (
                 $canonicalKey === 'DecodeParms'

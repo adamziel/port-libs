@@ -220,10 +220,14 @@ final class LayoutAnnotator
             if (!is_array($layoutResults[$index])) {
                 throw new InvalidArgumentException('Supplied layout predictions must be arrays.');
             }
-            if ($this->hasAmbiguousLayoutPayloadWrapper($layoutResults[$index]) || $this->hasMalformedLayoutPageMarkers($layoutResults[$index])) {
+            $sourceIndex = $this->integerValue($pageRange[$index] ?? null) ?? $index;
+            if (
+                $this->hasAmbiguousLayoutPayloadWrapper($layoutResults[$index])
+                || $this->hasMalformedLayoutPageMarkers($layoutResults[$index])
+                || $this->hasAmbiguousDirectLayoutPayloadEnvelope($layoutResults[$index], $pages[$index], $index, $sourceIndex)
+            ) {
                 continue;
             }
-            $sourceIndex = $this->integerValue($pageRange[$index] ?? null) ?? $index;
             if (!$this->layoutResultPayloadMatchesPage($layoutResults[$index], $pages[$index], $index, $sourceIndex)) {
                 continue;
             }
@@ -602,6 +606,54 @@ final class LayoutAnnotator
         }
 
         return null;
+    }
+
+    /**
+     * A typed `layout_result` wrapper can carry a trusted outer page marker
+     * while its direct pdftext-style payload envelope contains several
+     * unmarked layout predictions. Marker receives one layout result per
+     * selected page, so the native adapter must fail closed unless one inner
+     * payload is selected unambiguously.
+     *
+     * @param array<string, mixed> $layoutResult
+     */
+    private function hasAmbiguousDirectLayoutPayloadEnvelope(
+        array $layoutResult,
+        ?array $page,
+        int $selectedIndex,
+        ?int $sourceIndex
+    ): bool {
+        $sources = [];
+        $this->collectLayoutResultPayloadSources($layoutResult, $sources);
+
+        foreach ($sources as $source) {
+            foreach (self::LAYOUT_RESULT_DIRECT_PAYLOAD_ENVELOPES as $key) {
+                $value = $this->normalizeDirectLayoutResultPayloadEnvelopeValue($source[$key] ?? null);
+                if (!is_array($value)) {
+                    continue;
+                }
+
+                $candidates = array_values(array_filter(
+                    $this->directLayoutResultPayloadEnvelopeCandidates($value),
+                    fn (array $candidate): bool => $this->hasLayoutPayload($candidate)
+                ));
+                if (count($candidates) <= 1) {
+                    continue;
+                }
+
+                $matched = $this->matchingDirectLayoutResultPayloadEnvelopeCandidates(
+                    $candidates,
+                    $page,
+                    $selectedIndex,
+                    $sourceIndex
+                );
+                if (count($matched) !== 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -228,10 +228,14 @@ final class LayoutOrderer
             if (!is_array($orderResults[$index])) {
                 throw new InvalidArgumentException('Supplied ordering predictions must be arrays.');
             }
-            if ($this->hasAmbiguousOrderPayloadWrapper($orderResults[$index]) || $this->hasMalformedOrderPageMarkers($orderResults[$index])) {
+            $sourceIndex = $this->integerValue($pageRange[$index] ?? null) ?? $index;
+            if (
+                $this->hasAmbiguousOrderPayloadWrapper($orderResults[$index])
+                || $this->hasMalformedOrderPageMarkers($orderResults[$index])
+                || $this->hasAmbiguousDirectOrderPayloadEnvelope($orderResults[$index], $pages[$index], $index, $sourceIndex)
+            ) {
                 continue;
             }
-            $sourceIndex = $this->integerValue($pageRange[$index] ?? null) ?? $index;
             if (!$this->orderResultPayloadMatchesPage($orderResults[$index], $pages[$index], $index, $sourceIndex)) {
                 continue;
             }
@@ -426,6 +430,54 @@ final class LayoutOrderer
         }
 
         return null;
+    }
+
+    /**
+     * A typed `order_result` wrapper may carry current page metadata while its
+     * direct pdftext-style payload envelope contains several unmarked result
+     * dictionaries. Upstream receives one order result per selected page, so a
+     * multi-payload envelope is trusted only when exactly one inner candidate
+     * matches the selected page identity.
+     *
+     * @param array<string, mixed> $orderResult
+     */
+    private function hasAmbiguousDirectOrderPayloadEnvelope(
+        array $orderResult,
+        ?array $page,
+        int $selectedIndex,
+        ?int $sourceIndex
+    ): bool {
+        $sources = [];
+        $this->collectOrderResultPayloadSources($orderResult, $sources);
+
+        foreach ($sources as $source) {
+            foreach (self::ORDER_RESULT_DIRECT_PAYLOAD_ENVELOPES as $key) {
+                $value = $this->normalizeDirectOrderResultPayloadEnvelopeValue($source[$key] ?? null);
+                if (!is_array($value)) {
+                    continue;
+                }
+
+                $candidates = array_values(array_filter(
+                    $this->directOrderResultPayloadEnvelopeCandidates($value),
+                    fn (array $candidate): bool => $this->hasOrderPayload($candidate)
+                ));
+                if (count($candidates) <= 1) {
+                    continue;
+                }
+
+                $matched = $this->matchingDirectOrderResultPayloadEnvelopeCandidates(
+                    $candidates,
+                    $page,
+                    $selectedIndex,
+                    $sourceIndex
+                );
+                if (count($matched) !== 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

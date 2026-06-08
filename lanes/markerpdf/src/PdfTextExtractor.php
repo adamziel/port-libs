@@ -43781,6 +43781,21 @@ final class PdfTextExtractor
             }
 
             if ($valueToken === 'ID') {
+                $dictionary = implode(' ', $entries);
+                if ($dictionary !== '' && $this->inlineImageDictionaryHasImageKeys($dictionary)) {
+                    if ($this->inlineImageDataSeparatorFollowsId($stream, $index)) {
+                        $consumeDataPrefixWhitespace = true;
+                        return $dictionary . ' /Filter /' . self::MALFORMED_IMAGE_FILTER_OPERAND;
+                    }
+
+                    $commentBoundary = $this->inlineImageDataCommentBoundaryFollowsId($stream, $index);
+                    if ($commentBoundary !== null) {
+                        $consumeDataPrefixWhitespace = false;
+                        $index = $commentBoundary;
+                        return $dictionary . ' /Filter /' . self::MALFORMED_IMAGE_FILTER_OPERAND;
+                    }
+                }
+
                 return null;
             }
 
