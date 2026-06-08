@@ -141,6 +141,65 @@ $linkedMediaDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$captionedDrawingContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>
+XML;
+
+$captionedDrawingDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFigure" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/workflow.png"/>
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+XML;
+
+$captionedDrawingStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Caption">
+    <w:name w:val="caption"/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="FigureCaption">
+    <w:name w:val="Figure Caption Review"/>
+    <w:basedOn w:val="Caption"/>
+  </w:style>
+</w:styles>
+XML;
+
+$captionedDrawingDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="41" name="Workflow figure" descr="Workflow diagram alt" title="Workflow title"/>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdFigure"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="FigureCaption"/></w:pPr>
+      <w:r><w:t>Figure 1: Workflow diagram for review.</w:t></w:r>
+    </w:p>
+    <w:p><w:r><w:t>After figure copy.</w:t></w:r></w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Caption"/></w:pPr>
+      <w:r><w:t>Orphan caption remains body text.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $vmlImageContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -2753,6 +2812,23 @@ $buildLinkedMediaPackage = static function () use ($linkedMediaContentTypesXml, 
     ]);
 };
 
+$buildCaptionedDrawingPackage = static function () use (
+    $captionedDrawingContentTypesXml,
+    $packageRelationshipsXml,
+    $captionedDrawingDocumentRelationshipsXml,
+    $captionedDrawingDocumentXml,
+    $captionedDrawingStylesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $captionedDrawingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $captionedDrawingDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $captionedDrawingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $captionedDrawingStylesXml],
+        ['name' => 'word/media/workflow.png', 'data' => 'FLOWPNG'],
+    ]);
+};
+
 $buildVmlImagePackage = static function () use ($vmlImageContentTypesXml, $packageRelationshipsXml, $vmlImageDocumentRelationshipsXml, $vmlImageDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $vmlImageContentTypesXml],
@@ -3658,6 +3734,62 @@ return [
         $t->same(true, $media['items'][3]['external']);
         $t->same(0, $media['items'][3]['usedCount']);
         $t->same(['external-target-unsafe-scheme'], $media['items'][3]['issues']);
+    },
+    'groups DOCX image drawings followed by Caption-style paragraphs as figures' => static function (TestRunner $t) use ($buildCaptionedDrawingPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildCaptionedDrawingPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $figure = $document->children[0];
+        $t->same('figure', $figure->type);
+        $t->same('Figure 1: Workflow diagram for review.', $figure->attr('caption'));
+        $t->same(['docx-captioned-figure'], $figure->attr('classes'));
+        $t->same('Figure 1: Workflow diagram for review.', $figure->attr('captionText'));
+        $captionSource = $figure->attr('captionSource');
+        $t->same('docx-caption-paragraph', $captionSource['kind']);
+        $t->same('after-drawing', $captionSource['placement']);
+        $t->same('FigureCaption', $captionSource['style']);
+        $t->same('Figure Caption Review', $captionSource['styleName']);
+        $t->same('Caption', $captionSource['basedOn']);
+        $figureAttributes = $figure->attr('attributes');
+        $t->same('FigureCaption', $figureAttributes['data-docx-caption-style']);
+        $t->same('Figure Caption Review', $figureAttributes['data-docx-caption-style-name']);
+        $t->same('after-drawing', $figureAttributes['data-docx-caption-placement']);
+        $t->same(1, count($figure->attr('captionInlines')));
+
+        $image = $figure->children[0];
+        $t->same('image', $image->type);
+        $t->same('word/media/workflow.png', $image->attr('url'));
+        $t->same('/word/media/workflow.png', $image->attr('sourcePart'));
+        $t->same('rIdFigure', $image->attr('relationshipId'));
+        $t->same('Workflow diagram alt', $image->attr('alt'));
+        $t->same('Workflow title', $image->attr('title'));
+        $t->same(7, $image->attr('bytes'));
+
+        $after = $document->children[1];
+        $t->same('paragraph', $after->type);
+        $t->same('After figure copy.', $after->children[0]->attr('text'));
+        $orphan = $document->children[2];
+        $t->same('paragraph', $orphan->type);
+        $t->same('Caption', $orphan->attr('style'));
+        $t->same('Orphan caption remains body text.', $orphan->children[0]->attr('text'));
+
+        $t->contains('![Figure 1: Workflow diagram for review.](word/media/workflow.png "Workflow title")', $markdown);
+        $t->contains('{.docx-captioned-figure alt="Workflow diagram alt" data-docx-caption-style="FigureCaption"', $markdown);
+        $t->contains('alt="Workflow diagram alt"', $markdown);
+        $t->contains('<figure class="wp-block-image docx-captioned-figure"><img src="word/media/workflow.png" alt="Workflow diagram alt" title="Workflow title"/><figcaption>Figure 1: Workflow diagram for review.</figcaption></figure>', $blocks);
+        $t->contains('<p>After figure copy.</p>', $blocks);
+        $t->contains('<p>Orphan caption remains body text.</p>', $blocks);
+
+        $media = $result['importReport']['media'];
+        $t->same(1, $media['count']);
+        $t->same(1, $media['embeddedCount']);
+        $t->same(1, $media['items'][0]['usedCount']);
+        $t->same(['Workflow diagram alt'], $media['items'][0]['altTexts']);
+        $t->same(['Workflow title'], $media['items'][0]['titles']);
     },
     'maps DOCX VML picture image data into media AST nodes' => static function (TestRunner $t) use ($buildVmlImagePackage): void {
         $reader = new DocxReader();

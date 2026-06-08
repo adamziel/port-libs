@@ -1708,7 +1708,174 @@ final class DocxReader
 
         $this->appendListParagraphs($blocks, $pendingListParagraphs);
 
-        return $blocks;
+        return $this->captionedDrawingBlocks($blocks, $styles);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param array<string, array{name?: string|null, basedOn?: string|null}> $styles
+     * @return list<AstNode>
+     */
+    private function captionedDrawingBlocks(array $blocks, array $styles): array
+    {
+        $captioned = [];
+        $count = count($blocks);
+        for ($index = 0; $index < $count; $index++) {
+            $block = $blocks[$index];
+            $image = $this->singleImageParagraphChild($block);
+            if ($image instanceof AstNode && isset($blocks[$index + 1])) {
+                $caption = $this->captionParagraphData($blocks[$index + 1], $styles);
+                if ($caption !== null) {
+                    $captioned[] = new AstNode(
+                        'figure',
+                        $this->captionedDrawingFigureAttrs($caption),
+                        [$this->captionedDrawingImage($image)]
+                    );
+                    $index++;
+                    continue;
+                }
+            }
+
+            $captioned[] = $block;
+        }
+
+        return $captioned;
+    }
+
+    private function singleImageParagraphChild(AstNode $block): ?AstNode
+    {
+        if ($block->type !== 'paragraph' || count($block->children) !== 1) {
+            return null;
+        }
+
+        $child = $block->children[0];
+
+        return $child->type === 'image' ? $child : null;
+    }
+
+    private function captionedDrawingImage(AstNode $image): AstNode
+    {
+        return new AstNode('image', $image->attrs, []);
+    }
+
+    /**
+     * @param array<string, array{name?: string|null, basedOn?: string|null}> $styles
+     * @return array{style:string, styleName:?string, basedOn:?string, text:string, inlines:list<AstNode>}|null
+     */
+    private function captionParagraphData(AstNode $block, array $styles): ?array
+    {
+        if ($block->type !== 'paragraph') {
+            return null;
+        }
+
+        $styleId = $block->attr('style', null);
+        if (!is_string($styleId) || $styleId === '') {
+            return null;
+        }
+
+        $styleChain = $this->styleChain($styleId, $styles);
+        $hasCaptionStyle = $this->isCaptionStyleLabel($styleId);
+        foreach ($styleChain as $style) {
+            if (
+                $this->isCaptionStyleLabel((string) $style['style'])
+                || $this->isCaptionStyleLabel((string) ($style['name'] ?? ''))
+            ) {
+                $hasCaptionStyle = true;
+                break;
+            }
+        }
+
+        if (!$hasCaptionStyle) {
+            return null;
+        }
+
+        $text = trim($this->plainInlineText($block->children));
+        if ($text === '') {
+            return null;
+        }
+
+        $primaryStyle = $styleChain[0] ?? [
+            'style' => $styleId,
+            'name' => null,
+            'basedOn' => null,
+        ];
+
+        return [
+            'style' => $styleId,
+            'styleName' => is_string($primaryStyle['name'] ?? null) ? $primaryStyle['name'] : null,
+            'basedOn' => is_string($primaryStyle['basedOn'] ?? null) ? $primaryStyle['basedOn'] : null,
+            'text' => $text,
+            'inlines' => $block->children,
+        ];
+    }
+
+    /**
+     * @param array{style:string, styleName:?string, basedOn:?string, text:string, inlines:list<AstNode>} $caption
+     * @return array<string, mixed>
+     */
+    private function captionedDrawingFigureAttrs(array $caption): array
+    {
+        $attributes = [
+            'data-docx-caption-style' => $caption['style'],
+            'data-docx-caption-placement' => 'after-drawing',
+        ];
+        if ($caption['styleName'] !== null) {
+            $attributes['data-docx-caption-style-name'] = $caption['styleName'];
+        }
+        if ($caption['basedOn'] !== null) {
+            $attributes['data-docx-caption-based-on'] = $caption['basedOn'];
+        }
+
+        return [
+            'caption' => $caption['text'],
+            'captionText' => $caption['text'],
+            'captionInlines' => $caption['inlines'],
+            'captionSource' => [
+                'kind' => 'docx-caption-paragraph',
+                'placement' => 'after-drawing',
+                'style' => $caption['style'],
+                'styleName' => $caption['styleName'],
+                'basedOn' => $caption['basedOn'],
+            ],
+            'classes' => ['docx-captioned-figure'],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param array<string, array{name?: string|null, basedOn?: string|null}> $styles
+     * @return list<array{style:string, name:?string, basedOn:?string}>
+     */
+    private function styleChain(string $styleId, array $styles): array
+    {
+        $chain = [];
+        $seen = [];
+        $current = $styleId;
+        while ($current !== '' && !isset($seen[$current])) {
+            $seen[$current] = true;
+            $style = isset($styles[$current]) && is_array($styles[$current]) ? $styles[$current] : [];
+            $name = is_string($style['name'] ?? null) ? $style['name'] : null;
+            $basedOn = is_string($style['basedOn'] ?? null) ? $style['basedOn'] : null;
+            $chain[] = [
+                'style' => $current,
+                'name' => $name,
+                'basedOn' => $basedOn,
+            ];
+
+            if ($basedOn === null || $basedOn === '') {
+                break;
+            }
+            $current = $basedOn;
+        }
+
+        return $chain;
+    }
+
+    private function isCaptionStyleLabel(string $label): bool
+    {
+        $normalized = strtolower((string) preg_replace('/[\s_-]+/', '', $label));
+
+        return $normalized === 'caption';
     }
 
     /**
