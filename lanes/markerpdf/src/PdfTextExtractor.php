@@ -24956,14 +24956,23 @@ final class PdfTextExtractor
         if ($operator === 'm') {
             $point = $this->pathPointOperand($operands, $currentTransformationMatrix);
             if ($point !== null) {
+                $moveRectangle = [
+                    $point[0],
+                    $point[1],
+                    $point[0],
+                    $point[1],
+                ];
+                if ($this->currentPathIsOnlyDanglingMovePoint(
+                    $currentPathRectangle,
+                    $currentPathPoint,
+                    $currentSubpathStartPoint
+                )) {
+                    $currentPathRectangle = $moveRectangle;
+                } else {
+                    $currentPathRectangle = $this->pdfRectangleUnion($currentPathRectangle, $moveRectangle);
+                }
                 $currentPathPoint = $point;
                 $currentSubpathStartPoint = $point;
-                $currentPathRectangle = $this->pdfRectangleUnion($currentPathRectangle, [
-                    $point[0],
-                    $point[1],
-                    $point[0],
-                    $point[1],
-                ]);
             }
 
             return true;
@@ -25023,6 +25032,35 @@ final class PdfTextExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param list<float>|null $pathRectangle
+     * @param array{0: float, 1: float}|null $currentPoint
+     * @param array{0: float, 1: float}|null $subpathStartPoint
+     */
+    private function currentPathIsOnlyDanglingMovePoint(
+        ?array $pathRectangle,
+        ?array $currentPoint,
+        ?array $subpathStartPoint
+    ): bool {
+        if ($pathRectangle === null || $currentPoint === null || $subpathStartPoint === null) {
+            return false;
+        }
+
+        if (
+            abs($currentPoint[0] - $subpathStartPoint[0]) > 0.000001
+            || abs($currentPoint[1] - $subpathStartPoint[1]) > 0.000001
+        ) {
+            return false;
+        }
+
+        return $this->pdfRectanglesEqual($pathRectangle, [
+            $currentPoint[0],
+            $currentPoint[1],
+            $currentPoint[0],
+            $currentPoint[1],
+        ]);
     }
 
     /**
