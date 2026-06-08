@@ -1008,6 +1008,103 @@ XML;
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('<td class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle" data-odf-cell-style-name="ReviewStatusCell" data-odf-cell-background-color="#fff4cc" data-odf-cell-vertical-align="middle" data-odf-cell-writing-mode="tb-rl" data-odf-cell-protect="protected" data-odf-cell-print-content="false" data-odf-cell-repeat-content="false" data-odf-cell-shrink-to-fit="true" style="background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt"><p>Source note</p></td>', $blocksHtml);
     },
+    'applies ODT row and column default cell styles before table review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithDefaultCellStyles = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="BaseDefaultCell" style:family="table-cell">
+      <style:table-cell-properties style:cell-protect="protected" style:print-content="false"/>
+    </style:style>
+    <style:style style:name="RowDefaultCell" style:family="table-cell" style:parent-style-name="BaseDefaultCell">
+      <style:table-cell-properties fo:background-color="#fff4cc" style:vertical-align="middle"/>
+    </style:style>
+    <style:style style:name="ColumnDefaultCell" style:family="table-cell">
+      <style:table-cell-properties fo:background-color="#e6ffed" style:vertical-align="top"/>
+    </style:style>
+    <style:style style:name="ExplicitCell" style:family="table-cell">
+      <style:table-cell-properties fo:background-color="#dbeafe" fo:border="0.5pt solid #1d4ed8"/>
+    </style:style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithDefaultCellStyles = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="Default Cell Style Review">
+        <table:table-column table:default-cell-style-name="ColumnDefaultCell"/>
+        <table:table-column table:default-cell-style-name="ColumnDefaultCell"/>
+        <table:table-row table:default-cell-style-name="RowDefaultCell">
+          <table:table-cell><text:p>Row default wins</text:p></table:table-cell>
+          <table:table-cell table:style-name="ExplicitCell"><text:p>Explicit cell wins</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell><text:p>Column default applies</text:p></table:table-cell>
+          <table:table-cell><text:p>Second column default applies</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDefaultCellStyles, null, $stylesWithDefaultCellStyles));
+        $table = $result['document']->children[0];
+        $rows = $table->children[0]->children;
+        $rowDefaultCell = $rows[0]->children[0];
+        $explicitCell = $rows[0]->children[1];
+        $columnDefaultCell = $rows[1]->children[0];
+        $secondColumnDefaultCell = $rows[1]->children[1];
+        $geometry = $table->attr('tableGeometry');
+        $coverage = is_array($geometry) ? ($geometry['coverage'] ?? []) : [];
+
+        $t->same('RowDefaultCell', $rowDefaultCell->attr('styleName'));
+        $t->same('RowDefaultCell', $rowDefaultCell->attr('defaultCellStyleName'));
+        $t->same('row', $rowDefaultCell->attr('defaultCellStyleSource'));
+        $t->same('BaseDefaultCell', $rowDefaultCell->attr('style')['parentName']);
+        $t->same('#fff4cc', $rowDefaultCell->attr('odfCellStyleProperties')['backgroundColor']);
+        $t->same('protected', $rowDefaultCell->attr('odfCellStyleProperties')['cellProtect']);
+        $t->same(false, $rowDefaultCell->attr('odfCellStyleProperties')['printContent']);
+        $t->same('RowDefaultCell', $rowDefaultCell->attr('htmlAttributes')['data-odf-cell-style-name']);
+        $t->same('RowDefaultCell', $rowDefaultCell->attr('htmlAttributes')['data-odf-cell-default-style-name']);
+        $t->same('row', $rowDefaultCell->attr('htmlAttributes')['data-odf-cell-default-style-source']);
+
+        $t->same('ExplicitCell', $explicitCell->attr('styleName'));
+        $t->same(null, $explicitCell->attr('defaultCellStyleName'));
+        $t->same('#dbeafe', $explicitCell->attr('odfCellStyleProperties')['backgroundColor']);
+        $t->same('0.5pt solid #1d4ed8', $explicitCell->attr('odfCellStyleProperties')['border']);
+
+        $t->same('ColumnDefaultCell', $columnDefaultCell->attr('styleName'));
+        $t->same('ColumnDefaultCell', $columnDefaultCell->attr('defaultCellStyleName'));
+        $t->same('column', $columnDefaultCell->attr('defaultCellStyleSource'));
+        $t->same('#e6ffed', $columnDefaultCell->attr('odfCellStyleProperties')['backgroundColor']);
+        $t->same('top', $columnDefaultCell->attr('odfCellStyleProperties')['verticalAlign']);
+        $t->same('ColumnDefaultCell', $secondColumnDefaultCell->attr('defaultCellStyleName'));
+        $t->same('column', $secondColumnDefaultCell->attr('defaultCellStyleSource'));
+
+        $t->same(4, $result['importReport']['content']['tableStyledCellCount']);
+        $t->same(1, $result['importReport']['content']['tableProtectedCellCount']);
+        $t->same(1, $result['importReport']['content']['tablePrintHiddenCellCount']);
+        $t->same('RowDefaultCell', $coverage[0]['sourceAttributes']['htmlAttributes']['data-odf-cell-default-style-name'] ?? null);
+        $t->same('row', $coverage[0]['sourceAttributes']['htmlAttributes']['data-odf-cell-default-style-source'] ?? null);
+        $t->same('ColumnDefaultCell', $coverage[2]['sourceAttributes']['htmlAttributes']['data-odf-cell-default-style-name'] ?? null);
+        $t->same('column', $coverage[2]['sourceAttributes']['htmlAttributes']['data-odf-cell-default-style-source'] ?? null);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('data-odf-cell-style-name="RowDefaultCell"', $blocksHtml);
+        $t->contains('data-odf-cell-default-style-name="RowDefaultCell"', $blocksHtml);
+        $t->contains('data-odf-cell-default-style-source="row"', $blocksHtml);
+        $t->contains('data-odf-cell-style-name="ColumnDefaultCell"', $blocksHtml);
+        $t->contains('data-odf-cell-default-style-source="column"', $blocksHtml);
+        $t->contains('data-odf-cell-style-name="ExplicitCell"', $blocksHtml);
+        $t->contains('Explicit cell wins', $blocksHtml);
+    },
     'preserves ODT style map rules on table cell review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithStyleMaps = <<<'XML'
 <office:document-styles

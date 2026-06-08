@@ -1650,12 +1650,12 @@ final class OdfReader
         foreach (self::childElements($table) as $child) {
             if ($this->isElement($child, self::TABLE_NS, 'table-header-rows')) {
                 foreach (self::childElements($child, 'table-row', self::TABLE_NS) as $row) {
-                    array_push($headerRows, ...$this->repeatedRows($row, $package, $catalog));
+                    array_push($headerRows, ...$this->repeatedRows($row, $package, $catalog, $columnDefinitions));
                 }
                 continue;
             }
             if ($this->isElement($child, self::TABLE_NS, 'table-row')) {
-                array_push($bodyRows, ...$this->repeatedRows($child, $package, $catalog));
+                array_push($bodyRows, ...$this->repeatedRows($child, $package, $catalog, $columnDefinitions));
             }
         }
 
@@ -1739,15 +1739,16 @@ final class OdfReader
 
     /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @param list<array<string, mixed>> $columnDefinitions
      * @return list<AstNode>
      */
-    private function repeatedRows(\DOMElement $row, ZipPackage $package, array $catalog): array
+    private function repeatedRows(\DOMElement $row, ZipPackage $package, array $catalog, array $columnDefinitions): array
     {
         $declaredRepeat = max(1, self::intAttr($row, self::TABLE_NS, 'number-rows-repeated', 1));
         $repeat = min(32, $declaredRepeat);
         $rows = [];
         for ($index = 0; $index < $repeat; $index++) {
-            $rows[] = $this->tableRowNode($row, $package, $catalog, [
+            $rows[] = $this->tableRowNode($row, $package, $catalog, $columnDefinitions, [
                 'repeatIndex' => $repeat > 1 ? $index + 1 : null,
                 'sourceRepeat' => $repeat > 1 ? $repeat : null,
                 'declaredRepeat' => $declaredRepeat > 1 ? $declaredRepeat : null,
@@ -1760,13 +1761,17 @@ final class OdfReader
 
     /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @param list<array<string, mixed>> $columnDefinitions
      * @param array{repeatIndex?:int|null,sourceRepeat?:int|null,declaredRepeat?:int|null,repeatTruncated?:bool|null} $repeatMetadata
      */
-    private function tableRowNode(\DOMElement $row, ZipPackage $package, array $catalog, array $repeatMetadata = []): AstNode
+    private function tableRowNode(\DOMElement $row, ZipPackage $package, array $catalog, array $columnDefinitions, array $repeatMetadata = []): AstNode
     {
         $cells = [];
+        $columnIndex = 0;
+        $rowDefaultCellStyleName = self::attr($row, self::TABLE_NS, 'default-cell-style-name');
         foreach (self::childElements($row) as $cellElement) {
             if ($this->isElement($cellElement, self::TABLE_NS, 'covered-table-cell')) {
+                $columnIndex += min(32, max(1, self::intAttr($cellElement, self::TABLE_NS, 'number-columns-repeated', 1)));
                 continue;
             }
             if (!$this->isElement($cellElement, self::TABLE_NS, 'table-cell')) {
@@ -1774,8 +1779,13 @@ final class OdfReader
             }
 
             $repeat = min(32, max(1, self::intAttr($cellElement, self::TABLE_NS, 'number-columns-repeated', 1)));
+            $colspan = max(1, self::intAttr($cellElement, self::TABLE_NS, 'number-columns-spanned', 1));
             for ($index = 0; $index < $repeat; $index++) {
-                $cells[] = $this->tableCellNode($cellElement, $package, $catalog);
+                $cells[] = $this->tableCellNode($cellElement, $package, $catalog, [
+                    'rowDefaultCellStyleName' => $rowDefaultCellStyleName,
+                    'columnDefaultCellStyleName' => $this->columnDefaultCellStyleName($columnDefinitions, $columnIndex),
+                ]);
+                $columnIndex += $colspan;
             }
         }
 
@@ -1839,9 +1849,48 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @param list<array<string, mixed>> $columnDefinitions
      */
-    private function tableCellNode(\DOMElement $cell, ZipPackage $package, array $catalog): AstNode
+    private function columnDefaultCellStyleName(array $columnDefinitions, int $columnIndex): string
+    {
+        $column = $columnDefinitions[$columnIndex] ?? null;
+        if (!is_array($column)) {
+            return '';
+        }
+
+        return is_string($column['defaultCellStyleName'] ?? null) ? $column['defaultCellStyleName'] : '';
+    }
+
+    /**
+     * @param array{rowDefaultCellStyleName?:string,columnDefaultCellStyleName?:string} $defaultStyles
+     * @return array{name:string,source:string}|array{}
+     */
+    private function effectiveDefaultCellStyle(array $defaultStyles): array
+    {
+        $rowDefault = (string) ($defaultStyles['rowDefaultCellStyleName'] ?? '');
+        if ($rowDefault !== '') {
+            return [
+                'name' => $rowDefault,
+                'source' => 'row',
+            ];
+        }
+
+        $columnDefault = (string) ($defaultStyles['columnDefaultCellStyleName'] ?? '');
+        if ($columnDefault !== '') {
+            return [
+                'name' => $columnDefault,
+                'source' => 'column',
+            ];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @param array{rowDefaultCellStyleName?:string,columnDefaultCellStyleName?:string} $defaultStyles
+     */
+    private function tableCellNode(\DOMElement $cell, ZipPackage $package, array $catalog, array $defaultStyles = []): AstNode
     {
         $blocks = $this->blockNodes($cell, $package, $catalog);
         $attrs = [
@@ -1851,6 +1900,10 @@ final class OdfReader
         $colspan = self::intAttr($cell, self::TABLE_NS, 'number-columns-spanned', 1);
         $rowspan = self::intAttr($cell, self::TABLE_NS, 'number-rows-spanned', 1);
         $styleName = self::attr($cell, self::TABLE_NS, 'style-name');
+        $defaultStyle = $styleName === '' ? $this->effectiveDefaultCellStyle($defaultStyles) : [];
+        if ($styleName === '' && isset($defaultStyle['name'])) {
+            $styleName = (string) $defaultStyle['name'];
+        }
         $style = $this->resolveStyle($styleName, $catalog);
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
@@ -1862,6 +1915,10 @@ final class OdfReader
             $attrs['styleName'] = $styleName;
             if ($style !== []) {
                 $attrs['style'] = $style;
+            }
+            if ($defaultStyle !== []) {
+                $attrs['defaultCellStyleName'] = (string) $defaultStyle['name'];
+                $attrs['defaultCellStyleSource'] = (string) $defaultStyle['source'];
             }
         }
         $htmlAttributes = [];
@@ -1885,6 +1942,10 @@ final class OdfReader
                 $htmlAttributes,
                 $this->tableCellStyleHtmlAttributes($styleName, $styleProperties),
             );
+            if ($defaultStyle !== []) {
+                $htmlAttributes['data-odf-cell-default-style-name'] = (string) $defaultStyle['name'];
+                $htmlAttributes['data-odf-cell-default-style-source'] = (string) $defaultStyle['source'];
+            }
             array_push($classes, ...$this->tableCellStyleClasses($styleProperties));
         }
         $styleMaps = is_array($style['styleMaps'] ?? null) ? $style['styleMaps'] : [];

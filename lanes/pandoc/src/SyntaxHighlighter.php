@@ -171,9 +171,15 @@ final class SyntaxHighlighter
         'graphql-schema' => 'graphql',
         'graphqls' => 'graphql',
         'markdown' => 'markdown',
+        'gnu-octave' => 'matlab',
         'mariadb' => 'sql',
+        'm' => 'matlab',
+        'matlab' => 'matlab',
+        'matlab-octave' => 'matlab',
+        'matlab-source' => 'matlab',
         'mawk' => 'awk',
         'md' => 'markdown',
+        'm-file' => 'matlab',
         'mmd' => 'markdown',
         'multimarkdown' => 'markdown',
         'mustache' => 'mustache',
@@ -204,6 +210,7 @@ final class SyntaxHighlighter
         'mli' => 'ocaml',
         'ocaml' => 'ocaml',
         'ocaml-interface' => 'ocaml',
+        'octave' => 'matlab',
         'perl' => 'perl',
         'pl' => 'perl',
         'pgsql' => 'sql',
@@ -730,6 +737,7 @@ final class SyntaxHighlighter
             'lua' => $this->tokenizeLua($code),
             'makefile' => $this->tokenizeMakefile($code),
             'markdown' => $this->tokenizeMarkdown($code),
+            'matlab' => $this->tokenizeMatlab($code),
             'mermaid' => $this->tokenizeMermaid($code),
             'mustache' => $this->tokenizeMustache($code),
             'nginx' => $this->tokenizeNginx($code),
@@ -1305,6 +1313,29 @@ final class SyntaxHighlighter
             ['attribute', '/^\\b[A-Za-z_][A-Za-z0-9_!]*(?==)/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_!]*\\b/'],
             ['operator', '/^(?:\\.\\.\\.|::|=>|->|\\|>|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:&|^~$@-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeMatlab(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^%\\{[\\s\\S]*?%\\}/'],
+            ['comment', '/^%[^\\n]*/'],
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:''|[^'])*'/s"],
+            ['keyword', '/^\\b(?:arguments|break|case|catch|classdef|continue|do|else|elseif|end|end_try_catch|end_unwind_protect|endclassdef|endenumeration|endevents|endfor|endfunction|endif|endmethods|endparfor|endproperties|endswitch|endwhile|enumeration|events|for|function|global|if|methods|otherwise|parfor|persistent|properties|return|switch|try|until|unwind_protect|unwind_protect_cleanup|while)\\b/'],
+            ['constant', '/^\\b(?:NaN|Inf|eps|false|i|j|pi|true)\\b/'],
+            ['datatype', '/^\\b(?:cell|char|categorical|double|int8|int16|int32|int64|logical|single|string|struct|table|uint8|uint16|uint32|uint64)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f]+|\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eEdD][+-]?\\d+)?(?:[ij])?\\b/'],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_.]*/'],
+            ['function', '/^\\b(?:any|cellfun|disp|double|error|exist|fieldnames|isempty|isfield|isnan|length|lower|max|min|numel|regexprep|size|sprintf|str2double|strlength|strrep|strtrim|struct|warning)\\b(?=\\s*\\()/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|\\.\\*|\\.\\/|\\.\\\\|\\.\\^|==|~=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:&|^~@\\\\-])/'],
         ]);
     }
 

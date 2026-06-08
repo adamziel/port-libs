@@ -689,8 +689,8 @@ final class CitationCslProcessor
         $containerTitleShort = self::firstStringField($item, ['container-title-short', 'containerTitleShort', 'journalAbbreviation', 'journal-abbreviation']);
         $publisher = self::stringField($item, 'publisher');
         $publisherPlace = self::stringField($item, 'publisher-place');
-        $originalPublisher = self::stringField($item, 'original-publisher');
-        $originalPublisherPlace = self::stringField($item, 'original-publisher-place');
+        $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'origpublisher']);
+        $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'origlocation', 'origaddress']);
         $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
         $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList']);
@@ -7455,6 +7455,8 @@ final class CitationCslProcessor
             'xref-summary' => $this->xrefSummary($item),
             'xref-keys' => implode(', ', is_array($item['xrefKeys'] ?? null) ? $item['xrefKeys'] : []),
             'missing-xref-keys' => implode(', ', is_array($item['missingXrefKeys'] ?? null) ? $item['missingXrefKeys'] : []),
+            'original-publisher', 'origpublisher' => (string) ($item['originalPublisher'] ?? ''),
+            'original-publisher-place', 'origlocation', 'origaddress' => (string) ($item['originalPublisherPlace'] ?? ''),
             'original-publisher-list' => implode('; ', is_array($item['originalPublisherList'] ?? null) ? $item['originalPublisherList'] : []),
             'original-publisher-place-list' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
             'original-language', 'origlanguage' => (string) ($item['originalLanguage'] ?? ''),

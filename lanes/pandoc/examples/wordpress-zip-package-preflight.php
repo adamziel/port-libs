@@ -2931,6 +2931,21 @@ try {
 } catch (RuntimeException $exception) {
     $utf8UnicodeCommentMismatchRejected = str_contains($exception->getMessage(), 'does not match UTF-8 header text');
 }
+$emptyUnicodeCommentRejected = false;
+try {
+    $rawComment = 'review comment must remain visible';
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/media/review-note.txt',
+            'data' => "Empty Unicode comment metadata should stay blocked\n",
+            'compressionMethod' => 0,
+            'comment' => $rawComment,
+            'extraFieldData' => $buildUnicodeExtra(0x6375, $rawComment, ''),
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $emptyUnicodeCommentRejected = str_contains($exception->getMessage(), 'must not replace non-empty header text');
+}
 $duplicateUnicodeExtraRejected = false;
 try {
     ZipPackage::fromParts([
@@ -5266,6 +5281,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected contradictory UTF-8 ZIP comment metadata to be rejected before media import');
     }
 
+    if (!$emptyUnicodeCommentRejected) {
+        throw new RuntimeException('Expected empty ZIP Unicode comment metadata to be rejected before hiding raw comments');
+    }
+
     if (!$duplicateUnicodeExtraRejected) {
         throw new RuntimeException('Expected duplicate ZIP Unicode path metadata to be rejected before media import');
     }
@@ -5514,6 +5533,7 @@ echo 'unicodePath.comment=' . $unicodePathEntry->comment . "\n";
 echo 'zipCentralUnicodePathMissingLocalPolicy=' . ($centralUnicodePathMissingLocalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUtf8UnicodePathMismatchPolicy=' . ($utf8UnicodePathMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUtf8UnicodeCommentMismatchPolicy=' . ($utf8UnicodeCommentMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipEmptyUnicodeCommentPolicy=' . ($emptyUnicodeCommentRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
 echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
 echo 'gzip.zipDetectedFormat=' . $compressedPackageDetectedFormat . "\n";

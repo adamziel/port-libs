@@ -202,6 +202,11 @@ return [
         $t->same('less', SyntaxHighlighter::normalizeLanguage('language-lesscss'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('pandoc-lua'));
+        $t->same('matlab', SyntaxHighlighter::normalizeLanguage('matlab'));
+        $t->same('matlab', SyntaxHighlighter::normalizeLanguage('octave'));
+        $t->same('matlab', SyntaxHighlighter::normalizeLanguage('gnu-octave'));
+        $t->same('matlab', SyntaxHighlighter::normalizeLanguage('language-m-file'));
+        $t->same('matlab', SyntaxHighlighter::normalizeLanguage('m'));
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('bash'));
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('sh'));
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('shell'));
@@ -3199,6 +3204,51 @@ return [
         $t->same('batch', $directCmd['language']);
         $t->same('cmd.exe', $directCmd['requestedLanguage']);
         $t->contains('<span class="kw">@if</span> <span class="st">&quot;%WP_ENV%&quot;</span><span class="op">==</span><span class="st">&quot;prod&quot;</span> <span class="kw">echo</span> <span class="va">ok</span>', $directCmd['html']);
+    },
+    'highlights matlab and octave technical review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[66] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a MATLAB technical review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'monochrome');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'monochrome');
+        $directOctave = $highlighter->highlight(
+            'function y = normalize_title(x); y = strtrim(x); endfunction',
+            'octave'
+        );
+
+        $t->same('matlab', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('matlab', $highlighted['language']);
+        $t->same('matlab', $highlighted['requestedLanguage']);
+        $t->same('monochrome', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(980, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource matlab numberLines"><code class="sourceCode matlab" style="counter-reset: source-line 979;">', $highlighted['html']);
+        $t->contains('<span id="matlab-review-980"><a href="#matlab-review-980"></a><span class="co">% WordPress technical note scoring review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">function</span> <span class="op">[</span><span class="va">score</span><span class="op">,</span> <span class="va">slug</span><span class="op">]</span> <span class="op">=</span> <span class="fu">normalizeImport</span><span class="op">(</span><span class="va">packet</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">arguments</span>', $highlighted['html']);
+        $t->contains('<span class="va">packet</span><span class="op">.</span><span class="va">title</span> <span class="dt">string</span>', $highlighted['html']);
+        $t->contains('<span class="va">packet</span><span class="op">.</span><span class="va">views</span> <span class="dt">double</span> <span class="op">=</span> <span class="cn">NaN</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span> <span class="op">=</span> <span class="fu">strtrim</span><span class="op">(</span><span class="va">packet</span><span class="op">.</span><span class="va">title</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="fu">strlength</span><span class="op">(</span><span class="va">title</span><span class="op">)</span> <span class="op">==</span> <span class="dv">0</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span> <span class="op">=</span> <span class="st">&quot;Untitled&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="va">slug</span> <span class="op">=</span> <span class="fu">lower</span><span class="op">(</span><span class="fu">regexprep</span><span class="op">(</span><span class="va">title</span><span class="op">,</span> <span class="st">&quot;[^a-z0-9]+&quot;</span><span class="op">,</span> <span class="st">&quot;-&quot;</span><span class="op">));</span>', $highlighted['html']);
+        $t->contains('<span class="va">score</span> <span class="op">=</span> <span class="dt">double</span><span class="op">(</span><span class="va">packet</span><span class="op">.</span><span class="va">views</span><span class="op">)</span> <span class="op">./</span> <span class="fu">max</span><span class="op">(</span><span class="dv">1</span><span class="op">,</span> <span class="fu">numel</span><span class="op">(</span><span class="va">title</span><span class="op">));</span>', $highlighted['html']);
+        $t->contains('<span class="va">meta</span> <span class="op">=</span> <span class="dt">struct</span><span class="op">(</span><span class="st">&quot;reviewed&quot;</span><span class="op">,</span> <span class="cn">true</span><span class="op">,</span> <span class="st">&quot;slug&quot;</span><span class="op">,</span> <span class="va">slug</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="monochrome">', $wordpressBlock);
+        $t->contains('<span class="fu">regexprep</span><span class="op">(</span><span class="va">title</span>', $wordpressBlock);
+        $t->same('matlab', $directOctave['language']);
+        $t->same('octave', $directOctave['requestedLanguage']);
+        $t->contains('<span class="kw">function</span> <span class="va">y</span> <span class="op">=</span> <span class="fu">normalize_title</span><span class="op">(</span><span class="va">x</span><span class="op">);</span>', $directOctave['html']);
+        $t->contains('<span class="va">y</span> <span class="op">=</span> <span class="fu">strtrim</span><span class="op">(</span><span class="va">x</span><span class="op">);</span> <span class="kw">endfunction</span>', $directOctave['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

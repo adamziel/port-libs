@@ -418,6 +418,12 @@ if (!$batchCodeBlock instanceof PortLibs\Pandoc\AstNode || $batchCodeBlock->type
 }
 $batch = $highlighter->highlightCodeBlock($batchCodeBlock, 'breezedark');
 $batchWordpressBlock = $highlighter->wordpressHtmlBlock($batchCodeBlock, 'breezedark');
+$matlabCodeBlock = $document->children[66] ?? null;
+if (!$matlabCodeBlock instanceof PortLibs\Pandoc\AstNode || $matlabCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a MATLAB technical review code block');
+}
+$matlab = $highlighter->highlightCodeBlock($matlabCodeBlock, 'monochrome');
+$matlabWordpressBlock = $highlighter->wordpressHtmlBlock($matlabCodeBlock, 'monochrome');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1808,6 +1814,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($batchWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
         throw new RuntimeException('Expected Windows batch WordPress style metadata');
     }
+    if (($matlab['language'] ?? '') !== 'matlab') {
+        throw new RuntimeException('Expected MATLAB language handoff');
+    }
+    if (($matlab['requestedLanguage'] ?? '') !== 'matlab') {
+        throw new RuntimeException('Expected MATLAB requested-language wrapper handoff');
+    }
+    if (($matlab['lineNumbering']['start'] ?? null) !== 980) {
+        throw new RuntimeException('Expected MATLAB source startFrom line-number handoff');
+    }
+    if (!str_contains($matlab['html'], '<span class="kw">function</span> <span class="op">[</span><span class="va">score</span>')) {
+        throw new RuntimeException('Expected MATLAB function output token handoff');
+    }
+    if (!str_contains($matlab['html'], '<span class="va">packet</span><span class="op">.</span><span class="va">views</span> <span class="dt">double</span> <span class="op">=</span> <span class="cn">NaN</span>')) {
+        throw new RuntimeException('Expected MATLAB arguments block datatype handoff');
+    }
+    if (!str_contains($matlab['html'], '<span class="fu">regexprep</span><span class="op">(</span><span class="va">title</span><span class="op">,</span> <span class="st">&quot;[^a-z0-9]+&quot;</span>')) {
+        throw new RuntimeException('Expected MATLAB regexprep string token handoff');
+    }
+    if (!str_contains($matlabWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
+        throw new RuntimeException('Expected MATLAB WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1894,6 +1921,7 @@ echo "ocamlHighlightedHtml:\n" . $ocaml['html'] . "\n";
 echo "juliaHighlightedHtml:\n" . $julia['html'] . "\n";
 echo "awkHighlightedHtml:\n" . $awk['html'] . "\n";
 echo "batchHighlightedHtml:\n" . $batch['html'] . "\n";
+echo "matlabHighlightedHtml:\n" . $matlab['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1950,4 +1978,5 @@ echo "ocamlWordpressBlock:\n" . $ocamlWordpressBlock . "\n";
 echo "juliaWordpressBlock:\n" . $juliaWordpressBlock . "\n";
 echo "awkWordpressBlock:\n" . $awkWordpressBlock . "\n";
 echo "batchWordpressBlock:\n" . $batchWordpressBlock . "\n";
+echo "matlabWordpressBlock:\n" . $matlabWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

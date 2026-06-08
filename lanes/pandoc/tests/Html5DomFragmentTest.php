@@ -2554,6 +2554,85 @@ return [
         }
         $t->true(!str_contains($blocks, ' aria-'), 'Expected WordPress blocks to omit source ARIA attributes');
     },
+    'converts custom element hooks into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article>'
+            . '<legacy-gallery data-source="legacy" part="card primary card" exportparts="cover: card-cover, title" data-pandoc-custom-element="source-spoof"><h2>Gallery</h2><img src="./cover.png" alt="Cover"></legacy-gallery>'
+            . '<p is="x-review-paragraph" data-pandoc-custom-is="source-spoof">Review paragraph <legacy-badge part="status">Ready</legacy-badge></p>'
+            . '<p is="bad">Bad customized built-in</p>'
+            . '<svg><foreignObject><legacy-card>HTML fallback</legacy-card></foreignObject></svg>'
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/custom-element-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article>'
+            . '<div data-source="legacy" data-pandoc-custom-part="card primary" data-pandoc-custom-exportparts="cover: card-cover, title" data-pandoc-custom-element="legacy-gallery"><h2>Gallery</h2><img src="https://source.example.test/import/posts/cover.png" alt="Cover"></div>'
+            . '<p data-pandoc-custom-is="x-review-paragraph">Review paragraph <span data-pandoc-custom-part="status" data-pandoc-custom-element="legacy-badge">Ready</span></p>'
+            . '<p>Bad customized built-in</p>'
+            . '<svg><foreignObject><span data-pandoc-custom-element="legacy-card">HTML fallback</span></foreignObject></svg>'
+            . '</article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('GalleryReview paragraph ReadyBad customized built-inHTML fallback', $fragment->textContent());
+        $t->same(['article', 'div', 'foreignObject', 'h2', 'img', 'p', 'span', 'svg'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([
+            'data-pandoc-custom-element',
+            'data-pandoc-custom-is',
+            'exportparts',
+            'is',
+            'part',
+        ], $summary['filteredAttributes']);
+        $t->same([
+            'custom-element-review',
+            'custom-element-review',
+            'unsafe-attribute',
+            'custom-element-review',
+            'custom-element-review',
+            'unsafe-attribute',
+            'custom-element-review',
+            'custom-element-review',
+            'unsafe-attribute',
+            'custom-element-review',
+        ], $policyDiagnostics);
+        $t->same('article', $nodes[0]['name']);
+        $t->same([
+            'data-source' => 'legacy',
+            'data-pandoc-custom-part' => 'card primary',
+            'data-pandoc-custom-exportparts' => 'cover: card-cover, title',
+            'data-pandoc-custom-element' => 'legacy-gallery',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same('div', $nodes[0]['children'][0]['name']);
+        $t->same('p', $nodes[0]['children'][1]['name']);
+        $t->same(['data-pandoc-custom-is' => 'x-review-paragraph'], $nodes[0]['children'][1]['attrs']);
+        $t->same('span', $nodes[0]['children'][1]['children'][1]['name']);
+        $t->same([
+            'data-pandoc-custom-part' => 'status',
+            'data-pandoc-custom-element' => 'legacy-badge',
+        ], $nodes[0]['children'][1]['children'][1]['attrs']);
+        $t->same([], $nodes[0]['children'][2]['attrs']);
+        $t->same('span', $nodes[0]['children'][3]['children'][0]['children'][0]['name']);
+        $t->same(['data-pandoc-custom-element' => 'legacy-card'], $nodes[0]['children'][3]['children'][0]['children'][0]['attrs']);
+        $t->same('/migration/custom-element-review.html', $document->children[0]->attr('part'));
+        foreach (['<legacy-', ' is=', ' part=', ' exportparts=', 'source-spoof', 'bad">Bad customized'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected custom element hook to be stripped or converted: ' . $blocked);
+        }
+        foreach (['<legacy-', ' is=', ' part=', ' exportparts='] as $blocked) {
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to omit live custom element hooks: ' . $blocked);
+        }
+    },
     'adds ruby annotation metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article><p>'

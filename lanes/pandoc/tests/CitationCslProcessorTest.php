@@ -1115,6 +1115,74 @@ BIB;
         $t->contains('<p>Review cites translated source García (2026) for original publication audit.</p>', $blocks);
         $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
     },
+    'exposes bounded biblatex original publisher variables to csl styles' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{translated-archive,
+  author        = {Garc{\'i}a, Gia},
+  title         = {Migration Manual},
+  date          = {2026},
+  publisher     = {Review Press},
+  origpublisher = {{Archivo Press} and {Migration Desk}},
+  origlocation  = {{Madrid} and {Barcelona}},
+  origdate      = {2020}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('Archivo Press; Migration Desk', $items[0]['original-publisher'] ?? null);
+        $t->same('Madrid; Barcelona', $items[0]['original-publisher-place'] ?? null);
+        $t->same(['Archivo Press', 'Migration Desk'], $items[0]['original-publisher-list'] ?? null);
+        $t->same(['Madrid', 'Barcelona'], $items[0]['original-publisher-place-list'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('translated-archive');
+        $t->same('Archivo Press; Migration Desk', $item['originalPublisher'] ?? null);
+        $t->same('Madrid; Barcelona', $item['originalPublisherPlace'] ?? null);
+        $t->same(['Archivo Press', 'Migration Desk'], $item['originalPublisherList'] ?? null);
+        $t->same(['Madrid', 'Barcelona'], $item['originalPublisherPlaceList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-publisher"/>
+        <text variable="original-publisher-place"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="origpublisher"/>
+      <text variable="origlocation"/>
+      <text variable="original-publisher-list"/>
+      <text variable="original-publisher-place-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[García | Archivo Press; Migration Desk | Madrid; Barcelona]', $styled->renderCitationCluster([$citation('translated-archive', '[@translated-archive]')]));
+        $t->same('Migration Manual :: Archivo Press; Migration Desk :: Madrid; Barcelona :: Archivo Press; Migration Desk :: Madrid; Barcelona', $styled->renderBibliographyEntry('translated-archive'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-original-imprint',
+            'title' => 'Manual Original Imprint',
+            'originalPublisher' => 'Legacy Press',
+            'originalPublisherPlace' => 'Lisbon',
+        ]]);
+        $manualItem = $manual->item('manual-original-imprint');
+        $t->same('Legacy Press', $manualItem['originalPublisher'] ?? null);
+        $t->same('Lisbon', $manualItem['originalPublisherPlace'] ?? null);
+        $t->same('Manual Original Imprint. Original publisher: Legacy Press, Lisbon.', $manual->renderBibliographyEntry('manual-original-imprint'));
+
+        $document = (new MarkdownReader())->read('Original publisher handoff [@translated-archive] keeps source imprint metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Original publisher handoff [García | Archivo Press; Migration Desk | Madrid; Barcelona] keeps source imprint metadata visible.</p>', $blocks);
+        $t->contains('<dt>García 2026</dt><dd>Migration Manual :: Archivo Press; Migration Desk :: Madrid; Barcelona :: Archivo Press; Migration Desk :: Madrid; Barcelona</dd>', $blocks);
+    },
     'maps bounded biblatex translated title metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{translated-title-source,

@@ -1221,3 +1221,22 @@ exit /b 2
 :done
 endlocal
 ```
+
+``` {.matlab #matlab-review .numberLines startFrom=980}
+% WordPress technical note scoring review
+function [score, slug] = normalizeImport(packet)
+    arguments
+        packet.title string
+        packet.views double = NaN
+    end
+
+    title = strtrim(packet.title);
+    if strlength(title) == 0
+        title = "Untitled";
+    end
+
+    slug = lower(regexprep(title, "[^a-z0-9]+", "-"));
+    score = double(packet.views) ./ max(1, numel(title));
+    meta = struct("reviewed", true, "slug", slug);
+end
+```

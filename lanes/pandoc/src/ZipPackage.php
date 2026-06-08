@@ -7610,6 +7610,9 @@ final class ZipPackage
 
             $text = substr($data, 5);
             self::assertUtf8($text, "ZIP Unicode extra field for {$label}");
+            if ($text === '' && $rawBytes !== '') {
+                throw new \RuntimeException("ZIP Unicode extra field for {$label} must not replace non-empty header text with an empty value");
+            }
 
             $unicodeText = $text;
         }

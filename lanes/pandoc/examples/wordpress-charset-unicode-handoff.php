@@ -10,6 +10,22 @@ use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\UnicodeText;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
+$utf16leBytes = static function (array $codepoints): string {
+    $bytes = '';
+    foreach ($codepoints as $codepoint) {
+        if ($codepoint <= 0xffff) {
+            $bytes .= pack('v', $codepoint);
+            continue;
+        }
+
+        $value = $codepoint - 0x10000;
+        $bytes .= pack('v', 0xd800 + ($value >> 10));
+        $bytes .= pack('v', 0xdc00 + ($value & 0x03ff));
+    }
+
+    return $bytes;
+};
+
 $utf32beBytes = static function (array $codepoints): string {
     $bytes = '';
     foreach ($codepoints as $codepoint) {
@@ -240,6 +256,25 @@ $latinExtendedFallback = UnicodeText::normalize(
     'fallback'
 );
 $bomOverrideSource = (new MarkdownReader())->readBytes("\xFE\xFF\x00#\x00 \x8A\x08\x75\x3B\x00\x0A\x00\x0A\x00B\x00E", 'windows-1252');
+$ucs2LabelSource = (new MarkdownReader())->readBytes($utf16leBytes([
+    0x0023,
+    0x0020,
+    0x0055,
+    0x0043,
+    0x0053,
+    0x0032,
+    0x000a,
+    0x000a,
+    0x0043,
+    0x0061,
+    0x0066,
+    0x00e9,
+    0x0020,
+    0x2014,
+    0x0020,
+    0x9b5a,
+]), 'ucs-2le');
+$ucs2LabelText = (string) $ucs2LabelSource->children[1]->attr('text');
 $utf32BomSource = (new MarkdownReader())->readBytes("\x00\x00\xFE\xFF" . $utf32beBytes([
     0x0023,
     0x0020,
@@ -673,6 +708,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($bomOverrideSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . ($bomOverrideSource->attr('sourceEncoding')['bom'] ?? '')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'UCS-2LE source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $ucs2LabelText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ucs2LabelSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ucs2LabelText)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'UTF-32 BOM source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $utf32BomSource->children[0]->attr('text') . ' / ' . $utf32BomSource->children[1]->attr('text')])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($utf32BomSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . ($utf32BomSource->attr('sourceEncoding')['bom'] ?? '') . ':' . UnicodeText::displayWidth((string) $utf32BomSource->children[0]->attr('text'))])]),
@@ -1060,6 +1100,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>BOM override</td><td>計画 / BE</td><td>utf-16be:utf-16be</td>")) {
         throw new RuntimeException('charset handoff self-test missing BOM override audit row');
+    }
+    if (($ucs2LabelSource->attr('sourceEncoding')['encoding'] ?? '') !== 'utf-16le') {
+        throw new RuntimeException('charset handoff self-test missing UCS-2 source label decoding');
+    }
+    if (!str_contains($blocks, "<td>UCS-2LE source</td><td>Café — 魚</td><td>utf-16le:9</td>")) {
+        throw new RuntimeException('charset handoff self-test missing UCS-2LE label audit row');
     }
     if (($utf32BomSource->attr('sourceEncoding')['encoding'] ?? '') !== 'utf-32be') {
         throw new RuntimeException('charset handoff self-test missing UTF-32 source encoding');

@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review', 'aria-metadata-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -527,6 +527,9 @@ final class Html5DomFragment
         if ($mode === 'html' && $name === 'figure') {
             self::markHtmlFigureReviewMetadata($node, $attrs, $children, $diagnostics);
         }
+        if ($mode === 'html' && $elementForeignContext === null && self::isHtmlCustomElementName($name)) {
+            $name = self::markHtmlCustomElementReviewMetadata($node, $name, $attrs, $children, $diagnostics);
+        }
         if ($mode === 'html' && $elementForeignContext === null && $name === 'slot') {
             self::markHtmlSlotFallbackReviewMetadata($node, $attrs, $diagnostics);
             $name = 'span';
@@ -692,6 +695,81 @@ final class Html5DomFragment
         }
 
         return $name;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlCustomElementReviewMetadata(
+        \DOMElement $element,
+        string $sourceName,
+        array &$attrs,
+        array $children,
+        array &$diagnostics
+    ): string {
+        $replacement = self::htmlCustomElementReplacementName($children);
+        $attrs['data-pandoc-custom-element'] = $sourceName;
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'custom-element-review',
+            'tag' => $sourceName,
+            'sourceTag' => $sourceName,
+            'replacement' => $replacement,
+            'reason' => 'custom-element-preserved-as-inert-metadata',
+        ], $element);
+
+        return $replacement;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     */
+    private static function htmlCustomElementReplacementName(array $children): string
+    {
+        foreach ($children as $child) {
+            if (($child['type'] ?? '') !== 'element') {
+                continue;
+            }
+            if (self::isHtmlBlockElementName((string) ($child['name'] ?? ''))) {
+                return 'div';
+            }
+        }
+
+        return 'span';
+    }
+
+    private static function isHtmlBlockElementName(string $name): bool
+    {
+        return in_array(strtolower($name), [
+            'address',
+            'article',
+            'aside',
+            'blockquote',
+            'div',
+            'dl',
+            'fieldset',
+            'figcaption',
+            'figure',
+            'footer',
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'header',
+            'hr',
+            'main',
+            'nav',
+            'ol',
+            'p',
+            'pre',
+            'section',
+            'table',
+            'ul',
+        ], true);
     }
 
     /**
@@ -3223,6 +3301,19 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlCustomElementMetadataAttribute($element, $tagName, $name, $foreignContext)) {
+                $customMetadata = self::normalizeHtmlCustomElementMetadataAttribute(
+                    $name,
+                    $value,
+                    $tagName,
+                    $diagnostics
+                );
+                foreach ($customMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isBlockedAttribute($name, $foreignContext)) {
                 $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
@@ -4381,6 +4472,192 @@ final class Html5DomFragment
             'tag' => $tagName,
             'attribute' => $attributeName,
             'reason' => 'aria-attribute-preserved-as-review-metadata',
+        ];
+    }
+
+    private static function isHtmlCustomElementMetadataAttribute(
+        \DOMElement $element,
+        string $tagName,
+        string $name,
+        ?string $foreignContext
+    ): bool {
+        if ($foreignContext !== null) {
+            return false;
+        }
+
+        $attribute = strtolower($name);
+        if ($attribute === 'is') {
+            return true;
+        }
+        if (!in_array($attribute, ['part', 'exportparts'], true)) {
+            return false;
+        }
+
+        return self::isHtmlCustomElementName($tagName) || $element->hasAttribute('is');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlCustomElementMetadataAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): array {
+        $attribute = strtolower($name);
+        if ($attribute === 'is') {
+            $customName = self::normalizeHtmlCustomElementName($value);
+            if ($customName === null) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => $tagName,
+                    'attribute' => 'is',
+                    'reason' => 'invalid-custom-element-name',
+                ];
+
+                return [];
+            }
+
+            self::addHtmlCustomElementMetadataDiagnostic($diagnostics, $tagName, 'is');
+
+            return ['data-pandoc-custom-is' => $customName];
+        }
+
+        if ($attribute === 'part') {
+            $parts = self::normalizeHtmlCustomPartTokenList($value, $tagName, $diagnostics);
+            if ($parts === null) {
+                return [];
+            }
+
+            self::addHtmlCustomElementMetadataDiagnostic($diagnostics, $tagName, 'part');
+
+            return ['data-pandoc-custom-part' => $parts];
+        }
+
+        $exportedParts = self::normalizeHtmlCustomExportParts($value, $tagName, $diagnostics);
+        if ($exportedParts === null) {
+            return [];
+        }
+
+        self::addHtmlCustomElementMetadataDiagnostic($diagnostics, $tagName, 'exportparts');
+
+        return ['data-pandoc-custom-exportparts' => $exportedParts];
+    }
+
+    private static function normalizeHtmlCustomElementName(string $value): ?string
+    {
+        $name = strtolower(self::cleanHtmlMetadataAttribute($value));
+
+        return self::isHtmlCustomElementName($name) ? $name : null;
+    }
+
+    private static function isHtmlCustomElementName(string $name): bool
+    {
+        $name = strtolower($name);
+        if (preg_match('/^[a-z][a-z0-9._-]*-[a-z0-9._-]*$/', $name) !== 1) {
+            return false;
+        }
+
+        return !in_array($name, [
+            'annotation-xml',
+            'color-profile',
+            'font-face',
+            'font-face-src',
+            'font-face-uri',
+            'font-face-format',
+            'font-face-name',
+            'missing-glyph',
+        ], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlCustomPartTokenList(string $value, string $tagName, array &$diagnostics): ?string
+    {
+        $tokens = self::splitHtmlSemanticTokens($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            if (!self::isSafeHtmlCustomPartToken($token)) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => $tagName,
+                    'attribute' => 'part',
+                    'token' => $token,
+                ];
+                continue;
+            }
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        return $normalized === [] ? null : implode(' ', $normalized);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlCustomExportParts(string $value, string $tagName, array &$diagnostics): ?string
+    {
+        $cleaned = self::cleanHtmlMetadataAttribute($value);
+        if ($cleaned === '') {
+            return null;
+        }
+
+        $mappings = [];
+        foreach (explode(',', $cleaned) as $mapping) {
+            $mapping = trim($mapping);
+            if ($mapping === '') {
+                continue;
+            }
+
+            $parts = array_map('trim', explode(':', $mapping, 2));
+            $source = $parts[0] ?? '';
+            $target = $parts[1] ?? '';
+            if (!self::isSafeHtmlCustomPartToken($source) || ($target !== '' && !self::isSafeHtmlCustomPartToken($target))) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => $tagName,
+                    'attribute' => 'exportparts',
+                    'token' => $mapping,
+                ];
+                continue;
+            }
+
+            $normalized = $target === '' ? $source : $source . ': ' . $target;
+            if (!in_array($normalized, $mappings, true)) {
+                $mappings[] = $normalized;
+            }
+        }
+
+        return $mappings === [] ? null : implode(', ', $mappings);
+    }
+
+    private static function isSafeHtmlCustomPartToken(string $token): bool
+    {
+        return preg_match('/^[A-Za-z_][A-Za-z0-9_-]*$/', $token) === 1;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlCustomElementMetadataDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        string $attributeName
+    ): void {
+        $diagnostics[] = [
+            'code' => 'custom-element-review',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'reason' => 'custom-element-hook-preserved-as-review-metadata',
         ];
     }
 

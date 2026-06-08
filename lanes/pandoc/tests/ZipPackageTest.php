@@ -3507,6 +3507,41 @@ return [
         $t->same('utf-8', $summary['entries'][2]['commentEncoding']);
     },
 
+    'rejects empty info zip unicode comments that hide raw entry comments' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $rawComment = 'review comment must remain visible';
+        $emptyUnicodeCommentExtra = $buildUnicodeExtra(0x6375, $rawComment, '');
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/review-note.txt',
+                'data' => "empty Unicode comment metadata should not hide raw comments\n",
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $rawComment,
+                'centralExtra' => $emptyUnicodeCommentExtra,
+            ],
+        ])));
+
+        $commentedPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/review-note.txt',
+                'data' => "raw comment metadata remains visible\n",
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $rawComment,
+            ],
+        ]));
+        $summary = $commentedPackage->commentPreflight();
+
+        $t->same(true, $summary['hasEntryComments']);
+        $t->same(1, $summary['entryCommentCount']);
+        $t->same(['word/media/review-note.txt'], $summary['commentedEntryNames']);
+        $t->same($rawComment, $summary['commentedEntries'][0]['comment']);
+        $t->same($rawComment, $summary['commentedEntries'][0]['rawComment']);
+        $t->same('cp437', $summary['commentedEntries'][0]['commentEncoding']);
+        $t->throws(\RuntimeException::class, static fn (): array => $commentedPackage->assertNoPackageOrEntryComments());
+    },
+
     'preflights strict zip comment policy before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $commentedPackage = ZipPackage::fromString($buildZipPackage([
             [

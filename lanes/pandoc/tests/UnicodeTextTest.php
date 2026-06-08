@@ -24,6 +24,22 @@ $utf16le = static function (array $codepoints): string {
     return $bytes;
 };
 
+$utf16be = static function (array $codepoints): string {
+    $bytes = '';
+    foreach ($codepoints as $codepoint) {
+        if ($codepoint <= 0xffff) {
+            $bytes .= pack('n', $codepoint);
+            continue;
+        }
+
+        $value = $codepoint - 0x10000;
+        $bytes .= pack('n', 0xd800 + ($value >> 10));
+        $bytes .= pack('n', 0xdc00 + ($value & 0x03ff));
+    }
+
+    return $bytes;
+};
+
 $utf32le = static function (array $codepoints): string {
     $bytes = '';
     foreach ($codepoints as $codepoint) {
@@ -1071,6 +1087,57 @@ return [
         $t->same('BE', $document->children[1]->attr('text'));
         $t->contains('<h1 id="計画">計画</h1>', $blocks);
         $t->contains('<p>BE</p>', $blocks);
+    },
+    'decodes ucs 2 labels as utf16 family source bytes' => static function (TestRunner $t) use ($utf16le, $utf16be): void {
+        $leBytes = $utf16le([
+            0x0023,
+            0x0020,
+            0x0055,
+            0x0043,
+            0x0053,
+            0x0032,
+            0x000a,
+            0x000a,
+            0x0043,
+            0x0061,
+            0x0066,
+            0x00e9,
+            0x0020,
+            0x2014,
+            0x0020,
+            0x9b5a,
+        ]);
+        $beBytes = $utf16be([
+            0x0023,
+            0x0020,
+            0x8a08,
+            0x753b,
+            0x000a,
+            0x000a,
+            0x0042,
+            0x0045,
+        ]);
+        $defaultBytes = $utf16le([0x0044, 0x0065, 0x0066, 0x0061, 0x0075, 0x006c, 0x0074]);
+        $decodedLe = UnicodeText::decodeBytes($leBytes, 'ucs-2le');
+        $decodedBe = UnicodeText::decodeBytes($beBytes, 'ucs_2be');
+        $decodedDefault = UnicodeText::decodeBytes($defaultBytes, 'ucs-2');
+        $document = (new MarkdownReader())->readBytes($leBytes, 'ucs-2le');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('utf-16le', $decodedLe['encoding']);
+        $t->same(null, $decodedLe['bom']);
+        $t->same("# UCS2\n\nCafé — 魚", $decodedLe['text']);
+        $t->same(0, $decodedLe['repairs']);
+        $t->same('utf-16be', $decodedBe['encoding']);
+        $t->same("# 計画\n\nBE", $decodedBe['text']);
+        $t->same('utf-16le', $decodedDefault['encoding']);
+        $t->same('Default', $decodedDefault['text']);
+        $t->same(['encoding' => 'utf-16le', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('UCS2', $document->children[0]->attr('text'));
+        $t->same('Café — 魚', $document->children[1]->attr('text'));
+        $t->same(9, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="ucs2">UCS2</h1>', $blocks);
+        $t->contains("<p>Café — 魚</p>", $blocks);
     },
     'decodes utf32 byte order marks before utf16 fallback' => static function (TestRunner $t) use ($utf32le, $utf32be): void {
         $utf32leSource = "\xFF\xFE\x00\x00" . $utf32le([
