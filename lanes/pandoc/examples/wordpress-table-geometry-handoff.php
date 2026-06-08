@@ -1216,6 +1216,19 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('Table geometry self-test missing packet row occupancy rollup');
     }
+    $migrationPlaceholderBlocks = (new WordPressBlockWriter(['preserveTableMissingCells' => true]))->write(new AstNode('document', [], [$document->children[0]]));
+    if (str_contains($blocks, 'data-pandoc-missing-cell="true"')) {
+        throw new RuntimeException('Table geometry self-test unexpectedly changed default WordPress missing-cell output');
+    }
+    if (substr_count($migrationPlaceholderBlocks, 'data-pandoc-missing-cell="true"') !== 3) {
+        throw new RuntimeException('Table geometry self-test missing opt-in WordPress missing-cell placeholders');
+    }
+    if (!str_contains($migrationPlaceholderBlocks, '<td data-pandoc-missing-cell="true" data-pandoc-missing-row="1" data-pandoc-missing-column="3" aria-hidden="true"></td>')) {
+        throw new RuntimeException('Table geometry self-test missing body-row placeholder coordinates in WordPress output');
+    }
+    if (str_contains($migrationPlaceholderBlocks, 'data-pandoc-missing-column="0"') || str_contains($migrationPlaceholderBlocks, 'data-pandoc-missing-column="1"')) {
+        throw new RuntimeException('Table geometry self-test treated covered span slots as missing-cell placeholders');
+    }
     $multiWriterPacket = TableGeometry::reviewPacket($document->children[0], [
         'idPrefix' => 'Migration Grid',
         'writers' => ['markdown', 'restructuredtext'],

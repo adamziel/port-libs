@@ -13,13 +13,16 @@ final class WordPressBlockWriter
 
     private string $highlightStyle;
 
+    private bool $preserveTableMissingCells;
+
     /**
-     * @param array{highlightCodeBlocks?: bool, highlightStyle?: string} $options
+     * @param array{highlightCodeBlocks?: bool, highlightStyle?: string, preserveTableMissingCells?: bool} $options
      */
     public function __construct(array $options = [])
     {
         $this->highlightCodeBlocks = ($options['highlightCodeBlocks'] ?? false) === true;
         $this->highlightStyle = (string) ($options['highlightStyle'] ?? 'pygments');
+        $this->preserveTableMissingCells = ($options['preserveTableMissingCells'] ?? false) === true;
     }
 
     public function write(AstNode $document): string
@@ -977,16 +980,19 @@ final class WordPressBlockWriter
             $rows[] = $entry['row'];
         }
 
+        $gridRows = $this->preserveTableMissingCells ? TableGeometry::sectionGrid($rows, $columnCount) : [];
         $html = '';
         foreach (TableGeometry::layoutRows($rows, $columnCount) as $index => $layoutRow) {
             $html .= $this->renderTableRow(
                 $layoutRow,
                 $table,
+                $columnCount,
                 (bool) ($rowEntries[$index]['header'] ?? false),
                 (int) ($rowEntries[$index]['rowHeadColumns'] ?? 0),
                 $section,
                 $index,
-                $accessibilityAttrs
+                $accessibilityAttrs,
+                $gridRows[$index] ?? []
             );
         }
 
@@ -995,21 +1001,27 @@ final class WordPressBlockWriter
 
     /**
      * @param array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int}>} $layoutRow
+     * @param list<array<string, mixed>> $gridSlots
      */
     private function renderTableRow(
         array $layoutRow,
         AstNode $table,
+        int $columnCount,
         bool $header,
         int $rowHeadColumns,
         string $section,
         int $rowIndex,
-        array $accessibilityAttrs
+        array $accessibilityAttrs,
+        array $gridSlots
     ): string
     {
         $row = $layoutRow['row'];
         $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
+        $visualColumn = 0;
         foreach ($layoutRow['cells'] as $layoutCell) {
             $cell = $layoutCell['node'];
+            $anchorColumn = (int) $layoutCell['column'];
+            $html .= $this->renderMissingTableCells($gridSlots, $visualColumn, $anchorColumn);
             $accessibilityKey = TableGeometry::accessibilityKey(
                 $section,
                 $rowIndex,
@@ -1026,9 +1038,39 @@ final class WordPressBlockWriter
             );
             $tag = TableGeometry::isHeaderCell($header, $rowHeadColumns, $layoutCell['column'], $cell) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
+            $visualColumn = max($visualColumn, $anchorColumn + max(1, (int) $layoutCell['colspan']));
         }
 
+        $html .= $this->renderMissingTableCells($gridSlots, $visualColumn, $columnCount);
+
         return $html . '</tr>';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $gridSlots
+     */
+    private function renderMissingTableCells(array $gridSlots, int $startColumn, int $endColumn): string
+    {
+        if (!$this->preserveTableMissingCells || $gridSlots === []) {
+            return '';
+        }
+
+        $html = '';
+        for ($column = max(0, $startColumn); $column < $endColumn; $column++) {
+            $slot = $gridSlots[$column] ?? null;
+            if (!is_array($slot) || ($slot['kind'] ?? null) !== 'missing') {
+                continue;
+            }
+
+            $row = isset($slot['row']) && is_numeric($slot['row']) ? (int) $slot['row'] : 0;
+            $slotColumn = isset($slot['column']) && is_numeric($slot['column']) ? (int) $slot['column'] : $column;
+            $html .= '<td data-pandoc-missing-cell="true"'
+                . ' data-pandoc-missing-row="' . $this->esc((string) $row) . '"'
+                . ' data-pandoc-missing-column="' . $this->esc((string) $slotColumn) . '"'
+                . ' aria-hidden="true"></td>';
+        }
+
+        return $html;
     }
 
     private function renderTableCellContent(AstNode $cell): string

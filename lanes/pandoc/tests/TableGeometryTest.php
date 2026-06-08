@@ -1812,6 +1812,25 @@ return [
         json_encode($fallbacks, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'preserves flat grid missing visual slots as opt-in WordPress placeholders' => static function (TestRunner $t) use ($buildSectionGridDocument): void {
+        $document = $buildSectionGridDocument();
+        $table = $document->children[0];
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $defaultBlocks = (new WordPressBlockWriter())->write($document);
+        $placeholderBlocks = (new WordPressBlockWriter(['preserveTableMissingCells' => true]))->write($document);
+
+        $t->same('flat-grid-missing-slots-require-empty-placeholders', $packet['flatGridFallbacks'][1]['code'] ?? null);
+        $t->same(3, $packet['flatGridFallbacks'][1]['slotCount'] ?? null);
+        $t->same('empty-cell-placeholders', $packet['flatGridFallbacks'][1]['requiredFeature'] ?? null);
+        $t->true(!str_contains($defaultBlocks, 'data-pandoc-missing-cell'), 'Default WordPress table output should not synthesize empty visual-slot placeholders');
+        $t->same(3, substr_count($placeholderBlocks, 'data-pandoc-missing-cell="true"'));
+        $t->contains('<th colspan="2" style="text-align:left">Scope</th><th style="text-align:right">State</th><td data-pandoc-missing-cell="true" data-pandoc-missing-row="0" data-pandoc-missing-column="3" aria-hidden="true"></td>', $placeholderBlocks);
+        $t->contains('<tr><td colspan="2" rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">Ready</td><td data-pandoc-missing-cell="true" data-pandoc-missing-row="0" data-pandoc-missing-column="3" aria-hidden="true"></td></tr>', $placeholderBlocks);
+        $t->contains('<tr><td style="text-align:right">Needs media</td><td data-pandoc-missing-cell="true" data-pandoc-missing-row="1" data-pandoc-missing-column="3" aria-hidden="true"></td></tr>', $placeholderBlocks);
+        $t->true(!str_contains($placeholderBlocks, 'data-pandoc-missing-column="0"'), 'Covered anchors should not become missing-cell placeholders');
+        $t->true(!str_contains($placeholderBlocks, 'data-pandoc-missing-column="1"'), 'Covered colspan/rowspan slots should not become missing-cell placeholders');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'serializes spanned cell occupied slots for importer geometry audits' => static function (TestRunner $t) use ($buildSectionGridDocument, $buildSectionScopedRowspanDocument): void {
         $document = $buildSectionGridDocument();
         $table = $document->children[0];
