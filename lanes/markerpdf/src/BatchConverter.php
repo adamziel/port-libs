@@ -1852,6 +1852,8 @@ final class BatchConverter
         $textLengthCheckedByFilename = [];
         $markdownExistsPathByFilename = [];
         $markdownExistsPathTypeByFilename = [];
+        $filepathIsFileAtWorkerPreflightByFilename = [];
+        $filepathIsReadableAtWorkerPreflightByFilename = [];
         $filepathPathTypeAtWorkerPreflightByFilename = [];
         $workerFileAvailabilityBoundaryByFilename = [];
         $upstreamReturnValueByFilename = [];
@@ -1861,6 +1863,7 @@ final class BatchConverter
         $selectedInputMissingFilenames = [];
         $selectedInputBrokenSymlinkFilenames = [];
         $selectedInputNotFileFilenames = [];
+        $selectedInputDirectoryFilenames = [];
         $selectedInputUnreadableFilenames = [];
         $unsupportedFiletypeFilenames = [];
         $filetypeStdoutFilenames = [];
@@ -1903,6 +1906,8 @@ final class BatchConverter
                 $textLengthCheckedByFilename[$filename] = (bool) $preflight['text_length_checked'];
                 $markdownExistsPathByFilename[$filename] = $preflight['markdown_exists_path'];
                 $markdownExistsPathTypeByFilename[$filename] = $preflight['markdown_exists_path_type'];
+                $filepathIsFileAtWorkerPreflightByFilename[$filename] = $preflight['filepath_is_file_at_worker_preflight'];
+                $filepathIsReadableAtWorkerPreflightByFilename[$filename] = $preflight['filepath_is_readable_at_worker_preflight'];
                 $filepathPathTypeAtWorkerPreflightByFilename[$filename] = $preflight['filepath_path_type_at_worker_preflight'];
                 $workerFileAvailabilityBoundaryByFilename[$filename] = $preflight['worker_file_availability_boundary'];
                 $upstreamReturnValueByFilename[$filename] = $preflight['upstream_return_value'];
@@ -1922,6 +1927,9 @@ final class BatchConverter
                 }
                 if ((bool) $preflight['selected_input_not_file_at_worker_preflight']) {
                     $selectedInputNotFileFilenames[] = $filename;
+                }
+                if ((bool) $preflight['selected_input_directory_at_worker_preflight']) {
+                    $selectedInputDirectoryFilenames[] = $filename;
                 }
                 if ((bool) $preflight['selected_input_unreadable_at_worker_preflight']) {
                     $selectedInputUnreadableFilenames[] = $filename;
@@ -1978,6 +1986,7 @@ final class BatchConverter
                     'selected_input_missing_at_worker_preflight' => $preflight['selected_input_missing_at_worker_preflight'],
                     'selected_input_broken_symlink_at_worker_preflight' => $preflight['selected_input_broken_symlink_at_worker_preflight'],
                     'selected_input_not_file_at_worker_preflight' => $preflight['selected_input_not_file_at_worker_preflight'],
+                    'selected_input_directory_at_worker_preflight' => $preflight['selected_input_directory_at_worker_preflight'],
                     'selected_input_unreadable_at_worker_preflight' => $preflight['selected_input_unreadable_at_worker_preflight'],
                     'min_length_gate_active' => $preflight['min_length_gate_active'],
                     'filetype_checked' => $preflight['filetype_checked'],
@@ -2031,6 +2040,8 @@ final class BatchConverter
             'text_length_checked_by_filename' => $textLengthCheckedByFilename,
             'markdown_exists_path_by_filename' => $markdownExistsPathByFilename,
             'markdown_exists_path_type_by_filename' => $markdownExistsPathTypeByFilename,
+            'filepath_is_file_at_worker_preflight_by_filename' => $filepathIsFileAtWorkerPreflightByFilename,
+            'filepath_is_readable_at_worker_preflight_by_filename' => $filepathIsReadableAtWorkerPreflightByFilename,
             'filepath_path_type_at_worker_preflight_by_filename' => $filepathPathTypeAtWorkerPreflightByFilename,
             'worker_file_availability_boundary_by_filename' => $workerFileAvailabilityBoundaryByFilename,
             'upstream_return_value_by_filename' => $upstreamReturnValueByFilename,
@@ -2040,6 +2051,7 @@ final class BatchConverter
             'selected_input_missing_filenames' => $selectedInputMissingFilenames,
             'selected_input_broken_symlink_filenames' => $selectedInputBrokenSymlinkFilenames,
             'selected_input_not_file_filenames' => $selectedInputNotFileFilenames,
+            'selected_input_directory_filenames' => $selectedInputDirectoryFilenames,
             'selected_input_unreadable_filenames' => $selectedInputUnreadableFilenames,
             'unsupported_filetype_filenames' => $unsupportedFiletypeFilenames,
             'short_text_filenames' => $shortTextFilenames,
@@ -2784,6 +2796,7 @@ final class BatchConverter
      *     selected_input_missing_at_worker_preflight: bool,
      *     selected_input_broken_symlink_at_worker_preflight: bool,
      *     selected_input_not_file_at_worker_preflight: bool,
+     *     selected_input_directory_at_worker_preflight: bool,
      *     selected_input_unreadable_at_worker_preflight: bool
      * }
      */
@@ -2795,6 +2808,7 @@ final class BatchConverter
         $isReadable = is_readable($filepath);
         $isMissing = $pathType === 'missing';
         $isBrokenSymlink = $pathType === 'broken-symlink';
+        $isDirectory = $pathType === 'directory';
         $isNotFile = $pathExists && !$isFile;
         $isUnreadable = $isFile && !$isReadable;
 
@@ -2818,6 +2832,7 @@ final class BatchConverter
             'selected_input_missing_at_worker_preflight' => $isMissing,
             'selected_input_broken_symlink_at_worker_preflight' => $isBrokenSymlink,
             'selected_input_not_file_at_worker_preflight' => $isNotFile,
+            'selected_input_directory_at_worker_preflight' => $isDirectory,
             'selected_input_unreadable_at_worker_preflight' => $isUnreadable,
         ];
     }
