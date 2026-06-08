@@ -6155,6 +6155,127 @@ XML;
         $t->same(true, $commentRoles['rIdCommentImage']['valid']);
         $t->same([], $commentRoles['rIdCommentImage']['issues']);
     },
+    'preflights WordprocessingML custom XML properties relationship roles' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
+  <Override PartName="/customXml/wrong-props.xml" ContentType="application/xml"/>
+  <Override PartName="/customXml/source-wrong-type.bin" ContentType="application/octet-stream"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>
+  <Relationship Id="rIdCustomXmlWrongSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/source-wrong-type.bin"/>
+</Relationships>
+XML;
+
+        $customXmlRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdItemProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/>
+  <Relationship Id="rIdWrongItemProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="wrong-props.xml"/>
+  <Relationship Id="rIdExternalItemProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="https://example.test/itemProps.xml" TargetMode="External"/>
+  <Relationship Id="rIdMissingItemProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="missing-props.xml"/>
+</Relationships>
+XML;
+
+        $wrongSourceRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdWrongSourceProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+            ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $customXmlRelationshipsXml],
+            ['name' => 'customXml/itemProps1.xml', 'data' => '<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"/>'],
+            ['name' => 'customXml/wrong-props.xml', 'data' => '<audit/>'],
+            ['name' => 'customXml/source-wrong-type.bin', 'data' => 'binary-ish'],
+            ['name' => 'customXml/_rels/source-wrong-type.bin.rels', 'data' => $wrongSourceRelationshipsXml],
+        ]));
+
+        $documentRoles = [];
+        foreach ($graph->preflightWordprocessingDocumentRelationships('/word/document.xml') as $role) {
+            $documentRoles[$role['id']] = $role;
+        }
+
+        $customXmlRoles = [];
+        foreach ($graph->preflightWordprocessingDocumentRelationships('/customXml/item1.xml') as $role) {
+            $customXmlRoles[$role['id']] = $role;
+        }
+
+        $wrongSourceRoles = [];
+        foreach ($graph->preflightWordprocessingDocumentRelationships('/customXml/source-wrong-type.bin') as $role) {
+            $wrongSourceRoles[$role['id']] = $role;
+        }
+
+        $t->same('custom-xml', $documentRoles['rIdCustomXml']['role']);
+        $t->same('/customXml/item1.xml', $documentRoles['rIdCustomXml']['targetPart']);
+        $t->same('application/xml', $documentRoles['rIdCustomXml']['contentType']);
+        $t->same(true, $documentRoles['rIdCustomXml']['valid']);
+
+        $t->same([
+            'rIdItemProps',
+            'rIdWrongItemProps',
+            'rIdExternalItemProps',
+            'rIdMissingItemProps',
+        ], array_keys($customXmlRoles));
+
+        $t->same('custom-xml-properties', $customXmlRoles['rIdItemProps']['role']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE, $customXmlRoles['rIdItemProps']['type']);
+        $t->same('/customXml/item1.xml', $customXmlRoles['rIdItemProps']['source']);
+        $t->same('application/xml', $customXmlRoles['rIdItemProps']['sourceContentType']);
+        $t->same('/customXml/itemProps1.xml', $customXmlRoles['rIdItemProps']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.customXmlProperties+xml', $customXmlRoles['rIdItemProps']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.customXmlProperties+xml', $customXmlRoles['rIdItemProps']['expectedContentType']);
+        $t->same(['application/xml'], $customXmlRoles['rIdItemProps']['expectedSourceContentTypes']);
+        $t->same(false, $customXmlRoles['rIdItemProps']['expectedExternal']);
+        $t->same(false, $customXmlRoles['rIdItemProps']['external']);
+        $t->same(true, $customXmlRoles['rIdItemProps']['exists']);
+        $t->same(true, $customXmlRoles['rIdItemProps']['valid']);
+        $t->same([], $customXmlRoles['rIdItemProps']['issues']);
+
+        $t->same('custom-xml-properties', $customXmlRoles['rIdWrongItemProps']['role']);
+        $t->same('/customXml/wrong-props.xml', $customXmlRoles['rIdWrongItemProps']['targetPart']);
+        $t->same('application/xml', $customXmlRoles['rIdWrongItemProps']['contentType']);
+        $t->same(false, $customXmlRoles['rIdWrongItemProps']['valid']);
+        $t->same(['invalid-custom-xml-properties-content-type'], $customXmlRoles['rIdWrongItemProps']['issues']);
+
+        $t->same('custom-xml-properties', $customXmlRoles['rIdExternalItemProps']['role']);
+        $t->same(true, $customXmlRoles['rIdExternalItemProps']['external']);
+        $t->same(null, $customXmlRoles['rIdExternalItemProps']['targetPart']);
+        $t->same(null, $customXmlRoles['rIdExternalItemProps']['contentType']);
+        $t->same(false, $customXmlRoles['rIdExternalItemProps']['expectedExternal']);
+        $t->same(false, $customXmlRoles['rIdExternalItemProps']['valid']);
+        $t->same(['external-custom-xml-properties-target'], $customXmlRoles['rIdExternalItemProps']['issues']);
+
+        $t->same('custom-xml-properties', $customXmlRoles['rIdMissingItemProps']['role']);
+        $t->same('/customXml/missing-props.xml', $customXmlRoles['rIdMissingItemProps']['targetPart']);
+        $t->same('application/xml', $customXmlRoles['rIdMissingItemProps']['contentType']);
+        $t->same(false, $customXmlRoles['rIdMissingItemProps']['exists']);
+        $t->same(false, $customXmlRoles['rIdMissingItemProps']['valid']);
+        $t->same(['missing-in-package', 'invalid-custom-xml-properties-content-type'], $customXmlRoles['rIdMissingItemProps']['issues']);
+
+        $t->same('custom-xml-properties', $wrongSourceRoles['rIdWrongSourceProps']['role']);
+        $t->same('application/octet-stream', $wrongSourceRoles['rIdWrongSourceProps']['sourceContentType']);
+        $t->same('/customXml/itemProps1.xml', $wrongSourceRoles['rIdWrongSourceProps']['targetPart']);
+        $t->same(false, $wrongSourceRoles['rIdWrongSourceProps']['valid']);
+        $t->same(['invalid-custom-xml-properties-source-content-type'], $wrongSourceRoles['rIdWrongSourceProps']['issues']);
+    },
     'preflights DOCX reader supplemental relationship role content types' => static function (TestRunner $t): void {
         $commentsExtendedType = OpcRelationshipGraph::WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE;
         $glossaryType = OpcRelationshipGraph::WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE;

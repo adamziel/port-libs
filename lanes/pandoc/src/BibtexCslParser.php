@@ -1794,7 +1794,7 @@ final class BibtexCslParser
             return [];
         }
 
-        return self::withBiblatexNameAnnotations($names, $fields[$field . '+an'] ?? '');
+        return self::withBiblatexNameAnnotations($names, self::biblatexNameAnnotationsForField($fields, $field));
     }
 
     /**
@@ -1816,12 +1816,35 @@ final class BibtexCslParser
     }
 
     /**
+     * @param array<string, string> $fields
+     * @return list<array{index:int, part:string, value:string}>
+     */
+    private static function biblatexNameAnnotationsForField(array $fields, string $field): array
+    {
+        $annotations = [];
+        $pattern = '/^' . preg_quote($field, '/') . '\\+an(?::([A-Za-z][A-Za-z0-9_-]*))?$/u';
+        foreach ($fields as $name => $value) {
+            if (preg_match($pattern, $name, $matches) !== 1) {
+                continue;
+            }
+
+            $defaultPart = strtolower(str_replace('_', '-', trim((string) ($matches[1] ?? ''))));
+            foreach (self::biblatexNameAnnotations($value, $defaultPart) as $annotation) {
+                $annotations[] = $annotation;
+            }
+        }
+
+        return $annotations;
+    }
+
+    /**
      * @param list<array<string, mixed>> $names
+     * @param list<array{index:int, part:string, value:string}> $annotations
      * @return list<array<string, mixed>>
      */
-    private static function withBiblatexNameAnnotations(array $names, string $value): array
+    private static function withBiblatexNameAnnotations(array $names, array $annotations): array
     {
-        foreach (self::biblatexNameAnnotations($value) as $annotation) {
+        foreach ($annotations as $annotation) {
             $index = $annotation['index'] - 1;
             if (!isset($names[$index])) {
                 continue;
@@ -1843,12 +1866,13 @@ final class BibtexCslParser
     /**
      * @return list<array{index:int, part:string, value:string}>
      */
-    private static function biblatexNameAnnotations(string $value): array
+    private static function biblatexNameAnnotations(string $value, string $defaultPart = ''): array
     {
         if (trim($value) === '') {
             return [];
         }
 
+        $defaultPart = strtolower(str_replace('_', '-', trim($defaultPart)));
         $separator = str_contains($value, ';') ? ';' : ',';
         $annotations = [];
         foreach (self::splitTopLevel($value, $separator) as $entry) {
@@ -1874,7 +1898,7 @@ final class BibtexCslParser
             $part = strtolower(str_replace('_', '-', trim((string) ($matches[2] ?? ''))));
             $annotations[] = [
                 'index' => $index,
-                'part' => $part === '' ? 'name' : $part,
+                'part' => $part === '' ? ($defaultPart === '' ? 'name' : $defaultPart) : $part,
                 'value' => $value,
             ];
         }

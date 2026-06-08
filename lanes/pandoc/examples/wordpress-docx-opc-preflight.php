@@ -24,6 +24,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
   <Override PartName="/word/review%20source.xml" ContentType="application/xml"/>
+  <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
   <Override PartName="/word/media/source%20diagram.svg" ContentType="image/svg+xml; charset=UTF-8"/>
   <Override PartName="/word/embeddings/source%20workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
   <Override PartName="/word/embeddings/oleObject1.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
@@ -85,6 +86,7 @@ XML;
 
 $reviewSourceRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewSourceProperties" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="../customXml/itemProps1.xml"/>
   <Relationship Id="rIdReviewSourceImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review%20source.png"/>
 </Relationships>
 XML;
@@ -356,6 +358,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
     ['name' => 'word/review source.xml', 'data' => '<review/>'],
     ['name' => 'word/_rels/review%20source.xml.rels', 'data' => $reviewSourceRelationshipsXml],
+    ['name' => 'customXml/itemProps1.xml', 'data' => '<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"/>'],
     ['name' => 'word/draft.xml', 'data' => '<draft/>'],
     ['name' => 'word/_rels/draft.xml.rels', 'data' => $draftRelationshipsXml],
     ['name' => 'word/media/draft-hidden.png', 'data' => 'PNG'],
@@ -1709,6 +1712,29 @@ foreach ($documentPropertiesPreflight['roles'] as $role) {
     }
 }
 $documentPropertyParts = array_values(array_unique($documentPropertyParts));
+$customXmlPropertyRelationships = [];
+foreach ($graph->preflightWordprocessingDocumentRelationships('/word/review source.xml') as $role) {
+    if ($role['role'] !== 'custom-xml-properties') {
+        continue;
+    }
+
+    $customXmlPropertyRelationships[$role['id']] = [
+        'id' => $role['id'],
+        'source' => $role['source'],
+        'sourceContentType' => $role['sourceContentType'],
+        'targetPart' => $role['targetPart'],
+        'contentType' => $role['contentType'],
+        'expectedContentType' => $role['expectedContentType'],
+        'expectedSourceContentTypes' => $role['expectedSourceContentTypes'],
+        'external' => $role['external'],
+        'valid' => $role['valid'],
+        'issues' => $role['issues'],
+    ];
+}
+$customXmlPropertyParts = array_values(array_unique(array_filter(
+    array_map(static fn (array $role): ?string => $role['valid'] ? $role['targetPart'] : null, $customXmlPropertyRelationships),
+    static fn (?string $part): bool => $part !== null
+)));
 $thumbnailPreflight = [];
 foreach ($graph->preflightThumbnails() as $thumbnail) {
     $thumbnailPreflight[$thumbnail['source'] . ':' . $thumbnail['id']] = [
@@ -1937,6 +1963,8 @@ $summary = [
     'contentTypeInventory' => $contentTypeInventory,
     'wordpressImport' => [
         'documentPropertyParts' => $documentPropertyParts,
+        'customXmlPropertyParts' => $customXmlPropertyParts,
+        'customXmlPropertyRelationships' => array_values($customXmlPropertyRelationships),
         'thumbnailParts' => array_values(array_unique(array_filter(
             array_map(static fn (array $thumbnail): ?string => $thumbnail['targetPart'], $thumbnailPreflight),
             static fn (?string $target): bool => $target !== null
@@ -2175,6 +2203,17 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['documentPropertiesPreflight']['roles']['custom']['relationships'][0]['valid'] ?? null) !== true
         || ($summary['documentPropertiesPreflight']['roles']['custom']['relationships'][0]['issues'] ?? null) !== []
         || ($summary['wordpressImport']['documentPropertyParts'] ?? null) !== ['/docProps/core.xml', '/docProps/app.xml', '/docProps/custom.xml']
+        || ($summary['wordpressImport']['customXmlPropertyParts'] ?? null) !== ['/customXml/itemProps1.xml']
+        || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['id'] ?? null) !== 'rIdReviewSourceProperties'
+        || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['source'] ?? null) !== '/word/review source.xml'
+        || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['sourceContentType'] ?? null) !== 'application/xml'
+        || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['targetPart'] ?? null) !== '/customXml/itemProps1.xml'
+        || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml'
+        || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['expectedContentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml'
+        || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['expectedSourceContentTypes'] ?? null) !== ['application/xml']
+        || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['external'] ?? null) !== false
+        || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['valid'] ?? null) !== true
+        || ($summary['wordpressImport']['customXmlPropertyRelationships'][0]['issues'] ?? null) !== []
         || ($summary['thumbnailPreflight']['/:rIdThumbnail']['source'] ?? null) !== '/'
         || ($summary['thumbnailPreflight']['/:rIdThumbnail']['targetPart'] ?? null) !== '/docProps/thumbnail.png'
         || ($summary['thumbnailPreflight']['/:rIdThumbnail']['contentType'] ?? null) !== 'image/png'
@@ -2306,6 +2345,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdThumbnail']['contentType'] ?? null) !== 'image/png'
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdThumbnail']['issues'] ?? null) !== []
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdSignatureOrigin']['targetPart'] ?? null) !== '/_xmlsignatures/origin.sigs'
+        || ($summary['packageConsistency']['relationshipTargets']['/word/review source.xml:rIdReviewSourceProperties']['targetPart'] ?? null) !== '/customXml/itemProps1.xml'
+        || ($summary['packageConsistency']['relationshipTargets']['/word/review source.xml:rIdReviewSourceProperties']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml'
+        || ($summary['packageConsistency']['relationshipTargets']['/word/review source.xml:rIdReviewSourceProperties']['issues'] ?? null) !== []
         || ($summary['packageConsistency']['relationshipTargets']['/word/review source.xml:rIdReviewSourceImage']['targetPart'] ?? null) !== '/word/media/review source.png'
         || isset($summary['packageConsistency']['relationshipTargets']['/word/draft.xml:rIdDraftImage'])
         || $summary['integrity']['packagePartsValid'] !== false
@@ -2316,13 +2358,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipSourceClosure']['issues'] ?? null) !== ['external-target-network-path-base-uri', 'external-target-unsafe-scheme', 'relationship-type-not-absolute-uri']
         || ($summary['relationshipSourceClosure']['expandedSourceCount'] ?? null) !== 4
         || ($summary['relationshipSourceClosure']['outsideSourceCount'] ?? null) !== 1
-        || ($summary['relationshipSourceClosure']['stopCount'] ?? null) !== 15
+        || ($summary['relationshipSourceClosure']['stopCount'] ?? null) !== 16
         || ($summary['relationshipSourceClosure']['externalStopCount'] ?? null) !== 5
         || ($summary['relationshipSourceClosure']['invalidStopCount'] ?? null) !== 0
         || ($summary['relationshipSourceClosure']['missingStopCount'] ?? null) !== 0
         || ($summary['relationshipSourceClosure']['relationshipPartStopCount'] ?? null) !== 0
         || ($summary['relationshipSourceClosure']['cycleStopCount'] ?? null) !== 2
-        || ($summary['relationshipSourceClosure']['unloadedStopCount'] ?? null) !== 8
+        || ($summary['relationshipSourceClosure']['unloadedStopCount'] ?? null) !== 9
         || ($summary['relationshipSourceClosure']['sources']['/']['closureAction'] ?? null) !== 'expanded'
         || ($summary['relationshipSourceClosure']['sources']['/']['depth'] ?? null) !== 0
         || ($summary['relationshipSourceClosure']['sources']['/word/document.xml']['closureAction'] ?? null) !== 'expanded'
@@ -2343,7 +2385,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipSourceClosure']['stops']['rIdUnsafeReviewer']['issues'] ?? null) !== ['external-target-unsafe-scheme']
         || ($summary['relationshipSourceClosure']['stops']['rIdMalformedType']['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
         || ($summary['wordpressImport']['relationshipClosureReview']['expandedSourceCount'] ?? null) !== 4
-        || ($summary['wordpressImport']['relationshipClosureReview']['stopCount'] ?? null) !== 15
+        || ($summary['wordpressImport']['relationshipClosureReview']['stopCount'] ?? null) !== 16
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSourceLoaded'] ?? null) !== true
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipPartLoadAction'] ?? null) !== 'loaded'
@@ -2647,6 +2689,12 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyIssues'] ?? null) !== []
         || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeValid'] ?? null) !== false
         || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeIssues'] ?? null) !== ['relationship-type-not-absolute-uri']
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE]['relationshipCount'] ?? null) !== 1
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE]['sourceCount'] ?? null) !== 1
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE]['sources'] ?? null) !== ['/word/review source.xml']
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE]['targetParts'] ?? null) !== ['/customXml/itemProps1.xml']
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE]['contentTypes'] ?? null) !== ['application/vnd.openxmlformats-officedocument.customXmlProperties+xml']
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE]['issues'] ?? null) !== []
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]['targetParts'] ?? null) !== ['/word/embeddings/source workbook.xlsx']
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['relationshipCount'] ?? null) !== 1
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['sourceCount'] ?? null) !== 1
@@ -2681,6 +2729,10 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['contentTypeInventory']['application/xml']['relationshipParts'] ?? null) !== ['/word/_rels/draft.xml.rels']
         || ($summary['contentTypeInventory']['application/xml']['relationshipSources'] ?? null) !== ['/word/draft.xml']
         || ($summary['contentTypeInventory']['application/xml']['issues'] ?? null) !== ['invalid-relationship-content-type']
+        || ($summary['contentTypeInventory']['application/vnd.openxmlformats-officedocument.customXmlProperties+xml']['parts'] ?? null) !== ['/customXml/itemProps1.xml']
+        || ($summary['contentTypeInventory']['application/vnd.openxmlformats-officedocument.customXmlProperties+xml']['relationshipTargetParts'] ?? null) !== ['/customXml/itemProps1.xml']
+        || ($summary['contentTypeInventory']['application/vnd.openxmlformats-officedocument.customXmlProperties+xml']['reachableTargetParts'] ?? null) !== ['/customXml/itemProps1.xml']
+        || ($summary['contentTypeInventory']['application/vnd.openxmlformats-officedocument.customXmlProperties+xml']['issues'] ?? null) !== []
         || ($summary['packagePartReferences']['/_rels/.rels']['relationshipPart'] ?? null) !== true
         || ($summary['packagePartReferences']['/_rels/.rels']['relationshipSource'] ?? null) !== '/'
         || ($summary['packagePartReferences']['/_rels/.rels']['directReferenceCount'] ?? null) !== 0
@@ -2695,6 +2747,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packagePartReferences']['/word/media/hero image.PNG']['directReferences'][0]['source'] ?? null) !== '/word/document.xml'
         || ($summary['packagePartReferences']['/word/media/hero image.PNG']['directReferences'][0]['id'] ?? null) !== 'rIdHero'
         || ($summary['packagePartReferences']['/word/media/hero image.PNG']['reachableReferences'][0]['depth'] ?? null) !== 1
+        || ($summary['packagePartReferences']['/customXml/itemProps1.xml']['directReferences'][0]['source'] ?? null) !== '/word/review source.xml'
+        || ($summary['packagePartReferences']['/customXml/itemProps1.xml']['directReferences'][0]['id'] ?? null) !== 'rIdReviewSourceProperties'
+        || ($summary['packagePartReferences']['/customXml/itemProps1.xml']['reachableReferences'][0]['depth'] ?? null) !== 2
         || ($summary['packagePartReferences']['/word/media/review source.png']['directReferences'][0]['source'] ?? null) !== '/word/review source.xml'
         || ($summary['packagePartReferences']['/word/media/review source.png']['reachableReferences'][0]['depth'] ?? null) !== 2
         || ($summary['packagePartReferences']['/word/media/draft-hidden.png']['directReferenceCount'] ?? null) !== 0

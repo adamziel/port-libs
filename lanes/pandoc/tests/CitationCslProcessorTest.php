@@ -5088,6 +5088,67 @@ XML);
             ],
         ]]));
     },
+    'maps bounded biblatex named name annotation suffixes into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{name-annotation-suffix-review,
+  author           = {Smith, Ada and Ng, Nia},
+  author+an:source = {1=OCR family verified; 2:given=review desk confirmed},
+  editor           = {Curator, Eli},
+  editor+an:role   = {1=import reviewer},
+  title            = {Named Annotation Source},
+  date             = {2026},
+  publisher        = {Review Press}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('name-annotation-suffix-review', $items[0]['id']);
+        $t->same([['part' => 'source', 'value' => 'OCR family verified']], $items[0]['author'][0]['annotations'] ?? null);
+        $t->same([['part' => 'given', 'value' => 'review desk confirmed']], $items[0]['author'][1]['annotations'] ?? null);
+        $t->same([['part' => 'role', 'value' => 'import reviewer']], $items[0]['editor'][0]['annotations'] ?? null);
+        $t->same('1=OCR family verified; 2:given=review desk confirmed', $items[0]['rawBibtex']['fields']['author+an:source'] ?? null);
+        $t->same('1=import reviewer', $items[0]['rawBibtex']['fields']['editor+an:role'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('name-annotation-suffix-review');
+        $t->same('source', $item['authors'][0]['annotations'][0]['part'] ?? null);
+        $t->same('OCR family verified', $item['authors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('given', $item['authors'][1]['annotations'][0]['part'] ?? null);
+        $t->same('role', $item['editors'][0]['annotations'][0]['part'] ?? null);
+        $t->same('(Smith and Ng 2026)', $processor->renderCitationCluster([$citation('name-annotation-suffix-review', '[@name-annotation-suffix-review]')]));
+        $t->same(
+            'Smith, Ada; Ng, Nia. Named Annotation Source. Review Press, 2026. Name annotations: Author 1 source: OCR family verified; Author 2 given: review desk confirmed; Editor 1 role: import reviewer.',
+            $processor->renderBibliographyEntry('name-annotation-suffix-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="name-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith and Ng | Author 1 source: OCR family verified; Author 2 given: review desk confirmed; Editor 1 role: import reviewer]', $styled->renderCitationCluster([$citation('name-annotation-suffix-review', '[@name-annotation-suffix-review]')]));
+        $t->same('Named Annotation Source :: Author 1 source: OCR family verified; Author 2 given: review desk confirmed; Editor 1 role: import reviewer', $styled->renderBibliographyEntry('name-annotation-suffix-review'));
+
+        $document = (new MarkdownReader())->read('Named annotation source @name-annotation-suffix-review keeps scoped name review notes.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Named annotation source Smith and Ng (2026) keeps scoped name review notes.</p>', $blocks);
+        $t->contains('<dt>Smith and Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Named Annotation Source. Review Press, 2026. Name annotations: Author 1 source: OCR family verified; Author 2 given: review desk confirmed; Editor 1 role: import reviewer.</dd>', $blocks);
+    },
     'maps bounded biblatex field annotations into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{field-annotation-review,

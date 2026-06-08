@@ -703,9 +703,9 @@ return [
         $t->contains('cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
-        $t->contains('test-suite type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal custom-setup/setup-depends, no unexpected common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, and exact other-modules closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('test-suite type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal custom-setup/setup-depends, no unexpected common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, and exact other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
-        $t->contains('benchmark:benchmark-pandoc type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches', $audit['nonMutatingPlan'][3]);
+        $t->contains('benchmark:benchmark-pandoc type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
     },
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
@@ -3522,6 +3522,113 @@ return [
         $t->contains('unexpected Cabal runner reexported-modules: test:test-pandoc (Text.Pandoc.Builder, Text.Pandoc.Definition); test:test-pandoc-lua-engine (Text.Pandoc.Lua.Module, Text.Pandoc.Lua.Writer)', $blocked);
         $t->contains('unexpected Cabal benchmark reexported-modules: benchmark:benchmark-pandoc (Text.Pandoc.Benchmark, Text.Pandoc.Builder, Text.Pandoc.Definition)', $blocked);
         $t->contains('no unexpected runner or benchmark reexported-modules', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks runner and benchmark module interface drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            "common common-executable\n  import: common-options",
+            implode("\n", [
+                'common common-executable',
+                '  import: common-options',
+                '  signatures:',
+                '    Tests.RunnerSignature',
+                '  virtual-modules: Tests.VirtualRunner',
+            ]),
+            $files['pandoc.cabal']
+        );
+        $files['pandoc.cabal'] = str_replace(
+            "benchmark benchmark-pandoc\n  import: common-executable",
+            implode("\n", [
+                'benchmark benchmark-pandoc',
+                '  import: common-executable',
+                '  signatures: Benchmark.Signature',
+                '  virtual-modules: Benchmark.Virtual',
+            ]),
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            "common test-options\n  build-depends: base >= 4.12 && < 5",
+            implode("\n", [
+                'common test-options',
+                '  build-depends: base >= 4.12 && < 5',
+                '  signatures: Lua.RunnerSignature',
+                '  virtual-modules: Lua.VirtualRunner',
+            ]),
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $target = 'benchmark:benchmark-pandoc';
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDependencyConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedMixins']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedBuildTools']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedCppOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedAutogenModules']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedReexportedModules']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingTargets']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedDependencyConstraints']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedMixins']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedBuildTools']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedCppOptions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedAutogenModules']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedReexportedModules']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedRunnerModuleInterfaceFields(), $audit['runnerDependencyClosure']['expectedModuleInterfaceFields']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedBenchmarkModuleInterfaceFields(), $audit['benchmarkDependencyClosure']['expectedModuleInterfaceFields']);
+        $t->same([
+            'signatures' => ['Tests.RunnerSignature'],
+            'virtual-modules' => ['Tests.VirtualRunner'],
+        ], $audit['runnerDependencyClosure']['present']['test:test-pandoc']['moduleInterfaceFields']);
+        $t->same([
+            'signatures' => ['Lua.RunnerSignature'],
+            'virtual-modules' => ['Lua.VirtualRunner'],
+        ], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['moduleInterfaceFields']);
+        $t->same([
+            'signatures' => ['Benchmark.Signature', 'Tests.RunnerSignature'],
+            'virtual-modules' => ['Benchmark.Virtual', 'Tests.VirtualRunner'],
+        ], $audit['benchmarkDependencyClosure']['present'][$target]['moduleInterfaceFields']);
+        $t->same([
+            'signatures: Tests.RunnerSignature',
+            'virtual-modules: Tests.VirtualRunner',
+        ], $audit['runnerDependencyClosure']['unexpectedModuleInterfaceFields']['test:test-pandoc']);
+        $t->same([
+            'signatures: Lua.RunnerSignature',
+            'virtual-modules: Lua.VirtualRunner',
+        ], $audit['runnerDependencyClosure']['unexpectedModuleInterfaceFields']['test:test-pandoc-lua-engine']);
+        $t->same([
+            'signatures: Benchmark.Signature',
+            'signatures: Tests.RunnerSignature',
+            'virtual-modules: Benchmark.Virtual',
+            'virtual-modules: Tests.VirtualRunner',
+        ], $audit['benchmarkDependencyClosure']['unexpectedModuleInterfaceFields'][$target]);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected Cabal runner module interface fields: test:test-pandoc (signatures: Tests.RunnerSignature, virtual-modules: Tests.VirtualRunner); test:test-pandoc-lua-engine (signatures: Lua.RunnerSignature, virtual-modules: Lua.VirtualRunner)', $blocked);
+        $t->contains('unexpected Cabal benchmark module interface fields: benchmark:benchmark-pandoc (signatures: Benchmark.Signature, signatures: Tests.RunnerSignature, virtual-modules: Benchmark.Virtual, virtual-modules: Tests.VirtualRunner)', $blocked);
+        $t->contains('no unexpected runner or benchmark module interface fields', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks runner and benchmark native system dependency drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {

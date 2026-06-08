@@ -4680,6 +4680,86 @@ return [
         $t->same('explicit-collection-provenance-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="explicit-collection-provenance-body">Explicit collection provenance body</h1>', $blocks);
     },
+    'records pandoc yaml explicit core collection tag provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Core collection provenance **Packet**',
+            'review: !!map',
+            '  status: queued',
+            '  labels: !!seq',
+            '    - migration',
+            '    - wordpress',
+            'flow-review: !!map {status: queued, labels: !!seq [flow, metadata]}',
+            'flow-labels: !!seq [source, review]',
+            'references: !!seq',
+            '  - id: core-collection-ref',
+            '    metadata: !!map {source: core-tag, status: approved}',
+            'sequence-tagged-items: !!seq',
+            '  - !!map',
+            '    kind: block-map',
+            '    labels: !!seq [item, map]',
+            '  - !!seq',
+            '    - nested',
+            '    - sequence',
+            '  - !!map {kind: flow-map, labels: !!seq [flow-item, map]}',
+            '...',
+            '',
+            '# Core collection provenance body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataCollectionProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Core collection provenance **Packet**', $meta['title']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['migration', 'wordpress'], $meta['review']['labels']);
+        $t->same('queued', $meta['flow-review']['status']);
+        $t->same(['flow', 'metadata'], $meta['flow-review']['labels']);
+        $t->same(['source', 'review'], $meta['flow-labels']);
+        $t->same('core-collection-ref', $meta['references'][0]['id']);
+        $t->same('core-tag', $meta['references'][0]['metadata']['source']);
+        $t->same('block-map', $meta['sequence-tagged-items'][0]['kind']);
+        $t->same(['item', 'map'], $meta['sequence-tagged-items'][0]['labels']);
+        $t->same(['nested', 'sequence'], $meta['sequence-tagged-items'][1]);
+        $t->same('flow-map', $meta['sequence-tagged-items'][2]['kind']);
+        $t->same(['flow-item', 'map'], $meta['sequence-tagged-items'][2]['labels']);
+        $t->same(false, array_key_exists('__yamlMetadataCollectionProvenance', $meta));
+
+        $taggedCollections = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') !== 'yaml-collection' || !isset($entry['explicitTag'])) {
+                continue;
+            }
+
+            $taggedCollections[($entry['path'] ?? '') . "\0" . ($entry['explicitTag'] ?? '')] = $entry;
+        }
+
+        foreach ([
+            '/review' . "\0" . 'map' => ['mapping', 'block', '2'],
+            '/review/labels' . "\0" . 'seq' => ['sequence', 'block', '2'],
+            '/flow-review' . "\0" . 'map' => ['mapping', 'flow', '2'],
+            '/flow-review/labels' . "\0" . 'seq' => ['sequence', 'flow', '2'],
+            '/flow-labels' . "\0" . 'seq' => ['sequence', 'flow', '2'],
+            '/references' . "\0" . 'seq' => ['sequence', 'block', '1'],
+            '/references/0/metadata' . "\0" . 'map' => ['mapping', 'flow', '2'],
+            '/sequence-tagged-items' . "\0" . 'seq' => ['sequence', 'block', '3'],
+            '/sequence-tagged-items/0' . "\0" . 'map' => ['mapping', 'block', '2'],
+            '/sequence-tagged-items/0/labels' . "\0" . 'seq' => ['sequence', 'flow', '2'],
+            '/sequence-tagged-items/1' . "\0" . 'seq' => ['sequence', 'block', '2'],
+            '/sequence-tagged-items/2' . "\0" . 'map' => ['mapping', 'flow', '2'],
+            '/sequence-tagged-items/2/labels' . "\0" . 'seq' => ['sequence', 'flow', '2'],
+        ] as $expectedKey => [$expectedKind, $expectedStyle, $expectedCount]) {
+            $entry = $taggedCollections[$expectedKey] ?? null;
+            $t->true($entry !== null, 'missing YAML explicit core collection tag provenance ' . str_replace("\0", ' ', $expectedKey));
+            $t->same($expectedKind, $entry['kind'] ?? null);
+            $t->same($expectedStyle, $entry['style'] ?? null);
+            $t->same($expectedCount, $entry['memberCount'] ?? null);
+        }
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('core-collection-provenance-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="core-collection-provenance-body">Core collection provenance body</h1>', $blocks);
+    },
     'records pandoc yaml ambiguous top-level field names as diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

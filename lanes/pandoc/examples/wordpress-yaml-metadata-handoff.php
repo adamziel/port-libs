@@ -143,6 +143,20 @@ flow-comment-review: {
   source-uri: /exports/packet#commented-flow,
   note: "Keep # quoted hash"
 }
+core-collection-review: !!map
+  status: queued
+  labels: !!seq
+    - core
+    - metadata
+core-flow-collection-review: !!map {status: approved, labels: !!seq [flow, core]}
+core-reference-list: !!seq
+  - id: core-collection-ref
+    metadata: !!map {source: core-tag, status: approved}
+core-tagged-items: !!seq
+  - !!map {kind: flow-map, labels: !!seq [tagged, item]}
+  - !!seq
+    - nested
+    - item
 review-label-set: !!set {front-matter, wordpress, "source:key"}
 block-label-set: !!set
   ? migration
@@ -1024,6 +1038,16 @@ if (($argv[1] ?? '') === '--self-test') {
         '/ordered-review/reviewer-pairs' => 'pairs',
         '/flow-ordered-review/steps' => 'omap',
         '/flow-ordered-review/reviewers' => 'pairs',
+        '/core-collection-review' => 'map',
+        '/core-collection-review/labels' => 'seq',
+        '/core-flow-collection-review' => 'map',
+        '/core-flow-collection-review/labels' => 'seq',
+        '/core-reference-list' => 'seq',
+        '/core-reference-list/0/metadata' => 'map',
+        '/core-tagged-items' => 'seq',
+        '/core-tagged-items/0' => 'map',
+        '/core-tagged-items/0/labels' => 'seq',
+        '/core-tagged-items/1' => 'seq',
     ] as $expectedPath => $expectedTag) {
         if (($yamlCollectionByPath[$expectedPath]['explicitTag'] ?? '') !== $expectedTag) {
             throw new RuntimeException('YAML metadata self-test missing explicit collection tag provenance ' . $expectedPath . ' ' . $expectedTag);
@@ -1118,6 +1142,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['flow-comment-review']['note'] ?? '') !== 'Keep # quoted hash') {
         throw new RuntimeException('YAML metadata self-test stripped quoted flow comment hash');
+    }
+    if (($meta['core-collection-review']['labels'] ?? []) !== ['core', 'metadata']) {
+        throw new RuntimeException('YAML metadata self-test missing explicit core sequence tag metadata');
+    }
+    if (($meta['core-flow-collection-review']['status'] ?? '') !== 'approved') {
+        throw new RuntimeException('YAML metadata self-test missing explicit core flow map tag metadata');
+    }
+    if (($meta['core-flow-collection-review']['labels'] ?? []) !== ['flow', 'core']) {
+        throw new RuntimeException('YAML metadata self-test missing explicit core flow sequence tag metadata');
+    }
+    if (($meta['core-reference-list'][0]['metadata']['source'] ?? '') !== 'core-tag') {
+        throw new RuntimeException('YAML metadata self-test missing explicit core nested map tag metadata');
+    }
+    if (($meta['core-tagged-items'][0]['labels'] ?? []) !== ['tagged', 'item']) {
+        throw new RuntimeException('YAML metadata self-test missing explicit core sequence item map tag metadata');
+    }
+    if (($meta['core-tagged-items'][1] ?? []) !== ['nested', 'item']) {
+        throw new RuntimeException('YAML metadata self-test missing explicit core sequence item sequence tag metadata');
     }
     if (!array_key_exists('source:key', $meta['review-label-set'] ?? []) || $meta['review-label-set']['source:key'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing explicit flow set tag metadata');
