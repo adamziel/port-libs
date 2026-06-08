@@ -1065,6 +1065,16 @@ final class MarkdownReader
         return ['sourceLine' => (string) $this->yamlMetadataCurrentSourceLine];
     }
 
+    private function yamlMetadataSourceLineWithOffset(?int $sourceLine, int $lineOffset): ?int
+    {
+        $base = $sourceLine ?? $this->yamlMetadataCurrentSourceLine;
+        if ($base === null) {
+            return null;
+        }
+
+        return $base + $lineOffset;
+    }
+
     private function currentYamlMetadataDiagnosticPath(): ?string
     {
         if ($this->yamlMetadataDiagnosticPath === []) {
@@ -2972,10 +2982,13 @@ final class MarkdownReader
 
         if ($value[0] === '[' && str_ends_with($value, ']')) {
             $parsed = [];
-            foreach ($this->splitYamlInlineList(substr($value, 1, -1)) as $item) {
+            foreach ($this->splitYamlInlineListWithLineOffsets(substr($value, 1, -1)) as $flowItem) {
                 $parsed[] = $this->withYamlMetadataPathSegment(
                     (string) count($parsed),
-                    fn (): mixed => $this->parseYamlScalarValue($item)
+                    fn (): mixed => $this->withYamlMetadataSourceLine(
+                        $this->yamlMetadataSourceLineWithOffset(null, $flowItem['lineOffset']),
+                        fn (): mixed => $this->parseYamlScalarValue($flowItem['item'])
+                    )
                 );
             }
             $this->recordYamlCollectionProvenance('sequence', 'flow', count($parsed));
@@ -2984,7 +2997,7 @@ final class MarkdownReader
         }
 
         if ($value[0] === '{' && str_ends_with($value, '}')) {
-            $parsed = $this->parseYamlInlineMap(substr($value, 1, -1));
+            $parsed = $this->parseYamlInlineMap(substr($value, 1, -1), $this->yamlMetadataCurrentSourceLine);
             $this->rememberYamlAnchor($anchorName, $parsed);
             return $parsed;
         }
@@ -3028,6 +3041,14 @@ final class MarkdownReader
     private function splitYamlInlineList(string $source): array
     {
         return $this->splitYamlFlowItems($source);
+    }
+
+    /**
+     * @return list<array{item:string, lineOffset:int}>
+     */
+    private function splitYamlInlineListWithLineOffsets(string $source): array
+    {
+        return $this->splitYamlFlowItemsWithLineOffsets($source);
     }
 
     /**
@@ -3301,7 +3322,7 @@ final class MarkdownReader
         }
         $parsed = $this->withYamlMetadataSourceLine(
             $sourceLine,
-            fn (): array => $this->parseYamlInlineMapWithFieldQuoteMap(substr(rtrim($candidate), 1, -1))
+            fn (): array => $this->parseYamlInlineMapWithFieldQuoteMap(substr(rtrim($candidate), 1, -1), $sourceLine)
         );
         if ($parsed['metadata'] === []) {
             return null;
@@ -3313,66 +3334,74 @@ final class MarkdownReader
     /**
      * @return array<string, mixed>
      */
-    private function parseYamlInlineMap(string $source): array
+    private function parseYamlInlineMap(string $source, ?int $sourceLine = null): array
     {
-        return $this->parseYamlInlineMapWithFieldQuoteMap($source)['metadata'];
+        return $this->parseYamlInlineMapWithFieldQuoteMap($source, $sourceLine)['metadata'];
     }
 
     /**
      * @return array{metadata:array<string, mixed>, fieldQuoteMap:array<string, bool>}
      */
-    private function parseYamlInlineMapWithFieldQuoteMap(string $source): array
+    private function parseYamlInlineMapWithFieldQuoteMap(string $source, ?int $sourceLine = null): array
     {
         $map = [];
         $fieldQuoteMap = [];
         $seenKeys = [];
-        foreach ($this->splitYamlFlowItems($source) as $item) {
-            $mapping = $this->splitYamlFlowMappingItem($item);
-            if ($mapping === null) {
-                $keyTagStart = count($this->yamlMetadataTagProvenance);
-                $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
-                $key = $this->normalizeYamlFlowKeyOnlyItem($item);
-                if ($key !== '') {
+        foreach ($this->splitYamlFlowItemsWithLineOffsets($source) as $flowItem) {
+            $item = $flowItem['item'];
+            $itemSourceLine = $this->yamlMetadataSourceLineWithOffset($sourceLine, $flowItem['lineOffset']);
+            $this->withYamlMetadataSourceLine(
+                $itemSourceLine,
+                function () use ($item, &$map, &$fieldQuoteMap, &$seenKeys): void {
+                    $mapping = $this->splitYamlFlowMappingItem($item);
+                    if ($mapping === null) {
+                        $keyTagStart = count($this->yamlMetadataTagProvenance);
+                        $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
+                        $key = $this->normalizeYamlFlowKeyOnlyItem($item);
+                        if ($key !== '') {
+                            $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+                            $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
+                            if (array_key_exists($key, $seenKeys)) {
+                                $this->recordYamlDuplicateKeyDiagnostic($key);
+                            }
+                            $seenKeys[$key] = true;
+                            $map[$key] = null;
+                            if ($this->isYamlQuotedFlowKey($item)) {
+                                $fieldQuoteMap[(string) $key] = true;
+                            }
+                        }
+
+                        return;
+                    }
+
+                    [$sourceKey, $value] = $mapping;
+                    $keyTagStart = count($this->yamlMetadataTagProvenance);
+                    $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
+                    $key = $this->normalizeYamlFlowKey($sourceKey);
+                    if ($key === '') {
+                        return;
+                    }
+
                     $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
                     $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
-                    if (array_key_exists($key, $seenKeys)) {
-                        $this->recordYamlDuplicateKeyDiagnostic($key);
-                    }
-                    $seenKeys[$key] = true;
-                    $map[$key] = null;
-                    if ($this->isYamlQuotedFlowKey($item)) {
-                        $fieldQuoteMap[(string) $key] = true;
+                    $value = $this->withYamlMetadataPathSegment(
+                        (string) $key,
+                        fn (): mixed => $this->parseYamlScalarValue($value)
+                    );
+                    if ($this->isYamlMetadataMergeKey($key)) {
+                        $map = $this->mergeYamlMapValue($map, $value);
+                    } else {
+                        if (array_key_exists($key, $seenKeys)) {
+                            $this->recordYamlDuplicateKeyDiagnostic($key);
+                        }
+                        $seenKeys[$key] = true;
+                        $map[$key] = $value;
+                        if ($this->isYamlQuotedFlowKey($sourceKey)) {
+                            $fieldQuoteMap[(string) $key] = true;
+                        }
                     }
                 }
-                continue;
-            }
-
-            [$sourceKey, $value] = $mapping;
-            $keyTagStart = count($this->yamlMetadataTagProvenance);
-            $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
-            $key = $this->normalizeYamlFlowKey($sourceKey);
-            if ($key === '') {
-                continue;
-            }
-
-            $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
-            $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
-            $value = $this->withYamlMetadataPathSegment(
-                (string) $key,
-                fn (): mixed => $this->parseYamlScalarValue($value)
             );
-            if ($this->isYamlMetadataMergeKey($key)) {
-                $map = $this->mergeYamlMapValue($map, $value);
-            } else {
-                if (array_key_exists($key, $seenKeys)) {
-                    $this->recordYamlDuplicateKeyDiagnostic($key);
-                }
-                $seenKeys[$key] = true;
-                $map[$key] = $value;
-                if ($this->isYamlQuotedFlowKey($sourceKey)) {
-                    $fieldQuoteMap[(string) $key] = true;
-                }
-            }
         }
 
         $this->recordYamlCollectionProvenance('mapping', 'flow', count($map));
@@ -3396,7 +3425,7 @@ final class MarkdownReader
                 );
 
             if ($candidate !== '' && $candidate[0] === '{' && str_ends_with(rtrim($candidate), '}') && $this->isBalancedYamlFlowCollection($candidate)) {
-                return $this->parseYamlFlowSet(substr(rtrim($candidate), 1, -1));
+                return $this->parseYamlFlowSet(substr(rtrim($candidate), 1, -1), $this->yamlMetadataCurrentSourceLine);
             }
 
             return [];
@@ -3419,7 +3448,7 @@ final class MarkdownReader
                 trim($this->stripYamlFlowComments(implode("\n", $normalized)))
             );
             if ($first !== '' && $first[0] === '{' && str_ends_with(rtrim($candidate), '}') && $this->isBalancedYamlFlowCollection($candidate)) {
-                return $this->parseYamlFlowSet(substr(rtrim($candidate), 1, -1));
+                return $this->parseYamlFlowSet(substr(rtrim($candidate), 1, -1), $this->yamlMetadataCurrentSourceLine);
             }
         }
 
@@ -3429,33 +3458,39 @@ final class MarkdownReader
     /**
      * @return array<string, null>
      */
-    private function parseYamlFlowSet(string $source): array
+    private function parseYamlFlowSet(string $source, ?int $sourceLine = null): array
     {
         $set = [];
-        foreach ($this->splitYamlFlowItems($source) as $item) {
-            $item = trim($item);
-            if ($item === '') {
-                continue;
-            }
+        foreach ($this->splitYamlFlowItemsWithLineOffsets($source) as $flowItem) {
+            $item = trim($flowItem['item']);
+            $itemSourceLine = $this->yamlMetadataSourceLineWithOffset($sourceLine, $flowItem['lineOffset']);
+            $this->withYamlMetadataSourceLine(
+                $itemSourceLine,
+                function () use ($item, &$set): void {
+                    if ($item === '') {
+                        return;
+                    }
 
-            if ($item[0] === '?') {
-                $item = trim(substr($item, 1));
-            }
+                    if ($item[0] === '?') {
+                        $item = trim(substr($item, 1));
+                    }
 
-            if ($item === '') {
-                continue;
-            }
+                    if ($item === '') {
+                        return;
+                    }
 
-            $keyTagStart = count($this->yamlMetadataTagProvenance);
-            $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
-            $key = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarKeyValue($item));
-            if ($key === null || $key === '') {
-                continue;
-            }
+                    $keyTagStart = count($this->yamlMetadataTagProvenance);
+                    $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
+                    $key = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarKeyValue($item));
+                    if ($key === null || $key === '') {
+                        return;
+                    }
 
-            $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
-            $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
-            $set[$key] = null;
+                    $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+                    $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
+                    $set[$key] = null;
+                }
+            );
         }
 
         return $set;
@@ -3551,7 +3586,7 @@ final class MarkdownReader
                     trim($this->stripYamlFlowComments($sourceValue . "\n" . implode("\n", $children)))
                 );
 
-            $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate($candidate);
+            $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate($candidate, $this->yamlMetadataCurrentSourceLine);
             if ($flowPairs !== null) {
                 return $flowPairs;
             }
@@ -3571,7 +3606,7 @@ final class MarkdownReader
             $candidate = $this->stripYamlTrailingComment(
                 trim($this->stripYamlFlowComments(implode("\n", $normalized)))
             );
-            $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate($candidate);
+            $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate($candidate, $this->yamlMetadataCurrentSourceLine);
             if ($flowPairs !== null) {
                 return $flowPairs;
             }
@@ -3583,7 +3618,7 @@ final class MarkdownReader
     /**
      * @return list<array{key:string, value:mixed}>|null
      */
-    private function parseYamlExplicitOrderedPairsFlowCandidate(string $candidate): ?array
+    private function parseYamlExplicitOrderedPairsFlowCandidate(string $candidate, ?int $sourceLine = null): ?array
     {
         $candidate = trim($candidate);
         if ($candidate === '' || $candidate[0] !== '[' || !str_ends_with(rtrim($candidate), ']')) {
@@ -3595,10 +3630,13 @@ final class MarkdownReader
         }
 
         $source = substr(rtrim($candidate), 1, -1);
-        $items = array_map(
-            fn (string $item): mixed => $this->parseYamlScalarValue($item),
-            $this->splitYamlFlowItems($source)
-        );
+        $items = [];
+        foreach ($this->splitYamlFlowItemsWithLineOffsets($source) as $flowItem) {
+            $items[] = $this->withYamlMetadataSourceLine(
+                $this->yamlMetadataSourceLineWithOffset($sourceLine, $flowItem['lineOffset']),
+                fn (): mixed => $this->parseYamlScalarValue($flowItem['item'])
+            );
+        }
 
         return $this->yamlOrderedPairsFromSequence($items);
     }
@@ -3645,20 +3683,46 @@ final class MarkdownReader
      */
     private function splitYamlFlowItems(string $source): array
     {
+        return array_map(
+            static fn (array $item): string => $item['item'],
+            $this->splitYamlFlowItemsWithLineOffsets($source)
+        );
+    }
+
+    /**
+     * @return list<array{item:string, lineOffset:int}>
+     */
+    private function splitYamlFlowItemsWithLineOffsets(string $source): array
+    {
         $items = [];
         $buffer = '';
         $quote = null;
         $inVerbatimTag = false;
         $squareDepth = 0;
         $curlyDepth = 0;
+        $lineOffset = 0;
+        $itemStartLineOffset = null;
         $length = strlen($source);
+        $markItemStart = static function (string $char) use (&$itemStartLineOffset, &$lineOffset): void {
+            if ($itemStartLineOffset === null && !ctype_space($char)) {
+                $itemStartLineOffset = $lineOffset;
+            }
+        };
+        $append = static function (string $char) use (&$buffer, &$lineOffset): void {
+            $buffer .= $char;
+            if ($char === "\n") {
+                $lineOffset++;
+            }
+        };
         for ($offset = 0; $offset < $length; $offset++) {
             $char = $source[$offset];
             if ($quote !== null) {
-                $buffer .= $char;
+                $markItemStart($char);
+                $append($char);
                 if ($quote === "'" && $char === "'" && ($source[$offset + 1] ?? '') === "'") {
                     $offset++;
-                    $buffer .= $source[$offset];
+                    $markItemStart($source[$offset]);
+                    $append($source[$offset]);
                     continue;
                 }
                 if ($char === $quote && ($quote === "'" || $source[$offset - 1] !== '\\')) {
@@ -3668,7 +3732,8 @@ final class MarkdownReader
             }
 
             if ($inVerbatimTag) {
-                $buffer .= $char;
+                $markItemStart($char);
+                $append($char);
                 if ($char === '>') {
                     $inVerbatimTag = false;
                 }
@@ -3677,51 +3742,65 @@ final class MarkdownReader
 
             if ($char === '"' || $char === "'") {
                 $quote = $char;
-                $buffer .= $char;
+                $markItemStart($char);
+                $append($char);
                 continue;
             }
 
             if ($this->isYamlVerbatimTagStart($source, $offset)) {
                 $inVerbatimTag = true;
-                $buffer .= $char;
+                $markItemStart($char);
+                $append($char);
                 continue;
             }
 
             if ($char === '[') {
                 $squareDepth++;
-                $buffer .= $char;
+                $markItemStart($char);
+                $append($char);
                 continue;
             }
 
             if ($char === ']') {
                 $squareDepth = max(0, $squareDepth - 1);
-                $buffer .= $char;
+                $markItemStart($char);
+                $append($char);
                 continue;
             }
 
             if ($char === '{') {
                 $curlyDepth++;
-                $buffer .= $char;
+                $markItemStart($char);
+                $append($char);
                 continue;
             }
 
             if ($char === '}') {
                 $curlyDepth = max(0, $curlyDepth - 1);
-                $buffer .= $char;
+                $markItemStart($char);
+                $append($char);
                 continue;
             }
 
             if ($char === ',' && $squareDepth === 0 && $curlyDepth === 0) {
-                $items[] = trim($buffer);
+                $items[] = [
+                    'item' => trim($buffer),
+                    'lineOffset' => $itemStartLineOffset ?? $lineOffset,
+                ];
                 $buffer = '';
+                $itemStartLineOffset = null;
                 continue;
             }
 
-            $buffer .= $char;
+            $markItemStart($char);
+            $append($char);
         }
 
         if (trim($buffer) !== '') {
-            $items[] = trim($buffer);
+            $items[] = [
+                'item' => trim($buffer),
+                'lineOffset' => $itemStartLineOffset ?? $lineOffset,
+            ];
         }
 
         return $items;

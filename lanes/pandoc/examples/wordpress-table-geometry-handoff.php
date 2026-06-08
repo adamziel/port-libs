@@ -1863,6 +1863,14 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($rowspanZeroPacket['writerDowngrades']['markdown'][1]['requiredFeature'] ?? null) !== 'body-row-group-boundaries'
         || ($rowspanZeroPacket['writerDowngrades']['markdown'][1]['bodySections'] ?? null) !== ['body', 'body1']
         || ($rowspanZeroPacket['writerDowngrades']['markdown'][1]['bodySectionRowCounts'] ?? null) !== [3, 1]
+        || ($rowspanZeroPacket['writerDowngrades']['markdown'][1]['sectionRanges'] ?? null) !== [
+            ['section' => 'body', 'rowRange' => [0, 3], 'rowCount' => 3, 'rowRole' => 'body'],
+            ['section' => 'body1', 'rowRange' => [3, 4], 'rowCount' => 1, 'rowRole' => 'body'],
+        ]
+        || ($rowspanZeroPacket['writerDowngrades']['markdown'][1]['bodySectionRanges'] ?? null) !== [
+            ['section' => 'body', 'rowRange' => [0, 3], 'rowCount' => 3, 'rowRole' => 'body'],
+            ['section' => 'body1', 'rowRange' => [3, 4], 'rowCount' => 1, 'rowRole' => 'body'],
+        ]
     ) {
         throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero multiple body writer diagnostics');
     }

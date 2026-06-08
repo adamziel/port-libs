@@ -345,6 +345,43 @@ $drawingPlaceholderDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$drawingTextDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Drawing text </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="61" name="Reviewer callout" descr="Visible review note" title="Shape text title"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+                <wps:wsp>
+                  <a:txBody>
+                    <a:bodyPr/>
+                    <a:lstStyle/>
+                    <a:p>
+                      <a:r><a:t>Check source summary</a:t></a:r>
+                      <a:br/>
+                      <a:r><a:t>Second line</a:t></a:r>
+                    </a:p>
+                    <a:p><a:r><a:t>Final callout</a:t></a:r></a:p>
+                  </a:txBody>
+                </wps:wsp>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> stays visible.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $corePropertiesXml = <<<'XML'
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
   xmlns:dc="http://purl.org/dc/elements/1.1/"
@@ -3040,6 +3077,14 @@ $buildDrawingPlaceholderPackage = static function () use (
     ]);
 };
 
+$buildDrawingTextPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $drawingTextDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $drawingTextDocumentXml],
+    ]);
+};
+
 $buildStylesNumberingPackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -4165,6 +4210,40 @@ return [
         $t->same(5, $report['reachableRelationshipCount']);
         $t->same([], $report['relationshipIssues']);
         $t->same(0, $report['media']['count']);
+    },
+    'preserves DOCX DrawingML shape text as reviewer spans' => static function (TestRunner $t) use ($buildDrawingTextPackage): void {
+        $document = (new DocxReader())->readDocument($buildDrawingTextPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(3, count($paragraph->children));
+        $t->same('Drawing text ', $paragraph->children[0]->attr('text'));
+
+        $shapeText = $paragraph->children[1];
+        $t->same('span', $shapeText->type);
+        $t->same(['docx-drawing-text'], $shapeText->attr('classes'));
+        $attrs = $shapeText->attr('attributes');
+        $t->same('text', $attrs['data-docx-drawing-kind']);
+        $t->same('2', $attrs['data-docx-drawing-text-paragraphs']);
+        $t->same('61', $attrs['data-docx-docpr-id']);
+        $t->same('Reviewer callout', $attrs['data-docx-docpr-name']);
+        $t->same('Visible review note', $attrs['data-docx-docpr-descr']);
+        $t->same('Shape text title', $attrs['data-docx-docpr-title']);
+        $t->same(5, count($shapeText->children));
+        $t->same('Check source summary', $shapeText->children[0]->attr('text'));
+        $t->same('linebreak', $shapeText->children[1]->type);
+        $t->same('Second line', $shapeText->children[2]->attr('text'));
+        $t->same('linebreak', $shapeText->children[3]->type);
+        $t->same('Final callout', $shapeText->children[4]->attr('text'));
+        $t->same(' stays visible.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('[Check source summary', $markdown);
+        $t->contains('Second line', $markdown);
+        $t->contains('Final callout]{.docx-drawing-text data-docx-drawing-kind="text"', $markdown);
+        $t->contains('data-docx-docpr-descr="Visible review note"', $markdown);
+        $t->contains('<p>Drawing text <span class="docx-drawing-text" data-docx-drawing-kind="text" data-docx-drawing-text-paragraphs="2" data-docx-docpr-id="61" data-docx-docpr-name="Reviewer callout" data-docx-docpr-descr="Visible review note" data-docx-docpr-title="Shape text title">Check source summary<br/>Second line<br/>Final callout</span> stays visible.</p>', $blocks);
     },
     'reports DOCX media import inventory and missing media relationships' => static function (TestRunner $t) use ($buildDocxPackage): void {
         $result = (new DocxReader())->readPackage($buildDocxPackage());

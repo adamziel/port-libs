@@ -189,6 +189,11 @@ max_posts = 250
 media_paths = ["uploads", "assets"]
 [theme.variation]
 palette = { primary = "#005cc5", contrast = "#ffffff" }
+[[theme."palette variants"]]
+name = "editor"
+created_at = 2026-06-05T08:40:00 # local review time
+review.cutoff = 08:40:00.125
+"accent.color" = "#005cc5"
 ```
 
 ``` {.pl #perl-review .numberLines startFrom=14}

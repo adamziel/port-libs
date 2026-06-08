@@ -937,6 +937,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '/source-continuation-uri' => ['double-quoted', '2'],
         '/single-quoted-source-note' => ['single-quoted', '2'],
         '/single-quoted-labels/0' => ['single-quoted', '1'],
+        '/multiline-flow-review/owners/1' => ['double-quoted', '1'],
         '/flow-quoted-review/note' => ['double-quoted', '2'],
         '/flow-quoted-review/owner' => ['single-quoted', '2'],
         '/flow-comment-review/note' => ['double-quoted', '1'],
@@ -951,8 +952,10 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
     $yamlCollectionPairs = [];
+    $yamlCollectionByPath = [];
     foreach ($yamlCollectionProvenance as $entry) {
         $yamlCollectionPairs[] = ($entry['path'] ?? '') . "\0" . ($entry['kind'] ?? '') . "\0" . ($entry['style'] ?? '') . "\0" . ($entry['memberCount'] ?? '');
+        $yamlCollectionByPath[$entry['path'] ?? ''] = $entry;
     }
     foreach ([
         '/plain-continuation-review' . "\0" . 'mapping' . "\0" . 'block' . "\0" . '4',
@@ -980,6 +983,16 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!$foundPlainReviewCollectionRange) {
         throw new RuntimeException('YAML metadata self-test missing block collection line range');
+    }
+    $multilineFlowReviewLine = (int) ($yamlCollectionByPath['/multiline-flow-review']['sourceLine'] ?? '0');
+    $multilineFlowOwnersLine = (int) ($yamlCollectionByPath['/multiline-flow-review/owners']['sourceLine'] ?? '0');
+    $multilineFlowOwnerQuoteLine = (int) ($yamlQuotedScalarProvenance['/multiline-flow-review/owners/1']['sourceLine'] ?? '0');
+    if (
+        $multilineFlowReviewLine <= 0
+        || $multilineFlowOwnersLine <= $multilineFlowReviewLine
+        || $multilineFlowOwnerQuoteLine <= $multilineFlowOwnersLine
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing multiline flow member source-line provenance');
     }
     if (count($yamlStreamProvenance) !== 3) {
         throw new RuntimeException('YAML metadata self-test missing stream provenance records');

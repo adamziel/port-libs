@@ -14742,6 +14742,141 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Part Packet. part 2nd.</dd>', $blocks);
         $t->contains('<dt>Doe 2025</dt><dd>Doe, Jane. Range Part Packet. parts 3rd-4th.</dd>', $blocks);
     },
+    'renders bounded csl audiovisual creator variables for bibliography handoff' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@video{migration-film,
+  title = {Migration Review Film},
+  date = {2026},
+  producer = {Producer, Pia},
+  performer = {Performer, Pat and {{Archive Ensemble}}},
+  narrator = {Narrator, Nia},
+  host = {Host, Hugo},
+  guest = {Guest, Gia},
+  executiveproducer = {Executive, Eli},
+  scriptwriter = {Writer, Sam},
+  producer+an = {1=source credit verified},
+  scriptwriter+an = {1:family=script credit verified}
+}
+
+@audio{migration-podcast,
+  title = {Migration Review Podcast},
+  date = {2025},
+  host = {Ng, Nia},
+  guest = {Roe, Pat}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('migration-film', $items[0]['id']);
+        $t->same('Producer', $items[0]['producer'][0]['family'] ?? null);
+        $t->same('Performer', $items[0]['performer'][0]['family'] ?? null);
+        $t->same('Archive Ensemble', $items[0]['performer'][1]['literal'] ?? null);
+        $t->same('Narrator', $items[0]['narrator'][0]['family'] ?? null);
+        $t->same('Host', $items[0]['host'][0]['family'] ?? null);
+        $t->same('Guest', $items[0]['guest'][0]['family'] ?? null);
+        $t->same('Executive', $items[0]['executive-producer'][0]['family'] ?? null);
+        $t->same('Writer', $items[0]['script-writer'][0]['family'] ?? null);
+        $t->same('source credit verified', $items[0]['producer'][0]['annotations'][0]['value'] ?? null);
+        $t->same('family', $items[0]['script-writer'][0]['annotations'][0]['part'] ?? null);
+        $t->same('Ng', $items[1]['host'][0]['family'] ?? null);
+        $t->same('Roe', $items[1]['guest'][0]['family'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $film = $processor->item('migration-film');
+        $t->same('Producer', $film['producers'][0]['family'] ?? null);
+        $t->same('Archive Ensemble', $film['performers'][1]['literal'] ?? null);
+        $t->same('Narrator', $film['narrators'][0]['family'] ?? null);
+        $t->same('Host', $film['hosts'][0]['family'] ?? null);
+        $t->same('Guest', $film['guests'][0]['family'] ?? null);
+        $t->same('Executive', $film['executiveProducers'][0]['family'] ?? null);
+        $t->same('Writer', $film['scriptWriters'][0]['family'] ?? null);
+        $t->same('source credit verified', $film['producers'][0]['annotations'][0]['value'] ?? null);
+        $t->same('script credit verified', $film['scriptWriters'][0]['annotations'][0]['value'] ?? null);
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-audio-review',
+            'title' => 'Manual Audio Review',
+            'producer' => [
+                ['family' => 'Desk', 'given' => 'Production'],
+            ],
+            'script-writer' => [
+                ['literal' => 'Script Review Desk'],
+            ],
+        ]])->item('manual-audio-review');
+        $t->same('Desk', $manual['producers'][0]['family'] ?? null);
+        $t->same('Script Review Desk', $manual['scriptWriters'][0]['literal'] ?? null);
+        $t->same('Migration Review Film. 2026. Name annotations: Producer 1: source credit verified; Script writer 1 family: script credit verified. Executive produced by Executive, Eli. Guest: Guest, Gia. Hosted by Host, Hugo. Narrated by Narrator, Nia. Performed by Performer, Pat; Archive Ensemble. Produced by Producer, Pia. Script written by Writer, Sam.', $processor->renderBibliographyEntry('migration-film'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Audiovisual Creator Review</title>
+    <id>https://example.test/styles/bounded-audiovisual-creator-review</id>
+    <updated>2026-06-08T18:53:44+00:00</updated>
+  </info>
+  <macro name="creator-route">
+    <choose>
+      <if is-creator="producer performer">
+        <text value="audiovisual"/>
+      </if>
+      <else-if is-creator="host guest">
+        <text value="conversation"/>
+      </else-if>
+      <else>
+        <text value="source"/>
+      </else>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <text macro="creator-route"/>
+        <names variable="producer"/>
+        <names variable="performer"/>
+        <names variable="narrator"/>
+        <names variable="host"/>
+        <names variable="guest"/>
+        <names variable="executive-producer"/>
+        <names variable="script-writer"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="producer"/>
+      <names variable="performer"/>
+      <names variable="narrator"/>
+      <names variable="host"/>
+      <names variable="guest"/>
+      <names variable="executive-producer"/>
+      <names variable="script-writer"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branches = $summary['macros']['creator-route'][0]['branches'] ?? [];
+        $t->same(['producer', 'performer'], $branches[0]['isCreator'] ?? null);
+        $t->same(['host', 'guest'], $branches[1]['isCreator'] ?? null);
+        $t->same('(audiovisual | Producer | Performer and Archive Ensemble | Narrator | Host | Guest | Executive | Writer | 2026; conversation | Ng | Roe | 2025)', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'migration-film', 'text' => '[@migration-film]']),
+            new AstNode('citation', ['id' => 'migration-podcast', 'text' => '[@migration-podcast]']),
+        ]));
+        $t->same('Migration Review Film :: Producer, Pia :: Performer, Pat; Archive Ensemble :: Narrator, Nia :: Host, Hugo :: Guest, Gia :: Executive, Eli :: Writer, Sam :: Producer 1: source credit verified; Script writer 1 family: script credit verified', $styled->renderBibliographyEntry('migration-film'));
+        $t->same('Migration Review Podcast :: Ng, Nia :: Roe, Pat', $styled->renderBibliographyEntry('migration-podcast'));
+
+        $document = (new MarkdownReader())->read('Audiovisual source [@migration-film; @migration-podcast] keeps production credits visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Audiovisual source (audiovisual | Producer | Performer and Archive Ensemble | Narrator | Host | Guest | Executive | Writer | 2026; conversation | Ng | Roe | 2025) keeps production credits visible.</p>', $blocks);
+        $t->contains('<dt>Migration Review Film 2026</dt><dd>Migration Review Film :: Producer, Pia :: Performer, Pat; Archive Ensemble :: Narrator, Nia :: Host, Hugo :: Guest, Gia :: Executive, Eli :: Writer, Sam :: Producer 1: source credit verified; Script writer 1 family: script credit verified</dd>', $blocks);
+        $t->contains('<dt>Migration Review Podcast 2025</dt><dd>Migration Review Podcast :: Ng, Nia :: Roe, Pat</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

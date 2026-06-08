@@ -6379,41 +6379,183 @@ final class DocxReader
      */
     private function drawingNodes(\DOMElement $drawing, ZipPackage $package, ?OpcRelationships $relationships): array
     {
-        if (!$relationships instanceof OpcRelationships) {
-            return [];
-        }
-
         $nodes = [];
-        foreach ($drawing->getElementsByTagNameNS(self::DRAWINGML_MAIN_NS, 'blip') as $blip) {
-            if (!$blip instanceof \DOMElement) {
-                continue;
+        if ($relationships instanceof OpcRelationships) {
+            foreach ($drawing->getElementsByTagNameNS(self::DRAWINGML_MAIN_NS, 'blip') as $blip) {
+                if (!$blip instanceof \DOMElement) {
+                    continue;
+                }
+
+                $embed = $this->relationshipAttr($blip, 'embed');
+                $link = $this->relationshipAttr($blip, 'link');
+                $relationshipId = $embed ?? $link;
+                if ($relationshipId === null) {
+                    continue;
+                }
+
+                $relationship = $relationships->byId($relationshipId);
+                if (!$relationship instanceof OpcRelationship || $relationship->type !== self::REL_TYPE_IMAGE) {
+                    continue;
+                }
+
+                $docPr = $this->drawingPropertiesForBlip($blip, $drawing);
+                $alt = $docPr instanceof \DOMElement ? (string) ($docPr->getAttribute('descr') ?: $docPr->getAttribute('name')) : '';
+                $title = $docPr instanceof \DOMElement ? $docPr->getAttribute('title') : '';
+                $image = $this->relationshipImageNode($relationshipId, $relationship, $package, $relationships, $alt, $title);
+                if ($image instanceof AstNode) {
+                    $nodes[] = $image;
+                }
             }
 
-            $embed = $this->relationshipAttr($blip, 'embed');
-            $link = $this->relationshipAttr($blip, 'link');
-            $relationshipId = $embed ?? $link;
-            if ($relationshipId === null) {
-                continue;
-            }
-
-            $relationship = $relationships->byId($relationshipId);
-            if (!$relationship instanceof OpcRelationship || $relationship->type !== self::REL_TYPE_IMAGE) {
-                continue;
-            }
-
-            $docPr = $this->drawingPropertiesForBlip($blip, $drawing);
-            $alt = $docPr instanceof \DOMElement ? (string) ($docPr->getAttribute('descr') ?: $docPr->getAttribute('name')) : '';
-            $title = $docPr instanceof \DOMElement ? $docPr->getAttribute('title') : '';
-            $image = $this->relationshipImageNode($relationshipId, $relationship, $package, $relationships, $alt, $title);
-            if ($image instanceof AstNode) {
-                $nodes[] = $image;
-            }
+            array_push($nodes, ...$this->chartDrawingNodes($drawing, $package, $relationships));
+            array_push($nodes, ...$this->diagramDrawingNodes($drawing, $package, $relationships));
         }
 
-        array_push($nodes, ...$this->chartDrawingNodes($drawing, $package, $relationships));
-        array_push($nodes, ...$this->diagramDrawingNodes($drawing, $package, $relationships));
+        array_push($nodes, ...$this->drawingTextNodes($drawing));
 
         return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingTextNodes(\DOMElement $drawing): array
+    {
+        $nodes = [];
+        foreach ($drawing->getElementsByTagNameNS(self::DRAWINGML_MAIN_NS, 'txBody') as $textBody) {
+            if (!$textBody instanceof \DOMElement) {
+                continue;
+            }
+
+            $paragraphCount = 0;
+            $children = $this->drawingTextBodyInlineNodes($textBody, $paragraphCount);
+            if ($children === []) {
+                continue;
+            }
+
+            $nodes[] = new AstNode(
+                'span',
+                $this->drawingTextAttrs($this->drawingPropertiesForElement($textBody, $drawing), $paragraphCount),
+                $children
+            );
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingTextBodyInlineNodes(\DOMElement $textBody, int &$paragraphCount): array
+    {
+        $nodes = [];
+        $paragraphCount = 0;
+        foreach ($textBody->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAWINGML_MAIN_NS || $child->localName !== 'p') {
+                continue;
+            }
+
+            $paragraphNodes = $this->drawingTextParagraphInlineNodes($child);
+            if ($paragraphNodes === []) {
+                continue;
+            }
+
+            if ($nodes !== []) {
+                $nodes[] = new AstNode('linebreak');
+            }
+            array_push($nodes, ...$paragraphNodes);
+            $paragraphCount++;
+        }
+
+        return $this->coalesceTextNodes($nodes);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingTextParagraphInlineNodes(\DOMElement $paragraph): array
+    {
+        $nodes = [];
+        foreach ($paragraph->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAWINGML_MAIN_NS) {
+                continue;
+            }
+
+            if ($child->localName === 'r' || $child->localName === 'fld') {
+                array_push($nodes, ...$this->drawingTextRunInlineNodes($child));
+                continue;
+            }
+
+            if ($child->localName === 'br') {
+                $nodes[] = new AstNode('linebreak');
+                continue;
+            }
+
+            if ($child->localName === 'tab') {
+                $nodes[] = new AstNode('text', ['text' => "\t"]);
+            }
+        }
+
+        return $this->coalesceTextNodes($nodes);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingTextRunInlineNodes(\DOMElement $run): array
+    {
+        $nodes = [];
+        foreach ($run->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAWINGML_MAIN_NS) {
+                continue;
+            }
+
+            if ($child->localName === 't') {
+                $nodes[] = new AstNode('text', ['text' => $child->textContent]);
+                continue;
+            }
+
+            if ($child->localName === 'br') {
+                $nodes[] = new AstNode('linebreak');
+                continue;
+            }
+
+            if ($child->localName === 'tab') {
+                $nodes[] = new AstNode('text', ['text' => "\t"]);
+            }
+        }
+
+        return $this->coalesceTextNodes($nodes);
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function drawingTextAttrs(?\DOMElement $docPr, int $paragraphCount): array
+    {
+        $attributes = [
+            'data-docx-drawing-kind' => 'text',
+            'data-docx-drawing-text-paragraphs' => (string) $paragraphCount,
+        ];
+
+        if ($docPr instanceof \DOMElement) {
+            foreach ([
+                'id' => 'data-docx-docpr-id',
+                'name' => 'data-docx-docpr-name',
+                'descr' => 'data-docx-docpr-descr',
+                'title' => 'data-docx-docpr-title',
+            ] as $source => $target) {
+                $value = $docPr->getAttribute($source);
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                }
+            }
+        }
+
+        return [
+            'classes' => ['docx-drawing-text'],
+            'attributes' => $attributes,
+        ];
     }
 
     /**

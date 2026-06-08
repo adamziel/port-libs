@@ -6263,6 +6263,8 @@ final class TableGeometry
             'headRowCount' => $sectionSummary['headRowCount'],
             'bodyRowCount' => $sectionSummary['bodyRowCount'],
             'footRowCount' => $sectionSummary['footRowCount'],
+            'sectionRanges' => $sectionSummary['sectionRanges'],
+            'footSectionRanges' => self::sectionRangeRecordsByRole($sectionSummary, 'foot'),
             'sections' => $sectionSummary['sections'],
         ]];
     }
@@ -6301,6 +6303,8 @@ final class TableGeometry
             'headRowCount' => $sectionSummary['headRowCount'],
             'bodyRowCount' => $sectionSummary['bodyRowCount'],
             'footRowCount' => $sectionSummary['footRowCount'],
+            'sectionRanges' => $sectionSummary['sectionRanges'],
+            'footSectionRanges' => self::sectionRangeRecordsByRole($sectionSummary, 'foot'),
             'sections' => $sectionSummary['sections'],
         ]];
     }
@@ -6354,6 +6358,8 @@ final class TableGeometry
             'footRowCount' => $sectionSummary['footRowCount'],
             'bodySections' => $bodySections,
             'bodySectionRowCounts' => $bodySectionRowCounts,
+            'sectionRanges' => $sectionSummary['sectionRanges'],
+            'bodySectionRanges' => self::sectionRangeRecordsByRole($sectionSummary, 'body'),
             'sections' => $sectionSummary['sections'],
         ]];
     }
@@ -6382,6 +6388,9 @@ final class TableGeometry
         $bodySections = [];
         $bodyHeadRowCounts = [];
         $bodySectionRowCounts = [];
+        $sectionRanges = [];
+        $bodySectionRanges = [];
+        $bodyHeadRowRanges = [];
         $sections = [];
         foreach ($rowGroups as $rowGroup) {
             $kind = (string) ($rowGroup['kind'] ?? '');
@@ -6401,6 +6410,8 @@ final class TableGeometry
             }
 
             $section = (string) ($rowGroup['section'] ?? '');
+            $sectionRange = self::rowGroupWriterRangeRecord($rowGroup, $rowRole);
+            $sectionRanges[] = $sectionRange;
             $bodyHeadRowCount = max(0, (int) ($rowGroup['bodyHeadRowCount'] ?? 0));
             $bodyRowCount = max(0, (int) ($rowGroup['bodyRowCount'] ?? 0));
             $sectionRecord = [
@@ -6412,10 +6423,19 @@ final class TableGeometry
                 $sectionRecord['bodyHeadRowCount'] = $bodyHeadRowCount;
                 $sectionRecord['bodyRowCount'] = $bodyRowCount;
                 $sectionRecord['rowRoles'] = self::stringList($rowGroup['rowRoles'] ?? []);
+                $bodySectionRanges[] = $sectionRange;
                 if ($bodyHeadRowCount > 0) {
                     $bodySections[] = $section;
                     $bodyHeadRowCounts[] = $bodyHeadRowCount;
                     $bodySectionRowCounts[] = $bodyRowCount;
+                    $bodyHeadRowRanges[] = array_replace($sectionRange, [
+                        'bodyHeadRowCount' => $bodyHeadRowCount,
+                        'bodyHeadRowRange' => [
+                            max(0, (int) ($rowGroup['globalRowStart'] ?? 0)),
+                            max(0, (int) ($rowGroup['globalRowStart'] ?? 0)) + $bodyHeadRowCount,
+                        ],
+                        'bodyRowCount' => $bodyRowCount,
+                    ]);
                 }
             }
             $sections[] = $sectionRecord;
@@ -6443,6 +6463,9 @@ final class TableGeometry
             'bodySections' => $bodySections,
             'bodyHeadRowCounts' => $bodyHeadRowCounts,
             'bodySectionRowCounts' => $bodySectionRowCounts,
+            'sectionRanges' => $sectionRanges,
+            'bodySectionRanges' => $bodySectionRanges,
+            'bodyHeadRowRanges' => $bodyHeadRowRanges,
             'sections' => $sections,
         ]];
     }
@@ -6455,17 +6478,20 @@ final class TableGeometry
      *     headRowCount:int,
      *     bodyRowCount:int,
      *     footRowCount:int,
+     *     sectionRanges:list<array{section:string,rowRange:array{0:int,1:int},rowCount:int,rowRole:string}>,
      *     sections:list<array{section:string,rowCount:int,rowRole:string}>
      * }
      */
     private static function tableSectionSummary(AstNode $table): array
     {
         $sections = [];
+        $sectionRanges = [];
         $rowCount = 0;
         $bodyCount = 0;
         $headRowCount = 0;
         $bodyRowCount = 0;
         $footRowCount = 0;
+        $globalRowStart = 0;
 
         foreach (self::sectionRowGroups($table, self::columnCount($table)) as $group) {
             $section = (string) $group['section'];
@@ -6473,6 +6499,7 @@ final class TableGeometry
             if ($rowsInSection === 0) {
                 continue;
             }
+            $globalRowEnd = $globalRowStart + $rowsInSection;
 
             $rowRole = str_starts_with($section, 'body') ? 'body' : $section;
             if ($rowRole === 'head') {
@@ -6490,6 +6517,13 @@ final class TableGeometry
                 'rowCount' => $rowsInSection,
                 'rowRole' => $rowRole,
             ];
+            $sectionRanges[] = [
+                'section' => $section,
+                'rowRange' => [$globalRowStart, $globalRowEnd],
+                'rowCount' => $rowsInSection,
+                'rowRole' => $rowRole,
+            ];
+            $globalRowStart = $globalRowEnd;
         }
 
         return [
@@ -6499,7 +6533,48 @@ final class TableGeometry
             'headRowCount' => $headRowCount,
             'bodyRowCount' => $bodyRowCount,
             'footRowCount' => $footRowCount,
+            'sectionRanges' => $sectionRanges,
             'sections' => $sections,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $sectionSummary
+     * @return list<array<string, mixed>>
+     */
+    private static function sectionRangeRecordsByRole(array $sectionSummary, string $rowRole): array
+    {
+        $ranges = is_array($sectionSummary['sectionRanges'] ?? null) ? $sectionSummary['sectionRanges'] : [];
+        $filtered = [];
+        foreach ($ranges as $range) {
+            if (!is_array($range) || (string) ($range['rowRole'] ?? '') !== $rowRole) {
+                continue;
+            }
+
+            $filtered[] = $range;
+        }
+
+        return $filtered;
+    }
+
+    /**
+     * @param array<string, mixed> $rowGroup
+     * @return array<string, mixed>
+     */
+    private static function rowGroupWriterRangeRecord(array $rowGroup, string $rowRole): array
+    {
+        $globalRowStart = max(0, (int) ($rowGroup['globalRowStart'] ?? 0));
+        $globalRowEnd = max($globalRowStart, (int) ($rowGroup['globalRowEnd'] ?? $globalRowStart));
+        $rowRange = self::intList($rowGroup['rowRange'] ?? []);
+        if (count($rowRange) !== 2) {
+            $rowRange = [$globalRowStart, $globalRowEnd];
+        }
+
+        return [
+            'section' => (string) ($rowGroup['section'] ?? ''),
+            'rowRange' => $rowRange,
+            'rowCount' => max(0, (int) ($rowGroup['rowCount'] ?? 0)),
+            'rowRole' => $rowRole,
         ];
     }
 

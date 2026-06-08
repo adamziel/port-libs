@@ -2359,6 +2359,24 @@ return [
         $t->same(['body'], $markdownDiagnostics[0]['bodySections'] ?? null);
         $t->same([1], $markdownDiagnostics[0]['bodyHeadRowCounts'] ?? null);
         $t->same([1], $markdownDiagnostics[0]['bodySectionRowCounts'] ?? null);
+        $t->same([
+            ['section' => 'head', 'rowRange' => [0, 1], 'rowCount' => 1, 'rowRole' => 'head'],
+            ['section' => 'body', 'rowRange' => [1, 3], 'rowCount' => 2, 'rowRole' => 'body'],
+        ], $markdownDiagnostics[0]['sectionRanges'] ?? null);
+        $t->same([
+            ['section' => 'body', 'rowRange' => [1, 3], 'rowCount' => 2, 'rowRole' => 'body'],
+        ], $markdownDiagnostics[0]['bodySectionRanges'] ?? null);
+        $t->same([
+            [
+                'section' => 'body',
+                'rowRange' => [1, 3],
+                'rowCount' => 2,
+                'rowRole' => 'body',
+                'bodyHeadRowCount' => 1,
+                'bodyHeadRowRange' => [1, 2],
+                'bodyRowCount' => 1,
+            ],
+        ], $markdownDiagnostics[0]['bodyHeadRowRanges'] ?? null);
         $t->same(['head', 'body'], array_map(static fn (array $section): string => (string) ($section['section'] ?? ''), $markdownDiagnostics[0]['sections'] ?? []));
 
         $t->same(['asciidoc-body-head-rows-review-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $asciidocDiagnostics));
@@ -2469,6 +2487,15 @@ return [
         $t->same(0, $markdownDiagnostics[0]['footRowCount'] ?? null);
         $t->same(['body', 'body1'], $markdownDiagnostics[0]['bodySections'] ?? null);
         $t->same([2, 1], $markdownDiagnostics[0]['bodySectionRowCounts'] ?? null);
+        $t->same([
+            ['section' => 'head', 'rowRange' => [0, 1], 'rowCount' => 1, 'rowRole' => 'head'],
+            ['section' => 'body', 'rowRange' => [1, 3], 'rowCount' => 2, 'rowRole' => 'body'],
+            ['section' => 'body1', 'rowRange' => [3, 4], 'rowCount' => 1, 'rowRole' => 'body'],
+        ], $markdownDiagnostics[0]['sectionRanges'] ?? null);
+        $t->same([
+            ['section' => 'body', 'rowRange' => [1, 3], 'rowCount' => 2, 'rowRole' => 'body'],
+            ['section' => 'body1', 'rowRange' => [3, 4], 'rowCount' => 1, 'rowRole' => 'body'],
+        ], $markdownDiagnostics[0]['bodySectionRanges'] ?? null);
         $t->same([
             ['section' => 'head', 'rowCount' => 1, 'rowRole' => 'head'],
             ['section' => 'body', 'rowCount' => 2, 'rowRole' => 'body'],
@@ -4112,6 +4139,14 @@ return [
         $t->same(1, $markdownDiagnostics[0]['footRowCount'] ?? null);
         $t->same(['head', 'body', 'foot'], array_map(static fn (array $section): string => (string) ($section['section'] ?? ''), $markdownDiagnostics[0]['sections'] ?? []));
         $t->same([1, 1, 1], array_map(static fn (array $section): int => (int) ($section['rowCount'] ?? 0), $markdownDiagnostics[0]['sections'] ?? []));
+        $t->same([
+            ['section' => 'head', 'rowRange' => [0, 1], 'rowCount' => 1, 'rowRole' => 'head'],
+            ['section' => 'body', 'rowRange' => [1, 2], 'rowCount' => 1, 'rowRole' => 'body'],
+            ['section' => 'foot', 'rowRange' => [2, 3], 'rowCount' => 1, 'rowRole' => 'foot'],
+        ], $markdownDiagnostics[0]['sectionRanges'] ?? null);
+        $t->same([
+            ['section' => 'foot', 'rowRange' => [2, 3], 'rowCount' => 1, 'rowRole' => 'foot'],
+        ], $markdownDiagnostics[0]['footSectionRanges'] ?? null);
 
         $t->same(['asciidoc-table-foot-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $asciidocDiagnostics));
         $t->same('asciidoc', $asciidocDiagnostics[0]['writer'] ?? null);

@@ -587,6 +587,29 @@ XML],
           </wp:inline>
         </w:drawing>
       </w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="20" name="Review callout" descr="Imported review callout" title="Review callout"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+                <wps:wsp>
+                  <a:txBody>
+                    <a:bodyPr/>
+                    <a:lstStyle/>
+                    <a:p>
+                      <a:r><a:t>Source callout note</a:t></a:r>
+                      <a:br/>
+                      <a:r><a:t>Verify chart captions</a:t></a:r>
+                    </a:p>
+                  </a:txBody>
+                </wps:wsp>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
       <w:r><w:t xml:space="preserve"> and </w:t></w:r>
       <w:r>
         <w:drawing>
@@ -1240,6 +1263,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-drawing-placeholder docx-drawing-chart" data-docx-drawing-kind="chart" data-docx-docpr-id="18" data-docx-docpr-name="Review chart" data-docx-docpr-descr="Imported review chart" data-docx-docpr-title="Review chart" data-docx-relationship-id="rIdReviewChart"',
         'data-docx-target-part="/word/charts/review-chart.xml"',
         'DOCX chart: Imported review chart</span>',
+        '<span class="docx-drawing-text" data-docx-drawing-kind="text" data-docx-drawing-text-paragraphs="1" data-docx-docpr-id="20" data-docx-docpr-name="Review callout" data-docx-docpr-descr="Imported review callout" data-docx-docpr-title="Review callout">Source callout note<br/>Verify chart captions</span>',
         '<span class="docx-drawing-placeholder docx-drawing-diagram" data-docx-drawing-kind="diagram" data-docx-docpr-id="19" data-docx-docpr-name="Review workflow" data-docx-docpr-descr="Imported workflow diagram" data-docx-docpr-title="Review workflow" data-docx-diagram-data-id="rIdReviewDiagramData"',
         'data-docx-diagram-layout-target-part="/word/diagrams/review-layout.xml"',
         'DOCX diagram: Imported workflow diagram</span>',

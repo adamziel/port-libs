@@ -773,6 +773,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($tomlWordpressBlock, '<span class="dt">palette</span> <span class="op">=</span> <span class="op">{</span> <span class="dt">primary</span>')) {
         throw new RuntimeException('Expected TOML inline table token handoff');
     }
+    if (!str_contains($tomlWordpressBlock, '<span class="op">[[</span><span class="dt">theme</span><span class="op">.</span><span class="st">&quot;palette variants&quot;</span><span class="op">]]</span>')) {
+        throw new RuntimeException('Expected TOML quoted array-of-tables token handoff');
+    }
+    if (!str_contains($tomlWordpressBlock, '<span class="dt">created_at</span> <span class="op">=</span> <span class="cn">2026-06-05T08:40:00</span> <span class="co"># local review time</span>')) {
+        throw new RuntimeException('Expected TOML local datetime and trailing comment handoff');
+    }
+    if (!str_contains($tomlWordpressBlock, '<span class="dt">review</span><span class="op">.</span><span class="dt">cutoff</span> <span class="op">=</span> <span class="cn">08:40:00.125</span>')) {
+        throw new RuntimeException('Expected TOML dotted key and local time token handoff');
+    }
     if (($perl['language'] ?? '') !== 'perl') {
         throw new RuntimeException('Expected pl alias to normalize to Perl highlighting');
     }

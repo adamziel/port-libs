@@ -1606,10 +1606,11 @@ final class SyntaxHighlighter
             return;
         }
 
-        if (preg_match('/^([ \t]*)(\[\[?[A-Za-z0-9_."\047 -]+(?:\.[A-Za-z0-9_."\047 -]+)*\]?\])(.*)$/', $line, $matches) === 1) {
-            $this->appendToken($tokens, 'text', $matches[1]);
-            $this->appendToken($tokens, 'keyword', $matches[2]);
-            $this->appendTomlTrailingText($matches[3], $tokens);
+        $tableHeader = self::tomlTableHeaderLine($line);
+        if ($tableHeader !== null) {
+            $this->appendToken($tokens, 'text', $tableHeader['prefix']);
+            $this->appendTomlTableHeader($tableHeader['header'], $tableHeader['body'], $tokens);
+            $this->appendTomlTrailingText($tableHeader['trailing'], $tokens);
             return;
         }
 
@@ -1633,6 +1634,82 @@ final class SyntaxHighlighter
 
         $this->appendToken($tokens, 'operator', '=');
         $this->appendTomlValue($value, $tokens);
+    }
+
+    /**
+     * @return array{prefix:string, header:string, body:string, trailing:string}|null
+     */
+    private static function tomlTableHeaderLine(string $line): ?array
+    {
+        if (preg_match('/^([ \t]*)(\[.*)$/', $line, $matches) !== 1) {
+            return null;
+        }
+
+        $prefix = $matches[1];
+        $rest = $matches[2];
+        $arrayHeader = str_starts_with($rest, '[[');
+        $openLength = $arrayHeader ? 2 : 1;
+        $close = $arrayHeader ? ']]' : ']';
+        $quote = '';
+        $length = strlen($rest);
+
+        for ($offset = $openLength; $offset < $length; $offset++) {
+            $char = $rest[$offset];
+            if ($quote !== '') {
+                if ($char === '\\' && $quote === '"' && $offset + 1 < $length) {
+                    $offset++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = '';
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if (substr($rest, $offset, strlen($close)) !== $close) {
+                continue;
+            }
+
+            $body = substr($rest, $openLength, $offset - $openLength);
+            if (trim($body) === '') {
+                return null;
+            }
+
+            $trailing = substr($rest, $offset + strlen($close));
+            if ($trailing !== '' && preg_match('/^[ \t]*(?:#.*)?$/', $trailing) !== 1) {
+                return null;
+            }
+
+            return [
+                'prefix' => $prefix,
+                'header' => substr($rest, 0, $offset + strlen($close)),
+                'body' => $body,
+                'trailing' => $trailing,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendTomlTableHeader(string $header, string $body, array &$tokens): void
+    {
+        if (preg_match('/^\[\[?[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\]?\]$/', $header) === 1) {
+            $this->appendToken($tokens, 'keyword', $header);
+            return;
+        }
+
+        $arrayHeader = str_starts_with($header, '[[');
+        $this->appendToken($tokens, 'operator', $arrayHeader ? '[[' : '[');
+        $this->appendTomlKey($body, $tokens);
+        $this->appendToken($tokens, 'operator', $arrayHeader ? ']]' : ']');
     }
 
     /**

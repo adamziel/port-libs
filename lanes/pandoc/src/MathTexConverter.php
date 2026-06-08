@@ -1727,6 +1727,16 @@ final class MathTexConverter
             ) {
                 $macro = $macros[$m[1]];
                 $cursor = $offset + strlen($m[0]);
+                $pairedDelimiter = $this->pairedDelimiterMacroDelimiters($macro);
+                if ($pairedDelimiter !== null) {
+                    $pairedExpansion = $this->expandPairedDelimiterMacroInvocation($math, $cursor, $m[1], $macro, $pairedDelimiter);
+                    if ($pairedExpansion !== null) {
+                        $output .= $pairedExpansion['tex'];
+                        $offset = $pairedExpansion['next'];
+                        continue;
+                    }
+                }
+
                 $args = [];
                 $requiredArity = $macro['arity'];
                 if (array_key_exists('optionalDefault', $macro)) {
@@ -1764,6 +1774,158 @@ final class MathTexConverter
         }
 
         return $output;
+    }
+
+    /**
+     * @param array{arity:int, template:string, optionalDefault?: string} $macro
+     * @return array{open:string, close:string}|null
+     */
+    private function pairedDelimiterMacroDelimiters(array $macro): ?array
+    {
+        if ($macro['arity'] !== 1 || array_key_exists('optionalDefault', $macro)) {
+            return null;
+        }
+
+        $template = trim($macro['template']);
+        if (!str_starts_with($template, '\\left')) {
+            return null;
+        }
+
+        $offset = strlen('\\left');
+        $open = $this->readPairedDelimiterTemplateToken($template, $offset);
+        if ($open === null) {
+            return null;
+        }
+
+        $this->skipWhitespace($template, $offset);
+        if (substr($template, $offset, 2) !== '#1') {
+            return null;
+        }
+        $offset += 2;
+
+        $this->skipWhitespace($template, $offset);
+        if (substr($template, $offset, strlen('\\right')) !== '\\right') {
+            return null;
+        }
+        $offset += strlen('\\right');
+
+        $close = $this->readPairedDelimiterTemplateToken($template, $offset);
+        if ($close === null) {
+            return null;
+        }
+
+        $this->skipWhitespace($template, $offset);
+        if ($offset !== strlen($template)) {
+            return null;
+        }
+
+        return [
+            'open' => $open,
+            'close' => $close,
+        ];
+    }
+
+    private function readPairedDelimiterTemplateToken(string $template, int &$offset): ?string
+    {
+        $char = $template[$offset] ?? '';
+        if ($char === '') {
+            return null;
+        }
+
+        if ($char === '\\') {
+            $start = $offset;
+            $offset++;
+            $command = $this->readCommandName($template, $offset);
+            if (!isset(self::DELIMITER_COMMANDS[$command])) {
+                return null;
+            }
+
+            return substr($template, $start, $offset - $start);
+        }
+
+        if ($char === '.' || str_contains('()[]{}|/<>', $char)) {
+            $offset++;
+
+            return $char;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{arity:int, template:string, optionalDefault?: string} $macro
+     * @param array{open:string, close:string} $delimiters
+     * @return array{tex:string, next:int}|null
+     */
+    private function expandPairedDelimiterMacroInvocation(string $math, int $cursor, string $name, array $macro, array $delimiters): ?array
+    {
+        $this->skipWhitespace($math, $cursor);
+        $sizeCommand = null;
+        $sawModifier = false;
+
+        if (($math[$cursor] ?? '') === '*') {
+            $sawModifier = true;
+            $cursor++;
+            $this->skipWhitespace($math, $cursor);
+            if (($math[$cursor] ?? '') === '[') {
+                throw new \InvalidArgumentException('Unsupported TeX paired delimiter size option after starred \\' . $name . ' at offset ' . $cursor);
+            }
+        } elseif (($math[$cursor] ?? '') === '[') {
+            $sawModifier = true;
+            $argument = $this->readTexBracketArgument($math, $cursor);
+            if ($argument === null) {
+                throw new \InvalidArgumentException('Unterminated TeX paired delimiter size option for \\' . $name . ' at offset ' . $cursor);
+            }
+
+            $sizeCommand = $this->normalizePairedDelimiterSizeCommand($argument['value'], $name);
+            $cursor = $argument['next'];
+        }
+
+        if (!$sawModifier) {
+            return null;
+        }
+
+        $this->skipWhitespace($math, $cursor);
+        $argument = $this->readTexBraceArgument($math, $cursor);
+        if ($argument === null) {
+            throw new \InvalidArgumentException('Expected TeX paired delimiter argument for \\' . $name . ' at offset ' . $cursor);
+        }
+
+        if ($sizeCommand === null) {
+            return [
+                'tex' => $this->renderRawTexMacroTemplate($macro['template'], [$argument['value']]),
+                'next' => $argument['next'],
+            ];
+        }
+
+        return [
+            'tex' => '\\' . $sizeCommand . 'l' . $delimiters['open']
+                . ' ' . $argument['value'] . ' \\' . $sizeCommand . 'r' . $delimiters['close'],
+            'next' => $argument['next'],
+        ];
+    }
+
+    private function normalizePairedDelimiterSizeCommand(string $argument, string $name): string
+    {
+        $argument = trim($argument);
+        if ($argument === '' || ($argument[0] ?? '') !== '\\') {
+            throw new \InvalidArgumentException('Expected TeX paired delimiter size command for \\' . $name);
+        }
+
+        $offset = 1;
+        $command = $this->readCommandName($argument, $offset);
+        $this->skipWhitespace($argument, $offset);
+        if ($offset !== strlen($argument)) {
+            throw new \InvalidArgumentException('Unexpected TeX paired delimiter size option content for \\' . $name . ' at offset ' . $offset);
+        }
+
+        return match ($command) {
+            'big', 'bigl', 'bigr', 'bigm' => 'big',
+            'Big', 'Bigl', 'Bigr', 'Bigm' => 'Big',
+            'bigg', 'biggl', 'biggr', 'biggm' => 'bigg',
+            'Bigg', 'Biggl', 'Biggr', 'Biggm' => 'Bigg',
+            default => throw new \InvalidArgumentException('Unsupported TeX paired delimiter size command \\' . $command . ' for \\' . $name),
+        };
     }
 
     /**

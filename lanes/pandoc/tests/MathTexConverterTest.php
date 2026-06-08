@@ -442,6 +442,26 @@ return [
             new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiter{\\bad}{\\lvert}{}']),
         ])));
     },
+    'expands bounded declared paired delimiter star and size invocations' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $macros = $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiter{\\wpabs}{\\lvert}{\\rvert}']),
+            new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiter\\wpangle{\\langle}{\\rangle}']),
+        ]));
+        $mathml = $converter->texToMathMl('\\wpabs*{p_i + m_i} + \\wpabs[\\Big]{q_i} + \\wpangle[\\bigg]{r_i}', true, $macros);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\wpabs*{x_i}', false, $macros);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+        $t->contains('<mo fence="true" stretchy="true">|</mo><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo fence="true" stretchy="true">|</mo>', $mathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">|</mo><msub><mi>q</mi><mi>i</mi></msub><mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">|</mo>', $mathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="2.4em" maxsize="2.4em">⟨</mo><msub><mi>r</mi><mi>i</mi></msub><mo fence="true" stretchy="true" minsize="2.4em" maxsize="2.4em">⟩</mo>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">\\wpabs*{p_i + m_i} + \\wpabs[\\Big]{q_i} + \\wpangle[\\bigg]{r_i}</annotation>', $mathml);
+        $t->contains('alttext="vertical bar x sub i vertical bar"', $accessibleMathml);
+        $t->true(!str_contains($mathml, '<mi>\\wpabs</mi>') && !str_contains($mathml, '<mi>\\wpangle</mi>'));
+        $t->true(!str_contains($mathml, '<mo>*</mo>') && !str_contains($mathml, '<mo>[</mo>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wpabs[\\small]{x}', false, $macros));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wpabs*', false, $macros));
+    },
     'rejects unsupported bounded tex macro definitions before mathml conversion' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 

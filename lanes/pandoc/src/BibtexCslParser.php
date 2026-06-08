@@ -18,10 +18,19 @@ final class BibtexCslParser
         'translator',
         'bookauthor',
         'eventorganizer',
+        'executive-producer',
+        'executiveproducer',
+        'guest',
+        'host',
+        'narrator',
         'organizer',
         'organization',
         'origauthor',
         'originalauthor',
+        'performer',
+        'producer',
+        'script-writer',
+        'scriptwriter',
         'commentator',
         'annotator',
         'introduction',
@@ -832,9 +841,44 @@ final class BibtexCslParser
             $item['event-organizer'] = $eventOrganizer;
         }
 
+        $executiveProducer = self::namesFromFirstBibtexField($fields, ['executiveproducer', 'executive-producer']);
+        if ($executiveProducer !== []) {
+            $item['executive-producer'] = $executiveProducer;
+        }
+
+        $guest = self::namesFromBibtexField($fields, 'guest');
+        if ($guest !== []) {
+            $item['guest'] = $guest;
+        }
+
+        $host = self::namesFromBibtexField($fields, 'host');
+        if ($host !== []) {
+            $item['host'] = $host;
+        }
+
+        $narrator = self::namesFromBibtexField($fields, 'narrator');
+        if ($narrator !== []) {
+            $item['narrator'] = $narrator;
+        }
+
         $originalAuthor = self::namesFromFirstBibtexField($fields, ['origauthor', 'originalauthor']);
         if ($originalAuthor !== []) {
             $item['original-author'] = $originalAuthor;
+        }
+
+        $performer = self::namesFromBibtexField($fields, 'performer');
+        if ($performer !== []) {
+            $item['performer'] = $performer;
+        }
+
+        $producer = self::namesFromBibtexField($fields, 'producer');
+        if ($producer !== []) {
+            $item['producer'] = $producer;
+        }
+
+        $scriptWriter = self::namesFromFirstBibtexField($fields, ['scriptwriter', 'script-writer']);
+        if ($scriptWriter !== []) {
+            $item['script-writer'] = $scriptWriter;
         }
 
         $commentator = self::namesFromBibtexField($fields, 'commentator');
@@ -1494,6 +1538,8 @@ final class BibtexCslParser
         return match ($type) {
             'editorialdirector', 'editorial-director' => 'editorial-director',
             'reviewedauthor', 'reviewed-author' => 'reviewed-author',
+            'executiveproducer', 'executive-producer' => 'executive-producer',
+            'scriptwriter', 'script-writer' => 'script-writer',
             default => $type,
         };
     }
@@ -1516,6 +1562,13 @@ final class BibtexCslParser
             'collaborator',
             'commentator',
             'annotator',
+            'executive-producer',
+            'guest',
+            'host',
+            'narrator',
+            'performer',
+            'producer',
+            'script-writer',
             'introduction',
             'foreword',
             'afterword' => self::normalizedEditorialRoleType($type),
@@ -1544,6 +1597,13 @@ final class BibtexCslParser
             'organizer' => 'Organizer',
             'commentator' => 'Commentator',
             'annotator' => 'Annotator',
+            'executive-producer' => 'Executive producer',
+            'guest' => 'Guest',
+            'host' => 'Host',
+            'narrator' => 'Narrator',
+            'performer' => 'Performer',
+            'producer' => 'Producer',
+            'script-writer' => 'Script writer',
             'introduction' => 'Introduction',
             'foreword' => 'Foreword',
             'afterword' => 'Afterword',

@@ -2856,8 +2856,12 @@ return [
         $t->contains('<span class="dt">media_paths</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;uploads&quot;</span><span class="op">,</span> <span class="st">&quot;assets&quot;</span><span class="op">]</span>', $highlighted['html']);
         $t->contains('<span class="kw">[theme.variation]</span>', $highlighted['html']);
         $t->contains('<span class="dt">palette</span> <span class="op">=</span> <span class="op">{</span> <span class="dt">primary</span> <span class="op">=</span> <span class="st">&quot;#005cc5&quot;</span><span class="op">,</span> <span class="dt">contrast</span> <span class="op">=</span> <span class="st">&quot;#ffffff&quot;</span> <span class="op">}</span>', $highlighted['html']);
+        $t->contains('<span class="op">[[</span><span class="dt">theme</span><span class="op">.</span><span class="st">&quot;palette variants&quot;</span><span class="op">]]</span>', $highlighted['html']);
+        $t->contains('<span class="dt">created_at</span> <span class="op">=</span> <span class="cn">2026-06-05T08:40:00</span> <span class="co"># local review time</span>', $highlighted['html']);
+        $t->contains('<span class="dt">review</span><span class="op">.</span><span class="dt">cutoff</span> <span class="op">=</span> <span class="cn">08:40:00.125</span>', $highlighted['html']);
+        $t->contains('<span class="st">&quot;accent.color&quot;</span> <span class="op">=</span> <span class="st">&quot;#005cc5&quot;</span>', $highlighted['html']);
         $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
-        $t->contains('<span class="kw">[tool.wordpress-import]</span>', $wordpressBlock);
+        $t->contains('<span class="op">[[</span><span class="dt">theme</span><span class="op">.</span><span class="st">&quot;palette variants&quot;</span><span class="op">]]</span>', $wordpressBlock);
         $t->same('toml', $cargoLock['language']);
         $t->contains('<span class="kw">[[package]]</span>', $cargoLock['html']);
         $t->contains('<span class="dt">name</span> <span class="op">=</span> <span class="st">&quot;wp-import&quot;</span>', $cargoLock['html']);

@@ -1607,6 +1607,62 @@ return [
         $t->same('flow-comment-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="flow-comment-yaml-body">Flow comment YAML body</h1>', $blocks);
     },
+    'records pandoc yaml multiline flow member source lines' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'review: {',
+            '  status: queued,',
+            '  labels: [',
+            '    front-matter,',
+            '    wordpress',
+            '  ],',
+            '  status: approved,',
+            '  enabled: true,',
+            '  owner: "Import Desk"',
+            '}',
+            '...',
+            '',
+            '# Flow source line YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $scalarProvenance = $document->attr('yamlMetadataScalarProvenance', []);
+        $collectionProvenance = $document->attr('yamlMetadataCollectionProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $typedScalars = [];
+        $quotedScalars = [];
+        foreach ($scalarProvenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $typedScalars[$entry['path'] ?? ''] = $entry;
+            }
+            if (($entry['type'] ?? '') === 'yaml-quoted-scalar') {
+                $quotedScalars[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        $collections = [];
+        foreach ($collectionProvenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-collection') {
+                $collections[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        $t->same('approved', $meta['review']['status']);
+        $t->same(['front-matter', 'wordpress'], $meta['review']['labels']);
+        $t->same(true, $meta['review']['enabled']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('yaml-duplicate-key', $diagnostics[0]['type'] ?? null);
+        $t->same('/review/status', $diagnostics[0]['path'] ?? null);
+        $t->same('8', $diagnostics[0]['sourceLine'] ?? null);
+        $t->same('9', $typedScalars['/review/enabled']['sourceLine'] ?? null);
+        $t->same('10', $quotedScalars['/review/owner']['sourceLine'] ?? null);
+        $t->same('2', $collections['/review']['sourceLine'] ?? null);
+        $t->same('4', $collections['/review/labels']['sourceLine'] ?? null);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('flow-source-line-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="flow-source-line-yaml-body">Flow source line YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml quoted multiline scalars inside flow collections' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
