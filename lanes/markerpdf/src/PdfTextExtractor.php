@@ -23735,7 +23735,7 @@ final class PdfTextExtractor
 
     private function isType3FontBody(string $fontBody): bool
     {
-        $subtype = $this->topLevelPdfValueAfterName($fontBody, 'Subtype');
+        $subtype = $this->topLevelPdfLastValueAfterName($fontBody, 'Subtype');
         if ($subtype === null) {
             return false;
         }
