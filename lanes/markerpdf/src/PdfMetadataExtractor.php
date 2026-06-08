@@ -9444,7 +9444,7 @@ final class PdfMetadataExtractor
             $metadata['crypt_filter_role_declaration_review'] = $cryptFilterRoleReview;
         }
 
-        $cryptFilters = $this->cryptFilterMetadata($dictionary, $objects);
+        $cryptFilters = $this->cryptFilterMetadata($dictionary, $objects, $metadata);
         if ($cryptFilters !== []) {
             $metadata['crypt_filters'] = $cryptFilters;
         }
@@ -12072,9 +12072,10 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array<string, mixed> $encryptionMetadata
      * @return array<string, array<string, mixed>>
      */
-    private function cryptFilterMetadata(string $dictionary, array $objects): array
+    private function cryptFilterMetadata(string $dictionary, array $objects, array $encryptionMetadata = []): array
     {
         $value = $this->dictionaryTopLevelRawValue($dictionary, 'CF');
         if ($value === null) {
@@ -12151,6 +12152,18 @@ final class PdfMetadataExtractor
             $lengthBytes = $this->dictionaryIntegerValue($filterBody, 'Length', $objects);
             if ($lengthBytes !== null) {
                 $metadata['key_length_bytes'] = $lengthBytes;
+            } elseif ($this->dictionaryTopLevelRawValues($filterBody, 'Length') === []) {
+                $inheritedLengthBytes = $this->cryptFilterInheritedKeyLengthBytes(
+                    is_string($encryptionMetadata['filter'] ?? null) ? $encryptionMetadata['filter'] : null,
+                    is_string($metadata['method'] ?? null) ? $metadata['method'] : null,
+                    is_int($encryptionMetadata['key_length_bits'] ?? null) ? $encryptionMetadata['key_length_bits'] : null
+                );
+                if ($inheritedLengthBytes !== null) {
+                    $metadata['key_length_bytes'] = $inheritedLengthBytes;
+                    $metadata['key_length_defaulted'] = true;
+                    $metadata['key_length_source'] = 'standard_security_handler_length_inherited';
+                    $metadata['key_length_source_bits'] = $encryptionMetadata['key_length_bits'];
+                }
             }
 
             $recipients = $this->recipientListMetadataFromDictionary(
@@ -12181,6 +12194,35 @@ final class PdfMetadataExtractor
         }
 
         return $filters;
+    }
+
+    private function cryptFilterInheritedKeyLengthBytes(
+        ?string $securityHandler,
+        ?string $method,
+        ?int $keyLengthBits
+    ): ?int {
+        if ($securityHandler !== 'Standard' || $method === null || $keyLengthBits === null) {
+            return null;
+        }
+        if ($keyLengthBits <= 0 || $keyLengthBits % 8 !== 0) {
+            return null;
+        }
+
+        $range = match ($method) {
+            'V2', 'AESV2' => ['minimum' => 5, 'maximum' => 16],
+            'AESV3' => ['minimum' => 32, 'maximum' => 32],
+            default => null,
+        };
+        if ($range === null) {
+            return null;
+        }
+
+        $keyLengthBytes = intdiv($keyLengthBits, 8);
+        if ($keyLengthBytes < $range['minimum'] || $keyLengthBytes > $range['maximum']) {
+            return null;
+        }
+
+        return $keyLengthBytes;
     }
 
     /**

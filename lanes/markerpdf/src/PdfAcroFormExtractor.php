@@ -9692,8 +9692,14 @@ final class PdfAcroFormExtractor
             || !$this->hasOnlyPdfWhitespaceOrCommentsAfter($parentValue, $dictionaryEnd)
             || !$this->isFieldDictionaryCandidate($parentDictionary, $objects)
             || $this->isWidget($parentDictionary, $objects)
-            || !$this->directParentFieldDictionaryOwnsChild($parentDictionary, $childObject, $objects)
         ) {
+            return $empty;
+        }
+
+        if ($this->lastTopLevelValueAfterName($parentDictionary, 'Kids') === null) {
+            $childGeneration = $this->objectGenerations[$childObject] ?? 0;
+            $parentDictionary = rtrim($parentDictionary) . ' /Kids [' . $childObject . ' ' . $childGeneration . ' R]';
+        } elseif (!$this->directParentFieldDictionaryOwnsChild($parentDictionary, $childObject, $objects)) {
             return $empty;
         }
 

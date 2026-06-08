@@ -40364,6 +40364,13 @@ final class PdfTextExtractor
             $tokenRows = $rowEntries['hasMalformedRows']
                 ? $this->cMapTopLevelHexPairTokenRows($blockMatch['body'])
                 : null;
+            if (
+                $rowEntries['hasMalformedRows']
+                && $tokenRows === null
+                && ($rowEntries['pairs'] ?? []) === []
+            ) {
+                return true;
+            }
             $entrySlots = $tokenRows !== null ? count($tokenRows) : ($rowEntries['rowSlots'] ?? 0);
             if ($entrySlots < $declaredCount) {
                 return true;

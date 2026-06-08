@@ -1533,6 +1533,9 @@ final class PdfSecurityPreflight
             'method' => null,
             'auth_event' => null,
             'key_length_bytes' => null,
+            'key_length_defaulted' => false,
+            'key_length_source' => null,
+            'key_length_source_bits' => null,
             'content_encrypted' => true,
             'identity_crypt_filter' => false,
             'missing_declared_crypt_filter' => false,
@@ -1602,6 +1605,11 @@ final class PdfSecurityPreflight
             'cfm_defaulted' => ($filter['cfm_defaulted'] ?? false) === true,
             'cfm_source' => is_string($filter['cfm_source'] ?? null) ? $filter['cfm_source'] : null,
             'key_length_bytes' => $keyLengthBytes,
+            'key_length_defaulted' => ($filter['key_length_defaulted'] ?? false) === true,
+            'key_length_source' => is_string($filter['key_length_source'] ?? null) ? $filter['key_length_source'] : null,
+            'key_length_source_bits' => is_int($filter['key_length_source_bits'] ?? null)
+                ? $filter['key_length_source_bits']
+                : null,
             'minimum_key_length_bytes' => $keyLengthReview['minimum_key_length_bytes'],
             'maximum_key_length_bytes' => $keyLengthReview['maximum_key_length_bytes'],
             'key_length_valid' => $keyLengthReview['valid'],
