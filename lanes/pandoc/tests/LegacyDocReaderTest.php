@@ -1711,6 +1711,48 @@ return [
         $t->same(22, $compoundFile->streamSize('RÉSUMÉ/ΣΎΝΟΨΗ'));
         $t->same('unicode reviewer notes', $compoundFile->readStream('résumé/σύνοψη'));
     },
+    'accepts CFB version 3 streams with uninitialized high stream-size DWORDs' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
+        $wordDocument = $buildSimpleWordDocument("High DWORD legacy body\r");
+        $bytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+            "\x05SummaryInformation" => 'summary bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $wordDocumentHighSizeOffset = $directorySectorOffset + 128 + 124;
+        $summaryHighSizeOffset = $directorySectorOffset + (2 * 128) + 124;
+        $bytes = substr_replace($bytes, $u32(0x00000001), $wordDocumentHighSizeOffset, 4);
+        $bytes = substr_replace($bytes, $u32(0x7fffffff), $summaryHighSizeOffset, 4);
+
+        $compoundFile = CompoundFileBinary::fromBytes($bytes);
+        $entriesByPath = [];
+        foreach ($compoundFile->entries() as $entry) {
+            $entriesByPath[(string) $entry['path']] = $entry;
+        }
+
+        $t->same(strlen($wordDocument), $compoundFile->streamSize('WordDocument'));
+        $t->same($wordDocument, $compoundFile->readStream('WordDocument'));
+        $t->same('summary bytes', $compoundFile->readStream("\x05SummaryInformation"));
+        $t->same(0x00000001, $entriesByPath['WordDocument']['ignoredStreamSizeHighDword']);
+        $t->same(0x7fffffff, $entriesByPath["\x05SummaryInformation"]['ignoredStreamSizeHighDword']);
+
+        $result = (new LegacyDocReader())->readBytes($bytes);
+        $streamDirectory = [];
+        foreach ($result['streamDirectory'] as $stream) {
+            $streamDirectory[(string) $stream['path']] = $stream;
+        }
+        $directoryEntryList = $result['directoryEntries'];
+        $directoryEntries = [];
+        foreach ($directoryEntryList as $entry) {
+            $directoryEntries[(string) $entry['path']] = $entry;
+        }
+
+        $t->same('High DWORD legacy body', $result['document']->children[0]->children[0]->attr('text'));
+        $t->same(2, $result['metadata']['cfbIgnoredStreamSizeHighDwordEntryCount']);
+        $t->same(strlen($wordDocument), $streamDirectory['WordDocument']['bytes']);
+        $t->same(0x00000001, $streamDirectory['WordDocument']['ignoredStreamSizeHighDword']);
+        $t->same(0x7fffffff, $directoryEntries["\x05SummaryInformation"]['ignoredStreamSizeHighDword']);
+        $t->same($directoryEntryList, $result['document']->attr('cfbDirectoryEntries'));
+    },
     'rejects orphaned active CFB directory entries before exposing streams' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Reachable legacy body\r"),

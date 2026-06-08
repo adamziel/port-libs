@@ -1515,6 +1515,105 @@ return [
         ])));
     },
 
+    'preflights understated zip extraction versions before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>deflated package parts need version 20 metadata</w:p></w:document>',
+                'method' => 8,
+                'versionNeededToExtract' => 10,
+            ],
+            [
+                'name' => 'word/media/streamed.bin',
+                'data' => 'stored media using a data descriptor also needs version 20 metadata',
+                'method' => 0,
+                'descriptor' => true,
+                'versionNeededToExtract' => 10,
+            ],
+            [
+                'name' => 'word/media/stored.bin',
+                'data' => 'ordinary stored media remains version 10 compatible',
+                'method' => 0,
+                'versionNeededToExtract' => 10,
+            ],
+        ]);
+        $summary = ZipPackage::compressionMethodPolicyPreflight($zip);
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(1, $summary['supportedEntryCount']);
+        $t->same(0, $summary['unsupportedCompressionMethodCount']);
+        $t->same(2, $summary['storedEntryCount']);
+        $t->same(1, $summary['deflatedEntryCount']);
+        $t->same(2, $summary['unsupportedVersionEntryCount']);
+        $t->same(0, $summary['versionNeededExceedsBoundedReaderEntryCount']);
+        $t->same(2, $summary['understatedVersionEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['unsupported-version-needed', 'version-needed-below-feature-minimum'], $summary['issues']);
+
+        $deflatedEntry = $summary['understatedVersionEntries'][0];
+        $t->same('word/document.xml', $deflatedEntry['name']);
+        $t->same(8, $deflatedEntry['compressionMethod']);
+        $t->same('deflated', $deflatedEntry['compressionMethodName']);
+        $t->same(10, $deflatedEntry['versionNeededToExtract']);
+        $t->same(20, $deflatedEntry['minimumVersionNeededToExtract']);
+        $t->same(true, $deflatedEntry['versionNeededTooLow']);
+        $t->same(false, $deflatedEntry['versionNeededExceedsBoundedReader']);
+        $t->same(false, $deflatedEntry['usesDataDescriptor']);
+        $t->same(['zip-version-needed-below-feature-minimum'], $deflatedEntry['diagnostics']);
+
+        $descriptorEntry = $summary['understatedVersionEntries'][1];
+        $t->same('word/media/streamed.bin', $descriptorEntry['name']);
+        $t->same(0, $descriptorEntry['compressionMethod']);
+        $t->same('stored', $descriptorEntry['compressionMethodName']);
+        $t->same(10, $descriptorEntry['versionNeededToExtract']);
+        $t->same(20, $descriptorEntry['minimumVersionNeededToExtract']);
+        $t->same(true, $descriptorEntry['usesDataDescriptor']);
+        $t->same(true, $descriptorEntry['versionNeededTooLow']);
+        $t->same(['zip-version-needed-below-feature-minimum'], $descriptorEntry['diagnostics']);
+
+        $storedEntry = $summary['entries'][2];
+        $t->same('word/media/stored.bin', $storedEntry['name']);
+        $t->same(10, $storedEntry['versionNeededToExtract']);
+        $t->same(10, $storedEntry['minimumVersionNeededToExtract']);
+        $t->same(false, $storedEntry['versionNeededTooLow']);
+        $t->same(true, $storedEntry['isSupported']);
+        $t->same([], $storedEntry['diagnostics']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+
+        $safeZip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>ordinary deflate version metadata</w:p></w:document>',
+                'method' => 8,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/media/streamed.bin',
+                'data' => 'streamed stored media with version 20 metadata',
+                'method' => 0,
+                'descriptor' => true,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/media/stored.bin',
+                'data' => 'stored media with version 10 metadata',
+                'method' => 0,
+                'versionNeededToExtract' => 10,
+            ],
+        ]);
+        $safeSummary = ZipPackage::compressionMethodPolicyPreflight($safeZip);
+
+        $t->same(3, $safeSummary['supportedEntryCount']);
+        $t->same(0, $safeSummary['unsupportedVersionEntryCount']);
+        $t->same(0, $safeSummary['understatedVersionEntryCount']);
+        $t->same([], $safeSummary['issues']);
+        $t->same(true, $safeSummary['isSupportedByBoundedReader']);
+        $t->same(
+            '<w:document><w:p>ordinary deflate version metadata</w:p></w:document>',
+            ZipPackage::fromString($safeZip)->read('/word/document.xml')
+        );
+    },
+
     'preserves zip entry modification metadata and external attributes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip = $buildZipPackage([
             [

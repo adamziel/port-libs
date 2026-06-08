@@ -78,6 +78,32 @@ $buildDefaultColumnSpecDocument = static function (): AstNode {
     ]);
 };
 
+$buildPandocAlignmentAliasDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Pandoc alignment constructor audit',
+            'alignments' => ['AlignLeft', 'AlignRight', 'AlignCenter', 'AlignDefault'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Field'], [new AstNode('text', ['text' => 'Field'])]),
+                    new AstNode('table_cell', ['text' => 'Count'], [new AstNode('text', ['text' => 'Count'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                    new AstNode('table_cell', ['text' => 'Notes'], [new AstNode('text', ['text' => 'Notes'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                    new AstNode('table_cell', ['text' => 'Needs alt text', 'align' => 'align-right'], [new AstNode('text', ['text' => 'Needs alt text'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildOverfullColumnWidthDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -1260,6 +1286,22 @@ return [
         $t->same([], TableGeometry::columnSpecs($table, -2));
         $t->contains('<tbody><tr><td style="text-align:left">Declared</td><td>Default</td><td style="text-align:right">Right</td><td>Implicit</td></tr></tbody>', $blocks);
         $t->true(!str_contains($blocks, '<colgroup>'), 'Invalid/default Pandoc widths should not emit a misleading WordPress colgroup');
+    },
+    'normalizes pandoc alignment constructor names for markdown and wordpress handoff' => static function (TestRunner $t) use ($buildPandocAlignmentAliasDocument): void {
+        $document = $buildPandocAlignmentAliasDocument();
+        $table = $document->children[0];
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(['left', 'right', 'center', 'default'], TableGeometry::alignments($table, 4));
+        $t->same(['left', 'right', 'center', 'default'], array_map(static fn (array $spec): string => $spec['alignment'], TableGeometry::columnSpecs($table, 4)));
+        $t->same('right', TableGeometry::cellAlignment($table, 3, $table->children[1]->children[0]->children[3]));
+        $t->same(['left', 'right', 'center', 'default'], array_map(static fn (array $spec): string => $spec['alignment'], $packet['columns'] ?? []));
+        $t->contains('<th style="text-align:left">Field</th><th style="text-align:right">Count</th><th style="text-align:center">State</th><th>Notes</th>', $blocks);
+        $t->contains('<td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td><td style="text-align:right">Needs alt text</td>', $blocks);
+        $t->contains('|:----|----:|:---:|--------------|', $markdown);
+        $t->contains('| Posts |    42 | Ready | Needs alt text |', $markdown);
     },
     'reports normalized relative widths when source colspecs exceed full table width' => static function (TestRunner $t) use ($buildOverfullColumnWidthDocument): void {
         $table = $buildOverfullColumnWidthDocument()->children[0];

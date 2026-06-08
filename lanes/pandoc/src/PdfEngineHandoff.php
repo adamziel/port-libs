@@ -325,6 +325,7 @@ final class PdfEngineHandoff
      *     pdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     pdfStructureAttributes: list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
+     *     pdfStructureClassMap: list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     pdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     pdfMarkedContentArtifacts: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
@@ -772,6 +773,7 @@ final class PdfEngineHandoff
         $pdfStructureParentTree = [];
         $pdfStructureElements = [];
         $pdfStructureAttributes = [];
+        $pdfStructureClassMap = [];
         $pdfMarkedContentProperties = [];
         $pdfMarkedContentArtifacts = [];
         $pdfOptionalContentGroups = [];
@@ -877,6 +879,7 @@ final class PdfEngineHandoff
                 $pdfStructureParentTree = $pdfInspection['structureParentTree'];
                 $pdfStructureElements = $pdfInspection['structureElements'];
                 $pdfStructureAttributes = $pdfInspection['structureAttributes'];
+                $pdfStructureClassMap = $pdfInspection['structureClassMap'];
                 $pdfMarkedContentProperties = $pdfInspection['markedContentProperties'];
                 $pdfMarkedContentArtifacts = $pdfInspection['markedContentArtifacts'];
                 $pdfOptionalContentGroups = $pdfInspection['optionalContentGroups'];
@@ -1860,6 +1863,40 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-structure-attribute-table-cells:' . $attributeTableCellCount;
                     }
                 }
+                if ($pdfStructureClassMap !== []) {
+                    $diagnostics[] = 'pdf-byte-structure-class-map:' . count($pdfStructureClassMap);
+                    $classNames = [];
+                    $classOwnerCounts = [];
+                    $classTableCellCount = 0;
+                    foreach ($pdfStructureClassMap as $attribute) {
+                        if (is_string($attribute['className'] ?? null) && $attribute['className'] !== '') {
+                            $classNames[] = $attribute['className'];
+                        }
+                        if (is_string($attribute['owner'] ?? null) && $attribute['owner'] !== '') {
+                            $classOwnerCounts[$attribute['owner']] = ($classOwnerCounts[$attribute['owner']] ?? 0) + 1;
+                        }
+                        if (
+                            is_int($attribute['rowSpan'] ?? null)
+                            || is_int($attribute['colSpan'] ?? null)
+                            || (is_string($attribute['scope'] ?? null) && $attribute['scope'] !== '')
+                            || (isset($attribute['headers']) && is_array($attribute['headers']) && $attribute['headers'] !== [])
+                        ) {
+                            $classTableCellCount++;
+                        }
+                    }
+                    $classNames = $this->uniqueStrings($classNames);
+                    sort($classNames, SORT_STRING);
+                    foreach ($classNames as $className) {
+                        $diagnostics[] = 'pdf-byte-structure-class:' . $className;
+                    }
+                    ksort($classOwnerCounts);
+                    foreach ($classOwnerCounts as $owner => $count) {
+                        $diagnostics[] = 'pdf-byte-structure-class-map-owner:' . $owner . ':' . $count;
+                    }
+                    if ($classTableCellCount > 0) {
+                        $diagnostics[] = 'pdf-byte-structure-class-map-table-cells:' . $classTableCellCount;
+                    }
+                }
                 if ($pdfMarkedContentProperties !== []) {
                     $diagnostics[] = 'pdf-byte-marked-content-properties:' . count($pdfMarkedContentProperties);
                     $markedContentAssociatedFileCount = 0;
@@ -2637,6 +2674,7 @@ final class PdfEngineHandoff
             'pdfStructureParentTree' => $pdfStructureParentTree,
             'pdfStructureElements' => $pdfStructureElements,
             'pdfStructureAttributes' => $pdfStructureAttributes,
+            'pdfStructureClassMap' => $pdfStructureClassMap,
             'pdfMarkedContentProperties' => $pdfMarkedContentProperties,
             'pdfMarkedContentArtifacts' => $pdfMarkedContentArtifacts,
             'pdfOptionalContentGroups' => $pdfOptionalContentGroups,
@@ -2763,6 +2801,7 @@ final class PdfEngineHandoff
      *     finalPdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     finalPdfStructureAttributes: list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
+     *     finalPdfStructureClassMap: list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     finalPdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     finalPdfMarkedContentArtifacts: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
@@ -3003,6 +3042,7 @@ final class PdfEngineHandoff
             'finalPdfStructureParentTree' => is_array($finalRun) && is_array($finalRun['pdfStructureParentTree'] ?? null) ? $finalRun['pdfStructureParentTree'] : [],
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
             'finalPdfStructureAttributes' => is_array($finalRun) && is_array($finalRun['pdfStructureAttributes'] ?? null) ? $finalRun['pdfStructureAttributes'] : [],
+            'finalPdfStructureClassMap' => is_array($finalRun) && is_array($finalRun['pdfStructureClassMap'] ?? null) ? $finalRun['pdfStructureClassMap'] : [],
             'finalPdfMarkedContentProperties' => is_array($finalRun) && is_array($finalRun['pdfMarkedContentProperties'] ?? null) ? $finalRun['pdfMarkedContentProperties'] : [],
             'finalPdfMarkedContentArtifacts' => is_array($finalRun) && is_array($finalRun['pdfMarkedContentArtifacts'] ?? null) ? $finalRun['pdfMarkedContentArtifacts'] : [],
             'finalPdfOptionalContentGroups' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentGroups'] ?? null) ? $finalRun['pdfOptionalContentGroups'] : [],
@@ -4121,6 +4161,7 @@ final class PdfEngineHandoff
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     structureElements:list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     structureAttributes:list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
+     *     structureClassMap:list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     markedContentProperties:list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     markedContentArtifacts:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
@@ -4269,6 +4310,7 @@ final class PdfEngineHandoff
             'structureParentTree' => $this->extractPdfStructureParentTree($pdfBytes, $catalog),
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
             'structureAttributes' => $this->extractPdfStructureAttributes($pdfBytes),
+            'structureClassMap' => $this->extractPdfStructureClassMap($pdfBytes, $catalog),
             'markedContentProperties' => $this->extractPdfMarkedContentProperties($pdfBytes, $catalog),
             'markedContentArtifacts' => $this->extractPdfMarkedContentArtifacts($pdfBytes, $catalog),
             'optionalContentGroups' => $optionalContent['groups'],
@@ -9293,6 +9335,61 @@ final class PdfEngineHandoff
         ksort($mapped);
 
         return $mapped;
+    }
+
+    /**
+     * @return list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>
+     */
+    private function extractPdfStructureClassMap(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/StructTreeRoot')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $structTreeRoot = $this->extractPdfDictionaryOrReferenceValue($catalog, 'StructTreeRoot', $objects);
+        if ($structTreeRoot === null || !str_contains($structTreeRoot, '/ClassMap')) {
+            return [];
+        }
+
+        $classMap = $this->extractPdfDictionaryOrReferenceValue($structTreeRoot, 'ClassMap', $objects);
+        if ($classMap === null) {
+            return [];
+        }
+
+        $classAttributes = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($classMap) as $entry) {
+            $className = trim($entry['key']);
+            if ($className === '') {
+                continue;
+            }
+
+            foreach ($this->summarizePdfStructureAttributeValues($entry['value'], $objects, 'class:' . $className, null, 0) as $attribute) {
+                $classAttributes[] = [
+                    'className' => $className,
+                    'attributeObject' => $attribute['attributeObject'],
+                    'owner' => $attribute['owner'],
+                    'revision' => $attribute['revision'],
+                    'placement' => $attribute['placement'],
+                    'writingMode' => $attribute['writingMode'],
+                    'textAlign' => $attribute['textAlign'],
+                    'blockAlign' => $attribute['blockAlign'],
+                    'inlineAlign' => $attribute['inlineAlign'],
+                    'listNumbering' => $attribute['listNumbering'],
+                    'bbox' => $attribute['bbox'],
+                    'rowSpan' => $attribute['rowSpan'],
+                    'colSpan' => $attribute['colSpan'],
+                    'scope' => $attribute['scope'],
+                    'headers' => $attribute['headers'],
+                ];
+            }
+        }
+
+        usort($classAttributes, static function (array $a, array $b): int {
+            return [$a['className'], $a['attributeObject'], $a['owner'] ?? ''] <=> [$b['className'], $b['attributeObject'], $b['owner'] ?? ''];
+        });
+
+        return $classAttributes;
     }
 
     private function countPdfStructureChildren(string $structTreeRoot): ?int

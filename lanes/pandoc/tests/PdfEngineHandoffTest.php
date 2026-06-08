@@ -4204,6 +4204,140 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfStructureAttributes']);
     },
 
+    'fake runner extracts bounded pdf structure class map metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/struct-class-map.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R] /ClassMap << /ReviewFigure 12 0 R /ReviewCell [13 0 R << /O /Table /RowSpan 2 /ColSpan 3 /Scope /Column /Headers [14 0 R] >>] /ReviewList << /O /List /ListNumbering /UpperAlpha >> >> >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /Figure /P 9 0 R /C [/ReviewFigure /ReviewCell] /K 0 >>',
+            'endobj',
+            '12 0 obj',
+            '<< /O /Layout /Placement /Block /WritingMode /LrTb /TextAlign /Center /BlockAlign /Middle /InlineAlign /Center /BBox [72 648 540 720] /R 4 >>',
+            'endobj',
+            '13 0 obj',
+            '<< /O /Layout /Placement /Inline /TextAlign /End /BBox [72 600 540 620] /R 2 >>',
+            'endobj',
+            '14 0 obj',
+            '<< /Type /StructElem /S /TH /P 9 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/struct-class-map.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/struct-class-map.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'className' => 'ReviewCell',
+                'attributeObject' => '13 0 R',
+                'owner' => 'Layout',
+                'revision' => 2,
+                'placement' => 'Inline',
+                'writingMode' => null,
+                'textAlign' => 'End',
+                'blockAlign' => null,
+                'inlineAlign' => null,
+                'listNumbering' => null,
+                'bbox' => [72.0, 600.0, 540.0, 620.0],
+                'rowSpan' => null,
+                'colSpan' => null,
+                'scope' => null,
+                'headers' => [],
+            ],
+            [
+                'className' => 'ReviewCell',
+                'attributeObject' => 'inline',
+                'owner' => 'Table',
+                'revision' => null,
+                'placement' => null,
+                'writingMode' => null,
+                'textAlign' => null,
+                'blockAlign' => null,
+                'inlineAlign' => null,
+                'listNumbering' => null,
+                'bbox' => null,
+                'rowSpan' => 2,
+                'colSpan' => 3,
+                'scope' => 'Column',
+                'headers' => ['14 0 R'],
+            ],
+            [
+                'className' => 'ReviewFigure',
+                'attributeObject' => '12 0 R',
+                'owner' => 'Layout',
+                'revision' => 4,
+                'placement' => 'Block',
+                'writingMode' => 'LrTb',
+                'textAlign' => 'Center',
+                'blockAlign' => 'Middle',
+                'inlineAlign' => 'Center',
+                'listNumbering' => null,
+                'bbox' => [72.0, 648.0, 540.0, 720.0],
+                'rowSpan' => null,
+                'colSpan' => null,
+                'scope' => null,
+                'headers' => [],
+            ],
+            [
+                'className' => 'ReviewList',
+                'attributeObject' => 'inline',
+                'owner' => 'List',
+                'revision' => null,
+                'placement' => null,
+                'writingMode' => null,
+                'textAlign' => null,
+                'blockAlign' => null,
+                'inlineAlign' => null,
+                'listNumbering' => 'UpperAlpha',
+                'bbox' => null,
+                'rowSpan' => null,
+                'colSpan' => null,
+                'scope' => null,
+                'headers' => [],
+            ],
+        ];
+
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureClassMap']);
+        $t->contains('pdf-byte-structure-class-map:4', $diagnostics);
+        $t->contains('pdf-byte-structure-class:ReviewCell', $diagnostics);
+        $t->contains('pdf-byte-structure-class:ReviewFigure', $diagnostics);
+        $t->contains('pdf-byte-structure-class:ReviewList', $diagnostics);
+        $t->contains('pdf-byte-structure-class-map-owner:Layout:2', $diagnostics);
+        $t->contains('pdf-byte-structure-class-map-owner:List:1', $diagnostics);
+        $t->contains('pdf-byte-structure-class-map-owner:Table:1', $diagnostics);
+        $t->contains('pdf-byte-structure-class-map-table-cells:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureClassMap']);
+    },
+
     'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);

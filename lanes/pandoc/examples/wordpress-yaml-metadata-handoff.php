@@ -52,7 +52,9 @@ typed-review:
   octal-batch: !!int 0o52
   legacy-octal-batch: !!int "052"
   review-duration-seconds: !!int 1:20:30
+  review-duration-fractional: !!float 1:20:30.5
   invalid-review-duration: !!int 1:60
+  invalid-review-duration-fractional: !!float 1:60.5
   confidence: !!float "0.75"
   approved: !!bool "true"
   legacy-approved: yes
@@ -580,7 +582,10 @@ review:
   octal: 0o52
   legacy-octal: 052
   sexagesimal: 1:20:30
+  sexagesimal-float: 1:20:30.5
+  signed-sexagesimal-float: -0:00:02.25
   invalid-sexagesimal: 1:60
+  invalid-sexagesimal-float: 1:60.5
   decimal-float: 1_024.5
   exponent: 1.2e2
   positive-infinity: .inf
@@ -590,7 +595,7 @@ review:
 flow-review: {priority: 0o52, bits: 0b101010, score: +.INF, quoted-hex: "0x2A"}
 references:
   - id: plain-numeric-ref
-    metadata: {duration: 2:03, ratio: .5, quoted-ratio: ".5"}
+    metadata: {duration: 2:03, duration-float: 2:03.5, ratio: .5, quoted-ratio: ".5"}
 ...
 
 # Plain numeric body
@@ -662,8 +667,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['typed-review']['review-duration-seconds'] ?? null) !== 4830) {
         throw new RuntimeException('YAML metadata self-test missing explicit sexagesimal integer coercion');
     }
+    if (($meta['typed-review']['review-duration-fractional'] ?? null) !== 4830.5) {
+        throw new RuntimeException('YAML metadata self-test missing explicit sexagesimal float coercion');
+    }
     if (($meta['typed-review']['invalid-review-duration'] ?? null) !== '1:60') {
         throw new RuntimeException('YAML metadata self-test did not preserve invalid sexagesimal source text');
+    }
+    if (($meta['typed-review']['invalid-review-duration-fractional'] ?? null) !== '1:60.5') {
+        throw new RuntimeException('YAML metadata self-test did not preserve invalid sexagesimal float source text');
     }
     if (($meta['typed-review']['octal-batch'] ?? null) !== 42) {
         throw new RuntimeException('YAML metadata self-test missing explicit octal integer coercion');
@@ -1676,6 +1687,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($plainNumericMeta['review']['sexagesimal'] ?? null) !== 4830 || ($plainNumericMeta['review']['invalid-sexagesimal'] ?? null) !== '1:60') {
         throw new RuntimeException('YAML metadata self-test missing plain sexagesimal numeric metadata');
     }
+    if (
+        ($plainNumericMeta['review']['sexagesimal-float'] ?? null) !== 4830.5
+        || ($plainNumericMeta['review']['signed-sexagesimal-float'] ?? null) !== -2.25
+        || ($plainNumericMeta['review']['invalid-sexagesimal-float'] ?? null) !== '1:60.5'
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing plain sexagesimal float metadata');
+    }
     if (($plainNumericMeta['review']['decimal-float'] ?? null) !== 1024.5 || ($plainNumericMeta['review']['exponent'] ?? null) !== 120.0) {
         throw new RuntimeException('YAML metadata self-test missing plain float numeric metadata');
     }
@@ -1697,7 +1715,11 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!is_infinite($plainNumericMeta['flow-review']['score'] ?? null) || ($plainNumericMeta['flow-review']['score'] ?? 0.0) < 0) {
         throw new RuntimeException('YAML metadata self-test missing flow plain infinity metadata');
     }
-    if (($plainNumericMeta['references'][0]['metadata']['duration'] ?? null) !== 123 || ($plainNumericMeta['references'][0]['metadata']['ratio'] ?? null) !== 0.5) {
+    if (
+        ($plainNumericMeta['references'][0]['metadata']['duration'] ?? null) !== 123
+        || ($plainNumericMeta['references'][0]['metadata']['duration-float'] ?? null) !== 123.5
+        || ($plainNumericMeta['references'][0]['metadata']['ratio'] ?? null) !== 0.5
+    ) {
         throw new RuntimeException('YAML metadata self-test missing nested plain numeric metadata');
     }
     if (($plainNumericMeta['references'][0]['metadata']['quoted-ratio'] ?? null) !== '.5') {

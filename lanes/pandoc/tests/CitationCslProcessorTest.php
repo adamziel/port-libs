@@ -2069,6 +2069,117 @@ XML);
         ]));
         $t->same('Uncertain Review Rule | Date markers: issued uncertain (2024?); event-date circa and uncertain (2025-01-01%) | circa and uncertain | 2024?', $styled->renderBibliographyEntry('uncertain-rule'));
     },
+    'renders bounded csl available and submitted date variables' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'available-review',
+                'type' => 'webpage',
+                'title' => 'Available Source Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'available-date' => [
+                    'date-parts' => [[2026, 6]],
+                    'uncertain' => true,
+                    'raw' => '2026-06?',
+                ],
+                'submitted' => [
+                    'date-parts' => [[2026, 5, 28]],
+                    'time' => '09:30',
+                ],
+            ],
+            [
+                'id' => 'submitted-review',
+                'type' => 'article-journal',
+                'title' => 'Submitted Review Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'availableDate' => ['literal' => 'early access queue'],
+                'submitted' => [
+                    'date-parts' => [[2024]],
+                    'circa' => true,
+                    'raw' => '2024~',
+                ],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <choose>
+          <if is-uncertain-date="available-date">
+            <text value="available?"/>
+          </if>
+          <else-if is-circa-date="submitted">
+            <text value="submitted circa"/>
+          </else-if>
+          <else>
+            <text value="dated"/>
+          </else>
+        </choose>
+        <date variable="available-date" form="text" date-parts="year-month"/>
+        <date variable="submitted"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="submitted"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <text variable="available-date-status"/>
+      <date variable="submitted"/>
+      <text variable="submitted-status"/>
+      <text variable="date-marker-summary"/>
+      <text variable="date-time-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $available = $processor->item('available-review');
+        $submitted = $processor->item('submitted-review');
+        $t->same([2026, 6], $available['availableDate']['parts'] ?? null);
+        $t->same('2026-06', $available['availableDate']['display'] ?? null);
+        $t->same(true, $available['availableDate']['uncertain'] ?? null);
+        $t->same([2026, 5, 28], $available['submittedDate']['parts'] ?? null);
+        $t->same('09:30', $available['submittedDate']['time'] ?? null);
+        $t->same('Date markers: available-date uncertain (2026-06?)', $available['dateMarkerSummary'] ?? null);
+        $t->same('Date times: submitted 09:30', $available['dateTimeSummary'] ?? null);
+        $t->same('early access queue', $submitted['availableDate']['literal'] ?? null);
+        $t->same('early access queue', $submitted['availableDate']['display'] ?? null);
+        $t->same(true, $submitted['submittedDate']['circa'] ?? null);
+        $t->same('Date markers: submitted circa (2024~)', $submitted['dateMarkerSummary'] ?? null);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same(['available-date'], $citationChildren[1]['branches'][0]['isUncertainDate'] ?? null);
+        $t->same(['submitted'], $citationChildren[1]['branches'][1]['isCircaDate'] ?? null);
+        $t->same('available-date', $citationChildren[2]['variable'] ?? null);
+        $t->same('submitted', $citationChildren[3]['variable'] ?? null);
+        $t->same('submitted', $summary['bibliographySort'][0]['variable'] ?? null);
+
+        $t->same('(Smith | available? | June 2026 | 2026-05-28; Ng | submitted circa | early access queue | 2024)', $processor->renderCitationCluster([
+            $citation('available-review', '[@available-review]'),
+            $citation('submitted-review', '[@submitted-review]'),
+        ]));
+        $t->same('Available Source Packet :: 2026-06 :: uncertain :: 2026-05-28 :: Date markers: available-date uncertain (2026-06?) :: Date times: submitted 09:30', $processor->renderBibliographyEntry('available-review'));
+        $t->same('Submitted Review Packet :: early access queue :: 2024 :: circa :: Date markers: submitted circa (2024~)', $processor->renderBibliographyEntry('submitted-review'));
+
+        $document = (new MarkdownReader())->read('Citation handoff [@available-review; @submitted-review].');
+        $markdown = (new MarkdownWriter())->write($processor->appendBibliography($document, 'Availability Sources'));
+        $t->contains('(Smith | available? | June 2026 | 2026-05-28; Ng | submitted circa | early access queue | 2024)', $markdown);
+        $t->contains('Submitted Review Packet :: early access queue :: 2024 :: circa :: Date markers: submitted circa', $markdown);
+        $t->contains('Available Source Packet :: 2026-06 :: uncertain :: 2026-05-28 :: Date markers: available-date uncertain (2026-06?) :: Date times: submitted 09:30', $markdown);
+        $t->true(strpos($markdown, 'Submitted Review Packet') < strpos($markdown, 'Available Source Packet'), 'submitted sort key orders bibliography entries before available source');
+    },
     'maps bounded biblatex split url date fields into accessed csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{split-url-date,

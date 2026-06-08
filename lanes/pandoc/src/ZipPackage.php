@@ -209,6 +209,7 @@ final class ZipPackage
             $name = $decodedName['text'];
             self::assertSafePartName($name);
             self::assertSupportedVersionNeededToExtract($versionNeededToExtract, $name);
+            self::assertVersionNeededSupportsBoundedFeatureUse($versionNeededToExtract, $method, $flags, $name);
             self::assertDeflateOptionFlagsMatchMethod($flags, $method, $name);
             if (isset($entriesByName[$name])) {
                 throw new \RuntimeException("Duplicate ZIP package entry: {$name}");
@@ -3129,6 +3130,8 @@ final class ZipPackage
      *     deflatedEntryCount:int,
      *     methodMismatchEntryCount:int,
      *     unsupportedVersionEntryCount:int,
+     *     versionNeededExceedsBoundedReaderEntryCount:int,
+     *     understatedVersionEntryCount:int,
      *     hasUnsupportedCompressionMethods:bool,
      *     extractionPolicy:string,
      *     isSupportedByBoundedReader:bool,
@@ -3136,6 +3139,8 @@ final class ZipPackage
      *     unsupportedEntries:list<array<string, mixed>>,
      *     mismatchedEntries:list<array<string, mixed>>,
      *     unsupportedVersionEntries:list<array<string, mixed>>,
+     *     versionNeededExceedsBoundedReaderEntries:list<array<string, mixed>>,
+     *     understatedVersionEntries:list<array<string, mixed>>,
      *     entries:list<array<string, mixed>>
      * }
      */
@@ -3160,6 +3165,8 @@ final class ZipPackage
         $unsupportedEntries = [];
         $mismatchedEntries = [];
         $unsupportedVersionEntries = [];
+        $versionNeededExceedsBoundedReaderEntries = [];
+        $understatedVersionEntries = [];
         $storedEntryCount = 0;
         $deflatedEntryCount = 0;
         $supportedEntryCount = 0;
@@ -3198,8 +3205,20 @@ final class ZipPackage
             $localMethodIsSupported = $localHeader['compressionMethod'] === 0 || $localHeader['compressionMethod'] === 8;
             $hasUnsupportedMethod = !$methodIsSupported || !$localMethodIsSupported;
             $hasMethodMismatch = $method !== $localHeader['compressionMethod'];
-            $hasUnsupportedVersion = $versionNeededToExtract > self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT
-                || $localHeader['versionNeededToExtract'] > self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT;
+            $minimumVersionNeededToExtract = self::minimumVersionNeededToExtractForBoundedFeatureUse($method, $flags);
+            $localMinimumVersionNeededToExtract = self::minimumVersionNeededToExtractForBoundedFeatureUse(
+                $localHeader['compressionMethod'],
+                $localHeader['generalPurposeFlags']
+            );
+            $versionNeededExceedsBoundedReader = $versionNeededToExtract > self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT;
+            $localVersionNeededExceedsBoundedReader = $localHeader['versionNeededToExtract'] > self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT;
+            $versionNeededTooLow = $minimumVersionNeededToExtract !== null
+                && $versionNeededToExtract < $minimumVersionNeededToExtract;
+            $localVersionNeededTooLow = $localMinimumVersionNeededToExtract !== null
+                && $localHeader['versionNeededToExtract'] < $localMinimumVersionNeededToExtract;
+            $hasExceededVersion = $versionNeededExceedsBoundedReader || $localVersionNeededExceedsBoundedReader;
+            $hasUnderstatedVersion = $versionNeededTooLow || $localVersionNeededTooLow;
+            $hasUnsupportedVersion = $hasExceededVersion || $hasUnderstatedVersion;
 
             $diagnostics = [];
             if ($hasUnsupportedMethod) {
@@ -3208,8 +3227,11 @@ final class ZipPackage
             if ($hasMethodMismatch) {
                 $diagnostics[] = 'zip-local-header-compression-method-mismatch';
             }
-            if ($hasUnsupportedVersion) {
+            if ($hasExceededVersion) {
                 $diagnostics[] = 'zip-version-needed-exceeds-bounded-reader';
+            }
+            if ($hasUnderstatedVersion) {
+                $diagnostics[] = 'zip-version-needed-below-feature-minimum';
             }
             if ($rawName !== $localHeader['rawName']) {
                 $diagnostics[] = 'zip-local-header-name-mismatch';
@@ -3227,12 +3249,20 @@ final class ZipPackage
                 'localHeaderOffset' => $localHeaderOffset,
                 'versionNeededToExtract' => $versionNeededToExtract,
                 'localVersionNeededToExtract' => $localHeader['versionNeededToExtract'],
+                'minimumVersionNeededToExtract' => $minimumVersionNeededToExtract,
+                'localMinimumVersionNeededToExtract' => $localMinimumVersionNeededToExtract,
+                'versionNeededExceedsBoundedReader' => $versionNeededExceedsBoundedReader,
+                'localVersionNeededExceedsBoundedReader' => $localVersionNeededExceedsBoundedReader,
+                'versionNeededTooLow' => $versionNeededTooLow,
+                'localVersionNeededTooLow' => $localVersionNeededTooLow,
                 'compressionMethod' => $method,
                 'compressionMethodName' => self::compressionMethodName($method),
                 'localCompressionMethod' => $localHeader['compressionMethod'],
                 'localCompressionMethodName' => self::compressionMethodName($localHeader['compressionMethod']),
                 'generalPurposeFlags' => $flags,
                 'localGeneralPurposeFlags' => $localHeader['generalPurposeFlags'],
+                'usesDataDescriptor' => ($flags & 0x0008) !== 0,
+                'localUsesDataDescriptor' => ($localHeader['generalPurposeFlags'] & 0x0008) !== 0,
                 'compressedSize' => $compressedSize,
                 'uncompressedSize' => $uncompressedSize,
                 'isDirectory' => str_ends_with($decodedName['text'], '/'),
@@ -3253,6 +3283,12 @@ final class ZipPackage
             }
             if ($hasUnsupportedVersion) {
                 $unsupportedVersionEntries[] = $entry;
+            }
+            if ($hasExceededVersion) {
+                $versionNeededExceedsBoundedReaderEntries[] = $entry;
+            }
+            if ($hasUnderstatedVersion) {
+                $understatedVersionEntries[] = $entry;
             }
 
             $cursor += 46 + $variableLength;
@@ -3276,6 +3312,9 @@ final class ZipPackage
         if ($unsupportedVersionEntries !== []) {
             $issues[] = 'unsupported-version-needed';
         }
+        if ($understatedVersionEntries !== []) {
+            $issues[] = 'version-needed-below-feature-minimum';
+        }
 
         $hasBlockedCompressionMetadata = $unsupportedEntries !== []
             || $mismatchedEntries !== []
@@ -3289,6 +3328,8 @@ final class ZipPackage
             'deflatedEntryCount' => $deflatedEntryCount,
             'methodMismatchEntryCount' => count($mismatchedEntries),
             'unsupportedVersionEntryCount' => count($unsupportedVersionEntries),
+            'versionNeededExceedsBoundedReaderEntryCount' => count($versionNeededExceedsBoundedReaderEntries),
+            'understatedVersionEntryCount' => count($understatedVersionEntries),
             'hasUnsupportedCompressionMethods' => $unsupportedEntries !== [],
             'extractionPolicy' => $hasBlockedCompressionMetadata ? 'unsupported-compression-methods-blocked' : 'supported-compression-methods',
             'isSupportedByBoundedReader' => $issues === [],
@@ -3296,6 +3337,8 @@ final class ZipPackage
             'unsupportedEntries' => $unsupportedEntries,
             'mismatchedEntries' => $mismatchedEntries,
             'unsupportedVersionEntries' => $unsupportedVersionEntries,
+            'versionNeededExceedsBoundedReaderEntries' => $versionNeededExceedsBoundedReaderEntries,
+            'understatedVersionEntries' => $understatedVersionEntries,
             'entries' => $entries,
         ];
     }
@@ -5916,6 +5959,43 @@ final class ZipPackage
             . 'this bounded package reader supports versions up to '
             . self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT
         );
+    }
+
+    private static function assertVersionNeededSupportsBoundedFeatureUse(
+        int $versionNeededToExtract,
+        int $compressionMethod,
+        int $generalPurposeFlags,
+        string $entryName
+    ): void {
+        $minimumVersionNeededToExtract = self::minimumVersionNeededToExtractForBoundedFeatureUse(
+            $compressionMethod,
+            $generalPurposeFlags
+        );
+        if ($minimumVersionNeededToExtract === null || $versionNeededToExtract >= $minimumVersionNeededToExtract) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            "ZIP entry {$entryName} declares version needed to extract {$versionNeededToExtract}; "
+            . "compression or data-descriptor metadata requires at least {$minimumVersionNeededToExtract}"
+        );
+    }
+
+    private static function minimumVersionNeededToExtractForBoundedFeatureUse(
+        int $compressionMethod,
+        int $generalPurposeFlags
+    ): ?int {
+        $minimumVersionNeededToExtract = match ($compressionMethod) {
+            0 => 10,
+            8 => 20,
+            default => null,
+        };
+
+        if (($generalPurposeFlags & 0x0008) !== 0) {
+            $minimumVersionNeededToExtract = max($minimumVersionNeededToExtract ?? 0, 20);
+        }
+
+        return $minimumVersionNeededToExtract;
     }
 
     private function validateEntryLocalLayout(ZipPackageEntry $entry): void

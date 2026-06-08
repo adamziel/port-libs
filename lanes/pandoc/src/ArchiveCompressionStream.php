@@ -619,6 +619,183 @@ final class ArchiveCompressionStream
 
     /**
      * @return array{
+     *     type:string,
+     *     rootKind:string,
+     *     rootFormat:string,
+     *     compressedSize:int,
+     *     maxDepth:int,
+     *     packageCount:int,
+     *     nestedCandidateCount:int,
+     *     nestedPackageCount:int,
+     *     nestedUnreadableCount:int,
+     *     nestedDiagnosticCount:int,
+     *     recordDiagnosticCount:int,
+     *     ratioDiagnosticCount:int,
+     *     depthLimitReachedCount:int,
+     *     depthLimitedCandidateCount:int,
+     *     maxObservedStreamCompressionRatio:float,
+     *     maxObservedPackageExpansionRatio:float,
+     *     maxObservedTotalExpansionRatio:float,
+     *     maxStreamCompressionRatio:float,
+     *     maxPackageExpansionRatio:float,
+     *     maxTotalExpansionRatio:float,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     root:array<string, mixed>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function inspectNestedArchiveBombPolicyAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null,
+        int $maxDepth = 1,
+        float $maxStreamCompressionRatio = 100.0,
+        float $maxPackageExpansionRatio = 100.0,
+        float $maxTotalExpansionRatio = 100.0
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+        if ($maxDepth < 0) {
+            throw new \RuntimeException('Nested archive bomb policy max depth must not be negative');
+        }
+
+        self::assertPositiveRatio($maxStreamCompressionRatio, 'archive stream compression-ratio threshold');
+        self::assertPositiveRatio($maxPackageExpansionRatio, 'archive package expansion-ratio threshold');
+        self::assertPositiveRatio($maxTotalExpansionRatio, 'archive total expansion-ratio threshold');
+
+        $thresholds = [
+            'stream' => $maxStreamCompressionRatio,
+            'package' => $maxPackageExpansionRatio,
+            'total' => $maxTotalExpansionRatio,
+        ];
+        $rootCandidate = self::detectPackageCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes);
+        $root = self::archiveBombPackageRecord(
+            $rootCandidate,
+            '(root)',
+            null,
+            null,
+            null,
+            0,
+            strlen($bytes),
+            [],
+            $maxDepth,
+            $thresholds
+        );
+
+        $entries = [];
+        if ($maxDepth > 0) {
+            self::collectNestedArchiveBombEntries(
+                $rootCandidate,
+                '',
+                1,
+                $maxDepth,
+                $maxUncompressedBytes,
+                $maxUnpackedBytes,
+                $thresholds,
+                $entries
+            );
+        }
+
+        $records = array_merge([$root], $entries);
+        $packageCount = 0;
+        $nestedPackageCount = 0;
+        $nestedUnreadableCount = 0;
+        $nestedDiagnosticCount = 0;
+        $recordDiagnosticCount = 0;
+        $ratioDiagnosticCount = 0;
+        $depthLimitReachedCount = 0;
+        $depthLimitedCandidateCount = 0;
+        $maxObservedStreamCompressionRatio = 0.0;
+        $maxObservedPackageExpansionRatio = 0.0;
+        $maxObservedTotalExpansionRatio = 0.0;
+
+        foreach ($records as $index => $record) {
+            $isNested = $index > 0;
+            if (($record['status'] ?? null) === 'package') {
+                $packageCount++;
+                if ($isNested) {
+                    $nestedPackageCount++;
+                }
+                $maxObservedStreamCompressionRatio = max(
+                    $maxObservedStreamCompressionRatio,
+                    (float) ($record['streamCompressionRatio'] ?? 0.0)
+                );
+                $maxObservedPackageExpansionRatio = max(
+                    $maxObservedPackageExpansionRatio,
+                    (float) ($record['packageExpansionRatio'] ?? 0.0)
+                );
+                $maxObservedTotalExpansionRatio = max(
+                    $maxObservedTotalExpansionRatio,
+                    (float) ($record['totalExpansionRatio'] ?? 0.0)
+                );
+
+                if ((int) ($record['ratioDiagnosticCount'] ?? 0) > 0) {
+                    $ratioDiagnosticCount++;
+                }
+            } elseif ($isNested && ($record['status'] ?? null) === 'unreadable') {
+                $nestedUnreadableCount++;
+            }
+
+            if (($record['diagnostics'] ?? []) !== []) {
+                $recordDiagnosticCount++;
+                if ($isNested) {
+                    $nestedDiagnosticCount++;
+                }
+            }
+
+            if (($record['depthLimitReached'] ?? false) === true) {
+                $depthLimitReachedCount++;
+            }
+
+            $depthLimitedCandidateCount += (int) ($record['depthLimitedCandidateCount'] ?? 0);
+        }
+
+        $diagnostics = [];
+        if ($ratioDiagnosticCount > 0) {
+            $diagnostics[] = 'nested-archive-expansion-ratio-exceeds-threshold';
+        }
+
+        if ($nestedUnreadableCount > 0) {
+            $diagnostics[] = 'nested-package-detection-failed';
+        }
+
+        if ($depthLimitReachedCount > 0) {
+            $diagnostics[] = 'nested-package-depth-limit-reached';
+        }
+
+        return [
+            'type' => 'nested-archive-bomb-policy',
+            'rootKind' => $rootCandidate['kind'],
+            'rootFormat' => $rootCandidate['format'],
+            'compressedSize' => strlen($bytes),
+            'maxDepth' => $maxDepth,
+            'packageCount' => $packageCount,
+            'nestedCandidateCount' => count($entries),
+            'nestedPackageCount' => $nestedPackageCount,
+            'nestedUnreadableCount' => $nestedUnreadableCount,
+            'nestedDiagnosticCount' => $nestedDiagnosticCount,
+            'recordDiagnosticCount' => $recordDiagnosticCount,
+            'ratioDiagnosticCount' => $ratioDiagnosticCount,
+            'depthLimitReachedCount' => $depthLimitReachedCount,
+            'depthLimitedCandidateCount' => $depthLimitedCandidateCount,
+            'maxObservedStreamCompressionRatio' => $maxObservedStreamCompressionRatio,
+            'maxObservedPackageExpansionRatio' => $maxObservedPackageExpansionRatio,
+            'maxObservedTotalExpansionRatio' => $maxObservedTotalExpansionRatio,
+            'maxStreamCompressionRatio' => $maxStreamCompressionRatio,
+            'maxPackageExpansionRatio' => $maxPackageExpansionRatio,
+            'maxTotalExpansionRatio' => $maxTotalExpansionRatio,
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'diagnostics' => $diagnostics,
+            'root' => $root,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     format:string,
      *     type:string,
      *     compressedSize:int,
@@ -2676,6 +2853,231 @@ final class ArchiveCompressionStream
 
     /**
      * @param array<string, mixed> $candidate
+     * @param list<string> $candidateReasons
+     * @param array{stream:float, package:float, total:float} $thresholds
+     * @return array<string, mixed>
+     */
+    private static function archiveBombPackageRecord(
+        array $candidate,
+        string $path,
+        ?string $parentPath,
+        ?string $parentKind,
+        ?string $entryName,
+        int $depth,
+        int $compressedSize,
+        array $candidateReasons,
+        int $maxDepth,
+        array $thresholds
+    ): array {
+        $decodedPackageSize = self::candidatePackageByteSize($candidate);
+        if ($decodedPackageSize === null) {
+            throw new \RuntimeException('Detected archive package candidate is missing decoded package bytes');
+        }
+
+        $entryNames = self::candidateEntryNames($candidate);
+        $entryUncompressedSize = self::candidateEntryUncompressedSize($candidate);
+        $streamCompressionRatio = self::expansionRatio($decodedPackageSize, $compressedSize);
+        $packageExpansionRatio = self::expansionRatio($entryUncompressedSize, $decodedPackageSize);
+        $totalExpansionRatio = self::expansionRatio($entryUncompressedSize, $compressedSize);
+        $diagnostics = [];
+        $ratioDiagnosticCount = 0;
+
+        if ($streamCompressionRatio > $thresholds['stream']) {
+            $diagnostics[] = 'archive-stream-compression-ratio-exceeds-threshold';
+            $ratioDiagnosticCount++;
+        }
+
+        if ($packageExpansionRatio > $thresholds['package']) {
+            $diagnostics[] = 'archive-package-expansion-ratio-exceeds-threshold';
+            $ratioDiagnosticCount++;
+        }
+
+        if ($totalExpansionRatio > $thresholds['total']) {
+            $diagnostics[] = 'archive-total-expansion-ratio-exceeds-threshold';
+            $ratioDiagnosticCount++;
+        }
+
+        $depthLimitedCandidates = $depth >= $maxDepth
+            ? self::nestedPackageDepthLimitCandidates($candidate)
+            : [];
+        if ($depthLimitedCandidates !== []) {
+            $diagnostics[] = 'nested-package-depth-limit-reached';
+        }
+
+        $record = [
+            'status' => 'package',
+            'path' => $path,
+            'parentPath' => $parentPath,
+            'parentKind' => $parentKind,
+            'entryName' => $entryName,
+            'depth' => $depth,
+            'kind' => $candidate['kind'],
+            'format' => $candidate['format'],
+            'compressedSize' => $compressedSize,
+            'decodedPackageSize' => $decodedPackageSize,
+            'entryUncompressedSize' => $entryUncompressedSize,
+            'entryCount' => count($entryNames),
+            'entryNames' => $entryNames,
+            'candidateReasons' => $candidateReasons,
+            'streamCompressionRatio' => $streamCompressionRatio,
+            'packageExpansionRatio' => $packageExpansionRatio,
+            'totalExpansionRatio' => $totalExpansionRatio,
+            'maxStreamCompressionRatio' => $thresholds['stream'],
+            'maxPackageExpansionRatio' => $thresholds['package'],
+            'maxTotalExpansionRatio' => $thresholds['total'],
+            'ratioDiagnosticCount' => $ratioDiagnosticCount,
+            'policy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'diagnostics' => $diagnostics,
+            'depthLimitReached' => $depthLimitedCandidates !== [],
+            'depthLimitedCandidateCount' => count($depthLimitedCandidates),
+            'depthLimitedCandidateNames' => array_column($depthLimitedCandidates, 'entryName'),
+            'depthLimitedCandidates' => $depthLimitedCandidates,
+        ];
+
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_TAR && ($candidate['archive'] ?? null) instanceof TarArchive) {
+            $archive = $candidate['archive'];
+            $record['regularFileCount'] = count(array_filter(
+                $archive->entries(),
+                static fn (TarArchiveEntry $entry): bool => $entry->isRegularFile()
+            ));
+            $record['directoryCount'] = count(array_filter(
+                $archive->entries(),
+                static fn (TarArchiveEntry $entry): bool => $entry->isDirectory()
+            ));
+            $record['unpackedSize'] = self::archiveUnpackedSize($archive);
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $candidate
+     * @param array{stream:float, package:float, total:float} $thresholds
+     * @param list<array<string, mixed>> $entries
+     */
+    private static function collectNestedArchiveBombEntries(
+        array $candidate,
+        string $parentPath,
+        int $depth,
+        int $maxDepth,
+        ?int $maxUncompressedBytes,
+        ?int $maxUnpackedBytes,
+        array $thresholds,
+        array &$entries
+    ): void {
+        foreach (self::nestedPackagePayloads($candidate, $maxUncompressedBytes) as $payload) {
+            $reasons = self::nestedPackageCandidateReasons($payload['entryName'], $payload['data']);
+            if ($reasons === []) {
+                continue;
+            }
+
+            $path = $parentPath === ''
+                ? $payload['entryName']
+                : $parentPath . '!' . $payload['entryName'];
+
+            if ($payload['readError'] !== null) {
+                $entries[] = self::unreadableNestedArchiveBombRecord(
+                    $path,
+                    $parentPath,
+                    $payload,
+                    $depth,
+                    $reasons,
+                    'nested-package-read-failed: ' . $payload['readError']
+                );
+                continue;
+            }
+
+            try {
+                $nested = self::detectPackageCandidate(
+                    $payload['data'],
+                    $maxUncompressedBytes,
+                    $maxUnpackedBytes
+                );
+            } catch (\RuntimeException $exception) {
+                $entries[] = self::unreadableNestedArchiveBombRecord(
+                    $path,
+                    $parentPath,
+                    $payload,
+                    $depth,
+                    $reasons,
+                    'nested-package-detection-failed: ' . $exception->getMessage()
+                );
+                continue;
+            }
+
+            $entries[] = self::archiveBombPackageRecord(
+                $nested,
+                $path,
+                $parentPath,
+                $payload['parentKind'],
+                $payload['entryName'],
+                $depth,
+                $payload['size'],
+                $reasons,
+                $maxDepth,
+                $thresholds
+            );
+
+            if ($depth < $maxDepth) {
+                self::collectNestedArchiveBombEntries(
+                    $nested,
+                    $path,
+                    $depth + 1,
+                    $maxDepth,
+                    $maxUncompressedBytes,
+                    $maxUnpackedBytes,
+                    $thresholds,
+                    $entries
+                );
+            }
+        }
+    }
+
+    /**
+     * @param array{parentKind:string, entryName:string, size:int, data:?string, readError:?string} $payload
+     * @param list<string> $candidateReasons
+     * @return array<string, mixed>
+     */
+    private static function unreadableNestedArchiveBombRecord(
+        string $path,
+        string $parentPath,
+        array $payload,
+        int $depth,
+        array $candidateReasons,
+        string $diagnostic
+    ): array {
+        return [
+            'status' => 'unreadable',
+            'path' => $path,
+            'parentPath' => $parentPath,
+            'parentKind' => $payload['parentKind'],
+            'entryName' => $payload['entryName'],
+            'depth' => $depth,
+            'kind' => null,
+            'format' => null,
+            'compressedSize' => $payload['size'],
+            'decodedPackageSize' => null,
+            'entryUncompressedSize' => null,
+            'entryCount' => 0,
+            'entryNames' => [],
+            'candidateReasons' => $candidateReasons,
+            'streamCompressionRatio' => null,
+            'packageExpansionRatio' => null,
+            'totalExpansionRatio' => null,
+            'ratioDiagnosticCount' => 0,
+            'policy' => 'review-before-conversion',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'diagnostics' => [$diagnostic],
+            'depthLimitReached' => false,
+            'depthLimitedCandidateCount' => 0,
+            'depthLimitedCandidateNames' => [],
+            'depthLimitedCandidates' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $candidate
      * @param list<array<string, mixed>> $entries
      */
     private static function collectNestedPackageEntries(
@@ -2953,6 +3355,22 @@ final class ArchiveCompressionStream
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $candidate
+     */
+    private static function candidateEntryUncompressedSize(array $candidate): int
+    {
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_TAR && ($candidate['archive'] ?? null) instanceof TarArchive) {
+            return self::archiveUnpackedSize($candidate['archive']);
+        }
+
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_ZIP && ($candidate['package'] ?? null) instanceof ZipPackage) {
+            return self::zipPackageUncompressedSize($candidate['package']);
+        }
+
+        return 0;
     }
 
     /**

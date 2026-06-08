@@ -5692,6 +5692,7 @@ XML;
   <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
   <Override PartName="/word/footer1.xml" ContentType="application/xml"/>
   <Override PartName="/word/media/not-image.xml" ContentType="application/xml"/>
+  <Override PartName="/customXml/wrong-type.xml" ContentType="text/plain"/>
 </Types>
 XML;
 
@@ -5721,6 +5722,9 @@ XML;
   <Relationship Id="rIdHyperlinkExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source" TargetMode="External"/>
   <Relationship Id="rIdHyperlinkInternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#review-bookmark"/>
   <Relationship Id="rIdCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>
+  <Relationship Id="rIdCustomXmlWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/wrong-type.xml"/>
+  <Relationship Id="rIdCustomXmlExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="https://example.test/customXml/item1.xml" TargetMode="External"/>
+  <Relationship Id="rIdCustomXmlMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/missing.xml"/>
 </Relationships>
 XML;
 
@@ -5751,6 +5755,7 @@ XML;
             ['name' => 'word/media/hero.png', 'data' => 'PNG'],
             ['name' => 'word/media/not-image.xml', 'data' => '<not-image/>'],
             ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+            ['name' => 'customXml/wrong-type.xml', 'data' => '<audit/>'],
         ]));
 
         $roles = [];
@@ -5776,6 +5781,10 @@ XML;
             'rIdLinkedImage',
             'rIdHyperlinkExternal',
             'rIdHyperlinkInternal',
+            'rIdCustomXml',
+            'rIdCustomXmlWrongType',
+            'rIdCustomXmlExternal',
+            'rIdCustomXmlMissing',
         ], array_keys($roles));
 
         $t->same('styles', $roles['rIdStyles']['role']);
@@ -5924,12 +5933,45 @@ XML;
         $t->same(false, $roles['rIdHyperlinkInternal']['valid']);
         $t->same(['internal-hyperlink-target'], $roles['rIdHyperlinkInternal']['issues']);
 
+        $t->same('custom-xml', $roles['rIdCustomXml']['role']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_RELATIONSHIP_TYPE, $roles['rIdCustomXml']['type']);
+        $t->same('/customXml/item1.xml', $roles['rIdCustomXml']['targetPart']);
+        $t->same('application/xml', $roles['rIdCustomXml']['contentType']);
+        $t->same('application/xml', $roles['rIdCustomXml']['expectedContentType']);
+        $t->same(false, $roles['rIdCustomXml']['expectedExternal']);
+        $t->same(false, $roles['rIdCustomXml']['external']);
+        $t->same(true, $roles['rIdCustomXml']['exists']);
+        $t->same(true, $roles['rIdCustomXml']['valid']);
+        $t->same([], $roles['rIdCustomXml']['issues']);
+
+        $t->same('custom-xml', $roles['rIdCustomXmlWrongType']['role']);
+        $t->same('/customXml/wrong-type.xml', $roles['rIdCustomXmlWrongType']['targetPart']);
+        $t->same('text/plain', $roles['rIdCustomXmlWrongType']['contentType']);
+        $t->same(false, $roles['rIdCustomXmlWrongType']['valid']);
+        $t->same(['invalid-custom-xml-content-type'], $roles['rIdCustomXmlWrongType']['issues']);
+
+        $t->same('custom-xml', $roles['rIdCustomXmlExternal']['role']);
+        $t->same(true, $roles['rIdCustomXmlExternal']['external']);
+        $t->same(null, $roles['rIdCustomXmlExternal']['targetPart']);
+        $t->same(null, $roles['rIdCustomXmlExternal']['contentType']);
+        $t->same(false, $roles['rIdCustomXmlExternal']['expectedExternal']);
+        $t->same('https', $roles['rIdCustomXmlExternal']['externalTargetScheme']);
+        $t->same(false, $roles['rIdCustomXmlExternal']['valid']);
+        $t->same(['external-custom-xml-target'], $roles['rIdCustomXmlExternal']['issues']);
+
+        $t->same('custom-xml', $roles['rIdCustomXmlMissing']['role']);
+        $t->same('/customXml/missing.xml', $roles['rIdCustomXmlMissing']['targetPart']);
+        $t->same('application/xml', $roles['rIdCustomXmlMissing']['contentType']);
+        $t->same(false, $roles['rIdCustomXmlMissing']['exists']);
+        $t->same(false, $roles['rIdCustomXmlMissing']['valid']);
+        $t->same(['missing-in-package'], $roles['rIdCustomXmlMissing']['issues']);
+
         $basePreflight = [];
         foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
             $basePreflight[$target['id']] = $target;
         }
         $t->same(true, isset($basePreflight['rIdCustomXml']));
-        $t->same(false, isset($roles['rIdCustomXml']));
+        $t->same(true, isset($roles['rIdCustomXml']));
         $t->same(true, $basePreflight['rIdHyperlinkInternal']['valid']);
         $t->same([], $basePreflight['rIdHyperlinkInternal']['issues']);
 

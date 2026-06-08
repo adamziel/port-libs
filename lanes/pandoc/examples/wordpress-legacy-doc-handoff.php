@@ -2462,6 +2462,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if ($redDirectoryId === null) {
         throw new RuntimeException('Legacy DOC handoff self-test fixture did not produce a red CFB directory node');
     }
+    $highDwordDocBytes = substr_replace($docBytes, $u32(0x00000001), $directoryFieldOffset($wordDocumentDirectoryId, 124), 4);
+    $highDwordSummary = (new LegacyDocReader())->readBytes($highDwordDocBytes);
+    if (($highDwordSummary['metadata']['cfbIgnoredStreamSizeHighDwordEntryCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing v3 high stream-size DWORD provenance');
+    }
+    $highDwordStreamDirectory = [];
+    foreach ($highDwordSummary['streamDirectory'] as $stream) {
+        $highDwordStreamDirectory[(string) $stream['path']] = $stream;
+    }
+    if (($highDwordStreamDirectory['WordDocument']['ignoredStreamSizeHighDword'] ?? null) !== 0x00000001) {
+        throw new RuntimeException('Legacy DOC handoff self-test did not preserve ignored v3 high stream-size DWORD metadata');
+    }
     $orphanedActiveDirectoryEntry = substr_replace($docBytes, $u32($wordDocumentDirectoryId), $directoryFieldOffset(0, 76), 4);
     $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, $u32($free), $directoryFieldOffset($wordDocumentDirectoryId, 68), 4);
     $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, $u32($free), $directoryFieldOffset($wordDocumentDirectoryId, 72), 4);

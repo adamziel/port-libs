@@ -317,6 +317,7 @@ $descriptorDocumentXml = '<w:document><w:body><w:p>Descriptor-backed DOCX source
 $descriptorFootnotesXml = '<w:footnotes><w:footnote w:id="1">Descriptor-backed note</w:footnote></w:footnotes>';
 $splitZipMediaBytes = "split archive media placeholder\n";
 $archiveBombContentBytes = str_repeat('A', 4096);
+$nestedArchiveBombContentBytes = str_repeat('B', 4096);
 $chunkedPackageManifestBytes = '{"source":"decoded-package-chunks","target":"wordpress"}';
 $chunkedPackageContentBytes = "# Decoded package chunks\n\nReady for WordPress archive streaming review.\n";
 
@@ -1001,6 +1002,61 @@ $archiveBombInspection = ArchiveCompressionStream::inspectArchiveBombPolicyAuto(
     4.0,
     4.0
 );
+$nestedArchiveBombZipPackage = ZipPackage::fromParts([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="md" ContentType="text/markdown"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'packet/content.md',
+        'data' => $nestedArchiveBombContentBytes,
+    ],
+]);
+$nestedArchiveBombZipGzip = GzipStream::build($nestedArchiveBombZipPackage->bytes(), [
+    'filename' => 'nested-bomb.zip',
+    'comment' => 'nested zip expansion policy',
+    'compressionLevel' => 9,
+]);
+$nestedArchiveBombInnerTar = TarArchive::fromEntries([
+    [
+        'name' => 'packet/nested/bomb.zip.gz',
+        'data' => $nestedArchiveBombZipGzip,
+    ],
+    [
+        'name' => 'packet/readme.md',
+        'data' => "Nested archive carrier\n",
+    ],
+]);
+$nestedArchiveBombInnerTarGzip = GzipStream::build($nestedArchiveBombInnerTar->bytes(), [
+    'filename' => 'nested-bomb-review.tar',
+    'comment' => 'nested tar carrier',
+    'compressionLevel' => 9,
+]);
+$nestedArchiveBombOuterTar = TarArchive::fromEntries([
+    [
+        'name' => 'packet/content.md',
+        'data' => "# Outer nested archive\n\nReady for WordPress archive review.\n",
+    ],
+    [
+        'name' => 'packet/nested/review.tar.gz',
+        'data' => $nestedArchiveBombInnerTarGzip,
+    ],
+]);
+$nestedArchiveBombGzip = GzipStream::build($nestedArchiveBombOuterTar->bytes(), [
+    'filename' => 'wordpress-nested-bomb-review.tar',
+    'comment' => 'nested archive expansion preflight',
+    'compressionLevel' => 9,
+]);
+$nestedArchiveBombInspection = ArchiveCompressionStream::inspectNestedArchiveBombPolicyAuto(
+    $nestedArchiveBombGzip,
+    strlen($nestedArchiveBombOuterTar->bytes()),
+    strlen($nestedArchiveBombOuterTar->bytes()),
+    2,
+    10.0,
+    10.0,
+    10.0
+);
 $unsupportedBzip2Upload = 'BZh9' . 'compressed tar payload bytes stay opaque to WordPress preflight';
 $unsupportedXzUpload = "\xfd" . '7zXZ' . "\0" . "\0\x04" . "\0\0\0\0"
     . 'compressed zip payload bytes stay opaque to WordPress preflight';
@@ -1257,6 +1313,17 @@ if (in_array('--self-test', $argv, true)) {
         ],
         'archiveBombFilename' => 'wordpress-compressed-review.tar',
         'archiveBombContentSize' => strlen($archiveBombContentBytes),
+        'nestedArchiveBombPolicy' => 'review-before-conversion',
+        'nestedArchiveBombDiagnostics' => ['nested-archive-expansion-ratio-exceeds-threshold'],
+        'nestedArchiveBombCandidateCount' => 2,
+        'nestedArchiveBombPackageCount' => 2,
+        'nestedArchiveBombRatioDiagnosticCount' => 1,
+        'nestedArchiveBombEntryPath' => 'packet/nested/review.tar.gz!packet/nested/bomb.zip.gz',
+        'nestedArchiveBombEntryDiagnostics' => [
+            'archive-package-expansion-ratio-exceeds-threshold',
+            'archive-total-expansion-ratio-exceeds-threshold',
+        ],
+        'nestedArchiveBombContentSize' => strlen($nestedArchiveBombContentBytes),
         'unsupportedBzip2Format' => 'bzip2',
         'unsupportedBzip2Kind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'unsupportedBzip2CandidateFormat' => 'bzip2-tar',
@@ -1606,6 +1673,16 @@ if (in_array('--self-test', $argv, true)) {
         || $archiveBombInspection['entryUncompressedSize'] !== $expected['archiveBombContentSize']
         || $archiveBombInspection['streamCompressionRatio'] <= 4.0
         || $archiveBombInspection['totalExpansionRatio'] <= 4.0
+        || $nestedArchiveBombInspection['handoffPolicy'] !== $expected['nestedArchiveBombPolicy']
+        || $nestedArchiveBombInspection['diagnostics'] !== $expected['nestedArchiveBombDiagnostics']
+        || $nestedArchiveBombInspection['nestedCandidateCount'] !== $expected['nestedArchiveBombCandidateCount']
+        || $nestedArchiveBombInspection['nestedPackageCount'] !== $expected['nestedArchiveBombPackageCount']
+        || $nestedArchiveBombInspection['ratioDiagnosticCount'] !== $expected['nestedArchiveBombRatioDiagnosticCount']
+        || ($nestedArchiveBombInspection['entries'][1]['path'] ?? null) !== $expected['nestedArchiveBombEntryPath']
+        || ($nestedArchiveBombInspection['entries'][1]['diagnostics'] ?? []) !== $expected['nestedArchiveBombEntryDiagnostics']
+        || ($nestedArchiveBombInspection['entries'][1]['entryUncompressedSize'] ?? 0) <= $expected['nestedArchiveBombContentSize']
+        || ($nestedArchiveBombInspection['entries'][1]['packageExpansionRatio'] ?? 0.0) <= 10.0
+        || isset($nestedArchiveBombInspection['entries'][1]['zipBytes'])
         || $unsupportedBzip2Inspection['format'] !== $expected['unsupportedBzip2Format']
         || $unsupportedBzip2Inspection['candidateKind'] !== $expected['unsupportedBzip2Kind']
         || $unsupportedBzip2Inspection['candidateFormat'] !== $expected['unsupportedBzip2CandidateFormat']
@@ -1829,6 +1906,14 @@ echo 'archiveBomb.handoffPolicy=' . $archiveBombInspection['handoffPolicy'] . "\
 echo 'archiveBomb.diagnostics=' . implode(',', $archiveBombInspection['diagnostics']) . "\n";
 echo 'archiveBomb.streamRatio=' . number_format($archiveBombInspection['streamCompressionRatio'], 2, '.', '') . "\n";
 echo 'archiveBomb.totalRatio=' . number_format($archiveBombInspection['totalExpansionRatio'], 2, '.', '') . "\n";
+echo 'nestedArchiveBomb.handoffPolicy=' . $nestedArchiveBombInspection['handoffPolicy'] . "\n";
+echo 'nestedArchiveBomb.diagnostics=' . implode(',', $nestedArchiveBombInspection['diagnostics']) . "\n";
+echo 'nestedArchiveBomb.candidateCount=' . $nestedArchiveBombInspection['nestedCandidateCount'] . "\n";
+echo 'nestedArchiveBomb.packageCount=' . $nestedArchiveBombInspection['nestedPackageCount'] . "\n";
+echo 'nestedArchiveBomb.ratioDiagnosticCount=' . $nestedArchiveBombInspection['ratioDiagnosticCount'] . "\n";
+echo 'nestedArchiveBomb.entryPath=' . $nestedArchiveBombInspection['entries'][1]['path'] . "\n";
+echo 'nestedArchiveBomb.entryDiagnostics=' . implode(',', $nestedArchiveBombInspection['entries'][1]['diagnostics']) . "\n";
+echo 'nestedArchiveBomb.entryPackageRatio=' . number_format($nestedArchiveBombInspection['entries'][1]['packageExpansionRatio'], 2, '.', '') . "\n";
 echo 'unsupportedBzip2.format=' . $unsupportedBzip2Inspection['format'] . "\n";
 echo 'unsupportedBzip2.candidateFormat=' . $unsupportedBzip2Inspection['candidateFormat'] . "\n";
 echo 'unsupportedBzip2.extractionPolicy=' . $unsupportedBzip2Inspection['extractionPolicy'] . "\n";

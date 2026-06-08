@@ -872,10 +872,16 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
         $malformedLead = UnicodeText::decodeBytes("\xA4 A", 'big5');
         $unmappedPair = UnicodeText::decodeBytes("\x81\x40A", 'x-x-big5');
+        $twoCodepointPointers = UnicodeText::decodeBytes("\x88\x62\x88\x64\x88\xA3\x88\xA5", 'big5');
 
         $t->same('big5', $decoded['encoding']);
         $t->same(0, $decoded['repairs']);
         $t->same("# 中文\n\n中文 Big5 測試，香港。", $decoded['text']);
+        $t->same("Ê\u{0304}Ê\u{030C}ê\u{0304}ê\u{030C}", $twoCodepointPointers['text']);
+        $t->same(0, $twoCodepointPointers['repairs']);
+        $t->same(["Ê\u{0304}", "Ê\u{030C}", "ê\u{0304}", "ê\u{030C}"], UnicodeText::graphemes($twoCodepointPointers['text']));
+        $t->same(4, UnicodeText::displayWidth($twoCodepointPointers['text']));
+        $t->same(["Ê\u{0304}Ê\u{030C}", "ê\u{0304}ê\u{030C}"], UnicodeText::splitByDisplayBreakpoints($twoCodepointPointers['text'], [2]));
         $t->same(['encoding' => 'big5', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
         $t->same('中文', $document->children[0]->attr('text'));
         $t->same("中文 Big5 測試，香港。", $document->children[1]->attr('text'));

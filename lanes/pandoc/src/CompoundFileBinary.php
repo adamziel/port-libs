@@ -232,7 +232,7 @@ final class CompoundFileBinary
         foreach ($directorySectorIds as $directorySectorId) {
             $directoryBytes .= self::sectorBytes($bytes, $sectorSize, $directorySectorId);
         }
-        [$entries, $entriesByName] = self::parseDirectory($directoryBytes);
+        [$entries, $entriesByName] = self::parseDirectory($directoryBytes, $majorVersion);
 
         $reader = new self(
             $bytes,
@@ -610,7 +610,7 @@ final class CompoundFileBinary
     /**
      * @return array{0:list<array<string,mixed>>,1:array<string,int>}
      */
-    private static function parseDirectory(string $directoryBytes): array
+    private static function parseDirectory(string $directoryBytes, int $majorVersion): array
     {
         $rawEntries = [];
         $root = null;
@@ -644,6 +644,8 @@ final class CompoundFileBinary
             }
             $clsid = self::readClsid($entryBytes, 80);
             $stateBits = self::u32($entryBytes, 96);
+            $streamSizeLow = self::u32($entryBytes, 120);
+            $streamSizeHigh = self::u32($entryBytes, 124);
             $entry = [
                 'name' => $name,
                 'path' => $name,
@@ -651,7 +653,7 @@ final class CompoundFileBinary
                 'colorFlag' => ord($entryBytes[67]),
                 'nameLength' => $nameLength,
                 'startSector' => self::u32($entryBytes, 116),
-                'size' => self::u64($entryBytes, 120),
+                'size' => $majorVersion === 3 ? $streamSizeLow : self::u64($entryBytes, 120),
                 'leftSiblingId' => self::u32($entryBytes, 68),
                 'rightSiblingId' => self::u32($entryBytes, 72),
                 'childId' => self::u32($entryBytes, 76),
@@ -663,6 +665,9 @@ final class CompoundFileBinary
                 'hasModificationTimeBytes' => substr($entryBytes, 108, 8) !== str_repeat("\0", 8),
                 'directoryId' => $directoryId,
             ];
+            if ($majorVersion === 3 && $streamSizeHigh !== 0) {
+                $entry['ignoredStreamSizeHighDword'] = $streamSizeHigh;
+            }
             self::validateDirectoryEntryObjectFields($entry);
             unset($entry['hasCreationTimeBytes'], $entry['hasModificationTimeBytes']);
             if ($clsid === null) {

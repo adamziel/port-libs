@@ -1418,6 +1418,54 @@ $buildUnsupportedVersionNeededBackedPackage = static function () use ($crc32): s
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildUnderstatedVersionNeededBackedPackage = static function () use ($crc32): string {
+    $name = 'word/document.xml';
+    $data = '<w:document><w:body><w:p>Deflated package part with understated version metadata</w:p></w:body></w:document>';
+    $compressed = gzdeflate($data);
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        10,
+        0x0800,
+        8,
+        0,
+        0,
+        $crc,
+        strlen($compressed),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $compressed;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        10,
+        0x0800,
+        8,
+        0,
+        0,
+        $crc,
+        strlen($compressed),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildUnsupportedCompressionMethodBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/bzip2-review.bin';
     $data = "Unsupported compression method should stay blocked before media bytes\n";
@@ -3481,6 +3529,13 @@ try {
 } catch (RuntimeException $exception) {
     $unsupportedVersionNeededRejected = str_contains($exception->getMessage(), 'version needed to extract');
 }
+$understatedVersionNeededPreflight = ZipPackage::compressionMethodPolicyPreflight($buildUnderstatedVersionNeededBackedPackage());
+$understatedVersionNeededRejected = false;
+try {
+    ZipPackage::fromString($buildUnderstatedVersionNeededBackedPackage());
+} catch (RuntimeException $exception) {
+    $understatedVersionNeededRejected = str_contains($exception->getMessage(), 'requires at least 20');
+}
 $localHeaderNameMismatchRejected = false;
 try {
     ZipPackage::fromString($buildLocalHeaderNameMismatchBackedPackage());
@@ -4984,6 +5039,18 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected unsupported ZIP version-needed metadata to be rejected before media import');
     }
 
+    if (!$understatedVersionNeededRejected) {
+        throw new RuntimeException('Expected understated ZIP version-needed metadata to be rejected before media import');
+    }
+
+    if (($understatedVersionNeededPreflight['understatedVersionEntryCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ZIP compression policy preflight to count understated version-needed entries');
+    }
+
+    if (($understatedVersionNeededPreflight['understatedVersionEntries'][0]['minimumVersionNeededToExtract'] ?? null) !== 20) {
+        throw new RuntimeException('Expected ZIP compression policy preflight to expose the minimum extraction version');
+    }
+
     if (!$localHeaderNameMismatchRejected) {
         throw new RuntimeException('Expected ZIP local header name mismatches to be rejected before media import');
     }
@@ -5343,6 +5410,9 @@ echo 'zipPayloadIntegrityPolicy=' . ($corruptPayloadRejected ? 'rejected' : 'not
 echo 'zipPayloadIntegrityFailedEntry=' . ($corruptPayloadPreflight['failedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedVersionNeededPolicy=' . ($unsupportedVersionNeededRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnderstatedVersionNeededPolicy=' . ($understatedVersionNeededRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnderstatedVersionNeededEntries=' . $understatedVersionNeededPreflight['understatedVersionEntryCount'] . "\n";
+echo 'zipUnderstatedVersionNeededMinimum=' . ($understatedVersionNeededPreflight['understatedVersionEntries'][0]['minimumVersionNeededToExtract'] ?? 'none') . "\n";
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntrySlackPolicy=' . ($localEntrySlackRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateUnicodeExtraPolicy=' . ($duplicateUnicodeExtraRejected ? 'rejected' : 'not-rejected') . "\n";

@@ -1733,7 +1733,20 @@ final class TableGeometry
 
     private static function normalizeAlignment(string $alignment): string
     {
-        return in_array($alignment, ['left', 'right', 'center'], true) ? $alignment : 'default';
+        $normalized = strtolower(trim($alignment));
+        $normalized = rtrim($normalized, ';');
+        if (preg_match('/^text-align\s*:\s*(left|right|center)\s*$/', $normalized, $match) === 1) {
+            return $match[1];
+        }
+
+        $compact = str_replace(['-', '_', ' '], '', $normalized);
+
+        return match ($compact) {
+            'left', 'alignleft' => 'left',
+            'right', 'alignright' => 'right',
+            'center', 'aligncenter' => 'center',
+            default => 'default',
+        };
     }
 
     /**

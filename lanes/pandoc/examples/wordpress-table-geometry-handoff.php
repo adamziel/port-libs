@@ -330,6 +330,31 @@ $invalidWidthTable = new AstNode('table', [
     ]),
 ]);
 
+$alignmentAliasTable = new AstNode('table', [
+    'caption' => 'Pandoc alignment constructor audit',
+    'alignments' => ['AlignLeft', 'AlignRight', 'AlignCenter', 'AlignDefault'],
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Field'], [new AstNode('text', ['text' => 'Field'])]),
+            new AstNode('table_cell', ['text' => 'Count'], [new AstNode('text', ['text' => 'Count'])]),
+            new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+            new AstNode('table_cell', ['text' => 'Notes'], [new AstNode('text', ['text' => 'Notes'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+            new AstNode('table_cell', [
+                'text' => 'Needs alt text',
+                'align' => 'align-right',
+            ], [new AstNode('text', ['text' => 'Needs alt text'])]),
+        ]),
+    ]),
+]);
+
 $malformedSpanTable = new AstNode('table', [
     'caption' => 'Malformed source span review',
     'alignments' => ['left', 'right', 'center'],
@@ -1104,6 +1129,7 @@ $document = new AstNode('document', [], [
     $malformedSpanTable,
     $underfullWidthTable,
     $invalidWidthTable,
+    $alignmentAliasTable,
     $blockContentTable,
     $latexRequirementTable,
     $latexFooterTable,
@@ -1161,6 +1187,27 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing invalid source width review table');
     }
     json_encode($invalidWidthPacket, JSON_THROW_ON_ERROR);
+
+    $alignmentAliasPacket = TableGeometry::reviewPacket($alignmentAliasTable, ['accessibility' => false]);
+    if (array_map(static fn (array $column): string => $column['alignment'], $alignmentAliasPacket['columns'] ?? []) !== ['left', 'right', 'center', 'default']) {
+        throw new RuntimeException('Table geometry self-test missing Pandoc alignment constructor normalization');
+    }
+    if (TableGeometry::alignments($alignmentAliasTable, 4) !== ['left', 'right', 'center', 'default']) {
+        throw new RuntimeException('Table geometry self-test missing normalized table alignment aliases');
+    }
+    if (TableGeometry::cellAlignment($alignmentAliasTable, 3, $alignmentAliasTable->children[1]->children[0]->children[3]) !== 'right') {
+        throw new RuntimeException('Table geometry self-test missing normalized cell alignment alias');
+    }
+    if (!str_contains($blocks, '<thead><tr><th style="text-align:left">Field</th><th style="text-align:right">Count</th><th style="text-align:center">State</th><th>Notes</th></tr></thead>')) {
+        throw new RuntimeException('Table geometry self-test missing normalized constructor alignments in WordPress header output');
+    }
+    if (!str_contains($blocks, '<tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td><td style="text-align:right">Needs alt text</td></tr></tbody>')) {
+        throw new RuntimeException('Table geometry self-test missing normalized constructor alignments in WordPress body output');
+    }
+    if (!str_contains($blocks, '<figcaption class="wp-element-caption">Pandoc alignment constructor audit</figcaption>')) {
+        throw new RuntimeException('Table geometry self-test missing Pandoc alignment constructor audit caption');
+    }
+    json_encode($alignmentAliasPacket, JSON_THROW_ON_ERROR);
 
     $migrationGrids = TableGeometry::sectionGrids($document->children[0]);
     $columnSpecs = TableGeometry::columnSpecs($document->children[0], 5);

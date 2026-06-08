@@ -273,6 +273,7 @@ final class LegacyDocReader
         $timestampedDirectoryEntryCount = 0;
         $classIdDirectoryEntryCount = 0;
         $stateBitsDirectoryEntryCount = 0;
+        $ignoredStreamSizeHighDwordEntryCount = 0;
         foreach ($directoryEntries as $directoryEntry) {
             if (isset($directoryEntry['createdAt']) || isset($directoryEntry['modifiedAt'])) {
                 $timestampedDirectoryEntryCount++;
@@ -283,6 +284,9 @@ final class LegacyDocReader
             if (isset($directoryEntry['stateBits'])) {
                 $stateBitsDirectoryEntryCount++;
             }
+            if (isset($directoryEntry['ignoredStreamSizeHighDword'])) {
+                $ignoredStreamSizeHighDwordEntryCount++;
+            }
         }
         if ($timestampedDirectoryEntryCount > 0) {
             $metadata['cfbTimestampedDirectoryEntryCount'] = $timestampedDirectoryEntryCount;
@@ -292,6 +296,9 @@ final class LegacyDocReader
         }
         if ($stateBitsDirectoryEntryCount > 0) {
             $metadata['cfbStateBitsDirectoryEntryCount'] = $stateBitsDirectoryEntryCount;
+        }
+        if ($ignoredStreamSizeHighDwordEntryCount > 0) {
+            $metadata['cfbIgnoredStreamSizeHighDwordEntryCount'] = $ignoredStreamSizeHighDwordEntryCount;
         }
         $styles = $this->styleSheetReport($wordDocument, $tableStream);
         if ($styles !== []) {
@@ -4340,6 +4347,9 @@ final class LegacyDocReader
             if (($entry['modifiedAt'] ?? null) !== null) {
                 $stream['modifiedAt'] = (string) $entry['modifiedAt'];
             }
+            if (isset($entry['ignoredStreamSizeHighDword'])) {
+                $stream['ignoredStreamSizeHighDword'] = (int) $entry['ignoredStreamSizeHighDword'];
+            }
 
             $streams[] = $stream;
         }
@@ -4380,6 +4390,9 @@ final class LegacyDocReader
             }
             if (($entry['stateBits'] ?? null) !== null) {
                 $record['stateBits'] = (int) $entry['stateBits'];
+            }
+            if (isset($entry['ignoredStreamSizeHighDword'])) {
+                $record['ignoredStreamSizeHighDword'] = (int) $entry['ignoredStreamSizeHighDword'];
             }
 
             $entries[] = $record;

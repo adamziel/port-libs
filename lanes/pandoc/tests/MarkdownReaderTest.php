@@ -2773,6 +2773,9 @@ return [
             '  legacy-octal: 052',
             '  sexagesimal: 1:20:30',
             '  invalid-sexagesimal: 1:60',
+            '  sexagesimal-float: 1:20:30.5',
+            '  signed-sexagesimal-float: -0:00:02.25',
+            '  invalid-sexagesimal-float: 1:60.5',
             '  decimal-float: 1_024.5',
             '  exponent: 1.2e2',
             '  positive-infinity: .inf',
@@ -2787,7 +2790,7 @@ return [
             '        - - 2026',
             '          - 0b110',
             '          - 0o5',
-            '    metadata: {duration: 2:03, ratio: .5, quoted-ratio: ".5"}',
+            '    metadata: {duration: 2:03, duration-float: 2:03.5, ratio: .5, quoted-ratio: ".5"}',
             '...',
             '',
             '# Plain numeric YAML body',
@@ -2807,6 +2810,9 @@ return [
         $t->same(42, $meta['review']['legacy-octal']);
         $t->same(4830, $meta['review']['sexagesimal']);
         $t->same('1:60', $meta['review']['invalid-sexagesimal']);
+        $t->same(4830.5, $meta['review']['sexagesimal-float']);
+        $t->same(-2.25, $meta['review']['signed-sexagesimal-float']);
+        $t->same('1:60.5', $meta['review']['invalid-sexagesimal-float']);
         $t->same(1024.5, $meta['review']['decimal-float']);
         $t->same(120.0, $meta['review']['exponent']);
         $t->true(is_infinite($meta['review']['positive-infinity']) && $meta['review']['positive-infinity'] > 0, 'plain .inf should parse to +INF');
@@ -2820,6 +2826,7 @@ return [
         $t->same('plain-numeric-ref', $meta['references'][0]['id']);
         $t->same([[2026, 6, 5]], $meta['references'][0]['issued']['date-parts']);
         $t->same(123, $meta['references'][0]['metadata']['duration']);
+        $t->same(123.5, $meta['references'][0]['metadata']['duration-float']);
         $t->same(0.5, $meta['references'][0]['metadata']['ratio']);
         $t->same('.5', $meta['references'][0]['metadata']['quoted-ratio']);
         $t->same('heading', $document->children[0]->type);
@@ -2907,6 +2914,47 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('sexagesimal-integer-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="sexagesimal-integer-yaml-body">Sexagesimal integer YAML body</h1>', $blocks);
+    },
+    'maps pandoc yaml sexagesimal float metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Sexagesimal float **Packet**',
+            'review:',
+            '  elapsed-seconds: !!float 1:20:30',
+            '  fractional-elapsed: !!float 1:20:30.5',
+            '  signed-fractional: !!float -0:00:02.25',
+            '  underscored-fractional: !!float 1:02:0_3.5',
+            '  invalid-minute: !!float 1:60.5',
+            '  invalid-token: !!float 1:2x:3.5',
+            '  plain-fractional: 0:01:05.25',
+            'flow-review: {elapsed: !!float 2:03.5, plain: 0:00:01.5, status: queued}',
+            'references:',
+            '  - id: sexagesimal-float-ref',
+            '    metadata: {duration: !!float 3:04.25, plain-duration: 4:05.5}',
+            '...',
+            '',
+            '# Sexagesimal float YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Sexagesimal float **Packet**', $meta['title']);
+        $t->same(4830.0, $meta['review']['elapsed-seconds']);
+        $t->same(4830.5, $meta['review']['fractional-elapsed']);
+        $t->same(-2.25, $meta['review']['signed-fractional']);
+        $t->same(3723.5, $meta['review']['underscored-fractional']);
+        $t->same('1:60.5', $meta['review']['invalid-minute']);
+        $t->same('1:2x:3.5', $meta['review']['invalid-token']);
+        $t->same(65.25, $meta['review']['plain-fractional']);
+        $t->same(123.5, $meta['flow-review']['elapsed']);
+        $t->same(1.5, $meta['flow-review']['plain']);
+        $t->same('queued', $meta['flow-review']['status']);
+        $t->same('sexagesimal-float-ref', $meta['references'][0]['id']);
+        $t->same(184.25, $meta['references'][0]['metadata']['duration']);
+        $t->same(245.5, $meta['references'][0]['metadata']['plain-duration']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('sexagesimal-float-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="sexagesimal-float-yaml-body">Sexagesimal float YAML body</h1>', $blocks);
     },
     'maps pandoc yaml non-specific tag metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [

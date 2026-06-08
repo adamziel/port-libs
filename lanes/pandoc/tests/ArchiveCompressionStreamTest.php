@@ -4728,6 +4728,123 @@ return [
         ));
     },
 
+    'preflights nested archive expansion ratios across compressed package streams' => static function (TestRunner $t): void {
+        $nestedLargeMarkdown = str_repeat('B', 4096);
+        $nestedZip = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="md" ContentType="text/markdown"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $nestedLargeMarkdown,
+            ],
+        ]);
+        $nestedZipBytes = $nestedZip->bytes();
+        $nestedGzipZip = GzipStream::build($nestedZipBytes, [
+            'filename' => 'nested-bomb.zip',
+            'comment' => 'nested zip expansion policy',
+            'compressionLevel' => 9,
+        ]);
+        $innerTar = TarArchive::fromEntries([
+            [
+                'name' => 'packet/nested/bomb.zip.gz',
+                'data' => $nestedGzipZip,
+            ],
+            [
+                'name' => 'packet/readme.md',
+                'data' => "Nested archive carrier\n",
+            ],
+        ]);
+        $innerTarGzip = GzipStream::build($innerTar->bytes(), [
+            'filename' => 'nested-review.tar',
+            'comment' => 'nested tar carrier',
+            'compressionLevel' => 9,
+        ]);
+        $outerTar = TarArchive::fromEntries([
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Outer archive\n\nReady for nested archive review.\n",
+            ],
+            [
+                'name' => 'packet/nested/review.tar.gz',
+                'data' => $innerTarGzip,
+            ],
+        ]);
+        $outerGzip = GzipStream::build($outerTar->bytes(), [
+            'filename' => 'wordpress-nested-bomb-review.tar',
+            'comment' => 'nested archive expansion preflight',
+            'compressionLevel' => 9,
+        ]);
+
+        $policy = ArchiveCompressionStream::inspectNestedArchiveBombPolicyAuto(
+            $outerGzip,
+            strlen($outerTar->bytes()),
+            strlen($outerTar->bytes()),
+            2,
+            10.0,
+            10.0,
+            10.0
+        );
+
+        $byPath = [];
+        foreach ($policy['entries'] as $entry) {
+            $byPath[$entry['path']] = $entry;
+        }
+        $nestedZipPath = 'packet/nested/review.tar.gz!packet/nested/bomb.zip.gz';
+
+        $t->same('nested-archive-bomb-policy', $policy['type']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $policy['rootKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $policy['rootFormat']);
+        $t->same(2, $policy['maxDepth']);
+        $t->same(2, $policy['nestedCandidateCount']);
+        $t->same(2, $policy['nestedPackageCount']);
+        $t->same(1, $policy['ratioDiagnosticCount']);
+        $t->same(1, $policy['recordDiagnosticCount']);
+        $t->same(0, $policy['depthLimitReachedCount']);
+        $t->same(0, $policy['depthLimitedCandidateCount']);
+        $t->same('review-before-conversion', $policy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $policy['extractionPolicy']);
+        $t->same(['nested-archive-expansion-ratio-exceeds-threshold'], $policy['diagnostics']);
+        $t->same('within-thresholds', $policy['root']['policy']);
+        $t->same([], $policy['root']['diagnostics']);
+        $t->true($policy['root']['streamCompressionRatio'] < 10.0);
+        $t->same([
+            'packet/nested/review.tar.gz',
+            $nestedZipPath,
+        ], array_column($policy['entries'], 'path'));
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $byPath['packet/nested/review.tar.gz']['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $byPath['packet/nested/review.tar.gz']['format']);
+        $t->same('within-thresholds', $byPath['packet/nested/review.tar.gz']['policy']);
+        $t->same([], $byPath['packet/nested/review.tar.gz']['diagnostics']);
+        $t->same(['packet/nested/bomb.zip.gz', 'packet/readme.md'], $byPath['packet/nested/review.tar.gz']['entryNames']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $byPath[$nestedZipPath]['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $byPath[$nestedZipPath]['format']);
+        $t->same(strlen($nestedGzipZip), $byPath[$nestedZipPath]['compressedSize']);
+        $t->same(strlen($nestedZipBytes), $byPath[$nestedZipPath]['decodedPackageSize']);
+        $t->same(strlen('<Types><Default Extension="md" ContentType="text/markdown"/></Types>') + strlen($nestedLargeMarkdown), $byPath[$nestedZipPath]['entryUncompressedSize']);
+        $t->true($byPath[$nestedZipPath]['packageExpansionRatio'] > 10.0);
+        $t->true($byPath[$nestedZipPath]['totalExpansionRatio'] > 10.0);
+        $t->same([
+            'archive-package-expansion-ratio-exceeds-threshold',
+            'archive-total-expansion-ratio-exceeds-threshold',
+        ], $byPath[$nestedZipPath]['diagnostics']);
+        $t->same(2, $byPath[$nestedZipPath]['ratioDiagnosticCount']);
+        $t->same('review-before-conversion', $byPath[$nestedZipPath]['policy']);
+        $t->same(['[Content_Types].xml', 'packet/content.md'], $byPath[$nestedZipPath]['entryNames']);
+        $t->same(false, isset($policy['root']['tarBytes']));
+        $t->same(false, isset($policy['entries'][0]['tarBytes']));
+        $t->same(false, isset($policy['entries'][1]['zipBytes']));
+        $t->same(false, isset($policy['entries'][1]['package']));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectNestedArchiveBombPolicyAuto(
+            $outerGzip,
+            strlen($outerTar->bytes()),
+            strlen($outerTar->bytes()),
+            -1
+        ));
+    },
+
     'builds and reads bounded raw and zlib deflate package fixture streams' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

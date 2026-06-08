@@ -4512,11 +4512,68 @@ final class MarkdownReader
             return NAN;
         }
 
+        $sexagesimal = $this->parseYamlSexagesimalFloatScalar($normalized);
+        if ($sexagesimal !== null) {
+            return $sexagesimal;
+        }
+
         if (preg_match('/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/', $normalized) !== 1) {
             return $value;
         }
 
         return (float) $normalized;
+    }
+
+    private function parseYamlSexagesimalFloatScalar(string $normalized): ?float
+    {
+        if (!str_contains($normalized, ':')) {
+            return null;
+        }
+
+        $sign = 1.0;
+        if ($normalized[0] === '+' || $normalized[0] === '-') {
+            $sign = $normalized[0] === '-' ? -1.0 : 1.0;
+            $normalized = substr($normalized, 1);
+        }
+
+        if ($normalized === '' || !str_contains($normalized, ':')) {
+            return null;
+        }
+
+        $parts = explode(':', $normalized);
+        if (count($parts) < 2) {
+            return null;
+        }
+
+        $value = 0.0;
+        $lastIndex = count($parts) - 1;
+        foreach ($parts as $index => $part) {
+            if ($part === '') {
+                return null;
+            }
+
+            if ($index === $lastIndex) {
+                if (preg_match('/^\d+(?:\.\d+)?$/', $part) !== 1) {
+                    return null;
+                }
+
+                $component = (float) $part;
+            } else {
+                if (preg_match('/^\d+$/', $part) !== 1) {
+                    return null;
+                }
+
+                $component = (float) ((int) $part);
+            }
+
+            if ($index > 0 && $component >= 60.0) {
+                return null;
+            }
+
+            $value = ($value * 60.0) + $component;
+        }
+
+        return $sign * $value;
     }
 
     private function parseYamlExplicitBooleanScalar(string $value): bool|string

@@ -26,6 +26,7 @@ final class OpcRelationshipGraph
     public const WORDPROCESSING_FOOTER_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     public const WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     public const WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+    public const WORDPROCESSING_CUSTOM_XML_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
     public const WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE = 'http://schemas.microsoft.com/office/2011/relationships/commentsExtended';
     public const WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
     public const WORDPROCESSING_ALTERNATIVE_FORMAT_IMPORT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
@@ -64,6 +65,7 @@ final class OpcRelationshipGraph
     private const WORDPROCESSING_WEB_SETTINGS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml';
     private const WORDPROCESSING_HEADER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
     private const WORDPROCESSING_FOOTER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
+    private const WORDPROCESSING_CUSTOM_XML_CONTENT_TYPE = 'application/xml';
     private const WORDPROCESSING_COMMENTS_EXTENDED_CONTENT_TYPE = 'application/vnd.ms-word.commentsExt+xml';
     private const WORDPROCESSING_GLOSSARY_DOCUMENT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml';
     private const DRAWINGML_CHART_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
@@ -3813,6 +3815,11 @@ final class OpcRelationshipGraph
             self::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE => [
                 'role' => 'hyperlink',
                 'expectedExternal' => true,
+            ],
+            self::WORDPROCESSING_CUSTOM_XML_RELATIONSHIP_TYPE => [
+                'role' => 'custom-xml',
+                'expectedContentType' => self::WORDPROCESSING_CUSTOM_XML_CONTENT_TYPE,
+                'expectedExternal' => false,
             ],
             self::WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE => [
                 'role' => 'comments-extended',

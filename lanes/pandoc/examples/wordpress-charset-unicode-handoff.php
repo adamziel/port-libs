@@ -119,6 +119,7 @@ $iso2022JpText = (string) $iso2022JpSource->children[1]->attr('text');
 $big5Bytes = (string) hex2bin('2320a4a4a4e50a0aa4a4a4e5204269673520b4fab8d5a141adbbb4e4a143');
 $big5Source = (new MarkdownReader())->readBytes($big5Bytes, 'big5-hkscs');
 $big5Text = (string) $big5Source->children[1]->attr('text');
+$big5PointerText = UnicodeText::decodeBytes("\x88\x62\x88\x64\x88\xA3\x88\xA5", 'big5')['text'];
 $gbkBytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
 $gbkSource = (new MarkdownReader())->readBytes($gbkBytes, 'gbk');
 $gbkText = (string) $gbkSource->children[1]->attr('text');
@@ -604,6 +605,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($big5Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($big5Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Big5 pointer sequences'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $big5PointerText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'big5:' . UnicodeText::displayWidth($big5PointerText)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'GBK source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $gbkText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gbkSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gbkText)])]),
@@ -980,6 +986,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Big5 source</td><td>中文 Big5 測試，香港。</td><td>big5:22</td>')) {
         throw new RuntimeException('charset handoff self-test missing Big5 decode audit row');
+    }
+    if (!str_contains($blocks, "<td>Big5 pointer sequences</td><td>Ê\u{0304}Ê\u{030C}ê\u{0304}ê\u{030C}</td><td>big5:4</td>")) {
+        throw new RuntimeException('charset handoff self-test missing Big5 two-codepoint pointer audit row');
     }
     if (($gbkSource->attr('sourceEncoding')['encoding'] ?? '') !== 'gbk') {
         throw new RuntimeException('charset handoff self-test missing GBK source encoding');

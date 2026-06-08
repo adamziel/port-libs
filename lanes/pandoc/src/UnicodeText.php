@@ -2396,6 +2396,14 @@ final class UnicodeText
         0xb8d5 => 0x8a66,
     ];
 
+    /** @var array<int, string> */
+    private const BIG5_PAIR_SEQUENCES = [
+        0x8862 => "\u{00CA}\u{0304}",
+        0x8864 => "\u{00CA}\u{030C}",
+        0x88a3 => "\u{00EA}\u{0304}",
+        0x88a5 => "\u{00EA}\u{030C}",
+    ];
+
     /** @var array<int, int> */
     private const GBK_PAIRS = [
         0xa1a3 => 0x3002,
@@ -4419,6 +4427,12 @@ final class UnicodeText
             }
 
             $pair = ($byte << 8) | $trail;
+            if (isset(self::BIG5_PAIR_SEQUENCES[$pair])) {
+                $out .= self::BIG5_PAIR_SEQUENCES[$pair];
+                $offset++;
+                continue;
+            }
+
             if (!isset(self::BIG5_PAIRS[$pair])) {
                 $out .= self::REPLACEMENT;
                 $repairs++;
