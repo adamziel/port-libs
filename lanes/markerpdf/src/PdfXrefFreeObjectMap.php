@@ -49,8 +49,13 @@ final class PdfXrefFreeObjectMap
             $operandBytes = substr($pdfBytes, $tokenOffset + strlen('startxref'), 64);
             $declaredOffset = self::startxrefDeclaredOffsetFromOperand($operandBytes);
             if ($declaredOffset !== null) {
+                $declaredOffset = max(0, $declaredOffset);
+                if (self::xrefTableStartsAfterMalformedHexSelfStartxrefTail($pdfBytes, $declaredOffset)) {
+                    continue;
+                }
+
                 return [
-                    'offset' => max(0, $declaredOffset),
+                    'offset' => $declaredOffset,
                     'tokenOffset' => $tokenOffset,
                 ];
             }
@@ -426,14 +431,17 @@ final class PdfXrefFreeObjectMap
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $hexEnd = self::skipPdfHexStringTokenAt($pdfBytes, $offset);
+                $hexEnd = self::skipPdfHexStringBoundaryAt($pdfBytes, $offset);
                 if ($hexEnd !== null) {
                     $offset = $hexEnd;
                     continue;
                 }
             }
 
-            if (self::keywordAt($pdfBytes, $offset, 'xref')) {
+            if (
+                self::keywordAt($pdfBytes, $offset, 'xref')
+                && !self::xrefTableStartsAfterMalformedHexSelfStartxrefTail($pdfBytes, $offset)
+            ) {
                 $offsets[] = $offset;
                 $offset += strlen('xref');
                 continue;
@@ -492,7 +500,7 @@ final class PdfXrefFreeObjectMap
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $hexEnd = self::skipPdfHexStringTokenAt($pdfBytes, $offset);
+                $hexEnd = self::skipPdfHexStringBoundaryAt($pdfBytes, $offset);
                 if ($hexEnd !== null) {
                     if ($tokenOffset > $offset && $tokenOffset < $hexEnd) {
                         return true;
@@ -696,6 +704,92 @@ final class PdfXrefFreeObjectMap
             }
 
             return null;
+        }
+
+        return null;
+    }
+
+    private static function skipPdfHexStringBoundaryAt(string $pdfBytes, int $offset): ?int
+    {
+        $strictEnd = self::skipPdfHexStringTokenAt($pdfBytes, $offset);
+        if ($strictEnd !== null) {
+            return $strictEnd;
+        }
+
+        return strpos($pdfBytes, '>', $offset + 1) === false ? strlen($pdfBytes) : null;
+    }
+
+    private static function xrefTableStartsAfterMalformedHexSelfStartxrefTail(string $pdfBytes, int $xrefOffset): bool
+    {
+        if ($xrefOffset < 0 || $xrefOffset >= strlen($pdfBytes) || !self::keywordAt($pdfBytes, $xrefOffset, 'xref')) {
+            return false;
+        }
+
+        if (self::malformedHexStringOpenerBeforeToken($pdfBytes, $xrefOffset) === null) {
+            return false;
+        }
+
+        $eofOffset = strpos($pdfBytes, '%%EOF', $xrefOffset);
+        $tail = $eofOffset === false
+            ? substr($pdfBytes, $xrefOffset)
+            : substr($pdfBytes, $xrefOffset, $eofOffset - $xrefOffset);
+        if (preg_match('/\bstartxref\b\s*([+-]?\d+)/s', $tail, $match) !== 1) {
+            return false;
+        }
+
+        return (int) $match[1] === $xrefOffset;
+    }
+
+    private static function malformedHexStringOpenerBeforeToken(string $pdfBytes, int $tokenOffset): ?int
+    {
+        $length = strlen($pdfBytes);
+        $offset = 0;
+        while ($offset < $tokenOffset && $offset < $length) {
+            $objectEnd = self::directObjectTokenEndAt($pdfBytes, $offset);
+            if ($objectEnd !== null) {
+                $offset = $objectEnd;
+                continue;
+            }
+
+            $malformedObjectBodyStart = self::malformedDirectObjectBodyStartAt($pdfBytes, $offset);
+            if ($malformedObjectBodyStart !== null) {
+                return null;
+            }
+
+            $char = $pdfBytes[$offset];
+            if ($char === '%') {
+                self::skipComment($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                self::skipLiteralString($pdfBytes, $offset);
+                continue;
+            }
+
+            $compositeEnd = self::skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $strictEnd = self::skipPdfHexStringTokenAt($pdfBytes, $offset);
+                if ($strictEnd !== null) {
+                    $offset = $strictEnd;
+                    continue;
+                }
+
+                $closeOffset = strpos($pdfBytes, '>', $offset + 1);
+                if ($closeOffset === false || $closeOffset > $tokenOffset) {
+                    return $offset;
+                }
+
+                $offset = $closeOffset + 1;
+                continue;
+            }
+
+            $offset++;
         }
 
         return null;
@@ -972,7 +1066,7 @@ final class PdfXrefFreeObjectMap
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $hexEnd = self::skipPdfHexStringTokenAt($pdfBytes, $offset);
+                $hexEnd = self::skipPdfHexStringBoundaryAt($pdfBytes, $offset);
                 if ($hexEnd !== null) {
                     $offset = $hexEnd;
                     continue;

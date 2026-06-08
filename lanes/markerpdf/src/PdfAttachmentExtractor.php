@@ -5438,7 +5438,7 @@ final class PdfAttachmentExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
+                $end = $this->skipPdfHexStringBoundary($pdfBytes, $offset);
                 if ($end !== null) {
                     $offset = $end;
                     continue;
@@ -5865,9 +5865,13 @@ final class PdfAttachmentExtractor
             if ($declaredOffset === null) {
                 continue;
             }
+            $declaredOffset = max(0, $declaredOffset);
+            if ($this->xrefTableStartsAfterMalformedHexSelfStartxrefTail($pdfBytes, $definitions, $declaredOffset)) {
+                continue;
+            }
 
             return [
-                'offset' => max(0, $declaredOffset),
+                'offset' => $declaredOffset,
                 'tokenOffset' => $tokenOffset,
             ];
         }
@@ -6063,7 +6067,7 @@ final class PdfAttachmentExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
+                $end = $this->skipPdfHexStringBoundary($pdfBytes, $offset);
                 if ($end !== null) {
                     if ($tokenOffset > $offset && $tokenOffset < $end) {
                         return true;
@@ -7490,7 +7494,7 @@ final class PdfAttachmentExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
+                $end = $this->skipPdfHexStringBoundary($pdfBytes, $offset);
                 if ($end !== null) {
                     $offset = $end;
                     continue;
@@ -7558,14 +7562,17 @@ final class PdfAttachmentExtractor
             }
 
             if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
-                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
+                $end = $this->skipPdfHexStringBoundary($pdfBytes, $offset);
                 if ($end !== null) {
                     $offset = $end;
                     continue;
                 }
             }
 
-            if ($this->pdfKeywordAt($pdfBytes, $offset, 'xref')) {
+            if (
+                $this->pdfKeywordAt($pdfBytes, $offset, 'xref')
+                && !$this->xrefTableStartsAfterMalformedHexSelfStartxrefTail($pdfBytes, $definitions, $offset)
+            ) {
                 $offsets[] = $offset;
                 $offset += strlen('xref');
                 continue;
@@ -7655,6 +7662,111 @@ final class PdfAttachmentExtractor
             }
 
             return null;
+        }
+
+        return null;
+    }
+
+    private function skipPdfHexStringBoundary(string $pdfBytes, int $offset): ?int
+    {
+        $strictEnd = $this->skipPdfHexStringToken($pdfBytes, $offset);
+        if ($strictEnd !== null) {
+            return $strictEnd;
+        }
+
+        return strpos($pdfBytes, '>', $offset + 1) === false ? strlen($pdfBytes) : null;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     */
+    private function xrefTableStartsAfterMalformedHexSelfStartxrefTail(
+        string $pdfBytes,
+        ?array $definitions,
+        int $xrefOffset
+    ): bool {
+        if ($xrefOffset < 0 || $xrefOffset >= strlen($pdfBytes) || !$this->pdfKeywordAt($pdfBytes, $xrefOffset, 'xref')) {
+            return false;
+        }
+
+        if ($this->malformedHexStringOpenerBeforeToken($pdfBytes, $definitions, $xrefOffset) === null) {
+            return false;
+        }
+
+        $eofOffset = strpos($pdfBytes, '%%EOF', $xrefOffset);
+        $tail = $eofOffset === false
+            ? substr($pdfBytes, $xrefOffset)
+            : substr($pdfBytes, $xrefOffset, $eofOffset - $xrefOffset);
+        if (preg_match('/\bstartxref\b\s*([+-]?\d+)/s', $tail, $match) !== 1) {
+            return false;
+        }
+
+        return (int) $match[1] === $xrefOffset;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     */
+    private function malformedHexStringOpenerBeforeToken(string $pdfBytes, ?array $definitions, int $tokenOffset): ?int
+    {
+        $length = strlen($pdfBytes);
+        $offset = 0;
+        while ($offset < $tokenOffset && $offset < $length) {
+            if ($definitions !== null) {
+                foreach ($definitions as $entries) {
+                    foreach ($entries as $definition) {
+                        $bodyStart = $definition['bodyStart'] ?? null;
+                        $bodyEnd = $definition['bodyEnd'] ?? null;
+                        if (is_int($bodyStart) && is_int($bodyEnd) && $offset >= $bodyStart && $offset <= $bodyEnd) {
+                            $offset = $bodyEnd + 1;
+                            continue 3;
+                        }
+                    }
+                }
+            }
+
+            if ($this->malformedDirectObjectBodyStartAt($pdfBytes, $offset) !== null) {
+                return null;
+            }
+
+            $char = $pdfBytes[$offset];
+            if ($char === '%') {
+                $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->literalTokenEndOffset($pdfBytes, $offset);
+                if ($end === null) {
+                    return null;
+                }
+                $offset = $end;
+                continue;
+            }
+
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $strictEnd = $this->skipPdfHexStringToken($pdfBytes, $offset);
+                if ($strictEnd !== null) {
+                    $offset = $strictEnd;
+                    continue;
+                }
+
+                $closeOffset = strpos($pdfBytes, '>', $offset + 1);
+                if ($closeOffset === false || $closeOffset > $tokenOffset) {
+                    return $offset;
+                }
+
+                $offset = $closeOffset + 1;
+                continue;
+            }
+
+            $offset++;
         }
 
         return null;
