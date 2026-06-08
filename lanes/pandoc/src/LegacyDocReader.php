@@ -57,6 +57,10 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFEND_TXT = 0x0216;
     private const FIB_FC_PLCF_FLD_EDN = 0x021a;
     private const FIB_LCB_PLCF_FLD_EDN = 0x021e;
+    private const FIB_FC_PLCF_FLD_TXBX = 0x0262;
+    private const FIB_LCB_PLCF_FLD_TXBX = 0x0266;
+    private const FIB_FC_PLCF_FLD_HDR_TXBX = 0x0272;
+    private const FIB_LCB_PLCF_FLD_HDR_TXBX = 0x0276;
     private const FIB_FC_PLF_LST = 0x02e2;
     private const FIB_LCB_PLF_LST = 0x02e6;
     private const FIB_FC_PLF_LFO = 0x02ea;
@@ -5659,6 +5663,18 @@ final class LegacyDocReader
                 'table' => 'PlcfldEdn',
                 'fcOffset' => self::FIB_FC_PLCF_FLD_EDN,
                 'lcbOffset' => self::FIB_LCB_PLCF_FLD_EDN,
+            ],
+            [
+                'story' => 'textbox',
+                'table' => 'PlcfldTxbx',
+                'fcOffset' => self::FIB_FC_PLCF_FLD_TXBX,
+                'lcbOffset' => self::FIB_LCB_PLCF_FLD_TXBX,
+            ],
+            [
+                'story' => 'header-textbox',
+                'table' => 'PlcfldHdrTxbx',
+                'fcOffset' => self::FIB_FC_PLCF_FLD_HDR_TXBX,
+                'lcbOffset' => self::FIB_LCB_PLCF_FLD_HDR_TXBX,
             ],
         ];
     }

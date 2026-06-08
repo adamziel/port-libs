@@ -1058,6 +1058,8 @@ $buildSupplementalFieldTableDocStreams = static function () use ($utf16le, $u16,
     $headerText = 'Header ' . $fieldBegin . ' DATE \@ "yyyy-MM-dd" ' . $fieldSeparator . '2026-06-06' . $fieldEnd . "\r";
     $commentText = 'Comment ' . $fieldBegin . ' REF "legacy_anchor" \h ' . $fieldSeparator . 'Legacy anchor' . $fieldEnd . "\r";
     $endnoteText = 'Endnote ' . $fieldBegin . ' NOTEREF "_RefNote" \f ' . $fieldSeparator . '1' . $fieldEnd . " metadata\r";
+    $textboxText = 'Textbox ' . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '3' . $fieldEnd . " metadata\r";
+    $headerTextboxText = 'Header textbox ' . $fieldBegin . ' REF "legacy_anchor" \h ' . $fieldSeparator . 'Anchor' . $fieldEnd . "\r";
     $pieces = [
         $mainText,
         $separator,
@@ -1065,6 +1067,8 @@ $buildSupplementalFieldTableDocStreams = static function () use ($utf16le, $u16,
         $headerText,
         $commentText,
         $endnoteText,
+        $textboxText,
+        $headerTextboxText,
     ];
     $cpOffsets = [0];
     foreach ($pieces as $piece) {
@@ -1092,15 +1096,21 @@ $buildSupplementalFieldTableDocStreams = static function () use ($utf16le, $u16,
     $footnoteFieldRecords = $fieldRecordsForText($footnoteText);
     $commentFieldRecords = $fieldRecordsForText($commentText);
     $endnoteFieldRecords = $fieldRecordsForText($endnoteText);
+    $textboxFieldRecords = $fieldRecordsForText($textboxText);
+    $headerTextboxFieldRecords = $fieldRecordsForText($headerTextboxText);
     $plcfldHdr = $plcfldMom($headerFieldRecords, strlen($headerText));
     $plcfldFtn = $plcfldMom($footnoteFieldRecords, strlen($footnoteText));
     $plcfldAtn = $plcfldMom($commentFieldRecords, strlen($commentText));
     $plcfldEdn = $plcfldMom($endnoteFieldRecords, strlen($endnoteText));
+    $plcfldTxbx = $plcfldMom($textboxFieldRecords, strlen($textboxText));
+    $plcfldHdrTxbx = $plcfldMom($headerTextboxFieldRecords, strlen($headerTextboxText));
     $fcPlcfFldHdr = strlen($clx);
     $fcPlcfFldFtn = $fcPlcfFldHdr + strlen($plcfldHdr);
     $fcPlcfFldAtn = $fcPlcfFldFtn + strlen($plcfldFtn);
     $fcPlcfFldEdn = $fcPlcfFldAtn + strlen($plcfldAtn);
-    $tableStream = $clx . $plcfldHdr . $plcfldFtn . $plcfldAtn . $plcfldEdn;
+    $fcPlcfFldTxbx = $fcPlcfFldEdn + strlen($plcfldEdn);
+    $fcPlcfFldHdrTxbx = $fcPlcfFldTxbx + strlen($plcfldTxbx);
+    $tableStream = $clx . $plcfldHdr . $plcfldFtn . $plcfldAtn . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx;
 
     $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
     $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
@@ -1113,6 +1123,8 @@ $buildSupplementalFieldTableDocStreams = static function () use ($utf16le, $u16,
     $wordDocument = substr_replace($wordDocument, $u32(strlen($headerText)), 0x0054, 4);
     $wordDocument = substr_replace($wordDocument, $u32(strlen($commentText)), 0x005c, 4);
     $wordDocument = substr_replace($wordDocument, $u32(strlen($endnoteText)), 0x0060, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($textboxText)), 0x0064, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($headerTextboxText)), 0x0068, 4);
     $wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
     $wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
     $wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldHdr), 0x0122, 4);
@@ -1123,6 +1135,10 @@ $buildSupplementalFieldTableDocStreams = static function () use ($utf16le, $u16,
     $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldAtn)), 0x0136, 4);
     $wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldEdn), 0x021a, 4);
     $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldEdn)), 0x021e, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldTxbx), 0x0262, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldTxbx)), 0x0266, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldHdrTxbx), 0x0272, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldHdrTxbx)), 0x0276, 4);
 
     return [
         'streams' => [
@@ -1134,15 +1150,21 @@ $buildSupplementalFieldTableDocStreams = static function () use ($utf16le, $u16,
         'headerText' => $headerText,
         'commentText' => $commentText,
         'endnoteText' => $endnoteText,
+        'textboxText' => $textboxText,
+        'headerTextboxText' => $headerTextboxText,
         'headerFieldRecords' => $headerFieldRecords,
         'footnoteFieldRecords' => $footnoteFieldRecords,
         'commentFieldRecords' => $commentFieldRecords,
         'endnoteFieldRecords' => $endnoteFieldRecords,
+        'textboxFieldRecords' => $textboxFieldRecords,
+        'headerTextboxFieldRecords' => $headerTextboxFieldRecords,
         'fieldTableOffsets' => [
             'header' => $fcPlcfFldHdr,
             'footnote' => $fcPlcfFldFtn,
             'comment' => $fcPlcfFldAtn,
             'endnote' => $fcPlcfFldEdn,
+            'textbox' => $fcPlcfFldTxbx,
+            'header-textbox' => $fcPlcfFldHdrTxbx,
         ],
     ];
 };
@@ -3254,22 +3276,29 @@ return [
         $fieldStories = $result['fieldStories'];
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->same(12, $metadata['fieldCharacterCount']);
-        $t->same(4, $metadata['fieldCount']);
-        $t->same(4, $metadata['fieldStoryCount']);
+        $t->same(18, $metadata['fieldCharacterCount']);
+        $t->same(6, $metadata['fieldCount']);
+        $t->same(6, $metadata['fieldStoryCount']);
         $t->same($fields, $metadata['fields']);
         $t->same($fieldCharacters, $metadata['fieldCharacters']);
         $t->same($fieldStories, $metadata['fieldStories']);
         $t->same($fieldStories, $document->attr('fieldStories'));
-        $t->same(['header', 'footnote', 'comment', 'endnote'], array_column($fieldStories, 'story'));
-        $t->same(['PlcfldHdr', 'PlcfldFtn', 'PlcfldAtn', 'PlcfldEdn'], array_column($fieldStories, 'table'));
-        $t->same([strlen($fixture['headerText']), strlen($fixture['footnoteText']), strlen($fixture['commentText']), strlen($fixture['endnoteText'])], array_column($fieldStories, 'characterCount'));
-        $t->same([3, 3, 3, 3], array_column($fieldStories, 'fieldCharacterCount'));
-        $t->same([1, 1, 1, 1], array_column($fieldStories, 'fieldCount'));
+        $t->same(['header', 'footnote', 'comment', 'endnote', 'textbox', 'header-textbox'], array_column($fieldStories, 'story'));
+        $t->same(['PlcfldHdr', 'PlcfldFtn', 'PlcfldAtn', 'PlcfldEdn', 'PlcfldTxbx', 'PlcfldHdrTxbx'], array_column($fieldStories, 'table'));
+        $t->same([
+            strlen($fixture['headerText']),
+            strlen($fixture['footnoteText']),
+            strlen($fixture['commentText']),
+            strlen($fixture['endnoteText']),
+            strlen($fixture['textboxText']),
+            strlen($fixture['headerTextboxText']),
+        ], array_column($fieldStories, 'characterCount'));
+        $t->same([3, 3, 3, 3, 3, 3], array_column($fieldStories, 'fieldCharacterCount'));
+        $t->same([1, 1, 1, 1, 1, 1], array_column($fieldStories, 'fieldCount'));
 
-        $t->same(['date', 'page', 'ref', 'noteref'], array_column($fields, 'type'));
-        $t->same(['header', 'footnote', 'comment', 'endnote'], array_column($fields, 'story'));
-        $t->same([1, 1, 1, 1], array_column($fields, 'storyIndex'));
+        $t->same(['date', 'page', 'ref', 'noteref', 'page', 'ref'], array_column($fields, 'type'));
+        $t->same(['header', 'footnote', 'comment', 'endnote', 'textbox', 'header-textbox'], array_column($fields, 'story'));
+        $t->same([1, 1, 1, 1, 1, 1], array_column($fields, 'storyIndex'));
         $t->same(strpos($fixture['headerText'], "\x13"), $fields[0]['beginCp']);
         $t->same(strpos($fixture['headerText'], "\x14"), $fields[0]['separatorCp']);
         $t->same(strpos($fixture['headerText'], "\x15"), $fields[0]['endCp']);
@@ -3282,17 +3311,44 @@ return [
         $t->same(strpos($fixture['endnoteText'], "\x13"), $fields[3]['beginCp']);
         $t->same(strpos($fixture['endnoteText'], "\x14"), $fields[3]['separatorCp']);
         $t->same(strpos($fixture['endnoteText'], "\x15"), $fields[3]['endCp']);
+        $t->same(strpos($fixture['textboxText'], "\x13"), $fields[4]['beginCp']);
+        $t->same(strpos($fixture['textboxText'], "\x14"), $fields[4]['separatorCp']);
+        $t->same(strpos($fixture['textboxText'], "\x15"), $fields[4]['endCp']);
+        $t->same(strpos($fixture['headerTextboxText'], "\x13"), $fields[5]['beginCp']);
+        $t->same(strpos($fixture['headerTextboxText'], "\x14"), $fields[5]['separatorCp']);
+        $t->same(strpos($fixture['headerTextboxText'], "\x15"), $fields[5]['endCp']);
         $t->same(array_merge(
             array_fill(0, 3, 'header'),
             array_fill(0, 3, 'footnote'),
             array_fill(0, 3, 'comment'),
-            array_fill(0, 3, 'endnote')
+            array_fill(0, 3, 'endnote'),
+            array_fill(0, 3, 'textbox'),
+            array_fill(0, 3, 'header-textbox')
         ), array_column($fieldCharacters, 'story'));
-        $t->same([1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3], array_column($fieldCharacters, 'storyIndex'));
-        $t->same(['begin', 'separator', 'end', 'begin', 'separator', 'end', 'begin', 'separator', 'end', 'begin', 'separator', 'end'], array_column($fieldCharacters, 'kind'));
+        $t->same([1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3], array_column($fieldCharacters, 'storyIndex'));
+        $t->same([
+            'begin',
+            'separator',
+            'end',
+            'begin',
+            'separator',
+            'end',
+            'begin',
+            'separator',
+            'end',
+            'begin',
+            'separator',
+            'end',
+            'begin',
+            'separator',
+            'end',
+            'begin',
+            'separator',
+            'end',
+        ], array_column($fieldCharacters, 'kind'));
 
         $t->contains('<p>Main body stays rendered</p>', $blocks);
-        foreach (['Header ', 'Footnote ', 'Comment ', 'Endnote ', '2026-06-06', 'Legacy anchor', 'PAGE', 'DATE', 'REF', 'NOTEREF'] as $hiddenText) {
+        foreach (['Header ', 'Footnote ', 'Comment ', 'Endnote ', 'Textbox ', 'Header textbox ', '2026-06-06', 'Legacy anchor', 'Anchor', 'PAGE', 'DATE', 'REF', 'NOTEREF'] as $hiddenText) {
             $t->true(!str_contains($blocks, $hiddenText), 'Legacy DOC supplemental field text should not render to WordPress blocks');
         }
 
@@ -3315,6 +3371,16 @@ return [
             4
         );
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($badEndnoteFixture['streams'])));
+
+        $badTextboxFixture = $fixture;
+        $textboxFinalCpOffset = $badTextboxFixture['fieldTableOffsets']['textbox'] + (count($badTextboxFixture['textboxFieldRecords']) * 4);
+        $badTextboxFixture['streams']['1Table'] = substr_replace(
+            $badTextboxFixture['streams']['1Table'],
+            $u32(strlen($badTextboxFixture['textboxText']) + 1),
+            $textboxFinalCpOffset,
+            4
+        );
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($badTextboxFixture['streams'])));
     },
     'honors legacy DOC piece-table no-paragraph-last flags on non-paragraph pieces' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $streams = $buildPieceTableDocStreams(0x0001);
