@@ -279,7 +279,7 @@ $buildPlcfldMom = static function (array $records, int $finalCp) use ($u32): str
     }
     $bytes .= $u32($finalCp);
     foreach ($records as $record) {
-        $bytes .= chr((int) $record['character']) . chr((int) ($record['typeCode'] ?? 0));
+        $bytes .= chr((int) $record['character']) . chr((int) ($record['flags'] ?? $record['endFlags'] ?? $record['typeCode'] ?? 0));
     }
 
     return $bytes;
@@ -592,6 +592,7 @@ $fieldRecordsForText = static function (string $text) use ($fieldBegin, $fieldSe
     }
 
     $records = [];
+    $openFields = [];
     for ($cp = 0, $count = count($characters); $cp < $count; $cp++) {
         $character = $characters[$cp];
         if ($character === $fieldBegin) {
@@ -608,10 +609,18 @@ $fieldRecordsForText = static function (string $text) use ($fieldBegin, $fieldSe
                 'character' => 0x13,
                 'typeCode' => $fieldTypeCodes[$fieldName] ?? 0x01,
             ];
+            $openFields[] = [
+                'fieldName' => $fieldName,
+                'hasSeparator' => false,
+            ];
             continue;
         }
 
         if ($character === $fieldSeparator) {
+            $openIndex = count($openFields) - 1;
+            if ($openIndex >= 0) {
+                $openFields[$openIndex]['hasSeparator'] = true;
+            }
             $records[] = [
                 'cp' => $cp,
                 'character' => 0x14,
@@ -620,9 +629,21 @@ $fieldRecordsForText = static function (string $text) use ($fieldBegin, $fieldSe
         }
 
         if ($character === $fieldEnd) {
+            $openField = array_pop($openFields) ?? [
+                'fieldName' => '',
+                'hasSeparator' => false,
+            ];
+            $endFlags = (($openField['hasSeparator'] ?? false) === true ? 0x80 : 0);
+            if (($openField['fieldName'] ?? '') === 'PAGE') {
+                $endFlags |= 0x14;
+            }
+            if ($openFields !== []) {
+                $endFlags |= 0x40;
+            }
             $records[] = [
                 'cp' => $cp,
                 'character' => 0x15,
+                'endFlags' => $endFlags,
             ];
         }
     }
@@ -1829,6 +1850,30 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['fieldCharacters'][0]['kind'] ?? '') !== 'begin' || ($summary['fieldCharacters'][0]['type'] ?? '') !== 'hyperlink') {
         throw new RuntimeException('Legacy DOC handoff self-test missing first Plcfld begin record');
+    }
+    if (($summary['fields'][4]['endFlags'] ?? null) !== 0x94
+        || ($summary['fields'][4]['resultDirty'] ?? null) !== true
+        || ($summary['fields'][4]['locked'] ?? null) !== true
+        || ($summary['fields'][4]['hasSeparatorFlag'] ?? null) !== true
+        || ($summary['fields'][4]['separatorFlagMatchesRange'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing PAGE Plcfld end flag metadata');
+    }
+    if (($summary['fields'][4]['endFlagNames'] ?? []) !== ['result-dirty', 'locked', 'has-separator']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing PAGE Plcfld end flag names');
+    }
+    $pageEndCharacter = null;
+    foreach ($summary['fieldCharacters'] ?? [] as $fieldCharacter) {
+        if (($fieldCharacter['kind'] ?? '') === 'end'
+            && ($fieldCharacter['story'] ?? '') === 'main'
+            && ($fieldCharacter['cp'] ?? null) === ($summary['fields'][4]['endCp'] ?? null)
+        ) {
+            $pageEndCharacter = $fieldCharacter;
+            break;
+        }
+    }
+    if (($pageEndCharacter['endFlags'] ?? null) !== 0x94 || ($pageEndCharacter['locked'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing PAGE Plcfld end-character flags');
     }
     if (($summary['fields'][5]['typeCode'] ?? null) !== 0x26 || ($summary['fields'][5]['type'] ?? '') !== 'ask') {
         throw new RuntimeException('Legacy DOC handoff self-test missing ASK Plcfld metadata');

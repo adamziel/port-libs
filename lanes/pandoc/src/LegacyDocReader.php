@@ -5603,6 +5603,8 @@ final class LegacyDocReader
             }
 
             $open = array_pop($stack);
+            $hasResult = isset($open['separatorCp']);
+            $endFlagMetadata = $this->fieldEndFlagMetadata($flags, $hasResult);
             $fieldCharacters[] = [
                 'index' => $index + 1,
                 'cp' => $cp,
@@ -5610,9 +5612,8 @@ final class LegacyDocReader
                 'story' => $story,
                 'fieldCharacterCode' => $fieldCharacterCode,
                 'nestingLevel' => (int) $open['nestingLevel'],
-            ];
+            ] + $endFlagMetadata;
 
-            $hasResult = isset($open['separatorCp']);
             $field = [
                 'index' => count($fields) + 1,
                 'story' => $story,
@@ -5624,7 +5625,7 @@ final class LegacyDocReader
                 'instructionEndCp' => $hasResult ? (int) $open['separatorCp'] : $cp,
                 'hasResult' => $hasResult,
                 'nestingLevel' => (int) $open['nestingLevel'],
-            ];
+            ] + $endFlagMetadata;
             if ($hasResult) {
                 $field['separatorCp'] = (int) $open['separatorCp'];
                 $field['resultStartCp'] = (int) $open['separatorCp'] + 1;
@@ -5647,6 +5648,52 @@ final class LegacyDocReader
     private function fieldTypeName(int $typeCode): string
     {
         return self::FIELD_TYPE_NAMES[$typeCode] ?? 'unknown';
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function fieldEndFlagMetadata(int $flags, bool $hasResult): array
+    {
+        $hasSeparatorFlag = ($flags & 0x80) !== 0;
+
+        return [
+            'endFlags' => $flags,
+            'endFlagNames' => $this->fieldEndFlagNames($flags),
+            'differ' => ($flags & 0x01) !== 0,
+            'zombieEmbed' => ($flags & 0x02) !== 0,
+            'resultDirty' => ($flags & 0x04) !== 0,
+            'resultEdited' => ($flags & 0x08) !== 0,
+            'locked' => ($flags & 0x10) !== 0,
+            'privateResult' => ($flags & 0x20) !== 0,
+            'nested' => ($flags & 0x40) !== 0,
+            'hasSeparatorFlag' => $hasSeparatorFlag,
+            'separatorFlagMatchesRange' => $hasSeparatorFlag === $hasResult,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fieldEndFlagNames(int $flags): array
+    {
+        $names = [];
+        foreach ([
+            0x01 => 'differ',
+            0x02 => 'zombie-embed',
+            0x04 => 'result-dirty',
+            0x08 => 'result-edited',
+            0x10 => 'locked',
+            0x20 => 'private-result',
+            0x40 => 'nested',
+            0x80 => 'has-separator',
+        ] as $mask => $name) {
+            if (($flags & $mask) !== 0) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     /**

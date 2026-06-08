@@ -650,7 +650,7 @@ $plcfldMom = static function (array $records, int $finalCp) use ($u32): string {
     }
     $bytes .= $u32($finalCp);
     foreach ($records as $record) {
-        $bytes .= chr((int) $record['character']) . chr((int) ($record['typeCode'] ?? 0));
+        $bytes .= chr((int) $record['character']) . chr((int) ($record['flags'] ?? $record['endFlags'] ?? $record['typeCode'] ?? 0));
     }
 
     return $bytes;
@@ -4000,6 +4000,76 @@ return [
         $t->contains('data-legacy-doc-form-field-type="text"', $blocks);
         $t->contains('data-legacy-doc-form-field-type="checkbox"', $blocks);
         $t->contains('data-legacy-doc-form-field-type="dropdown"', $blocks);
+    },
+    'preserves legacy DOC Plcfld end flags for field review metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Flags '
+            . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '5' . $fieldEnd
+            . ' hidden '
+            . $fieldBegin . ' SET Sign "opaque signature bytes" ' . $fieldEnd
+            . ".\r";
+
+        $pageBegin = strpos($text, $fieldBegin);
+        $pageSeparator = strpos($text, $fieldSeparator, (int) $pageBegin);
+        $pageEnd = strpos($text, $fieldEnd, (int) $pageSeparator);
+        $setBegin = strpos($text, $fieldBegin, (int) $pageEnd + 1);
+        $setEnd = strpos($text, $fieldEnd, (int) $setBegin);
+        foreach ([$pageBegin, $pageSeparator, $pageEnd, $setBegin, $setEnd] as $cp) {
+            if (!is_int($cp)) {
+                throw new RuntimeException('Unable to locate legacy DOC Plcfld end-flag fixture');
+            }
+        }
+
+        $fieldTable = $plcfldMom([
+            ['cp' => $pageBegin, 'character' => 0x13, 'typeCode' => 0x21],
+            ['cp' => $pageSeparator, 'character' => 0x14],
+            ['cp' => $pageEnd, 'character' => 0x15, 'endFlags' => 0x9c],
+            ['cp' => $setBegin, 'character' => 0x13, 'typeCode' => 0x06],
+            ['cp' => $setEnd, 'character' => 0x15, 'endFlags' => 0x20],
+        ], strlen($text));
+        $wordDocument = $buildSimpleWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $fieldTable,
+        ]));
+        $fields = $result['fields'];
+        $fieldCharacters = $result['fieldCharacters'];
+        $paragraph = $result['document']->children[0];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same(5, $result['metadata']['fieldCharacterCount']);
+        $t->same(2, $result['metadata']['fieldCount']);
+        $t->same('page', $fields[0]['type']);
+        $t->same(0x9c, $fields[0]['endFlags']);
+        $t->same(['result-dirty', 'result-edited', 'locked', 'has-separator'], $fields[0]['endFlagNames']);
+        $t->same(true, $fields[0]['resultDirty']);
+        $t->same(true, $fields[0]['resultEdited']);
+        $t->same(true, $fields[0]['locked']);
+        $t->same(false, $fields[0]['privateResult']);
+        $t->same(true, $fields[0]['hasSeparatorFlag']);
+        $t->same(true, $fields[0]['separatorFlagMatchesRange']);
+        $t->same(0x9c, $fieldCharacters[2]['endFlags']);
+        $t->same(true, $fieldCharacters[2]['locked']);
+        $t->same(true, $fieldCharacters[2]['hasSeparatorFlag']);
+        $t->same('set', $fields[1]['type']);
+        $t->same(0x20, $fields[1]['endFlags']);
+        $t->same(['private-result'], $fields[1]['endFlagNames']);
+        $t->same(true, $fields[1]['privateResult']);
+        $t->same(false, $fields[1]['hasResult']);
+        $t->same(false, $fields[1]['hasSeparatorFlag']);
+        $t->same(true, $fields[1]['separatorFlagMatchesRange']);
+        $t->same(0x20, $fieldCharacters[4]['endFlags']);
+        $t->same(true, $fieldCharacters[4]['privateResult']);
+
+        $signatureSet = $paragraph->children[3];
+        $t->same('SET Sign [redacted]', $signatureSet->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('signature-blob-metadata-only', $signatureSet->attr('attributes')['data-legacy-doc-set-field-policy']);
+        $t->true(!str_contains($blocks, 'opaque signature bytes'), 'Legacy DOC private-result SET values should stay redacted from WordPress blocks');
     },
     'rejects malformed legacy DOC Plcfld field tables before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
         $text = "Broken \x13 PAGE \x147\x15\r";
