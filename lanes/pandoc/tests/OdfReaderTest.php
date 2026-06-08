@@ -2583,6 +2583,65 @@ XML;
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-date" data-odf-field-type="date" data-odf-field-date-value="2026-06-05" data-odf-field-fixed="true">June 5, 2026</span>', $blocksHtml);
     },
+    'maps ODT typed boolean and currency field values into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTypedFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:user-field-decls>
+        <text:user-field-decl text:name="NeedsLegalReview" office:value-type="boolean" office:boolean-value="false"/>
+      </text:user-field-decls>
+      <text:p>Typed fields <text:variable-set text:name="Approved" office:value-type="boolean" office:boolean-value="true"/> and budget <text:expression text:name="ApprovedBudget" text:formula="ooow:approved-budget" office:value-type="currency" office:value="42.50" office:currency="USD"/> plus declared <text:user-field-get text:name="NeedsLegalReview"/> remain visible.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTypedFields));
+        $paragraph = $result['document']->children[0];
+        $approved = $paragraph->children[1];
+        $budget = $paragraph->children[3];
+        $needsReview = $paragraph->children[5];
+
+        $t->same('Typed fields true and budget 42.50 plus declared false remain visible.', $paragraph->attr('text'));
+        $t->same(['odf-field', 'odf-field-variable-set'], $approved->attr('classes'));
+        $t->same('variable-set', $approved->attr('fieldType'));
+        $t->same('Approved', $approved->attr('fieldName'));
+        $t->same('boolean', $approved->attr('fieldMetadata')['valueType']);
+        $t->same(true, $approved->attr('fieldMetadata')['booleanValue']);
+        $t->same('true', $approved->attr('attributes')['data-odf-field-boolean-value']);
+        $t->same('true', $approved->children[0]->attr('text'));
+
+        $t->same(['odf-field', 'odf-field-expression'], $budget->attr('classes'));
+        $t->same('expression', $budget->attr('fieldType'));
+        $t->same('ApprovedBudget', $budget->attr('fieldName'));
+        $t->same('currency', $budget->attr('fieldMetadata')['valueType']);
+        $t->same('42.50', $budget->attr('fieldMetadata')['value']);
+        $t->same('USD', $budget->attr('fieldMetadata')['currency']);
+        $t->same('ooow:approved-budget', $budget->attr('fieldMetadata')['formula']);
+        $t->same('USD', $budget->attr('attributes')['data-odf-field-currency']);
+        $t->same('42.50', $budget->children[0]->attr('text'));
+
+        $t->same(['odf-field', 'odf-field-user-field-get'], $needsReview->attr('classes'));
+        $t->same('NeedsLegalReview', $needsReview->attr('fieldName'));
+        $t->same(true, $needsReview->attr('fieldMetadata')['declared']);
+        $t->same('boolean', $needsReview->attr('fieldMetadata')['valueType']);
+        $t->same(false, $needsReview->attr('fieldMetadata')['booleanValue']);
+        $t->same('false', $needsReview->attr('attributes')['data-odf-field-boolean-value']);
+        $t->same('false', $needsReview->children[0]->attr('text'));
+        $t->same(3, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[true]{.odf-field .odf-field-variable-set data-odf-field-type="variable-set" data-odf-field-name="Approved" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true"}', $markdown);
+        $t->contains('[42.50]{.odf-field .odf-field-expression data-odf-field-type="expression" data-odf-field-name="ApprovedBudget" data-odf-field-formula="ooow:approved-budget" data-odf-field-value-type="currency" data-odf-field-value="42.50" data-odf-field-currency="USD"}', $markdown);
+        $t->contains('[false]{.odf-field .odf-field-user-field-get data-odf-field-type="user-field-get" data-odf-field-name="NeedsLegalReview" data-odf-field-value-type="boolean" data-odf-field-boolean-value="false" data-odf-field-declared="true"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-variable-set" data-odf-field-type="variable-set" data-odf-field-name="Approved" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true">true</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-expression" data-odf-field-type="expression" data-odf-field-name="ApprovedBudget" data-odf-field-formula="ooow:approved-budget" data-odf-field-value-type="currency" data-odf-field-value="42.50" data-odf-field-currency="USD">42.50</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="NeedsLegalReview" data-odf-field-value-type="boolean" data-odf-field-boolean-value="false" data-odf-field-declared="true">false</span>', $blocksHtml);
+    },
     'maps ODT text and variable input fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithInputFields = <<<'XML'
 <office:document-content

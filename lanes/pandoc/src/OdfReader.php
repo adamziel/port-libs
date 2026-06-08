@@ -3477,6 +3477,8 @@ final class OdfReader
             'outlineLevel' => self::nullableInt(self::attr($field, self::TEXT_NS, 'outline-level')),
             'valueType' => self::nullable(self::attr($field, self::OFFICE_NS, 'value-type')),
             'value' => self::nullable(self::attr($field, self::OFFICE_NS, 'value')),
+            'currency' => self::nullable(self::attr($field, self::OFFICE_NS, 'currency')),
+            'booleanValue' => self::nullableBool(self::attr($field, self::OFFICE_NS, 'boolean-value')),
             'currentValue' => self::nullable($currentValue),
             'stringValue' => self::nullable($stringValue),
             'stringValueIfTrue' => self::nullable(self::attr($field, self::TEXT_NS, 'string-value-if-true')),
@@ -3592,6 +3594,9 @@ final class OdfReader
 
         foreach (['selectedValue', 'stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'currentValue', 'dateValue', 'timeValue', 'booleanValue', 'rowNumber', 'databaseName'] as $name) {
             $value = $metadata[$name] ?? null;
+            if (is_bool($value)) {
+                return $value ? 'true' : 'false';
+            }
             if (is_scalar($value) && (string) $value !== '') {
                 return (string) $value;
             }
