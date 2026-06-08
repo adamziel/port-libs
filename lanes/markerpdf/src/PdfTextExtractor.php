@@ -21285,11 +21285,7 @@ final class PdfTextExtractor
         }
 
         $predictor = $this->decodeParmsInt($decodeParms, 'Predictor', $objects);
-        if (
-            $predictor !== null
-            && $predictor !== 1
-            && !in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true)
-        ) {
+        if ($predictor !== null && !$this->decodeParmsPredictorValueIsSupportedForFilter($filter, $predictor)) {
             return false;
         }
 
@@ -21312,6 +21308,19 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    private function decodeParmsPredictorValueIsSupportedForFilter(string $filter, int $predictor): bool
+    {
+        if ($predictor === 1) {
+            return true;
+        }
+
+        if (!in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true)) {
+            return false;
+        }
+
+        return $predictor === 2 || ($predictor >= 10 && $predictor <= 15);
     }
 
     private function decodeParmsHasDuplicateTopLevelParameter(string $decodeParms): bool
