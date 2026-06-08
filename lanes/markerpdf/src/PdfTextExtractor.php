@@ -22349,6 +22349,10 @@ final class PdfTextExtractor
             return null;
         }
 
+        if ($this->topLevelLastValueAfterNameHasTrailingTopLevelOperand($fontBody, 'Encoding')) {
+            return null;
+        }
+
         $encodingName = $this->pdfNameValueAt($encodingValue, 0, $objects);
         if ($encodingName !== null) {
             return $this->cidEncodingMapFromNamedCMap($encodingName, $namedCMapBodies);
