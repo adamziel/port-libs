@@ -115,6 +115,8 @@ final class LegacyDocReader
         0x25 => 'pageref',
         0x26 => 'ask',
         0x27 => 'fillin',
+        0x32 => 'gotobutton',
+        0x33 => 'macrobutton',
         0x39 => 'symbol',
         0x3b => 'mergefield',
         0x40 => 'docvariable',
@@ -1397,6 +1399,11 @@ final class LegacyDocReader
             return $includeFieldAttrs;
         }
 
+        $actionFieldAttrs = $this->actionFieldAttrs($fieldName, $tokens, $instruction);
+        if ($actionFieldAttrs !== null) {
+            return $actionFieldAttrs;
+        }
+
         $generatedFieldAttrs = $this->generatedFieldAttrs($fieldName, $tokens, $instruction);
         if ($generatedFieldAttrs !== null) {
             return $generatedFieldAttrs;
@@ -1925,6 +1932,111 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-include-field', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function actionFieldAttrs(string $fieldName, array $tokens, string $instruction): ?array
+    {
+        $fieldTypes = [
+            'GOTOBUTTON' => 'navigation',
+            'MACROBUTTON' => 'macro',
+        ];
+        if (!isset($fieldTypes[$fieldName])) {
+            return null;
+        }
+
+        $target = null;
+        $displayParts = [];
+        $switches = [];
+        $switchValues = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (!str_starts_with($token, '\\')) {
+                if ($target === null) {
+                    $target = $token;
+                    continue;
+                }
+
+                $displayParts[] = $token;
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if ($switch === '') {
+                continue;
+            }
+            if (($switch === '*' || $switch === '@' || $switch === '#') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                continue;
+            }
+
+            $switches[] = $switch;
+            if (isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                $switchValues[$switch][] = $tokens[$index];
+            } else {
+                $switchValues[$switch] ??= [];
+            }
+        }
+        if ($target === null || $target === '') {
+            return null;
+        }
+
+        $fieldKey = strtolower($fieldName);
+        $attributes = [
+            'data-legacy-doc-field' => $fieldKey,
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-action-field-type' => $fieldTypes[$fieldName],
+        ];
+        if ($fieldName === 'MACROBUTTON') {
+            $attributes['data-legacy-doc-action-field-command'] = $target;
+            $attributes['data-legacy-doc-action-field-command-kind'] = 'macro';
+        } else {
+            $attributes['data-legacy-doc-action-field-destination'] = $target;
+            $attributes['data-legacy-doc-action-field-destination-kind'] = 'bookmark-or-goto-target';
+        }
+        $attributes['data-legacy-doc-action-field-policy'] = 'metadata-only-native-review';
+        $attributes['data-legacy-doc-action-field-execution'] = 'disabled';
+
+        $displayText = trim(implode(' ', $displayParts));
+        if ($displayText !== '') {
+            $attributes['data-legacy-doc-action-field-display-text'] = $displayText;
+        }
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+        if ($switches !== []) {
+            $switches = array_values(array_unique($switches));
+            $attributes['data-legacy-doc-action-field-switches'] = implode(' ', $switches);
+            foreach ($switches as $switch) {
+                $attributeSwitch = preg_replace('/[^a-z0-9-]/', '', $switch);
+                if (!is_string($attributeSwitch) || $attributeSwitch === '') {
+                    continue;
+                }
+
+                $values = array_values(array_unique(array_map(
+                    static fn (mixed $value): string => (string) $value,
+                    $switchValues[$switch] ?? []
+                )));
+                $attributes['data-legacy-doc-action-field-switch-' . $attributeSwitch] = $values === []
+                    ? 'true'
+                    : implode('; ', $values);
+            }
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-action-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
     }

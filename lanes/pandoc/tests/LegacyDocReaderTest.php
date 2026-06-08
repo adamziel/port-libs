@@ -4585,6 +4585,90 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC include field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC action field provenance without executing actions' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Actions '
+            . $fieldBegin . ' MACROBUTTON ApproveImport "Approve packet" ' . $fieldSeparator . 'Approve packet' . $fieldEnd
+            . ' and '
+            . $fieldBegin . ' GOTOBUTTON legacy_anchor "Jump to source" ' . $fieldSeparator . 'Jump to source' . $fieldEnd
+            . ".\r";
+
+        $macroBegin = strpos($text, $fieldBegin);
+        $macroSeparator = strpos($text, $fieldSeparator, (int) $macroBegin);
+        $macroEnd = strpos($text, $fieldEnd, (int) $macroSeparator);
+        $goToBegin = strpos($text, $fieldBegin, (int) $macroEnd + 1);
+        $goToSeparator = strpos($text, $fieldSeparator, (int) $goToBegin);
+        $goToEnd = strpos($text, $fieldEnd, (int) $goToSeparator);
+        foreach ([$macroBegin, $macroSeparator, $macroEnd, $goToBegin, $goToSeparator, $goToEnd] as $cp) {
+            if (!is_int($cp)) {
+                throw new RuntimeException('Unable to locate legacy DOC action-field fixture');
+            }
+        }
+
+        $fieldTable = $plcfldMom([
+            ['cp' => $macroBegin, 'character' => 0x13, 'typeCode' => 0x33],
+            ['cp' => $macroSeparator, 'character' => 0x14],
+            ['cp' => $macroEnd, 'character' => 0x15, 'endFlags' => 0x80],
+            ['cp' => $goToBegin, 'character' => 0x13, 'typeCode' => 0x32],
+            ['cp' => $goToSeparator, 'character' => 0x14],
+            ['cp' => $goToEnd, 'character' => 0x15, 'endFlags' => 0x80],
+        ], strlen($text));
+        $wordDocument = $buildSimpleWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $fieldTable,
+        ]));
+        $document = $result['document'];
+        $fields = $result['fields'];
+        $paragraph = $document->children[0];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(6, $result['metadata']['fieldCharacterCount']);
+        $t->same(2, $result['metadata']['fieldCount']);
+        $t->same('macrobutton', $fields[0]['type']);
+        $t->same(0x33, $fields[0]['typeCode']);
+        $t->same('gotobutton', $fields[1]['type']);
+        $t->same(0x32, $fields[1]['typeCode']);
+
+        $macroButton = $paragraph->children[1];
+        $t->same('span', $macroButton->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-action-field', 'legacy-doc-field-macrobutton'], $macroButton->attr('classes'));
+        $t->same('macrobutton', $macroButton->attr('attributes')['data-legacy-doc-field']);
+        $t->same('MACROBUTTON ApproveImport "Approve packet"', $macroButton->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('macro', $macroButton->attr('attributes')['data-legacy-doc-action-field-type']);
+        $t->same('ApproveImport', $macroButton->attr('attributes')['data-legacy-doc-action-field-command']);
+        $t->same('macro', $macroButton->attr('attributes')['data-legacy-doc-action-field-command-kind']);
+        $t->same('metadata-only-native-review', $macroButton->attr('attributes')['data-legacy-doc-action-field-policy']);
+        $t->same('disabled', $macroButton->attr('attributes')['data-legacy-doc-action-field-execution']);
+        $t->same('Approve packet', $macroButton->attr('attributes')['data-legacy-doc-action-field-display-text']);
+        $t->same('Approve packet', $macroButton->children[0]->attr('text'));
+
+        $goToButton = $paragraph->children[3];
+        $t->same(['legacy-doc-field', 'legacy-doc-action-field', 'legacy-doc-field-gotobutton'], $goToButton->attr('classes'));
+        $t->same('gotobutton', $goToButton->attr('attributes')['data-legacy-doc-field']);
+        $t->same('GOTOBUTTON legacy_anchor "Jump to source"', $goToButton->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('navigation', $goToButton->attr('attributes')['data-legacy-doc-action-field-type']);
+        $t->same('legacy_anchor', $goToButton->attr('attributes')['data-legacy-doc-action-field-destination']);
+        $t->same('bookmark-or-goto-target', $goToButton->attr('attributes')['data-legacy-doc-action-field-destination-kind']);
+        $t->same('metadata-only-native-review', $goToButton->attr('attributes')['data-legacy-doc-action-field-policy']);
+        $t->same('disabled', $goToButton->attr('attributes')['data-legacy-doc-action-field-execution']);
+        $t->same('Jump to source', $goToButton->attr('attributes')['data-legacy-doc-action-field-display-text']);
+        $t->same('Jump to source', $goToButton->children[0]->attr('text'));
+
+        $t->contains('[Approve packet]{.legacy-doc-field .legacy-doc-action-field .legacy-doc-field-macrobutton data-legacy-doc-field="macrobutton"', $markdown);
+        $t->contains('[Jump to source]{.legacy-doc-field .legacy-doc-action-field .legacy-doc-field-gotobutton data-legacy-doc-field="gotobutton"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-action-field legacy-doc-field-macrobutton" data-legacy-doc-field="macrobutton" data-legacy-doc-field-instruction="MACROBUTTON ApproveImport &quot;Approve packet&quot;" data-legacy-doc-action-field-type="macro" data-legacy-doc-action-field-command="ApproveImport" data-legacy-doc-action-field-command-kind="macro" data-legacy-doc-action-field-policy="metadata-only-native-review" data-legacy-doc-action-field-execution="disabled" data-legacy-doc-action-field-display-text="Approve packet">Approve packet</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-action-field legacy-doc-field-gotobutton" data-legacy-doc-field="gotobutton" data-legacy-doc-field-instruction="GOTOBUTTON legacy_anchor &quot;Jump to source&quot;" data-legacy-doc-action-field-type="navigation" data-legacy-doc-action-field-destination="legacy_anchor" data-legacy-doc-action-field-destination-kind="bookmark-or-goto-target" data-legacy-doc-action-field-policy="metadata-only-native-review" data-legacy-doc-action-field-execution="disabled" data-legacy-doc-action-field-display-text="Jump to source">Jump to source</span>', $blocks);
+        foreach (['MACROBUTTON', 'GOTOBUTTON', 'ApproveImport', 'legacy_anchor'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC action field instructions should not render as visible text');
+        }
+    },
     'preserves legacy DOC nested field results inside displayed field output' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";
