@@ -5464,6 +5464,122 @@ MARKDOWN);
         $t->same($result['pdfFormFieldTypes'], $sequence['finalPdfFormFieldTypes']);
     },
 
+    'fake runner extracts bounded pdf acroform field actions from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/form-actions.pdf']);
+        $fieldScript = 'app.alert("reviewer name changed")';
+        $queueScript = 'app.alert("queue focus")';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 6 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (reviewer.name) /TU (Reviewer name) /A << /S /SubmitForm /F (https://example.test/review/form-submit) >> /AA << /K << /S /JavaScript /JS <' . strtoupper(bin2hex($fieldScript)) . '> >> /V << /S /ResetForm /T (reviewer.name) >> >> >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /Widget /T (queue) /AA << /Fo 9 0 R >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /FT /Ch /T (routing) /Kids [6 0 R] >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 7 0 R] /NeedAppearances true >>',
+            'endobj',
+            '9 0 obj',
+            '<< /S /JavaScript /JS (' . str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $queueScript) . ') >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/form-actions.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/form-actions.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'fieldName' => 'reviewer.name',
+                'fieldObject' => '4 0 R',
+                'fieldType' => 'Tx',
+                'fieldTypeLabel' => 'text',
+                'trigger' => 'A',
+                'source' => 'field:4 0 R.A',
+                'actionType' => 'SubmitForm',
+                'actionTarget' => 'https://example.test/review/form-submit',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'fieldName' => 'reviewer.name',
+                'fieldObject' => '4 0 R',
+                'fieldType' => 'Tx',
+                'fieldTypeLabel' => 'text',
+                'trigger' => 'AA.K',
+                'source' => 'field:4 0 R.AA.K',
+                'actionType' => 'JavaScript',
+                'actionTarget' => null,
+                'scriptBytes' => strlen($fieldScript),
+                'scriptSha256' => hash('sha256', $fieldScript),
+            ],
+            [
+                'fieldName' => 'reviewer.name',
+                'fieldObject' => '4 0 R',
+                'fieldType' => 'Tx',
+                'fieldTypeLabel' => 'text',
+                'trigger' => 'AA.V',
+                'source' => 'field:4 0 R.AA.V',
+                'actionType' => 'ResetForm',
+                'actionTarget' => null,
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'fieldName' => 'routing.queue',
+                'fieldObject' => '6 0 R',
+                'fieldType' => 'Ch',
+                'fieldTypeLabel' => 'choice',
+                'trigger' => 'AA.Fo',
+                'source' => 'field:6 0 R.AA.Fo',
+                'actionType' => 'JavaScript',
+                'actionTarget' => null,
+                'scriptBytes' => strlen($queueScript),
+                'scriptSha256' => hash('sha256', $queueScript),
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfFormFieldActions']);
+        $t->same([
+            'JavaScript' => 2,
+            'ResetForm' => 1,
+            'SubmitForm' => 1,
+        ], $result['pdfFormFieldActionTypes']);
+        $t->contains('pdf-byte-form-field-actions:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-trigger:A:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-trigger:AA.K:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-type:JavaScript:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfFormFieldActions']);
+        $t->same($result['pdfFormFieldActionTypes'], $sequence['finalPdfFormFieldActionTypes']);
+    },
+
     'fake runner extracts bounded pdf acroform dictionary metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/acroform-dictionary.pdf']);
