@@ -4053,8 +4053,8 @@ final class BatchConverter
         ?array $modelSlots = null
     ): array {
         $reached = $blockedBy === null;
-        $normalizedDevice = $torchDevice === null ? null : strtolower(trim($torchDevice));
-        $normalizedDeviceModel = $torchDeviceModel === null ? null : strtolower(trim($torchDeviceModel));
+        $normalizedDevice = $torchDevice;
+        $normalizedDeviceModel = $torchDeviceModel;
         $usesMps = $reached && ($normalizedDevice === 'mps' || $normalizedDeviceModel === 'mps');
         $shareMemoryReview = $this->convertMainModelShareMemoryReview(
             $reached,

@@ -394,8 +394,8 @@ final class MarkerRuntimePlanner
         }
 
         $taskArgs = $this->normalizeConversionTasks($tasks);
-        $usesMps = strtolower((string) $torchDevice) === 'mps'
-            || strtolower((string) $torchDeviceModel) === 'mps';
+        $usesMps = $torchDevice === 'mps'
+            || $torchDeviceModel === 'mps';
 
         return [
             'environment' => $this->conversionImportEnvironment(),
@@ -406,7 +406,7 @@ final class MarkerRuntimePlanner
                 'main_load_all_models' => !$usesMps,
                 'share_memory_before_pool' => !$usesMps,
                 'worker_init_argument' => $usesMps ? null : 'shared_model_list',
-                'worker_loads_models_when_init_arg_null' => true,
+                'worker_loads_models_when_init_arg_null' => $usesMps,
                 'mps_disables_shared_model_list' => $usesMps,
                 'warning' => $usesMps
                     ? "Cannot use MPS with torch multiprocessing share_memory. This will make things less memory efficient. If you want to share memory, you have to use CUDA or CPU.\nSet the TORCH_DEVICE environment variable to change the device."

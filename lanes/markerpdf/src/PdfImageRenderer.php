@@ -4312,9 +4312,9 @@ final class PdfImageRenderer
                 }
             }
 
-            $entries[] = $this->canonicalInlineImageKey($readKey['value'])
+            $entries[] = $canonicalKey
                 . ' '
-                . $this->canonicalInlineImageValue($value);
+                . $this->canonicalInlineImageValue($value, $canonicalKey);
             $offset = $nextOffset;
         }
 
@@ -4474,7 +4474,7 @@ final class PdfImageRenderer
         return '/' . (self::INLINE_IMAGE_KEY_ABBREVIATIONS[$name] ?? $name);
     }
 
-    private function canonicalInlineImageValue(string $token): string
+    private function canonicalInlineImageValue(string $token, ?string $canonicalKey = null): string
     {
         $trimmed = trim($token);
         if (str_starts_with($trimmed, '/')) {
@@ -4486,7 +4486,86 @@ final class PdfImageRenderer
             return $trimmed;
         }
 
+        if ($canonicalKey === '/ColorSpace') {
+            return $this->canonicalInlineImageColorSpaceArrayValue($trimmed);
+        }
+
         return $this->canonicalInlineImageArrayValue($trimmed);
+    }
+
+    private function canonicalInlineImageColorSpaceArrayValue(string $value): string
+    {
+        $array = $this->readBalancedArray($value, 0);
+        if ($array === null) {
+            return $this->canonicalInlineImageArrayValue($value);
+        }
+
+        $items = $this->pdfArrayValues($array['value']);
+        if ($items === []) {
+            return $value;
+        }
+
+        $family = $this->canonicalInlineImageColorSpaceValue($items[0]);
+        $canonical = [$family];
+        if ($family === '/Indexed') {
+            if (isset($items[1])) {
+                $canonical[] = $this->canonicalInlineImageColorSpaceValue($items[1]);
+            }
+            for ($index = 2, $count = count($items); $index < $count; $index++) {
+                $canonical[] = $items[$index];
+            }
+
+            return '[' . implode(' ', $canonical) . ']';
+        }
+
+        if ($family === '/Separation') {
+            if (isset($items[1])) {
+                $canonical[] = $items[1];
+            }
+            if (isset($items[2])) {
+                $canonical[] = $this->canonicalInlineImageColorSpaceValue($items[2]);
+            }
+            for ($index = 3, $count = count($items); $index < $count; $index++) {
+                $canonical[] = $items[$index];
+            }
+
+            return '[' . implode(' ', $canonical) . ']';
+        }
+
+        if ($family === '/DeviceN') {
+            if (isset($items[1])) {
+                $canonical[] = $items[1];
+            }
+            if (isset($items[2])) {
+                $canonical[] = $this->canonicalInlineImageColorSpaceValue($items[2]);
+            }
+            for ($index = 3, $count = count($items); $index < $count; $index++) {
+                $canonical[] = $items[$index];
+            }
+
+            return '[' . implode(' ', $canonical) . ']';
+        }
+
+        for ($index = 1, $count = count($items); $index < $count; $index++) {
+            $canonical[] = $items[$index];
+        }
+
+        return '[' . implode(' ', $canonical) . ']';
+    }
+
+    private function canonicalInlineImageColorSpaceValue(string $token): string
+    {
+        $trimmed = trim($token);
+        if (str_starts_with($trimmed, '/')) {
+            $name = $this->pdfNameValue($trimmed);
+            return $name === null ? $trimmed : '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);
+        }
+
+        if (str_starts_with($trimmed, '[')) {
+            return $this->canonicalInlineImageColorSpaceArrayValue($trimmed);
+        }
+
+        return $trimmed;
     }
 
     private function canonicalInlineImageArrayValue(string $value): string

@@ -21,6 +21,7 @@ final class PdfActionReviewExtractor
 
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
     private const DESTINATION_DICTIONARY_BOUNDARY_KEYS = ['D', 'S'];
+    private const FILESPEC_FILE_NAME_BOUNDARY_KEYS = ['UF', 'F', 'DOS', 'Unix', 'Mac'];
 
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
@@ -901,6 +902,10 @@ final class PdfActionReviewExtractor
 
         $dict = $this->dictionaryItems($resolved);
         if ($dict === null) {
+            return null;
+        }
+
+        if ($this->resolvedDictionaryHasDuplicateKeys($resolved, self::FILESPEC_FILE_NAME_BOUNDARY_KEYS)) {
             return null;
         }
 

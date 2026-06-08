@@ -102,6 +102,7 @@ final class PdfNamedDestinationExtractor
             && $this->isDictionary($namesDictionary)
             && array_key_exists('Dests', $namesDictionary)
             && !$this->catalogNamesDictionaryHasDuplicateDests($catalogDetails['body'], $namesValue, $objects)
+            && !$this->catalogDestinationNameTreeRootHasDuplicateBoundaryKeys($catalogDetails['body'], $namesValue, $objects)
         ) {
             foreach ($this->collectNameTreeEntries($namesDictionary['Dests'], $objects, $cache) as $entry) {
                 $nameTreeEntries[] = $entry;
@@ -2480,6 +2481,41 @@ final class PdfNamedDestinationExtractor
 
         return $rawNamesDictionary !== null
             && $this->dictionaryBodyHasDuplicateKeys($rawNamesDictionary, ['Dests']);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     */
+    private function catalogDestinationNameTreeRootHasDuplicateBoundaryKeys(
+        string $catalogBody,
+        mixed $namesValue,
+        array $objects
+    ): bool {
+        $rawDests = $this->catalogNamesDestsRawValue($catalogBody, $namesValue, $objects);
+
+        return $rawDests !== null
+            && $this->dictionaryBodyHasDuplicateKeys($rawDests, self::NAME_TREE_NODE_BOUNDARY_KEYS);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     */
+    private function catalogNamesDestsRawValue(string $catalogBody, mixed $namesValue, array $objects): ?string
+    {
+        $objectId = $this->validRefObjectId($namesValue, $objects);
+        if ($objectId !== null) {
+            $body = $this->objectBody($objectId, $objects, $this->refGeneration($namesValue));
+
+            return $body === null ? null : $this->dictionaryTopLevelRawValue($body, 'Dests');
+        }
+
+        if (!$this->isDictionary($namesValue)) {
+            return null;
+        }
+
+        $rawNamesDictionary = $this->dictionaryTopLevelRawValue($catalogBody, 'Names');
+
+        return $rawNamesDictionary === null ? null : $this->dictionaryTopLevelRawValue($rawNamesDictionary, 'Dests');
     }
 
     /**
