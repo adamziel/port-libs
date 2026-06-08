@@ -280,7 +280,7 @@ final class PdfEngineHandoff
      *     pdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
      *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
-     *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pdfPageContentResourceUsage: array<string, int>,
@@ -1027,6 +1027,9 @@ final class PdfEngineHandoff
                     }
                     foreach ($this->summarizePdfPageTransitionTypes($pdfPageTimings) as $transitionType => $transitionCount) {
                         $diagnostics[] = 'pdf-byte-page-transition-type:' . $transitionType . ':' . $transitionCount;
+                    }
+                    foreach ($this->summarizePdfPageTransitionDirectionLabels($pdfPageTimings) as $directionLabel => $directionCount) {
+                        $diagnostics[] = 'pdf-byte-page-transition-direction:' . $directionLabel . ':' . $directionCount;
                     }
                 }
                 if ($pdfPageViewports !== []) {
@@ -2507,7 +2510,7 @@ final class PdfEngineHandoff
      *     finalPdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
      *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
-     *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     finalPdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     finalPdfPageContentResourceUsage: array<string, int>,
@@ -11595,11 +11598,12 @@ final class PdfEngineHandoff
 
     /**
      * @param array<string, string> $objects
-     * @return array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}
+     * @return array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}
      */
     private function summarizePdfPageTiming(string $dictionary, ?string $reference, array $objects): array
     {
         $transition = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'Trans', $objects);
+        $direction = $transition === null ? null : $this->extractPdfTransitionDirection($transition);
 
         return [
             'page' => 0,
@@ -11607,7 +11611,8 @@ final class PdfEngineHandoff
             'duration' => $this->extractPdfNumberToken($dictionary, 'Dur'),
             'transitionType' => $transition === null ? null : $this->extractPdfNameToken($transition, 'S'),
             'transitionDuration' => $transition === null ? null : $this->extractPdfNumberToken($transition, 'D'),
-            'direction' => $transition === null ? null : $this->extractPdfTransitionDirection($transition),
+            'direction' => $direction,
+            'directionLabel' => $direction === null ? null : $this->pdfTransitionDirectionLabel($direction),
             'dimension' => $transition === null ? null : $this->extractPdfNameToken($transition, 'Dm'),
             'motion' => $transition === null ? null : $this->extractPdfNameToken($transition, 'M'),
             'scale' => $transition === null ? null : $this->extractPdfNumberToken($transition, 'SS'),
@@ -11631,6 +11636,35 @@ final class PdfEngineHandoff
         }
 
         return null;
+    }
+
+    private function pdfTransitionDirectionLabel(string $direction): ?string
+    {
+        $direction = trim($direction);
+        if ($direction === '') {
+            return null;
+        }
+
+        if (preg_match('/\A-?(?:\d+(?:\.\d*)?|\.\d+)\z/', $direction) === 1) {
+            $degrees = $this->normalizePdfNumberString($direction);
+
+            return [
+                '0' => 'left-to-right',
+                '90' => 'bottom-to-top',
+                '180' => 'right-to-left',
+                '270' => 'top-to-bottom',
+                '315' => 'top-left-to-bottom-right',
+            ][$degrees] ?? 'degrees:' . $degrees;
+        }
+
+        $label = strtolower((string) preg_replace('/(?<!^)[A-Z]/', '-$0', $direction));
+        $label = preg_replace('/[^a-z0-9]+/', '-', $label);
+        if (!is_string($label)) {
+            return null;
+        }
+        $label = trim($label, '-');
+
+        return $label === '' ? null : $label;
     }
 
     private function normalizePdfNumberString(string $number): string
@@ -11662,7 +11696,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @param list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}> $pageTimings
+     * @param list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}> $pageTimings
      * @return array<string, int>
      */
     private function summarizePdfPageTransitionTypes(array $pageTimings): array
@@ -11679,6 +11713,26 @@ final class PdfEngineHandoff
         ksort($types);
 
         return $types;
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}> $pageTimings
+     * @return array<string, int>
+     */
+    private function summarizePdfPageTransitionDirectionLabels(array $pageTimings): array
+    {
+        $directions = [];
+        foreach ($pageTimings as $pageTiming) {
+            $direction = $pageTiming['directionLabel'] ?? null;
+            if (!is_string($direction) || $direction === '') {
+                continue;
+            }
+
+            $directions[$direction] = ($directions[$direction] ?? 0) + 1;
+        }
+        ksort($directions);
+
+        return $directions;
     }
 
     /**

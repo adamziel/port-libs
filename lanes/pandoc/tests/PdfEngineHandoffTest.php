@@ -1376,6 +1376,7 @@ MARKDOWN);
                 'transitionType' => 'Fade',
                 'transitionDuration' => 1.25,
                 'direction' => null,
+                'directionLabel' => null,
                 'dimension' => null,
                 'motion' => null,
                 'scale' => null,
@@ -1388,6 +1389,7 @@ MARKDOWN);
                 'transitionType' => 'Wipe',
                 'transitionDuration' => 0.75,
                 'direction' => '90',
+                'directionLabel' => 'bottom-to-top',
                 'dimension' => 'H',
                 'motion' => 'I',
                 'scale' => 0.8,
@@ -1404,6 +1406,98 @@ MARKDOWN);
         $t->contains('pdf-byte-page-transitions:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-transition-type:Fade:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-transition-type:Wipe:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-transition-direction:bottom-to-top:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageTimings']);
+    },
+
+    'fake runner labels bounded pdf page transition directions from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/directions.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 3 /Kids [3 0 R 4 0 R 5 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Trans << /Type /Trans /S /Fly /Di /None >> >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Trans << /Type /Trans /S /Glitter /Di 315 >> >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Trans << /Type /Trans /S /Push /Di /Right >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/directions.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/directions.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'duration' => null,
+                'transitionType' => 'Fly',
+                'transitionDuration' => null,
+                'direction' => 'None',
+                'directionLabel' => 'none',
+                'dimension' => null,
+                'motion' => null,
+                'scale' => null,
+                'background' => null,
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'duration' => null,
+                'transitionType' => 'Glitter',
+                'transitionDuration' => null,
+                'direction' => '315',
+                'directionLabel' => 'top-left-to-bottom-right',
+                'dimension' => null,
+                'motion' => null,
+                'scale' => null,
+                'background' => null,
+            ],
+            [
+                'page' => 3,
+                'pageObject' => '5 0 R',
+                'duration' => null,
+                'transitionType' => 'Push',
+                'transitionDuration' => null,
+                'direction' => 'Right',
+                'directionLabel' => 'right',
+                'dimension' => null,
+                'motion' => null,
+                'scale' => null,
+                'background' => null,
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageTimings']);
+        $t->contains('pdf-byte-page-transition-direction:none:1', $diagnostics);
+        $t->contains('pdf-byte-page-transition-direction:right:1', $diagnostics);
+        $t->contains('pdf-byte-page-transition-direction:top-left-to-bottom-right:1', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageTimings']);
     },
