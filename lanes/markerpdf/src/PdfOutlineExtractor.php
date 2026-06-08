@@ -4056,6 +4056,7 @@ final class PdfOutlineExtractor
 
                 if (
                     $this->nameWithinNameTreeLimits($name['text'], $entryLimits, $name['bytes'])
+                    && !$this->nameTreeValueHasUnbracketedDestinationViewTail($names, $index + 1, $objects, $pageIndexes)
                     && $this->destinationValueAllowedForMap($names[$index + 1], $objects, $pageIndexes)
                 ) {
                     $this->addNameTreeDestinationMapEntry($destinations, $name, $names[$index + 1]);
@@ -4616,6 +4617,55 @@ final class PdfOutlineExtractor
         }
 
         return $this->destinationNameDetails($items[$nextIndex], $objects) === null;
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     */
+    private function nameTreeValueHasUnbracketedDestinationViewTail(
+        array $items,
+        int $valueIndex,
+        array $objects,
+        array $pageIndexes
+    ): bool {
+        if (
+            $pageIndexes === []
+            || !array_key_exists($valueIndex, $items)
+            || !array_key_exists($valueIndex + 1, $items)
+            || !$this->nameTreeValueIsPageOnlyDestination($items[$valueIndex], $objects, $pageIndexes)
+        ) {
+            return false;
+        }
+
+        $viewMode = $this->nameValue($this->resolveValue($items[$valueIndex + 1], $objects));
+
+        return $viewMode !== null && isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode]);
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     */
+    private function nameTreeValueIsPageOnlyDestination(mixed $value, array $objects, array $pageIndexes): bool
+    {
+        if ($this->isReferenceValue($value) && !$this->referenceTargetsSingleTopLevelValue($value, $objects)) {
+            return false;
+        }
+
+        $pageObjectNumber = $this->validReferenceObjectNumber($value, $objects);
+        if ($pageObjectNumber !== null && isset($pageIndexes[$pageObjectNumber])) {
+            return true;
+        }
+
+        $resolved = $this->resolveValue($value, $objects);
+        $resolvedPageObjectNumber = $this->validReferenceObjectNumber($resolved, $objects);
+        if ($resolvedPageObjectNumber !== null && isset($pageIndexes[$resolvedPageObjectNumber])) {
+            return true;
+        }
+
+        return is_int($resolved) && $this->boundedDestinationPageIndex($resolved, $pageIndexes) !== null;
     }
 
     /**

@@ -258,7 +258,7 @@ final class PdfAcroFormExtractor
         $fields = $this->annotateSubmitResetAppearanceLockReviews($fields);
 
         return [
-            'need_appearances' => $this->boolValueAfterName($acroForm, 'NeedAppearances') === true,
+            'need_appearances' => $this->boolValueAfterNameResolvingObjects($acroForm, 'NeedAppearances', $objects) === true,
             'default_resources' => $defaultResources,
             'permissions' => $permissions,
             'signature_flags' => $signatureFlags,
@@ -11322,6 +11322,47 @@ final class PdfAcroFormExtractor
             'false' => false,
             default => null,
         };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function boolValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?bool
+    {
+        return $this->pdfBoolFromValue($this->valueAfterName($body, $name), $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfBoolFromValue(?string $value, array $objects, array $seen = []): ?bool
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        if ($value === 'true') {
+            return true;
+        }
+
+        if ($value === 'false') {
+            return false;
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return null;
+        }
+
+        $objectNumber = $reference['object'];
+        if (isset($seen[$objectNumber]) || !$this->referenceGenerationMatches($objectNumber, $reference['generation'], $objects)) {
+            return null;
+        }
+
+        $seen[$objectNumber] = true;
+        $resolvedValue = $this->completePdfValueFromObjectBody($objects[$objectNumber]);
+        return $resolvedValue === null ? null : $this->pdfBoolFromValue($resolvedValue, $objects, $seen);
     }
 
     private function valueAfterName(string $body, string $name): ?string

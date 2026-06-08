@@ -4941,7 +4941,7 @@ final class PdfMetadataExtractor
             : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($names['body'], 'Dests'), $objects);
         if ($nameTreeRoot !== null && !$this->destinationNameTreeNodeIsReferencedStream($nameTreeRoot, $objects)) {
             $seenNameTreeObjects = [];
-            $this->collectDestinationNameTreeEntries($nameTreeRoot, $objects, $entries, $seenNameTreeObjects);
+            $this->collectDestinationNameTreeEntries($nameTreeRoot, $objects, $pageIndexes, $entries, $seenNameTreeObjects);
         }
 
         $legacyDests = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Dests'), $objects);
@@ -5833,6 +5833,12 @@ final class PdfMetadataExtractor
      */
     private function documentDestinationRawMap(string $catalog, array $objects): array
     {
+        $pageObjectNumbers = $this->orderedDestinationPageObjectNumbers($catalog, $objects);
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $index => $pageObjectNumber) {
+            $pageIndexes[$pageObjectNumber] = $index;
+        }
+
         $entries = [];
         $catalogNamesAreAmbiguous = $this->dictionaryTopLevelHasDuplicateKeys($catalog, ['Names']);
         $names = $catalogNamesAreAmbiguous
@@ -5843,7 +5849,7 @@ final class PdfMetadataExtractor
             : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($names['body'], 'Dests'), $objects);
         if ($nameTreeRoot !== null && !$this->destinationNameTreeNodeIsReferencedStream($nameTreeRoot, $objects)) {
             $seenNameTreeObjects = [];
-            $this->collectDestinationNameTreeEntries($nameTreeRoot, $objects, $entries, $seenNameTreeObjects);
+            $this->collectDestinationNameTreeEntries($nameTreeRoot, $objects, $pageIndexes, $entries, $seenNameTreeObjects);
         }
 
         $legacyDests = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Dests'), $objects);
@@ -5860,12 +5866,6 @@ final class PdfMetadataExtractor
                     'source' => 'legacy_dests',
                 ];
             }
-        }
-
-        $pageObjectNumbers = $this->orderedDestinationPageObjectNumbers($catalog, $objects);
-        $pageIndexes = [];
-        foreach ($pageObjectNumbers as $index => $pageObjectNumber) {
-            $pageIndexes[$pageObjectNumber] = $index;
         }
 
         return $this->documentDestinationEntryValueMap($entries, $objects, $pageIndexes);
@@ -7912,6 +7912,7 @@ final class PdfMetadataExtractor
     /**
      * @param array{body: string, object: int|null, generation?: int} $node
      * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
      * @param list<array{name: string, value: string, source: string}> $entries
      * @param array<string, true> $seenObjects
      * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
@@ -7919,6 +7920,7 @@ final class PdfMetadataExtractor
     private function collectDestinationNameTreeEntries(
         array $node,
         array $objects,
+        array $pageIndexes,
         array &$entries,
         array &$seenObjects,
         int $depth = 0,
@@ -7994,6 +7996,11 @@ final class PdfMetadataExtractor
                     continue;
                 }
 
+                if ($this->destinationNameTreeValueHasUnbracketedViewTail($names, $index + 1, $objects, $pageIndexes)) {
+                    $index += 2;
+                    continue;
+                }
+
                 $leafEntries[] = [
                     'name' => $name['text'],
                     'name_bytes' => $name['bytes'],
@@ -8024,7 +8031,7 @@ final class PdfMetadataExtractor
 
             $child = $this->resolveDictionaryFromValue($kid, $objects);
             if ($child !== null && !$this->destinationNameTreeNodeIsReferencedStream($child, $objects)) {
-                $this->collectDestinationNameTreeEntries($child, $objects, $entries, $seenObjects, $depth + 1, $limits);
+                $this->collectDestinationNameTreeEntries($child, $objects, $pageIndexes, $entries, $seenObjects, $depth + 1, $limits);
             }
         }
     }
@@ -8771,6 +8778,31 @@ final class PdfMetadataExtractor
         }
 
         return $this->destinationNameDetailsFromRaw($items[$nextIndex], $objects) === null;
+    }
+
+    /**
+     * @param list<string> $items
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     */
+    private function destinationNameTreeValueHasUnbracketedViewTail(
+        array $items,
+        int $valueIndex,
+        array $objects,
+        array $pageIndexes
+    ): bool {
+        if (
+            $pageIndexes === []
+            || !array_key_exists($valueIndex, $items)
+            || !array_key_exists($valueIndex + 1, $items)
+            || $this->destinationPageFromRaw($items[$valueIndex], $objects, $pageIndexes) === null
+        ) {
+            return false;
+        }
+
+        $viewMode = $this->destinationActionNameFromRaw($items[$valueIndex + 1], $objects);
+
+        return $viewMode !== null && isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode]);
     }
 
     /**

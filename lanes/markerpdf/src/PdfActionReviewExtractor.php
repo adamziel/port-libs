@@ -3713,6 +3713,7 @@ final class PdfActionReviewExtractor
 
                 if (
                     $this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])
+                    && !$this->nameTreeValueHasUnbracketedDestinationViewTail($names, $index + 1)
                     && $this->destinationValueAllowedForMap($names[$index + 1])
                 ) {
                     $leafEntries[] = [
@@ -4237,6 +4238,44 @@ final class PdfActionReviewExtractor
         }
 
         return $this->pdfStringDetails($this->resolveValue($items[$nextIndex])) === null;
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function nameTreeValueHasUnbracketedDestinationViewTail(array $items, int $valueIndex): bool
+    {
+        if (
+            !array_key_exists($valueIndex, $items)
+            || !array_key_exists($valueIndex + 1, $items)
+            || !$this->nameTreeValueIsPageOnlyDestination($items[$valueIndex])
+        ) {
+            return false;
+        }
+
+        $viewMode = $this->nameValue($this->resolveValue($items[$valueIndex + 1]));
+
+        return $viewMode !== null && isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode]);
+    }
+
+    private function nameTreeValueIsPageOnlyDestination(mixed $value): bool
+    {
+        if ($this->valueHasTrailingOperandAfterResolution($value)) {
+            return false;
+        }
+
+        $pageReference = $this->referenceObject($value);
+        if ($pageReference !== null && $this->pageIndexForReference($pageReference) !== null) {
+            return true;
+        }
+
+        $resolved = $this->resolveValue($value);
+        $resolvedPageReference = $this->referenceObject($resolved);
+        if ($resolvedPageReference !== null && $this->pageIndexForReference($resolvedPageReference) !== null) {
+            return true;
+        }
+
+        return is_int($resolved) && $resolved >= 0 && $resolved < count($this->pageIndexesByReference);
     }
 
     private function nameTreeItemCanStartExplicitDestination(mixed $value): bool

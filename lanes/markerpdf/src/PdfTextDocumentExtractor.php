@@ -181,6 +181,10 @@ final class PdfTextDocumentExtractor
             $page = $this->unwrapSuppliedDictionaryPageEntry($page);
             $pageKey = $this->integerArrayKey($key);
             if ($pageKey === null) {
+                if ($this->isSuppliedDictionaryAdapterMetadataKey($key)) {
+                    continue;
+                }
+
                 if (is_array($page) && array_key_exists('blocks', $page)) {
                     return $this->suppliedDictionaryPageListFallback($pages);
                 }
@@ -219,6 +223,25 @@ final class PdfTextDocumentExtractor
         );
 
         return array_map(static fn (array $entry): mixed => $entry['page'], $keyedPages);
+    }
+
+    private function isSuppliedDictionaryAdapterMetadataKey(int|string $key): bool
+    {
+        if (!is_string($key)) {
+            return false;
+        }
+
+        return in_array($key, [
+            'metadata',
+            'page_metadata',
+            'page_meta',
+            'source_metadata',
+            'pdftext_metadata',
+            'adapter_metadata',
+            'raw_payload',
+            'raw_adapter_payload',
+            'raw_pdftext_payload',
+        ], true);
     }
 
     /**

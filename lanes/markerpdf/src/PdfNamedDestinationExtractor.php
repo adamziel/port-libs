@@ -104,7 +104,7 @@ final class PdfNamedDestinationExtractor
             && !$this->catalogNamesDictionaryHasDuplicateDests($catalogDetails['body'], $namesValue, $objects)
             && !$this->catalogDestinationNameTreeRootHasDuplicateBoundaryKeys($catalogDetails['body'], $namesValue, $objects)
         ) {
-            foreach ($this->collectNameTreeEntries($namesDictionary['Dests'], $objects, $cache) as $entry) {
+            foreach ($this->collectNameTreeEntries($namesDictionary['Dests'], $objects, $cache, $pageIndexes) as $entry) {
                 $nameTreeEntries[] = $entry;
             }
         }
@@ -1149,6 +1149,7 @@ final class PdfNamedDestinationExtractor
     /**
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
+     * @param array<string, int> $pageIndexes
      * @param list<string> $seenObjects
      * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
      * @return list<array{name: string, name_bytes: string, name_key: string, value: mixed}>
@@ -1157,6 +1158,7 @@ final class PdfNamedDestinationExtractor
         mixed $node,
         array $objects,
         array &$cache,
+        array $pageIndexes = [],
         array $seenObjects = [],
         ?array $inheritedLimits = null,
         int $depth = 0
@@ -1242,6 +1244,11 @@ final class PdfNamedDestinationExtractor
                     continue;
                 }
 
+                if ($this->nameTreeValueHasUnbracketedDestinationViewTail($names, $index + 1, $objects, $cache, $pageIndexes)) {
+                    $index += 2;
+                    continue;
+                }
+
                 $leafEntries[] = [
                     'name' => $name['text'],
                     'name_bytes' => $name['bytes'],
@@ -1268,7 +1275,7 @@ final class PdfNamedDestinationExtractor
                 continue;
             }
 
-            foreach ($this->collectNameTreeEntries($kid, $objects, $cache, $seenObjects, $limits, $depth + 1) as $entry) {
+            foreach ($this->collectNameTreeEntries($kid, $objects, $cache, $pageIndexes, $seenObjects, $limits, $depth + 1) as $entry) {
                 $entries[] = $entry;
             }
         }
@@ -1783,6 +1790,33 @@ final class PdfNamedDestinationExtractor
         }
 
         return $this->destinationNameDetails($items[$nextIndex], $objects, $cache) === null;
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     * @param array<string, int> $pageIndexes
+     */
+    private function nameTreeValueHasUnbracketedDestinationViewTail(
+        array $items,
+        int $valueIndex,
+        array $objects,
+        array &$cache,
+        array $pageIndexes
+    ): bool {
+        if (
+            $pageIndexes === []
+            || !array_key_exists($valueIndex, $items)
+            || !array_key_exists($valueIndex + 1, $items)
+            || $this->pageOnlyDestinationDetails($items[$valueIndex], $pageIndexes, $objects, $cache) === null
+        ) {
+            return false;
+        }
+
+        $viewMode = $this->nameValue($this->resolve($items[$valueIndex + 1], $objects, $cache));
+
+        return $viewMode !== null && isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode]);
     }
 
     /**
