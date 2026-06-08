@@ -1367,6 +1367,11 @@ final class MathTexConverter
     private function readRawTexMacroDefinition(string $tex): ?array
     {
         $source = trim($tex);
+        $declaredOperator = $this->readRawTexDeclaredMathOperator($source);
+        if ($declaredOperator !== null) {
+            return $declaredOperator;
+        }
+
         if (preg_match('/^\\\\(?:(?:re)?newcommand|providecommand)/', $source, $m) !== 1) {
             return null;
         }
@@ -1422,6 +1427,114 @@ final class MathTexConverter
         }
 
         return $definition;
+    }
+
+    /**
+     * @return array{name:string, arity:int, template:string}|null
+     */
+    private function readRawTexDeclaredMathOperator(string $source): ?array
+    {
+        if (preg_match('/^\\\\DeclareMathOperator(\*)?/', $source, $m) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($m[0]);
+        $this->skipWhitespace($source, $offset);
+        $name = $this->readTexBraceArgument($source, $offset);
+        if ($name === null || preg_match('/^\\\\([A-Za-z]+)$/', trim($name['value']), $nameMatch) !== 1) {
+            throw new \InvalidArgumentException('Expected TeX declared math operator macro name at offset ' . $offset);
+        }
+        $offset = $name['next'];
+
+        $this->skipWhitespace($source, $offset);
+        $operatorName = $this->readTexBraceArgument($source, $offset);
+        if ($operatorName === null) {
+            throw new \InvalidArgumentException('Expected TeX declared math operator name at offset ' . $offset);
+        }
+        $offset = $operatorName['next'];
+
+        $this->skipWhitespace($source, $offset);
+        if ($offset !== strlen($source)) {
+            throw new \InvalidArgumentException('Unexpected TeX declared math operator trailing content at offset ' . $offset);
+        }
+
+        $normalizedOperatorName = $this->normalizeMathOperatorNameText($operatorName['value']);
+        if ($normalizedOperatorName === '') {
+            throw new \InvalidArgumentException('Expected non-empty TeX declared math operator name');
+        }
+
+        return [
+            'name' => $nameMatch[1],
+            'arity' => 0,
+            'template' => '\\operatorname' . (($m[1] ?? '') === '*' ? '*' : '') . '{' . $normalizedOperatorName . '}',
+        ];
+    }
+
+    private function normalizeMathOperatorNameText(string $text): string
+    {
+        $output = '';
+        $offset = 0;
+        $length = strlen($text);
+        while ($offset < $length) {
+            $char = $text[$offset];
+            if ($char !== '\\') {
+                if ($char === '{' || $char === '}') {
+                    throw new \InvalidArgumentException('Unsupported TeX math operator name grouping');
+                }
+
+                $output .= $char;
+                $offset++;
+                continue;
+            }
+
+            $offset++;
+            $escaped = $text[$offset] ?? '';
+            if ($escaped === '') {
+                throw new \InvalidArgumentException('Unsupported TeX math operator name escape');
+            }
+
+            if (in_array($escaped, [',', ':', ';', ' ', '!', '>'], true)) {
+                $output .= ' ';
+                $offset++;
+                continue;
+            }
+
+            if (in_array($escaped, ['&', '%', '$', '#', '_', '{', '}'], true)) {
+                $output .= $escaped;
+                $offset++;
+                continue;
+            }
+
+            if (ctype_alpha($escaped)) {
+                $commandStart = $offset;
+                while ($offset < $length && ctype_alpha($text[$offset])) {
+                    $offset++;
+                }
+                $command = substr($text, $commandStart, $offset - $commandStart);
+                $output .= match ($command) {
+                    'thinspace', 'medspace', 'thickspace', 'quad', 'qquad', 'enspace',
+                    'negthinspace', 'negmedspace', 'negthickspace' => ' ',
+                    'dots', 'ldots' => '...',
+                    'TeX' => 'TeX',
+                    'LaTeX' => 'LaTeX',
+                    default => throw new \InvalidArgumentException('Unsupported TeX math operator name command \\' . $command),
+                };
+                continue;
+            }
+
+            throw new \InvalidArgumentException('Unsupported TeX math operator name escape \\' . $escaped);
+        }
+
+        $normalized = preg_replace('/\s+/', ' ', trim($output));
+        if (!is_string($normalized) || $normalized === '') {
+            return '';
+        }
+
+        if (preg_match('/[\x00-\x1F\x7F]/', $normalized) === 1) {
+            throw new \InvalidArgumentException('Unsupported TeX math operator name control character');
+        }
+
+        return $normalized;
     }
 
     private function inferMacroArity(string $template): int
@@ -1811,7 +1924,7 @@ final class MathTexConverter
                 $offset++;
             }
 
-            $operatorName = $this->readRequiredGroupText($source, $offset);
+            $operatorName = $this->normalizeMathOperatorNameText($this->readRequiredGroupText($source, $offset));
             if ($operatorName === '') {
                 throw new \InvalidArgumentException('Expected TeX operator name at offset ' . $offset);
             }

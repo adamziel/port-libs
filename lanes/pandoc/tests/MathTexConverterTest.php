@@ -331,6 +331,50 @@ return [
         $t->contains('<msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><mi>f</mi><mi>i</mi><mi>n</mi><mi>a</mi><mi>l</mi><mo>+</mo><mi>m</mi><mo>+</mo><mn>2</mn><mo>+</mo><mi>s</mi><mi>o</mi><mi>u</mi><mi>r</mi><mi>c</mi><mi>e</mi>', $overrideMathml);
         $t->contains('<annotation encoding="application/x-tex">\\reviewpair[final]{p_i} + \\withlabel[source]{m}{2}</annotation>', $overrideMathml);
     },
+    'expands bounded declared math operators for mathml handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $document = new AstNode('document', [], [
+            new AstNode('raw_tex', [
+                'tex' => '\\DeclareMathOperator{\\reviewop}{review\\,score}',
+                'command' => 'DeclareMathOperator',
+            ]),
+            new AstNode('raw_tex', [
+                'tex' => '\\DeclareMathOperator*{\\argreview}{arg\\,review}',
+                'command' => 'DeclareMathOperator',
+            ]),
+        ]);
+        $markdownDocument = (new MarkdownReader())->read(implode("\n", [
+            '\\DeclareMathOperator{\\stageop}{stage\\;score}',
+            '',
+            '$\\stageop_i(p_i)$',
+        ]));
+
+        $macros = $converter->macroDefinitionsFromDocument($document);
+        $markdownMacros = $converter->macroDefinitionsFromDocument($markdownDocument);
+        $mathml = $converter->texToMathMl('\\reviewop_i(p_i) + \\argreview_{p_i \\in P}^{\\text{draft}} f(p_i)', true, $macros);
+        $directOperatorMathml = $converter->texToMathMl('\\operatorname{arg\\,max}_{p_i} f(p_i)');
+
+        $t->same([
+            'reviewop' => ['arity' => 0, 'template' => '\\operatorname{review score}'],
+            'argreview' => ['arity' => 0, 'template' => '\\operatorname*{arg review}'],
+        ], $macros);
+        $t->same([
+            'stageop' => ['arity' => 0, 'template' => '\\operatorname{stage score}'],
+        ], $markdownMacros);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+        $t->contains('<msub><mi>review score</mi><mi>i</mi></msub><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $mathml);
+        $t->contains('<munderover><mi>arg review</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">\\reviewop_i(p_i) + \\argreview_{p_i \\in P}^{\\text{draft}} f(p_i)</annotation>', $mathml);
+        $t->contains('<msub><mi>arg max</mi><msub><mi>p</mi><mi>i</mi></msub></msub><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $directOperatorMathml);
+        $t->true(!str_contains($mathml, '<mi>\\reviewop</mi>'));
+        $t->true(!str_contains($mathml, '<mi>\\argreview</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclareMathOperator{\\bad}{\\input{secret}}']),
+        ])));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclareMathOperator{\\bad}{}']),
+        ])));
+    },
     'rejects unsupported bounded tex macro definitions before mathml conversion' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
