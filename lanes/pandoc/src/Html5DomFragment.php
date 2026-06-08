@@ -1775,23 +1775,27 @@ final class Html5DomFragment
                 ]];
             }
 
-            $reviewMetadata = self::htmlMetaReviewMetadata($element);
+            $reviewMetadata = self::htmlMetaReviewMetadata($element, $diagnostics);
             if ($reviewMetadata === null) {
                 return null;
             }
 
-            [$kind, $name, $content] = $reviewMetadata;
+            [$kind, $name, $content, $metadataAttrs] = $reviewMetadata;
             $metadataAttributeName = $kind === 'property'
                 ? 'data-pandoc-meta-property'
                 : 'data-pandoc-meta-name';
+            $attrs = [
+                $metadataAttributeName => $name,
+                'data-pandoc-meta-content' => $content,
+            ];
+            foreach ($metadataAttrs as $metadataName => $metadataValue) {
+                $attrs[$metadataName] = $metadataValue;
+            }
 
             return [[
                 'type' => 'element',
                 'name' => 'span',
-                'attrs' => [
-                    $metadataAttributeName => $name,
-                    'data-pandoc-meta-content' => $content,
-                ],
+                'attrs' => $attrs,
                 'children' => [[
                     'type' => 'text',
                     'text' => self::htmlMetaReviewLabel($name) . ': ' . $content,
@@ -2225,9 +2229,10 @@ final class Html5DomFragment
     }
 
     /**
-     * @return array{0:string, 1:string, 2:string}|null
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string, 2:string, 3:array<string, string>}|null
      */
-    private static function htmlMetaReviewMetadata(\DOMElement $element): ?array
+    private static function htmlMetaReviewMetadata(\DOMElement $element, array &$diagnostics): ?array
     {
         if (!$element->hasAttribute('content')) {
             return null;
@@ -2237,7 +2242,13 @@ final class Html5DomFragment
         $name = '';
         if ($element->hasAttribute('name')) {
             $name = self::normalizeHtmlMetaName($element->getAttribute('name'));
-            if (!in_array($name, ['author', 'description', 'generator', 'keywords'], true)) {
+            if ($name === 'theme-color') {
+                return self::htmlMetaThemeColorMetadata($element, $diagnostics);
+            }
+            if ($name === 'color-scheme') {
+                return self::htmlMetaColorSchemeMetadata($element, $diagnostics);
+            }
+            if (!in_array($name, ['application-name', 'author', 'description', 'generator', 'keywords'], true)) {
                 $name = '';
             }
         }
@@ -2266,7 +2277,113 @@ final class Html5DomFragment
             return null;
         }
 
-        return [$kind, $name, $content];
+        return [$kind, $name, $content, []];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string, 2:string, 3:array<string, string>}|null
+     */
+    private static function htmlMetaThemeColorMetadata(\DOMElement $element, array &$diagnostics): ?array
+    {
+        $color = self::normalizeHtmlMetaThemeColorContent($element->getAttribute('content'));
+        if ($color === null) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => 'meta',
+                'attribute' => 'content',
+                'name' => 'theme-color',
+            ];
+
+            return null;
+        }
+
+        $attrs = [];
+        if ($element->hasAttribute('media')) {
+            $media = self::normalizeHtmlMetaThemeColorMedia($element->getAttribute('media'));
+            if ($media === null) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'meta',
+                    'attribute' => 'media',
+                    'name' => 'theme-color',
+                ];
+            } else {
+                $attrs['data-pandoc-meta-media'] = $media;
+            }
+        }
+
+        return ['name', 'theme-color', $color, $attrs];
+    }
+
+    private static function normalizeHtmlMetaThemeColorContent(string $value): ?string
+    {
+        $color = self::normalizeReviewableHtmlStyleValue($value);
+        if ($color === null || $color === '') {
+            return null;
+        }
+
+        if (preg_match('/^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/', $color) === 1) {
+            return $color;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla)\([A-Za-z0-9#.,%+\-\/ ]+\)$/i', $color) === 1) {
+            return $color;
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9-]*$/', $color) === 1) {
+            return strtolower($color);
+        }
+
+        return null;
+    }
+
+    private static function normalizeHtmlMetaThemeColorMedia(string $value): ?string
+    {
+        $media = self::normalizeReviewableHtmlStyleValue($value);
+        if ($media === null || $media === '') {
+            return null;
+        }
+
+        return $media;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string, 2:string, 3:array<string, string>}|null
+     */
+    private static function htmlMetaColorSchemeMetadata(\DOMElement $element, array &$diagnostics): ?array
+    {
+        $content = strtolower(self::cleanHtmlMetadataAttribute($element->getAttribute('content')));
+        if ($content === '') {
+            return null;
+        }
+
+        $tokens = preg_split('/[\t\r\n\f ]+/u', $content, -1, PREG_SPLIT_NO_EMPTY);
+        if ($tokens === false || $tokens === []) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            if (!in_array($token, ['normal', 'light', 'dark', 'only'], true)) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'meta',
+                    'attribute' => 'content',
+                    'name' => 'color-scheme',
+                    'token' => $token,
+                ];
+                continue;
+            }
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        if ($normalized === []) {
+            return null;
+        }
+
+        return ['name', 'color-scheme', implode(' ', $normalized), []];
     }
 
     private static function normalizeHtmlMetaName(string $name): string
@@ -2288,10 +2405,12 @@ final class Html5DomFragment
     private static function htmlMetaReviewLabel(string $name): string
     {
         return match ($name) {
+            'application-name' => 'Application name',
             'article:modified_time' => 'Article modified time',
             'article:published_time' => 'Article published time',
             'author' => 'Author',
             'bingbot' => 'Bingbot',
+            'color-scheme' => 'Color scheme',
             'description' => 'Description',
             'generator' => 'Generator',
             'googlebot' => 'Googlebot',
@@ -2305,6 +2424,7 @@ final class Html5DomFragment
             'referrer' => 'Referrer policy',
             'robots' => 'Robots',
             'slurp' => 'Slurp',
+            'theme-color' => 'Theme color',
             'twitter:description' => 'Twitter description',
             'twitter:image' => 'Twitter image',
             'twitter:image:src' => 'Twitter image',

@@ -2087,6 +2087,82 @@ return [
         $t->true(!str_contains($html, 'Open graph image'), 'Expected unsupported property metadata to remain hidden');
         $t->true(!str_contains($html, '<Legacy CMS>'), 'Expected tag-looking metadata text to remain escaped');
     },
+    'converts standard application color metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<meta name="application-name" content=" Legacy App ">'
+            . '<meta name="theme-color" content=" #0A84FF " media=" (prefers-color-scheme: dark) ">'
+            . '<meta name="theme-color" content="rgb(255,255,255)">'
+            . '<meta name="theme-color" content="url(javascript:alert(1))">'
+            . '<meta name="theme-color" content="#123456" media="screen and (background: url(javascript:alert(1)))">'
+            . '<meta name="color-scheme" content=" Light Dark only Light ">'
+            . '<meta name="color-scheme" content="dark bad-token">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/meta-standard-color-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<span data-pandoc-meta-name="application-name" data-pandoc-meta-content="Legacy App">Application name: Legacy App</span>'
+            . '<span data-pandoc-meta-name="theme-color" data-pandoc-meta-content="#0A84FF" data-pandoc-meta-media="(prefers-color-scheme: dark)">Theme color: #0A84FF</span>'
+            . '<span data-pandoc-meta-name="theme-color" data-pandoc-meta-content="rgb(255, 255, 255)">Theme color: rgb(255, 255, 255)</span>'
+            . '<span data-pandoc-meta-name="theme-color" data-pandoc-meta-content="#123456">Theme color: #123456</span>'
+            . '<span data-pandoc-meta-name="color-scheme" data-pandoc-meta-content="light dark only">Color scheme: light dark only</span>'
+            . '<span data-pandoc-meta-name="color-scheme" data-pandoc-meta-content="dark">Color scheme: dark</span>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Application name: Legacy AppTheme color: #0A84FFTheme color: rgb(255, 255, 255)Theme color: #123456Color scheme: light dark onlyColor scheme: darkafter', $fragment->textContent());
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['base', 'meta'], $summary['blockedTags']);
+        $t->same(['content', 'media'], $summary['filteredAttributes']);
+        $t->same([
+            'blocked-tag',
+            'blocked-tag',
+            'blocked-tag',
+            'blocked-tag',
+            'blocked-tag',
+            'unsafe-attribute',
+            'blocked-tag',
+            'unsafe-attribute',
+            'blocked-tag',
+            'blocked-tag',
+            'unsafe-attribute',
+        ], $policyDiagnostics);
+        $t->same([
+            'data-pandoc-meta-name' => 'application-name',
+            'data-pandoc-meta-content' => 'Legacy App',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'data-pandoc-meta-name' => 'theme-color',
+            'data-pandoc-meta-content' => '#0A84FF',
+            'data-pandoc-meta-media' => '(prefers-color-scheme: dark)',
+        ], $nodes[1]['attrs']);
+        $t->same('rgb(255, 255, 255)', $nodes[2]['attrs']['data-pandoc-meta-content']);
+        $t->same([
+            'data-pandoc-meta-name' => 'theme-color',
+            'data-pandoc-meta-content' => '#123456',
+        ], $nodes[3]['attrs']);
+        $t->same('color-scheme', $nodes[4]['attrs']['data-pandoc-meta-name']);
+        $t->same('light dark only', $nodes[4]['attrs']['data-pandoc-meta-content']);
+        $t->same('dark', $nodes[5]['attrs']['data-pandoc-meta-content']);
+        $t->same('/migration/meta-standard-color-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<meta'), 'Expected original standard metadata elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'url('), 'Expected unsafe theme-color content and media queries to stay hidden');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe metadata URLs to stay hidden');
+        $t->true(!str_contains($html, 'bad-token'), 'Expected unsupported color-scheme tokens to stay hidden');
+    },
     'converts html charset metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

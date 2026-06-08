@@ -25,6 +25,10 @@ $source = <<<HTML
 <meta name="author" content="Migration Desk">
 <meta name="keywords" content="wordpress, html import">
 <meta name="generator" content="Legacy CMS">
+<meta name="application-name" content="Legacy CMS Import">
+<meta name="theme-color" content="#0a84ff" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="url(javascript:alert(1))">
+<meta name="color-scheme" content="light dark only">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src https: data:; report-uri https://tracker.example.test/csp; script-src 'none'">
 <meta http-equiv="Content-Security-Policy" content="script-src java&#10;script:alert(1)">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -79,7 +83,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Language: en-US', 'Direction: ltr', 'Template fallback note', 'Title: Legacy post title & review packet', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'', 'Referrer policy: strict-origin-when-cross-origin', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Popover migration note', 'popover source', 'Popover control source', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
+    foreach (['Language: en-US', 'Direction: ltr', 'Template fallback note', 'Title: Legacy post title & review packet', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Application name: Legacy CMS Import', 'Theme color: #0a84ff', 'Color scheme: light dark only', 'Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'', 'Referrer policy: strict-origin-when-cross-origin', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Popover migration note', 'popover source', 'Popover control source', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -98,6 +102,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span data-pandoc-meta-name="author" data-pandoc-meta-content="Migration Desk">Author: Migration Desk</span>',
         '<span data-pandoc-meta-name="keywords" data-pandoc-meta-content="wordpress, html import">Keywords: wordpress, html import</span>',
         '<span data-pandoc-meta-name="generator" data-pandoc-meta-content="Legacy CMS">Generator: Legacy CMS</span>',
+        '<span data-pandoc-meta-name="application-name" data-pandoc-meta-content="Legacy CMS Import">Application name: Legacy CMS Import</span>',
+        '<span data-pandoc-meta-name="theme-color" data-pandoc-meta-content="#0a84ff" data-pandoc-meta-media="(prefers-color-scheme: dark)">Theme color: #0a84ff</span>',
+        '<span data-pandoc-meta-name="color-scheme" data-pandoc-meta-content="light dark only">Color scheme: light dark only</span>',
         '<span data-pandoc-meta-http-equiv="content-security-policy" data-pandoc-meta-content="default-src &#039;self&#039;; img-src https: data:; script-src &#039;none&#039;">Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'</span>',
         '<span data-pandoc-meta-name="referrer" data-pandoc-meta-content="strict-origin-when-cross-origin">Referrer policy: strict-origin-when-cross-origin</span>',
         '<span data-pandoc-meta-property="og:title" data-pandoc-meta-content="Legacy social title">Open Graph title: Legacy social title</span>',
