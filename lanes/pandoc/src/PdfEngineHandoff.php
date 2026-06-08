@@ -284,7 +284,7 @@ final class PdfEngineHandoff
      *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pdfPageContentResourceUsage: array<string, int>,
-     *     pdfPageResourceSources: list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, propertyNames:list<string>}>,
+     *     pdfPageResourceSources: list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, procSetNames:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, patternNames:list<string>, shadingNames:list<string>, propertyNames:list<string>}>,
      *     pdfFonts: list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
      *     pdfFontSubtypes: array<string, int>,
      *     pdfImages: list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -2514,7 +2514,7 @@ final class PdfEngineHandoff
      *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     finalPdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     finalPdfPageContentResourceUsage: array<string, int>,
-     *     finalPdfPageResourceSources: list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, propertyNames:list<string>}>,
+     *     finalPdfPageResourceSources: list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, procSetNames:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, patternNames:list<string>, shadingNames:list<string>, propertyNames:list<string>}>,
      *     finalPdfFonts: list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
      *     finalPdfFontSubtypes: array<string, int>,
      *     finalPdfImages: list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -12316,7 +12316,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, propertyNames:list<string>}>
+     * @return list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, procSetNames:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, patternNames:list<string>, shadingNames:list<string>, propertyNames:list<string>}>
      */
     private function extractPdfPageResourceSources(string $pdfBytes, ?string $catalog): array
     {
@@ -12380,7 +12380,7 @@ final class PdfEngineHandoff
     /**
      * @param array<string, string> $objects
      * @param array<string, bool> $visited
-     * @param list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, propertyNames:list<string>}> $sources
+     * @param list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, procSetNames:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, patternNames:list<string>, shadingNames:list<string>, propertyNames:list<string>}> $sources
      */
     private function collectPdfPageResourceSourcesFromPageTree(
         array $objects,
@@ -12435,7 +12435,7 @@ final class PdfEngineHandoff
 
     /**
      * @param array<string, string> $objects
-     * @return array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, propertyNames:list<string>}|null
+     * @return array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, procSetNames:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, patternNames:list<string>, shadingNames:list<string>, propertyNames:list<string>}|null
      */
     private function summarizePdfPageResourceSource(
         string $pageDictionary,
@@ -12451,13 +12451,19 @@ final class PdfEngineHandoff
             return null;
         }
 
+        $procSetNames = $this->pdfResourceProcSetNames($resources, $objects);
         $fontNames = $this->pdfResourceDictionaryNames($resources, 'Font', $objects);
         $xobjectNames = $this->pdfResourceDictionaryNames($resources, 'XObject', $objects);
         $colorSpaceNames = $this->pdfResourceDictionaryNames($resources, 'ColorSpace', $objects);
         $graphicsStateNames = $this->pdfResourceDictionaryNames($resources, 'ExtGState', $objects);
+        $patternNames = $this->pdfResourceDictionaryNames($resources, 'Pattern', $objects);
+        $shadingNames = $this->pdfResourceDictionaryNames($resources, 'Shading', $objects);
         $propertyNames = $this->pdfResourceDictionaryNames($resources, 'Properties', $objects);
 
         $categories = [];
+        if ($procSetNames !== []) {
+            $categories[] = 'ProcSet';
+        }
         if ($fontNames !== []) {
             $categories[] = 'Font';
         }
@@ -12469,6 +12475,12 @@ final class PdfEngineHandoff
         }
         if ($graphicsStateNames !== []) {
             $categories[] = 'ExtGState';
+        }
+        if ($patternNames !== []) {
+            $categories[] = 'Pattern';
+        }
+        if ($shadingNames !== []) {
+            $categories[] = 'Shading';
         }
         if ($propertyNames !== []) {
             $categories[] = 'Properties';
@@ -12487,12 +12499,33 @@ final class PdfEngineHandoff
             'resourceSourceObject' => $inherited ? $inheritedResourceSourceObject : $pageReference . ' R',
             'inherited' => $inherited,
             'categories' => $categories,
+            'procSetNames' => $procSetNames,
             'fontNames' => $fontNames,
             'xobjectNames' => $xobjectNames,
             'colorSpaceNames' => $colorSpaceNames,
             'graphicsStateNames' => $graphicsStateNames,
+            'patternNames' => $patternNames,
+            'shadingNames' => $shadingNames,
             'propertyNames' => $propertyNames,
         ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<string>
+     */
+    private function pdfResourceProcSetNames(string $resources, array $objects): array
+    {
+        $value = $this->extractPdfValueForName($resources, 'ProcSet');
+        if ($value === null) {
+            return [];
+        }
+
+        $names = $this->pdfValueToNameList($value, $objects);
+        $names = array_values(array_unique(array_filter($names, static fn (string $name): bool => $name !== '')));
+        sort($names);
+
+        return $names;
     }
 
     /**

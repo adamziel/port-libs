@@ -5091,13 +5091,13 @@ MARKDOWN);
             '<< /Type /Catalog /Pages 2 0 R >>',
             'endobj',
             '2 0 obj',
-            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] /Resources << /Font << /FInherited 8 0 R >> /XObject << /ImInherited 9 0 R /FxInherited 10 0 R >> /ColorSpace << /CSInherited /DeviceRGB >> /ExtGState << /GSInherited 11 0 R >> /Properties << /MCInherited << /MCID 12 /Alt (Inherited source) >> >> >> >>',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] /Resources << /ProcSet [/PDF /Text /ImageC] /Font << /FInherited 8 0 R >> /XObject << /ImInherited 9 0 R /FxInherited 10 0 R >> /ColorSpace << /CSInherited /DeviceRGB >> /ExtGState << /GSInherited 11 0 R >> /Pattern << /PInherited 15 0 R >> /Shading << /ShInherited 16 0 R >> /Properties << /MCInherited << /MCID 12 /Alt (Inherited source) >> >> >> >>',
             'endobj',
             '3 0 obj',
             '<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>',
             'endobj',
             '4 0 obj',
-            '<< /Type /Page /Parent 2 0 R /Resources << /Font << /FPage 12 0 R >> /XObject << /ImPage 13 0 R >> /Properties << /MCPage << /MCID 14 /ActualText (Page source) >> >> >> /Contents 7 0 R >>',
+            '<< /Type /Page /Parent 2 0 R /Resources << /ProcSet 17 0 R /Font << /FPage 12 0 R >> /XObject << /ImPage 13 0 R >> /Pattern << /PPage << /PatternType 1 >> >> /Shading << /ShPage << /ShadingType 2 /ColorSpace /DeviceRGB >> >> /Properties << /MCPage << /MCID 14 /ActualText (Page source) >> >> >> /Contents 7 0 R >>',
             'endobj',
             '6 0 obj',
             '<< /Length 0 >>',
@@ -5110,6 +5110,15 @@ MARKDOWN);
             'stream',
             '',
             'endstream',
+            'endobj',
+            '15 0 obj',
+            '<< /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 16 16] /XStep 16 /YStep 16 >>',
+            'endobj',
+            '16 0 obj',
+            '<< /ShadingType 3 /ColorSpace /DeviceRGB >>',
+            'endobj',
+            '17 0 obj',
+            '[/PDF /Text /ImageI]',
             'endobj',
             'trailer',
             '<< /Root 1 0 R >>',
@@ -5136,11 +5145,14 @@ MARKDOWN);
                 'pageObject' => '3 0 R',
                 'resourceSourceObject' => '2 0 R',
                 'inherited' => true,
-                'categories' => ['ColorSpace', 'ExtGState', 'Font', 'Properties', 'XObject'],
+                'categories' => ['ColorSpace', 'ExtGState', 'Font', 'Pattern', 'ProcSet', 'Properties', 'Shading', 'XObject'],
+                'procSetNames' => ['ImageC', 'PDF', 'Text'],
                 'fontNames' => ['FInherited'],
                 'xobjectNames' => ['FxInherited', 'ImInherited'],
                 'colorSpaceNames' => ['CSInherited'],
                 'graphicsStateNames' => ['GSInherited'],
+                'patternNames' => ['PInherited'],
+                'shadingNames' => ['ShInherited'],
                 'propertyNames' => ['MCInherited'],
             ],
             [
@@ -5148,11 +5160,14 @@ MARKDOWN);
                 'pageObject' => '4 0 R',
                 'resourceSourceObject' => '4 0 R',
                 'inherited' => false,
-                'categories' => ['Font', 'Properties', 'XObject'],
+                'categories' => ['Font', 'Pattern', 'ProcSet', 'Properties', 'Shading', 'XObject'],
+                'procSetNames' => ['ImageI', 'PDF', 'Text'],
                 'fontNames' => ['FPage'],
                 'xobjectNames' => ['ImPage'],
                 'colorSpaceNames' => [],
                 'graphicsStateNames' => [],
+                'patternNames' => ['PPage'],
+                'shadingNames' => ['ShPage'],
                 'propertyNames' => ['MCPage'],
             ],
         ];
@@ -5162,8 +5177,81 @@ MARKDOWN);
         $t->contains('pdf-byte-page-resource-sources:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-resource-inherited:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-resource-category:Font:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-resource-category:Pattern:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-resource-category:ProcSet:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-resource-category:Properties:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-resource-category:Shading:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-resource-category:ColorSpace:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageResourceSources'] ?? null);
+    },
+
+    'fake runner records pdf procset pattern and shading resource metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/resource-classes.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /ProcSet 8 0 R /Pattern << /PStripe 9 0 R /PInline << /PatternType 1 >> >> /Shading << /ShAxial 10 0 R /ShInline << /ShadingType 3 /ColorSpace /DeviceRGB >> >> >> >>',
+            'endobj',
+            '8 0 obj',
+            '[/PDF /Text /ImageB]',
+            'endobj',
+            '9 0 obj',
+            '<< /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 8 8] /XStep 8 /YStep 8 >>',
+            'endobj',
+            '10 0 obj',
+            '<< /ShadingType 2 /ColorSpace /DeviceRGB >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/resource-classes.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/resource-classes.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'resourceSourceObject' => '3 0 R',
+                'inherited' => false,
+                'categories' => ['Pattern', 'ProcSet', 'Shading'],
+                'procSetNames' => ['ImageB', 'PDF', 'Text'],
+                'fontNames' => [],
+                'xobjectNames' => [],
+                'colorSpaceNames' => [],
+                'graphicsStateNames' => [],
+                'patternNames' => ['PInline', 'PStripe'],
+                'shadingNames' => ['ShAxial', 'ShInline'],
+                'propertyNames' => [],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageResourceSources'] ?? null);
+        $t->contains('pdf-byte-page-resource-sources:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-resource-category:ProcSet:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-resource-category:Pattern:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-resource-category:Shading:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageResourceSources'] ?? null);
     },
