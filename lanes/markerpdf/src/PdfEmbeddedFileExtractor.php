@@ -21,6 +21,8 @@ final class PdfEmbeddedFileExtractor
 
     private const FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac', 'EF', 'AFRelationship'];
 
+    private const FILE_SPEC_METADATA_BOUNDARY_KEYS = ['FS', 'ID', 'V'];
+
     private const FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS = ['RF'];
 
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
@@ -1974,6 +1976,13 @@ final class PdfEmbeddedFileExtractor
      */
     private function fileSpecMetadata(string $fileSpecBody, array $objects): array
     {
+        if (
+            $this->dictionaryHasDuplicateKeys($fileSpecBody, self::FILE_SPEC_METADATA_BOUNDARY_KEYS)
+            || $this->dictionaryHasTrailingOperandsAfterKeys($fileSpecBody, self::FILE_SPEC_METADATA_BOUNDARY_KEYS)
+        ) {
+            return [];
+        }
+
         $metadata = [];
 
         $fileSystem = $this->dictionaryNameValue($fileSpecBody, 'FS', $objects);

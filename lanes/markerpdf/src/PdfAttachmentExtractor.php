@@ -43,6 +43,8 @@ final class PdfAttachmentExtractor
 
     private const FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac', 'EF', 'AFRelationship'];
 
+    private const FILE_SPEC_METADATA_BOUNDARY_KEYS = ['FS', 'ID', 'V'];
+
     private const FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS = ['RF'];
 
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
@@ -1582,9 +1584,19 @@ final class PdfAttachmentExtractor
         $decodedLength = $this->intValue($this->resolveValue($streamDict['DL'] ?? null, $objects));
         $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
         $relationship = $this->nameValue($this->resolveValue($fileSpec['AFRelationship'] ?? null, $objects));
-        $fileSystem = $this->nameOrStringValue($fileSpec['FS'] ?? null, $objects);
-        $fileIdentifier = $this->fileSpecIdentifierReview($fileSpec['ID'] ?? null, $objects);
-        $volatile = $this->boolValue($this->resolveValue($fileSpec['V'] ?? null, $objects));
+        $fileSpecMetadataMalformed = $fileSpecDictionaryBody !== null
+            && (
+                $this->dictionaryHasDuplicateKeys($fileSpecDictionaryBody, self::FILE_SPEC_METADATA_BOUNDARY_KEYS)
+                || $this->dictionaryHasTrailingOperandsAfterKeys($fileSpecDictionaryBody, self::FILE_SPEC_METADATA_BOUNDARY_KEYS)
+            );
+        $fileSystem = null;
+        $fileIdentifier = [];
+        $volatile = null;
+        if (!$fileSpecMetadataMalformed) {
+            $fileSystem = $this->nameOrStringValue($fileSpec['FS'] ?? null, $objects);
+            $fileIdentifier = $this->fileSpecIdentifierReview($fileSpec['ID'] ?? null, $objects);
+            $volatile = $this->boolValue($this->resolveValue($fileSpec['V'] ?? null, $objects));
+        }
         $portfolioItem = $this->collectionItemReview($fileSpec['CI'] ?? null, $objects);
         $macFileInfo = $this->embeddedFileMacInfoReview($params['Mac'] ?? null, $objects, $encryptionPolicy);
 
