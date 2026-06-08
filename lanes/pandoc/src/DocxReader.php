@@ -6037,7 +6037,13 @@ final class DocxReader
             }
 
             $cells = [];
-            $gridColumn = 0;
+            $gridBefore = $this->tableRowGridOmissionCount($rowElement, 'gridBefore');
+            $gridColumn = $gridBefore;
+            if ($gridBefore > 0) {
+                $this->clearTableVerticalMergeColumns($verticalMerges, 0, $gridBefore);
+                array_push($cells, ...$this->tableRowOmittedGridCells($rowElement, 'before'));
+            }
+
             foreach ($rowElement->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'tc') as $cellElement) {
                 if (!$cellElement instanceof \DOMElement || $cellElement->parentNode !== $rowElement) {
                     continue;
@@ -6071,6 +6077,12 @@ final class DocxReader
                     }
                 }
                 $gridColumn += $colspan;
+            }
+
+            $gridAfter = $this->tableRowGridOmissionCount($rowElement, 'gridAfter');
+            if ($gridAfter > 0) {
+                $this->clearTableVerticalMergeColumns($verticalMerges, $gridColumn, $gridAfter);
+                array_push($cells, ...$this->tableRowOmittedGridCells($rowElement, 'after'));
             }
 
             $rows[] = new AstNode('table_row', $this->tableRowAttrs($rowElement), $cells);
@@ -6413,6 +6425,7 @@ final class DocxReader
         }
 
         $this->appendTableRowHeightAttrs($properties, $classes, $attributes, $htmlAttributes);
+        $this->appendTableRowOmittedGridAttrs($properties, $classes, $attributes, $htmlAttributes);
 
         if ($classes === [] && $attributes === [] && $htmlAttributes === []) {
             return [];
@@ -6485,6 +6498,159 @@ final class DocxReader
         } elseif ($rule === 'atLeast') {
             $htmlAttributes['style'] = $this->appendCssStyle($htmlAttributes['style'] ?? '', 'min-height:' . $points . 'pt');
         }
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     * @param array<string, string> $htmlAttributes
+     */
+    private function appendTableRowOmittedGridAttrs(
+        \DOMElement $properties,
+        array &$classes,
+        array &$attributes,
+        array &$htmlAttributes
+    ): void {
+        foreach ([
+            'before' => ['gridBefore', 'wBefore'],
+            'after' => ['gridAfter', 'wAfter'],
+        ] as $position => [$gridName, $widthName]) {
+            $count = $this->tableRowGridOmissionCountFromProperties($properties, $gridName);
+            if ($count <= 0) {
+                continue;
+            }
+
+            $classes[] = 'docx-table-row-grid-' . $position;
+            $this->appendTableRowDataAttr($attributes, $htmlAttributes, 'data-docx-table-row-grid-' . $position, (string) $count);
+
+            $widthAttrs = $this->tableRowOmittedGridWidthAttrs($properties, $widthName);
+            if ($widthAttrs === []) {
+                continue;
+            }
+
+            $classes[] = 'docx-table-row-width-' . $position;
+            $classes[] = 'docx-table-row-width-' . $position . '-' . $widthAttrs['type'];
+            foreach ($widthAttrs as $name => $value) {
+                $this->appendTableRowDataAttr(
+                    $attributes,
+                    $htmlAttributes,
+                    'data-docx-table-row-width-' . $position . '-' . $name,
+                    $value
+                );
+            }
+        }
+    }
+
+    /**
+     * @return array{type:string, value?:string, points?:string, percent?:string}|array{}
+     */
+    private function tableRowOmittedGridWidthAttrs(\DOMElement $properties, string $localName): array
+    {
+        $width = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
+        if (!$width instanceof \DOMElement) {
+            return [];
+        }
+
+        $type = strtolower(trim((string) ($this->wordAttr($width, 'type') ?? 'dxa')));
+        if ($type === '') {
+            $type = 'dxa';
+        }
+        if (in_array($type, ['nil', 'none', '0', 'false', 'off'], true)) {
+            return [];
+        }
+        if (!in_array($type, ['dxa', 'pct', 'auto'], true)) {
+            return [];
+        }
+
+        $attrs = [
+            'type' => $type,
+        ];
+        $value = trim((string) ($this->wordAttr($width, 'w') ?? ''));
+        if ($value !== '') {
+            $attrs['value'] = $value;
+        }
+        if ($value === '' || preg_match('/^\d+(?:\.\d+)?$/D', $value) !== 1) {
+            return $attrs;
+        }
+
+        $numericValue = (float) $value;
+        if ($numericValue <= 0.0) {
+            return $attrs;
+        }
+        if ($type === 'dxa') {
+            $attrs['points'] = $this->formatOpenXmlCssNumber($numericValue / 20.0);
+        } elseif ($type === 'pct') {
+            $attrs['percent'] = $this->formatOpenXmlCssNumber($numericValue / 50.0);
+        }
+
+        return $attrs;
+    }
+
+    private function tableRowGridOmissionCount(\DOMElement $row, string $localName): int
+    {
+        $properties = $this->firstChildElement($row, self::WORDPROCESSINGML_NS, 'trPr');
+        if (!$properties instanceof \DOMElement) {
+            return 0;
+        }
+
+        return $this->tableRowGridOmissionCountFromProperties($properties, $localName);
+    }
+
+    private function tableRowGridOmissionCountFromProperties(\DOMElement $properties, string $localName): int
+    {
+        $child = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return 0;
+        }
+
+        $count = $this->optionalIntWordAttr($child, 'val');
+
+        return $count !== null && $count > 0 ? $count : 0;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableRowOmittedGridCells(\DOMElement $row, string $position): array
+    {
+        $localName = $position === 'before' ? 'gridBefore' : 'gridAfter';
+        $count = $this->tableRowGridOmissionCount($row, $localName);
+        if ($count <= 0) {
+            return [];
+        }
+
+        $cells = [];
+        for ($index = 1; $index <= $count; $index++) {
+            $cells[] = new AstNode(
+                'table_cell',
+                $this->tableRowOmittedGridCellAttrs($position, $count, $index),
+                []
+            );
+        }
+
+        return $cells;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>, htmlAttributes:array<string, string>, text:string}
+     */
+    private function tableRowOmittedGridCellAttrs(string $position, int $count, int $index): array
+    {
+        $attributes = [
+            'data-docx-omitted-table-cell' => $position,
+            'data-docx-omitted-grid-count' => (string) $count,
+            'data-docx-omitted-grid-index' => (string) $index,
+        ];
+
+        return [
+            'classes' => ['docx-omitted-table-cell', 'docx-omitted-table-cell-' . $position],
+            'attributes' => $attributes,
+            'htmlAttributes' => [
+                ...$attributes,
+                'aria-hidden' => 'true',
+            ],
+            'text' => '',
+        ];
     }
 
     /**

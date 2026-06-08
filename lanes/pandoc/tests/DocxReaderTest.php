@@ -992,6 +992,44 @@ $tableRowPropertiesDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableRowGridOmissionDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblGrid>
+        <w:gridCol w:w="1200"/>
+        <w:gridCol w:w="2400"/>
+        <w:gridCol w:w="1200"/>
+        <w:gridCol w:w="1800"/>
+      </w:tblGrid>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Scope</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Status</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Owner</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Notes</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr><w:gridBefore w:val="1"/><w:wBefore w:type="dxa" w:w="1200"/><w:gridAfter w:val="1"/><w:wAfter w:type="pct" w:w="2500"/></w:trPr>
+        <w:tc><w:p><w:r><w:t>Needs review</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Import desk</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr><w:gridBefore w:val="0"/><w:gridAfter w:val="2"/><w:wAfter w:type="auto" w:w="0"/></w:trPr>
+        <w:tc><w:p><w:r><w:t>Archive packet</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Queued</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr><w:gridBefore w:val="-1"/><w:gridAfter w:val="bad"/><w:wBefore w:type="nil" w:w="1200"/><w:wAfter w:type="unsupported" w:w="1200"/></w:trPr>
+        <w:tc><w:p><w:r><w:t>No omitted columns</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Fallback</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Visible</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Only</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $notesContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -2811,6 +2849,14 @@ $buildTableRowPropertiesPackage = static function () use ($contentTypesXml, $pac
     ]);
 };
 
+$buildTableRowGridOmissionPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableRowGridOmissionDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableRowGridOmissionDocumentXml],
+    ]);
+};
+
 $buildNotesPackage = static function () use (
     $notesContentTypesXml,
     $packageRelationshipsXml,
@@ -4506,6 +4552,91 @@ return [
         $t->contains('<tr class="docx-table-row-cant-split docx-table-row-height docx-table-row-height-at-least" data-docx-table-row-cant-split="true" data-docx-table-row-height-rule="atLeast" data-docx-table-row-height-value="360" data-docx-table-row-height-points="18" style="min-height:18pt"><td><p>Long source note</p></td><td><p>Keep with row</p></td></tr>', $blocks);
         $t->contains('<tr class="docx-table-row-height docx-table-row-height-auto" data-docx-table-row-height-rule="auto" data-docx-table-row-height-value="480" data-docx-table-row-height-points="24"><td><p>Plain continuation</p></td><td><p>Can split</p></td></tr>', $blocks);
         $t->contains('<tr><td><p>Unsupported height</p></td><td><p>Fallback row</p></td></tr>', $blocks);
+    },
+    'preserves DOCX table row omitted grid columns for reviewer handoff' => static function (TestRunner $t) use ($buildTableRowGridOmissionPackage): void {
+        $document = (new DocxReader())->readDocument($buildTableRowGridOmissionPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $body = $table->children[0];
+        $header = $body->children[0];
+        $omittedBothSides = $body->children[1];
+        $omittedAfter = $body->children[2];
+        $invalidOmissions = $body->children[3];
+
+        $t->same(4, count($header->children));
+        $t->same(4, count($omittedBothSides->children));
+        $t->same('', $omittedBothSides->children[0]->attr('text'));
+        $t->same('Needs review', $omittedBothSides->children[1]->attr('text'));
+        $t->same('Import desk', $omittedBothSides->children[2]->attr('text'));
+        $t->same('', $omittedBothSides->children[3]->attr('text'));
+        $t->same(
+            [
+                'docx-table-row-grid-before',
+                'docx-table-row-width-before',
+                'docx-table-row-width-before-dxa',
+                'docx-table-row-grid-after',
+                'docx-table-row-width-after',
+                'docx-table-row-width-after-pct',
+            ],
+            $omittedBothSides->attr('classes')
+        );
+        $t->same('1', $omittedBothSides->attr('attributes')['data-docx-table-row-grid-before']);
+        $t->same('dxa', $omittedBothSides->attr('attributes')['data-docx-table-row-width-before-type']);
+        $t->same('1200', $omittedBothSides->attr('attributes')['data-docx-table-row-width-before-value']);
+        $t->same('60', $omittedBothSides->attr('attributes')['data-docx-table-row-width-before-points']);
+        $t->same('1', $omittedBothSides->attr('attributes')['data-docx-table-row-grid-after']);
+        $t->same('pct', $omittedBothSides->attr('attributes')['data-docx-table-row-width-after-type']);
+        $t->same('2500', $omittedBothSides->attr('attributes')['data-docx-table-row-width-after-value']);
+        $t->same('50', $omittedBothSides->attr('attributes')['data-docx-table-row-width-after-percent']);
+        $t->same('1', $omittedBothSides->attr('htmlAttributes')['data-docx-table-row-grid-before']);
+
+        $beforeCell = $omittedBothSides->children[0];
+        $afterCell = $omittedBothSides->children[3];
+        $t->same(['docx-omitted-table-cell', 'docx-omitted-table-cell-before'], $beforeCell->attr('classes'));
+        $t->same('before', $beforeCell->attr('attributes')['data-docx-omitted-table-cell']);
+        $t->same('1', $beforeCell->attr('attributes')['data-docx-omitted-grid-count']);
+        $t->same('1', $beforeCell->attr('attributes')['data-docx-omitted-grid-index']);
+        $t->same('true', $beforeCell->attr('htmlAttributes')['aria-hidden']);
+        $t->same(['docx-omitted-table-cell', 'docx-omitted-table-cell-after'], $afterCell->attr('classes'));
+        $t->same('after', $afterCell->attr('attributes')['data-docx-omitted-table-cell']);
+
+        $t->same(4, count($omittedAfter->children));
+        $t->same('Archive packet', $omittedAfter->children[0]->attr('text'));
+        $t->same('Queued', $omittedAfter->children[1]->attr('text'));
+        $t->same('', $omittedAfter->children[2]->attr('text'));
+        $t->same('', $omittedAfter->children[3]->attr('text'));
+        $t->same(['docx-table-row-grid-after', 'docx-table-row-width-after', 'docx-table-row-width-after-auto'], $omittedAfter->attr('classes'));
+        $t->same('2', $omittedAfter->attr('attributes')['data-docx-table-row-grid-after']);
+        $t->same('auto', $omittedAfter->attr('attributes')['data-docx-table-row-width-after-type']);
+        $t->same('0', $omittedAfter->attr('attributes')['data-docx-table-row-width-after-value']);
+        $t->true(!isset($omittedAfter->attr('htmlAttributes', [])['style']), 'DOCX omitted trailing grid width should not force a visual row style');
+        $t->same(4, count($invalidOmissions->children));
+        $t->same([], $invalidOmissions->attr('classes', []));
+        $t->same([], $invalidOmissions->attr('attributes', []));
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same(4, $geometry['columnCount'] ?? null);
+        $t->same('1', $geometry['sections'][0]['rows'][1]['sourceAttributes']['attributes']['data-docx-table-row-grid-before'] ?? null);
+        $t->same('60', $geometry['sections'][0]['rows'][1]['sourceAttributes']['attributes']['data-docx-table-row-width-before-points'] ?? null);
+        $t->same('50', $geometry['sections'][0]['rows'][1]['sourceAttributes']['attributes']['data-docx-table-row-width-after-percent'] ?? null);
+        $t->same('before', $geometry['coverage'][4]['sourceAttributes']['attributes']['data-docx-omitted-table-cell'] ?? null);
+        $t->same('Needs review', $geometry['coverage'][5]['text'] ?? null);
+        $t->same('after', $geometry['coverage'][7]['sourceAttributes']['attributes']['data-docx-omitted-table-cell'] ?? null);
+        $t->same('2', $geometry['coverage'][10]['sourceAttributes']['attributes']['data-docx-omitted-grid-count'] ?? null);
+        $t->same('2', $geometry['coverage'][11]['sourceAttributes']['attributes']['data-docx-omitted-grid-index'] ?? null);
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| | Needs review | Import desk | |', $normalizedMarkdown);
+        $t->contains('| Archive packet | Queued | | |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-omitted'), 'Pipe-table Markdown handoff should not leak DOCX omitted-grid metadata');
+        $t->contains('<tr class="docx-table-row-grid-before docx-table-row-width-before docx-table-row-width-before-dxa docx-table-row-grid-after docx-table-row-width-after docx-table-row-width-after-pct" data-docx-table-row-grid-before="1" data-docx-table-row-width-before-type="dxa" data-docx-table-row-width-before-value="1200" data-docx-table-row-width-before-points="60" data-docx-table-row-grid-after="1" data-docx-table-row-width-after-type="pct" data-docx-table-row-width-after-value="2500" data-docx-table-row-width-after-percent="50">', $blocks);
+        $t->contains('<td class="docx-omitted-table-cell docx-omitted-table-cell-before" data-docx-omitted-table-cell="before" data-docx-omitted-grid-count="1" data-docx-omitted-grid-index="1" aria-hidden="true"></td><td><p>Needs review</p></td><td><p>Import desk</p></td><td class="docx-omitted-table-cell docx-omitted-table-cell-after" data-docx-omitted-table-cell="after" data-docx-omitted-grid-count="1" data-docx-omitted-grid-index="1" aria-hidden="true"></td>', $blocks);
+        $t->contains('<tr class="docx-table-row-grid-after docx-table-row-width-after docx-table-row-width-after-auto" data-docx-table-row-grid-after="2" data-docx-table-row-width-after-type="auto" data-docx-table-row-width-after-value="0"><td><p>Archive packet</p></td><td><p>Queued</p></td><td class="docx-omitted-table-cell docx-omitted-table-cell-after" data-docx-omitted-table-cell="after" data-docx-omitted-grid-count="2" data-docx-omitted-grid-index="1" aria-hidden="true"></td><td class="docx-omitted-table-cell docx-omitted-table-cell-after" data-docx-omitted-table-cell="after" data-docx-omitted-grid-count="2" data-docx-omitted-grid-index="2" aria-hidden="true"></td></tr>', $blocks);
     },
     'maps DOCX endnotes and comments into note AST nodes' => static function (TestRunner $t) use ($buildNotesPackage): void {
         $document = (new DocxReader())->readDocument($buildNotesPackage());

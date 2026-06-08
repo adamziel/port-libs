@@ -594,6 +594,10 @@ XML],
           <w:p><w:r><w:t>Migration desk</w:t></w:r></w:p>
         </w:tc>
       </w:tr>
+      <w:tr>
+        <w:trPr><w:gridBefore w:val="1"/><w:wBefore w:type="dxa" w:w="720"/><w:gridAfter w:val="1"/><w:wAfter w:type="auto" w:w="0"/></w:trPr>
+        <w:tc><w:p><w:r><w:t>Omitted grid reviewer note</w:t></w:r></w:p></w:tc>
+      </w:tr>
     </w:tbl>
     <w:sectPr>
       <w:headerReference w:type="default" r:id="rIdHeaderDefault"/>
@@ -1189,6 +1193,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'style="width:100%; padding-top:6pt; padding-inline-start:12pt; padding-bottom:6pt; padding-inline-end:12pt; background-color:#D9EAF7"><p>Review scope</p></td><td><p>Status</p></td>',
         '<tr class="docx-table-row-cant-split" data-docx-table-row-cant-split="true">',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
+        '<tr class="docx-table-row-grid-before docx-table-row-width-before docx-table-row-width-before-dxa docx-table-row-grid-after docx-table-row-width-after docx-table-row-width-after-auto" data-docx-table-row-grid-before="1" data-docx-table-row-width-before-type="dxa" data-docx-table-row-width-before-value="720" data-docx-table-row-width-before-points="36" data-docx-table-row-grid-after="1" data-docx-table-row-width-after-type="auto" data-docx-table-row-width-after-value="0">',
+        '<td class="docx-omitted-table-cell docx-omitted-table-cell-before" data-docx-omitted-table-cell="before" data-docx-omitted-grid-count="1" data-docx-omitted-grid-index="1" aria-hidden="true"></td><td><p>Omitted grid reviewer note</p></td><td class="docx-omitted-table-cell docx-omitted-table-cell-after" data-docx-omitted-table-cell="after" data-docx-omitted-grid-count="1" data-docx-omitted-grid-index="1" aria-hidden="true"></td>',
         '<figcaption class="wp-element-caption">DOCX review table</figcaption>',
         '<span class="docx-reference-marker docx-footnote-reference-marker" data-docx-reference-marker="footnote">DOCX footnote reference marker</span> DOCX footnote import note.<br/>Second footnote marker line.',
         '<span class="docx-reference-marker docx-endnote-reference-marker" data-docx-reference-marker="endnote">DOCX endnote reference marker</span> DOCX endnote import note.',
