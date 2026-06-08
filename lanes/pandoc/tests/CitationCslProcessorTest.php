@@ -12339,6 +12339,112 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Column Source. Review Ledger. 2026. 12-14. Pagination: column. Book pagination: section.</dd>', $blocks);
         $t->contains('<dt>Smith 2025</dt><dd>Smith, Ada. Verse Source. Migration Sourcebook. 2025. 4-6. Pagination: verse. Book pagination: page.</dd>', $blocks);
     },
+    'maps bounded biblatex thesis aliases and thesis type metadata into csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@phdthesis{doctoral-import,
+  author = {Smith, Ada},
+  title  = {Doctoral Import Study},
+  date   = {2026},
+  school = {Migration University},
+  type   = {Doctoral dissertation},
+  url    = {https://example.test/doctoral-import}
+}
+
+@mathesis{masters-import,
+  author = {Ng, Nia},
+  title  = {Masters Import Study},
+  date   = {2025},
+  school = {Source University}
+}
+
+@thesis{explicit-thesis,
+  author     = {Roe, Pat},
+  title      = {Explicit Thesis Packet},
+  date       = {2024},
+  institution = {Archive Institute},
+  thesistype = {Licentiate thesis}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('thesis', $items[0]['type']);
+        $t->same('Doctoral dissertation', $items[0]['thesis-type'] ?? null);
+        $t->same('Doctoral dissertation', $items[0]['genre'] ?? null);
+        $t->same('Migration University', $items[0]['publisher'] ?? null);
+        $t->same('Doctoral dissertation', $items[0]['rawBibtex']['fields']['type'] ?? null);
+        $t->same('thesis', $items[1]['type']);
+        $t->same('mathesis', $items[1]['thesis-type'] ?? null);
+        $t->same('mathesis', $items[1]['rawBibtex']['type'] ?? null);
+        $t->same('Licentiate thesis', $items[2]['thesis-type'] ?? null);
+        $t->same('Licentiate thesis', $items[2]['rawBibtex']['fields']['thesistype'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $doctoral = $processor->item('doctoral-import');
+        $masters = $processor->item('masters-import');
+        $explicit = $processor->item('explicit-thesis');
+        $t->same('thesis', $doctoral['type'] ?? null);
+        $t->same('Doctoral dissertation', $doctoral['thesisType'] ?? null);
+        $t->same('mathesis', $masters['thesisType'] ?? null);
+        $t->same('Licentiate thesis', $explicit['thesisType'] ?? null);
+        $t->same('(Smith 2026; Ng 2025; Roe 2024)', $processor->renderCitationCluster([
+            $citation('doctoral-import', '[@doctoral-import]'),
+            $citation('masters-import', '[@masters-import]'),
+            $citation('explicit-thesis', '[@explicit-thesis]'),
+        ]));
+        $t->same(
+            'Smith, Ada. Doctoral Import Study. Migration University, 2026. Thesis type: Doctoral dissertation. https://example.test/doctoral-import.',
+            $processor->renderBibliographyEntry('doctoral-import')
+        );
+        $t->same(
+            'Ng, Nia. Masters Import Study. Source University, 2025. Thesis type: mathesis.',
+            $processor->renderBibliographyEntry('masters-import')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="title"/>
+        <text variable="thesis-type"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher"/>
+      <text variable="thesistype"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('(Smith | Doctoral Import Study | Doctoral dissertation; Ng | Masters Import Study | mathesis)', $styled->renderCitationCluster([
+            $citation('doctoral-import', '[@doctoral-import]'),
+            $citation('masters-import', '[@masters-import]'),
+        ]));
+        $t->same('Explicit Thesis Packet :: Archive Institute :: Licentiate thesis', $styled->renderBibliographyEntry('explicit-thesis'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-thesis',
+            'type' => 'thesis',
+            'title' => 'Manual Thesis Packet',
+            'thesis-type' => 'habilitation',
+        ]]);
+        $directItem = $direct->item('manual-thesis');
+        $t->same('habilitation', $directItem['thesisType'] ?? null);
+        $t->same('Manual Thesis Packet. Thesis type: habilitation.', $direct->renderBibliographyEntry('manual-thesis'));
+
+        $document = (new MarkdownReader())->read('Thesis sources @doctoral-import, @masters-import, and [@explicit-thesis] keep degree metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Thesis sources Smith (2026), Ng (2025), and (Roe 2024) keep degree metadata visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Doctoral Import Study. Migration University, 2026. Thesis type: Doctoral dissertation. https://example.test/doctoral-import.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Masters Import Study. Source University, 2025. Thesis type: mathesis.</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>Roe, Pat. Explicit Thesis Packet. Archive Institute, 2024. Thesis type: Licentiate thesis.</dd>', $blocks);
+    },
     'maps bounded biblatex issue title fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{special-issue-source,

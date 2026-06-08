@@ -615,6 +615,7 @@ final class BibtexCslParser
             'page-first' => self::firstPageFromRange($page),
             'pagination' => self::firstField($fields, ['pagination']),
             'book-pagination' => self::firstField($fields, ['bookpagination', 'book-pagination']),
+            'thesis-type' => self::thesisType($type, $fields),
             'article-number' => self::firstField($fields, ['eid', 'article-number', 'articlenumber']),
             'references' => self::firstField($fields, ['references']),
             'dimensions' => self::firstField($fields, ['dimensions', 'dimension']),
@@ -987,7 +988,7 @@ final class BibtexCslParser
             'inreference' => 'entry-encyclopedia',
             'set' => 'entry',
             'collection', 'mvcollection', 'mvbook', 'mvproceedings', 'mvreference', 'proceedings', 'reference' => 'book',
-            'phdthesis', 'mastersthesis' => 'thesis',
+            'phdthesis', 'mastersthesis', 'mathesis' => 'thesis',
             'report', 'techreport' => 'report',
             'patent' => 'patent',
             'legislation', 'legal' => 'legislation',
@@ -997,6 +998,31 @@ final class BibtexCslParser
             'online', 'www', 'electronic' => 'webpage',
             'unpublished' => 'manuscript',
             default => strtolower($type),
+        };
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function thesisType(string $entryType, array $fields): string
+    {
+        $explicit = self::firstField($fields, ['thesistype', 'thesis-type']);
+        if ($explicit !== '') {
+            return $explicit;
+        }
+
+        $entryType = strtolower($entryType);
+        if (in_array($entryType, ['thesis', 'phdthesis', 'mastersthesis', 'mathesis'], true)) {
+            $type = self::firstField($fields, ['type']);
+            if ($type !== '') {
+                return $type;
+            }
+        }
+
+        return match ($entryType) {
+            'phdthesis' => 'phdthesis',
+            'mastersthesis', 'mathesis' => 'mathesis',
+            default => '',
         };
     }
 
