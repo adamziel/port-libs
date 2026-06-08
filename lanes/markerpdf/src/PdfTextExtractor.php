@@ -37006,7 +37006,10 @@ final class PdfTextExtractor
             }
 
             $target = $this->normalizeHexKey($range['target'] ?? '');
-            if ($target === '') {
+            if (
+                $target === ''
+                || (($range['targetKind'] ?? null) === 'hex' && !$this->isWellFormedCMapUnicodeScalarTarget($target))
+            ) {
                 continue;
             }
 
@@ -38506,6 +38509,21 @@ final class PdfTextExtractor
         }
 
         return $this->decodeCMapUnicodeBytes($bytes);
+    }
+
+    private function isWellFormedCMapUnicodeScalarTarget(string $hex): bool
+    {
+        $normalized = $this->normalizeHexKey($hex);
+        if ($normalized === '' || strlen($normalized) % 4 !== 0) {
+            return false;
+        }
+
+        $bytes = hex2bin($normalized);
+        if ($bytes === false) {
+            return false;
+        }
+
+        return @iconv('UTF-16BE', 'UTF-8', $bytes) !== false;
     }
 
     private function decodeCMapUnicodeBytes(string $bytes): string
