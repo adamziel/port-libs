@@ -1492,9 +1492,14 @@ final class TableFormatter
             return null;
         }
 
-        if (array_key_exists('x', $point) && array_key_exists('y', $point)) {
-            $x = $this->numericScalar($point['x']);
-            $y = $this->numericScalar($point['y']);
+        foreach ($this->pointCoordinateFieldSets() as $keys) {
+            [$xKey, $yKey] = $keys;
+            if (!array_key_exists($xKey, $point) || !array_key_exists($yKey, $point)) {
+                continue;
+            }
+
+            $x = $this->numericScalar($point[$xKey]);
+            $y = $this->numericScalar($point[$yKey]);
 
             return $x === null || $y === null ? null : [$x, $y];
         }
@@ -1506,6 +1511,33 @@ final class TableFormatter
         $coordinates = $this->numericCoordinates(array_values($point));
 
         return $coordinates === null ? null : [$coordinates[0], $coordinates[1]];
+    }
+
+    /**
+     * @return list<array{0: string, 1: string}>
+     */
+    private function pointCoordinateFieldSets(): array
+    {
+        return [
+            ['x', 'y'],
+            ['x0', 'y0'],
+            ['x1', 'y1'],
+            ['xmin', 'ymin'],
+            ['xmax', 'ymax'],
+            ['x_min', 'y_min'],
+            ['x_max', 'y_max'],
+            ['x_start', 'y_start'],
+            ['x_end', 'y_end'],
+            ['start_x', 'start_y'],
+            ['end_x', 'end_y'],
+            ['left', 'top'],
+            ['right', 'bottom'],
+            ['right', 'top'],
+            ['left', 'bottom'],
+            ['cx', 'cy'],
+            ['center_x', 'center_y'],
+            ['x_center', 'y_center'],
+        ];
     }
 
     /**

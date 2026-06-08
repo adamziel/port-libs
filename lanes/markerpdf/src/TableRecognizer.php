@@ -8448,8 +8448,11 @@ final class TableRecognizer
             return null;
         }
 
-        if (array_key_exists('x', $value) && array_key_exists('y', $value)) {
-            return $this->rawPointCoordinates([$value['x'], $value['y']]);
+        foreach ($this->pointCoordinateFieldSets() as $keys) {
+            [$xKey, $yKey] = $keys;
+            if (array_key_exists($xKey, $value) && array_key_exists($yKey, $value)) {
+                return $this->rawPointCoordinates([$value[$xKey], $value[$yKey]]);
+            }
         }
 
         if (array_key_exists('width', $value) && array_key_exists('height', $value)) {
@@ -8461,6 +8464,33 @@ final class TableRecognizer
         }
 
         return $this->rawPointCoordinates(array_values($value));
+    }
+
+    /**
+     * @return list<array{0: string, 1: string}>
+     */
+    private function pointCoordinateFieldSets(): array
+    {
+        return [
+            ['x', 'y'],
+            ['x0', 'y0'],
+            ['x1', 'y1'],
+            ['xmin', 'ymin'],
+            ['xmax', 'ymax'],
+            ['x_min', 'y_min'],
+            ['x_max', 'y_max'],
+            ['x_start', 'y_start'],
+            ['x_end', 'y_end'],
+            ['start_x', 'start_y'],
+            ['end_x', 'end_y'],
+            ['left', 'top'],
+            ['right', 'bottom'],
+            ['right', 'top'],
+            ['left', 'bottom'],
+            ['cx', 'cy'],
+            ['center_x', 'center_y'],
+            ['x_center', 'y_center'],
+        ];
     }
 
     /**

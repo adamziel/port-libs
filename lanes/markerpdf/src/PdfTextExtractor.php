@@ -8016,10 +8016,19 @@ final class PdfTextExtractor
             }
             if (is_array($visibleBbox) && count($visibleBbox) >= 4) {
                 $invocationVisibleBboxes[] = $this->normalizedPdfReviewNumbers(array_slice($visibleBbox, 0, 4));
-            } elseif (is_array($clipBbox) && count($clipBbox) >= 4) {
+            } elseif (
+                is_array($clipBbox)
+                && count($clipBbox) >= 4
+                && $paintSuppressionReason === null
+                && $geometryPaintSuppressionReason === null
+            ) {
                 $clipExcludedInvocationCount++;
             }
-            if (($detail['clipped'] ?? false) === true) {
+            if (
+                ($detail['clipped'] ?? false) === true
+                && $paintSuppressionReason === null
+                && $geometryPaintSuppressionReason === null
+            ) {
                 $clipReducesPaintedBbox = true;
             }
             if ($paintSuppressionReason !== null) {
