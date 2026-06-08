@@ -9975,6 +9975,8 @@ final class PdfImageRenderer
             }
         }
 
+        $jpegMarkerMetadata = $this->dctPreviewJpegMarkerReviewMetadata($jpegBytes);
+
         return [
             'source' => 'dctdecode_jpeg_marker_boundary',
             'jpeg_soi_offset' => $start,
@@ -9991,9 +9993,7 @@ final class PdfImageRenderer
                 'native_prefix_filters' => $nativePrefixFilters,
                 'stopped_before_filter' => $stoppedBeforeFilter,
             ] : []),
-            'sos_marker_seen' => str_contains($jpegBytes, "\xff\xda"),
-            'byte_stuffed_ff00_seen' => str_contains($jpegBytes, "\xff\x00"),
-            'restart_marker_seen' => preg_match('/\xff[\xd0-\xd7]/s', $jpegBytes) === 1,
+            ...$jpegMarkerMetadata,
             'jpeg_marker_framing_used' => true,
             'payload_in_visible_text' => false,
             'review_only' => true,
@@ -10080,6 +10080,9 @@ final class PdfImageRenderer
             ? 'missing_jpeg_soi'
             : ($eoiEnd === null ? 'missing_jpeg_eoi' : 'post_jpeg_eoi_non_padding_bytes'));
         $preSoiBytes = $start > 0 ? substr($reviewStream, 0, $start) : '';
+        $jpegMarkerMetadata = ($hasSoi || $hasPreSoiBytes)
+            ? $this->dctPreviewJpegMarkerReviewMetadata($reviewStream, $start, $eoiEnd)
+            : $this->dctPreviewJpegMarkerReviewMetadata($reviewStream);
 
         return [
             'source' => 'dctdecode_jpeg_marker_boundary_unverified',
@@ -10101,14 +10104,105 @@ final class PdfImageRenderer
                 'native_prefix_filters' => $nativePrefixFilters,
                 'stopped_before_filter' => $stoppedBeforeFilter,
             ] : []),
-            'sos_marker_seen' => str_contains($reviewStream, "\xff\xda"),
-            'byte_stuffed_ff00_seen' => str_contains($reviewStream, "\xff\x00"),
-            'restart_marker_seen' => preg_match('/\xff[\xd0-\xd7]/s', $reviewStream) === 1,
+            ...$jpegMarkerMetadata,
             'jpeg_marker_framing_used' => false,
             'payload_in_visible_text' => false,
             'review_only' => true,
             'native_raster_decode' => false,
         ];
+    }
+
+    /**
+     * @return array{sos_marker_seen: bool, dri_marker_seen: bool, jpeg_restart_interval: int|null, byte_stuffed_ff00_seen: bool, restart_marker_seen: bool}
+     */
+    private function dctPreviewJpegMarkerReviewMetadata(
+        string $bytes,
+        int $startOffset = 0,
+        ?int $limitOffset = null
+    ): array {
+        $metadata = [
+            'sos_marker_seen' => false,
+            'dri_marker_seen' => false,
+            'jpeg_restart_interval' => null,
+            'byte_stuffed_ff00_seen' => false,
+            'restart_marker_seen' => false,
+        ];
+        $limit = min($limitOffset ?? strlen($bytes), strlen($bytes));
+        $start = $this->dctPreviewSoiOffset($bytes, $startOffset, $limit);
+        if ($start === null) {
+            return $metadata;
+        }
+
+        $offset = $start + 2;
+        $insideScanData = false;
+        while ($offset < $limit) {
+            $markerStart = strpos($bytes, "\xff", $offset);
+            if ($markerStart === false || $markerStart + 1 >= $limit) {
+                break;
+            }
+
+            $markerOffset = $markerStart + 1;
+            while ($markerOffset < $limit && $bytes[$markerOffset] === "\xff") {
+                $markerOffset++;
+            }
+            if ($markerOffset >= $limit) {
+                break;
+            }
+
+            $marker = ord($bytes[$markerOffset]);
+            if ($marker === 0x00) {
+                if ($insideScanData) {
+                    $metadata['byte_stuffed_ff00_seen'] = true;
+                }
+                $offset = $markerOffset + 1;
+                continue;
+            }
+            if ($marker >= 0xd0 && $marker <= 0xd7) {
+                if ($insideScanData) {
+                    $metadata['restart_marker_seen'] = true;
+                }
+                $offset = $markerOffset + 1;
+                continue;
+            }
+            if ($marker === 0xd9) {
+                break;
+            }
+            if ($marker === 0xd8 || $marker === 0x01) {
+                $offset = $markerOffset + 1;
+                continue;
+            }
+
+            $lengthOffset = $markerOffset + 1;
+            if ($lengthOffset + 2 > $limit) {
+                break;
+            }
+
+            $segmentLength = (ord($bytes[$lengthOffset]) << 8) | ord($bytes[$lengthOffset + 1]);
+            if ($segmentLength < 2) {
+                break;
+            }
+
+            $payloadStart = $lengthOffset + 2;
+            $segmentEnd = $payloadStart + ($segmentLength - 2);
+            if ($segmentEnd > $limit) {
+                break;
+            }
+
+            if ($marker === 0xdd) {
+                $metadata['dri_marker_seen'] = true;
+                if ($segmentLength >= 4) {
+                    $metadata['jpeg_restart_interval'] = (ord($bytes[$payloadStart]) << 8)
+                        | ord($bytes[$payloadStart + 1]);
+                }
+            } elseif ($marker === 0xda) {
+                $metadata['sos_marker_seen'] = true;
+                $insideScanData = true;
+            }
+
+            $offset = $segmentEnd;
+        }
+
+        return $metadata;
     }
 
     private function dctPreviewLaterSoiOffset(string $bytes, int $startOffset): ?int
