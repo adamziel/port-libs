@@ -13701,25 +13701,15 @@ final class PdfMetadataExtractor
 
     private function xmpDocumentLevelResourceTargetElement(DOMElement $source, string $id): ?DOMElement
     {
-        $document = $source->ownerDocument;
-        if (!$document instanceof DOMDocument) {
-            return null;
-        }
-
-        foreach ($this->xmpDocumentLevelRdfElements($document) as $rdf) {
-            foreach ($rdf->childNodes as $child) {
-                if (!$child instanceof DOMElement || !$this->xmpElementMatchesResourceId($child, $id)) {
-                    continue;
-                }
-
-                return $child;
-            }
-        }
-
-        return null;
+        return $this->xmpDocumentLevelReferencedTargetElement($source, $id, false);
     }
 
     private function xmpDocumentLevelNodeIdTargetElement(DOMElement $source, string $id): ?DOMElement
+    {
+        return $this->xmpDocumentLevelReferencedTargetElement($source, $id, true);
+    }
+
+    private function xmpDocumentLevelReferencedTargetElement(DOMElement $source, string $id, bool $nodeId): ?DOMElement
     {
         $document = $source->ownerDocument;
         if (!$document instanceof DOMDocument) {
@@ -13727,16 +13717,51 @@ final class PdfMetadataExtractor
         }
 
         foreach ($this->xmpDocumentLevelRdfElements($document) as $rdf) {
-            foreach ($rdf->childNodes as $child) {
-                if (!$child instanceof DOMElement || !$this->xmpElementMatchesNodeId($child, $id)) {
-                    continue;
-                }
-
-                return $child;
+            $target = $this->xmpRdfDescendantReferencedTargetElement($rdf, $source, $id, $nodeId);
+            if ($target !== null) {
+                return $target;
             }
         }
 
         return null;
+    }
+
+    private function xmpRdfDescendantReferencedTargetElement(
+        DOMElement $element,
+        DOMElement $source,
+        string $id,
+        bool $nodeId
+    ): ?DOMElement {
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof DOMElement) {
+                continue;
+            }
+
+            if ($child->namespaceURI === self::NS_RDF && $child->localName === 'RDF') {
+                continue;
+            }
+
+            if (
+                !$child->isSameNode($source)
+                && $this->xmpElementMatchesReferencedTarget($child, $id, $nodeId)
+            ) {
+                return $child;
+            }
+
+            $target = $this->xmpRdfDescendantReferencedTargetElement($child, $source, $id, $nodeId);
+            if ($target !== null) {
+                return $target;
+            }
+        }
+
+        return null;
+    }
+
+    private function xmpElementMatchesReferencedTarget(DOMElement $element, string $id, bool $nodeId): bool
+    {
+        return $nodeId
+            ? $this->xmpElementMatchesNodeId($element, $id)
+            : $this->xmpElementMatchesResourceId($element, $id);
     }
 
     private function xmpElementMatchesResourceId(DOMElement $element, string $id): bool
