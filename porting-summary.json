@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-08 23:07:44 UTC",
-    "sourceCommit": "10431f580294803a3ec23f7a211f80a2fb3c9659",
-    "sourceCommitShort": "10431f580294",
+    "generated": "2026-06-08 23:08:39 UTC",
+    "sourceCommit": "8680425d38cbe642cc91f5eee76452c60ad39e17",
+    "sourceCommitShort": "8680425d38cb",
     "sourceBranch": "unknown",
-    "dashboardCommit": "10431f580294803a3ec23f7a211f80a2fb3c9659",
-    "dashboardCommitShort": "10431f580294",
+    "dashboardCommit": "8680425d38cbe642cc91f5eee76452c60ad39e17",
+    "dashboardCommitShort": "8680425d38cb",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2374",
-            "coverage": "2,374 / 2,276 (104.3%)",
-            "mapPercent": "104.3%",
+            "mapped": "2379",
+            "coverage": "2,379 / 2,276 (104.5%)",
+            "mapPercent": "104.5%",
             "unmapped": "0",
-            "php": "1,953 pass / 0 fail",
+            "php": "1,957 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-08 UTC table geometry current-base legacy table placement ali...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For DOCX/OpenXML follow-up, choose a non-overlapping native W...",
-            "remainingGate": "No new support component is needed for this slice: it reuses native D...",
+            "nextTarget": "For BibTeX/CSL follow-up, choose a non-overlapping bounded Bi...",
+            "remainingGate": "No new support component is needed for this slice: it reuses native B...",
             "commit": "pending fast ba..."
         },
         {

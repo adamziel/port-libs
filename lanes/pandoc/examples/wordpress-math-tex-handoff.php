@@ -143,6 +143,10 @@ Allowbreak audit $p_i\allowbreak + m_i + \operatorname{slug}\allowbreak$ stays s
 
 Comment audit $p_i % reviewer hidden$ keeps source notes out of rendered MathML.
 
+Environment terminator comment audit:
+$$\begin{aligned}a_i &= b_i % \end{aligned} hidden terminator
+\\ c_i &= d_i\end{aligned}$$
+
 Explicit spacing audit $p_i\hspace{1.5em}m_i\mspace{-2mu}q_i + a\hspace*{.25in}b$ stays semantic.
 
 Sized delimiters audit $\bigl( p_i \bigr) + \Bigl\langle m_i \Bigr\rangle + \bigm| x \in S + \Bigg/ y \Bigg/$ stays semantic.
@@ -271,6 +275,7 @@ $summary = [
     'allowBreakMathml' => $converter->texToMathMl('p_i\\allowbreak + m_i + \\operatorname{slug}\\allowbreak'),
     'commentMathml' => $converter->texToMathMl("p_i % reviewer note with \\badcommand\n+ m_i + \\operatorname{slug}% trailing reviewer note\n"),
     'environmentCommentMathml' => $converter->texToMathMl("\\begin{aligned}p_i &= m_i % hidden & ignored\n\\\\ x_i &= y_i\\end{aligned} + \\begin{array}{cc}a & b % hidden \\\\ no row sep\n\\\\ c & d\\end{array}", true),
+    'environmentEndCommentMathml' => $converter->texToMathMl("\\begin{aligned}a_i &= b_i % \\end{aligned} hidden terminator\n\\\\ c_i &= d_i\\end{aligned}", true),
     'explicitSpacingMathml' => $converter->texToMathMl('p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b'),
     'sizedDelimiterMathml' => $converter->texToMathMl('\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\bigm| x \\in S + \\Bigg/ y \\Bigg/'),
     'delimiterAliasMathml' => $converter->texToMathMl('\\left\\lVert p_i + m_i \\right\\rVert + \\left\\lceil \\frac{x}{y} \\right\\rfloor + \\lbrack q_i \\rbrack'),
@@ -346,6 +351,14 @@ if (($argv[1] ?? '') === '--self-test') {
         || str_contains($summary['environmentCommentMathml'], '<mi>n</mi><mi>o</mi><mi>r</mi><mi>o</mi><mi>w</mi><mi>s</mi><mi>e</mi><mi>p</mi>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test emitted environment comment content as rendered MathML');
+    }
+
+    if (
+        !str_contains($summary['environmentEndCommentMathml'], '<mtable columnalign="right left"><mtr><mtd><msub><mi>a</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>b</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>c</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>d</mi><mi>i</mi></msub></mtd></mtr></mtable>')
+        || str_contains((string) strstr($summary['environmentEndCommentMathml'], '<annotation', true), '<mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi>')
+        || str_contains((string) strstr($summary['environmentEndCommentMathml'], '<annotation', true), '<mi>t</mi><mi>e</mi><mi>r</mi><mi>m</mi><mi>i</mi><mi>n</mi><mi>a</mi><mi>t</mi><mi>o</mi><mi>r</mi>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test let a commented environment terminator close the environment');
     }
 
     if (str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\bm</mi>') || str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\mathbfit</mi>')) {
@@ -533,6 +546,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c + \\operatorname{post}\\thinspace\\operatorname{media}\\negthinspace\\operatorname{review} + x\\:y\\&gt;z\\)</span>',
         '<span class="math inline">\\(p_i\\allowbreak + m_i + \\operatorname{slug}\\allowbreak\\)</span>',
         '<span class="math inline">\\(p_i % reviewer hidden\\)</span>',
+        "<span class=\"math display\">\\[\\begin{aligned}a_i &amp;= b_i % \\end{aligned} hidden terminator\n\\\\ c_i &amp;= d_i\\end{aligned}\\]</span>",
         '<span class="math inline">\\(p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b\\)</span>',
         '<span class="math inline">\\(\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\bigm| x \\in S + \\Bigg/ y \\Bigg/\\)</span>',
         '<span class="math inline">\\(\\left\\lVert p_i + m_i \\right\\rVert + \\left\\lceil \\frac{x}{y} \\right\\rfloor + \\lbrack q_i \\rbrack\\)</span>',

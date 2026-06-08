@@ -5456,6 +5456,11 @@ final class MathTexConverter
         $depth = 1;
 
         while ($offset < $length) {
+            if ($source[$offset] === '%') {
+                $this->skipTexLineComment($source, $offset);
+                continue;
+            }
+
             if ($source[$offset] !== '\\') {
                 $offset++;
                 continue;
@@ -5464,7 +5469,7 @@ final class MathTexConverter
             $commandOffset = $offset + 1;
             $command = $this->readCommandName($source, $commandOffset);
             if ($command !== 'begin' && $command !== 'end') {
-                $offset++;
+                $offset = $commandOffset;
                 continue;
             }
 

@@ -5557,21 +5557,39 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC cross-reference instructions should not render as visible text');
         }
     },
-    'preserves legacy DOC merge and document-variable field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+    'preserves legacy DOC merge and document-variable field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbfAssoc, $sttbFnm, $u32): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";
         $fieldEnd = "\x15";
+        $text = 'Dear '
+            . $fieldBegin . ' MERGEFIELD "Customer Name" \b "before " \f " after" \* MERGEFORMAT ' . $fieldSeparator . 'Ada Lovelace' . $fieldEnd
+            . ', batch '
+            . $fieldBegin . ' DOCVARIABLE MigrationBatch \* Upper ' . $fieldSeparator . 'LEGACY-DOC-42' . $fieldEnd
+            . ".\r";
+        $associatedStringsTable = $sttbfAssoc([
+            8 => 'C:\Data\mailmerge-customers.csv',
+            9 => 'C:\Data\mailmerge-headers.doc',
+        ]);
+        $externalFileTable = $sttbFnm([[
+            'path' => 'C:\Data\mailmerge-customers.csv',
+            'referenceTypeCode' => 3,
+            'documentIndex' => 11,
+            'ichRelative' => 0xff,
+            'fnfb' => 0x08,
+        ]]);
+        $tableStream = $associatedStringsTable . $externalFileTable;
+        $wordDocument = $buildExtendedFibWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x019a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($associatedStringsTable)), 0x019e, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($associatedStringsTable)), 0x02da, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($externalFileTable)), 0x02de, 4);
         $docBytes = $buildCfb([
-            'WordDocument' => $buildSimpleWordDocument(
-                'Dear '
-                . $fieldBegin . ' MERGEFIELD "Customer Name" \b "before " \f " after" \* MERGEFORMAT ' . $fieldSeparator . 'Ada Lovelace' . $fieldEnd
-                . ', batch '
-                . $fieldBegin . ' DOCVARIABLE MigrationBatch \* Upper ' . $fieldSeparator . 'LEGACY-DOC-42' . $fieldEnd
-                . ".\r"
-            ),
+            'WordDocument' => $wordDocument,
+            '0Table' => $tableStream,
         ]);
 
-        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $document = $result['document'];
         $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
@@ -5587,6 +5605,16 @@ return [
         $t->same('before ', $mergeField->attr('attributes')['data-legacy-doc-data-field-prefix']);
         $t->same(' after', $mergeField->attr('attributes')['data-legacy-doc-data-field-suffix']);
         $t->same('b f', $mergeField->attr('attributes')['data-legacy-doc-data-field-switches']);
+        $t->same('metadata-only-native-review', $mergeField->attr('attributes')['data-legacy-doc-mail-merge-policy']);
+        $t->same('true', $mergeField->attr('attributes')['data-legacy-doc-mail-merge-has-associated-data-source']);
+        $t->same('8', $mergeField->attr('attributes')['data-legacy-doc-mail-merge-associated-data-source-index']);
+        $t->same('true', $mergeField->attr('attributes')['data-legacy-doc-mail-merge-has-header-document']);
+        $t->same('9', $mergeField->attr('attributes')['data-legacy-doc-mail-merge-header-document-index']);
+        $t->same('0', $mergeField->attr('attributes')['data-legacy-doc-mail-merge-external-reference-index']);
+        $t->same('mail-merge-data-source', $mergeField->attr('attributes')['data-legacy-doc-mail-merge-external-reference-type']);
+        $t->same('11', $mergeField->attr('attributes')['data-legacy-doc-mail-merge-external-reference-document-index']);
+        $t->same('ntfs', $mergeField->attr('attributes')['data-legacy-doc-mail-merge-external-reference-file-system']);
+        $t->same('false', $mergeField->attr('attributes')['data-legacy-doc-mail-merge-external-reference-can-expose-bytes']);
         $t->same('Ada Lovelace', $mergeField->children[0]->attr('text'));
 
         $docVariable = $paragraph->children[3];
@@ -5601,8 +5629,17 @@ return [
         $t->contains('[Ada Lovelace]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-mergefield data-legacy-doc-field="mergefield"', $markdown);
         $t->contains('data-legacy-doc-data-field-name="Customer Name"', $markdown);
         $t->contains('[LEGACY-DOC-42]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-docvariable data-legacy-doc-field="docvariable"', $markdown);
-        $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-mergefield" data-legacy-doc-field="mergefield" data-legacy-doc-field-instruction="MERGEFIELD &quot;Customer Name&quot; \b &quot;before &quot; \f &quot; after&quot; \* MERGEFORMAT" data-legacy-doc-data-field-type="mail-merge" data-legacy-doc-data-field-name="Customer Name" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-data-field-prefix="before " data-legacy-doc-data-field-suffix=" after" data-legacy-doc-data-field-switches="b f">Ada Lovelace</span>', $blocks);
+        $t->contains('data-legacy-doc-mail-merge-policy="metadata-only-native-review"', $blocks);
+        $t->contains('data-legacy-doc-mail-merge-associated-data-source-index="8"', $blocks);
+        $t->contains('data-legacy-doc-mail-merge-header-document-index="9"', $blocks);
+        $t->contains('data-legacy-doc-mail-merge-external-reference-index="0"', $blocks);
+        $t->contains('data-legacy-doc-mail-merge-external-reference-document-index="11"', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-docvariable" data-legacy-doc-field="docvariable" data-legacy-doc-field-instruction="DOCVARIABLE MigrationBatch \* Upper" data-legacy-doc-data-field-type="document-variable" data-legacy-doc-data-field-name="MigrationBatch" data-legacy-doc-field-format="Upper">LEGACY-DOC-42</span>', $blocks);
+        $t->same('C:\Data\mailmerge-customers.csv', $result['metadata']['mailMergeDataSource']);
+        $t->same('C:\Data\mailmerge-headers.doc', $result['metadata']['mailMergeHeaderDocument']);
+        $t->same(1, $result['metadata']['externalFileReferenceCount']);
+        $t->true(!str_contains($blocks, 'mailmerge-customers.csv'));
+        $t->true(!str_contains($blocks, 'mailmerge-headers.doc'));
         foreach (['MERGEFIELD', 'DOCVARIABLE'] as $instruction) {
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC data field instructions should not render as visible text');
         }

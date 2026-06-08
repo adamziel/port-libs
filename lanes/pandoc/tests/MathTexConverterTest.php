@@ -1076,6 +1076,24 @@ return [
         $t->true(!str_contains($fullRowCommentRendered, '<mi>f</mi><mi>u</mi><mi>l</mi><mi>l</mi>'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl("\\begin{smallmatrix}a & b \\\\ % ignored final row\n\\end{smallmatrix}"));
     },
+    'ignores bounded tex comments while scanning environment endings' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $alignedMathml = $converter->texToMathMl("\\begin{aligned}a &= b % hidden \\end{aligned}\n\\\\ c &= d\\end{aligned}", true);
+        $arrayMathml = $converter->texToMathMl("\\begin{array}{cc}a & b % hidden \\end{array}\n\\\\ c & d\\end{array}", true);
+        $escapedPercentMathml = $converter->texToMathMl('\\begin{aligned}p_i\\% &= m_i\\end{aligned}', true);
+        $alignedRendered = (string) strstr($alignedMathml, '<annotation', true);
+        $arrayRendered = (string) strstr($arrayMathml, '<annotation', true);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $alignedMathml);
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><mi>a</mi></mtd><mtd><mo>=</mo><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mo>=</mo><mi>d</mi></mtd></mtr></mtable>', $alignedMathml);
+        $t->contains("<annotation encoding=\"application/x-tex\">\\begin{aligned}a &amp;= b % hidden \\end{aligned}\n\\\\ c &amp;= d\\end{aligned}</annotation>", $alignedMathml);
+        $t->true(!str_contains($alignedRendered, '<mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi>'));
+        $t->contains('<mtable columnalign="center center"><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable>', $arrayMathml);
+        $t->contains("<annotation encoding=\"application/x-tex\">\\begin{array}{cc}a &amp; b % hidden \\end{array}\n\\\\ c &amp; d\\end{array}</annotation>", $arrayMathml);
+        $t->true(!str_contains($arrayRendered, '<mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi>'));
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub><mi>\\%</mi></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr></mtable>', $escapedPercentMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{aligned}p_i\\% &amp;= m_i\\end{aligned}</annotation>', $escapedPercentMathml);
+    },
     'converts bounded tex explicit hspace and mspace dimensions to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $explicitMathml = $converter->texToMathMl('p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b', true);

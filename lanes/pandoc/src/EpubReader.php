@@ -5909,6 +5909,8 @@ final class EpubReader
                 'textRefEncrypted' => false,
                 'textRefCanExposeBytes' => false,
                 'textRefDiagnostics' => [],
+                'sequenceCount' => 0,
+                'sequenceDiagnostics' => [],
                 'itemCount' => 0,
                 'diagnostics' => [[
                     'type' => 'missing-media-overlay-manifest-item',
@@ -5957,6 +5959,8 @@ final class EpubReader
             'textRefEncrypted' => (bool) ($overlay['textRefEncrypted'] ?? false),
             'textRefCanExposeBytes' => (bool) ($overlay['textRefCanExposeBytes'] ?? false),
             'textRefDiagnostics' => is_array($overlay['textRefDiagnostics'] ?? null) ? array_values($overlay['textRefDiagnostics']) : [],
+            'sequenceCount' => is_array($overlay['sequences'] ?? null) ? count($overlay['sequences']) : (int) ($overlay['sequenceCount'] ?? 0),
+            'sequenceDiagnostics' => is_array($overlay['sequenceDiagnostics'] ?? null) ? array_values($overlay['sequenceDiagnostics']) : [],
             'itemCount' => is_array($overlay['items'] ?? null) ? count($overlay['items']) : 0,
             'diagnostics' => is_array($overlay['diagnostics'] ?? null) ? array_values($overlay['diagnostics']) : [],
         ];
@@ -9909,6 +9913,9 @@ final class EpubReader
                     'textRefEncrypted' => false,
                     'textRefCanExposeBytes' => false,
                     'textRefDiagnostics' => [],
+                    'sequences' => [],
+                    'sequenceCount' => 0,
+                    'sequenceDiagnostics' => [],
                     'items' => [],
                     'diagnostics' => [[
                         'type' => 'missing-media-overlay-manifest-item',
@@ -9976,6 +9983,8 @@ final class EpubReader
         $textRef = null;
         $textRefTarget = null;
         $textRefReference = null;
+        $sequences = [];
+        $sequenceDiagnostics = [];
         $items = [];
         if (
             ($item['exists'] ?? false) === true
@@ -9994,7 +10003,10 @@ final class EpubReader
                 $textRefReference = $this->smilReference($package, (string) $item['part'], $textRef, $manifestByPart);
                 $textRefTarget = $textRefReference['target'];
             }
-            $items = $this->readSmilOverlayItems($package, $body, (string) $item['part'], $textRefTarget, $manifestByPart);
+            $timeline = $this->readSmilOverlayTimeline($package, $body, (string) $item['part'], $textRefTarget, $manifestByPart);
+            $items = $timeline['items'];
+            $sequences = $timeline['sequences'];
+            $sequenceDiagnostics = $timeline['sequenceDiagnostics'];
         }
 
         return [
@@ -10034,30 +10046,135 @@ final class EpubReader
             'textRefEncrypted' => $textRefReference['encrypted'] ?? false,
             'textRefCanExposeBytes' => $textRefReference['canExposeBytes'] ?? false,
             'textRefDiagnostics' => $textRefReference['diagnostics'] ?? [],
+            'sequences' => $sequences,
+            'sequenceCount' => count($sequences),
+            'sequenceDiagnostics' => $sequenceDiagnostics,
             'items' => $items,
             'diagnostics' => $diagnostics,
         ];
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array{items:list<array<string, mixed>>, sequences:list<array<string, mixed>>, sequenceDiagnostics:list<array<string, mixed>>}
      */
-    private function readSmilOverlayItems(
+    private function readSmilOverlayTimeline(
         ZipPackage $package,
         \DOMElement $element,
         string $smilPart,
         ?string $inheritedTextTarget,
         array $manifestByPart
     ): array {
+        $items = [];
+        $sequences = [];
+        $sequenceDiagnostics = [];
+        $this->collectSmilOverlayTimeline(
+            $package,
+            $element,
+            $smilPart,
+            $inheritedTextTarget,
+            $manifestByPart,
+            [],
+            $items,
+            $sequences,
+            $sequenceDiagnostics,
+        );
+
+        return [
+            'items' => $items,
+            'sequences' => $sequences,
+            'sequenceDiagnostics' => $sequenceDiagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @param list<array<string, mixed>> $sequenceStack
+     * @param list<array<string, mixed>> $items
+     * @param list<array<string, mixed>> $sequences
+     * @param list<array<string, mixed>> $sequenceDiagnostics
+     */
+    private function collectSmilOverlayTimeline(
+        ZipPackage $package,
+        \DOMElement $element,
+        string $smilPart,
+        ?string $inheritedTextTarget,
+        array $manifestByPart,
+        array $sequenceStack,
+        array &$items,
+        array &$sequences,
+        array &$sequenceDiagnostics
+    ): void {
         $currentTextTarget = $inheritedTextTarget;
         $textRef = self::smilTextRef($element);
+        $textRefReference = null;
         if ($textRef !== null) {
-            $currentTextTarget = $this->smilReference($package, $smilPart, $textRef, $manifestByPart)['target'];
+            $textRefReference = $this->smilReference($package, $smilPart, $textRef, $manifestByPart);
+            $currentTextTarget = $textRefReference['target'];
         }
 
-        $items = [];
+        $currentSequenceStack = $sequenceStack;
+        if ($element->localName === 'seq' && $element->namespaceURI === self::SMIL_NS) {
+            $sequenceIndex = count($sequences);
+            $sequenceId = self::nullableAttribute($element, 'id');
+            $pathItem = self::smilSequencePathItem($sequenceId, $sequenceIndex);
+            $parentSequence = $sequenceStack === [] ? null : $sequenceStack[array_key_last($sequenceStack)];
+            $parentPath = is_array($parentSequence) && is_array($parentSequence['path'] ?? null) ? $parentSequence['path'] : [];
+            $path = array_merge($parentPath, [$pathItem]);
+            $reference = $textRefReference ?? self::emptySmilReference($currentTextTarget);
+            $sequence = [
+                'index' => $sequenceIndex,
+                'id' => $sequenceId,
+                'types' => self::epubTypes($element),
+                'depth' => count($sequenceStack),
+                'parentIndex' => is_array($parentSequence) ? $parentSequence['index'] : null,
+                'path' => $path,
+                'textRef' => $textRef,
+                'textRefTarget' => $reference['target'],
+                'textRefPart' => $reference['part'],
+                'textRefFragment' => $reference['fragment'],
+                'textRefFragmentKind' => $reference['fragmentKind'],
+                'textRefEpubCfi' => $reference['epubCfi'],
+                'textRefMediaFragment' => $reference['mediaFragment'],
+                'textRefExternal' => $reference['external'],
+                'textRefExists' => $reference['exists'],
+                'textRefByteLength' => $reference['byteLength'],
+                'textRefCrc32' => $reference['crc32'],
+                'textRefByteSha256' => $reference['byteSha256'],
+                'textRefManifestId' => $reference['manifestId'],
+                'textRefMediaType' => $reference['mediaType'],
+                'textRefEncrypted' => $reference['encrypted'],
+                'textRefCanExposeBytes' => $reference['canExposeBytes'],
+                'repeatCount' => self::nullableAttribute($element, 'repeatCount'),
+                'repeatDur' => self::nullableAttribute($element, 'repeatDur'),
+                'dur' => self::nullableAttribute($element, 'dur'),
+                'directParCount' => count(self::childElements($element, 'par', self::SMIL_NS)),
+                'childSequenceCount' => count(self::childElements($element, 'seq', self::SMIL_NS)),
+                'diagnostics' => $reference['diagnostics'],
+            ];
+
+            foreach ($sequence['diagnostics'] as $diagnostic) {
+                $sequenceDiagnostics[] = [
+                    'sequenceIndex' => $sequenceIndex,
+                    'sequenceId' => $sequenceId,
+                ] + $diagnostic;
+            }
+
+            $sequences[] = $sequence;
+            $currentSequenceStack[] = [
+                'index' => $sequenceIndex,
+                'id' => $sequenceId,
+                'path' => $path,
+                'types' => $sequence['types'],
+                'textRef' => $textRef,
+                'textRefTarget' => $reference['target'],
+                'depth' => $sequence['depth'],
+            ];
+        }
+
         if ($element->localName === 'par' && $element->namespaceURI === self::SMIL_NS) {
-            $items[] = $this->readSmilPar($package, $element, $smilPart, $currentTextTarget, $manifestByPart);
+            $items[] = $this->readSmilPar($package, $element, $smilPart, $currentTextTarget, $manifestByPart, $currentSequenceStack);
         }
 
         foreach (self::childElements($element) as $child) {
@@ -10065,13 +10182,23 @@ final class EpubReader
                 continue;
             }
 
-            array_push($items, ...$this->readSmilOverlayItems($package, $child, $smilPart, $currentTextTarget, $manifestByPart));
+            $this->collectSmilOverlayTimeline(
+                $package,
+                $child,
+                $smilPart,
+                $currentTextTarget,
+                $manifestByPart,
+                $currentSequenceStack,
+                $items,
+                $sequences,
+                $sequenceDiagnostics,
+            );
         }
-
-        return $items;
     }
 
     /**
+     * @param list<array<string, mixed>> $sequenceStack
+     *
      * @return array<string, mixed>
      */
     private function readSmilPar(
@@ -10079,7 +10206,8 @@ final class EpubReader
         \DOMElement $par,
         string $smilPart,
         ?string $textTarget,
-        array $manifestByPart
+        array $manifestByPart,
+        array $sequenceStack = []
     ): array
     {
         $text = self::firstChildElement($par, 'text', self::SMIL_NS);
@@ -10091,10 +10219,18 @@ final class EpubReader
         $clipBegin = $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'clipBegin') : null;
         $clipEnd = $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'clipEnd') : null;
         $clipTiming = self::smilClipTiming($clipBegin, $clipEnd);
+        $sequenceContext = self::smilSequenceContext($sequenceStack);
 
         return [
             'id' => self::nullableAttribute($par, 'id'),
             'types' => self::epubTypes($par),
+            'sequenceIndex' => $sequenceContext['index'],
+            'sequenceId' => $sequenceContext['id'],
+            'sequenceDepth' => $sequenceContext['depth'],
+            'sequencePath' => $sequenceContext['path'],
+            'sequenceTypes' => $sequenceContext['types'],
+            'sequenceTextRef' => $sequenceContext['textRef'],
+            'sequenceTextTarget' => $sequenceContext['textRefTarget'],
             'textSrc' => $textSrc,
             'textTarget' => $textReference['target'],
             'textPart' => $textReference['part'],
@@ -10135,6 +10271,51 @@ final class EpubReader
             'clipValid' => $clipTiming['valid'],
             'clipDiagnostics' => $clipTiming['diagnostics'],
             'diagnostics' => array_merge($textReference['diagnostics'], $audioReference['diagnostics'], $clipTiming['diagnostics']),
+        ];
+    }
+
+    private static function smilSequencePathItem(?string $id, int $index): string
+    {
+        return $id !== null && $id !== '' ? $id : 'seq#' . $index;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sequenceStack
+     *
+     * @return array{index:?int, id:?string, depth:?int, path:list<string>, types:list<string>, textRef:?string, textRefTarget:?string}
+     */
+    private static function smilSequenceContext(array $sequenceStack): array
+    {
+        if ($sequenceStack === []) {
+            return [
+                'index' => null,
+                'id' => null,
+                'depth' => null,
+                'path' => [],
+                'types' => [],
+                'textRef' => null,
+                'textRefTarget' => null,
+            ];
+        }
+
+        $last = $sequenceStack[array_key_last($sequenceStack)];
+        $types = [];
+        foreach ($sequenceStack as $sequence) {
+            if (!is_array($sequence['types'] ?? null)) {
+                continue;
+            }
+
+            self::appendUniqueStrings($types, $sequence['types']);
+        }
+
+        return [
+            'index' => is_int($last['index'] ?? null) ? $last['index'] : null,
+            'id' => is_string($last['id'] ?? null) ? $last['id'] : null,
+            'depth' => is_int($last['depth'] ?? null) ? $last['depth'] : null,
+            'path' => is_array($last['path'] ?? null) ? array_values($last['path']) : [],
+            'types' => $types,
+            'textRef' => is_string($last['textRef'] ?? null) ? $last['textRef'] : null,
+            'textRefTarget' => is_string($last['textRefTarget'] ?? null) ? $last['textRefTarget'] : null,
         ];
     }
 

@@ -1368,3 +1368,35 @@ handle_call({review, #review_packet{blocks = Blocks}}, _From, State) ->
     HtmlBlocks = [maps:get(<<"blockName">>, Block, <<"core/paragraph">>) || Block <- Blocks],
     {reply, {ok, HtmlBlocks}, State}.
 ```
+
+``` {.objc #objectivec-review .numberLines startFrom=1140}
+// Objective-C WordPress import review helper
+#import <Foundation/Foundation.h>
+
+@interface WPImportReviewPacket : NSObject
+@property (nonatomic, copy, nullable) NSString *title;
+@property (nonatomic, assign) NSInteger sourceId;
+- (NSString *)normalizedTitle;
+@end
+
+@implementation WPImportReviewPacket
+
+- (NSString *)normalizedTitle {
+    NSString *trimmed = [self.title stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (trimmed.length == 0) {
+        return [NSString stringWithFormat:@"Import %ld", (long)self.sourceId];
+    }
+    return trimmed ?: @"Untitled";
+}
+
+@end
+
+int main(void) {
+    @autoreleasepool {
+        WPImportReviewPacket *packet = [WPImportReviewPacket new];
+        packet.sourceId = 42;
+        NSLog(@"%@", [packet normalizedTitle]);
+    }
+    return 0;
+}
+```

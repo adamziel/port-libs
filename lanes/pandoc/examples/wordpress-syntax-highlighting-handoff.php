@@ -466,6 +466,12 @@ if (!$erlangCodeBlock instanceof PortLibs\Pandoc\AstNode || $erlangCodeBlock->ty
 }
 $erlang = $highlighter->highlightCodeBlock($erlangCodeBlock, 'zenburn');
 $erlangWordpressBlock = $highlighter->wordpressHtmlBlock($erlangCodeBlock, 'zenburn');
+$objectiveCCodeBlock = $document->children[74] ?? null;
+if (!$objectiveCCodeBlock instanceof PortLibs\Pandoc\AstNode || $objectiveCCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an Objective-C review code block');
+}
+$objectiveC = $highlighter->highlightCodeBlock($objectiveCCodeBlock, 'haddock');
+$objectiveCWordpressBlock = $highlighter->wordpressHtmlBlock($objectiveCCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2033,6 +2039,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($erlangWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
         throw new RuntimeException('Expected Erlang WordPress style metadata');
     }
+    if (($objectiveC['language'] ?? '') !== 'objectivec') {
+        throw new RuntimeException('Expected Objective-C language alias handoff');
+    }
+    if (($objectiveC['requestedLanguage'] ?? '') !== 'objc') {
+        throw new RuntimeException('Expected Objective-C requested-language wrapper handoff');
+    }
+    if (($objectiveC['lineNumbering']['start'] ?? null) !== 1140) {
+        throw new RuntimeException('Expected Objective-C source startFrom line-number handoff');
+    }
+    if (!str_contains($objectiveC['html'], '<span class="kw">@interface</span> <span class="dt">WPImportReviewPacket</span>')) {
+        throw new RuntimeException('Expected Objective-C interface token handoff');
+    }
+    if (!str_contains($objectiveC['html'], '<span class="kw">@property</span> <span class="op">(</span><span class="kw">nonatomic</span><span class="op">,</span> <span class="kw">copy</span><span class="op">,</span> <span class="kw">nullable</span><span class="op">)</span> <span class="dt">NSString</span>')) {
+        throw new RuntimeException('Expected Objective-C property token handoff');
+    }
+    if (!str_contains($objectiveC['html'], '<span class="fu">NSLog</span><span class="op">(</span><span class="st">@&quot;%@&quot;</span>')) {
+        throw new RuntimeException('Expected Objective-C NSLog string token handoff');
+    }
+    if (!str_contains($objectiveCWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected Objective-C WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2126,6 +2153,7 @@ echo "vimHighlightedHtml:\n" . $vim['html'] . "\n";
 echo "schemeHighlightedHtml:\n" . $scheme['html'] . "\n";
 echo "csvHighlightedHtml:\n" . $csv['html'] . "\n";
 echo "erlangHighlightedHtml:\n" . $erlang['html'] . "\n";
+echo "objectiveCHighlightedHtml:\n" . $objectiveC['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2190,4 +2218,5 @@ echo "vimWordpressBlock:\n" . $vimWordpressBlock . "\n";
 echo "schemeWordpressBlock:\n" . $schemeWordpressBlock . "\n";
 echo "csvWordpressBlock:\n" . $csvWordpressBlock . "\n";
 echo "erlangWordpressBlock:\n" . $erlangWordpressBlock . "\n";
+echo "objectiveCWordpressBlock:\n" . $objectiveCWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

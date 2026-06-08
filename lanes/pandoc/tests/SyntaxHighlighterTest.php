@@ -3582,6 +3582,56 @@ return [
         $t->contains('<span class="ot">-module</span><span class="op">(</span><span class="cn">review</span><span class="op">).</span>', $directErlang['html']);
         $t->contains('<span class="fu">normalize</span><span class="op">(</span><span class="va">Title</span><span class="op">)</span> <span class="op">-&gt;</span> <span class="dt">string</span><span class="op">:</span><span class="fu">trim</span><span class="op">(</span><span class="va">Title</span><span class="op">).</span>', $directErlang['html']);
     },
+    'highlights objective c review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[74] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an Objective-C review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'haddock');
+        $directObjectiveC = $highlighter->highlight(
+            '@interface Review : NSObject @property (nonatomic, copy) NSString *title; @end',
+            'objective-c++'
+        );
+
+        $t->same('objc', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('objectivec', SyntaxHighlighter::normalizeLanguage('objc'));
+        $t->same('objectivec', SyntaxHighlighter::normalizeLanguage('obj-c'));
+        $t->same('objectivec', SyntaxHighlighter::normalizeLanguage('objective-c'));
+        $t->same('objectivec', SyntaxHighlighter::normalizeLanguage('language-objective-c++'));
+        $t->same('objectivec', SyntaxHighlighter::normalizeLanguage('mm'));
+        $t->same('objectivec', $highlighted['language']);
+        $t->same('objc', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1140, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource objc numberLines"><code class="sourceCode objectivec" style="counter-reset: source-line 1139;">', $highlighted['html']);
+        $t->contains('<span id="objectivec-review-1140"><a href="#objectivec-review-1140"></a><span class="co">// Objective-C WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="pp">#import &lt;Foundation/Foundation.h&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">@interface</span> <span class="dt">WPImportReviewPacket</span> <span class="op">:</span> <span class="dt">NSObject</span>', $highlighted['html']);
+        $t->contains('<span class="kw">@property</span> <span class="op">(</span><span class="kw">nonatomic</span><span class="op">,</span> <span class="kw">copy</span><span class="op">,</span> <span class="kw">nullable</span><span class="op">)</span> <span class="dt">NSString</span> <span class="op">*</span><span class="va">title</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">NSString</span> <span class="op">*</span><span class="va">trimmed</span> <span class="op">=</span> <span class="op">[</span><span class="cn">self</span><span class="op">.</span><span class="va">title</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="va">trimmed</span><span class="op">.</span><span class="va">length</span> <span class="op">==</span> <span class="dv">0</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="op">[</span><span class="dt">NSString</span> <span class="va">stringWithFormat</span><span class="op">:</span><span class="st">@&quot;Import %ld&quot;</span><span class="op">,</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span><span class="cn">self</span><span class="op">.</span><span class="va">sourceId</span><span class="op">];</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="va">trimmed</span> <span class="op">?:</span> <span class="st">@&quot;Untitled&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">@autoreleasepool</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="fu">NSLog</span><span class="op">(</span><span class="st">@&quot;%@&quot;</span><span class="op">,</span> <span class="op">[</span><span class="va">packet</span> <span class="va">normalizedTitle</span><span class="op">]);</span>', $highlighted['html']);
+        $t->contains('<!-- wp:html -->', $wordpressBlock);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<pre class="sourceCode numberSource objc numberLines"><code class="sourceCode objectivec" style="counter-reset: source-line 1139;">', $wordpressBlock);
+        $t->same('objectivec', $directObjectiveC['language']);
+        $t->same('objective-c++', $directObjectiveC['requestedLanguage']);
+        $t->contains('<span class="kw">@interface</span> <span class="dt">Review</span> <span class="op">:</span> <span class="dt">NSObject</span>', $directObjectiveC['html']);
+        $t->contains('<span class="kw">@property</span> <span class="op">(</span><span class="kw">nonatomic</span><span class="op">,</span> <span class="kw">copy</span><span class="op">)</span> <span class="dt">NSString</span> <span class="op">*</span><span class="va">title</span><span class="op">;</span>', $directObjectiveC['html']);
+    },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
             'name' => 'Review Import',

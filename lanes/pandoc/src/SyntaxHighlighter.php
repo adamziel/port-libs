@@ -221,9 +221,16 @@ final class SyntaxHighlighter
         'nginxconf' => 'nginx',
         'ml' => 'ocaml',
         'mli' => 'ocaml',
+        'mm' => 'objectivec',
+        'obj-c' => 'objectivec',
+        'objc' => 'objectivec',
         'ocaml' => 'ocaml',
         'ocaml-interface' => 'ocaml',
         'octave' => 'matlab',
+        'objective-c' => 'objectivec',
+        'objective-c++' => 'objectivec',
+        'objectivec' => 'objectivec',
+        'objectivecpp' => 'objectivec',
         'perl' => 'perl',
         'pl' => 'perl',
         'pgsql' => 'sql',
@@ -772,6 +779,7 @@ final class SyntaxHighlighter
             'mustache' => $this->tokenizeMustache($code),
             'nginx' => $this->tokenizeNginx($code),
             'nix' => $this->tokenizeNix($code),
+            'objectivec' => $this->tokenizeObjectiveC($code),
             'ocaml' => $this->tokenizeOcaml($code),
             'perl' => $this->tokenizePerl($code),
             'php' => $this->tokenizePhp($code),
@@ -868,6 +876,30 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:::|->\\*|->|\\.\\*|\\.\\.\\.|<<=|>>=|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<|>>|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeObjectiveC(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['preprocessor', '/^#[ \\t]*(?:include|import|define|undef|if|ifdef|ifndef|elif|else|endif|pragma|error|warning)\\b[^\\n]*/'],
+            ['string', '/^@?(?:u8|u|U|L)?"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^(?:u8|u|U|L)?'(?:\\\\.|[^'\\\\])+'/s"],
+            ['keyword', '/^@(?:autoreleasepool|available|catch|class|compatibility_alias|defs|dynamic|encode|end|finally|implementation|interface|optional|package|private|property|protected|protocol|public|required|selector|synthesize|throw|try)\\b/'],
+            ['keyword', '/^\\b(?:alignas|alignof|asm|auto|break|case|const|continue|default|do|else|enum|extern|for|goto|if|inline|nonatomic|nullable|nonnull|null_resettable|readonly|readwrite|register|restrict|return|sizeof|static|struct|switch|typedef|union|volatile|while|weak|strong|copy|assign|retain|unsafe_unretained)\\b/'],
+            ['constant', '/^\\b(?:false|nil|Nil|NO|NULL|nullptr|self|super|true|YES)\\b/'],
+            ['datatype', '/^\\b(?:BOOL|CGFloat|Class|double|float|id|IMP|int|NSInteger|NSUInteger|long|SEL|short|signed|size_t|ssize_t|uint8_t|uint16_t|uint32_t|uint64_t|unichar|unsigned|void|wchar_t)\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)[uUlLfF]*\\b/'],
+            ['function', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({*&:]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:::|->|\\.\\.\\.|\\?:|<<=|>>=|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<|>>|[{}()[\\];,.+*\\/%=!<>?:&|^~@-])/'],
         ]);
     }
 

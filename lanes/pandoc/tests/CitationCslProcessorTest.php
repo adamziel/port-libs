@@ -3864,6 +3864,83 @@ XML);
         $t->contains('<dt>Migration Film Desk 2026</dt><dd>motion_picture :: Source Capture Reel</dd>', $blocks);
         $t->contains('<dt>Archive Image Desk 2024</dt><dd>graphic :: Archive Still</dd>', $blocks);
     },
+    'maps bounded biblatex audio and artwork aliases into csl media types' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@audio{audio-source,
+  author = {{Migration Audio Desk}},
+  title  = {Migration Audio Review},
+  date   = {2026}
+}
+
+@artwork{artwork-source,
+  author = {{Archive Artwork Desk}},
+  title  = {Migration Artwork},
+  date   = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('song', $items[0]['type'] ?? null);
+        $t->same('audio', $items[0]['rawBibtex']['type'] ?? null);
+        $t->same('Migration Audio Review', $items[0]['title'] ?? null);
+        $t->same('graphic', $items[1]['type'] ?? null);
+        $t->same('artwork', $items[1]['rawBibtex']['type'] ?? null);
+        $t->same('Migration Artwork', $items[1]['title'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $t->same('song', $processor->item('audio-source')['type'] ?? null);
+        $t->same('graphic', $processor->item('artwork-source')['type'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if type="song">
+          <group delimiter=" | ">
+            <text value="audio"/>
+            <text variable="title"/>
+          </group>
+        </if>
+        <else-if type="graphic">
+          <group delimiter=" | ">
+            <text value="artwork"/>
+            <text variable="title"/>
+          </group>
+        </else-if>
+        <else>
+          <group delimiter=" | ">
+            <text value="source"/>
+            <text variable="type"/>
+            <text variable="title"/>
+          </group>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="type"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[audio | Migration Audio Review; artwork | Migration Artwork]', $styled->renderCitationCluster([
+            $citation('audio-source', '[@audio-source]'),
+            $citation('artwork-source', '[@artwork-source]'),
+        ]));
+        $t->same('song :: Migration Audio Review', $styled->renderBibliographyEntry('audio-source'));
+        $t->same('graphic :: Migration Artwork', $styled->renderBibliographyEntry('artwork-source'));
+
+        $document = (new MarkdownReader())->read('Audio and artwork imports cite [@audio-source; @artwork-source].');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Audio and artwork imports cite [audio | Migration Audio Review; artwork | Migration Artwork].</p>', $blocks);
+        $t->contains('<dt>Migration Audio Desk 2026</dt><dd>song :: Migration Audio Review</dd>', $blocks);
+        $t->contains('<dt>Archive Artwork Desk 2025</dt><dd>graphic :: Migration Artwork</dd>', $blocks);
+    },
     'maps bounded biblatex unpublished eventtitle entries into csl speech type' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @unpublished{migration-talk,

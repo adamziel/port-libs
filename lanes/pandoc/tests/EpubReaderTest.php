@@ -6147,6 +6147,124 @@ XML;
         $t->same(hash('sha256', $chapter1Xhtml), $manifestById['chapter-1']['mediaOverlayReference']['textRefByteSha256']);
         $t->same($overlay, $result['importReport']['mediaOverlays']['mo-resource']);
     },
+    'preserves EPUB SMIL media overlay sequence provenance for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $chapter1Xhtml): void {
+        $smilWithSequences = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <seq id="chapter-seq" epub:type="bodymatter" epub:textref="../text/chapter1.xhtml" repeatCount="1">
+      <seq id="annotation-seq" epub:type="annotation note" epub:textref="https://cdn.example.test/remote.xhtml#voice" repeatDur="00:00:10.000" dur="10s">
+        <par id="local-intro" epub:type="sentence">
+          <text src="../text/chapter1.xhtml#intro"/>
+          <audio src="../audio/chapter1.mp3" clipBegin="0s" clipEnd="1.5s"/>
+        </par>
+      </seq>
+      <seq id="page-seq" epub:type="pagebreak">
+        <par id="page-audio">
+          <text src="../text/chapter1.xhtml#page-1"/>
+          <audio src="../audio/chapter1.mp3" clipBegin="1.5s" clipEnd="2.5s"/>
+        </par>
+      </seq>
+    </seq>
+  </body>
+</smil>
+XML;
+        $opfWithOverlay = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-sequence"/>'
+                . '<item id="mo-sequence" href="overlays/sequence.smil" media-type="application/smil+xml"/>'
+                . '<item id="audio-chapter-1" href="audio/chapter1.mp3" media-type="audio/mpeg"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithOverlay,
+            null,
+            [
+                ['name' => 'OEBPS/overlays/sequence.smil', 'data' => $smilWithSequences],
+                ['name' => 'OEBPS/audio/chapter1.mp3', 'data' => 'MP3-DATA'],
+            ]
+        ));
+
+        $overlay = $result['mediaOverlays']['mo-sequence'];
+        $t->same(3, $overlay['sequenceCount']);
+        $t->same(3, count($overlay['sequences']));
+
+        $root = $overlay['sequences'][0];
+        $t->same(0, $root['index']);
+        $t->same('chapter-seq', $root['id']);
+        $t->same(['bodymatter'], $root['types']);
+        $t->same(0, $root['depth']);
+        $t->same(null, $root['parentIndex']);
+        $t->same(['chapter-seq'], $root['path']);
+        $t->same('../text/chapter1.xhtml', $root['textRef']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $root['textRefTarget']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $root['textRefPart']);
+        $t->same('chapter-1', $root['textRefManifestId']);
+        $t->same('application/xhtml+xml', $root['textRefMediaType']);
+        $t->same(strlen($chapter1Xhtml), $root['textRefByteLength']);
+        $t->same(hash('sha256', $chapter1Xhtml), $root['textRefByteSha256']);
+        $t->same('1', $root['repeatCount']);
+        $t->same(null, $root['repeatDur']);
+        $t->same(0, $root['directParCount']);
+        $t->same(2, $root['childSequenceCount']);
+        $t->same([], $root['diagnostics']);
+
+        $annotation = $overlay['sequences'][1];
+        $t->same('annotation-seq', $annotation['id']);
+        $t->same(['annotation', 'note'], $annotation['types']);
+        $t->same(1, $annotation['depth']);
+        $t->same(0, $annotation['parentIndex']);
+        $t->same(['chapter-seq', 'annotation-seq'], $annotation['path']);
+        $t->same('https://cdn.example.test/remote.xhtml#voice', $annotation['textRefTarget']);
+        $t->same(true, $annotation['textRefExternal']);
+        $t->same(false, $annotation['textRefExists']);
+        $t->same('00:00:10.000', $annotation['repeatDur']);
+        $t->same('10s', $annotation['dur']);
+        $t->same(1, $annotation['directParCount']);
+        $t->same(0, $annotation['childSequenceCount']);
+        $t->same('external-media-overlay-reference', $annotation['diagnostics'][0]['type']);
+
+        $pageSequence = $overlay['sequences'][2];
+        $t->same('page-seq', $pageSequence['id']);
+        $t->same(['pagebreak'], $pageSequence['types']);
+        $t->same(['chapter-seq', 'page-seq'], $pageSequence['path']);
+        $t->same(null, $pageSequence['textRef']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $pageSequence['textRefTarget']);
+        $t->same(1, $pageSequence['directParCount']);
+
+        $t->same(1, count($overlay['sequenceDiagnostics']));
+        $t->same(1, $overlay['sequenceDiagnostics'][0]['sequenceIndex']);
+        $t->same('annotation-seq', $overlay['sequenceDiagnostics'][0]['sequenceId']);
+        $t->same('external-media-overlay-reference', $overlay['sequenceDiagnostics'][0]['type']);
+
+        $intro = $overlay['items'][0];
+        $t->same('local-intro', $intro['id']);
+        $t->same(1, $intro['sequenceIndex']);
+        $t->same('annotation-seq', $intro['sequenceId']);
+        $t->same(1, $intro['sequenceDepth']);
+        $t->same(['chapter-seq', 'annotation-seq'], $intro['sequencePath']);
+        $t->same(['bodymatter', 'annotation', 'note'], $intro['sequenceTypes']);
+        $t->same('https://cdn.example.test/remote.xhtml#voice', $intro['sequenceTextTarget']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $intro['textTarget']);
+        $t->same('chapter-1', $intro['textManifestId']);
+        $t->same('audio-chapter-1', $intro['audioManifestId']);
+        $t->same(1.5, $intro['clipDurationSeconds']);
+
+        $page = $overlay['items'][1];
+        $t->same('page-audio', $page['id']);
+        $t->same(2, $page['sequenceIndex']);
+        $t->same('page-seq', $page['sequenceId']);
+        $t->same(['chapter-seq', 'page-seq'], $page['sequencePath']);
+        $t->same(['bodymatter', 'pagebreak'], $page['sequenceTypes']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $page['sequenceTextTarget']);
+        $t->same('/OEBPS/text/chapter1.xhtml#page-1', $page['textTarget']);
+        $t->same(1.0, $page['clipDurationSeconds']);
+
+        $t->same(3, $result['spine'][0]['mediaOverlayReference']['sequenceCount']);
+        $t->same('external-media-overlay-reference', $result['spine'][0]['mediaOverlayReference']['sequenceDiagnostics'][0]['type']);
+        $t->same(3, $result['document']->children[0]->attr('mediaOverlayReference')['sequenceCount']);
+        $t->same($overlay, $result['importReport']['mediaOverlays']['mo-sequence']);
+    },
     'reports OPF media overlay duration metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $smilXml): void {
         $opfWithOverlayDuration = str_replace(
             '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',

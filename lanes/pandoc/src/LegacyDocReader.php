@@ -162,6 +162,9 @@ final class LegacyDocReader
     private array $activeExternalFileReferences = [];
 
     /** @var list<array<string,mixed>> */
+    private array $activeAssociatedStrings = [];
+
+    /** @var list<array<string,mixed>> */
     private array $activeListFormats = [];
 
     /** @var list<array<string,mixed>> */
@@ -490,9 +493,11 @@ final class LegacyDocReader
             'routeSlip' => $routeSlip,
         ];
 
+        $previousAssociatedStrings = $this->activeAssociatedStrings;
         $previousExternalFileReferences = $this->activeExternalFileReferences;
         $previousListFormats = $this->activeListFormats;
         $previousListOverrides = $this->activeListOverrides;
+        $this->activeAssociatedStrings = $associatedStrings;
         $this->activeExternalFileReferences = $externalFileReferences;
         $this->activeListFormats = $listFormats;
         $this->activeListOverrides = $listOverrides;
@@ -505,6 +510,7 @@ final class LegacyDocReader
                 $pictureReferences
             );
         } finally {
+            $this->activeAssociatedStrings = $previousAssociatedStrings;
             $this->activeExternalFileReferences = $previousExternalFileReferences;
             $this->activeListFormats = $previousListFormats;
             $this->activeListOverrides = $previousListOverrides;
@@ -2031,11 +2037,57 @@ final class LegacyDocReader
         if ($switches !== []) {
             $attributes['data-legacy-doc-data-field-switches'] = implode(' ', array_values(array_unique($switches)));
         }
+        $attributes += $this->mailMergeFieldReferenceAttrs($fieldName);
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-data-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function mailMergeFieldReferenceAttrs(string $fieldName): array
+    {
+        if ($fieldName !== 'MERGEFIELD') {
+            return [];
+        }
+
+        $attributes = [];
+        foreach ($this->activeAssociatedStrings as $record) {
+            $role = (string) ($record['role'] ?? '');
+            if ($role === 'mailMergeDataSource') {
+                $attributes['data-legacy-doc-mail-merge-policy'] = 'metadata-only-native-review';
+                $attributes['data-legacy-doc-mail-merge-has-associated-data-source'] = 'true';
+                $attributes['data-legacy-doc-mail-merge-associated-data-source-table'] = 'SttbfAssoc';
+                $attributes['data-legacy-doc-mail-merge-associated-data-source-index'] = (string) ((int) ($record['index'] ?? 8));
+                continue;
+            }
+            if ($role === 'mailMergeHeaderDocument') {
+                $attributes['data-legacy-doc-mail-merge-policy'] = 'metadata-only-native-review';
+                $attributes['data-legacy-doc-mail-merge-has-header-document'] = 'true';
+                $attributes['data-legacy-doc-mail-merge-header-document-table'] = 'SttbfAssoc';
+                $attributes['data-legacy-doc-mail-merge-header-document-index'] = (string) ((int) ($record['index'] ?? 9));
+            }
+        }
+
+        foreach ($this->activeExternalFileReferences as $reference) {
+            if (($reference['referenceType'] ?? null) !== 'mail-merge-data-source') {
+                continue;
+            }
+
+            $attributes['data-legacy-doc-mail-merge-policy'] = 'metadata-only-native-review';
+            $attributes['data-legacy-doc-mail-merge-external-reference-table'] = (string) ($reference['sourceTable'] ?? 'SttbFnm');
+            $attributes['data-legacy-doc-mail-merge-external-reference-index'] = (string) ((int) ($reference['index'] ?? 0));
+            $attributes['data-legacy-doc-mail-merge-external-reference-type'] = 'mail-merge-data-source';
+            $attributes['data-legacy-doc-mail-merge-external-reference-document-index'] = (string) ((int) ($reference['documentIndex'] ?? 0));
+            $attributes['data-legacy-doc-mail-merge-external-reference-file-system'] = (string) ($reference['fileSystem'] ?? '');
+            $attributes['data-legacy-doc-mail-merge-external-reference-can-expose-bytes'] = ($reference['canExposeBytes'] ?? false) === true ? 'true' : 'false';
+            break;
+        }
+
+        return $attributes;
     }
 
     /**

@@ -1376,6 +1376,18 @@ XML;
     if (($result['mediaOverlays']['mo-chapter']['items'][0]['audioByteSha256'] ?? null) !== hash('sha256', 'MP3-DATA')) {
         throw new RuntimeException('Expected EPUB media-overlay audio target to expose local package byte hash');
     }
+    if (($result['mediaOverlays']['mo-chapter']['sequenceCount'] ?? null) !== 1 || ($result['mediaOverlays']['mo-chapter']['sequences'][0]['id'] ?? null) !== 'chapter-overlay') {
+        throw new RuntimeException('Expected EPUB media-overlay sequence provenance to expose the chapter overlay group');
+    }
+    if (($result['mediaOverlays']['mo-chapter']['sequences'][0]['textRefManifestId'] ?? null) !== 'chapter') {
+        throw new RuntimeException('Expected EPUB media-overlay sequence textref to resolve through OPF manifest metadata');
+    }
+    if (($result['mediaOverlays']['mo-chapter']['items'][0]['sequencePath'] ?? null) !== ['chapter-overlay']) {
+        throw new RuntimeException('Expected EPUB media-overlay audio item to retain sequence ancestry');
+    }
+    if (($result['document']->children[0]->attr('mediaOverlayReference')['sequenceCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected WordPress EPUB handoff block to expose media-overlay sequence counts');
+    }
     if (($result['mediaOverlays']['mo-chapter']['items'][0]['clipBeginSeconds'] ?? null) !== 0.0 || ($result['mediaOverlays']['mo-chapter']['items'][0]['clipEndSeconds'] ?? null) !== 4.25) {
         throw new RuntimeException('Expected EPUB media-overlay first clip timing to normalize to seconds');
     }
@@ -1695,6 +1707,8 @@ echo 'ocfRightsItems=' . ($result['ocf']['rights']['itemCount'] ?? 0) . "\n";
 echo 'ocfSignatureReferences=' . ($result['ocf']['signatures']['referenceCount'] ?? 0) . "\n";
 echo 'ocfExternalReferences=' . ($result['ocf']['externalReferenceCount'] ?? 0) . "\n";
 echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
+echo 'mediaOverlaySequences=' . ($result['mediaOverlays']['mo-chapter']['sequenceCount'] ?? 0) . "\n";
+echo 'mediaOverlayFirstSequence=' . ($result['mediaOverlays']['mo-chapter']['sequences'][0]['id'] ?? '') . "\n";
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
 echo 'mediaOverlayAudioManifestId=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioManifestId'] ?? '') . "\n";
 echo 'mediaOverlayAudioMediaType=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioMediaType'] ?? '') . "\n";
