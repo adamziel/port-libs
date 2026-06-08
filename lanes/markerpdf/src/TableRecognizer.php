@@ -4986,10 +4986,11 @@ final class TableRecognizer
                 throw new InvalidArgumentException('Table row/column entries must be arrays.');
             }
 
-            $id = $item[$idField] ?? $item['id'] ?? $index;
+            $rawId = $item[$idField] ?? $item['id'] ?? $index;
+            $parsedId = $this->nullableInteger($rawId);
             $bbox = $this->bboxFromRecord($item);
             $entry = [
-                $idField => (int) $id,
+                $idField => $parsedId ?? $index,
                 'bbox' => $bbox,
                 'coordinate_source' => $this->bboxCoordinateSourceFromRecord($item),
                 'endpoint_order_normalized' => $this->bboxEndpointOrderNormalizedFromRecord($item),
@@ -4997,6 +4998,10 @@ final class TableRecognizer
                 'height' => $bbox[3] - $bbox[1],
                 'area' => $this->area($bbox),
             ];
+            if ($parsedId === null) {
+                $entry['invalid_id'] = true;
+                $entry['raw_id'] = is_scalar($rawId) ? (string) $rawId : get_debug_type($rawId);
+            }
             $normalized[] = $this->withSourceGeometryReviewFields($entry, $item);
         }
 
@@ -5534,8 +5539,12 @@ final class TableRecognizer
             $clippedPositive = $this->positiveArea($clippedBbox) > 0.0;
             $active = $originalPositive && $clippedPositive;
             $status = 'within_table_image';
+            $invalidId = ($band['invalid_id'] ?? false) === true;
 
-            if (!$originalPositive) {
+            if ($invalidId) {
+                $active = false;
+                $status = $axis === 'row' ? 'excluded_invalid_row_id' : 'excluded_invalid_column_id';
+            } elseif (!$originalPositive) {
                 $status = 'excluded_non_positive_area';
             } elseif (!$clippedPositive) {
                 $status = 'excluded_outside_table_image';
@@ -5560,6 +5569,12 @@ final class TableRecognizer
                 'status' => $status,
                 'active' => $active,
             ];
+            if ($invalidId) {
+                $reviewRow['invalid_id'] = true;
+                if (array_key_exists('raw_id', $band)) {
+                    $reviewRow['raw_id'] = $band['raw_id'];
+                }
+            }
             if ($duplicateOfReviewIndex !== null) {
                 $reviewRow['duplicate_of_id'] = $id;
                 $reviewRow['duplicate_of_band_index'] = $duplicateOfReviewIndex;
