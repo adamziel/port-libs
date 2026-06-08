@@ -617,6 +617,10 @@ final class PdfTextExtractor
                 $review['unresolved_object_stream_carrier_count']++;
             }
             $members = $memberTable['members'] ?? [];
+            $memberOffsetBoundaries = $memberTable['memberOffsetBoundaries'] ?? array_map(
+                static fn (array $member): int => $member['offset'],
+                $members
+            );
             $memberOffsetCounts = $this->objectStreamMemberOffsetCounts($members);
             $memberAtDefaultIndex = $this->objectStreamMemberAtHeaderIndex($members, $defaultMemberIndex);
             $memberIndexOutOfRange = $indexIsExplicit
@@ -758,6 +762,11 @@ final class PdfTextExtractor
                 'strict_member_index' => $defaultMemberIndex,
                 'actual_member_index' => $memberByObjectNumber['index'] ?? null,
                 'object_stream_member_count' => count($members),
+                'object_stream_member_offset_boundary_count' => count($memberOffsetBoundaries),
+                'object_stream_skipped_member_boundary_count' => max(
+                    0,
+                    count($memberOffsetBoundaries) - count($members)
+                ),
                 'matching_header_object_number_count' => $matchingHeaderObjectNumberCount,
                 'matching_header_offset_count' => $selectedMember === null
                     ? 0
@@ -34284,7 +34293,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>, memberOffsetBoundaries?: list<int>} $memberTable
      * @param array{objectNumber: int, offset: int, index: int} $member
      */
     private function objectStreamMemberBodyForGraphRepair(array $memberTable, array $member): ?string
@@ -35521,10 +35530,20 @@ final class PdfTextExtractor
         }
 
         $endOffset = $objectDataLength;
-        foreach ($members as $candidate) {
-            $candidateOffset = $candidate['offset'];
+        $candidateOffsets = $memberTable['memberOffsetBoundaries'] ?? array_map(
+            static fn (array $candidate): int => $candidate['offset'],
+            $members
+        );
+        foreach ($candidateOffsets as $candidateOffset) {
             if ($candidateOffset > $memberOffset && $candidateOffset < $endOffset) {
-                if ($memberTable !== null && !$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $candidate)) {
+                if (
+                    $memberTable !== null
+                    && !$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, [
+                        'objectNumber' => 0,
+                        'offset' => $candidateOffset,
+                        'index' => -1,
+                    ])
+                ) {
                     continue;
                 }
 
@@ -35536,7 +35555,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>, memberOffsetBoundaries?: list<int>} $memberTable
      * @param array{objectNumber: int, offset: int, index: int} $member
      */
     private function objectStreamMemberBody(array $memberTable, array $member): ?string
@@ -35564,7 +35583,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>, memberOffsetBoundaries?: list<int>} $memberTable
      * @param array{objectNumber: int, offset: int, index: int} $member
      */
     private function objectStreamMemberOffsetHasTokenBoundary(array $memberTable, array $member): bool
@@ -35691,7 +35710,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>, memberOffsetBoundaries?: list<int>} $memberTable
      * @param array{objectNumber: int, offset: int, index: int} $member
      */
     private function objectStreamMemberTailCanBeRecoveredFromInvalidLaterOffset(
@@ -35722,7 +35741,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>, memberOffsetBoundaries?: list<int>} $memberTable
      * @param array{objectNumber: int, offset: int, index: int} $member
      */
     private function objectStreamMemberHasInvalidLaterOffsetAfter(array $memberTable, array $member): bool
@@ -37095,7 +37114,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{decoded: string, first: int, headerSlotCount: int, members: list<array{objectNumber: int, offset: int, index: int}>}|null
+     * @return array{decoded: string, first: int, headerSlotCount: int, members: list<array{objectNumber: int, offset: int, index: int}>, memberOffsetBoundaries: list<int>}|null
      */
     private function decodedObjectStreamMemberTable(string $body, array $objects): ?array
     {
@@ -37115,7 +37134,8 @@ final class PdfTextExtractor
             return null;
         }
 
-        $members = $this->objectStreamHeaderMembers(substr($decoded, 0, $first), $count);
+        $headerMembers = $this->objectStreamHeaderMemberTable(substr($decoded, 0, $first), $count);
+        $members = $headerMembers['members'];
         if ($members === []) {
             return null;
         }
@@ -37125,6 +37145,7 @@ final class PdfTextExtractor
             'first' => $first,
             'headerSlotCount' => $count,
             'members' => $members,
+            'memberOffsetBoundaries' => $headerMembers['offsetBoundaries'],
         ];
     }
 
@@ -37146,23 +37167,25 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{objectNumber: int, offset: int, index: int}>
+     * @return array{members: list<array{objectNumber: int, offset: int, index: int}>, offsetBoundaries: list<int>}
      */
-    private function objectStreamHeaderMembers(string $header, int $count): array
+    private function objectStreamHeaderMemberTable(string $header, int $count): array
     {
         $members = [];
+        $offsetBoundaries = [];
         $offset = 0;
         for ($index = 0; $index < $count; $index++) {
             $objectNumber = $this->readPdfUnsignedIntegerToken($header, $offset);
             if ($objectNumber === null) {
-                return [];
+                return ['members' => [], 'offsetBoundaries' => []];
             }
 
             $objectOffset = $this->readPdfUnsignedIntegerToken($header, $offset);
             if ($objectOffset === null) {
-                return [];
+                return ['members' => [], 'offsetBoundaries' => []];
             }
 
+            $offsetBoundaries[] = $objectOffset;
             if ($objectNumber === 0) {
                 continue;
             }
@@ -37175,10 +37198,10 @@ final class PdfTextExtractor
         }
 
         if (!$this->objectStreamHeaderTailCanBeIgnored($header, $offset)) {
-            return [];
+            return ['members' => [], 'offsetBoundaries' => []];
         }
 
-        return $members;
+        return ['members' => $members, 'offsetBoundaries' => $offsetBoundaries];
     }
 
     private function objectStreamHeaderTailCanBeIgnored(string $header, int $offset): bool
