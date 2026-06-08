@@ -10202,6 +10202,8 @@ final class EpubReader
                 'contentReferences' => $contentReport['references'],
                 'contentLinks' => $contentReport['links'],
                 'contentLinkDiagnostics' => $contentReport['linkDiagnostics'],
+                'contentRefreshes' => $contentReport['refreshes'],
+                'contentRefreshDiagnostics' => $contentReport['refreshDiagnostics'],
                 'contentScripts' => $contentReport['scripts'],
                 'contentScriptEventHandlers' => $contentReport['scriptEventHandlers'],
                 'contentJavascriptReferences' => $contentReport['javascriptReferences'],
@@ -12174,6 +12176,13 @@ final class EpubReader
         $linkReviewRequiredCount = 0;
         $linkItems = [];
         $linkDiagnostics = [];
+        $refreshAssetCount = 0;
+        $refreshCount = 0;
+        $refreshReviewRequiredCount = 0;
+        $externalRefreshCount = 0;
+        $missingRefreshCount = 0;
+        $refreshItems = [];
+        $refreshDiagnostics = [];
         $scriptEventHandlerCount = 0;
         $javascriptReferenceCount = 0;
         $scriptItems = [];
@@ -12233,6 +12242,25 @@ final class EpubReader
                 )),
                 'linkDiagnosticCount' => count(is_array($report['linkDiagnostics'] ?? null) ? $report['linkDiagnostics'] : []),
                 'linkDiagnostics' => is_array($report['linkDiagnostics'] ?? null) ? array_values($report['linkDiagnostics']) : [],
+                'refreshCount' => count(is_array($report['refreshes'] ?? null) ? $report['refreshes'] : []),
+                'refreshes' => is_array($report['refreshes'] ?? null) ? array_values($report['refreshes']) : [],
+                'refreshReviewRequiredCount' => count(array_filter(
+                    is_array($report['refreshes'] ?? null) ? $report['refreshes'] : [],
+                    static fn (array $refresh): bool => ($refresh['requiresReview'] ?? false) === true,
+                )),
+                'externalRefreshCount' => count(array_filter(
+                    is_array($report['refreshes'] ?? null) ? $report['refreshes'] : [],
+                    static fn (array $refresh): bool => ($refresh['external'] ?? false) === true,
+                )),
+                'missingRefreshCount' => count(array_filter(
+                    is_array($report['refreshes'] ?? null) ? $report['refreshes'] : [],
+                    static fn (array $refresh): bool => ($refresh['exists'] ?? true) !== true
+                        && ($refresh['external'] ?? false) !== true
+                        && is_string($refresh['url'] ?? null)
+                        && $refresh['url'] !== '',
+                )),
+                'refreshDiagnosticCount' => count(is_array($report['refreshDiagnostics'] ?? null) ? $report['refreshDiagnostics'] : []),
+                'refreshDiagnostics' => is_array($report['refreshDiagnostics'] ?? null) ? array_values($report['refreshDiagnostics']) : [],
                 'scriptCount' => count(is_array($report['scripts'] ?? null) ? $report['scripts'] : []),
                 'scripts' => is_array($report['scripts'] ?? null) ? array_values($report['scripts']) : [],
                 'scriptEventHandlerCount' => count(is_array($report['scriptEventHandlers'] ?? null) ? $report['scriptEventHandlers'] : []),
@@ -12268,6 +12296,14 @@ final class EpubReader
             if ($item['linkCount'] > 0) {
                 ++$linkAssetCount;
                 array_push($linkItems, ...$item['links']);
+            }
+            $refreshCount += $item['refreshCount'];
+            $refreshReviewRequiredCount += $item['refreshReviewRequiredCount'];
+            $externalRefreshCount += $item['externalRefreshCount'];
+            $missingRefreshCount += $item['missingRefreshCount'];
+            if ($item['refreshCount'] > 0) {
+                ++$refreshAssetCount;
+                array_push($refreshItems, ...$item['refreshes']);
             }
             $scriptCount += $item['scriptCount'];
             $scriptEventHandlerCount += $item['scriptEventHandlerCount'];
@@ -12350,6 +12386,11 @@ final class EpubReader
                     'part' => $part,
                 ] + $diagnostic;
             }
+            foreach ($item['refreshDiagnostics'] as $diagnostic) {
+                $refreshDiagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
             foreach ($item['metadataDiagnostics'] as $diagnostic) {
                 $viewportDiagnostics[] = [
                     'part' => $part,
@@ -12381,6 +12422,13 @@ final class EpubReader
             'linkReviewRequiredCount' => $linkReviewRequiredCount,
             'linkItems' => $linkItems,
             'linkDiagnostics' => $linkDiagnostics,
+            'refreshAssetCount' => $refreshAssetCount,
+            'refreshCount' => $refreshCount,
+            'refreshReviewRequiredCount' => $refreshReviewRequiredCount,
+            'externalRefreshCount' => $externalRefreshCount,
+            'missingRefreshCount' => $missingRefreshCount,
+            'refreshItems' => $refreshItems,
+            'refreshDiagnostics' => $refreshDiagnostics,
             'scriptCount' => $scriptCount,
             'scriptEventHandlerCount' => $scriptEventHandlerCount,
             'javascriptReferenceCount' => $javascriptReferenceCount,
@@ -12435,6 +12483,7 @@ final class EpubReader
         $references = [];
         $scripts = [];
         $links = [];
+        $refreshes = [];
         $scriptEventHandlers = [];
         $javascriptReferences = [];
         $switches = [];
@@ -12454,6 +12503,8 @@ final class EpubReader
                 'references' => [],
                 'links' => [],
                 'linkDiagnostics' => [],
+                'refreshes' => [],
+                'refreshDiagnostics' => [],
                 'scripts' => [],
                 'scriptEventHandlers' => [],
                 'javascriptReferences' => [],
@@ -12489,6 +12540,7 @@ final class EpubReader
                 $flags,
                 $references,
                 $links,
+                $refreshes,
                 $scripts,
                 $scriptEventHandlers,
                 $javascriptReferences,
@@ -12514,6 +12566,7 @@ final class EpubReader
         }
         $scriptDiagnostics = [];
         $linkDiagnostics = [];
+        $refreshDiagnostics = [];
         foreach ($links as $link) {
             foreach ($link['diagnostics'] as $diagnostic) {
                 $linkDiagnostics[] = [
@@ -12523,6 +12576,15 @@ final class EpubReader
             }
         }
         array_push($diagnostics, ...$linkDiagnostics);
+        foreach ($refreshes as $refresh) {
+            foreach ($refresh['diagnostics'] as $diagnostic) {
+                $refreshDiagnostics[] = [
+                    'refreshIndex' => $refresh['index'],
+                    'refreshId' => $refresh['id'],
+                ] + $diagnostic;
+            }
+        }
+        array_push($diagnostics, ...$refreshDiagnostics);
         foreach ($scripts as $script) {
             foreach ($script['diagnostics'] as $diagnostic) {
                 $scriptDiagnostics[] = [
@@ -12591,6 +12653,8 @@ final class EpubReader
             'references' => $references,
             'links' => $links,
             'linkDiagnostics' => $linkDiagnostics,
+            'refreshes' => $refreshes,
+            'refreshDiagnostics' => $refreshDiagnostics,
             'scripts' => $scripts,
             'scriptEventHandlers' => $scriptEventHandlers,
             'javascriptReferences' => $javascriptReferences,
@@ -12915,6 +12979,7 @@ final class EpubReader
      * @param array<string, bool> $flags
      * @param list<array<string, mixed>> $references
      * @param list<array<string, mixed>> $links
+     * @param list<array<string, mixed>> $refreshes
      * @param list<array<string, mixed>> $scripts
      * @param list<array<string, mixed>> $scriptEventHandlers
      * @param list<array<string, mixed>> $javascriptReferences
@@ -12931,6 +12996,7 @@ final class EpubReader
         array &$flags,
         array &$references,
         array &$links,
+        array &$refreshes,
         array &$scripts,
         array &$scriptEventHandlers,
         array &$javascriptReferences,
@@ -12979,6 +13045,40 @@ final class EpubReader
                 $flags['encryptedReferences'] = true;
             }
             $links[] = $link;
+        }
+        if ($namespace === self::XHTML_NS && $localName === 'meta') {
+            $refresh = $this->xhtmlMetaRefreshReport(
+                $package,
+                $part,
+                $element,
+                $manifestByPart,
+                count($refreshes),
+                count($references)
+            );
+            if (is_array($refresh)) {
+                $flags['linkedResources'] = true;
+                if (($refresh['external'] ?? false) === true) {
+                    $flags['remoteResources'] = true;
+                }
+                if (
+                    ($refresh['exists'] ?? true) !== true
+                    && ($refresh['external'] ?? false) !== true
+                    && is_string($refresh['url'] ?? null)
+                    && $refresh['url'] !== ''
+                ) {
+                    $flags['missingReferences'] = true;
+                }
+                if (($refresh['encrypted'] ?? false) === true) {
+                    $flags['encryptedReferences'] = true;
+                }
+
+                $reference = $refresh['reference'] ?? null;
+                unset($refresh['reference']);
+                if (is_array($reference)) {
+                    $references[] = $reference;
+                }
+                $refreshes[] = $refresh;
+            }
         }
         if ($namespace === self::EPUB_OPS_NS && $localName === 'switch') {
             $flags['switch'] = true;
@@ -13089,6 +13189,7 @@ final class EpubReader
                 $flags,
                 $references,
                 $links,
+                $refreshes,
                 $scripts,
                 $scriptEventHandlers,
                 $javascriptReferences,
@@ -13098,6 +13199,171 @@ final class EpubReader
                 $elementIds
             );
         }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function xhtmlMetaRefreshReport(
+        ZipPackage $package,
+        string $part,
+        \DOMElement $element,
+        array $manifestByPart,
+        int $index,
+        int $referenceIndex
+    ): ?array {
+        $httpEquivRaw = self::nullableAttribute($element, 'http-equiv');
+        $httpEquiv = $httpEquivRaw === null ? null : strtolower(trim($httpEquivRaw));
+        if ($httpEquiv !== 'refresh') {
+            return null;
+        }
+
+        $content = trim($element->getAttribute('content'));
+        $parsed = self::parseXhtmlMetaRefreshContent($content);
+        $diagnostics = [[
+            'type' => 'active-xhtml-meta-refresh',
+            'message' => 'EPUB XHTML meta refresh remains inert and requires redirect-target review',
+        ]];
+        if (($parsed['delayValid'] ?? false) !== true) {
+            $diagnostics[] = [
+                'type' => 'invalid-xhtml-meta-refresh-delay',
+                'delay' => $parsed['delayRaw'],
+                'message' => 'EPUB XHTML meta refresh delay must be a non-negative decimal number',
+            ];
+        }
+
+        $reference = null;
+        $referenceData = null;
+        $referenceDiagnostics = [];
+        $url = is_string($parsed['url'] ?? null) ? $parsed['url'] : null;
+        if ($url === null || $url === '') {
+            $diagnostics[] = [
+                'type' => 'missing-xhtml-meta-refresh-url',
+                'message' => 'EPUB XHTML meta refresh content does not contain a url target',
+            ];
+        } else {
+            $referenceData = $this->packageReference(
+                $package,
+                $part,
+                $url,
+                $manifestByPart,
+                'xhtml-meta-refresh'
+            );
+            $referenceDiagnostics = $referenceData['diagnostics'];
+            if (($referenceData['encrypted'] ?? false) === true) {
+                $referenceDiagnostics[] = [
+                    'type' => 'encrypted-xhtml-meta-refresh-reference',
+                    'part' => $referenceData['part'],
+                    'message' => 'EPUB XHTML meta refresh references an encrypted package part that cannot be exposed directly',
+                ];
+            }
+            array_push($diagnostics, ...$referenceDiagnostics);
+            $reference = [
+                'index' => $referenceIndex,
+                'element' => $element->localName,
+                'attribute' => 'content',
+                'href' => $url,
+                'target' => $referenceData['target'],
+                'part' => $referenceData['part'],
+                'fragment' => $referenceData['fragment'],
+                'fragmentKind' => $referenceData['fragmentKind'],
+                'epubCfi' => $referenceData['epubCfi'],
+                'mediaFragment' => $referenceData['mediaFragment'],
+                'external' => $referenceData['external'],
+                'exists' => $referenceData['exists'],
+                'byteLength' => $referenceData['byteLength'],
+                'crc32' => $referenceData['crc32'],
+                'manifestId' => $referenceData['manifestId'],
+                'mediaType' => $referenceData['mediaType'],
+                'encrypted' => $referenceData['encrypted'],
+                'canExposeBytes' => $referenceData['canExposeBytes'],
+                'refreshIndex' => $index,
+                'metaHttpEquiv' => $httpEquiv,
+                'metaContent' => $content,
+                'diagnostics' => $referenceDiagnostics,
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'sourcePart' => $part,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'httpEquiv' => $httpEquiv,
+            'httpEquivRaw' => $httpEquivRaw,
+            'content' => $content,
+            'delayRaw' => $parsed['delayRaw'],
+            'delaySeconds' => $parsed['delaySeconds'],
+            'urlRaw' => $parsed['urlRaw'],
+            'url' => $url,
+            'target' => is_array($referenceData) ? $referenceData['target'] : null,
+            'part' => is_array($referenceData) ? $referenceData['part'] : null,
+            'fragment' => is_array($referenceData) ? $referenceData['fragment'] : null,
+            'fragmentKind' => is_array($referenceData) ? $referenceData['fragmentKind'] : null,
+            'epubCfi' => is_array($referenceData) ? $referenceData['epubCfi'] : null,
+            'mediaFragment' => is_array($referenceData) ? $referenceData['mediaFragment'] : null,
+            'external' => is_array($referenceData) ? $referenceData['external'] : false,
+            'exists' => is_array($referenceData) ? $referenceData['exists'] : null,
+            'byteLength' => is_array($referenceData) ? $referenceData['byteLength'] : null,
+            'crc32' => is_array($referenceData) ? $referenceData['crc32'] : null,
+            'manifestId' => is_array($referenceData) ? $referenceData['manifestId'] : null,
+            'mediaType' => is_array($referenceData) ? $referenceData['mediaType'] : null,
+            'encrypted' => is_array($referenceData) ? $referenceData['encrypted'] : false,
+            'canExposeBytes' => is_array($referenceData) ? $referenceData['canExposeBytes'] : null,
+            'requiresReview' => true,
+            'valid' => $url !== null && ($parsed['delayValid'] ?? false) === true && $referenceDiagnostics === [],
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+            'diagnostics' => $diagnostics,
+            'reference' => $reference,
+        ];
+    }
+
+    /**
+     * @return array{delayRaw:string, delaySeconds:?float, delayValid:bool, urlRaw:?string, url:?string}
+     */
+    private static function parseXhtmlMetaRefreshContent(string $content): array
+    {
+        $segments = explode(';', $content);
+        $delayRaw = trim((string) array_shift($segments));
+        $urlRaw = null;
+
+        foreach ($segments as $segment) {
+            if (preg_match('/^\s*url\s*=\s*(.*?)\s*$/i', $segment, $matches) !== 1) {
+                continue;
+            }
+
+            $urlRaw = trim($matches[1]);
+            break;
+        }
+
+        $url = null;
+        if ($urlRaw !== null) {
+            $url = trim($urlRaw);
+            $quote = $url[0] ?? '';
+            if (($quote === '"' || $quote === "'") && substr($url, -1) === $quote) {
+                $url = trim(substr($url, 1, -1));
+            }
+            if ($url === '') {
+                $url = null;
+            }
+        }
+
+        $delayValid = preg_match('/^(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/', $delayRaw) === 1;
+
+        return [
+            'delayRaw' => $delayRaw,
+            'delaySeconds' => $delayValid ? (float) $delayRaw : null,
+            'delayValid' => $delayValid,
+            'urlRaw' => $urlRaw,
+            'url' => $url,
+        ];
     }
 
     /**
@@ -14936,6 +15202,8 @@ final class EpubReader
                 'contentReferences' => $asset['contentReferences'] ?? [],
                 'contentLinks' => $asset['contentLinks'] ?? [],
                 'contentLinkDiagnostics' => $asset['contentLinkDiagnostics'] ?? [],
+                'contentRefreshes' => $asset['contentRefreshes'] ?? [],
+                'contentRefreshDiagnostics' => $asset['contentRefreshDiagnostics'] ?? [],
                 'contentScripts' => $asset['contentScripts'] ?? [],
                 'contentScriptEventHandlers' => $asset['contentScriptEventHandlers'] ?? [],
                 'contentJavascriptReferences' => $asset['contentJavascriptReferences'] ?? [],

@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'value-metadata-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'value-metadata-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -526,6 +526,9 @@ final class Html5DomFragment
         }
         if ($mode === 'html' && $name === 'figure') {
             self::markHtmlFigureReviewMetadata($node, $attrs, $children, $diagnostics);
+        }
+        if ($mode === 'html' && $name === 'fieldset') {
+            self::markHtmlFieldsetReviewMetadata($node, $attrs, $children, $diagnostics);
         }
         if ($mode === 'html' && $elementForeignContext === null && self::isHtmlCustomElementName($name)) {
             $name = self::markHtmlCustomElementReviewMetadata($node, $name, $attrs, $children, $diagnostics);
@@ -1135,6 +1138,164 @@ final class Html5DomFragment
         }
 
         return $id;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlFieldsetReviewMetadata(
+        \DOMElement $element,
+        array &$attrs,
+        array &$children,
+        array &$diagnostics
+    ): void {
+        if (array_key_exists('disabled', $attrs)) {
+            unset($attrs['disabled']);
+            $attrs['data-pandoc-fieldset-disabled'] = 'true';
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'fieldset-review',
+                'tag' => 'fieldset',
+                'attribute' => 'disabled',
+                'reason' => 'fieldset-disabled-preserved-as-metadata',
+            ], $element);
+        }
+
+        if (array_key_exists('name', $attrs)) {
+            $name = self::normalizeHtmlFieldsetNameAttribute((string) $attrs['name']);
+            unset($attrs['name']);
+            if ($name === null) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'fieldset',
+                    'attribute' => 'name',
+                    'reason' => 'invalid-fieldset-name-metadata',
+                ], $element);
+            } else {
+                $attrs['data-pandoc-fieldset-name'] = $name;
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'fieldset-review',
+                    'tag' => 'fieldset',
+                    'attribute' => 'name',
+                    'reason' => 'fieldset-name-preserved-as-metadata',
+                ], $element);
+            }
+        }
+
+        if (array_key_exists('form', $attrs)) {
+            $form = self::normalizeHtmlFieldsetFormAttribute((string) $attrs['form']);
+            unset($attrs['form']);
+            if ($form === null) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'fieldset',
+                    'attribute' => 'form',
+                    'reason' => 'invalid-fieldset-form-metadata',
+                ], $element);
+            } else {
+                $attrs['data-pandoc-fieldset-form'] = $form;
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'fieldset-review',
+                    'tag' => 'fieldset',
+                    'attribute' => 'form',
+                    'reason' => 'fieldset-form-owner-preserved-as-metadata',
+                ], $element);
+            }
+        }
+
+        $legend = self::htmlFieldsetLegendMetadata($children);
+        if ($legend === null) {
+            return;
+        }
+
+        $attrs['data-pandoc-fieldset-label'] = $legend;
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'fieldset-review',
+            'tag' => 'fieldset',
+            'source' => 'legend',
+            'reason' => 'fieldset-legend-preserved-as-metadata',
+        ], $element);
+    }
+
+    private static function normalizeHtmlFieldsetNameAttribute(string $value): ?string
+    {
+        $value = self::cleanHtmlMetadataAttribute($value);
+        if ($value === '' || strlen($value) > 128) {
+            return null;
+        }
+        if (preg_match('/[<>{}]/u', $value) === 1) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private static function normalizeHtmlFieldsetFormAttribute(string $value): ?string
+    {
+        $value = self::cleanHtmlMetadataAttribute($value);
+        if ($value === '' || strlen($value) > 128 || !self::isSafeHtmlAriaIdToken($value)) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     */
+    private static function htmlFieldsetLegendMetadata(array &$children): ?string
+    {
+        foreach ($children as $index => $child) {
+            if (($child['type'] ?? '') !== 'element' || strtolower((string) ($child['name'] ?? '')) !== 'legend') {
+                continue;
+            }
+
+            $text = self::normalizeFieldsetMetadataText(self::fieldsetNodeText($child));
+            if ($text === '') {
+                return null;
+            }
+
+            $attrs = is_array($child['attrs'] ?? null) ? $child['attrs'] : [];
+            $attrs['data-pandoc-fieldset-legend'] = 'true';
+            $child['attrs'] = $attrs;
+            $children[$index] = $child;
+
+            return $text;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private static function fieldsetNodeText(array $node): string
+    {
+        if (($node['type'] ?? '') === 'text') {
+            return (string) ($node['text'] ?? '');
+        }
+        if (($node['type'] ?? '') !== 'element' || !is_array($node['children'] ?? null)) {
+            return '';
+        }
+
+        $text = '';
+        foreach ($node['children'] as $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+
+            $text .= self::fieldsetNodeText($child);
+        }
+
+        return $text;
+    }
+
+    private static function normalizeFieldsetMetadataText(string $text): string
+    {
+        $text = preg_replace('/[\t\r\n\f ]+/u', ' ', $text) ?? $text;
+
+        return trim($text);
     }
 
     /**

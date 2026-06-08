@@ -6929,7 +6929,10 @@ final class DocxReader
                     $relationships,
                     $alt,
                     $title,
-                    $this->drawingGeometryAttrs($this->drawingContainerForElement($blip, $drawing))
+                    $this->mergeNodeMetadataAttrs(
+                        $this->drawingGeometryAttrs($this->drawingContainerForElement($blip, $drawing)),
+                        $this->drawingPictureMetadataAttrs($blip, $drawing)
+                    )
                 );
                 if ($image instanceof AstNode) {
                     $nodes[] = $image;
@@ -7400,6 +7403,136 @@ final class DocxReader
     private function drawingPropertiesForBlip(\DOMElement $blip, \DOMElement $drawing): ?\DOMElement
     {
         return $this->drawingPropertiesForElement($blip, $drawing);
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>}
+     */
+    private function drawingPictureMetadataAttrs(\DOMElement $blip, \DOMElement $drawing): array
+    {
+        $picture = $this->drawingPictureForBlip($blip, $drawing);
+        if (!$picture instanceof \DOMElement) {
+            return [];
+        }
+
+        $classes = [];
+        $attributes = [];
+
+        $blipFill = $this->firstChildElement($picture, self::DRAWINGML_PICTURE_NS, 'blipFill');
+        $sourceRectangle = $blipFill instanceof \DOMElement
+            ? $this->firstChildElement($blipFill, self::DRAWINGML_MAIN_NS, 'srcRect')
+            : null;
+        if ($sourceRectangle instanceof \DOMElement) {
+            $hasCrop = false;
+            foreach ([
+                'l' => 'data-docx-picture-crop-left',
+                't' => 'data-docx-picture-crop-top',
+                'r' => 'data-docx-picture-crop-right',
+                'b' => 'data-docx-picture-crop-bottom',
+            ] as $source => $target) {
+                $value = trim($sourceRectangle->getAttribute($source));
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                    $hasCrop = true;
+                }
+            }
+
+            if ($hasCrop) {
+                $classes[] = 'docx-picture-crop';
+            }
+        }
+
+        $shapeProperties = $this->firstChildElement($picture, self::DRAWINGML_PICTURE_NS, 'spPr');
+        $transform = $shapeProperties instanceof \DOMElement
+            ? $this->firstChildElement($shapeProperties, self::DRAWINGML_MAIN_NS, 'xfrm')
+            : null;
+        if ($transform instanceof \DOMElement) {
+            $hasTransform = false;
+            foreach ([
+                'rot' => 'data-docx-picture-rotation',
+                'flipH' => 'data-docx-picture-flip-horizontal',
+                'flipV' => 'data-docx-picture-flip-vertical',
+            ] as $source => $target) {
+                $value = trim($transform->getAttribute($source));
+                if ($value === '') {
+                    continue;
+                }
+
+                $attributes[$target] = $value;
+                $hasTransform = true;
+
+                $onOff = $this->onOffStringValue($value);
+                if ($source === 'flipH' && $onOff === true) {
+                    $classes[] = 'docx-picture-flip-horizontal';
+                }
+                if ($source === 'flipV' && $onOff === true) {
+                    $classes[] = 'docx-picture-flip-vertical';
+                }
+            }
+
+            $offset = $this->firstChildElement($transform, self::DRAWINGML_MAIN_NS, 'off');
+            if ($offset instanceof \DOMElement) {
+                foreach ([
+                    'x' => 'data-docx-picture-offset-x-emu',
+                    'y' => 'data-docx-picture-offset-y-emu',
+                ] as $source => $target) {
+                    $value = trim($offset->getAttribute($source));
+                    if ($value !== '') {
+                        $attributes[$target] = $value;
+                        $hasTransform = true;
+                    }
+                }
+            }
+
+            $extent = $this->firstChildElement($transform, self::DRAWINGML_MAIN_NS, 'ext');
+            if ($extent instanceof \DOMElement) {
+                foreach ([
+                    'cx' => 'data-docx-picture-width-emu',
+                    'cy' => 'data-docx-picture-height-emu',
+                ] as $source => $target) {
+                    $value = trim($extent->getAttribute($source));
+                    if ($value !== '') {
+                        $attributes[$target] = $value;
+                        $hasTransform = true;
+                    }
+                }
+            }
+
+            if ($hasTransform) {
+                if (in_array('docx-picture-crop', $classes, true)) {
+                    array_splice($classes, 1, 0, ['docx-picture-transform']);
+                } else {
+                    array_unshift($classes, 'docx-picture-transform');
+                }
+            }
+        }
+
+        if ($classes === [] && $attributes === []) {
+            return [];
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function drawingPictureForBlip(\DOMElement $blip, \DOMElement $drawing): ?\DOMElement
+    {
+        $node = $blip->parentNode;
+        while ($node instanceof \DOMElement) {
+            if ($node->namespaceURI === self::DRAWINGML_PICTURE_NS && $node->localName === 'pic') {
+                return $node;
+            }
+
+            if ($node === $drawing) {
+                break;
+            }
+
+            $node = $node->parentNode;
+        }
+
+        return null;
     }
 
     private function drawingContainerForElement(\DOMElement $element, \DOMElement $drawing): ?\DOMElement

@@ -2657,6 +2657,21 @@ if (($argv[1] ?? '') === '--self-test') {
     $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, $u32($free), $directoryFieldOffset($wordDocumentDirectoryId, 68), 4);
     $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, $u32($free), $directoryFieldOffset($wordDocumentDirectoryId, 72), 4);
     $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, "\x01", $directoryFieldOffset($wordDocumentDirectoryId, 67), 1);
+    $emptyActiveDirectoryName = substr_replace($docBytes, str_repeat("\0", 64), $directoryFieldOffset($wordDocumentDirectoryId, 0), 64);
+    $emptyActiveDirectoryName = substr_replace($emptyActiveDirectoryName, $u16(2), $directoryFieldOffset($wordDocumentDirectoryId, 64), 2);
+    $embeddedNullDirectoryName = $utf16le("Word\0Document");
+    $embeddedNullActiveDirectoryName = substr_replace(
+        $docBytes,
+        str_pad($embeddedNullDirectoryName . "\0\0", 64, "\0"),
+        $directoryFieldOffset($wordDocumentDirectoryId, 0),
+        64
+    );
+    $embeddedNullActiveDirectoryName = substr_replace(
+        $embeddedNullActiveDirectoryName,
+        $u16(strlen($embeddedNullDirectoryName) + 2),
+        $directoryFieldOffset($wordDocumentDirectoryId, 64),
+        2
+    );
     $smallRegularWordDocument = str_repeat("\0", 512) . "Small regular stream must stay guarded\r";
     $smallRegularWordDocument = substr_replace($smallRegularWordDocument, $u16(0xa5ec), 0, 2);
     $smallRegularWordDocument = substr_replace($smallRegularWordDocument, $u16(0x00c1), 2, 2);
@@ -2727,6 +2742,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'CFB root mini stream reuses directory sector' => substr_replace($docBytes, $u32(1), $directoryFieldOffset(0, 116), 4),
         'CFB orphaned active directory entry' => $orphanedActiveDirectoryEntry,
         'CFB active directory name missing UTF-16 terminator' => substr_replace($docBytes, "X\0", $directoryFieldOffset($wordDocumentDirectoryId, 24), 2),
+        'CFB active directory name must not be empty' => $emptyActiveDirectoryName,
+        'CFB active directory name contains embedded null' => $embeddedNullActiveDirectoryName,
         'small CFB stream without MiniFAT metadata' => $smallRegularStreamWithoutMiniFat,
         'invalid CFB root storage name' => substr_replace($docBytes, "X\0", $directoryFieldOffset(0, 0), 2),
         'complex DOC missing CLX piece table' => substr_replace($docBytes, $u32(0), $wordDocumentStreamOffset + 0x01a6, 4),

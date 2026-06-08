@@ -686,6 +686,12 @@ final class CompoundFileBinary
             }
             $nameBytes = substr($entryBytes, 0, $nameLength - 2);
             $name = self::decodeUtf16Le($nameBytes);
+            if ($name === '') {
+                throw new \RuntimeException('CFB active directory entry name must not be empty');
+            }
+            if (strpos($name, "\0") !== false) {
+                throw new \RuntimeException('CFB active directory entry name contains an embedded null');
+            }
             if (strpbrk($name, '/\\:!') !== false) {
                 throw new \RuntimeException('CFB directory entry name contains an illegal character: ' . $name);
             }

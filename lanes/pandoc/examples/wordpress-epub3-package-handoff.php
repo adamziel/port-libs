@@ -191,6 +191,7 @@ $chapterXhtml = <<<'XML'
   <head>
     <title>Source chapter</title>
     <meta name="viewport" content="width=1024,height=768"/>
+    <meta id="source-refresh" http-equiv="refresh" content="0; url=#source"/>
     <link id="chapter-style-link" rel="stylesheet" href="../styles/review.css" type="text/css" media="screen"/>
   </head>
   <body epub:type="bodymatter chapter" xml:lang="en" dir="ltr">
@@ -1067,6 +1068,16 @@ XML;
     if (($result['xhtmlResourceReport']['linkAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['linkCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['activeLinkCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB XHTML content scan to identify inert link resource policy metadata');
     }
+    if (($result['xhtmlResourceReport']['refreshAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['refreshCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB XHTML content scan to identify inert meta refresh target metadata');
+    }
+    $chapterRefreshes = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['refreshes'] ?? [];
+    if (($chapterRefreshes[0]['id'] ?? null) !== 'source-refresh' || ($chapterRefreshes[0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
+        throw new RuntimeException('Expected EPUB XHTML meta refresh target to resolve against the source chapter');
+    }
+    if (($result['document']->children[0]->attr('contentRefreshes')[0]['id'] ?? null) !== 'source-refresh') {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML meta refresh metadata');
+    }
     $chapterLinks = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['links'] ?? [];
     if (($chapterLinks[0]['id'] ?? null) !== 'chapter-style-link' || ($chapterLinks[0]['policy'] ?? null) !== 'stylesheet' || ($chapterLinks[0]['part'] ?? null) !== '/EPUB/styles/review.css') {
         throw new RuntimeException('Expected EPUB XHTML stylesheet link policy to preserve local target metadata');
@@ -1589,6 +1600,8 @@ echo 'xhtmlScriptEventHandlers=' . ($result['xhtmlResourceReport']['scriptEventH
 echo 'xhtmlLinkAssets=' . ($result['xhtmlResourceReport']['linkAssetCount'] ?? 0) . "\n";
 echo 'xhtmlLinks=' . ($result['xhtmlResourceReport']['linkCount'] ?? 0) . "\n";
 echo 'chapterLinkPolicy=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['links'][0]['policy'] ?? '') . "\n";
+echo 'xhtmlRefreshes=' . ($result['xhtmlResourceReport']['refreshCount'] ?? 0) . "\n";
+echo 'chapterRefreshTarget=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['refreshes'][0]['target'] ?? '') . "\n";
 echo 'xhtmlViewportAssets=' . ($result['xhtmlResourceReport']['viewportAssetCount'] ?? 0) . "\n";
 echo 'chapterViewport=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['raw'] ?? '') . "\n";
 echo 'chapterLanguage=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['language'] ?? '') . "\n";

@@ -399,6 +399,53 @@ return [
         $t->true(!str_contains($html, '<textarea'), 'Expected textarea wrapper to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected form-side javascript URLs to be stripped');
     },
+    'turns fieldset grouping controls into inert reviewer metadata' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<form action="/submit">'
+            . '<fieldset disabled name=" import-settings " form="legacy-form" data-pandoc-fieldset-name="source-spoof">'
+            . '<legend>Import settings</legend><p>Visibility <input type="submit" value="Save settings"></p></fieldset>'
+            . '<fieldset name="bad<tag>" form="bad id"><legend>Bad group</legend><p>Bad metadata</p></fieldset>'
+            . '</form>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/fieldset-review-fragment.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $fieldsetDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'fieldset-review'
+        ));
+
+        $expected = '<fieldset data-pandoc-fieldset-disabled="true" data-pandoc-fieldset-name="import-settings" data-pandoc-fieldset-form="legacy-form" data-pandoc-fieldset-label="Import settings"><legend data-pandoc-fieldset-legend="true">Import settings</legend><p>Visibility Save settings</p></fieldset>'
+            . '<fieldset data-pandoc-fieldset-label="Bad group"><legend data-pandoc-fieldset-legend="true">Bad group</legend><p>Bad metadata</p></fieldset>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Import settingsVisibility Save settingsBad groupBad metadata', $fragment->textContent());
+        $t->same(['fieldset', 'legend', 'p'], $summary['elementNames']);
+        $t->same(['form', 'input'], $summary['blockedTags']);
+        $t->same(['data-pandoc-fieldset-name', 'disabled', 'form', 'name'], $summary['filteredAttributes']);
+        $t->same(10, $summary['diagnostics']);
+        $t->same(5, count($fieldsetDiagnostics));
+        $t->same(['disabled', 'name', 'form'], array_column(array_slice($fieldsetDiagnostics, 0, 3), 'attribute'));
+        $t->same('fieldset-legend-preserved-as-metadata', $fieldsetDiagnostics[3]['reason']);
+        $t->same('fieldset-legend-preserved-as-metadata', $fieldsetDiagnostics[4]['reason']);
+        $t->same('fieldset', $nodes[0]['name']);
+        $t->same('true', $nodes[0]['attrs']['data-pandoc-fieldset-disabled']);
+        $t->same('import-settings', $nodes[0]['attrs']['data-pandoc-fieldset-name']);
+        $t->same('legacy-form', $nodes[0]['attrs']['data-pandoc-fieldset-form']);
+        $t->same('Import settings', $nodes[0]['attrs']['data-pandoc-fieldset-label']);
+        $t->same('true', $nodes[0]['children'][0]['attrs']['data-pandoc-fieldset-legend']);
+        $t->same('fieldset', $nodes[1]['name']);
+        $t->same(['data-pandoc-fieldset-label' => 'Bad group'], $nodes[1]['attrs']);
+        $t->same('/migration/fieldset-review-fragment.html', $document->children[0]->attr('part'));
+        foreach ([' disabled', ' name=', ' form=', 'source-spoof', 'bad<tag>', 'bad id', '<form', '<input'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected fieldset handoff to strip live or unsafe source content: ' . $blocked);
+        }
+    },
     'preserves option and optgroup labels as visible reviewer text while dropping controls' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<form action="/submit"><p><select name="status">'

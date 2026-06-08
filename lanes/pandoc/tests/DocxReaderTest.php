@@ -416,7 +416,7 @@ $drawingGeometryDocumentXml = <<<'XML'
             <wp:extent cx="914400" cy="457200"/>
             <wp:effectExtent l="1000" t="2000" r="3000" b="4000"/>
             <wp:docPr id="71" name="Inline logo" descr="Inline geometry alt" title="Inline geometry title"/>
-            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdGeometryLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdGeometryLogo"/><a:srcRect l="12500" t="2500" r="5000" b="7500"/></pic:blipFill><pic:spPr><a:xfrm rot="5400000" flipH="1"><a:off x="12000" y="34000"/><a:ext cx="800000" cy="400000"/></a:xfrm></pic:spPr></pic:pic></a:graphicData></a:graphic>
           </wp:inline>
         </w:drawing>
       </w:r>
@@ -4595,7 +4595,13 @@ return [
         $t->same('/word/media/geometry-logo.png', $image->attr('sourcePart'));
         $t->same('Inline geometry alt', $image->attr('alt'));
         $t->same('Inline geometry title', $image->attr('title'));
-        $t->same(['docx-drawing-geometry', 'docx-drawing-inline'], $image->attr('classes'));
+        $t->same([
+            'docx-drawing-geometry',
+            'docx-drawing-inline',
+            'docx-picture-crop',
+            'docx-picture-transform',
+            'docx-picture-flip-horizontal',
+        ], $image->attr('classes'));
         $imageAttrs = $image->attr('attributes');
         $t->same('inline', $imageAttrs['data-docx-drawing-placement']);
         $t->same('914400', $imageAttrs['data-docx-width-emu']);
@@ -4606,6 +4612,16 @@ return [
         $t->same('4000', $imageAttrs['data-docx-effect-extent-bottom-emu']);
         $t->same('114300', $imageAttrs['data-docx-distance-left-emu']);
         $t->same('114300', $imageAttrs['data-docx-distance-right-emu']);
+        $t->same('12500', $imageAttrs['data-docx-picture-crop-left']);
+        $t->same('2500', $imageAttrs['data-docx-picture-crop-top']);
+        $t->same('5000', $imageAttrs['data-docx-picture-crop-right']);
+        $t->same('7500', $imageAttrs['data-docx-picture-crop-bottom']);
+        $t->same('5400000', $imageAttrs['data-docx-picture-rotation']);
+        $t->same('1', $imageAttrs['data-docx-picture-flip-horizontal']);
+        $t->same('12000', $imageAttrs['data-docx-picture-offset-x-emu']);
+        $t->same('34000', $imageAttrs['data-docx-picture-offset-y-emu']);
+        $t->same('800000', $imageAttrs['data-docx-picture-width-emu']);
+        $t->same('400000', $imageAttrs['data-docx-picture-height-emu']);
 
         $chart = $paragraph->children[3];
         $t->same('span', $chart->type);
@@ -4652,13 +4668,17 @@ return [
         $t->same('1', $textAttrs['data-docx-drawing-text-paragraphs']);
         $t->same('Geometry callout text', $shapeText->children[0]->attr('text'));
 
-        $t->contains('![Inline geometry alt](word/media/geometry-logo.png "Inline geometry title"){.docx-drawing-geometry .docx-drawing-inline data-docx-drawing-placement="inline"', $markdown);
+        $t->contains('![Inline geometry alt](word/media/geometry-logo.png "Inline geometry title"){.docx-drawing-geometry .docx-drawing-inline .docx-picture-crop .docx-picture-transform .docx-picture-flip-horizontal data-docx-drawing-placement="inline"', $markdown);
         $t->contains('data-docx-width-emu="914400"', $markdown);
+        $t->contains('data-docx-picture-crop-left="12500"', $markdown);
+        $t->contains('data-docx-picture-rotation="5400000"', $markdown);
         $t->contains('[DOCX chart: Anchored chart review]{.docx-drawing-placeholder .docx-drawing-chart .docx-drawing-geometry .docx-drawing-anchor .docx-wrap-square data-docx-drawing-kind="chart"', $markdown);
         $t->contains('data-docx-position-v-offset-emu="144000"', $markdown);
         $t->contains('[Geometry callout text]{.docx-drawing-text .docx-drawing-geometry .docx-drawing-inline data-docx-drawing-kind="text"', $markdown);
-        $t->contains('<img src="word/media/geometry-logo.png" alt="Inline geometry alt" title="Inline geometry title" class="docx-drawing-geometry docx-drawing-inline" data-docx-drawing-placement="inline"', $blocks);
+        $t->contains('<img src="word/media/geometry-logo.png" alt="Inline geometry alt" title="Inline geometry title" class="docx-drawing-geometry docx-drawing-inline docx-picture-crop docx-picture-transform docx-picture-flip-horizontal" data-docx-drawing-placement="inline"', $blocks);
         $t->contains('data-docx-width-emu="914400" data-docx-height-emu="457200"', $blocks);
+        $t->contains('data-docx-picture-crop-left="12500"', $blocks);
+        $t->contains('data-docx-picture-offset-x-emu="12000"', $blocks);
         $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart docx-drawing-geometry docx-drawing-anchor docx-wrap-square" data-docx-drawing-kind="chart"', $blocks);
         $t->contains('data-docx-position-h-align="right"', $blocks);
         $t->contains('<span class="docx-drawing-text docx-drawing-geometry docx-drawing-inline" data-docx-drawing-kind="text" data-docx-drawing-text-paragraphs="1" data-docx-docpr-id="73"', $blocks);

@@ -4323,6 +4323,125 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB XHTML meta refresh targets for static review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $refreshXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>Refresh review chapter</title>
+    <meta id="local-refresh" http-equiv="refresh" content="2.5; url=../text/chapter2.xhtml#media"/>
+    <meta id="remote-refresh" http-equiv="Refresh" content="0; URL='https://cdn.example.test/epub/redirect.xhtml'"/>
+    <meta id="missing-refresh" http-equiv="refresh" content="soon; url=missing.xhtml"/>
+    <meta id="no-url-refresh" http-equiv="refresh" content="10"/>
+  </head>
+  <body><p>XHTML meta refresh targets stay inert for WordPress import review.</p></body>
+</html>
+XML;
+        $opfWithRefreshContent = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="refresh-content" href="text/refresh.xhtml" media-type="application/xhtml+xml"/>'
+                . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithRefreshContent = str_replace(
+            '</spine>',
+            '<itemref idref="refresh-content"/></spine>',
+            $opfWithRefreshContent
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithRefreshContent,
+            null,
+            [
+                ['name' => 'OEBPS/text/refresh.xhtml', 'data' => $refreshXhtml],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/refresh.xhtml'];
+
+        $t->same(1, $report['refreshAssetCount'] ?? null);
+        $t->same(4, $report['refreshCount'] ?? null);
+        $t->same(4, $report['refreshReviewRequiredCount'] ?? null);
+        $t->same(1, $report['externalRefreshCount'] ?? null);
+        $t->same(1, $report['missingRefreshCount'] ?? null);
+        $t->same(3, $asset['referenceCount']);
+        $t->same(4, $asset['refreshCount']);
+        $t->same(4, $asset['refreshReviewRequiredCount']);
+        $t->same(1, $asset['externalRefreshCount']);
+        $t->same(1, $asset['missingRefreshCount']);
+        $t->same(['linked-resources', 'remote-resources', 'missing-references'], $asset['reviewFlags']);
+        $t->same(true, $asset['flags']['linkedResources']);
+        $t->same(true, $asset['flags']['remoteResources']);
+        $t->same(true, $asset['flags']['missingReferences']);
+
+        $local = $asset['refreshes'][0];
+        $t->same('local-refresh', $local['id']);
+        $t->same('refresh', $local['httpEquiv']);
+        $t->same('2.5; url=../text/chapter2.xhtml#media', $local['content']);
+        $t->same('2.5', $local['delayRaw']);
+        $t->same(2.5, $local['delaySeconds']);
+        $t->same('../text/chapter2.xhtml#media', $local['url']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $local['target']);
+        $t->same('/OEBPS/text/chapter2.xhtml', $local['part']);
+        $t->same('media', $local['fragment']);
+        $t->same(true, $local['exists']);
+        $t->same('chapter-2', $local['manifestId']);
+        $t->same('active-xhtml-meta-refresh', $local['diagnostics'][0]['type']);
+
+        $remote = $asset['refreshes'][1];
+        $t->same('remote-refresh', $remote['id']);
+        $t->same('0', $remote['delayRaw']);
+        $t->same(0.0, $remote['delaySeconds']);
+        $t->same('https://cdn.example.test/epub/redirect.xhtml', $remote['url']);
+        $t->same(true, $remote['external']);
+        $t->same('external-xhtml-meta-refresh-reference', $remote['diagnostics'][1]['type']);
+
+        $missing = $asset['refreshes'][2];
+        $t->same('missing-refresh', $missing['id']);
+        $t->same(null, $missing['delaySeconds']);
+        $t->same('/OEBPS/text/missing.xhtml', $missing['part']);
+        $t->same(false, $missing['exists']);
+        $t->same([
+            'active-xhtml-meta-refresh',
+            'invalid-xhtml-meta-refresh-delay',
+            'missing-xhtml-meta-refresh-reference',
+        ], array_column($missing['diagnostics'], 'type'));
+
+        $noUrl = $asset['refreshes'][3];
+        $t->same('no-url-refresh', $noUrl['id']);
+        $t->same('10', $noUrl['delayRaw']);
+        $t->same(10.0, $noUrl['delaySeconds']);
+        $t->same(null, $noUrl['url']);
+        $t->same(null, $noUrl['target']);
+        $t->same(['active-xhtml-meta-refresh', 'missing-xhtml-meta-refresh-url'], array_column($noUrl['diagnostics'], 'type'));
+
+        $refreshReferences = array_values(array_filter(
+            $asset['references'],
+            static fn (array $reference): bool => ($reference['element'] ?? null) === 'meta'
+                && ($reference['attribute'] ?? null) === 'content'
+        ));
+        $t->same(3, count($refreshReferences));
+        $t->same('../text/chapter2.xhtml#media', $refreshReferences[0]['href']);
+        $t->same('https://cdn.example.test/epub/redirect.xhtml', $refreshReferences[1]['href']);
+        $t->same('external-xhtml-meta-refresh-reference', $refreshReferences[1]['diagnostics'][0]['type']);
+        $t->same('missing-xhtml-meta-refresh-reference', $refreshReferences[2]['diagnostics'][0]['type']);
+
+        $remoteResources = $result['remoteResources'];
+        $t->same(1, $remoteResources['observedAssetCount']);
+        $t->same(1, $remoteResources['remoteReferenceCount']);
+        $t->same(1, $remoteResources['xhtmlExternalReferenceCount']);
+        $t->same('https://cdn.example.test/epub/redirect.xhtml', $remoteResources['observedItemsByPart']['/OEBPS/text/refresh.xhtml']['remoteReferences'][0]['target']);
+        $t->same('content', $remoteResources['observedItemsByPart']['/OEBPS/text/refresh.xhtml']['remoteReferences'][0]['attribute']);
+
+        $scanBlock = $result['document']->children[2];
+        $t->same('/OEBPS/text/refresh.xhtml', $scanBlock->attr('part'));
+        $t->same($asset['refreshes'], $scanBlock->attr('contentRefreshes'));
+        $t->same($asset['refreshDiagnostics'], $scanBlock->attr('contentRefreshDiagnostics'));
+        $t->same($asset['references'], $scanBlock->attr('contentReferences'));
+        $t->same($asset['reviewFlags'], $scanBlock->attr('contentResourceReviewFlags'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reports EPUB stylesheet resource references for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithCssAssets = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

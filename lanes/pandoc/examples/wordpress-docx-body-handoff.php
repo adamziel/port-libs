@@ -591,7 +591,7 @@ XML],
       </w:sdt>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
-    <w:p><w:r><w:drawing><wp:inline distL="114300" distR="114300"><wp:extent cx="914400" cy="457200"/><wp:effectExtent l="1000" t="2000" r="3000" b="4000"/><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline><wp:anchor><wp:docPr id="10" name="Review chart" descr="Linked review chart alt" title="Linked review chart"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link="rIdExternalChart"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>
+    <w:p><w:r><w:drawing><wp:inline distL="114300" distR="114300"><wp:extent cx="914400" cy="457200"/><wp:effectExtent l="1000" t="2000" r="3000" b="4000"/><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/><a:srcRect l="12500" t="2500" r="5000" b="7500"/></pic:blipFill><pic:spPr><a:xfrm rot="5400000" flipH="1"><a:off x="12000" y="34000"/><a:ext cx="800000" cy="400000"/></a:xfrm></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline><wp:anchor><wp:docPr id="10" name="Review chart" descr="Linked review chart alt" title="Linked review chart"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link="rIdExternalChart"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>
     <w:p><w:r><w:pict><v:shape id="_x0000_i42" alt="VML badge alt"><v:imagedata r:id="rIdVmlBadge" o:title="VML badge title"/></v:shape></w:pict></w:r></w:p>
     <w:p>
       <w:r><w:t xml:space="preserve">Office drawing review </w:t></w:r>
@@ -1084,6 +1084,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['media']['items'][3]['source'] ?? '') !== '/word/glossary/document.xml' || ($summary['importReport']['media']['items'][3]['bytes'] ?? 0) !== 11) {
         throw new RuntimeException('DOCX body handoff self-test missing glossary image media handoff');
     }
+    if (!str_contains($summary['wordpressBlocks'], 'class="docx-drawing-geometry docx-drawing-inline docx-picture-crop docx-picture-transform docx-picture-flip-horizontal"')) {
+        throw new RuntimeException('DOCX body handoff self-test missing DrawingML picture crop/transform classes');
+    }
+    if (!str_contains($summary['wordpressBlocks'], 'data-docx-picture-crop-left="12500"') || !str_contains($summary['wordpressBlocks'], 'data-docx-picture-rotation="5400000"')) {
+        throw new RuntimeException('DOCX body handoff self-test missing DrawingML picture crop/rotation attributes');
+    }
+    if (!str_contains($summary['wordpressBlocks'], 'data-docx-picture-offset-x-emu="12000"') || !str_contains($summary['wordpressBlocks'], 'data-docx-picture-width-emu="800000"')) {
+        throw new RuntimeException('DOCX body handoff self-test missing DrawingML picture transform extents');
+    }
     if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 6 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 8) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
     }
@@ -1338,7 +1347,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Content-control checklist for reviewer handoff.</p>',
         '<span class="docx-content-control docx-content-control-checkbox" data-docx-sdt-id="142" data-docx-sdt-alias="Approval Checkbox" data-docx-sdt-tag="approval_checkbox" data-docx-sdt-type="checkbox" data-docx-sdt-checkbox-checked="false" data-docx-sdt-checkbox-checked-state-value="2612" data-docx-sdt-checkbox-checked-state-font="MS Gothic" data-docx-sdt-checkbox-unchecked-state-value="2610" data-docx-sdt-checkbox-unchecked-state-font="MS Gothic">Needs review</span>',
         '<span class="docx-content-control docx-content-control-drop-down-list" data-docx-sdt-id="143" data-docx-sdt-alias="Publish Target" data-docx-sdt-tag="publish_target" data-docx-sdt-type="drop-down-list" data-docx-sdt-list-kind="drop-down-list" data-docx-sdt-list-last-value="publish" data-docx-sdt-list-item-1-display-text="Draft review" data-docx-sdt-list-item-1-value="draft" data-docx-sdt-list-item-2-display-text="Publish to site" data-docx-sdt-list-item-2-value="publish" data-docx-sdt-list-item-count="2">Publish to site</span>',
-        '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero" class="docx-drawing-geometry docx-drawing-inline" data-docx-drawing-placement="inline"',
+        '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero" class="docx-drawing-geometry docx-drawing-inline docx-picture-crop docx-picture-transform docx-picture-flip-horizontal" data-docx-drawing-placement="inline"',
         'data-docx-width-emu="914400" data-docx-height-emu="457200"',
         '<img src="https://cdn.example.test/docx-review-chart.png" alt="Linked review chart alt" title="Linked review chart"/>',
         '<img src="word/media/vml-badge.png" alt="VML badge alt" title="VML badge title"/>',

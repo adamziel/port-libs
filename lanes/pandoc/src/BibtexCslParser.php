@@ -615,6 +615,9 @@ final class BibtexCslParser
         if ($eventPlace === '') {
             $eventPlace = self::firstField($fields, ['venue', 'eventvenue', 'eventlocation', 'eventplace']);
         }
+        $archive = self::firstField($fields, ['archiveprefix', 'eprinttype', 'archive']);
+        $archivePlace = self::firstField($fields, ['eprintclass', 'archiveplace', 'archive-place']);
+        $archiveLocation = self::firstField($fields, ['eprint', 'archive_location', 'archive-location']);
         $item = [
             'id' => $key,
             'type' => self::cslType($type),
@@ -693,9 +696,10 @@ final class BibtexCslParser
             'ISWC' => self::firstField($fields, ['iswc']),
             'PMID' => self::firstField($fields, ['pmid']),
             'PMCID' => self::firstField($fields, ['pmcid']),
-            'archive' => self::firstField($fields, ['archiveprefix', 'eprinttype', 'archive']),
-            'archive-place' => self::firstField($fields, ['eprintclass', 'archiveplace', 'archive-place']),
-            'archive_location' => self::firstField($fields, ['eprint', 'archive_location', 'archive-location']),
+            'archive' => $archive,
+            'archive-place' => $archivePlace,
+            'archive_location' => $archiveLocation,
+            'archive-summary' => self::archiveSummary($archive, $archivePlace, $archiveLocation),
             'call-number' => self::firstField($fields, ['callnumber', 'call-number', 'library']),
             'language' => self::literalListDisplay($languageList) ?: self::firstField($fields, ['langid', 'hyphenation']),
             'abstract' => self::firstField($fields, ['abstract', 'annote', 'annotation']),
@@ -1482,6 +1486,19 @@ final class BibtexCslParser
     private static function literalListDisplay(array $values): string
     {
         return implode('; ', $values);
+    }
+
+    private static function archiveSummary(string $archive, string $archivePlace, string $archiveLocation): string
+    {
+        if ($archive !== '' && $archiveLocation !== '') {
+            return $archive . ':' . $archiveLocation . ($archivePlace !== '' ? ' [' . $archivePlace . ']' : '');
+        }
+
+        if ($archiveLocation !== '') {
+            return $archiveLocation . ($archivePlace !== '' ? ' [' . $archivePlace . ']' : '');
+        }
+
+        return implode(' ', array_values(array_filter([$archive, $archivePlace], static fn (string $value): bool => $value !== '')));
     }
 
     /**

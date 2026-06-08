@@ -2179,7 +2179,7 @@ return [
         $rootStartSector = substr_replace($rootWithoutMiniStreamBytes, $u32(2), $directorySectorOffset + 116, 4);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($rootStartSector));
     },
-    'rejects malformed active CFB directory entry names before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u16, $u32): void {
+    'rejects malformed active CFB directory entry names before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u16, $u32, $utf16le): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',
             'Review/Notes' => 'review stream bytes',
@@ -2193,6 +2193,15 @@ return [
         $orphanedReviewStorage = substr_replace($bytes, $u32(0xffffffff), $directorySectorOffset + 128 + 68, 4);
         $invalidNameLength = substr_replace($orphanedReviewStorage, $u16(65), $directorySectorOffset + (2 * 128) + 64, 2);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($invalidNameLength));
+
+        $emptyActiveName = substr_replace($bytes, str_repeat("\0", 64), $directorySectorOffset + 128, 64);
+        $emptyActiveName = substr_replace($emptyActiveName, $u16(2), $directorySectorOffset + 128 + 64, 2);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($emptyActiveName));
+
+        $embeddedNullName = $utf16le("Word\0Document");
+        $embeddedNullActiveName = substr_replace($bytes, str_pad($embeddedNullName . "\0\0", 64, "\0"), $directorySectorOffset + 128, 64);
+        $embeddedNullActiveName = substr_replace($embeddedNullActiveName, $u16(strlen($embeddedNullName) + 2), $directorySectorOffset + 128 + 64, 2);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($embeddedNullActiveName));
     },
     'rejects red CFB directory sibling-tree roots before stream lookup' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([

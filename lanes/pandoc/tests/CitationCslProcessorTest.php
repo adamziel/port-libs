@@ -3395,6 +3395,85 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>', $blocks);
     },
+    'maps bounded biblatex eprint archive summaries into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{eprint-source,
+  author      = {Doe, Jane},
+  title       = {Eprint Archive Packet},
+  date        = {2026},
+  eprint      = {2401.01234},
+  eprinttype  = {arXiv},
+  eprintclass = {cs.DL}
+}
+
+@misc{archive-only-source,
+  author  = {{Repository Desk}},
+  title   = {Archive Only Packet},
+  date    = {2025},
+  archive = {HAL},
+  eprint  = {hal-041234}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('arXiv:2401.01234 [cs.DL]', $items[0]['archive-summary'] ?? null);
+        $t->same('HAL:hal-041234', $items[1]['archive-summary'] ?? null);
+        $t->same('arXiv', $items[0]['rawBibtex']['fields']['eprinttype'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $source = $processor->item('eprint-source');
+        $archiveOnly = $processor->item('archive-only-source');
+        $t->same('arXiv:2401.01234 [cs.DL]', $source['archiveSummary'] ?? null);
+        $t->same('HAL:hal-041234', $archiveOnly['archiveSummary'] ?? null);
+        $t->same(
+            'Doe, Jane. Eprint Archive Packet. 2026. Archive: arXiv cs.DL 2401.01234.',
+            $processor->renderBibliographyEntry('eprint-source')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="eprint-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="archive-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Doe | arXiv:2401.01234 [cs.DL]; Repository Desk | HAL:hal-041234]', $styled->renderCitationCluster([
+            $citation('eprint-source', '[@eprint-source]'),
+            $citation('archive-only-source', '[@archive-only-source]'),
+        ]));
+        $t->same('Eprint Archive Packet :: arXiv:2401.01234 [cs.DL]', $styled->renderBibliographyEntry('eprint-source'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-eprint',
+            'title' => 'Manual Eprint Packet',
+            'archive' => 'SSRN',
+            'archive-location' => '4123456',
+        ], [
+            'id' => 'manual-summary',
+            'title' => 'Manual Summary Packet',
+            'archive-summary' => 'Repository:manual-id',
+        ]]);
+        $t->same('SSRN:4123456', $direct->item('manual-eprint')['archiveSummary'] ?? null);
+        $t->same('Repository:manual-id', $direct->item('manual-summary')['archiveSummary'] ?? null);
+
+        $document = (new MarkdownReader())->read('Eprint source [@eprint-source] and archive [@archive-only-source] keep repository IDs visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Eprint source [Doe | arXiv:2401.01234 [cs.DL]] and archive [Repository Desk | HAL:hal-041234] keep repository IDs visible.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Eprint Archive Packet :: arXiv:2401.01234 [cs.DL]</dd>', $blocks);
+    },
     'maps bounded biblatex pubmed identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{pubmed-article,

@@ -823,6 +823,11 @@ final class CitationCslProcessor
         $publisherPlace = self::stringField($item, 'publisher-place');
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'origpublisher']);
         $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'origlocation', 'origaddress']);
+        $archive = self::stringField($item, 'archive');
+        $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace']);
+        $archiveLocation = self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation']);
+        $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'eprint-summary', 'eprintSummary'])
+            ?: self::archiveSummary($archive, $archivePlace, $archiveLocation);
         $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
         $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList']);
@@ -976,9 +981,10 @@ final class CitationCslProcessor
             'iswc' => self::firstStringField($item, ['ISWC', 'iswc']),
             'pmid' => self::firstStringField($item, ['PMID', 'pmid']),
             'pmcid' => self::firstStringField($item, ['PMCID', 'pmcid']),
-            'archive' => self::stringField($item, 'archive'),
-            'archivePlace' => self::firstStringField($item, ['archive-place', 'archivePlace']),
-            'archiveLocation' => self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation']),
+            'archive' => $archive,
+            'archivePlace' => $archivePlace,
+            'archiveLocation' => $archiveLocation,
+            'archiveSummary' => $archiveSummary,
             'callNumber' => self::firstStringField($item, ['call-number', 'callNumber', 'callnumber', 'library']),
             'language' => $language,
             'languageList' => $languageList !== [] ? $languageList : ($language !== '' ? [$language] : []),
@@ -1155,6 +1161,19 @@ final class CitationCslProcessor
         }
 
         return self::firstStringField($item, ['shorthand']);
+    }
+
+    private static function archiveSummary(string $archive, string $archivePlace, string $archiveLocation): string
+    {
+        if ($archive !== '' && $archiveLocation !== '') {
+            return $archive . ':' . $archiveLocation . ($archivePlace !== '' ? ' [' . $archivePlace . ']' : '');
+        }
+
+        if ($archiveLocation !== '') {
+            return $archiveLocation . ($archivePlace !== '' ? ' [' . $archivePlace . ']' : '');
+        }
+
+        return implode(' ', array_values(array_filter([$archive, $archivePlace], static fn (string $value): bool => $value !== '')));
     }
 
     /**
@@ -7744,6 +7763,7 @@ final class CitationCslProcessor
             'archive' => (string) $item['archive'],
             'archive-place' => (string) $item['archivePlace'],
             'archive_location', 'archive-location' => (string) $item['archiveLocation'],
+            'archive-summary', 'archive-summary-text', 'eprint-summary', 'eprintsummary' => (string) ($item['archiveSummary'] ?? ''),
             'call-number', 'callnumber' => (string) $item['callNumber'],
             'language' => (string) $item['language'],
             'language-list' => implode('; ', is_array($item['languageList'] ?? null) ? $item['languageList'] : []),
