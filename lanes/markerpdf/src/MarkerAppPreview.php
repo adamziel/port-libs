@@ -2796,7 +2796,7 @@ final class MarkerAppPreview
             return $this->decodePdfByteString($this->decodeLiteralString(substr($value, 1, -1)));
         }
 
-        if (preg_match('/^<([\da-fA-F\s]+)>$/s', $value, $match) === 1) {
+        if (preg_match('/^<([\da-fA-F\s]*)>$/s', $value, $match) === 1) {
             $hex = preg_replace('/\s+/', '', $match[1]);
             if ($hex === null || $hex === '') {
                 return '';

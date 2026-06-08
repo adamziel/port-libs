@@ -357,6 +357,8 @@ final class PdfTextDocumentExtractor
             if ($nestedPageList !== null) {
                 return $nestedPageList;
             }
+
+            return null;
         }
 
         $malformedPageListKey = false;

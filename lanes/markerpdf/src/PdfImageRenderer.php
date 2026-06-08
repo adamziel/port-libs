@@ -8664,8 +8664,8 @@ final class PdfImageRenderer
     }
 
     /**
-     * @param array<int, string> $objects
-     * @param array<int, true> $seenObjects
+     * @param array<int|string, mixed> $objects
+     * @param array<string, true> $seenObjects
      */
     private function booleanFromPdfValue(string $value, array $objects, array $seenObjects = []): ?bool
     {
@@ -8677,14 +8677,22 @@ final class PdfImageRenderer
             return false;
         }
 
-        $objectNumber = $this->objectReferenceNumber($trimmed);
-        if ($objectNumber === null || isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+        $reference = $this->pdfIndirectReferenceTokenAt($trimmed, 0);
+        if ($reference === null || $this->skipPdfWhitespace($trimmed, $reference['endOffset']) !== strlen($trimmed)) {
             return null;
         }
 
-        $seenObjects[$objectNumber] = true;
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $seenKey = $objectNumber . ':' . $generation;
+        $objectBody = $this->pdfObjectMapValueForReference($objects, $objectNumber, $generation);
+        if (isset($seenObjects[$seenKey]) || $objectBody === null) {
+            return null;
+        }
 
-        return $this->booleanFromPdfValue(trim($objects[$objectNumber]), $objects, $seenObjects);
+        $seenObjects[$seenKey] = true;
+
+        return $this->booleanFromPdfValue(trim($objectBody), $objects, $seenObjects);
     }
 
     private function decodeAsciiHexStream(string $stream): ?string
