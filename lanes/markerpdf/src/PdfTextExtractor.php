@@ -4650,7 +4650,12 @@ final class PdfTextExtractor
         }
 
         $resourceObjects = [];
+        $duplicateResourceNames = $this->duplicateTopLevelResourceEntryNames($xObjectDictionary);
         foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary, true) as $resourceName => $resource) {
+            if (isset($duplicateResourceNames[$resourceName])) {
+                continue;
+            }
+
             $objectNumber = $resource['objectNumber'];
             $generation = $resource['generation'];
             $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);

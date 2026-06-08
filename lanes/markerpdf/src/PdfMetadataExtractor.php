@@ -5776,11 +5776,25 @@ final class PdfMetadataExtractor
     private function documentDestinationEntryValueMap(array $entries, array $objects, array $pageIndexes): array
     {
         $destinations = [];
+        $decodedCollisionNames = $this->documentDestinationDecodedCollisionNames($entries);
         foreach ($entries as $entry) {
             if (!$this->documentDestinationValueAllowedForMap($entry['value'], $objects, $pageIndexes)) {
                 continue;
             }
-            if ($entry['source'] === 'names_dests' || !isset($destinations[$entry['name']])) {
+            if ($entry['source'] === 'names_dests') {
+                if (is_string($entry['name_key'] ?? null)) {
+                    $destinations[$entry['name_key']] = $entry['value'];
+                }
+                if (isset($decodedCollisionNames[$entry['name']])) {
+                    unset($destinations[$entry['name']]);
+                    continue;
+                }
+
+                $destinations[$entry['name']] = $entry['value'];
+                continue;
+            }
+
+            if (!isset($decodedCollisionNames[$entry['name']]) && !isset($destinations[$entry['name']])) {
                 $destinations[$entry['name']] = $entry['value'];
             }
         }
@@ -6650,16 +6664,18 @@ final class PdfMetadataExtractor
             return [];
         }
 
-        $firstName = $this->destinationNameFromRaw($value, $objects);
-        if ($firstName === null) {
+        $firstKey = $this->documentDestinationLookupKeyFromRaw($value, $objects);
+        if ($firstKey === null) {
             return [];
         }
 
         $chain = [];
         $seen = [];
+        $firstName = $this->documentDestinationNameFromLookupKey($firstKey);
+        $currentKey = $firstKey;
         $currentName = $firstName;
         for ($depth = 0; $depth < 32; $depth++) {
-            if (isset($seen[$currentName])) {
+            if (isset($seen[$currentKey])) {
                 $chain[] = $currentName;
 
                 return [
@@ -6672,8 +6688,8 @@ final class PdfMetadataExtractor
             }
 
             $chain[] = $currentName;
-            $seen[$currentName] = true;
-            if (!array_key_exists($currentName, $destinationsByName)) {
+            $seen[$currentKey] = true;
+            if (!array_key_exists($currentKey, $destinationsByName)) {
                 if (count($chain) < 2) {
                     return [];
                 }
@@ -6687,8 +6703,8 @@ final class PdfMetadataExtractor
                 ];
             }
 
-            $nextName = $this->destinationNameFromRaw($destinationsByName[$currentName], $objects);
-            if ($nextName === null) {
+            $nextKey = $this->documentDestinationLookupKeyFromRaw($destinationsByName[$currentKey], $objects);
+            if ($nextKey === null) {
                 if (count($chain) < 2) {
                     return [];
                 }
@@ -6702,7 +6718,8 @@ final class PdfMetadataExtractor
                 ];
             }
 
-            $currentName = $nextName;
+            $currentKey = $nextKey;
+            $currentName = $this->documentDestinationNameFromLookupKey($currentKey);
         }
 
         return [
@@ -7990,6 +8007,13 @@ final class PdfMetadataExtractor
         return $name . "\0" . bin2hex($bytes);
     }
 
+    private function documentDestinationNameFromLookupKey(string $key): string
+    {
+        $offset = strpos($key, "\0");
+
+        return $offset === false ? $key : substr($key, 0, $offset);
+    }
+
     /**
      * @param list<array{name: string, value: string, source: string, name_bytes?: string}> $entries
      * @return array<string, true>
@@ -8632,19 +8656,19 @@ final class PdfMetadataExtractor
             return $this->documentDestinationRow($page, $destinationName, null, []);
         }
 
-        $name = $this->destinationNameFromRaw($trimmed, $objects);
-        if ($name !== null && array_key_exists($name, $destinationsByName)) {
-            if (isset($seenNames[$name])) {
+        $lookupKey = $this->documentDestinationLookupKeyFromRaw($trimmed, $objects);
+        if ($lookupKey !== null && array_key_exists($lookupKey, $destinationsByName)) {
+            if (isset($seenNames[$lookupKey])) {
                 return null;
             }
-            $seenNames[$name] = true;
+            $seenNames[$lookupKey] = true;
 
             return $this->documentDestinationDetails(
-                $destinationsByName[$name],
+                $destinationsByName[$lookupKey],
                 $objects,
                 $pageIndexes,
                 $destinationsByName,
-                $name,
+                $this->documentDestinationNameFromLookupKey($lookupKey),
                 $seenNames,
                 $seenObjects,
                 $depth + 1
@@ -8690,6 +8714,23 @@ final class PdfMetadataExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function documentDestinationLookupKeyFromRaw(string $value, array $objects): ?string
+    {
+        if ($this->destinationValueHasTrailingOperandAfterResolution($value, $objects)) {
+            return null;
+        }
+
+        $string = $this->destinationNameDetailsFromRaw($value, $objects);
+        if ($string !== null && $string['text'] !== '') {
+            return $this->documentDestinationNameEntryKey($string['text'], $string['bytes']);
+        }
+
+        return $this->destinationNameFromRaw($value, $objects);
     }
 
     /**
