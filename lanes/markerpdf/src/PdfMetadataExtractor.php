@@ -10807,36 +10807,53 @@ final class PdfMetadataExtractor
             'AuthEvent' => 'auth_event',
             'Length' => 'key_length_bytes',
         ] as $pdfName => $metadataKey) {
-            $values = $this->dictionaryTopLevelRawValues($filterBody, $pdfName);
-            $entryCount = count($values);
+            $valueReviews = $this->dictionaryTopLevelValueReviews($filterBody, $pdfName);
+            $entryCount = count($valueReviews);
             if ($entryCount === 0) {
                 continue;
             }
 
             $entryCounts[$pdfName] = $entryCount;
             $entries = [];
-            foreach ($values as $index => $value) {
+            foreach ($valueReviews as $index => $valueReview) {
+                $value = is_string($valueReview['value'] ?? null) ? $valueReview['value'] : '';
                 $resolved = $this->resolvePdfValue($value, $objects);
-                $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
+                $resolvedValue = $resolved ?? $value;
+                $unresolvedReference = $resolved === null && $this->objectReferenceFromValue($value) !== null;
+                $firstToken = $this->firstPdfValueToken($resolvedValue);
+                $singleValue = ($valueReview['single_value'] ?? true) === true
+                    && ($unresolvedReference || $firstToken === '' || $this->pdfValueIsSingleToken($resolvedValue, $firstToken));
+                $valueForReview = $unresolvedReference
+                    ? $value
+                    : ($firstToken !== '' ? $firstToken : $this->trimPdfWhitespaceAndComments($resolvedValue));
                 $operandShape = $this->cryptFilterParameterOperandShape($valueForReview);
-                $entries[] = [
+                $entry = [
                     'source' => 'crypt_filter_parameter_entry_review',
                     'index' => $index,
                     'pdf_name' => $pdfName,
                     'metadata_key' => $metadataKey,
                     'resolved' => $resolved !== null,
                     'operand_shape' => $operandShape,
-                    'status' => $this->cryptFilterParameterEntryStatus(
-                        $pdfName,
-                        $value,
-                        $valueForReview,
-                        $operandShape,
-                        $resolved !== null
-                    ),
+                    'single_value' => $singleValue,
+                    'status' => !$singleValue
+                        ? 'crypt_filter_parameter_trailing_operand_review'
+                        : $this->cryptFilterParameterEntryStatus(
+                            $pdfName,
+                            $value,
+                            $valueForReview,
+                            $operandShape,
+                            $resolved !== null
+                        ),
                     'review_only' => true,
                     'executes_decryption' => false,
                     'executes_permission_enforcement' => false,
                 ];
+                if (!$singleValue) {
+                    $entry += ($valueReview['single_value'] ?? true) !== true
+                        ? $this->topLevelTrailingOperandReviewFromValueReview($valueReview)
+                        : $this->topLevelTrailingOperandReview($resolvedValue, $firstToken);
+                }
+                $entries[] = $entry;
             }
 
             $duplicate = $entryCount > 1;
@@ -10851,13 +10868,23 @@ final class PdfMetadataExtractor
                 $malformedNames[] = $pdfName;
             }
 
+            $selectedEntryIndex = $entryCount - 1;
+            $selectedEntry = $entries[$selectedEntryIndex] ?? [];
             $rows[] = [
                 'source' => 'crypt_filter_parameter_declaration_row',
                 'pdf_name' => $pdfName,
                 'metadata_key' => $metadataKey,
                 'declared_entry_count' => $entryCount,
                 'duplicate_entries' => $duplicate,
-                'selected_entry_index' => $entryCount - 1,
+                'selected_entry_index' => $selectedEntryIndex,
+                'selected_entry_status' => is_string($selectedEntry['status'] ?? null) ? $selectedEntry['status'] : null,
+                'selected_entry_operand_shape' => is_string($selectedEntry['operand_shape'] ?? null) ? $selectedEntry['operand_shape'] : null,
+                'selected_entry_resolved' => array_key_exists('resolved', $selectedEntry)
+                    ? (bool) $selectedEntry['resolved']
+                    : null,
+                'selected_entry_single_value' => array_key_exists('single_value', $selectedEntry)
+                    ? (bool) $selectedEntry['single_value']
+                    : null,
                 'entry_operand_shapes' => $this->uniqueStrings(array_values(array_filter(
                     array_map(
                         static fn (array $entry): mixed => $entry['operand_shape'] ?? null,
