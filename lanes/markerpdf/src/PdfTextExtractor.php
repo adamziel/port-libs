@@ -36660,7 +36660,7 @@ final class PdfTextExtractor
     private function cMapDeclaredOperatorCountBefore(string $cmap, int $beginOffset): ?int
     {
         $end = $beginOffset;
-        while ($end > 0 && ctype_space($cmap[$end - 1])) {
+        while ($end > 0 && $this->isPdfWhitespace($cmap[$end - 1])) {
             $end--;
         }
 
@@ -37256,7 +37256,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
@@ -37327,7 +37327,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
