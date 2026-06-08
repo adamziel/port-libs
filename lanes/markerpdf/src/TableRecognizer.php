@@ -2312,8 +2312,28 @@ final class TableRecognizer
             }
         }
 
-        return $this->hasPositiveBboxValue($table['bbox'] ?? null)
+        return $this->hasSavedTabledResultCropBbox($table)
             && $this->hasPositiveBboxValue($table['image_bbox'] ?? null);
+    }
+
+    /**
+     * Saved tabled TableResult rows/cols keep x1,x2,y1,y2 band arrays even
+     * when a native supplied adapter names the crop with a table-bbox alias.
+     *
+     * @param array<string, mixed> $record
+     */
+    private function hasSavedTabledResultCropBbox(array $record): bool
+    {
+        foreach (['bbox', 'table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox'] as $key) {
+            if (!array_key_exists($key, $record)) {
+                continue;
+            }
+            if ($this->hasPositiveBboxValue($record[$key])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasPositiveBboxValue(mixed $value): bool
@@ -2537,7 +2557,7 @@ final class TableRecognizer
             return false;
         }
 
-        return $this->hasPositiveBboxValue($container['bbox'] ?? null)
+        return $this->hasSavedTabledResultCropBbox($container)
             && $this->hasPositiveBboxValue($container['image_bbox'] ?? null);
     }
 

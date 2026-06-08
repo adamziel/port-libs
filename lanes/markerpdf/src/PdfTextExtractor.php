@@ -49433,6 +49433,7 @@ final class PdfTextExtractor
                 $exactIsZeroPadding = preg_match('/^(?:00)+$/', $exact) === 1;
                 if (
                     $this->sourceKeyIsMappedForZeroPaddedWidth($exact, $widthMap, $mappings)
+                    && $this->sourceKeyHasFontWidthEvidence($exact, $toUnicodeMap)
                     && (!$exactIsZeroPadding || $this->toUnicodeSourceKeyIsMapped($exact, $toUnicodeMap))
                 ) {
                     $keys[] = $exact;
@@ -49467,9 +49468,11 @@ final class PdfTextExtractor
                     if (!$combinedHasCidMapping) {
                         $combinedHasCidMapping = $this->cidFromCidRangesForSourceKey($combined, $toUnicodeMap) !== null;
                     }
+                    $combinedCid = $this->cidForWidthSourceKey($combined, $toUnicodeMap);
+                    $combinedHasWidthEvidence = $this->fontWidthMapContainsCid($combinedCid, $toUnicodeMap);
                     if (
                         $suffixCid !== null
-                        && !$combinedHasCidMapping
+                        && (!$combinedHasCidMapping || !$combinedHasWidthEvidence)
                         && $this->fontWidthMapContainsCid($suffixCid, $toUnicodeMap)
                     ) {
                         $keys[] = $suffix;
@@ -49479,7 +49482,7 @@ final class PdfTextExtractor
                         break;
                     }
 
-                    if (strlen($combined) > 8 || !$this->fontWidthMapContainsCid(hexdec($combined), $toUnicodeMap)) {
+                    if (strlen($combined) > 8 || !$combinedHasWidthEvidence) {
                         break;
                     }
 
@@ -49525,6 +49528,11 @@ final class PdfTextExtractor
         }
 
         $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
+        $cidSet = $toUnicodeMap['cidSet'] ?? null;
+        if (is_array($cidSet) && !isset($cidSet[$cid])) {
+            return false;
+        }
+
         if (
             (is_int($defaultWidth) || is_float($defaultWidth))
             && $this->finiteHorizontalFontAdvanceMetric((float) $defaultWidth) !== null
@@ -49668,6 +49676,11 @@ final class PdfTextExtractor
 
         $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
         $cid = $this->cidForWidthSourceKey($sourceKey, $toUnicodeMap);
+        $cidSet = $toUnicodeMap['cidSet'] ?? null;
+        if (is_array($cidSet) && !isset($cidSet[$cid])) {
+            return false;
+        }
+
         if (
             (is_int($defaultWidth) || is_float($defaultWidth))
             && $this->finiteHorizontalFontAdvanceMetric((float) $defaultWidth) !== null
