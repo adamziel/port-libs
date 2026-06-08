@@ -191,6 +191,9 @@ final class PdfTextDocumentExtractor
             if (!is_array($page) || !array_key_exists('blocks', $page)) {
                 return $this->suppliedDictionaryPageListFallback($pages);
             }
+            if ($pageKey < 0) {
+                throw new InvalidArgumentException('Supplied pdftext page map keys must be zero or greater.');
+            }
 
             $pageKeyFingerprint = (string) $pageKey;
             if (isset($seenPageKeys[$pageKeyFingerprint])) {

@@ -10967,6 +10967,36 @@ final class PdfMetadataExtractor
             $parameterDeclarationReview['malformed_parameter_names'] ?? [],
             static fn (mixed $name): bool => is_string($name)
         ));
+        $malformedParameterStatuses = [];
+        $malformedParameterOperandShapes = [];
+        $malformedParameterTrailingOperandShapes = [];
+        foreach ($parameterDeclarationReview['rows'] ?? [] as $row) {
+            if (!is_array($row) || ($row['malformed_entries'] ?? false) !== true) {
+                continue;
+            }
+
+            foreach ($row['entries'] ?? [] as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $status = is_string($entry['status'] ?? null) ? $entry['status'] : null;
+                if ($status === null || $status === 'standard_security_handler_parameter_entry_well_formed') {
+                    continue;
+                }
+
+                $malformedParameterStatuses[] = $status;
+                if (is_string($entry['operand_shape'] ?? null)) {
+                    $malformedParameterOperandShapes[] = $entry['operand_shape'];
+                }
+                if (is_string($entry['trailing_operand_shape'] ?? null)) {
+                    $malformedParameterTrailingOperandShapes[] = $entry['trailing_operand_shape'];
+                }
+            }
+        }
+        $malformedParameterStatuses = $this->uniqueStrings($malformedParameterStatuses);
+        $malformedParameterOperandShapes = $this->uniqueStrings($malformedParameterOperandShapes);
+        $malformedParameterTrailingOperandShapes = $this->uniqueStrings($malformedParameterTrailingOperandShapes);
         $malformedParameterNameSet = array_fill_keys($malformedParameterNames, true);
         if (isset($malformedParameterNameSet['Length'])) {
             $keyLength = [
@@ -11036,6 +11066,9 @@ final class PdfMetadataExtractor
             'duplicate_parameter_count' => count($duplicateParameterNames),
             'malformed_parameter_names' => $malformedParameterNames,
             'malformed_parameter_count' => count($malformedParameterNames),
+            'malformed_parameter_statuses' => $malformedParameterStatuses,
+            'malformed_parameter_operand_shapes' => $malformedParameterOperandShapes,
+            'malformed_parameter_trailing_operand_shapes' => $malformedParameterTrailingOperandShapes,
             'parameter_declaration_fail_closed' => (bool) ($parameterDeclarationReview['fail_closed'] ?? false),
             'parameters_well_formed' => $violations === [],
             'status' => $violations === []

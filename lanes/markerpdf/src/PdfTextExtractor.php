@@ -47870,13 +47870,15 @@ final class PdfTextExtractor
     {
         $usesCidMapForWordSpacing = ($toUnicodeMap['wordSpacingUsesCidMap'] ?? false) === true;
         $cidMap = $toUnicodeMap['cidMap'] ?? [];
-        if (
-            $usesCidMapForWordSpacing
-            && is_array($cidMap)
-            && array_key_exists($sourceKey, $cidMap)
-            && is_int($cidMap[$sourceKey])
-        ) {
-            return $cidMap[$sourceKey] === 0x20;
+        if ($usesCidMapForWordSpacing) {
+            if (is_array($cidMap) && array_key_exists($sourceKey, $cidMap) && is_int($cidMap[$sourceKey])) {
+                return $cidMap[$sourceKey] === 0x20;
+            }
+
+            $rangeCid = $this->cidFromCidRangesForSourceKey($sourceKey, $toUnicodeMap);
+            if ($rangeCid !== null) {
+                return $rangeCid === 0x20;
+            }
         }
 
         if (hexdec($sourceKey) === 0x20) {

@@ -432,6 +432,15 @@ final class PdfSecurityPreflight
                 ? $standardParameterReview['malformed_parameter_names']
                 : [],
             'standard_security_handler_malformed_parameter_count' => (int) ($standardParameterReview['malformed_parameter_count'] ?? 0),
+            'standard_security_handler_malformed_parameter_statuses' => is_array($standardParameterReview['malformed_parameter_statuses'] ?? null)
+                ? $standardParameterReview['malformed_parameter_statuses']
+                : [],
+            'standard_security_handler_malformed_parameter_operand_shapes' => is_array($standardParameterReview['malformed_parameter_operand_shapes'] ?? null)
+                ? $standardParameterReview['malformed_parameter_operand_shapes']
+                : [],
+            'standard_security_handler_malformed_parameter_trailing_operand_shapes' => is_array($standardParameterReview['malformed_parameter_trailing_operand_shapes'] ?? null)
+                ? $standardParameterReview['malformed_parameter_trailing_operand_shapes']
+                : [],
             'standard_security_handler_parameter_declaration_fail_closed' => (bool) ($standardParameterReview['parameter_declaration_fail_closed'] ?? false),
             'security_handler_declaration_review' => $securityHandlerDeclarationReview,
             'security_handler_declaration_status' => $securityHandlerDeclarationReview['status'] ?? null,
@@ -2659,6 +2668,15 @@ final class PdfSecurityPreflight
                 ? $standardParameterReview['malformed_parameter_names']
                 : [],
             'standard_security_handler_malformed_parameter_count' => (int) ($standardParameterReview['malformed_parameter_count'] ?? 0),
+            'standard_security_handler_malformed_parameter_statuses' => is_array($standardParameterReview['malformed_parameter_statuses'] ?? null)
+                ? $standardParameterReview['malformed_parameter_statuses']
+                : [],
+            'standard_security_handler_malformed_parameter_operand_shapes' => is_array($standardParameterReview['malformed_parameter_operand_shapes'] ?? null)
+                ? $standardParameterReview['malformed_parameter_operand_shapes']
+                : [],
+            'standard_security_handler_malformed_parameter_trailing_operand_shapes' => is_array($standardParameterReview['malformed_parameter_trailing_operand_shapes'] ?? null)
+                ? $standardParameterReview['malformed_parameter_trailing_operand_shapes']
+                : [],
             'standard_security_handler_parameter_declaration_fail_closed' => (bool) ($standardParameterReview['parameter_declaration_fail_closed'] ?? false),
             'security_handler_declaration_review' => $securityHandlerDeclarationReview,
             'security_handler_declaration_status' => $securityHandlerDeclarationReview['status'] ?? null,
@@ -6398,6 +6416,15 @@ final class PdfSecurityPreflight
                 ? $standardParameterReview['malformed_parameter_names']
                 : [],
             'standard_security_handler_malformed_parameter_count' => (int) ($standardParameterReview['malformed_parameter_count'] ?? 0),
+            'standard_security_handler_malformed_parameter_statuses' => is_array($standardParameterReview['malformed_parameter_statuses'] ?? null)
+                ? $standardParameterReview['malformed_parameter_statuses']
+                : [],
+            'standard_security_handler_malformed_parameter_operand_shapes' => is_array($standardParameterReview['malformed_parameter_operand_shapes'] ?? null)
+                ? $standardParameterReview['malformed_parameter_operand_shapes']
+                : [],
+            'standard_security_handler_malformed_parameter_trailing_operand_shapes' => is_array($standardParameterReview['malformed_parameter_trailing_operand_shapes'] ?? null)
+                ? $standardParameterReview['malformed_parameter_trailing_operand_shapes']
+                : [],
             'standard_security_handler_parameter_declaration_fail_closed' => (bool) ($standardParameterReview['parameter_declaration_fail_closed'] ?? false),
             'security_handler_declaration_review' => $securityHandlerDeclarationReview,
             'security_handler_declaration_status' => $securityHandlerDeclarationReview['status'] ?? null,
