@@ -628,6 +628,8 @@ final class Html5DomFragment
             ], $element);
         }
 
+        self::addHtmlTemplateShadowRootAccessibilityMetadata($element, $attrs, $diagnostics);
+
         $metadataNode = self::nodeWithSourceLine([
             'type' => 'element',
             'name' => 'span',
@@ -639,6 +641,106 @@ final class Html5DomFragment
         ], $element);
 
         return [$metadataNode, ...$children];
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlTemplateShadowRootAccessibilityMetadata(
+        \DOMElement $element,
+        array &$attrs,
+        array &$diagnostics
+    ): void {
+        foreach ([
+            'aria-label' => 'data-pandoc-shadowroot-aria-label',
+            'aria-description' => 'data-pandoc-shadowroot-aria-description',
+        ] as $sourceAttribute => $metadataAttribute) {
+            if (!$element->hasAttribute($sourceAttribute)) {
+                continue;
+            }
+
+            $value = self::normalizeHtmlAriaTextValue($element->getAttribute($sourceAttribute));
+            if ($value === null) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'template',
+                    'attribute' => $sourceAttribute,
+                    'reason' => 'invalid-declarative-shadow-root-accessibility-metadata',
+                ], $element);
+                continue;
+            }
+
+            $attrs[$metadataAttribute] = $value;
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'shadowroot-template-review',
+                'tag' => 'template',
+                'attribute' => $sourceAttribute,
+                'metadataAttribute' => $metadataAttribute,
+                'reason' => 'declarative-shadow-root-accessibility-preserved',
+            ], $element);
+        }
+
+        foreach ([
+            'aria-describedby' => 'data-pandoc-shadowroot-aria-describedby',
+            'aria-labelledby' => 'data-pandoc-shadowroot-aria-labelledby',
+        ] as $sourceAttribute => $metadataAttribute) {
+            if (!$element->hasAttribute($sourceAttribute)) {
+                continue;
+            }
+
+            $value = self::normalizeHtmlShadowRootAriaIdrefValue(
+                $element,
+                $sourceAttribute,
+                $diagnostics
+            );
+            if ($value === null) {
+                continue;
+            }
+
+            $attrs[$metadataAttribute] = $value;
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'shadowroot-template-review',
+                'tag' => 'template',
+                'attribute' => $sourceAttribute,
+                'metadataAttribute' => $metadataAttribute,
+                'reason' => 'declarative-shadow-root-accessibility-preserved',
+            ], $element);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlShadowRootAriaIdrefValue(
+        \DOMElement $element,
+        string $attribute,
+        array &$diagnostics
+    ): ?string {
+        $tokens = self::splitHtmlSemanticTokens($element->getAttribute($attribute));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            if (!self::isSafeHtmlAriaIdToken($token)) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'template',
+                    'attribute' => $attribute,
+                    'token' => $token,
+                    'reason' => 'invalid-declarative-shadow-root-accessibility-metadata',
+                ], $element);
+                continue;
+            }
+
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        return $normalized === [] ? null : implode(' ', $normalized);
     }
 
     /**

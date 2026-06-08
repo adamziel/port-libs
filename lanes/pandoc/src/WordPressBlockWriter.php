@@ -514,7 +514,8 @@ final class WordPressBlockWriter
 
     private function renderTableElementAttrs(AstNode $node): string
     {
-        return $this->renderStoredHtmlAttrs($node, true, ['border', 'cellpadding', 'cellspacing', 'frame', 'rules'])
+        return $this->renderStoredHtmlAttrs($node, true, ['align', 'border', 'cellpadding', 'cellspacing', 'frame', 'rules'])
+            . $this->renderLegacyTableAlignmentAttrs($node)
             . $this->renderLegacyTableFrameAttrs($node)
             . $this->renderLegacyTableSpacingAttrs($node);
     }
@@ -792,6 +793,29 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    private function renderLegacyTableAlignmentAttrs(AstNode $node): string
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+        $attributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
+
+        $alignment = $this->legacyTableAlignmentValue((string) ($attributes['align'] ?? ''));
+        if ($alignment === '') {
+            return '';
+        }
+
+        return ' align="' . $this->esc($alignment) . '"';
+    }
+
+    private function legacyTableAlignmentValue(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['left', 'right', 'center'], true) ? $value : '';
     }
 
     private function legacyTableBorderValue(string $value): string

@@ -4032,6 +4032,56 @@ return [
         $t->same('flow-implicit-null-key-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="flow-implicit-null-key-yaml-body">Flow implicit null key YAML body</h1>', $blocks);
     },
+    'records pandoc yaml flow null-key diagnostics without hiding metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Flow null diagnostic **Packet**',
+            'flow-review: {? source, ? "source:key", implicit-source, [source, uri], {owner: desk, ticket: 7}, status: approved}',
+            'references:',
+            '  - id: flow-null-diagnostic-ref',
+            '    metadata: {? [source, key], {type: review}, state: kept}',
+            '...',
+            '',
+            '# Flow null diagnostic YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Flow null diagnostic **Packet**', $meta['title']);
+        $t->true(array_key_exists('source', $meta['flow-review']) && $meta['flow-review']['source'] === null);
+        $t->true(array_key_exists('source:key', $meta['flow-review']) && $meta['flow-review']['source:key'] === null);
+        $t->true(array_key_exists('implicit-source', $meta['flow-review']) && $meta['flow-review']['implicit-source'] === null);
+        $t->true(array_key_exists('[source, uri]', $meta['flow-review']) && $meta['flow-review']['[source, uri]'] === null);
+        $t->true(array_key_exists('{owner: desk, ticket: 7}', $meta['flow-review']) && $meta['flow-review']['{owner: desk, ticket: 7}'] === null);
+        $t->same('approved', $meta['flow-review']['status']);
+        $t->true(array_key_exists('[source, key]', $meta['references'][0]['metadata']) && $meta['references'][0]['metadata']['[source, key]'] === null);
+        $t->true(array_key_exists('{type: review}', $meta['references'][0]['metadata']) && $meta['references'][0]['metadata']['{type: review}'] === null);
+        $t->same('kept', $meta['references'][0]['metadata']['state']);
+
+        $flowNullDiagnostics = array_values(array_filter(
+            $diagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'flow-key-only-null'
+        ));
+        $t->same(7, count($flowNullDiagnostics));
+        $t->same(array_fill(0, 7, 'yaml-flow-key'), array_column($flowNullDiagnostics, 'type'));
+        $t->same([
+            '/flow-review/source',
+            '/flow-review/source:key',
+            '/flow-review/implicit-source',
+            '/flow-review/[source, uri]',
+            '/flow-review/{owner: desk, ticket: 7}',
+            '/references/0/metadata/[source, key]',
+            '/references/0/metadata/{type: review}',
+        ], array_column($flowNullDiagnostics, 'path'));
+        $t->same(['explicit', 'explicit', 'implicit', 'implicit', 'implicit', 'explicit', 'implicit'], array_column($flowNullDiagnostics, 'syntax'));
+        $t->same(['source', 'source:key', 'implicit-source', '[source, uri]', '{owner: desk, ticket: 7}', '[source, key]', '{type: review}'], array_column($flowNullDiagnostics, 'field'));
+        $t->same(['3', '3', '3', '3', '3', '6', '6'], array_column($flowNullDiagnostics, 'sourceLine'));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('flow-null-diagnostic-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="flow-null-diagnostic-yaml-body">Flow null diagnostic YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit null keys inside block metadata maps' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

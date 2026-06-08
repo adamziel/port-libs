@@ -3463,6 +3463,7 @@ final class MarkdownReader
                             if (array_key_exists($key, $seenKeys)) {
                                 $this->recordYamlDuplicateKeyDiagnostic($key);
                             }
+                            $this->recordYamlFlowNullKeyDiagnostic($key, $item);
                             $seenKeys[$key] = true;
                             $map[$key] = null;
                             if ($this->isYamlQuotedFlowKey($item)) {
@@ -3513,6 +3514,22 @@ final class MarkdownReader
         );
 
         return ['metadata' => $map, 'fieldQuoteMap' => $fieldQuoteMap];
+    }
+
+    private function recordYamlFlowNullKeyDiagnostic(string $key, string $source): void
+    {
+        $trimmed = trim($source);
+        $syntax = preg_match('/^\?[ \t]+/s', $trimmed) === 1 ? 'explicit' : 'implicit';
+        $diagnostic = [
+            'type' => 'yaml-flow-key',
+            'reason' => 'flow-key-only-null',
+            'syntax' => $syntax,
+            'field' => $key,
+            'path' => $this->yamlMetadataPathWithSegment($key),
+            'source' => $trimmed,
+        ] + $this->yamlMetadataSourceLineAttrs();
+
+        $this->yamlMetadataDiagnostics[] = $diagnostic;
     }
 
     /**

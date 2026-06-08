@@ -1660,6 +1660,7 @@ final class TableGeometry
         $rowGroups = self::rowGroups($table, $columnCount);
         $sourceSummary = self::sourceSummaryRecord($table);
         $tableLayout = self::tableLayoutMetadata($table);
+        $tableAlignment = self::tableAlignmentMetadata($table);
         $tableFrame = self::tableFrameMetadata($table);
         $tableSpacing = self::tableSpacingMetadata($table);
         $directionality = self::directionalityMetadata($table, $sections, $coverageRecords);
@@ -1720,6 +1721,7 @@ final class TableGeometry
                 $flatGrid,
                 $flatGridFallbacks,
                 $tableLayout,
+                $tableAlignment,
                 $tableFrame,
                 $tableSpacing,
                 $directionality,
@@ -1729,6 +1731,10 @@ final class TableGeometry
 
         if ($tableLayout !== []) {
             $packet['tableLayout'] = $tableLayout;
+        }
+
+        if ($tableAlignment !== []) {
+            $packet['tableAlignment'] = $tableAlignment;
         }
 
         if ($tableFrame !== []) {
@@ -4620,6 +4626,7 @@ final class TableGeometry
         array $flatGrid,
         array $flatGridFallbacks,
         array $tableLayout,
+        array $tableAlignment,
         array $tableFrame,
         array $tableSpacing,
         array $directionality,
@@ -4869,6 +4876,9 @@ final class TableGeometry
             'tableWidth' => (string) ($tableLayout['width'] ?? ''),
             'tableWidthType' => (string) ($tableLayout['widthType'] ?? ''),
             'tableLayoutAttributeCount' => count(is_array($tableLayout['attributes'] ?? null) ? $tableLayout['attributes'] : []),
+            'hasTableAlignment' => $tableAlignment !== [],
+            'tableAlignment' => (string) ($tableAlignment['alignment'] ?? ''),
+            'tableAlignmentAttributeCount' => count(is_array($tableAlignment['attributes'] ?? null) ? $tableAlignment['attributes'] : []),
             'hasTableFrame' => $tableFrame !== [],
             'tableFrame' => (string) ($tableFrame['frame'] ?? ''),
             'tableRules' => (string) ($tableFrame['rules'] ?? ''),
@@ -5290,6 +5300,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
@@ -5367,6 +5378,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
@@ -5456,6 +5468,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::tableAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
@@ -6174,6 +6187,42 @@ final class TableGeometry
             'attributeCount' => count(is_array($tableLayout['attributes'] ?? null) ? $tableLayout['attributes'] : []),
             'attributes' => $tableLayout['attributes'] ?? [],
             'sourceAttributes' => $tableLayout['sourceAttributes'] ?? [],
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableAlignmentWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $tableAlignment = self::tableAlignmentMetadata($table);
+        if ($tableAlignment === []) {
+            return [];
+        }
+
+        $requirements = [
+            'markdown' => ['markdown-table-alignment-requires-raw-html', 'raw-html-table-alignment'],
+            'asciidoc' => ['asciidoc-table-alignment-review-required', 'table-alignment-review'],
+            'latex' => ['latex-table-alignment-review-required', 'table-alignment-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-alignment',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-alignment',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'alignment' => (string) ($tableAlignment['alignment'] ?? ''),
+            'attributeCount' => count(is_array($tableAlignment['attributes'] ?? null) ? $tableAlignment['attributes'] : []),
+            'attributes' => $tableAlignment['attributes'] ?? [],
+            'sourceAttributes' => $tableAlignment['sourceAttributes'] ?? [],
         ]];
     }
 
@@ -7710,6 +7759,44 @@ final class TableGeometry
     }
 
     /**
+     * @return array{source:string,attributes:array<string, string>,alignment:string,sourceAttributes?:array<string, mixed>}
+     */
+    private static function tableAlignmentMetadata(AstNode $table): array
+    {
+        $attributes = self::stringAttributeMap($table->attr('htmlAttributes', []), true);
+        foreach (self::stringAttributeMap($table->attr('attributes', []), false) as $name => $value) {
+            $key = strtolower(trim($name));
+            if ($key !== '' && !array_key_exists($key, $attributes)) {
+                $attributes[$key] = $value;
+            }
+        }
+
+        if (!array_key_exists('align', $attributes)) {
+            return [];
+        }
+
+        $alignment = self::normalizeTablePlacementAlignmentAttribute((string) $attributes['align']);
+        if ($alignment === '') {
+            return [];
+        }
+
+        $record = [
+            'source' => 'html-table-alignment',
+            'attributes' => [
+                'align' => $alignment,
+            ],
+            'alignment' => $alignment,
+        ];
+
+        $sourceAttributes = self::sourceAttributeSummary($table);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
+    /**
      * @return array{source:string,attributes:array<string, string>,frame?:string,rules?:string,border?:string,sourceAttributes?:array<string, mixed>}
      */
     private static function tableFrameMetadata(AstNode $table): array
@@ -7821,6 +7908,13 @@ final class TableGeometry
         return in_array($value, ['void', 'above', 'below', 'hsides', 'lhs', 'rhs', 'vsides', 'box', 'border'], true)
             ? $value
             : '';
+    }
+
+    private static function normalizeTablePlacementAlignmentAttribute(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['left', 'right', 'center'], true) ? $value : '';
     }
 
     private static function normalizeTableRulesAttribute(string $value): string

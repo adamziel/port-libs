@@ -6927,6 +6927,135 @@ MARKDOWN);
         $t->same(['ETSI.CAdES.detached' => 1], $sequence['finalPdfSignatureSubFilters']);
     },
 
+    'fake runner summarizes bounded pdf signature byte range policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signed-byte-ranges.pdf']);
+        $signatureBytes = hex2bin('3082010A0282010100AABBCC') ?: '';
+        $signatureHex = strtoupper(bin2hex($signatureBytes));
+        $invalidRange = [20, 40, 30, 2000];
+        $buildPdf = static function (array $validRange) use ($signatureHex, $invalidRange): string {
+            return implode("\n", [
+                '%PDF-1.7',
+                '1 0 obj',
+                '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+                'endobj',
+                '2 0 obj',
+                '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+                'endobj',
+                '3 0 obj',
+                '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R] >>',
+                'endobj',
+                '4 0 obj',
+                '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.signature) /V 9 0 R >>',
+                'endobj',
+                '5 0 obj',
+                '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.invalid) /V 10 0 R >>',
+                'endobj',
+                '8 0 obj',
+                '<< /Fields [4 0 R 5 0 R] /SigFlags 3 >>',
+                'endobj',
+                '9 0 obj',
+                '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.CAdES.detached /Name (Migration Desk) /ByteRange [' . implode(' ', $validRange) . '] /Contents <' . $signatureHex . '> >>',
+                'endobj',
+                '10 0 obj',
+                '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Bad Review) /ByteRange [' . implode(' ', $invalidRange) . '] /Contents <' . $signatureHex . '> >>',
+                'endobj',
+                str_repeat('%', 120),
+                'trailer',
+                '<< /Root 1 0 R >>',
+                '%%EOF',
+                '',
+            ]);
+        };
+        $pdfBytes = $buildPdf([0, 30, 50, 0]);
+        for ($attempt = 0; $attempt < 4; $attempt++) {
+            $next = $buildPdf([0, 30, 50, max(0, strlen($pdfBytes) - 50)]);
+            if (strlen($next) === strlen($pdfBytes)) {
+                $pdfBytes = $next;
+                break;
+            }
+            $pdfBytes = $next;
+        }
+        $validRange = [0, 30, 50, strlen($pdfBytes) - 50];
+        $pdfBytes = $buildPdf($validRange);
+        $fileBytes = strlen($pdfBytes);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/signed-byte-ranges.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/signed-byte-ranges.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'source' => 'signature',
+                'permission' => null,
+                'fieldName' => 'review.invalid',
+                'fieldObject' => '5 0 R',
+                'signatureObject' => '10 0 R',
+                'byteRange' => $invalidRange,
+                'segmentCount' => 2,
+                'coveredBytes' => 2040,
+                'fileBytes' => $fileBytes,
+                'gapCount' => 0,
+                'gapBytes' => 0,
+                'firstGapOffset' => null,
+                'firstGapLength' => null,
+                'startsAtZero' => false,
+                'coversToEnd' => false,
+                'ordered' => true,
+                'nonOverlapping' => false,
+                'fitsFile' => false,
+                'contentsBytes' => strlen($signatureBytes),
+                'contentsFitsFirstGap' => null,
+                'reviewStatus' => 'invalid',
+                'issues' => ['does-not-start-at-zero', 'out-of-bounds', 'overlapping-ranges', 'missing-contents-gap', 'does-not-cover-to-end'],
+            ],
+            [
+                'source' => 'signature',
+                'permission' => null,
+                'fieldName' => 'review.signature',
+                'fieldObject' => '4 0 R',
+                'signatureObject' => '9 0 R',
+                'byteRange' => $validRange,
+                'segmentCount' => 2,
+                'coveredBytes' => $validRange[1] + $validRange[3],
+                'fileBytes' => $fileBytes,
+                'gapCount' => 1,
+                'gapBytes' => 20,
+                'firstGapOffset' => 30,
+                'firstGapLength' => 20,
+                'startsAtZero' => true,
+                'coversToEnd' => true,
+                'ordered' => true,
+                'nonOverlapping' => true,
+                'fitsFile' => true,
+                'contentsBytes' => strlen($signatureBytes),
+                'contentsFitsFirstGap' => true,
+                'reviewStatus' => 'ok',
+                'issues' => [],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfSignatureByteRangePolicy']);
+        $t->contains('pdf-byte-signature-byte-range-policy:2', $diagnostics);
+        $t->contains('pdf-byte-signature-byte-range-status:invalid:1', $diagnostics);
+        $t->contains('pdf-byte-signature-byte-range-status:ok:1', $diagnostics);
+        $t->contains('pdf-byte-signature-byte-range-issue:out-of-bounds:1', $diagnostics);
+        $t->contains('pdf-byte-signature-byte-range-issue:overlapping-ranges:1', $diagnostics);
+        $t->contains('pdf-byte-signature-byte-range-contents-fit:1', $diagnostics);
+        $t->same($expected, $sequence['finalPdfSignatureByteRangePolicy']);
+    },
+
     'fake runner extracts bounded pdf catalog permission signatures from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/permissions.pdf']);

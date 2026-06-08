@@ -2510,6 +2510,29 @@ try {
 } catch (RuntimeException $exception) {
     $strictCommentImportRejected = str_contains($exception->getMessage(), 'package-or-entry-comments');
 }
+$strictCommentControlImportPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Control comment review</w:p></w:body></w:document>',
+        'compressionMethod' => 8,
+        'comment' => "entry\x7freview",
+        'externalAttributes' => 0x81a40000,
+    ],
+    [
+        'name' => 'word/media/review.txt',
+        'data' => "review media bytes with control comment metadata\n",
+        'compressionMethod' => 0,
+        'externalAttributes' => 0x81a40000,
+    ],
+], "package\0review");
+$strictCommentControlPreflight = $strictCommentControlImportPackage->commentPreflight();
+$strictCommentControlImportPreflight = $strictCommentControlImportPackage->strictImportPreflight(4096, 100.0, 4096);
+$strictCommentControlImportRejected = false;
+try {
+    $strictCommentControlImportPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $strictCommentControlImportRejected = str_contains($exception->getMessage(), 'comment-control-bytes');
+}
 $odtMimetype = 'application/vnd.oasis.opendocument.text';
 $odtMimetypePackage = ZipPackage::fromParts([
     [
@@ -4070,6 +4093,24 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($strictCommentControlPreflight['hasComments'] ?? null) !== true
+        || ($strictCommentControlPreflight['hasCommentControlBytes'] ?? null) !== true
+        || ($strictCommentControlPreflight['packageCommentHasControlBytes'] ?? null) !== true
+        || ($strictCommentControlPreflight['packageCommentControlByteOffsets'] ?? null) !== [7]
+        || ($strictCommentControlPreflight['packageCommentIssues'] ?? null) !== ['package-comment-control-bytes']
+        || ($strictCommentControlPreflight['commentControlByteEntryCount'] ?? null) !== 1
+        || ($strictCommentControlPreflight['commentControlByteEntries'][0]['name'] ?? null) !== 'word/document.xml'
+        || ($strictCommentControlPreflight['commentControlByteEntries'][0]['commentControlByteOffsets'] ?? null) !== [5]
+        || ($strictCommentControlPreflight['commentControlByteEntries'][0]['issues'] ?? null) !== ['entry-comment-control-bytes']
+        || ($strictCommentControlImportPreflight['isValid'] ?? null) !== false
+        || ($strictCommentControlImportPreflight['diagnostics'] ?? null) !== ['package-or-entry-comments', 'comment-control-bytes']
+        || ($strictCommentControlImportPreflight['comments'] ?? null) !== $strictCommentControlPreflight
+        || !$strictCommentControlImportRejected
+    ) {
+        throw new RuntimeException('Expected strict ZIP import preflight to reject raw comment control bytes');
+    }
+
+    if (
         ($odtMimetypePreflight['entryName'] ?? null) !== 'mimetype'
         || ($odtMimetypePreflight['firstLocalEntryName'] ?? null) !== 'mimetype'
         || ($odtMimetypePreflight['isStored'] ?? null) !== true
@@ -5467,6 +5508,9 @@ echo 'zipRawStrictLocalHeaderSpanIssues=' . implode(',', $rawStrictLocalHeaderSp
 echo 'zipRawStrictLocalHeaderSpanUnclaimedBytes=' . ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytes'] ?? 0) . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPreflight['diagnostics']) . "\n";
+echo 'zipCommentControlBytePolicy=' . ($strictCommentControlImportRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipCommentControlByteEntryCount=' . $strictCommentControlPreflight['commentControlByteEntryCount'] . "\n";
+echo 'zipCommentControlByteDiagnostics=' . implode(',', $strictCommentControlImportPreflight['diagnostics']) . "\n";
 echo 'zipInvalidDosTimestampPolicy=' . ($invalidDosTimestampRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipInvalidDosTimestampStrictPolicy=' . ($invalidDosTimestampStrictRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipInvalidDosTimestampEntry=' . ($invalidDosTimestampPreflight['invalidDosTimestampEntries'][0]['name'] ?? 'none') . "\n";

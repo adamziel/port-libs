@@ -190,6 +190,26 @@ $layoutWidthTables = array_values(array_filter(
     $layoutWidthDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$placementAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="placement-align-grid" data-source="html-reader" align="center">
+<caption>Placement alignment review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+<table id="placement-align-invalid" align="middle">
+<tbody>
+<tr><td>Invalid</td><td>Dropped</td></tr>
+</tbody>
+</table>
+HTML);
+$placementAlignmentTables = array_values(array_filter(
+    $placementAlignmentDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $directionalityDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="directionality-grid" data-source="html-reader" dir="rtl">
 <caption>Directionality review</caption>
@@ -1169,6 +1189,7 @@ $document = new AstNode('document', [], [
     ...$legacyFrameTables,
     ...$legacySpacingTables,
     ...$layoutWidthTables,
+    ...$placementAlignmentTables,
     ...$directionalityTables,
     ...$readerHandoffTables,
     ...$captionSourceTables,
@@ -2444,6 +2465,59 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($layoutWidthPacket, JSON_THROW_ON_ERROR);
     json_encode($layoutWidthDowngrades, JSON_THROW_ON_ERROR);
+
+    $placementAlignmentTable = null;
+    $invalidPlacementAlignmentTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type !== 'table') {
+            continue;
+        }
+
+        if ($node->attr('id') === 'placement-align-grid') {
+            $placementAlignmentTable = $node;
+        } elseif ($node->attr('id') === 'placement-align-invalid') {
+            $invalidPlacementAlignmentTable = $node;
+        }
+    }
+    $placementAlignmentPacket = $placementAlignmentTable instanceof AstNode ? $placementAlignmentTable->attr('tableGeometry') : null;
+    $invalidPlacementAlignmentPacket = $invalidPlacementAlignmentTable instanceof AstNode ? $invalidPlacementAlignmentTable->attr('tableGeometry') : null;
+    $placementAlignmentDowngrades = $placementAlignmentTable instanceof AstNode ? TableGeometry::reviewPacket($placementAlignmentTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $placementAlignmentDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $placementAlignmentDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-alignment'
+        ));
+        $placementAlignmentDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$placementAlignmentTable instanceof AstNode
+        || !is_array($placementAlignmentPacket)
+        || ($placementAlignmentPacket['tableAlignment']['attributes'] ?? null) !== [
+            'align' => 'center',
+        ]
+        || ($placementAlignmentPacket['summary']['hasTableAlignment'] ?? null) !== true
+        || ($placementAlignmentPacket['summary']['tableAlignment'] ?? null) !== 'center'
+        || ($placementAlignmentDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-alignment-requires-raw-html'
+        || ($placementAlignmentDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-alignment-review-required'
+        || ($placementAlignmentDiagnostics['latex']['code'] ?? null) !== 'latex-table-alignment-review-required'
+        || !is_array($invalidPlacementAlignmentPacket)
+        || array_key_exists('tableAlignment', $invalidPlacementAlignmentPacket)
+    ) {
+        throw new RuntimeException('Table geometry self-test missing legacy table placement alignment metadata');
+    }
+    if (
+        !str_contains($blocks, '<table id="placement-align-grid" data-source="html-reader" align="center">')
+        || str_contains($blocks, '<table id="placement-align-invalid" align="middle"')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing WordPress table placement alignment output');
+    }
+    json_encode($placementAlignmentPacket, JSON_THROW_ON_ERROR);
+    json_encode($invalidPlacementAlignmentPacket, JSON_THROW_ON_ERROR);
+    json_encode($placementAlignmentDowngrades, JSON_THROW_ON_ERROR);
 
     $directionalityTable = null;
     foreach ($document->children as $node) {

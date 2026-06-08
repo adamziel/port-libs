@@ -1461,32 +1461,49 @@ final class ZipPackage
      *     rawPackageComment:string,
      *     packageCommentEncoding:string,
      *     packageCommentLength:int,
+     *     packageCommentHasControlBytes:bool,
+     *     packageCommentControlByteOffsets:list<int>,
+     *     packageCommentIssues:list<string>,
      *     hasPackageComment:bool,
      *     hasEntryComments:bool,
      *     hasComments:bool,
+     *     hasCommentControlBytes:bool,
      *     entryCommentCount:int,
+     *     commentControlByteEntryCount:int,
      *     commentedEntryNames:list<string>,
-     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int}>,
-     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int}>
+     *     commentControlByteEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, issues:list<string>}>,
+     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, issues:list<string>}>,
+     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, issues:list<string>}>
      * }
      */
     public function commentPreflight(): array
     {
         $packageComment = self::decodePackageComment($this->packageComment);
+        $packageCommentControlByteOffsets = self::rawControlByteOffsets($this->packageComment);
+        $packageCommentIssues = $packageCommentControlByteOffsets === [] ? [] : ['package-comment-control-bytes'];
         $entries = [];
         $commentedEntries = [];
+        $commentControlByteEntries = [];
 
         foreach ($this->entries as $entry) {
+            $commentControlByteOffsets = self::rawControlByteOffsets($entry->rawComment);
+            $commentIssues = $commentControlByteOffsets === [] ? [] : ['entry-comment-control-bytes'];
             $summary = [
                 'name' => $entry->name,
                 'comment' => $entry->comment,
                 'rawComment' => $entry->rawComment,
                 'commentEncoding' => $entry->commentEncoding,
                 'commentLength' => strlen($entry->rawComment),
+                'hasControlBytes' => $commentControlByteOffsets !== [],
+                'commentControlByteOffsets' => $commentControlByteOffsets,
+                'issues' => $commentIssues,
             ];
             $entries[] = $summary;
             if ($entry->comment !== '') {
                 $commentedEntries[] = $summary;
+            }
+            if ($commentControlByteOffsets !== []) {
+                $commentControlByteEntries[] = $summary;
             }
         }
 
@@ -1495,11 +1512,17 @@ final class ZipPackage
             'rawPackageComment' => $this->packageComment,
             'packageCommentEncoding' => $packageComment['encoding'],
             'packageCommentLength' => strlen($this->packageComment),
+            'packageCommentHasControlBytes' => $packageCommentControlByteOffsets !== [],
+            'packageCommentControlByteOffsets' => $packageCommentControlByteOffsets,
+            'packageCommentIssues' => $packageCommentIssues,
             'hasPackageComment' => $this->packageComment !== '',
             'hasEntryComments' => $commentedEntries !== [],
             'hasComments' => $this->packageComment !== '' || $commentedEntries !== [],
+            'hasCommentControlBytes' => $packageCommentControlByteOffsets !== [] || $commentControlByteEntries !== [],
             'entryCommentCount' => count($commentedEntries),
+            'commentControlByteEntryCount' => count($commentControlByteEntries),
             'commentedEntryNames' => array_map(static fn (array $entry): string => $entry['name'], $commentedEntries),
+            'commentControlByteEntries' => $commentControlByteEntries,
             'commentedEntries' => $commentedEntries,
             'entries' => $entries,
         ];
@@ -1511,13 +1534,19 @@ final class ZipPackage
      *     rawPackageComment:string,
      *     packageCommentEncoding:string,
      *     packageCommentLength:int,
+     *     packageCommentHasControlBytes:bool,
+     *     packageCommentControlByteOffsets:list<int>,
+     *     packageCommentIssues:list<string>,
      *     hasPackageComment:bool,
      *     hasEntryComments:bool,
      *     hasComments:bool,
+     *     hasCommentControlBytes:bool,
      *     entryCommentCount:int,
+     *     commentControlByteEntryCount:int,
      *     commentedEntryNames:list<string>,
-     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int}>,
-     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int}>
+     *     commentControlByteEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, issues:list<string>}>,
+     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, issues:list<string>}>,
+     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, issues:list<string>}>
      * }
      */
     public function assertNoPackageOrEntryComments(): array
@@ -4934,6 +4963,10 @@ final class ZipPackage
             $diagnostics[] = 'package-or-entry-comments';
         }
 
+        if ($comments['hasCommentControlBytes']) {
+            $diagnostics[] = 'comment-control-bytes';
+        }
+
         if ($modificationTimes['invalidDosTimestampEntryCount'] > 0) {
             $diagnostics[] = 'invalid-modification-times';
         }
@@ -7742,6 +7775,22 @@ final class ZipPackage
             'text' => self::decodeCp437($raw),
             'encoding' => 'cp437',
         ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function rawControlByteOffsets(string $bytes): array
+    {
+        $offsets = [];
+        for ($index = 0, $length = strlen($bytes); $index < $length; $index++) {
+            $byte = ord($bytes[$index]);
+            if ($byte < 0x20 || $byte === 0x7f) {
+                $offsets[] = $index;
+            }
+        }
+
+        return $offsets;
     }
 
     private static function unicodeTextFromExtraFieldData(string $extraFieldData, int $id, string $rawBytes, string $label): ?string

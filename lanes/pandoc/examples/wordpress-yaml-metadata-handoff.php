@@ -507,6 +507,10 @@ $mergeShadowDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'merge-sequence-shadowed-key'
 ));
+$flowNullKeyDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'flow-key-only-null'
+));
 $blocks = (new WordPressBlockWriter())->write($document);
 $abstractBlocks = $meta['abstractBlocks'] ?? [];
 $abstractWordPress = $abstractBlocks === []
@@ -1412,6 +1416,29 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!array_key_exists('{type: review}', $meta['flow-implicit-null-reference']['metadata'] ?? []) || $meta['flow-implicit-null-reference']['metadata']['{type: review}'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing nested flow implicit null map key metadata');
+    }
+    $flowNullKeyDiagnosticsByPath = [];
+    foreach ($flowNullKeyDiagnostics as $diagnostic) {
+        $flowNullKeyDiagnosticsByPath[$diagnostic['path'] ?? ''] = $diagnostic;
+    }
+    foreach ([
+        '/flow-explicit-null-review/source' => 'explicit',
+        '/flow-explicit-null-review/source:key' => 'explicit',
+        '/flow-explicit-null-review/[source, uri]' => 'explicit',
+        '/flow-explicit-null-review/{owner: desk, ticket: 7}' => 'explicit',
+        '/flow-explicit-null-reference/metadata/[source, key]' => 'explicit',
+        '/flow-explicit-null-reference/metadata/{type: review}' => 'explicit',
+        '/flow-implicit-null-review/source' => 'implicit',
+        '/flow-implicit-null-review/source:key' => 'implicit',
+        '/flow-implicit-null-review/[source, uri]' => 'implicit',
+        '/flow-implicit-null-review/{owner: desk, ticket: 7}' => 'implicit',
+        '/flow-implicit-null-reference/metadata/[source, key]' => 'implicit',
+        '/flow-implicit-null-reference/metadata/{type: review}' => 'implicit',
+    ] as $expectedPath => $expectedSyntax) {
+        $diagnostic = $flowNullKeyDiagnosticsByPath[$expectedPath] ?? null;
+        if ($diagnostic === null || ($diagnostic['syntax'] ?? '') !== $expectedSyntax) {
+            throw new RuntimeException('YAML metadata self-test missing flow null-key diagnostic ' . $expectedPath);
+        }
     }
     if (!array_key_exists('source', $meta['block-explicit-null-review'] ?? []) || $meta['block-explicit-null-review']['source'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing block explicit null scalar key metadata');

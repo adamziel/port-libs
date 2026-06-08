@@ -3745,6 +3745,70 @@ return [
         $t->same('comment-free media handoff', $safePackage->read('/word/media/review-note.txt'));
     },
 
+    'preflights raw zip comment control bytes before strict package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>control byte comment policy</w:p></w:document>',
+                'method' => 8,
+                'comment' => "entry\x7fcomment",
+            ],
+            [
+                'name' => 'word/media/review-note.txt',
+                'data' => 'control-byte comment metadata remains bounded',
+                'method' => 0,
+            ],
+        ], "source\0package"));
+        $summary = $package->commentPreflight();
+
+        $t->same(true, $summary['hasComments']);
+        $t->same(true, $summary['hasCommentControlBytes']);
+        $t->same(true, $summary['packageCommentHasControlBytes']);
+        $t->same("source\0package", $summary['packageComment']);
+        $t->same("source\0package", $summary['rawPackageComment']);
+        $t->same([6], $summary['packageCommentControlByteOffsets']);
+        $t->same(['package-comment-control-bytes'], $summary['packageCommentIssues']);
+        $t->same(1, $summary['commentControlByteEntryCount']);
+        $t->same('word/document.xml', $summary['commentControlByteEntries'][0]['name']);
+        $t->same("entry\x7fcomment", $summary['commentControlByteEntries'][0]['comment']);
+        $t->same("entry\x7fcomment", $summary['commentControlByteEntries'][0]['rawComment']);
+        $t->same(true, $summary['commentControlByteEntries'][0]['hasControlBytes']);
+        $t->same([5], $summary['commentControlByteEntries'][0]['commentControlByteOffsets']);
+        $t->same(['entry-comment-control-bytes'], $summary['commentControlByteEntries'][0]['issues']);
+        $t->same([5], $summary['commentedEntries'][0]['commentControlByteOffsets']);
+        $t->same([], $summary['entries'][1]['commentControlByteOffsets']);
+        $t->same([], $summary['entries'][1]['issues']);
+
+        $strictSummary = $package->strictImportPreflight(2048, 100.0, 2048);
+
+        $t->same(false, $strictSummary['isValid']);
+        $t->contains('package-or-entry-comments', implode(',', $strictSummary['diagnostics']));
+        $t->contains('comment-control-bytes', implode(',', $strictSummary['diagnostics']));
+        $t->same($summary, $strictSummary['comments']);
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertStrictImportable(2048, 100.0, 2048));
+        $t->same('control-byte comment metadata remains bounded', $package->read('/word/media/review-note.txt'));
+
+        $safeCommentPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>readable comment policy</w:p></w:document>',
+                'method' => 8,
+                'comment' => 'reviewer comment',
+            ],
+        ], 'package reviewer comment'));
+        $safeCommentSummary = $safeCommentPackage->commentPreflight();
+
+        $t->same(true, $safeCommentSummary['hasComments']);
+        $t->same(false, $safeCommentSummary['hasCommentControlBytes']);
+        $t->same(false, $safeCommentSummary['packageCommentHasControlBytes']);
+        $t->same([], $safeCommentSummary['packageCommentControlByteOffsets']);
+        $t->same([], $safeCommentSummary['packageCommentIssues']);
+        $t->same(0, $safeCommentSummary['commentControlByteEntryCount']);
+        $t->same([], $safeCommentSummary['commentControlByteEntries']);
+        $t->same([], $safeCommentPackage->strictImportPreflight(2048, 100.0, 2048)['comments']['commentControlByteEntries']);
+        $t->same(['package-or-entry-comments'], $safeCommentPackage->strictImportPreflight(2048, 100.0, 2048)['diagnostics']);
+    },
+
     'rejects unsafe raw zip names even when unicode path metadata is safe' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $safeUnicodePath = 'word/media/review.png';
         $absoluteRawName = '/word/media/review.png';

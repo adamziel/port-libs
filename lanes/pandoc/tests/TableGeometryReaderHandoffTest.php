@@ -1549,4 +1549,89 @@ HTML;
         json_encode($invalidPacket, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes legacy html table placement alignment for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="placement-align-grid" data-source="html-reader" align="center">
+<caption>Placement alignment review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+<table id="placement-align-invalid" align="middle">
+<tbody>
+<tr><td>Invalid</td><td>Dropped</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $tables = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $table = $tables[0] ?? null;
+        $invalidTable = $tables[1] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->true($invalidTable instanceof AstNode);
+        if (!$table instanceof AstNode || !$invalidTable instanceof AstNode) {
+            return;
+        }
+
+        $packet = $table->attr('tableGeometry');
+        $invalidPacket = $invalidTable->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $alignmentDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-alignment'
+            ));
+            $alignmentDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same([
+            'align' => 'center',
+        ], $packet['tableAlignment']['attributes'] ?? null);
+        $t->same('center', $packet['tableAlignment']['alignment'] ?? null);
+        $t->same('center', $packet['tableAlignment']['sourceAttributes']['htmlAttributes']['align'] ?? null);
+        $t->same(true, $packet['summary']['hasTableAlignment'] ?? null);
+        $t->same('center', $packet['summary']['tableAlignment'] ?? null);
+        $t->same(1, $packet['summary']['tableAlignmentAttributeCount'] ?? null);
+
+        $t->same(true, is_array($invalidPacket));
+        $invalidPacket = is_array($invalidPacket) ? $invalidPacket : [];
+        $t->true(!array_key_exists('tableAlignment', $invalidPacket));
+        $t->same(false, $invalidPacket['summary']['hasTableAlignment'] ?? null);
+
+        $t->same([
+            'markdown-table-alignment-requires-raw-html',
+            'asciidoc-table-alignment-review-required',
+            'latex-table-alignment-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $alignmentDiagnostics['markdown'],
+            $alignmentDiagnostics['asciidoc'],
+            $alignmentDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-alignment', $alignmentDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-alignment', $alignmentDiagnostics['markdown']['source'] ?? null);
+        $t->same([
+            'align' => 'center',
+        ], $alignmentDiagnostics['markdown']['attributes'] ?? null);
+        $t->same('center', $alignmentDiagnostics['markdown']['alignment'] ?? null);
+
+        $t->contains('<table id="placement-align-grid" data-source="html-reader" align="center">', $blocks);
+        $t->true(!str_contains($blocks, 'align="middle"'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($invalidPacket, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
 ];

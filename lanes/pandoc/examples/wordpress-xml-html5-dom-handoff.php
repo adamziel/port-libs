@@ -44,6 +44,11 @@ $xmlPolicyReviewFragment = Html5DomFragment::fromXml(
     . '<script type="text/source">if (a &lt; b) { source(); }</script>'
     . '<style data-pandoc-fragment-root="source">.source &gt; note { color: red; }</style></packet>'
 );
+$shadowAccessibilityFragment = Html5DomFragment::fromHtml(
+    '<article><template shadowrootmode="open" aria-label=" Review card " aria-describedby="caption shadow-note" aria-description=" Hidden panel ">'
+    . '<p id="caption">Shadow fallback</p><p id="shadow-note">Notes</p></template>'
+    . '<template shadowrootmode="closed" aria-labelledby="headline"><h2 id="headline">Headline</h2></template></article>'
+);
 $document = new AstNode('document', [], [
     new AstNode('raw_html', ['format' => 'html', 'html' => $html]),
 ]);
@@ -115,6 +120,28 @@ if (($argv[1] ?? '') === '--self-test') {
     if ($xmlPolicyReviewFragment->diagnosticCodes() !== []) {
         throw new RuntimeException('Expected XML policy-overlap fragment to remain outside HTML sanitizer diagnostics');
     }
+    $shadowAccessibilityHtml = $shadowAccessibilityFragment->serialize();
+    foreach ([
+        'data-pandoc-shadowroot-mode="open"',
+        'data-pandoc-shadowroot-aria-label="Review card"',
+        'data-pandoc-shadowroot-aria-description="Hidden panel"',
+        'data-pandoc-shadowroot-aria-describedby="caption shadow-note"',
+        'data-pandoc-shadowroot-mode="closed"',
+        'data-pandoc-shadowroot-aria-labelledby="headline"',
+    ] as $expectedHtml) {
+        if (!str_contains($shadowAccessibilityHtml, $expectedHtml)) {
+            throw new RuntimeException('Expected declarative shadow-root accessibility metadata to survive review handoff: ' . $expectedHtml);
+        }
+    }
+    if (str_contains($shadowAccessibilityHtml, '<template') || str_contains($shadowAccessibilityHtml, ' aria-label=')) {
+        throw new RuntimeException('Expected declarative shadow-root template wrappers and live ARIA source attributes to stay stripped');
+    }
+    $shadowAccessibilityBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [
+        $shadowAccessibilityFragment->toRawHtmlAst(['part' => '/migration/template-shadow-accessibility-review.html']),
+    ]));
+    if (!str_contains($shadowAccessibilityBlocks, 'data-pandoc-shadowroot-aria-label="Review card"')) {
+        throw new RuntimeException('Expected WordPress raw HTML blocks to include shadow-root accessibility metadata');
+    }
     try {
         XmlHtmlDom::loadXmlDocument(
             '<?xml-stylesheet href="https://example.invalid/review.xsl"?><review><item>bad</item></review>',
@@ -136,4 +163,5 @@ echo "XML/HTML5 DOM handoff for WordPress import:\n";
 echo "fragmentHtml:\n" . $html . "\n";
 echo "namespacedReviewXml:\n" . $namespacedReviewFragment->serialize() . "\n";
 echo "xmlPolicyReviewXml:\n" . $xmlPolicyReviewFragment->serialize() . "\n";
+echo "shadowAccessibilityHtml:\n" . $shadowAccessibilityFragment->serialize() . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";

@@ -830,6 +830,63 @@ return [
             $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to remove blocked source content: ' . $blocked);
         }
     },
+    'preserves declarative shadow root accessibility metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article>'
+            . '<template shadowrootmode="open" aria-label=" Review card " aria-describedby="caption shadow-note" aria-description=" Hidden panel " data-pandoc-shadowroot-aria-label="source-spoof">'
+            . '<p id="caption">Shadow fallback</p><p id="shadow-note">Notes</p></template>'
+            . '<template shadowrootmode="closed" aria-labelledby="headline headline"><h2 id="headline">Headline</h2></template>'
+            . '<template shadowrootmode="open" aria-label="bad&lt;tag" aria-describedby="bad&lt;id"><p>Invalid shadow label</p></template>'
+            . '</article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/template-shadow-accessibility-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article>'
+            . '<span data-pandoc-shadowroot-mode="open" data-pandoc-shadowroot-aria-label="Review card" data-pandoc-shadowroot-aria-description="Hidden panel" data-pandoc-shadowroot-aria-describedby="caption shadow-note">Shadow root: open</span>'
+            . '<p id="caption">Shadow fallback</p><p id="shadow-note">Notes</p>'
+            . '<span data-pandoc-shadowroot-mode="closed" data-pandoc-shadowroot-aria-labelledby="headline">Shadow root: closed</span><h2 id="headline">Headline</h2>'
+            . '<span data-pandoc-shadowroot-mode="open">Shadow root: open</span><p>Invalid shadow label</p>'
+            . '</article>';
+        $policyDiagnostics = array_count_values(array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        )));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Shadow root: openShadow fallbackNotesShadow root: closedHeadlineShadow root: openInvalid shadow label', $fragment->textContent());
+        $t->same(['article', 'h2', 'p', 'span'], $summary['elementNames']);
+        $t->same(['template'], $summary['blockedTags']);
+        $t->same(['aria-describedby', 'aria-description', 'aria-label', 'aria-labelledby', 'shadowrootmode'], $summary['filteredAttributes']);
+        $t->same(12, array_sum($policyDiagnostics));
+        $t->same(3, $policyDiagnostics['blocked-tag'] ?? 0);
+        $t->same(7, $policyDiagnostics['shadowroot-template-review'] ?? 0);
+        $t->same(2, $policyDiagnostics['unsafe-attribute'] ?? 0);
+        $t->same('article', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-shadowroot-mode' => 'open',
+            'data-pandoc-shadowroot-aria-label' => 'Review card',
+            'data-pandoc-shadowroot-aria-description' => 'Hidden panel',
+            'data-pandoc-shadowroot-aria-describedby' => 'caption shadow-note',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same(['id' => 'caption'], $nodes[0]['children'][1]['attrs']);
+        $t->same([
+            'data-pandoc-shadowroot-mode' => 'closed',
+            'data-pandoc-shadowroot-aria-labelledby' => 'headline',
+        ], $nodes[0]['children'][3]['attrs']);
+        $t->same(['data-pandoc-shadowroot-mode' => 'open'], $nodes[0]['children'][5]['attrs']);
+        $t->same('/migration/template-shadow-accessibility-review.html', $document->children[0]->attr('part'));
+        foreach (['<template', ' aria-label=', ' aria-describedby=', ' aria-labelledby=', ' aria-description=', 'source-spoof', 'bad&lt;id', 'bad&lt;tag'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected shadow accessibility sanitizer to remove blocked source content: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to remove blocked source content: ' . $blocked);
+        }
+    },
     'filters mixed unsafe srcset candidates before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<p>'

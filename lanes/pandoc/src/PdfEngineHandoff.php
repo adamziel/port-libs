@@ -341,6 +341,7 @@ final class PdfEngineHandoff
      *     pdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatureSubFilters: array<string, int>,
+     *     pdfSignatureByteRangePolicy: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
      *     pdfDocumentSecurityStore: array<string, mixed>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
@@ -792,6 +793,7 @@ final class PdfEngineHandoff
         $pdfCatalogPermissions = [];
         $pdfSignatures = [];
         $pdfSignatureSubFilters = [];
+        $pdfSignatureByteRangePolicy = [];
         $pdfDocumentSecurityStore = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
@@ -901,6 +903,7 @@ final class PdfEngineHandoff
                 $pdfCatalogPermissions = $pdfInspection['catalogPermissions'];
                 $pdfSignatures = $pdfInspection['signatures'];
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
+                $pdfSignatureByteRangePolicy = $pdfInspection['signatureByteRangePolicy'];
                 $pdfDocumentSecurityStore = $pdfInspection['documentSecurityStore'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
@@ -2281,6 +2284,37 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-signature-subfilter:' . $subFilter . ':' . $subFilterCount;
                     }
                 }
+                if ($pdfSignatureByteRangePolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-signature-byte-range-policy:' . count($pdfSignatureByteRangePolicy);
+                    $statusCounts = [];
+                    $issueCounts = [];
+                    $contentsFitCount = 0;
+                    foreach ($pdfSignatureByteRangePolicy as $policy) {
+                        $reviewStatus = is_string($policy['reviewStatus'] ?? null) && $policy['reviewStatus'] !== ''
+                            ? $policy['reviewStatus']
+                            : 'unknown';
+                        $statusCounts[$reviewStatus] = ($statusCounts[$reviewStatus] ?? 0) + 1;
+                        if (($policy['contentsFitsFirstGap'] ?? null) === true) {
+                            $contentsFitCount++;
+                        }
+                        foreach (($policy['issues'] ?? []) as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                    }
+                    ksort($statusCounts);
+                    foreach ($statusCounts as $reviewStatus => $count) {
+                        $diagnostics[] = 'pdf-byte-signature-byte-range-status:' . $reviewStatus . ':' . $count;
+                    }
+                    ksort($issueCounts);
+                    foreach ($issueCounts as $issue => $count) {
+                        $diagnostics[] = 'pdf-byte-signature-byte-range-issue:' . $issue . ':' . $count;
+                    }
+                    if ($contentsFitCount > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-byte-range-contents-fit:' . $contentsFitCount;
+                    }
+                }
                 if ($pdfDocumentSecurityStore !== []) {
                     $diagnostics[] = 'pdf-byte-dss';
                     $dssCerts = is_array($pdfDocumentSecurityStore['certs'] ?? null) ? $pdfDocumentSecurityStore['certs'] : [];
@@ -2804,6 +2838,7 @@ final class PdfEngineHandoff
             'pdfCatalogPermissions' => $pdfCatalogPermissions,
             'pdfSignatures' => $pdfSignatures,
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
+            'pdfSignatureByteRangePolicy' => $pdfSignatureByteRangePolicy,
             'pdfDocumentSecurityStore' => $pdfDocumentSecurityStore,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
@@ -2934,6 +2969,7 @@ final class PdfEngineHandoff
      *     finalPdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatureSubFilters: array<string, int>,
+     *     finalPdfSignatureByteRangePolicy: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
      *     finalPdfDocumentSecurityStore: array<string, mixed>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
@@ -3178,6 +3214,7 @@ final class PdfEngineHandoff
             'finalPdfCatalogPermissions' => is_array($finalRun) && is_array($finalRun['pdfCatalogPermissions'] ?? null) ? $finalRun['pdfCatalogPermissions'] : [],
             'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
+            'finalPdfSignatureByteRangePolicy' => is_array($finalRun) && is_array($finalRun['pdfSignatureByteRangePolicy'] ?? null) ? $finalRun['pdfSignatureByteRangePolicy'] : [],
             'finalPdfDocumentSecurityStore' => is_array($finalRun) && is_array($finalRun['pdfDocumentSecurityStore'] ?? null) ? $finalRun['pdfDocumentSecurityStore'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
@@ -4295,6 +4332,7 @@ final class PdfEngineHandoff
      *     catalogPermissions:list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatureSubFilters:array<string, int>,
+     *     signatureByteRangePolicy:list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
      *     documentSecurityStore:array<string, mixed>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
@@ -4353,6 +4391,7 @@ final class PdfEngineHandoff
         $graphicsStates = $this->extractPdfGraphicsStates($pdfBytes, $catalog);
         $optionalContent = $this->extractPdfOptionalContent($pdfBytes, $catalog);
         $signatures = $this->extractPdfSignatures($pdfBytes, $catalog);
+        $catalogPermissions = $this->extractPdfCatalogPermissions($pdfBytes, $catalog);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
         $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
         $annotationAppearances = $this->extractPdfAnnotationAppearances($pdfBytes, $catalog);
@@ -4450,9 +4489,10 @@ final class PdfEngineHandoff
             'acroFormMetadata' => $this->extractPdfAcroFormMetadata($pdfBytes, $catalog),
             'acroFormCalculationOrder' => $this->extractPdfAcroFormCalculationOrder($pdfBytes, $catalog),
             'threads' => $this->extractPdfThreads($pdfBytes, $catalog),
-            'catalogPermissions' => $this->extractPdfCatalogPermissions($pdfBytes, $catalog),
+            'catalogPermissions' => $catalogPermissions,
             'signatures' => $signatures,
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
+            'signatureByteRangePolicy' => $this->summarizePdfSignatureByteRangePolicy($signatures, $catalogPermissions, strlen($pdfBytes)),
             'documentSecurityStore' => $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
@@ -11406,6 +11446,187 @@ final class PdfEngineHandoff
         ksort($subFilters);
 
         return $subFilters;
+    }
+
+    /**
+     * @param list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null}> $signatures
+     * @param list<array{permission:string, signatureObject:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null}> $catalogPermissions
+     * @return list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>
+     */
+    private function summarizePdfSignatureByteRangePolicy(array $signatures, array $catalogPermissions, int $fileBytes): array
+    {
+        $policies = [];
+        foreach ($signatures as $signature) {
+            $policies[] = $this->summarizePdfSignatureByteRangePolicyEntry('signature', null, $signature, $fileBytes);
+        }
+
+        foreach ($catalogPermissions as $permission) {
+            $permissionName = is_string($permission['permission'] ?? null) && $permission['permission'] !== ''
+                ? $permission['permission']
+                : null;
+            $policies[] = $this->summarizePdfSignatureByteRangePolicyEntry('catalog-permission', $permissionName, $permission, $fileBytes);
+        }
+
+        usort(
+            $policies,
+            static fn (array $a, array $b): int => [
+                $a['source'],
+                $a['permission'] ?? '',
+                $a['fieldName'] ?? '',
+                $a['signatureObject'] ?? '',
+            ] <=> [
+                $b['source'],
+                $b['permission'] ?? '',
+                $b['fieldName'] ?? '',
+                $b['signatureObject'] ?? '',
+            ]
+        );
+
+        return $policies;
+    }
+
+    /**
+     * @param array{permission?:string, fieldName?:string|null, fieldObject?:string|null, signatureObject?:string|null, byteRange?:list<int>, byteRangeSegmentCount?:int, coveredBytes?:int|null, contentsBytes?:int|null} $signature
+     * @return array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}
+     */
+    private function summarizePdfSignatureByteRangePolicyEntry(string $source, ?string $permission, array $signature, int $fileBytes): array
+    {
+        $byteRange = [];
+        foreach (($signature['byteRange'] ?? []) as $value) {
+            if (is_int($value)) {
+                $byteRange[] = $value;
+            }
+        }
+
+        $issues = [];
+        $rangeCount = count($byteRange);
+        $validPairCount = $rangeCount >= 2 && $rangeCount % 2 === 0;
+        $startsAtZero = $validPairCount && $byteRange[0] === 0;
+        $coversToEnd = null;
+        $ordered = true;
+        $nonOverlapping = true;
+        $fitsFile = $validPairCount ? true : null;
+        $gapCount = 0;
+        $gapBytes = 0;
+        $firstGapOffset = null;
+        $firstGapLength = null;
+        $previousOffset = null;
+        $previousEnd = null;
+        $lastEnd = null;
+
+        if ($rangeCount === 0) {
+            $issues[] = 'missing-byte-range';
+        } elseif (!$validPairCount) {
+            $issues[] = 'invalid-pair-count';
+        } else {
+            for ($index = 0; $index < $rangeCount; $index += 2) {
+                $offset = $byteRange[$index];
+                $length = $byteRange[$index + 1];
+                if ($offset < 0 || $length < 0) {
+                    $issues[] = 'negative-range';
+                    $fitsFile = false;
+                }
+                $end = $offset + $length;
+                if ($offset > $fileBytes || $end > $fileBytes) {
+                    $fitsFile = false;
+                }
+                if ($previousOffset !== null && $offset < $previousOffset) {
+                    $ordered = false;
+                }
+                if ($previousEnd !== null) {
+                    if ($offset < $previousEnd) {
+                        $nonOverlapping = false;
+                    } elseif ($offset > $previousEnd) {
+                        $gapLength = $offset - $previousEnd;
+                        $gapCount++;
+                        $gapBytes += $gapLength;
+                        if ($firstGapOffset === null) {
+                            $firstGapOffset = $previousEnd;
+                            $firstGapLength = $gapLength;
+                        }
+                    }
+                }
+                $previousOffset = $offset;
+                $previousEnd = $end;
+                $lastEnd = $end;
+            }
+
+            $coversToEnd = $lastEnd === $fileBytes;
+            if (!$startsAtZero) {
+                $issues[] = 'does-not-start-at-zero';
+            }
+            if ($fitsFile === false) {
+                $issues[] = 'out-of-bounds';
+            }
+            if (!$ordered) {
+                $issues[] = 'unordered-ranges';
+            }
+            if (!$nonOverlapping) {
+                $issues[] = 'overlapping-ranges';
+            }
+            if ($gapCount === 0 && ($signature['contentsBytes'] ?? null) !== null) {
+                $issues[] = 'missing-contents-gap';
+            }
+            if ($coversToEnd === false) {
+                $issues[] = 'does-not-cover-to-end';
+            }
+        }
+
+        $contentsBytes = is_int($signature['contentsBytes'] ?? null) ? $signature['contentsBytes'] : null;
+        $contentsFitsFirstGap = null;
+        if ($contentsBytes !== null && $firstGapLength !== null) {
+            $contentsFitsFirstGap = $contentsBytes <= $firstGapLength;
+            if (!$contentsFitsFirstGap) {
+                $issues[] = 'contents-exceeds-gap';
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'source' => $source,
+            'permission' => $permission,
+            'fieldName' => is_string($signature['fieldName'] ?? null) && $signature['fieldName'] !== '' ? $signature['fieldName'] : null,
+            'fieldObject' => is_string($signature['fieldObject'] ?? null) && $signature['fieldObject'] !== '' ? $signature['fieldObject'] : null,
+            'signatureObject' => is_string($signature['signatureObject'] ?? null) && $signature['signatureObject'] !== '' ? $signature['signatureObject'] : null,
+            'byteRange' => $byteRange,
+            'segmentCount' => is_int($signature['byteRangeSegmentCount'] ?? null) ? $signature['byteRangeSegmentCount'] : intdiv($rangeCount, 2),
+            'coveredBytes' => is_int($signature['coveredBytes'] ?? null) ? $signature['coveredBytes'] : $this->coveredBytesForPdfSignatureRange($byteRange),
+            'fileBytes' => $fileBytes,
+            'gapCount' => $gapCount,
+            'gapBytes' => $gapBytes,
+            'firstGapOffset' => $firstGapOffset,
+            'firstGapLength' => $firstGapLength,
+            'startsAtZero' => $startsAtZero,
+            'coversToEnd' => $coversToEnd,
+            'ordered' => $ordered,
+            'nonOverlapping' => $nonOverlapping,
+            'fitsFile' => $fitsFile,
+            'contentsBytes' => $contentsBytes,
+            'contentsFitsFirstGap' => $contentsFitsFirstGap,
+            'reviewStatus' => $this->pdfSignatureByteRangeReviewStatus($issues),
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param list<string> $issues
+     */
+    private function pdfSignatureByteRangeReviewStatus(array $issues): string
+    {
+        if ($issues === []) {
+            return 'ok';
+        }
+        if (in_array('missing-byte-range', $issues, true)) {
+            return 'missing-byte-range';
+        }
+        foreach (['invalid-pair-count', 'negative-range', 'out-of-bounds', 'unordered-ranges', 'overlapping-ranges'] as $issue) {
+            if (in_array($issue, $issues, true)) {
+                return 'invalid';
+            }
+        }
+
+        return 'review';
     }
 
     /**
