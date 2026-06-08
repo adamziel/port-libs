@@ -6879,6 +6879,23 @@ final class PdfAttachmentExtractor
                 $definitions
             );
 
+            if (
+                $offsetOwner !== null
+                && $updateOwner === null
+                && $offsetOwner['offset'] > $previousOffset
+                && $offsetOwner['offset'] < $xrefOffset
+                && $offsetOwner['objectNumber'] !== (int) $objectNumber
+            ) {
+                unset($entries[$objectNumber]);
+                $entries[$offsetOwner['objectNumber']] ??= [
+                    'type' => 1,
+                    'generation' => $offsetOwner['generation'],
+                    'offset' => $offsetOwner['offset'],
+                    'offsetIsExplicit' => $entry['offsetIsExplicit'] ?? true,
+                ];
+                continue;
+            }
+
             if ($offsetOwner !== null && $updateOwner === null) {
                 continue;
             }

@@ -707,6 +707,89 @@ $xrefPrevChainClassicTableDamagedOffsetPdf = static function () use ($xrefPrevCh
     return $pdf;
 };
 
+$xrefPrevChainClassicTableSparseTrailerMisnumberedRowsPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale sparse misnumbered table page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current sparse misnumbered table page) Tj T* (Offset owner rows selected) Tj ET';
+    $stalePayload = '<wp-export><post id="stale-sparse-misnumbered-table"/></wp-export>';
+    $currentPayload = '<wp-export><post id="current-sparse-misnumbered-table"/></wp-export>';
+    $staleXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Stale Sparse Misnumbered Table XMP Title',
+        'Stale sparse trailer metadata must not win'
+    ));
+    $currentXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Current Sparse Misnumbered Table XMP Title',
+        'Current sparse trailer rows repaired by offset owner'
+    ));
+    if (!is_string($staleXmp) || !is_string($currentXmp)) {
+        throw new RuntimeException('Unable to compress sparse misnumbered classic-table fixture streams.');
+    }
+
+    $pdf = "%PDF-1.7\n";
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf): int {
+        $offset = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $staleCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $stalePagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $stalePageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $staleContentOffset = $addObject(4, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+    $fontOffset = $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $staleInfoOffset = $addObject(6, 0, '<< /Title (Stale Sparse Misnumbered Info Title) /Author (Stale Sparse Misnumbered Author) /Producer (Stale Sparse Misnumbered Producer) >>');
+    $staleMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($staleXmp) . " >>\nstream\n{$staleXmp}\nendstream");
+    $staleNameTreeOffset = $addObject(8, 0, '<< /Names [(stale-sparse-misnumbered-table.xml) 10 0 R] >>');
+    $staleFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (stale-sparse-misnumbered-table.xml) /Desc (Stale sparse misnumbered table attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $staleEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 12\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($staleCatalogOffset)
+        . $xrefTableRow($stalePagesOffset)
+        . $xrefTableRow($stalePageOffset)
+        . $xrefTableRow($staleContentOffset)
+        . $xrefTableRow($fontOffset)
+        . $xrefTableRow($staleInfoOffset)
+        . $xrefTableRow($staleMetadataOffset)
+        . $xrefTableRow($staleNameTreeOffset)
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($staleFileSpecOffset)
+        . $xrefTableRow($staleEmbeddedFileOffset)
+        . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $currentCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $currentPagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $currentPageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $currentContentOffset = $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $currentInfoOffset = $addObject(6, 0, '<< /Title (Current Sparse Misnumbered Info Title) /Author (Current Sparse Misnumbered Author) /Producer (Current Sparse Misnumbered Producer) >>');
+    $currentMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $currentNameTreeOffset = $addObject(8, 0, '<< /Names [(current-sparse-misnumbered-table.xml) 10 0 R] >>');
+    $currentFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (current-sparse-misnumbered-table.xml) /Desc (Current sparse misnumbered table attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $currentEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "30 9\n"
+        . $xrefTableRow($currentCatalogOffset)
+        . $xrefTableRow($currentPagesOffset)
+        . $xrefTableRow($currentPageOffset)
+        . $xrefTableRow($currentContentOffset)
+        . $xrefTableRow($currentInfoOffset)
+        . $xrefTableRow($currentMetadataOffset)
+        . $xrefTableRow($currentNameTreeOffset)
+        . $xrefTableRow($currentFileSpecOffset)
+        . $xrefTableRow($currentEmbeddedFileOffset)
+        . "trailer\n<< /Size 40 /Prev {$previousXrefOffset} >>\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 $xrefPrevChainClassicTableDamagedPrevStaleOffsetPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
     $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale damaged Prev table page) Tj ET';
     $currentContent = 'BT /F1 12 Tf 72 720 Td (Current damaged Prev table page) Tj T* (Damaged Prev repaired rows) Tj ET';
@@ -3297,6 +3380,48 @@ return [
         $t->true(!isset($metadata['language']));
         $t->true(!isset($metadata['embedded_files']));
         $t->true(!str_contains($text, 'Stale classic root free direct Prev page'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'repairs sparse latest classic table rows whose subsection object numbers point at current offset owners' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainClassicTableSparseTrailerMisnumberedRowsPdf): void {
+        $pdf = $xrefPrevChainClassicTableSparseTrailerMisnumberedRowsPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $extractor = new PdfTextExtractor();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
+        $currentPayload = '<wp-export><post id="current-sparse-misnumbered-table"/></wp-export>';
+
+        $t->same(['Current sparse misnumbered table page', 'Offset owner rows selected'], $extractor->extractTextLines($pdf));
+        $t->same("Current sparse misnumbered table page\nOffset owner rows selected", $text);
+        $t->same(['xmp', 'info', 'catalog'], $metadata['source']);
+        $t->same('Current Sparse Misnumbered Table XMP Title', $metadata['title']);
+        $t->same('Current sparse trailer rows repaired by offset owner', $metadata['description']);
+        $t->same('Current Sparse Misnumbered Info Title', $metadata['info']['Title']);
+        $t->same(['Current Sparse Misnumbered Author'], $metadata['authors']);
+        $t->same('Current Sparse Misnumbered Producer', $metadata['producer']);
+        $t->same('en-US', $metadata['language']);
+        $t->same(1, count($files));
+        $t->same('current-sparse-misnumbered-table.xml', $files[0]['filename']);
+        $t->same('Current sparse misnumbered table attachment', $files[0]['description']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(['current-sparse-misnumbered-table.xml'], $attachmentSummary['filenames']);
+        $t->same(strlen($currentPayload), $attachmentSummary['total_bytes']);
+        $t->same('current-sparse-misnumbered-table.xml', $attachmentSummary['attachments'][0]['filename'] ?? null);
+        $t->same('Current sparse misnumbered table attachment', $attachmentSummary['attachments'][0]['description'] ?? null);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
+        $t->true(str_contains($pdf, "xref\n30 9\n"));
+        $t->true(str_contains($pdf, "trailer\n<< /Size 40 /Prev "));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Sparse Misnumbered'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-sparse-misnumbered-table'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'stale-sparse-misnumbered-table'));
+        $t->true(!str_contains($text, 'Stale sparse misnumbered table page'));
         $t->true(!str_contains($text, "\0"));
     },
 ];
