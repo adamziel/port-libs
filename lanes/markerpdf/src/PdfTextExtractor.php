@@ -49963,8 +49963,12 @@ final class PdfTextExtractor
 
         $fontSize ??= 12.0;
         $scale = $horizontalScale / 100.0;
+        $delta = ($adjustment / 1000.0) * $fontSize * $scale;
+        if (!$this->textAdvanceDeltaIsBounded($delta)) {
+            return $currentTextEndX;
+        }
 
-        return $currentTextEndX - (($adjustment / 1000.0) * $fontSize * $scale);
+        return $currentTextEndX - $delta;
     }
 
     private function adjustTextEndY(?float $currentTextEndY, float $adjustment, ?float $fontSize): ?float
@@ -49974,8 +49978,12 @@ final class PdfTextExtractor
         }
 
         $fontSize ??= 12.0;
+        $delta = ($adjustment / 1000.0) * $fontSize;
+        if (!$this->textAdvanceDeltaIsBounded($delta)) {
+            return $currentTextEndY;
+        }
 
-        return $currentTextEndY - (($adjustment / 1000.0) * $fontSize);
+        return $currentTextEndY - $delta;
     }
 
     /**

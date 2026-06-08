@@ -148,6 +148,17 @@ final class PdfClassicXrefRebuilder
             return $eofBoundary;
         }
 
+        if ($eofBoundary !== null && $eofBoundary > $boundary) {
+            $latestBeforeEof = self::latestClassicXrefTableOffset($pdfBytes, $definitions, $eofBoundary);
+            if (
+                $latestBeforeEof !== null
+                && $latestBeforeEof > $boundary
+                && self::classicXrefTableHasPreviousOffset($pdfBytes, $definitions, $latestBeforeEof, $entry['offset'])
+            ) {
+                return $eofBoundary;
+            }
+        }
+
         if ($ignoredBoundary === null || $ignoredBoundary <= $boundary) {
             return $boundary;
         }
@@ -342,6 +353,71 @@ final class PdfClassicXrefRebuilder
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $definitions
+     */
+    private static function classicXrefTableHasPreviousOffset(
+        string $pdfBytes,
+        array $definitions,
+        int $xrefOffset,
+        int $previousOffset
+    ): bool {
+        $trailer = self::classicTableTrailerDictionaryAt($pdfBytes, $definitions, $xrefOffset);
+        if ($trailer === null) {
+            return false;
+        }
+
+        return self::directIntegerValueAfterName($trailer, 'Prev') === $previousOffset;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $definitions
+     */
+    private static function classicTableTrailerDictionaryAt(string $pdfBytes, array $definitions, int $offset): ?string
+    {
+        if (
+            self::offsetOwnedByDirectObjectBody($offset, $definitions)
+            || self::tokenStartsInsidePdfCompositeToken($pdfBytes, $offset, $definitions)
+        ) {
+            return null;
+        }
+
+        $offset = self::skipPdfWhitespace($pdfBytes, $offset);
+        if (!self::pdfKeywordAt($pdfBytes, $offset, 'xref')) {
+            return null;
+        }
+
+        $afterKeywordOffset = $offset + strlen('xref');
+        $trailerOffset = self::xrefTableTrailerKeywordOffset($pdfBytes, $afterKeywordOffset);
+        if ($trailerOffset === null) {
+            return null;
+        }
+
+        $dictionaryOffset = self::skipPdfWhitespace($pdfBytes, $trailerOffset + strlen('trailer'));
+        if (substr($pdfBytes, $dictionaryOffset, 2) !== '<<') {
+            return null;
+        }
+
+        $dictionaryEnd = self::skipPdfCompositeTokenAt($pdfBytes, $dictionaryOffset);
+        if ($dictionaryEnd === null) {
+            return null;
+        }
+
+        return substr($pdfBytes, $dictionaryOffset, $dictionaryEnd - $dictionaryOffset);
+    }
+
+    private static function directIntegerValueAfterName(string $dictionary, string $name): ?int
+    {
+        $pattern = '/\/' . preg_quote($name, '/') . '\b\s*([+-]?\d+)\b/s';
+        if (preg_match_all($pattern, $dictionary, $matches) < 1) {
+            return null;
+        }
+
+        $value = end($matches[1]);
+
+        return is_string($value) ? (int) $value : null;
     }
 
     /**
