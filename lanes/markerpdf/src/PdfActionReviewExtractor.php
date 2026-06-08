@@ -775,7 +775,7 @@ final class PdfActionReviewExtractor
     private function remoteDestinationValue(mixed $value): ?array
     {
         $resolved = $this->resolveValue($value);
-        if ($this->objectValueHasTrailingOperand($resolved)) {
+        if ($this->valueHasTrailingOperandAfterResolution($value)) {
             return null;
         }
 
@@ -797,6 +797,10 @@ final class PdfActionReviewExtractor
 
         $array = $this->arrayItems($resolved);
         if ($array === null || $array === []) {
+            return null;
+        }
+
+        if ($this->valueHasTrailingOperandAfterResolution($array[0])) {
             return null;
         }
 
@@ -1054,7 +1058,7 @@ final class PdfActionReviewExtractor
         }
 
         $resolved = $this->resolveValue($destination);
-        if ($this->objectValueHasTrailingOperand($resolved)) {
+        if ($this->valueHasTrailingOperandAfterResolution($destination)) {
             return null;
         }
 
@@ -1131,6 +1135,10 @@ final class PdfActionReviewExtractor
 
     private function destinationPageFromValue(mixed $value): ?int
     {
+        if ($this->valueHasTrailingOperandAfterResolution($value)) {
+            return null;
+        }
+
         $pageReference = $this->referenceObject($value);
         if ($pageReference !== null) {
             $pageIndex = $this->pageIndexForReference($pageReference);
@@ -1170,7 +1178,7 @@ final class PdfActionReviewExtractor
         }
 
         $resolved = $this->resolveValue($value);
-        if ($this->objectValueHasTrailingOperand($resolved)) {
+        if ($this->valueHasTrailingOperandAfterResolution($value)) {
             return false;
         }
 
@@ -1220,6 +1228,10 @@ final class PdfActionReviewExtractor
             return false;
         }
 
+        if ($this->valueHasTrailingOperandAfterResolution($array[1] ?? null)) {
+            return false;
+        }
+
         $viewMode = $this->nameValue($this->resolveValue($array[1] ?? null));
 
         return $viewMode !== null
@@ -1241,6 +1253,10 @@ final class PdfActionReviewExtractor
 
         foreach ($requiredOperands as $index => $allowsNull) {
             if (!array_key_exists($index, $array)) {
+                return false;
+            }
+
+            if ($this->valueHasTrailingOperandAfterResolution($array[$index])) {
                 return false;
             }
 
@@ -1269,6 +1285,10 @@ final class PdfActionReviewExtractor
 
     private function destinationSurplusOperandIsBenign(mixed $value): bool
     {
+        if ($this->valueHasTrailingOperandAfterResolution($value)) {
+            return false;
+        }
+
         $resolved = $this->resolveValue($value);
 
         return $resolved === null || is_int($resolved) || is_float($resolved);
@@ -2993,6 +3013,30 @@ final class PdfActionReviewExtractor
     private function objectValueHasTrailingOperand(mixed $value): bool
     {
         return is_array($value) && is_array($value['objectTrailingOperandReview'] ?? null);
+    }
+
+    private function valueHasTrailingOperandAfterResolution(mixed $value): bool
+    {
+        if ($this->objectValueHasTrailingOperand($value)) {
+            return true;
+        }
+
+        $reference = $this->referenceObject($value);
+        if ($reference !== null && $this->referenceObjectBodyHasTrailingOperand($reference)) {
+            return true;
+        }
+
+        return $this->objectValueHasTrailingOperand($this->resolveValue($value));
+    }
+
+    /**
+     * @param array{object: int, generation: int} $reference
+     */
+    private function referenceObjectBodyHasTrailingOperand(array $reference): bool
+    {
+        $body = $this->objectBodiesByGeneration[$reference['object']][$reference['generation']] ?? null;
+
+        return is_string($body) && $this->objectBodyHasTrailingOperand($body);
     }
 
     private function valueWithObjectTrailingOperandReview(mixed $value, string $objectBody): mixed
