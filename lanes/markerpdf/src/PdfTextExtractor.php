@@ -12874,7 +12874,12 @@ final class PdfTextExtractor
         }
 
         $states = [];
+        $duplicateResourceNames = $this->duplicateTopLevelResourceEntryNames($extGStateDictionary);
         foreach ($this->topLevelResourceReferenceEntries($extGStateDictionary, true) as $resourceName => $reference) {
+            if (isset($duplicateResourceNames[$resourceName])) {
+                continue;
+            }
+
             $resolved = $this->resolvedResourceObjectBody(
                 $objects,
                 $reference['objectNumber'],
@@ -12896,7 +12901,7 @@ final class PdfTextExtractor
         }
 
         foreach ($this->directExtGStateResourceDictionaries($extGStateDictionary, true) as $resourceName => $dictionary) {
-            if (isset($states[$resourceName])) {
+            if (isset($states[$resourceName]) || isset($duplicateResourceNames[$resourceName])) {
                 continue;
             }
 

@@ -12,7 +12,7 @@ final class PdfClassicXrefRebuilder
     public static function startxrefOffsetWithClassicRebuild(string $pdfBytes, array $definitions): ?int
     {
         $entry = self::latestStartxrefEntry($pdfBytes, $definitions);
-        $boundary = $entry['token_offset'] ?? self::latestTopLevelEofOffset($pdfBytes, $definitions);
+        $boundary = self::classicRebuildBoundaryOffset($pdfBytes, $definitions, $entry);
         if ($entry === null) {
             return self::latestClassicXrefTableOffset($pdfBytes, $definitions, $boundary);
         }
@@ -111,6 +111,136 @@ final class PdfClassicXrefRebuilder
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $definitions
+     * @param array{offset: int, token_offset: int}|null $entry
+     */
+    private static function classicRebuildBoundaryOffset(string $pdfBytes, array $definitions, ?array $entry): ?int
+    {
+        $boundary = $entry['token_offset'] ?? null;
+        $eofBoundary = self::latestTopLevelEofOffset($pdfBytes, $definitions);
+        $ignoredBoundary = self::latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
+        if ($boundary === null) {
+            if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
+                $latestBeforeEof = $eofBoundary === null
+                    ? null
+                    : self::latestClassicXrefTableOffset($pdfBytes, $definitions, $eofBoundary);
+
+                return $latestBeforeEof !== null
+                    && $latestBeforeEof > $ignoredBoundary
+                    && !self::hasTopLevelStartxrefTokenBetweenOffsets(
+                        $pdfBytes,
+                        $definitions,
+                        $latestBeforeEof,
+                        $eofBoundary
+                    )
+                    ? $eofBoundary
+                    : $ignoredBoundary;
+            }
+
+            return $eofBoundary;
+        }
+
+        if ($ignoredBoundary === null || $ignoredBoundary <= $boundary) {
+            return $boundary;
+        }
+
+        if ($eofBoundary !== null && $eofBoundary > $ignoredBoundary) {
+            $latestBeforeEof = self::latestClassicXrefTableOffset($pdfBytes, $definitions, $eofBoundary);
+            if (
+                $latestBeforeEof !== null
+                && $latestBeforeEof > $ignoredBoundary
+                && !self::hasTopLevelStartxrefTokenBetweenOffsets(
+                    $pdfBytes,
+                    $definitions,
+                    $latestBeforeEof,
+                    $eofBoundary
+                )
+            ) {
+                return $eofBoundary;
+            }
+        }
+
+        $latestBeforeIgnored = self::latestClassicXrefTableOffset($pdfBytes, $definitions, $ignoredBoundary);
+        if (
+            $latestBeforeIgnored !== null
+            && $latestBeforeIgnored > $boundary
+            && !self::hasTopLevelStartxrefTokenBetweenOffsets(
+                $pdfBytes,
+                $definitions,
+                $latestBeforeIgnored,
+                $ignoredBoundary
+            )
+        ) {
+            return $ignoredBoundary;
+        }
+
+        return $boundary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $definitions
+     */
+    private static function latestIgnoredStartxrefRebuildBoundaryOffset(string $pdfBytes, array $definitions): ?int
+    {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
+            if (
+                !is_int($tokenOffset)
+                || !self::pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')
+                || self::tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)
+            ) {
+                continue;
+            }
+
+            if (
+                self::offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || self::tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                return $tokenOffset;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $definitions
+     */
+    private static function hasTopLevelStartxrefTokenBetweenOffsets(
+        string $pdfBytes,
+        array $definitions,
+        int $afterOffset,
+        int $beforeOffset
+    ): bool {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return false;
+        }
+
+        foreach ($matches[0] as $match) {
+            $tokenOffset = $match[1] ?? null;
+            if (
+                !is_int($tokenOffset)
+                || $tokenOffset <= $afterOffset
+                || $tokenOffset >= $beforeOffset
+                || !self::pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')
+                || self::tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)
+                || self::offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || self::tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     private static function startxrefDeclaredOffsetFromOperand(string $operandBytes): ?int
