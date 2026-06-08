@@ -27300,7 +27300,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        $arrayBody = $this->pdfSingleArrayFromValue($value, $objects);
         if ($arrayBody === null) {
             return null;
         }

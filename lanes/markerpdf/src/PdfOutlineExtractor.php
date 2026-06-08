@@ -556,8 +556,16 @@ final class PdfOutlineExtractor
             return $metadata;
         }
 
+        $documentOutlineReviewMetadata = $this->documentOutlineReviewMetadata($pdfBytes);
+        $outlineRootReviewMetadata = $this->outlineRootDocumentReviewMetadata($documentOutlineReviewMetadata);
+
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         if ($pageObjectNumbers === []) {
+            if ($outlineRootReviewMetadata !== []) {
+                $metadata['source'][] = 'outline_root_review';
+                $metadata['outline_root_review'] = $outlineRootReviewMetadata;
+            }
+
             return $metadata;
         }
 
@@ -576,8 +584,6 @@ final class PdfOutlineExtractor
         $articleBeadsByPage = $this->articleBeadsByPageIndex($articleThreads);
         $pageReviews = $includePageReview ? (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdfBytes) : [];
         $pageReviewsByPage = $this->pageReviewsByPageIndex($pageReviews);
-        $documentOutlineReviewMetadata = $this->documentOutlineReviewMetadata($pdfBytes);
-        $outlineRootReviewMetadata = $this->outlineRootDocumentReviewMetadata($documentOutlineReviewMetadata);
         $outlineReviewMetadataByObject = $this->outlineItemDocumentReviewMetadataByObjectFromOutline(
             $documentOutlineReviewMetadata
         );
