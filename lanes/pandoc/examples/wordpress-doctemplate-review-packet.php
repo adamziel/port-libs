@@ -340,6 +340,39 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    $texinfoDefault = (new DocTemplate())->renderResource('templates/default', [], [
+        'filename' => 'review.info',
+        'title' => 'Texinfo Default Review',
+        'version' => '1.2',
+        'header-includes' => ['@syncodeindex fn cp'],
+        'strikeout' => true,
+        'titlepage' => true,
+        'author' => ['Migration bot', 'Content editor'],
+        'date' => '2026-06-08',
+        'include-before' => ['@node Before Texinfo import' . "\n" . '@chapter Before Texinfo import'],
+        'toc' => true,
+        'body' => '@node Imported Body' . "\n" . '@chapter Imported Body' . "\n" . 'Texinfo body handoff',
+        'include-after' => ['@node Texinfo Handoff' . "\n" . '@chapter Texinfo Handoff'],
+    ], null, 'texinfo+smart');
+    foreach ([
+        '@setfilename review.info',
+        '@settitle Texinfo Default Review 1.2',
+        '@syncodeindex fn cp',
+        '@macro textstrikeout{text}',
+        '@titlepage',
+        '@author Migration bot',
+        '@author Content editor',
+        '@contents',
+        '@node Imported Body',
+        '@chapter Texinfo Handoff',
+        '@bye',
+    ] as $needle) {
+        if (!str_contains($texinfoDefault, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate Texinfo default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $html4DefaultAlias = (new DocTemplate())->renderResource('templates/default', [], [
         'pandoc-version' => '3.7.0',
         'pagetitle' => 'HTML4 Alias Review',

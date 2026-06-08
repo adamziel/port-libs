@@ -408,6 +408,7 @@ final class DocTemplate
             'default.asciidoc' => $this->defaultAsciiDocTemplate(),
             'default.muse' => $this->defaultMuseTemplate(),
             'default.org' => $this->defaultOrgTemplate(),
+            'default.texinfo' => $this->defaultTexinfoTemplate(),
             'default.latex' => $this->defaultLatexTemplate(),
             'default.beamer' => $this->defaultBeamerTemplate(),
             'default.revealjs' => $this->defaultRevealJsTemplate(),
@@ -451,6 +452,7 @@ final class DocTemplate
             'default.asciidoc',
             'default.muse',
             'default.org',
+            'default.texinfo',
             'default.latex',
             'default.beamer',
             'default.revealjs',
@@ -2638,6 +2640,64 @@ $for(include-after)$
 $include-after$
 $endfor$
 ORG;
+    }
+
+    private function defaultTexinfoTemplate(): string
+    {
+        return <<<'TEXINFO'
+\input texinfo  @c -*-texinfo-*-
+$if(filename)$
+@setfilename $filename$
+$endif$
+$if(title)$
+@settitle $title$$if(version)$ $version$$endif$
+$endif$
+
+@documentencoding UTF-8
+$for(header-includes)$
+$header-includes$
+$endfor$
+
+$if(strikeout)$
+@macro textstrikeout{text}
+~~\text\~~
+@end macro
+
+$endif$
+@ifnottex
+@paragraphindent 0
+@end ifnottex
+$if(titlepage)$
+@titlepage
+@title $title$
+$if(version)$
+@subtitle $version$
+$endif$
+$for(author)$
+@author $author$
+$endfor$
+$if(date)$
+$date$
+$endif$
+@end titlepage
+
+$endif$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$if(toc)$
+@contents
+
+$endif$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+
+@bye
+TEXINFO;
     }
 
     private function defaultBbcodeTemplate(): string

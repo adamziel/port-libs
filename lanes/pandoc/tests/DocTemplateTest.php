@@ -1630,6 +1630,68 @@ HTML,
         ], null, 'org'));
     },
 
+    'renders bounded pandoc default texinfo template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $texinfo = $renderer->renderResource('templates/default', [], [
+            'filename' => 'review.info',
+            'title' => 'Texinfo Review Packet',
+            'version' => '1.2',
+            'header-includes' => ['@syncodeindex fn cp'],
+            'strikeout' => true,
+            'titlepage' => true,
+            'author' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-08',
+            'include-before' => ['@node Before Import' . "\n" . '@chapter Before Import'],
+            'toc' => true,
+            'body' => "@node Imported Body\n@chapter Imported Body\nConverted content.",
+            'include-after' => ['@node Handoff' . "\n" . '@chapter Handoff'],
+        ], null, 'texinfo');
+
+        foreach ([
+            '\\input texinfo  @c -*-texinfo-*-',
+            '@setfilename review.info',
+            '@settitle Texinfo Review Packet 1.2',
+            '@documentencoding UTF-8',
+            '@syncodeindex fn cp',
+            '@macro textstrikeout{text}',
+            '~~\\text\\~~',
+            '@ifnottex',
+            '@paragraphindent 0',
+            '@titlepage',
+            '@title Texinfo Review Packet',
+            '@subtitle 1.2',
+            '@author Migration bot',
+            '@author Content editor',
+            '2026-06-08',
+            '@node Before Import',
+            '@contents',
+            "@node Imported Body\n@chapter Imported Body\nConverted content.",
+            '@node Handoff',
+            '@bye',
+        ] as $needle) {
+            $t->contains($needle, $texinfo);
+        }
+
+        $direct = $renderer->renderResource('templates/default.texinfo', [], [
+            'body' => "@chapter Direct Body\n",
+        ]);
+        $t->contains("@chapter Direct Body\n", $direct);
+
+        $extensionQualified = $renderer->renderResource('templates/default', [], [
+            'title' => 'Texinfo Extension Packet',
+            'body' => '@chapter Extension Body',
+        ], null, 'texinfo+smart');
+        $t->contains('@settitle Texinfo Extension Packet', $extensionQualified);
+        $t->contains('@chapter Extension Body', $extensionQualified);
+
+        $t->same('custom texinfo', $renderer->renderResource('templates/default', [
+            'templates/default.texinfo' => 'custom $body$',
+        ], [
+            'body' => 'texinfo',
+        ], null, 'texinfo'));
+    },
+
     'renders bounded pandoc default rst template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
