@@ -182,6 +182,8 @@ $defaultIgnorableText = "soft\u{00AD}hyphen / \u{FEFF}Title";
 $defaultIgnorableWidth = UnicodeText::displayWidth("soft\u{00AD}hyphen") . ',' . UnicodeText::displayWidth("\u{FEFF}Title");
 $formatControlText = "\u{0600}رقم \u{070F}ܣܘܪܝܝܐ \u{110BD}kaithi";
 $formatControlWrap = UnicodeText::wrapByDisplayWidth("Audit \u{0600}رقم tail", 9, '  ');
+$tabStopText = "A\tB\t\u{9B5A}";
+$tabStopSlices = UnicodeText::splitByDisplayBreakpoints($tabStopText, [4, 8]);
 $lineEndingConversions = $source->attr('sourceLineEndings')['conversions'] ?? 0;
 $normalizedSource = (new MarkdownReader())->readBytes("# Cafe\xCC\x81 Review\n\nLegacy \xE2\x84\xAB source", 'utf-8', 'nfc');
 $compatibilityNormalization = UnicodeText::normalize("\u{2460} \u{FB01} Cafe\u{0301} \u{212B}", 'nfkc');
@@ -365,6 +367,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Format controls'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $formatControlText . ' / ' . implode(' / ', $formatControlWrap)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => UnicodeText::displayWidth($formatControlText) . ' / ' . implode(',', array_map(UnicodeText::displayWidth(...), $formatControlWrap))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Tab stops'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $tabStopSlices)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => UnicodeText::displayWidth($tabStopText) . ' / ' . implode(',', array_map(UnicodeText::displayWidth(...), $tabStopSlices))])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Latin-9 source'])]),
@@ -653,6 +660,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Format controls</td><td>\u{0600}رقم \u{070F}ܣܘܪܝܝܐ \u{110BD}kaithi / Audit \u{0600}رقم /   tail</td><td>17 / 9,6</td>")) {
         throw new RuntimeException('charset handoff self-test missing prepended format-control width audit');
+    }
+    if (!str_contains($blocks, '<td>Tab stops</td><td>' . implode(' / ', $tabStopSlices) . '</td><td>10 / 4,4,2</td>')) {
+        throw new RuntimeException('charset handoff self-test missing tab-stop display-width audit');
     }
     if (($latin9Source->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-8859-15') {
         throw new RuntimeException('charset handoff self-test missing Latin-9 source encoding');

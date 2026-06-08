@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class UnicodeText
 {
     private const REPLACEMENT = "\xEF\xBF\xBD";
+    private const TAB_STOP_COLUMNS = 4;
 
     /** @var array<string, string> */
     private const CANONICAL_DECOMPOSITIONS = [
@@ -2201,7 +2202,7 @@ final class UnicodeText
         $ambiguousColumns = self::ambiguousWidthColumns($ambiguousWidth);
         $width = 0;
         foreach (self::graphemes($text) as $cluster) {
-            $width += self::graphemeDisplayWidth($cluster, $ambiguousColumns);
+            $width += self::graphemeDisplayWidthAtColumn($cluster, $ambiguousColumns, $width);
         }
 
         return $width;
@@ -2221,7 +2222,7 @@ final class UnicodeText
         $head = '';
         $usedWidth = 0;
         foreach (self::graphemes($text) as $cluster) {
-            $clusterWidth = self::graphemeDisplayWidth($cluster, $ambiguousColumns);
+            $clusterWidth = self::graphemeDisplayWidthAtColumn($cluster, $ambiguousColumns, $usedWidth);
             $head .= $cluster;
             $usedWidth += $clusterWidth;
 
@@ -4008,6 +4009,22 @@ final class UnicodeText
         }
 
         return $width;
+    }
+
+    private static function graphemeDisplayWidthAtColumn(string $cluster, int $ambiguousColumns, int $column): int
+    {
+        if ($cluster === "\t") {
+            return self::tabDisplayAdvance($column);
+        }
+
+        return self::graphemeDisplayWidth($cluster, $ambiguousColumns);
+    }
+
+    private static function tabDisplayAdvance(int $column): int
+    {
+        $remainder = $column % self::TAB_STOP_COLUMNS;
+
+        return $remainder === 0 ? self::TAB_STOP_COLUMNS : self::TAB_STOP_COLUMNS - $remainder;
     }
 
     private static function isCombiningOrZeroWidth(int $codepoint): bool

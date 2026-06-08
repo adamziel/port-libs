@@ -1504,6 +1504,43 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'Unicode separator wrapped line exceeds requested width');
         }
     },
+    'expands tabs to four column stops for display width accounting' => static function (TestRunner $t): void {
+        $tabbed = "A\tB\t\u{9B5A}";
+
+        $t->same(4, UnicodeText::displayWidth("\t"));
+        $t->same(5, UnicodeText::displayWidth("A\tB"));
+        $t->same(9, UnicodeText::displayWidth("ABCD\tE"));
+        $t->same(10, UnicodeText::displayWidth($tabbed));
+        $t->same(["A\t", "B\t", "\u{9B5A}"], UnicodeText::splitByDisplayBreakpoints($tabbed, [4, 8]));
+        $t->same(["A\t", "B"], UnicodeText::splitAtDisplayWidth("A\tB", 2));
+        $t->same("A\tB ", UnicodeText::padDisplay("A\tB", 6));
+        $t->same(6, UnicodeText::displayWidth(UnicodeText::padDisplay("A\tB", 6)));
+
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'alignments' => ['default', 'default'],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', ['header' => true], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Label'])]),
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Value'])]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => "A\tB"])]),
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ok'])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '| Label | Value |',
+            '|-----|-----|',
+            "| A\tB | ok    |",
+        ]), (new MarkdownWriter())->write($document));
+    },
     'keeps default ignorable controls zero width for display accounting' => static function (TestRunner $t): void {
         $softHyphen = "soft\u{00AD}hyphen";
         $leadingBom = "\u{FEFF}Title";
