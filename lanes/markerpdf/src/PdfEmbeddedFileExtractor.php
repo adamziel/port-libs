@@ -828,6 +828,9 @@ final class PdfEmbeddedFileExtractor
                 'file_spec_object' => $fileSpec['object'],
                 'embedded_file_object' => $stream['object'],
             ];
+            foreach ($this->embeddedFileKeySelectionReview($filenameSource, $efKey) as $key => $metadataValue) {
+                $file[$key] = $metadataValue;
+            }
             if ($payloadEncrypted) {
                 $file['encrypted_payload_suppressed'] = true;
                 $file['encryption_policy'] = $encryptionPolicy;
@@ -1925,6 +1928,21 @@ final class PdfEmbeddedFileExtractor
         }
 
         return self::EMBEDDED_FILE_FALLBACK_KEYS;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function embeddedFileKeySelectionReview(string $filenameSource, string $efKey): array
+    {
+        if (!in_array($filenameSource, self::EMBEDDED_FILE_FALLBACK_KEYS, true) || $filenameSource === $efKey) {
+            return [];
+        }
+
+        return [
+            'ef_key_selection_status' => 'fallback_embedded_file_key',
+            'ef_key_preferred_source' => $filenameSource,
+        ];
     }
 
     /**

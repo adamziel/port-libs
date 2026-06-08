@@ -1599,6 +1599,9 @@ final class PdfAttachmentExtractor
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
+        foreach ($this->embeddedFileKeySelectionReview($filenameSource, $streamReference['key']) as $key => $metadataValue) {
+            $attachment[$key] = $metadataValue;
+        }
         $this->addUtcDateReview($attachment, 'created_at', $createdAt);
         $this->addUtcDateReview($attachment, 'modified_at', $modifiedAt);
         foreach ($filenameReview as $key => $metadataValue) {
@@ -3231,6 +3234,21 @@ final class PdfAttachmentExtractor
         }
 
         return self::EMBEDDED_FILE_FALLBACK_KEYS;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function embeddedFileKeySelectionReview(string $filenameSource, string $efKey): array
+    {
+        if (!in_array($filenameSource, self::EMBEDDED_FILE_FALLBACK_KEYS, true) || $filenameSource === $efKey) {
+            return [];
+        }
+
+        return [
+            'ef_key_selection_status' => 'fallback_embedded_file_key',
+            'ef_key_preferred_source' => $filenameSource,
+        ];
     }
 
     /**
