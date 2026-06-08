@@ -15081,27 +15081,39 @@ final class PdfTextExtractor
      */
     private function pageLabelsDictionaryBodies(array $objects): array
     {
+        if ($this->currentTrailerRootReferencePresent) {
+            $catalog = $this->catalogObjectBody($objects);
+            return $catalog === null ? [] : $this->pageLabelDictionariesFromCatalogBody($catalog, $objects);
+        }
+
         $dictionaries = [];
         foreach ($objects as $body) {
             if (!$this->isCatalogObject($body)) {
                 continue;
             }
 
-            $entries = $this->pageLabelTopLevelValueEntriesAfterName($body, 'PageLabels');
-            if ($entries === []) {
+            array_push($dictionaries, ...$this->pageLabelDictionariesFromCatalogBody($body, $objects));
+        }
+
+        return $dictionaries;
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     */
+    private function pageLabelDictionariesFromCatalogBody(string $body, array $objects): array
+    {
+        $dictionaries = [];
+        $entries = $this->pageLabelTopLevelValueEntriesAfterName($body, 'PageLabels');
+        foreach ($entries as $entry) {
+            if ($entry['has_trailing_operand']) {
                 continue;
             }
 
-            foreach ($entries as $entry) {
-                if ($entry['has_trailing_operand']) {
-                    continue;
-                }
-
-                $value = $entry['value'];
-                $dictionary = $this->pageLabelDictionaryFromValue($value, $objects);
-                if ($dictionary !== null) {
-                    $dictionaries[] = $dictionary;
-                }
+            $dictionary = $this->pageLabelDictionaryFromValue($entry['value'], $objects);
+            if ($dictionary !== null) {
+                $dictionaries[] = $dictionary;
             }
         }
 
