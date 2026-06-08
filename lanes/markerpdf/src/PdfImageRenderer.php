@@ -145,11 +145,17 @@ final class PdfImageRenderer
         $components = $this->jpegComponentCount($jpegBytes) ?? $this->componentCountForColorSpace($colorSpace);
         $adobeTransform = $this->jpegAdobeApp14Transform($jpegBytes);
         $dctFilter = $this->dctDecodeFilterName($imageDictionary, $objects);
-        $decodeParmsTransform = $this->dctDecodeParmsColorTransform($imageDictionary, $objects);
-        $decodeParmsDeclarationDuplicated = $this->duplicatePdfNameDeclarationCount($imageDictionary, 'DecodeParms') > 0;
-        $decodeParmsAlignmentInvalid = $this->dctDecodeParmsAlignmentIsInvalid($imageDictionary, $objects);
-        $decodeParmsOperandFailure = $this->dctDecodeParmsOperandFailureInDictionary($imageDictionary, $objects);
-        $decodeParmsDuplicateColorTransform = $this->dctDecodeParmsColorTransformIsDuplicated($imageDictionary, $objects);
+        $hasDctFilter = $dctFilter !== null;
+        $decodeParmsTransform = $hasDctFilter ? $this->dctDecodeParmsColorTransform($imageDictionary, $objects) : null;
+        $decodeParmsDeclarationDuplicated = $hasDctFilter
+            && $this->duplicatePdfNameDeclarationCount($imageDictionary, 'DecodeParms') > 0;
+        $decodeParmsAlignmentInvalid = $hasDctFilter
+            && $this->dctDecodeParmsAlignmentIsInvalid($imageDictionary, $objects);
+        $decodeParmsOperandFailure = $hasDctFilter
+            ? $this->dctDecodeParmsOperandFailureInDictionary($imageDictionary, $objects)
+            : null;
+        $decodeParmsDuplicateColorTransform = $hasDctFilter
+            && $this->dctDecodeParmsColorTransformIsDuplicated($imageDictionary, $objects);
         $decodeParmsTransformValid = !$decodeParmsDeclarationDuplicated
             && !$decodeParmsAlignmentInvalid
             && $decodeParmsOperandFailure === null
@@ -5587,10 +5593,7 @@ final class PdfImageRenderer
             );
         }
 
-        return $this->dctDecodeParmsOperandFailureReviewFromValue(
-            $this->extractPdfNameValue($dictionary, 'DecodeParms'),
-            $objects
-        );
+        return null;
     }
 
     /**
@@ -6434,10 +6437,7 @@ final class PdfImageRenderer
             );
         }
 
-        return $this->dctDecodeParmsColorTransformFromValue(
-            $this->extractPdfNameValue($dictionary, 'DecodeParms'),
-            $objects
-        );
+        return null;
     }
 
     /**
@@ -6537,10 +6537,7 @@ final class PdfImageRenderer
             );
         }
 
-        return $this->dctDecodeParmsColorTransformIsDuplicatedInValue(
-            $this->extractPdfNameValue($dictionary, 'DecodeParms'),
-            $objects
-        );
+        return false;
     }
 
     /**
