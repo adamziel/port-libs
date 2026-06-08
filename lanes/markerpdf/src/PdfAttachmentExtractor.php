@@ -682,7 +682,10 @@ final class PdfAttachmentExtractor
 
                 $rawAssociatedFilesValue = $this->rawDictionaryEntryValue($catalogDictionaryBody, 'AF');
                 if ($rawAssociatedFilesValue !== null) {
-                    $rawAssociatedFiles = $this->rawArrayItemsFromValue($rawAssociatedFilesValue, $objects);
+                    $rawAssociatedFiles = $this->rawAssociatedFileArrayItemsFromValue($rawAssociatedFilesValue, $objects);
+                    if ($rawAssociatedFiles === null) {
+                        continue;
+                    }
                 }
             }
 
@@ -1103,7 +1106,10 @@ final class PdfAttachmentExtractor
 
                 $rawAssociatedFilesValue = $this->rawDictionaryEntryValue($pageDictionaryBody, 'AF');
                 if ($rawAssociatedFilesValue !== null) {
-                    $rawAssociatedFiles = $this->rawArrayItemsFromValue($rawAssociatedFilesValue, $objects);
+                    $rawAssociatedFiles = $this->rawAssociatedFileArrayItemsFromValue($rawAssociatedFilesValue, $objects);
+                    if ($rawAssociatedFiles === null) {
+                        continue;
+                    }
                 }
             }
 
@@ -1168,7 +1174,10 @@ final class PdfAttachmentExtractor
 
                     $rawAssociatedFilesValue = $this->rawDictionaryEntryValue($annotationDictionaryBody, 'AF');
                     if ($rawAssociatedFilesValue !== null) {
-                        $rawAssociatedFiles = $this->rawArrayItemsFromValue($rawAssociatedFilesValue, $objects);
+                        $rawAssociatedFiles = $this->rawAssociatedFileArrayItemsFromValue($rawAssociatedFilesValue, $objects);
+                        if ($rawAssociatedFiles === null) {
+                            continue;
+                        }
                     }
                 }
 
@@ -8118,6 +8127,40 @@ final class PdfAttachmentExtractor
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<string>|null
+     */
+    private function rawAssociatedFileArrayItemsFromValue(string $value, array $objects): ?array
+    {
+        if (!$this->rawValueIsOnlyTopLevelArray($value, $objects)) {
+            return null;
+        }
+
+        return $this->rawArrayItemsFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function rawValueIsOnlyTopLevelArray(string $value, array $objects): bool
+    {
+        $index = 0;
+        $parsed = $this->parseValue($value, $index);
+        $object = $this->objectForReference($parsed, $objects);
+        $candidate = $object !== null ? trim($object['body']) : trim($value);
+
+        $index = 0;
+        $raw = $this->rawValueAt($candidate, $index);
+        if ($raw === null || !str_starts_with(trim($raw), '[')) {
+            return false;
+        }
+
+        $this->skipWhitespaceAndComments($candidate, $index);
+
+        return $index >= strlen($candidate);
     }
 
     /**

@@ -480,7 +480,7 @@ final class PdfEmbeddedFileExtractor
             return;
         }
 
-        foreach ($this->arrayItemsFromValue($arrayValue, $objects) as $index => $fileSpecValue) {
+        foreach ($this->associatedFileArrayItemsFromValue($arrayValue, $objects) as $index => $fileSpecValue) {
             $file = $this->embeddedFileFromFileSpecValue(
                 $fileSpecValue,
                 null,
@@ -619,7 +619,7 @@ final class PdfEmbeddedFileExtractor
                 continue;
             }
 
-            foreach ($this->arrayItemsFromValue($associatedFilesValue, $objects) as $associatedFileIndex => $fileSpecValue) {
+            foreach ($this->associatedFileArrayItemsFromValue($associatedFilesValue, $objects) as $associatedFileIndex => $fileSpecValue) {
                 $entries[] = [
                     'pageNumber' => $pageIndex + 1,
                     'pageObjectId' => $page['object'],
@@ -675,7 +675,7 @@ final class PdfEmbeddedFileExtractor
                     }
                 }
 
-                foreach ($this->arrayItemsFromValue($associatedFilesValue, $objects) as $associatedFileIndex => $fileSpecValue) {
+                foreach ($this->associatedFileArrayItemsFromValue($associatedFilesValue, $objects) as $associatedFileIndex => $fileSpecValue) {
                     $entries[] = [
                         'pageNumber' => $pageIndex + 1,
                         'pageObjectId' => $page['object'],
@@ -6863,6 +6863,26 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function associatedFileArrayItemsFromValue(string $value, array $objects): array
+    {
+        $resolved = $this->resolveRawValue($value, $objects);
+        if ($resolved === null) {
+            return [];
+        }
+
+        $resolved = trim($resolved);
+        $array = $this->readPdfArrayAt($resolved, 0);
+        if ($array === null || $this->skipWhitespace($resolved, $array['end']) !== strlen($resolved)) {
+            return [];
+        }
+
+        return $this->arrayItemsFromValue($array['raw'], $objects);
     }
 
     /**
