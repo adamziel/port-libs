@@ -4648,8 +4648,13 @@ final class TableRecognizer
         }
 
         $out = [];
+        $seen = [];
         foreach (array_values($ids) as $id) {
             if ($id === null) {
+                if (isset($seen['null'])) {
+                    continue;
+                }
+                $seen['null'] = true;
                 $out[] = null;
                 continue;
             }
@@ -4659,6 +4664,11 @@ final class TableRecognizer
                 return null;
             }
 
+            $key = (string) $integer;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
             $out[] = $integer;
         }
 
