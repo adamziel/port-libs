@@ -3766,6 +3766,104 @@ XML);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Migration Review Score. 2025. ISMN 979-0-060-11561-5. ISWC T-034.524.680-1.</dd>', $blocks);
         $t->contains('<dt>Ng 2024</dt><dd>Ng, Nia. Source Import Technical Report. Migration Desk, 2024. ISRN NISTIR 8202.</dd>', $blocks);
     },
+    'maps bounded biblatex media entry types into csl type conditionals' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@movie{film-source,
+  author = {{Migration Film Desk}},
+  title  = {Source Capture Reel},
+  date   = {2026}
+}
+
+@video{clip-source,
+  author = {{Field Video Desk}},
+  title  = {Field Cut Clip},
+  date   = {2025}
+}
+
+@music{score-source,
+  author = {Curator, Eli},
+  title  = {Migration Review Score},
+  date   = {2025}
+}
+
+@image{still-source,
+  author = {{Archive Image Desk}},
+  title  = {Archive Still},
+  date   = {2024}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(4, count($items));
+        $t->same('motion_picture', $items[0]['type'] ?? null);
+        $t->same('motion_picture', $items[1]['type'] ?? null);
+        $t->same('song', $items[2]['type'] ?? null);
+        $t->same('graphic', $items[3]['type'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $t->same('motion_picture', $processor->item('film-source')['type'] ?? null);
+        $t->same('motion_picture', $processor->item('clip-source')['type'] ?? null);
+        $t->same('song', $processor->item('score-source')['type'] ?? null);
+        $t->same('graphic', $processor->item('still-source')['type'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if type="motion_picture">
+          <group delimiter=" | ">
+            <text value="moving image"/>
+            <text variable="title"/>
+          </group>
+        </if>
+        <else-if type="song">
+          <group delimiter=" | ">
+            <text value="music"/>
+            <text variable="title"/>
+          </group>
+        </else-if>
+        <else-if type="graphic">
+          <group delimiter=" | ">
+            <text value="graphic"/>
+            <text variable="title"/>
+          </group>
+        </else-if>
+        <else>
+          <group delimiter=" | ">
+            <text value="source"/>
+            <text variable="type"/>
+            <text variable="title"/>
+          </group>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="type"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[moving image | Source Capture Reel; moving image | Field Cut Clip; music | Migration Review Score; graphic | Archive Still]', $styled->renderCitationCluster([
+            $citation('film-source', '[@film-source]'),
+            $citation('clip-source', '[@clip-source]'),
+            $citation('score-source', '[@score-source]'),
+            $citation('still-source', '[@still-source]'),
+        ]));
+        $t->same('motion_picture :: Source Capture Reel', $styled->renderBibliographyEntry('film-source'));
+        $t->same('song :: Migration Review Score', $styled->renderBibliographyEntry('score-source'));
+        $t->same('graphic :: Archive Still', $styled->renderBibliographyEntry('still-source'));
+
+        $document = (new MarkdownReader())->read('Media type review cites [@film-source; @clip-source; @score-source; @still-source].');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Media type review cites [moving image | Source Capture Reel; moving image | Field Cut Clip; music | Migration Review Score; graphic | Archive Still].</p>', $blocks);
+        $t->contains('<dt>Migration Film Desk 2026</dt><dd>motion_picture :: Source Capture Reel</dd>', $blocks);
+        $t->contains('<dt>Archive Image Desk 2024</dt><dd>graphic :: Archive Still</dd>', $blocks);
+    },
     'maps bounded biblatex publisher and location literal lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{distributed-review,

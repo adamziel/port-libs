@@ -5754,8 +5754,8 @@ CSS;
         }
 
         $width = (int) $matches[1];
-        if ($width < 1) {
-            throw new \UnexpectedValueException("Expected positive integer parameter for doctemplate pipe {$pipeName}");
+        if ($width < 0) {
+            throw new \UnexpectedValueException("Expected non-negative integer parameter for doctemplate pipe {$pipeName}");
         }
 
         $offset = 0;
@@ -5976,7 +5976,7 @@ CSS;
         }
 
         $width = (int) ($args[0] ?? 0);
-        if ($width < 1) {
+        if ($width < 0) {
             throw new \UnexpectedValueException("Missing integer parameter for doctemplate pipe {$alignment}");
         }
 
@@ -5989,10 +5989,60 @@ CSS;
 
         $padded = [];
         foreach ($lines as $line) {
-            $padded[] = $leftBorder . $this->padBlockLine($line, $width, $alignment) . $rightBorder;
+            foreach ($this->blockPipeLines($line, $width) as $blockLine) {
+                $padded[] = $leftBorder . $this->padBlockLine($blockLine, $this->effectiveBlockPipeWidth($width, $line), $alignment) . $rightBorder;
+            }
         }
 
         return implode("\n", $padded);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function blockPipeLines(string $line, int $width): array
+    {
+        $effectiveWidth = $this->effectiveBlockPipeWidth($width, $line);
+        if ($effectiveWidth < 1 || UnicodeText::displayWidth($line) <= $effectiveWidth) {
+            return [$line];
+        }
+
+        $chunks = [];
+        $chunk = '';
+        foreach ($this->unicodeCharacters($line) as $character) {
+            $candidate = $chunk . $character;
+            if ($chunk !== '' && UnicodeText::displayWidth($candidate) > $effectiveWidth) {
+                $chunks[] = $chunk;
+                $chunk = $character;
+                continue;
+            }
+
+            $chunk = $candidate;
+        }
+
+        if ($chunk !== '' || $chunks === []) {
+            $chunks[] = $chunk;
+        }
+
+        return $chunks;
+    }
+
+    private function effectiveBlockPipeWidth(int $width, string $line): int
+    {
+        return $width < 1 && $line !== '' ? 1 : $width;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function unicodeCharacters(string $value): array
+    {
+        $characters = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY);
+        if ($characters === false) {
+            return str_split($value);
+        }
+
+        return $characters;
     }
 
     private function padBlockLine(string $line, int $width, string $alignment): string

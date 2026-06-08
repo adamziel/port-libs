@@ -921,6 +921,26 @@ TPL;
         ]), $output);
     },
 
+    'reboxes pandoc doctemplate block pipes by requested display width' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->same("[Revi]\n[ew! ]", $renderer->render('$title/left 4 "[" "]"$', [
+            'title' => 'Review!',
+        ]));
+        $t->same("[Revi]\n[ ew!]", $renderer->render('$title/right 4 "[" "]"$', [
+            'title' => 'Review!',
+        ]));
+        $t->same("[Revi]\n[ew! ]", $renderer->render('$title/center 4 "[" "]"$', [
+            'title' => 'Review!',
+        ]));
+        $t->same("[A]\n[B]", $renderer->render('$code/center 0 "[" "]"$', [
+            'code' => 'AB',
+        ]));
+        $t->same("|漢|\n|字|\n|A |", $renderer->render('$cjk/left 2 "|" "|"$', [
+            'cjk' => '漢字A',
+        ]));
+    },
+
     'leaves non textual values unchanged for pandoc doctemplate block pipes' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Meta: $meta/left 12 "| " " |"$

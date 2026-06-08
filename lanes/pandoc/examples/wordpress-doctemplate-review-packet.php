@@ -31,6 +31,7 @@ for $title$$~$</p>
 <p class="brace-separated-sources">${ reviewSources/uppercase[} ] }</p>
 <p class="bracket-separated-sources">${ reviewSources/uppercase[[ ] }</p>
 <p class="chomped-review-sources">${ reviewSourcesWithNewlines/chomp/uppercase[ / ] }</p>
+<pre class="review-code">$shortReviewCode/left 4 "[" "]"$</pre>
 <p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
 <p class="style-metadata">$style:font-name$ / ${ style:family:components/style-token()[, ] }</p>
 <p class="digit-metadata">$reviewNumbers.2026-batch.status$ / $reviewNumbers.1st-pass$ / ${ assets.360-view:components/asset-digit-row()[, ] }</p>
@@ -88,6 +89,7 @@ $context = [
     ],
     'reviewSources' => ['media', 'links', 'layout'],
     'reviewSourcesWithNewlines' => ["media\n", "links\n\n", "layout\r\n"],
+    'shortReviewCode' => 'WP-Review',
     'reviewMeta' => [
         'zeta' => 'queued-last',
         'alpha' => 'queued-first',
@@ -180,6 +182,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="brace-separated-sources">MEDIA} LINKS} LAYOUT</p>',
         '<p class="bracket-separated-sources">MEDIA[ LINKS[ LAYOUT</p>',
         '<p class="chomped-review-sources">MEDIA / LINKS / LAYOUT</p>',
+        "<pre class=\"review-code\">[WP-R]\n[evie]\n[w   ]</pre>",
         '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
         '<p class="style-metadata">Atkinson Hyperlegible / Heading_20_1=Alegreya, BodyText=Atkinson Hyperlegible</p>',
         '<p class="digit-metadata">queued / metadata / cover-spin:ok, layout-spin:review</p>',
