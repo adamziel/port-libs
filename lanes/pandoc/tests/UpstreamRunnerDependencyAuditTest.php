@@ -720,6 +720,51 @@ return [
         }
         $t->contains('package-file hashes', $audit['nonMutatingPlan'][0]);
     },
+    'records runner and benchmark artifact provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => '9.10.3'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(true, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['runnerArtifactClosure']['missing']);
+        $t->same([], $audit['runnerArtifactClosure']['wrongType']);
+        $t->same([], $audit['runnerArtifactClosure']['emptyFiles']);
+        $t->same([], $audit['benchmarkArtifactClosure']['missing']);
+        $t->same([], $audit['benchmarkArtifactClosure']['wrongType']);
+        $t->same([], $audit['benchmarkArtifactClosure']['emptyFiles']);
+
+        foreach (UpstreamRunnerDependencyAudit::expectedRunnerArtifacts() as $relativePath => $kind) {
+            if ($kind !== 'file') {
+                $t->same(false, array_key_exists($relativePath, $audit['runnerArtifactClosure']['fileProvenance']));
+                continue;
+            }
+
+            $t->same(hash('sha256', $files[$relativePath]), $audit['runnerArtifactClosure']['fileProvenance'][$relativePath]['sha256']);
+            $t->same(strlen($files[$relativePath]), $audit['runnerArtifactClosure']['fileProvenance'][$relativePath]['bytes']);
+        }
+
+        foreach (UpstreamRunnerDependencyAudit::expectedBenchmarkArtifacts() as $relativePath => $kind) {
+            if ($kind !== 'file') {
+                $t->same(false, array_key_exists($relativePath, $audit['benchmarkArtifactClosure']['fileProvenance']));
+                continue;
+            }
+
+            $t->same(hash('sha256', $files[$relativePath]), $audit['benchmarkArtifactClosure']['fileProvenance'][$relativePath]['sha256']);
+            $t->same(strlen($files[$relativePath]), $audit['benchmarkArtifactClosure']['fileProvenance'][$relativePath]['bytes']);
+        }
+
+        $t->contains('runner source/golden artifact hashes', $audit['nonMutatingPlan'][0]);
+        $t->contains('benchmark source/data artifact hashes', $audit['nonMutatingPlan'][3]);
+        $t->contains('non-empty runner source/golden fixtures with artifact hashes', $audit['activationGate']);
+        $t->contains('non-empty benchmark component dependency/artifact closure with artifact hashes', $audit['activationGate']);
+    },
     'flags missing and mismatched cabal project git pins' => static function (TestRunner $t) use ($makeTree, $removeTree, $requiredFiles): void {
         $project = implode("\n", [
             'packages: . pandoc-lua-engine',
