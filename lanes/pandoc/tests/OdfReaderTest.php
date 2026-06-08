@@ -2805,15 +2805,15 @@ XML;
       <table:database-ranges>
         <table:database-range
           table:name="ReadyPosts"
-          table:target-range-address="Review.A1:Review.C12"
+          table:target-range-address="Review.A1:Review.D12"
           table:contains-header="true"
           table:display-filter-buttons="true"
           table:on-update-keep-styles="true"
           table:on-update-keep-size="false"
           table:has-persistent-data="false"
           table:orientation="row">
-          <table:database-source-sql table:database-name="ImportDS" table:sql-statement="SELECT post_title,status FROM wp_posts" table:parse-sql-statement="true"/>
-          <table:filter table:target-range-address="Review.A1:Review.C12" table:condition-source-range-address="Criteria.A1:Criteria.B2" table:display-duplicates="false">
+          <table:database-source-sql table:database-name="ImportDS" table:sql-statement="SELECT post_title,status,imported,total FROM wp_posts" table:parse-sql-statement="true"/>
+          <table:filter table:target-range-address="Review.A1:Review.D12" table:condition-source-range-address="Criteria.A1:Criteria.B2" table:display-duplicates="false">
             <table:filter-and>
               <table:filter-condition table:field-number="2" table:data-type="text" table:value="ready" table:operator="="/>
               <table:filter-condition table:field-number="3" table:data-type="number" table:value="1" table:operator="&gt;="/>
@@ -2823,6 +2823,15 @@ XML;
             <table:sort-by table:field-number="1" table:data-type="text" table:order="ascending"/>
             <table:sort-by table:field-number="2" table:data-type="text" table:order="descending"/>
           </table:sort>
+          <table:subtotal-rules table:bind-styles-to-content="true" table:case-sensitive="false" table:page-breaks-on-group-change="true">
+            <table:sort-groups table:case-sensitive="true">
+              <table:sort-by table:field-number="2" table:data-type="text" table:order="ascending"/>
+            </table:sort-groups>
+            <table:subtotal-rule table:group-by-field-number="2">
+              <table:subtotal-field table:field-number="3" table:function="count"/>
+              <table:subtotal-field table:field-number="4" table:function="sum"/>
+            </table:subtotal-rule>
+          </table:subtotal-rules>
         </table:database-range>
         <table:database-range table:name="ArchiveLookup" table:target-range-address="Archive.A1:Archive.B8" table:is-selection="true">
           <table:database-source-table table:database-name="ArchiveDS" table:table-name="wp_postmeta"/>
@@ -2842,11 +2851,15 @@ XML;
         $archive = is_array($rangesByName['ArchiveLookup'] ?? null) ? $rangesByName['ArchiveLookup'] : [];
         $filterGroup = is_array($ready['filter']['conditions'][0] ?? null) ? $ready['filter']['conditions'][0] : [];
         $filterConditions = is_array($filterGroup['conditions'] ?? null) ? $filterGroup['conditions'] : [];
+        $subtotal = is_array($ready['subtotalRules'] ?? null) ? $ready['subtotalRules'] : [];
+        $subtotalSortGroups = is_array($subtotal['sortGroups'] ?? null) ? $subtotal['sortGroups'] : [];
+        $subtotalRules = is_array($subtotal['rules'] ?? null) ? $subtotal['rules'] : [];
+        $subtotalFields = is_array($subtotalRules[0]['fields'] ?? null) ? $subtotalRules[0]['fields'] : [];
 
         $t->same(2, $declarations['databaseRangeCount'] ?? null);
         $t->same(2, count($ranges));
         $t->same('ReadyPosts', $ready['name'] ?? null);
-        $t->same('Review.A1:Review.C12', $ready['targetRangeAddress'] ?? null);
+        $t->same('Review.A1:Review.D12', $ready['targetRangeAddress'] ?? null);
         $t->same(true, $ready['containsHeader'] ?? null);
         $t->same(true, $ready['displayFilterButtons'] ?? null);
         $t->same(true, $ready['onUpdateKeepStyles'] ?? null);
@@ -2855,9 +2868,9 @@ XML;
         $t->same('row', $ready['orientation'] ?? null);
         $t->same('sql', $ready['source']['type'] ?? null);
         $t->same('ImportDS', $ready['source']['databaseName'] ?? null);
-        $t->same('SELECT post_title,status FROM wp_posts', $ready['source']['sqlStatement'] ?? null);
+        $t->same('SELECT post_title,status,imported,total FROM wp_posts', $ready['source']['sqlStatement'] ?? null);
         $t->same(true, $ready['source']['parseSqlStatement'] ?? null);
-        $t->same('Review.A1:Review.C12', $ready['filter']['targetRangeAddress'] ?? null);
+        $t->same('Review.A1:Review.D12', $ready['filter']['targetRangeAddress'] ?? null);
         $t->same('Criteria.A1:Criteria.B2', $ready['filter']['conditionSourceRangeAddress'] ?? null);
         $t->same(false, $ready['filter']['displayDuplicates'] ?? null);
         $t->same('and', $filterGroup['type'] ?? null);
@@ -2869,13 +2882,32 @@ XML;
         $t->same('alphanumeric', $ready['sort']['algorithm'] ?? null);
         $t->same(2, count($ready['sort']['sortBy'] ?? []));
         $t->same('descending', $ready['sort']['sortBy'][1]['order'] ?? null);
+        $t->same(true, $subtotal['bindStylesToContent'] ?? null);
+        $t->same(false, $subtotal['caseSensitive'] ?? null);
+        $t->same(true, $subtotal['pageBreaksOnGroupChange'] ?? null);
+        $t->same(1, $subtotal['ruleCount'] ?? null);
+        $t->same(2, $subtotal['fieldCount'] ?? null);
+        $t->same(true, $subtotalSortGroups['caseSensitive'] ?? null);
+        $t->same(1, $subtotalSortGroups['sortFieldCount'] ?? null);
+        $t->same(2, $subtotalSortGroups['sortBy'][0]['fieldNumber'] ?? null);
+        $t->same('ascending', $subtotalSortGroups['sortBy'][0]['order'] ?? null);
+        $t->same(2, $subtotalRules[0]['groupByFieldNumber'] ?? null);
+        $t->same(2, $subtotalRules[0]['fieldCount'] ?? null);
+        $t->same(3, $subtotalFields[0]['fieldNumber'] ?? null);
+        $t->same('count', $subtotalFields[0]['function'] ?? null);
+        $t->same(4, $subtotalFields[1]['fieldNumber'] ?? null);
+        $t->same('sum', $subtotalFields[1]['function'] ?? null);
         $t->same(true, $archive['isSelection'] ?? null);
         $t->same('table', $archive['source']['type'] ?? null);
         $t->same('ArchiveDS', $archive['source']['databaseName'] ?? null);
         $t->same('wp_postmeta', $archive['source']['tableName'] ?? null);
         $t->same($declarations, $result['document']->attr('contentDeclarations'));
         $t->same(2, $result['importReport']['contentDeclarations']['databaseRangeCount'] ?? null);
+        $t->same(1, $result['importReport']['contentDeclarations']['databaseSubtotalRuleCount'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['databaseSubtotalFieldCount'] ?? null);
         $t->same(2, $result['importReport']['content']['databaseRangeCount'] ?? null);
+        $t->same(1, $result['importReport']['content']['databaseSubtotalRuleCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['databaseSubtotalFieldCount'] ?? null);
         $t->same('Database ranges stay metadata-only.', $result['document']->children[0]->attr('text'));
     },
     'maps ODT source metadata fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {

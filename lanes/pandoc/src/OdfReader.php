@@ -226,6 +226,8 @@ final class OdfReader
                     'truncatedTableRowRepeatCount' => $contentStats['truncatedTableRowRepeatCount'],
                     'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
                     'databaseRangeCount' => (int) ($content['contentDeclarations']['databaseRangeCount'] ?? 0),
+                    'databaseSubtotalRuleCount' => (int) ($content['contentDeclarations']['databaseSubtotalRuleCount'] ?? 0),
+                    'databaseSubtotalFieldCount' => (int) ($content['contentDeclarations']['databaseSubtotalFieldCount'] ?? 0),
                 ],
             ],
         ];
@@ -2328,11 +2330,20 @@ final class OdfReader
 
         $databaseRanges = $this->databaseRangesFromText($text);
         $databaseRangesByName = [];
+        $databaseSubtotalRuleCount = 0;
+        $databaseSubtotalFieldCount = 0;
         foreach ($databaseRanges as $range) {
             $name = (string) ($range['name'] ?? '');
             if ($name !== '') {
                 $databaseRangesByName[$name] = $range;
             }
+            $subtotalRules = $range['subtotalRules'] ?? null;
+            if (!is_array($subtotalRules)) {
+                continue;
+            }
+
+            $databaseSubtotalRuleCount += (int) ($subtotalRules['ruleCount'] ?? 0);
+            $databaseSubtotalFieldCount += (int) ($subtotalRules['fieldCount'] ?? 0);
         }
 
         return [
@@ -2348,6 +2359,8 @@ final class OdfReader
             'databaseRangeCount' => count($databaseRanges),
             'databaseRanges' => $databaseRanges,
             'databaseRangesByName' => $databaseRangesByName,
+            'databaseSubtotalRuleCount' => $databaseSubtotalRuleCount,
+            'databaseSubtotalFieldCount' => $databaseSubtotalFieldCount,
         ];
     }
 
@@ -2405,6 +2418,14 @@ final class OdfReader
             $sortMetadata = $this->databaseSortDefinition($sort);
             if ($sortMetadata !== []) {
                 $definition['sort'] = $sortMetadata;
+            }
+        }
+
+        $subtotalRules = self::firstChildElement($range, 'subtotal-rules', self::TABLE_NS);
+        if ($subtotalRules instanceof \DOMElement) {
+            $subtotalMetadata = $this->databaseSubtotalRulesDefinition($subtotalRules);
+            if ($subtotalMetadata !== []) {
+                $definition['subtotalRules'] = $subtotalMetadata;
             }
         }
 
@@ -2514,8 +2535,22 @@ final class OdfReader
      */
     private function databaseSortDefinition(\DOMElement $sort): array
     {
+        return self::withoutEmpty([
+            'caseSensitive' => self::nullableBool(self::attr($sort, self::TABLE_NS, 'case-sensitive')),
+            'language' => self::nullable(self::attr($sort, self::TABLE_NS, 'language')),
+            'country' => self::nullable(self::attr($sort, self::TABLE_NS, 'country')),
+            'algorithm' => self::nullable(self::attr($sort, self::TABLE_NS, 'algorithm')),
+            'sortBy' => $this->databaseSortByFields($sort),
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function databaseSortByFields(\DOMElement $container): array
+    {
         $sortBy = [];
-        foreach (self::childElements($sort, 'sort-by', self::TABLE_NS) as $sortByElement) {
+        foreach (self::childElements($container, 'sort-by', self::TABLE_NS) as $sortByElement) {
             $sortBy[] = self::withoutEmpty([
                 'fieldNumber' => self::nullableInt(self::attr($sortByElement, self::TABLE_NS, 'field-number')),
                 'dataType' => self::nullable(self::attr($sortByElement, self::TABLE_NS, 'data-type')),
@@ -2523,12 +2558,79 @@ final class OdfReader
             ]);
         }
 
+        return $sortBy;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function databaseSubtotalRulesDefinition(\DOMElement $subtotalRules): array
+    {
+        $sortGroups = [];
+        $rules = [];
+        foreach (self::childElements($subtotalRules) as $child) {
+            if ($this->isElement($child, self::TABLE_NS, 'sort-groups')) {
+                $sortGroups = $this->databaseSortGroupsDefinition($child);
+                continue;
+            }
+            if ($this->isElement($child, self::TABLE_NS, 'subtotal-rule')) {
+                $rule = $this->databaseSubtotalRuleDefinition($child);
+                if ($rule !== []) {
+                    $rules[] = $rule;
+                }
+            }
+        }
+
+        $fieldCount = 0;
+        foreach ($rules as $rule) {
+            $fieldCount += (int) ($rule['fieldCount'] ?? 0);
+        }
+
         return self::withoutEmpty([
-            'caseSensitive' => self::nullableBool(self::attr($sort, self::TABLE_NS, 'case-sensitive')),
-            'language' => self::nullable(self::attr($sort, self::TABLE_NS, 'language')),
-            'country' => self::nullable(self::attr($sort, self::TABLE_NS, 'country')),
-            'algorithm' => self::nullable(self::attr($sort, self::TABLE_NS, 'algorithm')),
+            'bindStylesToContent' => self::nullableBool(self::attr($subtotalRules, self::TABLE_NS, 'bind-styles-to-content')),
+            'caseSensitive' => self::nullableBool(self::attr($subtotalRules, self::TABLE_NS, 'case-sensitive')),
+            'pageBreaksOnGroupChange' => self::nullableBool(self::attr($subtotalRules, self::TABLE_NS, 'page-breaks-on-group-change')),
+            'sortGroups' => $sortGroups,
+            'rules' => $rules,
+            'ruleCount' => $rules === [] ? null : count($rules),
+            'fieldCount' => $fieldCount === 0 ? null : $fieldCount,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function databaseSortGroupsDefinition(\DOMElement $sortGroups): array
+    {
+        $sortBy = $this->databaseSortByFields($sortGroups);
+
+        return self::withoutEmpty([
+            'caseSensitive' => self::nullableBool(self::attr($sortGroups, self::TABLE_NS, 'case-sensitive')),
             'sortBy' => $sortBy,
+            'sortFieldCount' => $sortBy === [] ? null : count($sortBy),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function databaseSubtotalRuleDefinition(\DOMElement $rule): array
+    {
+        $fields = [];
+        foreach (self::childElements($rule, 'subtotal-field', self::TABLE_NS) as $field) {
+            $entry = self::withoutEmpty([
+                'fieldNumber' => self::nullableInt(self::attr($field, self::TABLE_NS, 'field-number')),
+                'function' => self::nullable(self::attr($field, self::TABLE_NS, 'function')),
+            ]);
+            if ($entry !== []) {
+                $fields[] = $entry;
+            }
+        }
+
+        return self::withoutEmpty([
+            'groupByFieldNumber' => self::nullableInt(self::attr($rule, self::TABLE_NS, 'group-by-field-number')),
+            'fields' => $fields,
+            'fieldCount' => $fields === [] ? null : count($fields),
         ]);
     }
 

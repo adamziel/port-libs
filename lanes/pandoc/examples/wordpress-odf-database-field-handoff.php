@@ -26,9 +26,24 @@ XML;
 $contentXml = <<<'XML'
 <office:document-content
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
   <office:body>
     <office:text>
+      <table:database-ranges>
+        <table:database-range table:name="ReadyPosts" table:target-range-address="Review.A1:Review.D12" table:contains-header="true">
+          <table:database-source-sql table:database-name="ImportDS" table:sql-statement="SELECT post_title,status,imported,total FROM wp_posts" table:parse-sql-statement="true"/>
+          <table:subtotal-rules table:bind-styles-to-content="true" table:case-sensitive="false" table:page-breaks-on-group-change="true">
+            <table:sort-groups table:case-sensitive="true">
+              <table:sort-by table:field-number="2" table:data-type="text" table:order="ascending"/>
+            </table:sort-groups>
+            <table:subtotal-rule table:group-by-field-number="2">
+              <table:subtotal-field table:field-number="3" table:function="count"/>
+              <table:subtotal-field table:field-number="4" table:function="sum"/>
+            </table:subtotal-rule>
+          </table:subtotal-rules>
+        </table:database-range>
+      </table:database-ranges>
       <text:p>Import source <text:database-display text:database-name="ImportDS" text:table-name="wp_posts" text:table-type="table" text:column-name="post_title">Imported post title</text:database-display> moved to row <text:database-row-number text:database-name="ImportDS" text:table-name="wp_posts" text:row-number="12"/>.</text:p>
     </office:text>
   </office:body>
@@ -54,6 +69,38 @@ $result = (new OdfReader())->readPackage($package);
 $blocks = (new WordPressBlockWriter())->write($result['document']);
 
 if (in_array('--self-test', $argv, true)) {
+    $declarations = $result['importReport']['contentDeclarations'] ?? [];
+    $readyPosts = $result['document']->attr('contentDeclarations')['databaseRangesByName']['ReadyPosts'] ?? null;
+    if (!is_array($readyPosts)) {
+        throw new RuntimeException('Expected ODT database-range metadata to be preserved for ReadyPosts');
+    }
+    $subtotalRules = $readyPosts['subtotalRules'] ?? [];
+    if (!is_array($subtotalRules)) {
+        throw new RuntimeException('Expected ODT subtotal-rules metadata to be preserved for ReadyPosts');
+    }
+    $rules = $subtotalRules['rules'] ?? [];
+    if (!is_array($rules)) {
+        throw new RuntimeException('Expected ODT subtotal-rule entries to be preserved for ReadyPosts');
+    }
+    $fields = $rules[0]['fields'] ?? [];
+    if (!is_array($fields)) {
+        throw new RuntimeException('Expected ODT subtotal-field entries to be preserved for ReadyPosts');
+    }
+    if (($declarations['databaseRangeCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT database range to be counted in the import report');
+    }
+    if (($declarations['databaseSubtotalRuleCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT subtotal rule to be counted in the import report');
+    }
+    if (($declarations['databaseSubtotalFieldCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT subtotal fields to be counted in the import report');
+    }
+    if (($subtotalRules['sortGroups']['sortBy'][0]['fieldNumber'] ?? null) !== 2) {
+        throw new RuntimeException('Expected ODT subtotal sort group field metadata to be preserved');
+    }
+    if (($fields[0]['function'] ?? null) !== 'count' || ($fields[1]['function'] ?? null) !== 'sum') {
+        throw new RuntimeException('Expected ODT subtotal field functions to be preserved');
+    }
     if (($result['importReport']['content']['fieldCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT database fields to be counted in the import report');
     }
