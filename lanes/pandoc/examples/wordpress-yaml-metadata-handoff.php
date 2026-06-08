@@ -457,6 +457,7 @@ $yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
 $yamlDirectiveProvenance = $document->attr('yamlMetadataDirectiveProvenance', []);
 $yamlCommentProvenance = $document->attr('yamlMetadataCommentProvenance', []);
 $yamlAnchorProvenance = $document->attr('yamlMetadataAnchorProvenance', []);
+$yamlScalarProvenance = $document->attr('yamlMetadataScalarProvenance', []);
 $yamlStreamProvenance = $document->attr('yamlMetadataStreamProvenance', []);
 $invalidTagDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
@@ -853,6 +854,25 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (array_key_exists('__yamlMetadataStreamProvenance', $meta)) {
         throw new RuntimeException('YAML metadata self-test leaked stream provenance into plain metadata');
+    }
+    if (array_key_exists('__yamlMetadataScalarProvenance', $meta)) {
+        throw new RuntimeException('YAML metadata self-test leaked scalar provenance into plain metadata');
+    }
+    $yamlPlainScalarPaths = [];
+    foreach ($yamlScalarProvenance as $entry) {
+        if (($entry['type'] ?? '') === 'yaml-plain-scalar') {
+            $yamlPlainScalarPaths[] = ($entry['path'] ?? '') . "\0" . ($entry['contentLineCount'] ?? '');
+        }
+    }
+    foreach ([
+        '/plain-continuation-review/note' . "\0" . '2',
+        '/plain-continuation-review/steps/0' . "\0" . '2',
+        '/plain-continuation-reference/metadata/source note' . "\0" . '2',
+        '/plain-continuation-reference/metadata/source outline' . "\0" . '4',
+    ] as $expectedPlainScalarPath) {
+        if (!in_array($expectedPlainScalarPath, $yamlPlainScalarPaths, true)) {
+            throw new RuntimeException('YAML metadata self-test missing plain scalar provenance ' . str_replace("\0", ' ', $expectedPlainScalarPath));
+        }
     }
     if (count($yamlStreamProvenance) !== 3) {
         throw new RuntimeException('YAML metadata self-test missing stream provenance records');

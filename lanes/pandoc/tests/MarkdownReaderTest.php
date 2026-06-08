@@ -4064,6 +4064,65 @@ return [
         $t->same('plain-indent-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="plain-indent-yaml-body">Plain indent YAML body</h1>', $blocks);
     },
+    'records pandoc yaml plain scalar source provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title:',
+            '  Plain Provenance **Packet**',
+            '  review',
+            'review:',
+            '  note:',
+            '    Imported reviewer',
+            '    plain scalar',
+            '  inline-note: Imported',
+            '    reviewer note',
+            '  checklist:',
+            '    - Collect source',
+            '      metadata packet',
+            '    - Review',
+            '      WordPress blocks',
+            'references:',
+            '  - id: scalar-provenance-ref',
+            '    metadata:',
+            '      source note:',
+            '        Source reviewer',
+            '        plain scalar',
+            '...',
+            '',
+            '# Plain scalar provenance YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataScalarProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Plain Provenance **Packet** review', $meta['title']);
+        $t->same('Imported reviewer plain scalar', $meta['review']['note']);
+        $t->same('Imported reviewer note', $meta['review']['inline-note']);
+        $t->same('Collect source metadata packet', $meta['review']['checklist'][0]);
+        $t->same('Review WordPress blocks', $meta['review']['checklist'][1]);
+        $t->same('Source reviewer plain scalar', $meta['references'][0]['metadata']['source note']);
+        $t->same(false, array_key_exists('__yamlMetadataScalarProvenance', $meta));
+
+        $plainScalars = array_values(array_filter(
+            $provenance,
+            static fn (array $entry): bool => ($entry['type'] ?? '') === 'yaml-plain-scalar'
+        ));
+        $t->same(6, count($plainScalars));
+        $t->same([
+            '/title',
+            '/review/note',
+            '/review/inline-note',
+            '/review/checklist/0',
+            '/review/checklist/1',
+            '/references/0/metadata/source note',
+        ], array_column($plainScalars, 'path'));
+        $t->same(['2', '6', '9', '12', '14', '19'], array_column($plainScalars, 'sourceLine'));
+        $t->same(['3', '7', '9', '12', '14', '20'], array_column($plainScalars, 'contentStartLine'));
+        $t->same(['4', '8', '10', '13', '15', '21'], array_column($plainScalars, 'contentEndLine'));
+        $t->same(['2', '2', '2', '2', '2', '2'], array_column($plainScalars, 'contentLineCount'));
+        $t->same('plain-scalar-provenance-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="plain-scalar-provenance-yaml-body">Plain scalar provenance YAML body</h1>', $blocks);
+    },
     'records pandoc yaml ambiguous top-level field names as diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

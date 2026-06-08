@@ -1735,6 +1735,13 @@ final class MarkdownReader
                 );
             }
         } elseif ($sourceValue === '') {
+            if ($this->isYamlPlainMultilineScalar($children)) {
+                $this->recordYamlPlainScalarProvenance(
+                    $this->yamlMetadataCurrentSourceLine,
+                    $childrenSourceLines ?? [],
+                    false
+                );
+            }
             $value = $this->parseYamlIndentedValue($children, $childrenSourceLines);
         } else {
             $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children)
@@ -1742,6 +1749,11 @@ final class MarkdownReader
             if ($multiline !== null) {
                 $value = $multiline;
             } elseif ($this->isYamlPlainMultilineScalar($children)) {
+                $this->recordYamlPlainScalarProvenance(
+                    $this->yamlMetadataCurrentSourceLine,
+                    $childrenSourceLines ?? [],
+                    true
+                );
                 $value = $this->parseYamlPlainMultilineScalar(
                     array_merge([$sourceValue], $this->stripYamlCommonIndent($children))
                 );
@@ -1940,6 +1952,43 @@ final class MarkdownReader
         }
         if ($header['indent'] !== null) {
             $entry['explicitIndent'] = (string) $header['indent'];
+        }
+
+        $this->yamlMetadataScalarProvenance[] = $entry;
+    }
+
+    /**
+     * @param list<int|null> $continuationSourceLines
+     */
+    private function recordYamlPlainScalarProvenance(
+        ?int $sourceLine,
+        array $continuationSourceLines,
+        bool $sourceLineIsContent
+    ): void {
+        $contentSourceLines = $sourceLineIsContent
+            ? array_merge([$sourceLine], $continuationSourceLines)
+            : $continuationSourceLines;
+
+        $entry = [
+            'type' => 'yaml-plain-scalar',
+            'style' => 'plain',
+            'contentLineCount' => (string) count($contentSourceLines),
+        ];
+        $path = $this->currentYamlMetadataDiagnosticPath();
+        if ($path !== null) {
+            $entry['path'] = $path;
+        }
+        if ($sourceLine !== null) {
+            $entry['sourceLine'] = (string) $sourceLine;
+        }
+
+        $sourceLineNumbers = array_values(array_filter(
+            $contentSourceLines,
+            static fn (?int $line): bool => $line !== null
+        ));
+        if ($sourceLineNumbers !== []) {
+            $entry['contentStartLine'] = (string) $sourceLineNumbers[0];
+            $entry['contentEndLine'] = (string) $sourceLineNumbers[count($sourceLineNumbers) - 1];
         }
 
         $this->yamlMetadataScalarProvenance[] = $entry;
@@ -2274,6 +2323,17 @@ final class MarkdownReader
             }
 
             if ($this->isYamlPlainMultilineScalar($childLines)) {
+                $this->withYamlMetadataPathSegment(
+                    $itemPath,
+                    fn (): mixed => $this->withYamlMetadataSourceLine(
+                        $sourceLine,
+                        fn (): mixed => $this->recordYamlPlainScalarProvenance(
+                            $sourceLine,
+                            $childrenSourceLines,
+                            true
+                        )
+                    )
+                );
                 $value = $this->parseYamlPlainMultilineScalar(array_merge([$sourceValue], $childLines));
                 $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
                 $this->withYamlMetadataSourceLine(
