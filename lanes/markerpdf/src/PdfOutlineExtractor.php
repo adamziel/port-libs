@@ -3721,7 +3721,11 @@ final class PdfOutlineExtractor
             || isset($this->dictionaryDuplicateKeySet($namesValue)['Dests'])
             || $this->resolvedDictionaryHasDuplicateBoundaryKeys($nameTreeRootValue, $objects, self::NAME_TREE_NODE_BOUNDARY_KEYS);
         $nameTreeRoot = $nameTreeRootRejected ? null : $this->resolveDictionary($nameTreeRootValue, $objects);
-        if ($nameTreeRoot !== null) {
+        if (
+            $nameTreeRoot !== null
+            && !$this->nameTreeNodeReferenceHasTopLevelStream($nameTreeRootValue, $objects)
+            && !$this->nameTreeNodeHasStreamCarrierType($nameTreeRoot, $objects)
+        ) {
             $this->collectNameTreeDestinations($nameTreeRoot, $objects, $rawDestinations, [], [], $pageIndexes);
         }
 
@@ -3772,7 +3776,11 @@ final class PdfOutlineExtractor
             || isset($this->dictionaryDuplicateKeySet($namesValue)['Dests'])
             || $this->resolvedDictionaryHasDuplicateBoundaryKeys($nameTreeRootValue, $objects, self::NAME_TREE_NODE_BOUNDARY_KEYS);
         $nameTreeRoot = $nameTreeRootRejected ? null : $this->resolveDictionary($nameTreeRootValue, $objects);
-        if ($nameTreeRoot !== null) {
+        if (
+            $nameTreeRoot !== null
+            && !$this->nameTreeNodeReferenceHasTopLevelStream($nameTreeRootValue, $objects)
+            && !$this->nameTreeNodeHasStreamCarrierType($nameTreeRoot, $objects)
+        ) {
             $this->collectNameTreeActionDestinations($nameTreeRoot, $objects, $destinations);
         }
 
@@ -3789,6 +3797,9 @@ final class PdfOutlineExtractor
     private function collectNameTreeDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = [], array $pageIndexes = []): void
     {
         if ($this->dictionaryHasDuplicateBoundaryKeys($node, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
+            return;
+        }
+        if ($this->nameTreeNodeHasStreamCarrierType($node, $objects)) {
             return;
         }
 
@@ -3857,6 +3868,10 @@ final class PdfOutlineExtractor
             }
             $seen[$seenKey] = true;
 
+            if ($this->nameTreeNodeReferenceHasTopLevelStream($kid, $objects)) {
+                continue;
+            }
+
             if ($this->resolvedDictionaryHasDuplicateBoundaryKeys($kid, $objects, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
                 continue;
             }
@@ -3877,6 +3892,9 @@ final class PdfOutlineExtractor
     private function collectNameTreeActionDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = []): void
     {
         if ($this->dictionaryHasDuplicateBoundaryKeys($node, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
+            return;
+        }
+        if ($this->nameTreeNodeHasStreamCarrierType($node, $objects)) {
             return;
         }
 
@@ -3945,6 +3963,10 @@ final class PdfOutlineExtractor
             }
             $seen[$seenKey] = true;
 
+            if ($this->nameTreeNodeReferenceHasTopLevelStream($kid, $objects)) {
+                continue;
+            }
+
             if ($this->resolvedDictionaryHasDuplicateBoundaryKeys($kid, $objects, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
                 continue;
             }
@@ -3981,9 +4003,13 @@ final class PdfOutlineExtractor
                 $kidNodes[] = $node;
                 continue;
             }
+            if ($this->nameTreeNodeReferenceHasTopLevelStream($kid, $objects)) {
+                $kidNodes[] = $node;
+                continue;
+            }
 
             $child = $this->resolveDictionary($kid, $objects);
-            if ($child === null) {
+            if ($child === null || $this->nameTreeNodeHasStreamCarrierType($child, $objects)) {
                 $kidNodes[] = $node;
                 continue;
             }
@@ -4030,6 +4056,48 @@ final class PdfOutlineExtractor
         }
 
         return $sortedKids;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<int, mixed> $objects
+     */
+    private function nameTreeNodeHasStreamCarrierType(array $node, array $objects): bool
+    {
+        $type = $this->nameValue($this->resolveValue($node['Type'] ?? null, $objects));
+
+        return in_array($type, ['ObjStm', 'XRef', 'Metadata', 'EmbeddedFile', 'XObject'], true);
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function nameTreeNodeReferenceHasTopLevelStream(mixed $value, array $objects): bool
+    {
+        $objectNumber = $this->validReferenceObjectNumber($value, $objects);
+        if ($objectNumber === null) {
+            return false;
+        }
+
+        $body = $this->objectBodies[$objectNumber] ?? null;
+        if ($body === null) {
+            return false;
+        }
+
+        return $this->objectBodyHasTopLevelStream($body);
+    }
+
+    private function objectBodyHasTopLevelStream(string $body): bool
+    {
+        $tokens = $this->tokens(trim($body));
+        if (($tokens[0] ?? null) !== '<<') {
+            return false;
+        }
+
+        $index = 0;
+        $value = $this->parseValue($tokens, $index);
+
+        return $this->dictionaryItems($value) !== null && ($tokens[$index] ?? null) === 'stream';
     }
 
     /**

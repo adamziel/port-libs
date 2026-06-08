@@ -101,6 +101,9 @@ final class PdfActionReviewExtractor
     /** @var array<int, array<int, mixed>> */
     private array $objectsByGeneration = [];
 
+    /** @var array<int, array<int, string>> */
+    private array $objectBodiesByGeneration = [];
+
     /** @var array<string, int> */
     private array $pageIndexesByReference;
 
@@ -1305,6 +1308,7 @@ final class PdfActionReviewExtractor
     {
         $values = [];
         $this->objectsByGeneration = [];
+        $this->objectBodiesByGeneration = [];
 
         $definitions = $this->rawObjectDefinitions($pdfBytes);
         $selectedDefinitions = $this->selectedObjectDefinitionsFromXrefSection($pdfBytes, $definitions);
@@ -1330,6 +1334,7 @@ final class PdfActionReviewExtractor
             $value = $this->parseValue($tokens, $index);
             $value = $this->valueWithObjectTrailingOperandReview($value, $definitionBody);
             $generation = $definition['generation'];
+            $this->objectBodiesByGeneration[$objectNumber][$generation] = trim($definition['body']);
             $this->objectsByGeneration[$objectNumber][$generation] = $value;
             $values[$objectNumber] = $value;
         }
@@ -3345,7 +3350,11 @@ final class PdfActionReviewExtractor
             || $this->resolvedDictionaryHasDuplicateKeys($namesValue, ['Dests'])
             || $this->resolvedDictionaryHasDuplicateKeys($nameTreeRootValue, self::NAME_TREE_NODE_BOUNDARY_KEYS);
         $nameTreeRoot = $nameTreeRootRejected ? null : $this->resolveDictionary($nameTreeRootValue);
-        if ($nameTreeRoot !== null) {
+        if (
+            $nameTreeRoot !== null
+            && !$this->nameTreeNodeReferenceHasTopLevelStream($nameTreeRootValue)
+            && !$this->nameTreeNodeHasStreamCarrierType($nameTreeRoot)
+        ) {
             $this->collectNameTreeDestinations($nameTreeRoot, $destinations);
         }
 
@@ -3400,6 +3409,9 @@ final class PdfActionReviewExtractor
         }
 
         if ($this->resolvedDictionaryHasDuplicateKeys($node, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
+            return;
+        }
+        if ($this->nameTreeNodeHasStreamCarrierType($node)) {
             return;
         }
 
@@ -3475,6 +3487,10 @@ final class PdfActionReviewExtractor
             }
             $seen[$seenKey] = true;
 
+            if ($this->nameTreeNodeReferenceHasTopLevelStream($kid)) {
+                continue;
+            }
+
             if ($this->resolvedDictionaryHasDuplicateKeys($kid, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
                 continue;
             }
@@ -3547,9 +3563,13 @@ final class PdfActionReviewExtractor
                 $kidNodes[] = $node;
                 continue;
             }
+            if ($this->nameTreeNodeReferenceHasTopLevelStream($kid)) {
+                $kidNodes[] = $node;
+                continue;
+            }
 
             $child = $this->resolveDictionary($kid);
-            if ($child === null) {
+            if ($child === null || $this->nameTreeNodeHasStreamCarrierType($child)) {
                 $kidNodes[] = $node;
                 continue;
             }
@@ -3593,6 +3613,70 @@ final class PdfActionReviewExtractor
         }
 
         return $sortedKids;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function nameTreeNodeHasStreamCarrierType(array $node): bool
+    {
+        $type = $this->nameValue($this->resolveValue($node['Type'] ?? null));
+
+        return in_array($type, ['ObjStm', 'XRef', 'Metadata', 'EmbeddedFile', 'XObject'], true);
+    }
+
+    private function nameTreeNodeReferenceHasTopLevelStream(mixed $value): bool
+    {
+        $reference = $this->referenceObject($value);
+        if ($reference === null) {
+            return false;
+        }
+
+        $body = $this->objectBodiesByGeneration[$reference['object']][$reference['generation']] ?? null;
+
+        return $body !== null && $this->objectBodyHasTopLevelStream($body);
+    }
+
+    private function objectBodyHasTopLevelStream(string $body): bool
+    {
+        $body = trim($body);
+        if (!str_starts_with($body, '<<')) {
+            return false;
+        }
+
+        $dictionaryEnd = $this->dictionaryEndOffset($body, 0);
+        if ($dictionaryEnd === null) {
+            return false;
+        }
+
+        $offset = $this->offsetAfterWhitespaceAndComments($body, $dictionaryEnd);
+        if (substr($body, $offset, strlen('stream')) !== 'stream') {
+            return false;
+        }
+
+        $next = $body[$offset + strlen('stream')] ?? '';
+
+        return $next === '' || ctype_space($next);
+    }
+
+    private function offsetAfterWhitespaceAndComments(string $body, int $offset): int
+    {
+        $length = strlen($body);
+        while ($offset < $length) {
+            while ($offset < $length && ctype_space($body[$offset])) {
+                ++$offset;
+            }
+
+            if (($body[$offset] ?? '') !== '%') {
+                break;
+            }
+
+            while ($offset < $length && $body[$offset] !== "\n" && $body[$offset] !== "\r") {
+                ++$offset;
+            }
+        }
+
+        return $offset;
     }
 
     /**

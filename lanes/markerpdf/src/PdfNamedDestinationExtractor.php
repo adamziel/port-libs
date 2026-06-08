@@ -1179,6 +1179,9 @@ final class PdfNamedDestinationExtractor
             if (in_array($seenKey, $seenObjects, true)) {
                 return [];
             }
+            if ($this->nameTreeNodeReferenceHasTopLevelStream($nodeObjectId, $this->refGeneration($node), $objects)) {
+                return [];
+            }
             $seenObjects[] = $seenKey;
         }
 
@@ -1188,6 +1191,9 @@ final class PdfNamedDestinationExtractor
 
         $dictionary = $this->resolve($node, $objects, $cache);
         if (!$this->isDictionary($dictionary)) {
+            return [];
+        }
+        if ($this->nameTreeNodeDictionaryHasStreamCarrierType($dictionary, $objects, $cache)) {
             return [];
         }
 
@@ -1329,9 +1335,17 @@ final class PdfNamedDestinationExtractor
                 $kidNodes[] = $node;
                 continue;
             }
+            if ($this->nameTreeNodeReferenceHasTopLevelStream((int) $this->validRefObjectId($kid, $objects), $this->refGeneration($kid), $objects)) {
+                $kidNodes[] = $node;
+                continue;
+            }
 
             $child = $this->resolve($kid, $objects, $cache);
             if (!$this->isDictionary($child)) {
+                $kidNodes[] = $node;
+                continue;
+            }
+            if ($this->nameTreeNodeDictionaryHasStreamCarrierType($child, $objects, $cache)) {
                 $kidNodes[] = $node;
                 continue;
             }
@@ -1375,6 +1389,28 @@ final class PdfNamedDestinationExtractor
         }
 
         return $sortedKids;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     */
+    private function nameTreeNodeReferenceHasTopLevelStream(int $objectId, int $generation, array $objects): bool
+    {
+        $body = $this->objectBody($objectId, $objects, $generation);
+
+        return $body !== null && $this->streamKeywordOffsetAfterDictionary($body) !== false;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function nameTreeNodeDictionaryHasStreamCarrierType(array $node, array $objects, array &$cache): bool
+    {
+        $type = $this->nameValue($this->resolve($node['Type'] ?? null, $objects, $cache));
+
+        return in_array($type, ['ObjStm', 'XRef', 'Metadata', 'EmbeddedFile', 'XObject'], true);
     }
 
     /**

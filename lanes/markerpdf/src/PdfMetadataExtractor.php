@@ -4712,7 +4712,7 @@ final class PdfMetadataExtractor
         $nameTreeRoot = $names === null || $this->dictionaryTopLevelHasDuplicateKeys($names['body'], ['Dests'])
             ? null
             : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($names['body'], 'Dests'), $objects);
-        if ($nameTreeRoot !== null) {
+        if ($nameTreeRoot !== null && !$this->destinationNameTreeNodeIsReferencedStream($nameTreeRoot, $objects)) {
             $seenNameTreeObjects = [];
             $this->collectDestinationNameTreeEntries($nameTreeRoot, $objects, $entries, $seenNameTreeObjects);
         }
@@ -5422,7 +5422,7 @@ final class PdfMetadataExtractor
         $nameTreeRoot = $names === null || $this->dictionaryTopLevelHasDuplicateKeys($names['body'], ['Dests'])
             ? null
             : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($names['body'], 'Dests'), $objects);
-        if ($nameTreeRoot !== null) {
+        if ($nameTreeRoot !== null && !$this->destinationNameTreeNodeIsReferencedStream($nameTreeRoot, $objects)) {
             $seenNameTreeObjects = [];
             $this->collectDestinationNameTreeEntries($nameTreeRoot, $objects, $entries, $seenNameTreeObjects);
         }
@@ -7303,6 +7303,9 @@ final class PdfMetadataExtractor
             if (isset($seenObjects[$seenKey])) {
                 return;
             }
+            if ($this->destinationNameTreeNodeIsReferencedStream($node, $objects)) {
+                return;
+            }
             $seenObjects[$seenKey] = true;
         }
 
@@ -7376,10 +7379,26 @@ final class PdfMetadataExtractor
             }
 
             $child = $this->resolveDictionaryFromValue($kid, $objects);
-            if ($child !== null) {
+            if ($child !== null && !$this->destinationNameTreeNodeIsReferencedStream($child, $objects)) {
                 $this->collectDestinationNameTreeEntries($child, $objects, $entries, $seenObjects, $depth + 1, $limits);
             }
         }
+    }
+
+    /**
+     * @param array{body: string, object: int|null, generation?: int} $node
+     * @param array<int, string> $objects
+     */
+    private function destinationNameTreeNodeIsReferencedStream(array $node, array $objects): bool
+    {
+        $objectNumber = $node['object'];
+        if ($objectNumber === null) {
+            return false;
+        }
+
+        $objectBody = $this->objectBodyForReference($objects, $objectNumber, (int) ($node['generation'] ?? 0));
+
+        return $objectBody !== null && $this->streamObjectHasStreamKeyword($objectBody);
     }
 
     /**
