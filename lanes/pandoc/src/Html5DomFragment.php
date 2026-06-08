@@ -130,11 +130,13 @@ final class Html5DomFragment
 
         $resolvedBaseUrl = self::resolveFragmentBaseUrl($wrapper, $baseUrl, $diagnostics);
         $documentMetadataNodes = self::htmlDocumentElementMetadataNodes($html, $diagnostics);
+        $baseTargetMetadataNodes = self::htmlBaseTargetMetadataNodes($wrapper, $diagnostics);
 
         return new self(
             'html',
             [
                 ...$documentMetadataNodes,
+                ...$baseTargetMetadataNodes,
                 ...self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $resolvedBaseUrl),
             ],
             $diagnostics,
@@ -2599,6 +2601,94 @@ final class Html5DomFragment
                 'text' => $label . ': ' . $content,
             ]],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlBaseTargetMetadataNodes(\DOMElement $wrapper, array &$diagnostics): array
+    {
+        foreach ($wrapper->getElementsByTagName('base') as $baseElement) {
+            if (!$baseElement instanceof \DOMElement || !$baseElement->hasAttribute('target')) {
+                continue;
+            }
+            if (self::isInactiveFragmentBaseElement($baseElement)) {
+                continue;
+            }
+
+            $target = self::normalizeHtmlBaseTargetValue($baseElement->getAttribute('target'), $diagnostics);
+            if ($target === null) {
+                continue;
+            }
+
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'base-target-review',
+                'tag' => 'base',
+                'attribute' => 'target',
+                'target' => $target,
+                'reason' => 'base-target-preserved-as-metadata',
+            ], $baseElement);
+
+            return [[
+                'type' => 'element',
+                'name' => 'span',
+                'attrs' => [
+                    'data-pandoc-meta-name' => 'base-target',
+                    'data-pandoc-meta-source' => 'base',
+                    'data-pandoc-meta-content' => $target,
+                ],
+                'children' => [[
+                    'type' => 'text',
+                    'text' => 'Base target: ' . $target,
+                ]],
+            ]];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlBaseTargetValue(string $value, array &$diagnostics): ?string
+    {
+        $value = str_replace("\0", '', $value);
+        if (preg_match('/[\t\r\n\f<]/', $value) === 1) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => 'base',
+                'attribute' => 'target',
+                'reason' => 'target-normalized-to-blank',
+            ];
+
+            return '_blank';
+        }
+
+        $target = self::cleanHtmlMetadataAttribute($value);
+        if ($target === '') {
+            return null;
+        }
+        if (strlen($target) > 128 || preg_match('/[>"\'`{}]/', $target) === 1) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => 'base',
+                'attribute' => 'target',
+            ];
+
+            return null;
+        }
+        if (preg_match('/^[A-Za-z0-9_.:-]+$/', $target) !== 1) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => 'base',
+                'attribute' => 'target',
+            ];
+
+            return null;
+        }
+
+        return $target;
     }
 
     /**

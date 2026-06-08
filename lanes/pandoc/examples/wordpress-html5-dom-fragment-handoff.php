@@ -17,7 +17,7 @@ $srcdoc = htmlspecialchars(
 $source = <<<HTML
 <html lang="en-US" dir="ltr">
 <template><base href="https://inactive.example/assets/"><a href="template-note.html">Template fallback note</a></template>
-<base href="https://source.example.test/import/posts/post-42.html?draft=1">
+<base href="https://source.example.test/import/posts/post-42.html?draft=1" target="_blank">
 <title>Legacy post title &amp; review packet</title>
 <meta charset="Windows-1252">
 <meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS">
@@ -87,7 +87,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Language: en-US', 'Direction: ltr', 'Template fallback note', 'Title: Legacy post title & review packet', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Application name: Legacy CMS Import', 'Theme color: #0a84ff', 'Color scheme: light dark only', 'Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'', 'Referrer policy: strict-origin-when-cross-origin', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Editable migration note', 'Localized migration note', 'Published', 'June 8, 2026', 'two hours', 'legacy date', 'Revision', 'added reviewer note', 'removed unsafe note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Popover migration note', 'popover source', 'Popover control source', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
+    foreach (['Language: en-US', 'Direction: ltr', 'Base target: _blank', 'Template fallback note', 'Title: Legacy post title & review packet', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Application name: Legacy CMS Import', 'Theme color: #0a84ff', 'Color scheme: light dark only', 'Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'', 'Referrer policy: strict-origin-when-cross-origin', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Editable migration note', 'Localized migration note', 'Published', 'June 8, 2026', 'two hours', 'legacy date', 'Revision', 'added reviewer note', 'removed unsafe note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Popover migration note', 'popover source', 'Popover control source', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -98,6 +98,7 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<span data-pandoc-meta-name="language" data-pandoc-meta-source="html" data-pandoc-meta-content="en-US">Language: en-US</span>',
         '<span data-pandoc-meta-name="direction" data-pandoc-meta-source="html" data-pandoc-meta-content="ltr">Direction: ltr</span>',
+        '<span data-pandoc-meta-name="base-target" data-pandoc-meta-source="base" data-pandoc-meta-content="_blank">Base target: _blank</span>',
         '<a href="https://source.example.test/import/posts/template-note.html">Template fallback note</a>',
         '<span data-pandoc-meta-name="title" data-pandoc-meta-source="title" data-pandoc-meta-content="Legacy post title &amp; review packet">Title: Legacy post title &amp; review packet</span>',
         '<span data-pandoc-meta-charset="windows-1252" data-pandoc-meta-source="charset">Charset: windows-1252</span>',

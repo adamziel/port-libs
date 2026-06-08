@@ -2904,7 +2904,7 @@ return [
     },
     'filters active navigation target download and opener rel side effects before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
-            '<base href="https://source.example.test/import/posts/post.html" target="_blank">'
+            '<base href="https://source.example.test/import/posts/post.html">'
             . '<p>'
             . '<a href="./packet.html" target="_blank" rel="noopener opener noreferrer opener" download="packet.html">packet</a>'
             . '<a href="./safe.html" rel="Author TAG">safe</a>'
@@ -2962,6 +2962,71 @@ return [
         $t->same(0, preg_match('/(?:^|[\s"])opener(?:[\s"]|$)/', $html), 'Expected opener rel tokens to be stripped');
         $t->true(!str_contains($blocks, 'target='), 'Expected WordPress blocks to omit target attributes');
         $t->true(!str_contains($blocks, 'download='), 'Expected WordPress blocks to omit download attributes');
+    },
+    'converts base target defaults into inert browsing-context metadata' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<template><base target="inactive-frame"><a href="template-note.html">template note</a></template>'
+            . '<base target=" review-frame ">'
+            . '<base href="https://source.example.test/import/posts/post.html" target="ignored-frame">'
+            . '<article><a href="doc.html">doc</a></article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/base-target-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<span data-pandoc-meta-name="base-target" data-pandoc-meta-source="base" data-pandoc-meta-content="review-frame">Base target: review-frame</span>'
+            . '<a href="https://source.example.test/import/posts/template-note.html">template note</a>'
+            . '<article><a href="https://source.example.test/import/posts/doc.html">doc</a></article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Base target: review-frametemplate notedoc', $fragment->textContent());
+        $t->same(['a', 'article', 'span'], $summary['elementNames']);
+        $t->same(['base', 'template'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['base-target-review', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $policyDiagnostics);
+        $t->same('span', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-meta-name' => 'base-target',
+            'data-pandoc-meta-source' => 'base',
+            'data-pandoc-meta-content' => 'review-frame',
+        ], $nodes[0]['attrs']);
+        $t->same('Base target: review-frame', $nodes[0]['children'][0]['text']);
+        $t->same('a', $nodes[1]['name']);
+        $t->same('https://source.example.test/import/posts/template-note.html', $nodes[1]['attrs']['href']);
+        $t->same('https://source.example.test/import/posts/doc.html', $nodes[2]['children'][0]['attrs']['href']);
+        $t->same('/migration/base-target-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<base'), 'Expected base elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'target='), 'Expected base target to be review metadata rather than a live target attribute');
+        $t->true(!str_contains($blocks, 'target='), 'Expected WordPress blocks to omit live target attributes');
+
+        $malformed = Html5DomFragment::fromHtml(
+            '<base target="review&#10;<frame">'
+            . '<base href="https://source.example.test/import/posts/post.html">'
+            . '<a href="./doc.html">doc</a>'
+        );
+        $malformedDiagnostics = array_values(array_filter(
+            $malformed->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same(
+            '<span data-pandoc-meta-name="base-target" data-pandoc-meta-source="base" data-pandoc-meta-content="_blank">Base target: _blank</span>'
+                . '<a href="https://source.example.test/import/posts/doc.html">doc</a>',
+            $malformed->serialize()
+        );
+        $t->same(['unsafe-attribute', 'base-target-review', 'blocked-tag', 'blocked-tag'], $malformedDiagnostics);
+        $t->true(!str_contains($malformed->serialize(), '<frame'), 'Expected malformed target markup text to stay out of review HTML');
     },
     'converts image map areas into inert reviewer links before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
