@@ -709,18 +709,35 @@ final class WordPressBlockWriter
                 $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null)
                     ? $source['colgroupAttributes']
                     : [];
-                $html .= '<colgroup' . $this->renderSourceAttributeSummaryAttrs($colgroupAttributes, true, ['align', 'span', 'style', 'valign', 'width']) . '>';
+                $html .= '<colgroup'
+                    . $this->renderSourceColumnDecimalAlignmentAttr($colgroupAttributes)
+                    . $this->renderSourceAttributeSummaryAttrs($colgroupAttributes, true, ['align', 'span', 'style', 'valign', 'width'])
+                    . '>';
                 $currentGroupKey = $groupKey;
             }
 
             $colAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
-            $attrs = $this->renderSourceAttributeSummaryAttrs($colAttributes, false, ['align', 'span', 'style', 'width']);
+            $attrs = $this->renderSourceColumnDecimalAlignmentAttr($colAttributes)
+                . $this->renderSourceAttributeSummaryAttrs($colAttributes, false, ['align', 'span', 'style', 'width']);
             $width = isset($spec['width']) && is_numeric($spec['width']) ? (float) $spec['width'] : 0.0;
             $attrs .= ' style="width:' . $this->esc($this->formatTableWidth($width)) . '"';
             $html .= '<col' . $attrs . '/>';
         }
 
         return $currentGroupKey === null ? '' : $html . '</colgroup>';
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttributes
+     */
+    private function renderSourceColumnDecimalAlignmentAttr(array $sourceAttributes): string
+    {
+        $attributes = $this->sourceAttributeSummaryMap($sourceAttributes);
+        if (strtolower(trim((string) ($attributes['align'] ?? ''))) !== 'char') {
+            return '';
+        }
+
+        return ' align="char"';
     }
 
     /**
@@ -1277,7 +1294,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'axis', 'bgcolor', 'headers', 'scope', 'style', 'summary', 'title', 'valign'], true);
+            || in_array($name, ['abbr', 'axis', 'bgcolor', 'char', 'charoff', 'headers', 'scope', 'style', 'summary', 'title', 'valign'], true);
     }
 
     private function renderCodeBlock(AstNode $node): string

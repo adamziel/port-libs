@@ -566,6 +566,80 @@ HTML;
         $t->true(!str_contains($blocks, 'onclick='), 'Unsafe colgroup and col event attributes must not render');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'carries html column decimal alignment provenance into geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="decimal-alignment-grid" data-source="html-reader">
+<caption>Decimal alignment review</caption>
+<colgroup data-source="legacy-doc" align="char" char="." charoff="2">
+<col span="2" width="25%" data-origin="amount-columns" />
+<col width="50%" align="char" char="," charoff="1" data-origin="rate-column" />
+</colgroup>
+<thead>
+<tr><th>Source</th><th>Amount</th><th>Rate</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42.50</td><td>1,25</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(['default', 'default', 'default'], $table->attr('alignments'));
+        $t->same([0.25, 0.25, 0.5], $table->attr('widths'));
+        $columnSources = is_array($table->attr('columnSources')) ? $table->attr('columnSources') : [];
+        $t->same('char', $columnSources[0]['colgroupAttributes']['htmlAttributes']['align'] ?? null);
+        $t->same('.', $columnSources[1]['colgroupAttributes']['htmlAttributes']['char'] ?? null);
+        $t->same('2', $columnSources[1]['colgroupAttributes']['htmlAttributes']['charoff'] ?? null);
+        $t->same('char', $columnSources[2]['colAttributes']['htmlAttributes']['align'] ?? null);
+        $t->same(',', $columnSources[2]['colAttributes']['htmlAttributes']['char'] ?? null);
+        $t->same('1', $columnSources[2]['colAttributes']['htmlAttributes']['charoff'] ?? null);
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same(2, count($packet['columnDecimalAlignments'] ?? []));
+        $t->same([0, 1], $packet['columnDecimalAlignments'][0]['columns'] ?? null);
+        $t->same('colgroup', $packet['columnDecimalAlignments'][0]['sourceElement'] ?? null);
+        $t->same('.', $packet['columnDecimalAlignments'][0]['char'] ?? null);
+        $t->same('2', $packet['columnDecimalAlignments'][0]['charoff'] ?? null);
+        $t->same([2], $packet['columnDecimalAlignments'][1]['columns'] ?? null);
+        $t->same('col', $packet['columnDecimalAlignments'][1]['sourceElement'] ?? null);
+        $t->same(',', $packet['columnDecimalAlignments'][1]['char'] ?? null);
+        $t->same('1', $packet['columnDecimalAlignments'][1]['charoff'] ?? null);
+        $t->same(2, $packet['summary']['columnDecimalAlignmentCount'] ?? null);
+        $t->same(true, $packet['summary']['hasColumnDecimalAlignments'] ?? null);
+        $t->same([0, 1, 2], $packet['summary']['columnDecimalAlignmentColumns'] ?? null);
+        $t->same(['.', ','], $packet['summary']['columnDecimalAlignmentChars'] ?? null);
+        $t->same(['2', '1'], $packet['summary']['columnDecimalAlignmentOffsets'] ?? null);
+
+        $markdownDiagnostics = $packet['writerDowngrades']['markdown'] ?? [];
+        $markdownCodes = array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $markdownDiagnostics);
+        $t->same(true, in_array('markdown-column-char-alignment-require-raw-html', $markdownCodes, true));
+        $decimalDiagnostics = array_values(array_filter(
+            $markdownDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-column-char-alignment-require-raw-html'
+        ));
+        $t->same(1, count($decimalDiagnostics));
+        $t->same('raw-html-column-char-alignment', $decimalDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same([0, 1, 2], $decimalDiagnostics[0]['columns'] ?? null);
+        $t->same(['.', ','], $decimalDiagnostics[0]['chars'] ?? null);
+        $t->same(['2', '1'], $decimalDiagnostics[0]['charOffsets'] ?? null);
+        $t->same('colgroup', $decimalDiagnostics[0]['alignments'][0]['sourceElement'] ?? null);
+        $t->same('col', $decimalDiagnostics[0]['alignments'][1]['sourceElement'] ?? null);
+
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoc');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'latex');
+        $t->same(true, in_array('asciidoc-column-char-alignment-review-required', array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $asciidocDiagnostics), true));
+        $t->same(true, in_array('latex-column-char-alignment-review-required', array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $latexDiagnostics), true));
+
+        $t->contains('<colgroup align="char" char="." charoff="2" data-source="legacy-doc"><col data-origin="amount-columns" style="width:25%"/><col data-origin="amount-columns" style="width:25%"/><col align="char" char="," charoff="1" data-origin="rate-column" style="width:50%"/></colgroup>', $blocks);
+        $t->contains('<tbody><tr><td>Posts</td><td>42.50</td><td>1,25</td></tr></tbody>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'preserves safe html colgroup and col provenance in wordpress output' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="wordpress-colgroup-source" data-source="html-reader">

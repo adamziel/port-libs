@@ -57,6 +57,25 @@ $colgroupAlignmentTables = array_values(array_filter(
     $colgroupAlignmentDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$decimalAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="decimal-alignment-grid" data-source="html-reader">
+<caption>Decimal alignment review</caption>
+<colgroup data-source="legacy-doc" align="char" char="." charoff="2">
+<col span="2" width="25%" data-origin="amount-columns" />
+<col width="50%" align="char" char="," charoff="1" data-origin="rate-column" />
+</colgroup>
+<thead>
+<tr><th>Source</th><th>Amount</th><th>Rate</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42.50</td><td>1,25</td></tr>
+</tbody>
+</table>
+HTML);
+$decimalAlignmentTables = array_values(array_filter(
+    $decimalAlignmentDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $colgroupMismatchDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="colgroup-underdeclared-grid" data-source="html-reader">
 <caption>Colgroup mismatch review</caption>
@@ -1040,6 +1059,7 @@ $document = new AstNode('document', [], [
     ]),
     ...$rowspanZeroTables,
     ...$colgroupAlignmentTables,
+    ...$decimalAlignmentTables,
     ...$colgroupMismatchTables,
     ...$inheritedAlignmentTables,
     ...$verticalAlignmentTables,
@@ -1850,6 +1870,68 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($colgroupAlignmentPacket, JSON_THROW_ON_ERROR);
     json_encode($colgroupWriterPacket, JSON_THROW_ON_ERROR);
+
+    $decimalAlignmentTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'decimal-alignment-grid') {
+            $decimalAlignmentTable = $node;
+            break;
+        }
+    }
+    $decimalAlignmentPacket = $decimalAlignmentTable instanceof AstNode ? $decimalAlignmentTable->attr('tableGeometry') : null;
+    $decimalColumnSources = $decimalAlignmentTable instanceof AstNode && is_array($decimalAlignmentTable->attr('columnSources'))
+        ? $decimalAlignmentTable->attr('columnSources')
+        : [];
+    if (
+        !$decimalAlignmentTable instanceof AstNode
+        || $decimalAlignmentTable->attr('alignments') !== ['default', 'default', 'default']
+        || $decimalAlignmentTable->attr('widths') !== [0.25, 0.25, 0.5]
+        || ($decimalColumnSources[0]['colgroupAttributes']['htmlAttributes']['align'] ?? null) !== 'char'
+        || ($decimalColumnSources[0]['colgroupAttributes']['htmlAttributes']['char'] ?? null) !== '.'
+        || ($decimalColumnSources[2]['colAttributes']['htmlAttributes']['char'] ?? null) !== ','
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source HTML column decimal alignment metadata');
+    }
+    if (
+        !is_array($decimalAlignmentPacket)
+        || count($decimalAlignmentPacket['columnDecimalAlignments'] ?? []) !== 2
+        || ($decimalAlignmentPacket['columnDecimalAlignments'][0]['columns'] ?? null) !== [0, 1]
+        || ($decimalAlignmentPacket['columnDecimalAlignments'][0]['sourceElement'] ?? null) !== 'colgroup'
+        || ($decimalAlignmentPacket['columnDecimalAlignments'][0]['char'] ?? null) !== '.'
+        || ($decimalAlignmentPacket['columnDecimalAlignments'][0]['charoff'] ?? null) !== '2'
+        || ($decimalAlignmentPacket['columnDecimalAlignments'][1]['columns'] ?? null) !== [2]
+        || ($decimalAlignmentPacket['columnDecimalAlignments'][1]['sourceElement'] ?? null) !== 'col'
+        || ($decimalAlignmentPacket['columnDecimalAlignments'][1]['char'] ?? null) !== ','
+        || ($decimalAlignmentPacket['summary']['hasColumnDecimalAlignments'] ?? null) !== true
+        || ($decimalAlignmentPacket['summary']['columnDecimalAlignmentColumns'] ?? null) !== [0, 1, 2]
+        || ($decimalAlignmentPacket['summary']['columnDecimalAlignmentChars'] ?? null) !== ['.', ',']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing decimal alignment review-packet summary');
+    }
+    $decimalWriterPacket = TableGeometry::reviewPacket($decimalAlignmentTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex', 'wordpress'],
+    ]);
+    $decimalMarkdownDiagnostics = array_values(array_filter(
+        $decimalWriterPacket['writerDowngrades']['markdown'] ?? [],
+        static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-column-char-alignment-require-raw-html'
+    ));
+    if (
+        !in_array('markdown-column-char-alignment-require-raw-html', $decimalWriterPacket['summary']['writerDowngradeCodes'] ?? [], true)
+        || !in_array('asciidoc-column-char-alignment-review-required', $decimalWriterPacket['summary']['writerDowngradeCodes'] ?? [], true)
+        || !in_array('latex-column-char-alignment-review-required', $decimalWriterPacket['summary']['writerDowngradeCodes'] ?? [], true)
+        || count($decimalMarkdownDiagnostics) !== 1
+        || ($decimalMarkdownDiagnostics[0]['requiredFeature'] ?? null) !== 'raw-html-column-char-alignment'
+        || ($decimalMarkdownDiagnostics[0]['columns'] ?? null) !== [0, 1, 2]
+        || ($decimalWriterPacket['writerDowngrades']['wordpress'] ?? null) !== []
+    ) {
+        throw new RuntimeException('Table geometry self-test missing decimal alignment writer diagnostics');
+    }
+    if (!str_contains($blocks, '<table id="decimal-alignment-grid" data-source="html-reader"><colgroup align="char" char="." charoff="2" data-source="legacy-doc"><col data-origin="amount-columns" style="width:25%"/><col data-origin="amount-columns" style="width:25%"/><col align="char" char="," charoff="1" data-origin="rate-column" style="width:50%"/></colgroup><thead><tr><th>Source</th><th>Amount</th><th>Rate</th></tr></thead>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for decimal alignment columns');
+    }
+    json_encode($decimalAlignmentPacket, JSON_THROW_ON_ERROR);
+    json_encode($decimalWriterPacket, JSON_THROW_ON_ERROR);
 
     $colgroupMismatchTable = null;
     foreach ($document->children as $node) {
