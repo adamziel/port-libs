@@ -209,9 +209,11 @@ final class PdfPageArtifactSelector
 
         $normalized = [];
         foreach (array_values($artifacts) as $artifact) {
+            $artifact = self::normalizeSuppliedArtifactListEntryValue($artifact);
             if (is_array($artifact)) {
                 $artifact = self::normalizeSuppliedArtifactValue($artifact);
-                $unwrapped = self::artifactListFromEnvelope($artifact);
+                $unwrapped = self::directKeyedArtifactMap($artifact)
+                    ?? self::artifactListFromEnvelope($artifact);
                 if ($unwrapped !== null) {
                     foreach (array_values($unwrapped) as $unwrappedArtifact) {
                         $normalized[] = self::normalizeSuppliedArtifactValue($unwrappedArtifact);
@@ -225,6 +227,106 @@ final class PdfPageArtifactSelector
         }
 
         return $normalized;
+    }
+
+    /**
+     * Some native adapters persist layout/order/image sidecars as JSONL-style
+     * records, where each selected artifact list entry is a JSON object. Decode
+     * only entries that are artifact-shaped so arbitrary string payloads remain
+     * inert metadata.
+     */
+    private static function normalizeSuppliedArtifactListEntryValue(mixed $artifact): mixed
+    {
+        if (!is_string($artifact)) {
+            return $artifact;
+        }
+
+        $decoded = self::decodeSuppliedArtifactJsonEnvelope($artifact);
+        if ($decoded === null) {
+            return $artifact;
+        }
+
+        $decoded = self::normalizeSuppliedArtifactValue($decoded);
+        if (!is_array($decoded) || !self::jsonDecodedValueLooksLikeSuppliedArtifact($decoded)) {
+            return $artifact;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private static function jsonDecodedValueLooksLikeSuppliedArtifact(array $value, int $depth = 0): bool
+    {
+        if (self::hasJsonDirectArtifactPayload($value)) {
+            return true;
+        }
+
+        if ($depth >= 3) {
+            return false;
+        }
+
+        if (array_is_list($value)) {
+            foreach ($value as $item) {
+                if (is_array($item) && self::jsonDecodedValueLooksLikeSuppliedArtifact($item, $depth + 1)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        foreach (['pages', 'dictionary_output', 'pdftext'] as $envelopeKey) {
+            $nested = $value[$envelopeKey] ?? null;
+            if (is_array($nested) && self::jsonDecodedValueLooksLikeSuppliedArtifact($nested, $depth + 1)) {
+                return true;
+            }
+        }
+
+        foreach ($value as $key => $candidate) {
+            if (
+                self::integerArrayKey($key) !== null
+                && is_array($candidate)
+                && self::jsonDecodedValueLooksLikeSuppliedArtifact($candidate, $depth + 1)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * `blocks` and page-level `bbox` are pdftext page-copy markers, not model
+     * geometry by themselves. JSON list-entry decoding requires model/image
+     * payload keys so page text caches cannot become empty assigned artifacts.
+     *
+     * @param array<mixed> $value
+     */
+    private static function hasJsonDirectArtifactPayload(array $value): bool
+    {
+        foreach ([
+            'bboxes',
+            'image',
+            'image_bbox',
+            'layout',
+            'layout_result',
+            'order',
+            'order_result',
+            'prediction',
+            'result',
+            'model_output',
+            'output',
+            'page_data',
+            'page_result',
+        ] as $key) {
+            if (array_key_exists($key, $value)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
