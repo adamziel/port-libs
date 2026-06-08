@@ -701,6 +701,8 @@ final class BibtexCslParser
             'note' => self::firstField($fields, ['note']),
             'addendum' => self::firstField($fields, ['addendum']),
             'name-addon' => self::firstField($fields, ['nameaddon', 'name-addon']),
+            'author-type' => self::firstField($fields, ['authortype', 'author-type']),
+            'container-author-type' => self::firstField($fields, ['bookauthortype', 'bookauthor-type', 'container-author-type']),
             'date-addon' => self::firstField($fields, ['dateaddon', 'date-addon', 'dateaddendum', 'date-addendum']),
             'original-title' => self::composedTitle($fields, ['origtitle'], ['origsubtitle']),
             'original-title-addon' => self::firstField($fields, ['origtitleaddon', 'origtitle-addon']),

@@ -260,6 +260,38 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $extensionQualifiedPartialFallback = (new DocTemplate())->renderResource('packets/review', [
+        'packets/review.html+smart' => <<<'HTML'
+<article class="extension-qualified-partials">
+${ components/header() }
+<section>
+${ warnings:components/warning-row()[
+] }
+</section>
+</article>
+HTML,
+        'packets/components/header.html' => '<header class="base-extension">$title$</header>' . "\n",
+        'packets/components/header.html+smart' => '<header class="exact-extension">$title$</header>' . "\n",
+        'packets/components/warning-row.html' => '<p data-source="$it.source$">$it.message$</p>' . "\n",
+    ], [
+        'title' => 'Extension partial packet',
+        'warnings' => [
+            ['source' => 'docx', 'message' => 'Imported heading'],
+            ['source' => 'odt', 'message' => 'Styled paragraph'],
+        ],
+    ], null, 'html+smart');
+    foreach ([
+        '<article class="extension-qualified-partials">',
+        '<header class="exact-extension">Extension partial packet</header>',
+        '<p data-source="docx">Imported heading</p>',
+        '<p data-source="odt">Styled paragraph</p>',
+    ] as $needle) {
+        if (!str_contains($extensionQualifiedPartialFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate extension-qualified partial fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $extensionQualifiedDefault = (new DocTemplate())->renderResource('templates/default', [], [
         'body' => 'Extension-qualified Markdown default fallback',
     ], null, 'markdown_strict+emoji-hard_line_breaks');

@@ -4016,6 +4016,98 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Literal Container Author. Review Desk Handbook. 2025. Container author: Migration Desk.</dd>', $blocks);
     },
+    'maps bounded biblatex author type qualifiers into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{compiled-source-manual,
+  author     = {Roe, Pat and {{Migration Desk}}},
+  authortype = {compiler},
+  title      = {Compiled Source Manual},
+  date       = {2026},
+  publisher  = {Review Press}
+}
+
+@incollection{container-type-chapter,
+  author         = {Ng, Nia},
+  bookauthor     = {Smith, Ada and Curator, Eli},
+  bookauthortype = {source volume author},
+  title          = {Container Type Chapter},
+  booktitle      = {Migration Sourcebook},
+  date           = {2025},
+  pages          = {44--49}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('compiler', $items[0]['author-type'] ?? null);
+        $t->same('source volume author', $items[1]['container-author-type'] ?? null);
+        $t->same('compiler', $items[0]['rawBibtex']['fields']['authortype'] ?? null);
+        $t->same('source volume author', $items[1]['rawBibtex']['fields']['bookauthortype'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $compiled = $processor->item('compiled-source-manual');
+        $chapter = $processor->item('container-type-chapter');
+        $t->same('compiler', $compiled['authorType'] ?? null);
+        $t->same('source volume author', $chapter['containerAuthorType'] ?? null);
+        $t->same('Smith', $chapter['containerAuthors'][0]['family'] ?? null);
+        $t->same('Curator', $chapter['containerAuthors'][1]['family'] ?? null);
+        $t->same('(Roe and Migration Desk 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('compiled-source-manual', '[@compiled-source-manual]'),
+            $citation('container-type-chapter', '[@container-type-chapter]'),
+        ]));
+        $t->same(
+            'Roe, Pat; Migration Desk. Compiled Source Manual. Review Press, 2026. Author type: compiler.',
+            $processor->renderBibliographyEntry('compiled-source-manual')
+        );
+        $t->same(
+            'Ng, Nia. Container Type Chapter. Migration Sourcebook. 2025. 44-49. Container author type: source volume author. Container author: Smith, Ada; Curator, Eli.',
+            $processor->renderBibliographyEntry('container-type-chapter')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="authortype"/>
+        <text variable="container-author-type"/>
+        <text variable="bookauthortype"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="author-type"/>
+      <text variable="container-author-type"/>
+      <names variable="container-author"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Roe and Migration Desk | compiler; Ng | source volume author | source volume author]', $styled->renderCitationCluster([
+            $citation('compiled-source-manual', '[@compiled-source-manual]'),
+            $citation('container-type-chapter', '[@container-type-chapter]'),
+        ]));
+        $t->same('Container Type Chapter :: source volume author :: Smith, Ada; Curator, Eli', $styled->renderBibliographyEntry('container-type-chapter'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-author-type',
+            'title' => 'Manual Author Type Packet',
+            'author-type' => 'review compiler',
+            'container-author-type' => 'sourcebook author',
+        ]])->item('manual-author-type');
+        $t->same('review compiler', $manual['authorType'] ?? null);
+        $t->same('sourcebook author', $manual['containerAuthorType'] ?? null);
+
+        $document = (new MarkdownReader())->read('Author-type source @compiled-source-manual and chapter [@container-type-chapter] preserve imported role qualifiers.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Author-type source Roe and Migration Desk (2026) and chapter (Ng 2025) preserve imported role qualifiers.</p>', $blocks);
+        $t->contains('<dt>Roe and Migration Desk 2026</dt><dd>Roe, Pat; Migration Desk. Compiled Source Manual. Review Press, 2026. Author type: compiler.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Container Type Chapter. Migration Sourcebook. 2025. 44-49. Container author type: source volume author. Container author: Smith, Ada; Curator, Eli.</dd>', $blocks);
+    },
     'maps bounded biblatex editorial role name lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{role-review,

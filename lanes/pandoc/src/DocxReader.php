@@ -2038,7 +2038,17 @@ final class DocxReader
                 $activeMoveRangeNodes
             );
             foreach ($textboxes as $textbox) {
-                array_push($blocks, ...$this->blockContainerChildren($textbox, $package, $relationships, $referencedNotes, $styles, $numbering));
+                $textboxBlocks = $this->blockContainerChildren(
+                    $textbox['content'],
+                    $package,
+                    $relationships,
+                    $referencedNotes,
+                    $styles,
+                    $numbering
+                );
+                if ($textboxBlocks !== []) {
+                    $blocks[] = new AstNode('div', $textbox['attrs'], $textboxBlocks);
+                }
             }
             $segmentChildren = [];
         }
@@ -2153,7 +2163,7 @@ final class DocxReader
     }
 
     /**
-     * @return list<\DOMElement>
+     * @return list<array{content:\DOMElement, attrs:array{classes:list<string>, attributes:array<string, string>}}>
      */
     private function runTextboxContents(\DOMElement $run): array
     {
@@ -2173,9 +2183,13 @@ final class DocxReader
                     continue;
                 }
 
+                $attrs = $this->vmlTextboxAttrs($textbox, $pict);
                 foreach ($textbox->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'txbxContent') as $content) {
                     if ($content instanceof \DOMElement) {
-                        $contents[] = $content;
+                        $contents[] = [
+                            'content' => $content,
+                            'attrs' => $attrs,
+                        ];
                     }
                 }
             }
@@ -2191,12 +2205,115 @@ final class DocxReader
                     $content instanceof \DOMElement
                     && $this->hasAncestorElement($content, self::WORDPROCESSING_SHAPE_NS, 'txbx', $drawing)
                 ) {
-                    $contents[] = $content;
+                    $contents[] = [
+                        'content' => $content,
+                        'attrs' => $this->drawingTextboxAttrs($content, $drawing),
+                    ];
                 }
             }
         }
 
         return $contents;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function vmlTextboxAttrs(\DOMElement $textbox, \DOMElement $pict): array
+    {
+        $classes = ['docx-textbox', 'docx-vml-textbox'];
+        $attributes = ['data-docx-textbox-kind' => 'vml'];
+        $shape = $this->vmlShapeForTextbox($textbox, $pict);
+
+        if ($shape instanceof \DOMElement) {
+            $shapeKind = $shape->localName;
+            $attributes['data-docx-shape-kind'] = $shapeKind;
+
+            $suffix = $this->metadataClassSuffix($shapeKind);
+            if ($suffix !== null) {
+                $classes[] = 'docx-vml-' . $suffix;
+            }
+
+            foreach ([
+                'id' => 'data-docx-shape-id',
+                'alt' => 'data-docx-shape-alt',
+                'style' => 'data-docx-shape-style',
+            ] as $source => $target) {
+                $value = trim($shape->getAttribute($source));
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                }
+            }
+        }
+
+        foreach ([
+            'inset' => 'data-docx-textbox-inset',
+            'style' => 'data-docx-textbox-style',
+            'fitshape' => 'data-docx-textbox-fit-shape',
+        ] as $source => $target) {
+            $value = trim($textbox->getAttribute($source));
+            if ($value !== '') {
+                $attributes[$target] = $value;
+            }
+        }
+
+        $insetMode = trim($textbox->getAttributeNS(self::OFFICE_VML_NS, 'insetmode'));
+        if ($insetMode !== '') {
+            $attributes['data-docx-textbox-inset-mode'] = $insetMode;
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function drawingTextboxAttrs(\DOMElement $content, \DOMElement $drawing): array
+    {
+        $attributes = ['data-docx-textbox-kind' => 'drawingml'];
+        $properties = $this->drawingPropertiesForElement($content, $drawing);
+        if ($properties instanceof \DOMElement) {
+            foreach ([
+                'id' => 'data-docx-docpr-id',
+                'name' => 'data-docx-docpr-name',
+                'descr' => 'data-docx-docpr-description',
+                'title' => 'data-docx-docpr-title',
+            ] as $source => $target) {
+                $value = trim($properties->getAttribute($source));
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                }
+            }
+        }
+
+        return [
+            'classes' => ['docx-textbox', 'docx-drawing-textbox'],
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function vmlShapeForTextbox(\DOMElement $textbox, \DOMElement $pict): ?\DOMElement
+    {
+        $node = $textbox->parentNode;
+        while ($node instanceof \DOMElement) {
+            if (
+                $node->namespaceURI === self::VML_NS
+                && in_array($node->localName, ['shape', 'rect', 'oval', 'roundrect', 'group'], true)
+            ) {
+                return $node;
+            }
+
+            if ($node === $pict) {
+                break;
+            }
+
+            $node = $node->parentNode;
+        }
+
+        return null;
     }
 
     private function hasAncestorElement(\DOMElement $element, string $namespace, string $localName, \DOMElement $stopAt): bool

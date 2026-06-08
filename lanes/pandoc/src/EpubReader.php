@@ -10068,6 +10068,14 @@ final class EpubReader
         $urlReferenceCount = 0;
         $imageSetReferenceCount = 0;
         $fontFaceCount = 0;
+        $fontFaceSourceCount = 0;
+        $fontFaceLocalSourceCount = 0;
+        $fontFaceUrlSourceCount = 0;
+        $fontFaceExternalSourceCount = 0;
+        $fontFaceMissingSourceCount = 0;
+        $fontFaceItems = [];
+        $fontFaceFamilies = [];
+        $fontFaceDiagnostics = [];
         $reviewRequiredCount = 0;
 
         foreach ($manifest as $asset) {
@@ -10101,6 +10109,15 @@ final class EpubReader
                     'urlReferenceCount' => 0,
                     'imageSetReferenceCount' => 0,
                     'fontFaceCount' => 0,
+                    'fontFaceSourceCount' => 0,
+                    'fontFaceLocalSourceCount' => 0,
+                    'fontFaceUrlSourceCount' => 0,
+                    'fontFaceExternalSourceCount' => 0,
+                    'fontFaceMissingSourceCount' => 0,
+                    'fontFaceFamilies' => [],
+                    'fontFaces' => [],
+                    'fontFaceDiagnostics' => [],
+                    'fontFaceDiagnosticCount' => 0,
                     'reviewFlags' => ['missing-references'],
                     'references' => [],
                     'diagnostics' => $assetDiagnostics,
@@ -10143,8 +10160,33 @@ final class EpubReader
                 }
             }
 
-            $assetFontFaceCount = preg_match_all('/@font-face\b/i', $css);
-            $assetFontFaceCount = is_int($assetFontFaceCount) ? $assetFontFaceCount : 0;
+            $fontFaces = $this->cssFontFaceReports($package, $part, $css, $manifestByPart);
+            $assetFontFaceCount = count($fontFaces);
+            $assetFontFaceFamilies = [];
+            $assetFontFaceSourceCount = 0;
+            $assetFontFaceLocalSourceCount = 0;
+            $assetFontFaceUrlSourceCount = 0;
+            $assetFontFaceExternalSourceCount = 0;
+            $assetFontFaceMissingSourceCount = 0;
+            $assetFontFaceDiagnostics = [];
+            foreach ($fontFaces as $fontFace) {
+                $assetFontFaceSourceCount += (int) ($fontFace['sourceCount'] ?? 0);
+                $assetFontFaceLocalSourceCount += (int) ($fontFace['localSourceCount'] ?? 0);
+                $assetFontFaceUrlSourceCount += (int) ($fontFace['urlSourceCount'] ?? 0);
+                $assetFontFaceExternalSourceCount += (int) ($fontFace['externalSourceCount'] ?? 0);
+                $assetFontFaceMissingSourceCount += (int) ($fontFace['missingSourceCount'] ?? 0);
+
+                $family = is_string($fontFace['family'] ?? null) ? $fontFace['family'] : null;
+                if ($family !== null && $family !== '' && !in_array($family, $assetFontFaceFamilies, true)) {
+                    $assetFontFaceFamilies[] = $family;
+                }
+                foreach (is_array($fontFace['diagnostics'] ?? null) ? $fontFace['diagnostics'] : [] as $diagnostic) {
+                    $assetFontFaceDiagnostics[] = [
+                        'fontFaceIndex' => $fontFace['index'],
+                        'family' => $family,
+                    ] + $diagnostic;
+                }
+            }
             $reviewFlags = self::cssResourceReviewFlags($references);
             if ($reviewFlags !== []) {
                 ++$reviewRequiredCount;
@@ -10160,6 +10202,15 @@ final class EpubReader
                 'urlReferenceCount' => $assetUrlCount,
                 'imageSetReferenceCount' => $assetImageSetCount,
                 'fontFaceCount' => $assetFontFaceCount,
+                'fontFaceSourceCount' => $assetFontFaceSourceCount,
+                'fontFaceLocalSourceCount' => $assetFontFaceLocalSourceCount,
+                'fontFaceUrlSourceCount' => $assetFontFaceUrlSourceCount,
+                'fontFaceExternalSourceCount' => $assetFontFaceExternalSourceCount,
+                'fontFaceMissingSourceCount' => $assetFontFaceMissingSourceCount,
+                'fontFaceFamilies' => $assetFontFaceFamilies,
+                'fontFaces' => $fontFaces,
+                'fontFaceDiagnostics' => $assetFontFaceDiagnostics,
+                'fontFaceDiagnosticCount' => count($assetFontFaceDiagnostics),
                 'reviewFlags' => $reviewFlags,
                 'references' => $references,
                 'diagnostics' => $assetDiagnostics,
@@ -10170,6 +10221,20 @@ final class EpubReader
             $urlReferenceCount += $assetUrlCount;
             $imageSetReferenceCount += $assetImageSetCount;
             $fontFaceCount += $assetFontFaceCount;
+            $fontFaceSourceCount += $assetFontFaceSourceCount;
+            $fontFaceLocalSourceCount += $assetFontFaceLocalSourceCount;
+            $fontFaceUrlSourceCount += $assetFontFaceUrlSourceCount;
+            $fontFaceExternalSourceCount += $assetFontFaceExternalSourceCount;
+            $fontFaceMissingSourceCount += $assetFontFaceMissingSourceCount;
+            array_push($fontFaceItems, ...$fontFaces);
+            foreach ($assetFontFaceFamilies as $family) {
+                if (!in_array($family, $fontFaceFamilies, true)) {
+                    $fontFaceFamilies[] = $family;
+                }
+            }
+            foreach ($assetFontFaceDiagnostics as $diagnostic) {
+                $fontFaceDiagnostics[] = ['part' => $part] + $diagnostic;
+            }
             foreach ($assetDiagnostics as $diagnostic) {
                 $diagnostics[] = ['part' => $part] + $diagnostic;
             }
@@ -10186,6 +10251,16 @@ final class EpubReader
             'urlReferenceCount' => $urlReferenceCount,
             'imageSetReferenceCount' => $imageSetReferenceCount,
             'fontFaceCount' => $fontFaceCount,
+            'fontFaceSourceCount' => $fontFaceSourceCount,
+            'fontFaceLocalSourceCount' => $fontFaceLocalSourceCount,
+            'fontFaceUrlSourceCount' => $fontFaceUrlSourceCount,
+            'fontFaceExternalSourceCount' => $fontFaceExternalSourceCount,
+            'fontFaceMissingSourceCount' => $fontFaceMissingSourceCount,
+            'fontFaceFamilyCount' => count($fontFaceFamilies),
+            'fontFaceFamilies' => $fontFaceFamilies,
+            'fontFaceItems' => $fontFaceItems,
+            'fontFaceDiagnostics' => $fontFaceDiagnostics,
+            'fontFaceDiagnosticCount' => count($fontFaceDiagnostics),
             'externalReferenceCount' => count($externalReferences),
             'missingReferenceCount' => count($missingReferences),
             'encryptedReferenceCount' => count($encryptedReferences),
@@ -10257,6 +10332,437 @@ final class EpubReader
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function cssFontFaceReports(
+        ZipPackage $package,
+        string $part,
+        string $css,
+        array $manifestByPart
+    ): array {
+        $fontFaces = [];
+        foreach (self::cssFontFaceBlocks($css) as $block) {
+            $descriptors = self::cssDeclarationMap($block['body']);
+            $family = self::cssUnquotedString($descriptors['font-family'] ?? null);
+            $src = is_string($descriptors['src'] ?? null) ? trim($descriptors['src']) : null;
+            $sources = [];
+            $diagnostics = [];
+
+            if ($family === null || $family === '') {
+                $diagnostics[] = [
+                    'type' => 'missing-css-font-face-family',
+                    'message' => 'EPUB CSS @font-face block is missing font-family metadata',
+                ];
+            }
+            if ($src === null || $src === '') {
+                $diagnostics[] = [
+                    'type' => 'missing-css-font-face-src',
+                    'message' => 'EPUB CSS @font-face block is missing src metadata',
+                ];
+            }
+
+            foreach (self::cssFontFaceSourceTokens($src ?? '') as $sourceToken) {
+                $source = $this->cssFontFaceSourceReport(
+                    $package,
+                    $part,
+                    $sourceToken,
+                    $manifestByPart,
+                    count($sources)
+                );
+                foreach ($source['diagnostics'] as $diagnostic) {
+                    $diagnostics[] = [
+                        'sourceIndex' => $source['index'],
+                        'sourceKind' => $source['kind'],
+                        'href' => $source['href'],
+                    ] + $diagnostic;
+                }
+                $sources[] = $source;
+            }
+
+            if ($src !== null && $src !== '' && $sources === []) {
+                $diagnostics[] = [
+                    'type' => 'unparsed-css-font-face-src',
+                    'src' => $src,
+                    'message' => 'EPUB CSS @font-face src metadata did not contain a bounded local() or url() source candidate',
+                ];
+            }
+
+            $localSources = array_values(array_filter(
+                $sources,
+                static fn (array $source): bool => ($source['kind'] ?? null) === 'local',
+            ));
+            $urlSources = array_values(array_filter(
+                $sources,
+                static fn (array $source): bool => ($source['kind'] ?? null) === 'url',
+            ));
+            $externalSources = array_values(array_filter(
+                $urlSources,
+                static fn (array $source): bool => ($source['external'] ?? false) === true,
+            ));
+            $missingSources = array_values(array_filter(
+                $urlSources,
+                static fn (array $source): bool => ($source['exists'] ?? true) !== true && ($source['external'] ?? false) !== true,
+            ));
+
+            $fontFaces[] = [
+                'index' => count($fontFaces),
+                'sourcePart' => $part,
+                'raw' => $block['raw'],
+                'rawSha256' => hash('sha256', $block['raw']),
+                'descriptorCount' => count($descriptors),
+                'descriptors' => $descriptors,
+                'family' => $family,
+                'style' => self::cssNullableDescriptor($descriptors, 'font-style'),
+                'weight' => self::cssNullableDescriptor($descriptors, 'font-weight'),
+                'stretch' => self::cssNullableDescriptor($descriptors, 'font-stretch'),
+                'display' => self::cssNullableDescriptor($descriptors, 'font-display'),
+                'unicodeRange' => self::cssNullableDescriptor($descriptors, 'unicode-range'),
+                'src' => $src,
+                'sourceCount' => count($sources),
+                'localSourceCount' => count($localSources),
+                'urlSourceCount' => count($urlSources),
+                'externalSourceCount' => count($externalSources),
+                'missingSourceCount' => count($missingSources),
+                'sources' => $sources,
+                'diagnostics' => $diagnostics,
+                'valid' => $diagnostics === [],
+            ];
+        }
+
+        return $fontFaces;
+    }
+
+    /**
+     * @param array{kind:string, raw:string, name?:string, href?:string, format?:string|null, descriptor?:string|null} $sourceToken
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function cssFontFaceSourceReport(
+        ZipPackage $package,
+        string $part,
+        array $sourceToken,
+        array $manifestByPart,
+        int $index
+    ): array {
+        if (($sourceToken['kind'] ?? null) === 'local') {
+            return [
+                'index' => $index,
+                'kind' => 'local',
+                'raw' => (string) ($sourceToken['raw'] ?? ''),
+                'name' => (string) ($sourceToken['name'] ?? ''),
+                'href' => null,
+                'target' => null,
+                'part' => null,
+                'fragment' => null,
+                'fragmentKind' => null,
+                'epubCfi' => null,
+                'mediaFragment' => null,
+                'external' => false,
+                'exists' => null,
+                'byteLength' => null,
+                'crc32' => null,
+                'manifestId' => null,
+                'mediaType' => null,
+                'encrypted' => false,
+                'canExposeBytes' => false,
+                'format' => null,
+                'descriptor' => null,
+                'diagnostics' => [],
+            ];
+        }
+
+        $href = (string) ($sourceToken['href'] ?? '');
+        $reference = $this->packageReference($package, $part, $href, $manifestByPart, 'css-font-face-source');
+        $diagnostics = self::cssFontFaceReferenceDiagnostics($reference['diagnostics']);
+        if (($reference['encrypted'] ?? false) === true) {
+            $diagnostics[] = [
+                'type' => 'encrypted-css-font-face-source',
+                'part' => $reference['part'],
+                'message' => 'EPUB CSS @font-face src references an encrypted package font that cannot be exposed directly',
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'kind' => 'url',
+            'raw' => (string) ($sourceToken['raw'] ?? $href),
+            'name' => null,
+            'href' => $href,
+            'target' => $reference['target'],
+            'part' => $reference['part'],
+            'fragment' => $reference['fragment'],
+            'fragmentKind' => $reference['fragmentKind'],
+            'epubCfi' => $reference['epubCfi'],
+            'mediaFragment' => $reference['mediaFragment'],
+            'external' => $reference['external'],
+            'exists' => $reference['exists'],
+            'byteLength' => $reference['byteLength'],
+            'crc32' => $reference['crc32'],
+            'manifestId' => $reference['manifestId'],
+            'mediaType' => $reference['mediaType'],
+            'encrypted' => $reference['encrypted'],
+            'canExposeBytes' => $reference['canExposeBytes'],
+            'format' => $sourceToken['format'] ?? null,
+            'descriptor' => $sourceToken['descriptor'] ?? null,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function cssFontFaceReferenceDiagnostics(array $diagnostics): array
+    {
+        foreach ($diagnostics as $index => $diagnostic) {
+            if (($diagnostic['type'] ?? null) === 'external-css-font-face-source-reference') {
+                $diagnostics[$index]['type'] = 'external-css-font-face-source';
+                $diagnostics[$index]['message'] = 'EPUB CSS @font-face src points outside the package and was not fetched';
+            } elseif (($diagnostic['type'] ?? null) === 'missing-css-font-face-source-reference') {
+                $diagnostics[$index]['type'] = 'missing-css-font-face-source';
+                $diagnostics[$index]['message'] = 'EPUB CSS @font-face src target is missing from the package';
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return list<array{body:string, raw:string, start:int, end:int}>
+     */
+    private static function cssFontFaceBlocks(string $css): array
+    {
+        $blocks = [];
+        $stripped = self::stripCssComments($css);
+        $matchCount = preg_match_all('/@font-face\s*\{/i', $stripped, $matches, \PREG_SET_ORDER | \PREG_OFFSET_CAPTURE);
+        if (!is_int($matchCount) || $matchCount === 0) {
+            return $blocks;
+        }
+
+        foreach ($matches as $match) {
+            $rawStart = is_int($match[0][1] ?? null) ? $match[0][1] : null;
+            if ($rawStart === null) {
+                continue;
+            }
+
+            $open = strpos($stripped, '{', $rawStart);
+            if ($open === false) {
+                continue;
+            }
+            $close = self::cssMatchingBraceOffset($stripped, $open);
+            if ($close === null) {
+                continue;
+            }
+
+            $blocks[] = [
+                'body' => substr($stripped, $open + 1, $close - $open - 1),
+                'raw' => substr($stripped, $rawStart, $close - $rawStart + 1),
+                'start' => $rawStart,
+                'end' => $close + 1,
+            ];
+        }
+
+        return $blocks;
+    }
+
+    private static function cssMatchingBraceOffset(string $css, int $open): ?int
+    {
+        $length = strlen($css);
+        $depth = 0;
+        $quote = null;
+        $escaped = false;
+        for ($offset = $open; $offset < $length; ++$offset) {
+            $char = $css[$offset];
+            if ($quote !== null) {
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+                if ($char === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '{') {
+                ++$depth;
+                continue;
+            }
+            if ($char === '}') {
+                --$depth;
+                if ($depth === 0) {
+                    return $offset;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function cssDeclarationMap(string $body): array
+    {
+        $declarations = [];
+        foreach (self::splitCssTopLevelSemicolonList($body) as $declaration) {
+            if (preg_match('/^\s*([A-Za-z-]+)\s*:\s*(.*?)\s*$/s', $declaration, $match) !== 1) {
+                continue;
+            }
+
+            $name = strtolower((string) $match[1]);
+            if (isset($declarations[$name])) {
+                continue;
+            }
+            $value = trim((string) $match[2]);
+            if ($value !== '') {
+                $declarations[$name] = $value;
+            }
+        }
+
+        return $declarations;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitCssTopLevelSemicolonList(string $value): array
+    {
+        $items = [];
+        $start = 0;
+        $length = strlen($value);
+        $depth = 0;
+        $quote = null;
+        $escaped = false;
+
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $char = $value[$offset];
+            if ($quote !== null) {
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+                if ($char === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                ++$depth;
+                continue;
+            }
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+            if ($char === ';' && $depth === 0) {
+                $items[] = substr($value, $start, $offset - $start);
+                $start = $offset + 1;
+            }
+        }
+
+        $items[] = substr($value, $start);
+
+        return $items;
+    }
+
+    /**
+     * @return list<array{kind:string, raw:string, name?:string, href?:string, format?:string|null, descriptor?:string|null}>
+     */
+    private static function cssFontFaceSourceTokens(string $src): array
+    {
+        $tokens = [];
+        foreach (self::splitCssTopLevelCommaList($src) as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                continue;
+            }
+
+            if (preg_match('/^local\(\s*(["\']?)(.*?)\1\s*\)(.*)$/is', $candidate, $match) === 1) {
+                $tokens[] = [
+                    'kind' => 'local',
+                    'raw' => trim((string) $match[0]),
+                    'name' => self::cssUnquotedString((string) $match[2]) ?? '',
+                    'descriptor' => trim((string) ($match[3] ?? '')) ?: null,
+                ];
+                continue;
+            }
+
+            if (preg_match('/^url\(\s*(["\']?)(.*?)\1\s*\)(.*)$/is', $candidate, $match) === 1) {
+                $descriptor = trim((string) ($match[3] ?? ''));
+                $format = null;
+                if (preg_match('/\bformat\(\s*(["\']?)(.*?)\1\s*\)/i', $descriptor, $formatMatch) === 1) {
+                    $format = trim((string) ($formatMatch[2] ?? ''));
+                    $format = $format === '' ? null : $format;
+                }
+
+                $tokens[] = [
+                    'kind' => 'url',
+                    'raw' => trim((string) $match[0]),
+                    'href' => trim((string) ($match[2] ?? '')),
+                    'format' => $format,
+                    'descriptor' => $descriptor === '' ? null : $descriptor,
+                ];
+            }
+        }
+
+        return array_values(array_filter(
+            $tokens,
+            static fn (array $token): bool => ($token['kind'] ?? null) !== 'url' || (string) ($token['href'] ?? '') !== ''
+        ));
+    }
+
+    /**
+     * @param array<string, string> $descriptors
+     */
+    private static function cssNullableDescriptor(array $descriptors, string $name): ?string
+    {
+        $value = trim((string) ($descriptors[$name] ?? ''));
+
+        return $value === '' ? null : $value;
+    }
+
+    private static function cssUnquotedString(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $quote = $value[0] ?? '';
+        if (($quote === '"' || $quote === "'") && str_ends_with($value, $quote) && strlen($value) >= 2) {
+            $value = substr($value, 1, -1);
+        }
+
+        $value = preg_replace('/\\\\(.)/s', '$1', $value);
+
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     /**

@@ -6715,6 +6715,124 @@ XML;
         $t->same('/word/document.xml#cycle', $closureById['rIdBackToDocument']['target']);
         $t->same('/word/document.xml', $closureById['rIdBackToDocument']['targetPart']);
     },
+    'summarizes OPC relationship source closure expansion and stop policy' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+  <Relationship Id="rIdMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
+  <Relationship Id="rIdUnsafeLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+  <Relationship Id="rIdRelsTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="_rels/document.xml.rels"/>
+  <Relationship Id="rIdEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../evil.xml"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdBackToDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="document.xml#cycle"/>
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
+</Relationships>
+XML;
+
+        $coreRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCoreImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/core.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/comment.png', 'data' => 'PNG'],
+            ['name' => 'word/media/core.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'docProps/_rels/core.xml.rels', 'data' => $coreRelationshipsXml],
+        ]));
+
+        $closure = $graph->relationshipSourceClosureInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
+
+        $t->same('/', $closure['source']);
+        $t->same(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE, $closure['relationshipType']);
+        $t->same(false, $closure['valid']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'internal-target-package-root-traversal',
+            'invalid-target',
+            'missing-in-package',
+            'targets-relationship-part',
+        ], $closure['issues']);
+        $t->same(3, $closure['expandedSourceCount']);
+        $t->same(1, $closure['outsideSourceCount']);
+        $t->same(7, $closure['stopCount']);
+        $t->same(1, $closure['externalStopCount']);
+        $t->same(1, $closure['invalidStopCount']);
+        $t->same(1, $closure['missingStopCount']);
+        $t->same(1, $closure['relationshipPartStopCount']);
+        $t->same(1, $closure['cycleStopCount']);
+        $t->same(2, $closure['unloadedStopCount']);
+
+        $sources = [];
+        foreach ($closure['sources'] as $source) {
+            $sources[$source['source']] = $source;
+        }
+
+        $t->same(true, $sources['/']['reachable']);
+        $t->same(0, $sources['/']['depth']);
+        $t->same('expanded', $sources['/']['closureAction']);
+        $t->same(true, $sources['/word/document.xml']['reachable']);
+        $t->same(1, $sources['/word/document.xml']['depth']);
+        $t->same(true, $sources['/word/comments.xml']['reachable']);
+        $t->same(2, $sources['/word/comments.xml']['depth']);
+        $t->same(false, $sources['/docProps/core.xml']['reachable']);
+        $t->same(null, $sources['/docProps/core.xml']['depth']);
+        $t->same('outside-selected-closure', $sources['/docProps/core.xml']['closureAction']);
+
+        $stops = [];
+        foreach ($closure['stops'] as $stop) {
+            $stops[$stop['id']] = $stop;
+        }
+
+        $t->same('target-source-not-loaded', $stops['rIdStyles']['stopReason']);
+        $t->same('/word/styles.xml', $stops['rIdStyles']['targetPart']);
+        $t->same(true, $stops['rIdStyles']['valid']);
+        $t->same('missing-target', $stops['rIdMissingImage']['stopReason']);
+        $t->same(false, $stops['rIdMissingImage']['exists']);
+        $t->same(['missing-in-package'], $stops['rIdMissingImage']['issues']);
+        $t->same('external-target', $stops['rIdUnsafeLink']['stopReason']);
+        $t->same(['external-target-unsafe-scheme'], $stops['rIdUnsafeLink']['issues']);
+        $t->same('relationship-part-target', $stops['rIdRelsTarget']['stopReason']);
+        $t->same('/word/_rels/document.xml.rels', $stops['rIdRelsTarget']['targetPart']);
+        $t->same('invalid-target', $stops['rIdEscape']['stopReason']);
+        $t->same(['invalid-target', 'internal-target-package-root-traversal'], $stops['rIdEscape']['issues']);
+        $t->same('cycle-target', $stops['rIdBackToDocument']['stopReason']);
+        $t->same('/word/document.xml', $stops['rIdBackToDocument']['targetPart']);
+        $t->same('target-source-not-loaded', $stops['rIdCommentImage']['stopReason']);
+        $t->same('/word/media/comment.png', $stops['rIdCommentImage']['targetPart']);
+    },
     'rejects malformed OPC relationship graph package inputs' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],

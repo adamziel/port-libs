@@ -1235,6 +1235,62 @@ HTML,
         ], null, 'html+'));
     },
 
+    'resolves extension-qualified pandoc template partials through exact and base extensions' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+        $template = <<<'HTML'
+<article>
+${ components/header() }
+<section>
+${ warnings:components/warning-row()[
+] }
+</section>
+</article>
+HTML;
+
+        $exactOutput = $renderer->renderResource('templates/review', [
+            'templates/review.html+smart' => $template,
+            'templates/components/header.html' => '<header class="base">$title$</header>' . "\n",
+            'templates/components/header.html+smart' => '<header class="exact">$title$</header>' . "\n",
+            'templates/components/warning-row.html' => '<p data-source="$it.source$">$it.message$</p>' . "\n",
+        ], [
+            'title' => 'Extension Packet',
+            'warnings' => [
+                ['source' => 'media', 'message' => 'Confirm alt text'],
+                ['source' => 'links', 'message' => 'Review redirects'],
+            ],
+        ], null, 'html+smart');
+
+        $t->same(implode("\n", [
+            '<article>',
+            '<header class="exact">Extension Packet</header>',
+            '<section>',
+            '<p data-source="media">Confirm alt text</p>',
+            '<p data-source="links">Review redirects</p>',
+            '</section>',
+            '</article>',
+        ]), $exactOutput);
+
+        $baseOutput = $renderer->renderResource('templates/review', [
+            'templates/review.html+smart' => $template,
+            'templates/components/header.html' => '<header class="base">$title$</header>' . "\n",
+            'templates/components/warning-row.html' => '<p data-source="$it.source$">$it.message$</p>' . "\n",
+        ], [
+            'title' => 'Base Partial Packet',
+            'warnings' => [
+                ['source' => 'docx', 'message' => 'Imported heading'],
+            ],
+        ], null, 'html+smart');
+
+        $t->same(implode("\n", [
+            '<article>',
+            '<header class="base">Base Partial Packet</header>',
+            '<section>',
+            '<p data-source="docx">Imported heading</p>',
+            '</section>',
+            '</article>',
+        ]), $baseOutput);
+    },
+
     'resolves pandoc html4 default template alias to html5 resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

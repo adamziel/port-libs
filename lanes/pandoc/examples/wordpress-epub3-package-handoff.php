@@ -1052,6 +1052,19 @@ XML;
     if (($result['cssResourceReport']['fontFaceCount'] ?? null) !== 1 || ($result['cssResourceReport']['encryptedReferenceCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB CSS report to preserve font-face and encrypted font references');
     }
+    if (($result['cssResourceReport']['fontFaceSourceCount'] ?? null) !== 1 || ($result['cssResourceReport']['fontFaceFamilies'] ?? []) !== ['Source Review']) {
+        throw new RuntimeException('Expected EPUB CSS report to preserve font-face family and source counts');
+    }
+    $reviewCssFontFace = $result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['fontFaces'][0] ?? [];
+    if (($reviewCssFontFace['family'] ?? null) !== 'Source Review' || ($reviewCssFontFace['sourceCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB CSS font-face descriptor metadata to remain inspectable');
+    }
+    if (($reviewCssFontFace['sources'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf' || ($reviewCssFontFace['sources'][0]['format'] ?? null) !== 'opentype') {
+        throw new RuntimeException('Expected EPUB CSS font-face source to resolve package font metadata');
+    }
+    if (($reviewCssFontFace['sources'][0]['encrypted'] ?? null) !== true || ($reviewCssFontFace['sources'][0]['diagnostics'][0]['type'] ?? null) !== 'encrypted-css-font-face-source') {
+        throw new RuntimeException('Expected EPUB CSS font-face source to expose encrypted font diagnostics');
+    }
     if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['reviewFlags'] ?? []) !== ['encrypted-references']) {
         throw new RuntimeException('Expected EPUB CSS review flags to identify encrypted stylesheet dependencies');
     }
@@ -1457,6 +1470,7 @@ echo 'chapterTriggerAction=' . ($result['xhtmlResourceReport']['itemsByPart']['/
 echo 'cssResourceAssets=' . ($result['cssResourceReport']['assetCount'] ?? 0) . "\n";
 echo 'cssResourceReferences=' . ($result['cssResourceReport']['referenceCount'] ?? 0) . "\n";
 echo 'cssFontFaces=' . ($result['cssResourceReport']['fontFaceCount'] ?? 0) . "\n";
+echo 'cssFontFaceSources=' . ($result['cssResourceReport']['fontFaceSourceCount'] ?? 0) . "\n";
 echo 'cssEncryptedReferences=' . ($result['cssResourceReport']['encryptedReferenceCount'] ?? 0) . "\n";
 echo 'remoteResourceDeclaredItems=' . ($result['remoteResources']['declaredCount'] ?? 0) . "\n";
 echo 'remoteResourceObservedAssets=' . ($result['remoteResources']['observedAssetCount'] ?? 0) . "\n";

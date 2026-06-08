@@ -3443,6 +3443,7 @@ CSS;
     {
         $mainDirectory = $this->templateResourceDirectory($templatePath);
         $mainExtension = $this->templateResourceExtension($this->templateResourceBasename($templatePath));
+        $partialExtensionFallbacks = $this->partialResourceExtensionFallbacks($mainExtension);
         $searchDirectories = [$mainDirectory];
         if ($userDataDirectory !== null && !$this->isAbsoluteTemplateResourcePath($templatePath)) {
             $searchDirectories[] = $this->joinTemplateResourcePath(
@@ -3456,20 +3457,22 @@ CSS;
         $partials = [];
         $sources = [];
         foreach ($searchDirectories as $directory) {
-            foreach ($resources as $resourcePath => $source) {
-                if ($resourcePath === $templatePath) {
-                    continue;
-                }
+            foreach ($partialExtensionFallbacks as $extension) {
+                foreach ($resources as $resourcePath => $source) {
+                    if ($resourcePath === $templatePath) {
+                        continue;
+                    }
 
-                $relativePath = $this->relativeTemplateResourceChild($resourcePath, $directory);
-                if ($relativePath === null) {
-                    continue;
-                }
+                    $relativePath = $this->relativeTemplateResourceChild($resourcePath, $directory);
+                    if ($relativePath === null) {
+                        continue;
+                    }
 
-                foreach ($this->partialAliasesForResourcePath($relativePath, $mainExtension) as $alias) {
-                    if (!array_key_exists($alias, $partials)) {
-                        $partials[$alias] = $source;
-                        $sources[$alias] = $resourcePath;
+                    foreach ($this->partialAliasesForResourcePath($relativePath, $extension) as $alias) {
+                        if (!array_key_exists($alias, $partials)) {
+                            $partials[$alias] = $source;
+                            $sources[$alias] = $resourcePath;
+                        }
                     }
                 }
             }
@@ -3504,6 +3507,34 @@ CSS;
         }
 
         return $resources;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function partialResourceExtensionFallbacks(string $mainExtension): array
+    {
+        $extensions = [$mainExtension];
+        $baseExtension = $this->extensionQualifiedResourceBaseExtension($mainExtension);
+        if ($baseExtension !== null && $baseExtension !== $mainExtension) {
+            $extensions[] = $baseExtension;
+        }
+
+        return $extensions;
+    }
+
+    private function extensionQualifiedResourceBaseExtension(string $extension): ?string
+    {
+        if ($extension === '') {
+            return null;
+        }
+
+        $featureOffset = strcspn($extension, '+-');
+        if ($featureOffset <= 1 || $featureOffset >= strlen($extension)) {
+            return null;
+        }
+
+        return substr($extension, 0, $featureOffset);
     }
 
     private function isAbsoluteTemplateResourcePath(string $path): bool

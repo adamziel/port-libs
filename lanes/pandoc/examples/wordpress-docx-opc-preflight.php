@@ -1340,6 +1340,59 @@ $packagePartReferences = [];
 foreach ($graph->packagePartReferenceInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $part) {
     $packagePartReferences[$part['partName']] = $part;
 }
+$relationshipSourceClosure = $graph->relationshipSourceClosureInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
+$relationshipSourceClosureSources = [];
+foreach ($relationshipSourceClosure['sources'] as $source) {
+    $relationshipSourceClosureSources[$source['source']] = [
+        'source' => $source['source'],
+        'reachable' => $source['reachable'],
+        'depth' => $source['depth'],
+        'closureAction' => $source['closureAction'],
+        'relationshipPartName' => $source['relationshipPartName'],
+        'relationshipCount' => $source['relationshipCount'],
+        'invalidTargetCount' => $source['invalidTargetCount'],
+        'externalTargets' => $source['externalTargets'],
+        'missingTargetParts' => $source['missingTargetParts'],
+        'valid' => $source['valid'],
+        'issues' => $source['issues'],
+    ];
+}
+$relationshipSourceClosureStops = [];
+foreach ($relationshipSourceClosure['stops'] as $stop) {
+    $relationshipSourceClosureStops[$stop['id']] = [
+        'source' => $stop['source'],
+        'depth' => $stop['depth'],
+        'id' => $stop['id'],
+        'type' => $stop['type'],
+        'target' => $stop['target'],
+        'targetPart' => $stop['targetPart'],
+        'targetSource' => $stop['targetSource'],
+        'contentType' => $stop['contentType'],
+        'external' => $stop['external'],
+        'exists' => $stop['exists'],
+        'relationshipPartTarget' => $stop['relationshipPartTarget'],
+        'stopReason' => $stop['stopReason'],
+        'valid' => $stop['valid'],
+        'issues' => $stop['issues'],
+    ];
+}
+$relationshipSourceClosureSummary = [
+    'source' => $relationshipSourceClosure['source'],
+    'relationshipType' => $relationshipSourceClosure['relationshipType'],
+    'valid' => $relationshipSourceClosure['valid'],
+    'issues' => $relationshipSourceClosure['issues'],
+    'expandedSourceCount' => $relationshipSourceClosure['expandedSourceCount'],
+    'outsideSourceCount' => $relationshipSourceClosure['outsideSourceCount'],
+    'stopCount' => $relationshipSourceClosure['stopCount'],
+    'externalStopCount' => $relationshipSourceClosure['externalStopCount'],
+    'invalidStopCount' => $relationshipSourceClosure['invalidStopCount'],
+    'missingStopCount' => $relationshipSourceClosure['missingStopCount'],
+    'relationshipPartStopCount' => $relationshipSourceClosure['relationshipPartStopCount'],
+    'cycleStopCount' => $relationshipSourceClosure['cycleStopCount'],
+    'unloadedStopCount' => $relationshipSourceClosure['unloadedStopCount'],
+    'sources' => $relationshipSourceClosureSources,
+    'stops' => $relationshipSourceClosureStops,
+];
 
 $relationshipPreflight = [];
 foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
@@ -1807,6 +1860,7 @@ $summary = [
     'packageParts' => $packagePartPreflight,
     'relationshipSources' => $graph->sourcePartNames(),
     'relationshipSourceInventory' => $relationshipSourceInventory,
+    'relationshipSourceClosure' => $relationshipSourceClosureSummary,
     'relationshipTypeInventory' => $relationshipTypeInventory,
     'packagePartReferences' => $packagePartReferences,
     'relationships' => $relationshipSummaries,
@@ -1903,6 +1957,15 @@ $summary = [
             ],
             $relationshipSourceInventory
         )),
+        'relationshipClosureReview' => [
+            'source' => $relationshipSourceClosureSummary['source'],
+            'expandedSourceCount' => $relationshipSourceClosureSummary['expandedSourceCount'],
+            'outsideSourceCount' => $relationshipSourceClosureSummary['outsideSourceCount'],
+            'stopCount' => $relationshipSourceClosureSummary['stopCount'],
+            'issues' => $relationshipSourceClosureSummary['issues'],
+            'sources' => array_values($relationshipSourceClosureSummary['sources']),
+            'stops' => array_values($relationshipSourceClosureSummary['stops']),
+        ],
         'externalTargets' => array_values(array_map(
             static fn (array $target): array => [
                 'id' => $target['id'],
@@ -2234,6 +2297,40 @@ if (($argv[1] ?? '') === '--self-test') {
         || isset($summary['packageConsistency']['relationshipTargets']['/word/draft.xml:rIdDraftImage'])
         || $summary['integrity']['packagePartsValid'] !== false
         || $summary['relationshipSources'] !== ['/', '/_xmlsignatures/origin.sigs', '/word/document.xml', '/word/footnotes.xml', '/word/review source.xml']
+        || ($summary['relationshipSourceClosure']['source'] ?? null) !== '/'
+        || ($summary['relationshipSourceClosure']['relationshipType'] ?? null) !== OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE
+        || ($summary['relationshipSourceClosure']['valid'] ?? null) !== false
+        || ($summary['relationshipSourceClosure']['issues'] ?? null) !== ['external-target-unsafe-scheme', 'relationship-type-not-absolute-uri']
+        || ($summary['relationshipSourceClosure']['expandedSourceCount'] ?? null) !== 4
+        || ($summary['relationshipSourceClosure']['outsideSourceCount'] ?? null) !== 1
+        || ($summary['relationshipSourceClosure']['stopCount'] ?? null) !== 14
+        || ($summary['relationshipSourceClosure']['externalStopCount'] ?? null) !== 4
+        || ($summary['relationshipSourceClosure']['invalidStopCount'] ?? null) !== 0
+        || ($summary['relationshipSourceClosure']['missingStopCount'] ?? null) !== 0
+        || ($summary['relationshipSourceClosure']['relationshipPartStopCount'] ?? null) !== 0
+        || ($summary['relationshipSourceClosure']['cycleStopCount'] ?? null) !== 2
+        || ($summary['relationshipSourceClosure']['unloadedStopCount'] ?? null) !== 8
+        || ($summary['relationshipSourceClosure']['sources']['/']['closureAction'] ?? null) !== 'expanded'
+        || ($summary['relationshipSourceClosure']['sources']['/']['depth'] ?? null) !== 0
+        || ($summary['relationshipSourceClosure']['sources']['/word/document.xml']['closureAction'] ?? null) !== 'expanded'
+        || ($summary['relationshipSourceClosure']['sources']['/word/document.xml']['depth'] ?? null) !== 1
+        || ($summary['relationshipSourceClosure']['sources']['/word/footnotes.xml']['depth'] ?? null) !== 2
+        || ($summary['relationshipSourceClosure']['sources']['/word/review source.xml']['depth'] ?? null) !== 2
+        || ($summary['relationshipSourceClosure']['sources']['/_xmlsignatures/origin.sigs']['reachable'] ?? null) !== false
+        || ($summary['relationshipSourceClosure']['sources']['/_xmlsignatures/origin.sigs']['closureAction'] ?? null) !== 'outside-selected-closure'
+        || ($summary['relationshipSourceClosure']['stops']['rIdStyles']['stopReason'] ?? null) !== 'target-source-not-loaded'
+        || ($summary['relationshipSourceClosure']['stops']['rIdStyles']['targetPart'] ?? null) !== '/word/styles.xml'
+        || ($summary['relationshipSourceClosure']['stops']['rIdReviewer']['stopReason'] ?? null) !== 'external-target'
+        || ($summary['relationshipSourceClosure']['stops']['rIdReviewer']['valid'] ?? null) !== true
+        || ($summary['relationshipSourceClosure']['stops']['rIdInternalBookmark']['stopReason'] ?? null) !== 'cycle-target'
+        || ($summary['relationshipSourceClosure']['stops']['rIdInternalBookmark']['targetPart'] ?? null) !== '/word/document.xml'
+        || ($summary['relationshipSourceClosure']['stops']['rIdDraftReview']['stopReason'] ?? null) !== 'target-source-not-loaded'
+        || ($summary['relationshipSourceClosure']['stops']['rIdDraftReview']['targetPart'] ?? null) !== '/word/draft.xml'
+        || ($summary['relationshipSourceClosure']['stops']['rIdUnsafeReviewer']['stopReason'] ?? null) !== 'external-target'
+        || ($summary['relationshipSourceClosure']['stops']['rIdUnsafeReviewer']['issues'] ?? null) !== ['external-target-unsafe-scheme']
+        || ($summary['relationshipSourceClosure']['stops']['rIdMalformedType']['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
+        || ($summary['wordpressImport']['relationshipClosureReview']['expandedSourceCount'] ?? null) !== 4
+        || ($summary['wordpressImport']['relationshipClosureReview']['stopCount'] ?? null) !== 14
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSourceLoaded'] ?? null) !== true
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipPartLoadAction'] ?? null) !== 'loaded'

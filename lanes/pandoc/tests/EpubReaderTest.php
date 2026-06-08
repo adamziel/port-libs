@@ -4035,6 +4035,95 @@ CSS;
         $t->same(false, $remoteResources['observedItemsByPart']['/OEBPS/styles/theme.css']['manifestDeclared']);
         $t->same('undeclared-css-remote-resources', $remoteResources['diagnostics'][0]['type']);
     },
+    'reports EPUB stylesheet font-face descriptors for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithFonts = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/fonts.css" media-type="text/css" properties="remote-resources"/>'
+            . '<item id="serif-woff2" href="fonts/review-serif.woff2" media-type="font/woff2"/>'
+            . '<item id="serif-woff" href="fonts/review-serif.woff" media-type="font/woff"/>',
+            $opfXml
+        );
+        $fontCss = <<<'CSS'
+@font-face {
+  font-family: "Review Serif";
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range: U+0000-00FF;
+  src: local("Review Serif Italic"),
+       url("../fonts/review-serif.woff2") format("woff2"),
+       url("https://cdn.example.test/fonts/review-serif.woff") format("woff"),
+       url("../fonts/missing-serif.woff") format("woff");
+}
+@font-face {
+  font-family: IconFont;
+  src: url("../fonts/review-serif.woff") format("woff");
+}
+CSS;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithFonts,
+            null,
+            [
+                ['name' => 'OEBPS/styles/fonts.css', 'data' => $fontCss],
+                ['name' => 'OEBPS/fonts/review-serif.woff2', 'data' => 'WOFF2DATA'],
+                ['name' => 'OEBPS/fonts/review-serif.woff', 'data' => 'WOFFDATA'],
+            ]
+        ));
+
+        $css = $result['cssResourceReport'];
+        $style = $css['itemsByPart']['/OEBPS/styles/fonts.css'];
+
+        $t->same(2, $css['fontFaceCount']);
+        $t->same(5, $css['fontFaceSourceCount']);
+        $t->same(1, $css['fontFaceLocalSourceCount']);
+        $t->same(4, $css['fontFaceUrlSourceCount']);
+        $t->same(1, $css['fontFaceExternalSourceCount']);
+        $t->same(1, $css['fontFaceMissingSourceCount']);
+        $t->same(2, $css['fontFaceFamilyCount']);
+        $t->same(['Review Serif', 'IconFont'], $css['fontFaceFamilies']);
+        $t->same($style['fontFaces'], $css['fontFaceItems']);
+        $t->same(2, $style['fontFaceCount']);
+        $t->same(5, $style['fontFaceSourceCount']);
+        $t->same(['remote-resources', 'missing-references'], $style['reviewFlags']);
+
+        $first = $style['fontFaces'][0];
+        $t->same('Review Serif', $first['family']);
+        $t->same('"Review Serif"', $first['descriptors']['font-family']);
+        $t->same('italic', $first['style']);
+        $t->same('400 700', $first['weight']);
+        $t->same('swap', $first['display']);
+        $t->same('U+0000-00FF', $first['unicodeRange']);
+        $t->same(4, $first['sourceCount']);
+        $t->same(1, $first['localSourceCount']);
+        $t->same(3, $first['urlSourceCount']);
+        $t->same(1, $first['externalSourceCount']);
+        $t->same(1, $first['missingSourceCount']);
+        $t->same('local', $first['sources'][0]['kind']);
+        $t->same('Review Serif Italic', $first['sources'][0]['name']);
+        $t->same('url', $first['sources'][1]['kind']);
+        $t->same('/OEBPS/fonts/review-serif.woff2', $first['sources'][1]['part']);
+        $t->same('serif-woff2', $first['sources'][1]['manifestId']);
+        $t->same('font/woff2', $first['sources'][1]['mediaType']);
+        $t->same('woff2', $first['sources'][1]['format']);
+        $t->same(true, $first['sources'][2]['external']);
+        $t->same('https://cdn.example.test/fonts/review-serif.woff', $first['sources'][2]['target']);
+        $t->same('external-css-font-face-source', $first['sources'][2]['diagnostics'][0]['type']);
+        $t->same('/OEBPS/fonts/missing-serif.woff', $first['sources'][3]['part']);
+        $t->same(false, $first['sources'][3]['exists']);
+        $t->same('missing-css-font-face-source', $first['sources'][3]['diagnostics'][0]['type']);
+
+        $second = $style['fontFaces'][1];
+        $t->same('IconFont', $second['family']);
+        $t->same('/OEBPS/fonts/review-serif.woff', $second['sources'][0]['part']);
+        $t->same('serif-woff', $second['sources'][0]['manifestId']);
+
+        $remoteResources = $result['remoteResources'];
+        $t->same(1, $remoteResources['cssExternalReferenceCount']);
+        $t->same(1, $remoteResources['remoteReferenceCount']);
+        $t->same($css, $result['importReport']['cssResourceReport']);
+        $t->same($css, $result['document']->attr('cssResourceReport'));
+    },
     'reports EPUB stylesheet image-set candidates for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithImageSet = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

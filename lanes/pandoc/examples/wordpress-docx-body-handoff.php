@@ -351,8 +351,8 @@ XML],
       <w:r><w:t xml:space="preserve">Textbox lead </w:t></w:r>
       <w:r>
         <w:pict>
-          <v:shape id="_x0000_s42">
-            <v:textbox>
+          <v:shape id="_x0000_s42" alt="Source review callout" style="width:216pt;height:48pt">
+            <v:textbox inset="6pt,3pt,6pt,3pt">
               <w:txbxContent>
                 <w:p><w:r><w:t>Source textbox note from VML shape.</w:t></w:r></w:p>
               </w:txbxContent>
@@ -364,8 +364,8 @@ XML],
         <mc:AlternateContent>
           <mc:Fallback>
             <w:pict>
-              <v:rect id="_x0000_s43">
-                <v:textbox>
+              <v:rect id="_x0000_s43" style="width:180pt;height:36pt">
+                <v:textbox inset="3pt,3pt,3pt,3pt">
                   <w:txbxContent>
                     <w:p><w:r><w:t>Fallback textbox reminder.</w:t></w:r></w:p>
                   </w:txbxContent>
@@ -378,6 +378,7 @@ XML],
       <w:r>
         <w:drawing>
           <wp:inline>
+            <wp:docPr id="81" name="Source DrawingML textbox" descr="Drawing textbox source note" title="Source callout"/>
             <a:graphic>
               <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
                 <wps:wsp>
@@ -1223,8 +1224,11 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-paragraph-tabs docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-tab-stop-count="2" data-docx-tab-1-val="left" data-docx-tab-1-pos-twips="720" data-docx-tab-2-val="decimal" data-docx-tab-2-pos-twips="1440" data-docx-tab-2-leader="dot" data-docx-keep-next="true" data-docx-page-break-before="true">Centered source packet layout remains labeled.</span></p>',
         '<p><span class="docx-paragraph-border docx-border-top docx-border-top-single docx-border-bottom docx-border-bottom-double" data-docx-border-top-val="single" data-docx-border-top-size-eighth-points="8" data-docx-border-top-space-points="4" data-docx-border-top-color="4F81BD" data-docx-border-bottom-val="double" data-docx-border-bottom-size-eighth-points="12" data-docx-border-bottom-space-points="6" data-docx-border-bottom-theme-color="accent2" data-docx-border-bottom-theme-shade="66">Bordered source packet callout remains labeled.</span></p>',
         '<p>Textbox lead </p>',
+        '<div class="docx-textbox docx-vml-textbox docx-vml-shape" data-docx-textbox-kind="vml" data-docx-shape-kind="shape" data-docx-shape-id="_x0000_s42" data-docx-shape-alt="Source review callout" data-docx-shape-style="width:216pt;height:48pt" data-docx-textbox-inset="6pt,3pt,6pt,3pt"><p>Source textbox note from VML shape.</p></div>',
         '<p>Source textbox note from VML shape.</p>',
+        '<div class="docx-textbox docx-vml-textbox docx-vml-rect" data-docx-textbox-kind="vml" data-docx-shape-kind="rect" data-docx-shape-id="_x0000_s43" data-docx-shape-style="width:180pt;height:36pt" data-docx-textbox-inset="3pt,3pt,3pt,3pt"><p>Fallback textbox reminder.</p></div>',
         '<p>Fallback textbox reminder.</p>',
+        '<div class="docx-textbox docx-drawing-textbox" data-docx-textbox-kind="drawingml" data-docx-docpr-id="81" data-docx-docpr-name="Source DrawingML textbox" data-docx-docpr-description="Drawing textbox source note" data-docx-docpr-title="Source callout"><p>Source DrawingML textbox note.</p></div>',
         '<p>Source DrawingML textbox note.</p>',
         '<p> textbox tail.</p>',
         '<p>Cross paragraph comment <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">starts here</span></p>',

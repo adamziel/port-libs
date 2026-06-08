@@ -2272,8 +2272,8 @@ $textboxDocumentXml = <<<'XML'
       <w:r><w:t xml:space="preserve">Before textbox </w:t></w:r>
       <w:r>
         <w:pict>
-          <v:shape id="_x0000_s1025">
-            <v:textbox>
+          <v:shape id="_x0000_s1025" alt="Reviewer source box" style="position:absolute;margin-left:12pt;margin-top:6pt;width:240pt;height:80pt">
+            <v:textbox inset="6pt,3pt,6pt,3pt" style="mso-fit-shape-to-text:t" fitshape="t">
               <w:txbxContent>
                 <w:p><w:r><w:t>Text box heading</w:t></w:r></w:p>
                 <w:tbl>
@@ -2292,8 +2292,8 @@ $textboxDocumentXml = <<<'XML'
         <mc:AlternateContent>
           <mc:Fallback>
             <w:pict>
-              <v:rect id="_x0000_s1026">
-                <v:textbox>
+              <v:rect id="_x0000_s1026" style="width:144pt;height:36pt">
+                <v:textbox inset="3pt,3pt,3pt,3pt">
                   <w:txbxContent>
                     <w:p><w:r><w:t>Fallback textbox note</w:t></w:r></w:p>
                   </w:txbxContent>
@@ -2320,6 +2320,7 @@ $drawingTextBoxDocumentXml = <<<'XML'
       <w:r>
         <w:drawing>
           <wp:inline>
+            <wp:docPr id="51" name="Drawing textbox" descr="Drawing textbox review note" title="Drawing textbox title"/>
             <a:graphic>
               <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
                 <wps:wsp>
@@ -6939,55 +6940,93 @@ return [
         $t->contains('<div class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="review-section" data-docx-custom-xml-prop-section-id="source-review">', $blocks);
         $t->contains('<p>Source review block.</p><table><tbody><tr><td><p>Reviewer field</p></td><td><p>Custom XML value</p></td></tr></tbody></table>', $blocks);
     },
-    'unwraps DOCX VML textbox content into body blocks in paragraph order' => static function (TestRunner $t) use ($buildTextboxPackage): void {
+    'preserves DOCX VML textbox content and shape metadata in paragraph order' => static function (TestRunner $t) use ($buildTextboxPackage): void {
         $document = (new DocxReader())->readDocument($buildTextboxPackage());
         $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->same(6, count($document->children));
+        $t->same(5, count($document->children));
         $t->same('Before textbox ', $document->children[0]->children[0]->attr('text'));
-        $t->same('Text box heading', $document->children[1]->children[0]->attr('text'));
 
-        $table = $document->children[2];
+        $textbox = $document->children[1];
+        $t->same('div', $textbox->type);
+        $t->same(['docx-textbox', 'docx-vml-textbox', 'docx-vml-shape'], $textbox->attr('classes'));
+        $t->same('vml', $textbox->attr('attributes')['data-docx-textbox-kind'] ?? null);
+        $t->same('shape', $textbox->attr('attributes')['data-docx-shape-kind'] ?? null);
+        $t->same('_x0000_s1025', $textbox->attr('attributes')['data-docx-shape-id'] ?? null);
+        $t->same('Reviewer source box', $textbox->attr('attributes')['data-docx-shape-alt'] ?? null);
+        $t->same('position:absolute;margin-left:12pt;margin-top:6pt;width:240pt;height:80pt', $textbox->attr('attributes')['data-docx-shape-style'] ?? null);
+        $t->same('6pt,3pt,6pt,3pt', $textbox->attr('attributes')['data-docx-textbox-inset'] ?? null);
+        $t->same('mso-fit-shape-to-text:t', $textbox->attr('attributes')['data-docx-textbox-style'] ?? null);
+        $t->same('t', $textbox->attr('attributes')['data-docx-textbox-fit-shape'] ?? null);
+        $t->same(2, count($textbox->children));
+        $t->same('Text box heading', $textbox->children[0]->children[0]->attr('text'));
+
+        $table = $textbox->children[1];
         $t->same('table', $table->type);
         $t->same('Reviewer field', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same('VML note', $table->children[0]->children[0]->children[1]->attr('text'));
         $t->same(2, $table->attr('tableGeometry')['summary']['cellCount'] ?? null);
 
-        $t->same(' after textbox.', $document->children[3]->children[0]->attr('text'));
-        $t->same('Fallback textbox note', $document->children[4]->children[0]->attr('text'));
-        $t->same(' final text.', $document->children[5]->children[0]->attr('text'));
+        $fallbackTextbox = $document->children[3];
+        $t->same(' after textbox.', $document->children[2]->children[0]->attr('text'));
+        $t->same('div', $fallbackTextbox->type);
+        $t->same(['docx-textbox', 'docx-vml-textbox', 'docx-vml-rect'], $fallbackTextbox->attr('classes'));
+        $t->same('rect', $fallbackTextbox->attr('attributes')['data-docx-shape-kind'] ?? null);
+        $t->same('_x0000_s1026', $fallbackTextbox->attr('attributes')['data-docx-shape-id'] ?? null);
+        $t->same('width:144pt;height:36pt', $fallbackTextbox->attr('attributes')['data-docx-shape-style'] ?? null);
+        $t->same('3pt,3pt,3pt,3pt', $fallbackTextbox->attr('attributes')['data-docx-textbox-inset'] ?? null);
+        $t->same('Fallback textbox note', $fallbackTextbox->children[0]->children[0]->attr('text'));
+        $t->same(' final text.', $document->children[4]->children[0]->attr('text'));
 
-        $t->contains("Before textbox \n\nText box heading", $markdown);
+        $t->contains("Before textbox \n\n::: {.docx-textbox .docx-vml-textbox .docx-vml-shape", $markdown);
+        $t->contains("Text box heading\n\n|", $markdown);
+        $t->contains('::: {.docx-textbox .docx-vml-textbox .docx-vml-shape data-docx-textbox-kind="vml" data-docx-shape-kind="shape" data-docx-shape-id="_x0000_s1025" data-docx-shape-alt="Reviewer source box"', $markdown);
         $t->contains('| Reviewer field | VML note |', $markdown);
-        $t->contains("after textbox.\n\nFallback textbox note", $markdown);
+        $t->contains("after textbox.\n\n::: {.docx-textbox .docx-vml-textbox .docx-vml-rect", $markdown);
+        $t->contains("Fallback textbox note\n:::\n\n final text.", $markdown);
+        $t->contains('::: {.docx-textbox .docx-vml-textbox .docx-vml-rect data-docx-textbox-kind="vml" data-docx-shape-kind="rect" data-docx-shape-id="_x0000_s1026"', $markdown);
         $t->contains('<p>Before textbox </p>', $blocks);
+        $t->contains('<div class="docx-textbox docx-vml-textbox docx-vml-shape" data-docx-textbox-kind="vml" data-docx-shape-kind="shape" data-docx-shape-id="_x0000_s1025" data-docx-shape-alt="Reviewer source box" data-docx-shape-style="position:absolute;margin-left:12pt;margin-top:6pt;width:240pt;height:80pt" data-docx-textbox-inset="6pt,3pt,6pt,3pt" data-docx-textbox-style="mso-fit-shape-to-text:t" data-docx-textbox-fit-shape="t">', $blocks);
         $t->contains('<p>Text box heading</p>', $blocks);
         $t->contains('<table><tbody><tr><td><p>Reviewer field</p></td><td><p>VML note</p></td></tr></tbody></table>', $blocks);
         $t->contains('<p> after textbox.</p>', $blocks);
-        $t->contains('<p>Fallback textbox note</p>', $blocks);
+        $t->contains('<div class="docx-textbox docx-vml-textbox docx-vml-rect" data-docx-textbox-kind="vml" data-docx-shape-kind="rect" data-docx-shape-id="_x0000_s1026" data-docx-shape-style="width:144pt;height:36pt" data-docx-textbox-inset="3pt,3pt,3pt,3pt"><p>Fallback textbox note</p></div>', $blocks);
         $t->contains('<p> final text.</p>', $blocks);
     },
-    'unwraps DOCX DrawingML textbox content into body blocks in paragraph order' => static function (TestRunner $t) use ($buildDrawingTextBoxPackage): void {
+    'preserves DOCX DrawingML textbox content and docPr metadata in paragraph order' => static function (TestRunner $t) use ($buildDrawingTextBoxPackage): void {
         $document = (new DocxReader())->readDocument($buildDrawingTextBoxPackage());
         $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->same(4, count($document->children));
+        $t->same(3, count($document->children));
         $t->same('Before DrawingML textbox ', $document->children[0]->children[0]->attr('text'));
-        $t->same('DrawingML textbox heading', $document->children[1]->children[0]->attr('text'));
 
-        $table = $document->children[2];
+        $textbox = $document->children[1];
+        $t->same('div', $textbox->type);
+        $t->same(['docx-textbox', 'docx-drawing-textbox'], $textbox->attr('classes'));
+        $t->same('drawingml', $textbox->attr('attributes')['data-docx-textbox-kind'] ?? null);
+        $t->same('51', $textbox->attr('attributes')['data-docx-docpr-id'] ?? null);
+        $t->same('Drawing textbox', $textbox->attr('attributes')['data-docx-docpr-name'] ?? null);
+        $t->same('Drawing textbox review note', $textbox->attr('attributes')['data-docx-docpr-description'] ?? null);
+        $t->same('Drawing textbox title', $textbox->attr('attributes')['data-docx-docpr-title'] ?? null);
+        $t->same(2, count($textbox->children));
+        $t->same('DrawingML textbox heading', $textbox->children[0]->children[0]->attr('text'));
+
+        $table = $textbox->children[1];
         $t->same('table', $table->type);
         $t->same('Reviewer field', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same('DrawingML note', $table->children[0]->children[0]->children[1]->attr('text'));
         $t->same(2, $table->attr('tableGeometry')['summary']['cellCount'] ?? null);
 
-        $t->same(' after DrawingML textbox.', $document->children[3]->children[0]->attr('text'));
+        $t->same(' after DrawingML textbox.', $document->children[2]->children[0]->attr('text'));
 
-        $t->contains("Before DrawingML textbox \n\nDrawingML textbox heading", $markdown);
+        $t->contains("Before DrawingML textbox \n\n::: {.docx-textbox .docx-drawing-textbox", $markdown);
+        $t->contains("DrawingML textbox heading\n\n|", $markdown);
+        $t->contains('::: {.docx-textbox .docx-drawing-textbox data-docx-textbox-kind="drawingml" data-docx-docpr-id="51" data-docx-docpr-name="Drawing textbox"', $markdown);
         $t->contains('| Reviewer field | DrawingML note |', $markdown);
         $t->contains('<p>Before DrawingML textbox </p>', $blocks);
+        $t->contains('<div class="docx-textbox docx-drawing-textbox" data-docx-textbox-kind="drawingml" data-docx-docpr-id="51" data-docx-docpr-name="Drawing textbox" data-docx-docpr-description="Drawing textbox review note" data-docx-docpr-title="Drawing textbox title">', $blocks);
         $t->contains('<p>DrawingML textbox heading</p>', $blocks);
         $t->contains('<table><tbody><tr><td><p>Reviewer field</p></td><td><p>DrawingML note</p></td></tr></tbody></table>', $blocks);
         $t->contains('<p> after DrawingML textbox.</p>', $blocks);

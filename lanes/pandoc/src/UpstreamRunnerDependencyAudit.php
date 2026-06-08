@@ -381,6 +381,9 @@ final class UpstreamRunnerDependencyAudit
         'ld-options',
         'cc-options',
         'cxx-options',
+        'ghc-prof-options',
+        'ghc-shared-options',
+        'ghcjs-options',
         'asm-options',
         'cmm-options',
         'js-options',
@@ -4215,7 +4218,7 @@ final class UpstreamRunnerDependencyAudit
      */
     private static function extractCabalNativeSystemFieldItems(string $field, string $raw): array
     {
-        $optionsFields = ['ld-options', 'cc-options', 'cxx-options', 'asm-options', 'cmm-options', 'js-options', 'hsc2hs-options', 'c2hs-options'];
+        $optionsFields = ['ld-options', 'cc-options', 'cxx-options', 'ghc-prof-options', 'ghc-shared-options', 'ghcjs-options', 'asm-options', 'cmm-options', 'js-options', 'hsc2hs-options', 'c2hs-options'];
         $raw = in_array($field, $optionsFields, true)
             ? self::stripCabalOptionLineComments($raw)
             : self::stripCabalLineComments($raw);
