@@ -707,6 +707,73 @@ $markupCompatibilityProcessContent = [
     'hiddenRelationshipLoaded' => $processContentRelationships->byId('rIdHidden') !== null,
 ];
 
+$alternateContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:p="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:future="urn:wordpress-opc-alternate-future">
+  <mc:AlternateContent>
+    <mc:Choice Requires="future">
+      <Default Extension="rels" ContentType="application/x-future-relationships"/>
+    </mc:Choice>
+    <mc:Fallback>
+      <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+      <Default Extension="xml" ContentType="application/xml"/>
+    </mc:Fallback>
+  </mc:AlternateContent>
+  <mc:AlternateContent>
+    <mc:Choice Requires="p">
+      <p:Override PartName="/word/alternate-document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+      <p:Override PartName="/word/alternate-review.xml" ContentType="application/xml"/>
+    </mc:Choice>
+    <mc:Fallback>
+      <Override PartName="/word/alternate-fallback.xml" ContentType="application/xml"/>
+    </mc:Fallback>
+  </mc:AlternateContent>
+</Types>
+XML;
+
+$alternateContentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:r="http://schemas.openxmlformats.org/package/2006/relationships" xmlns:future="urn:wordpress-opc-alternate-future">
+  <mc:AlternateContent>
+    <mc:Choice Requires="future">
+      <Relationship Id="rIdAlternateHidden" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/hidden.xml"/>
+    </mc:Choice>
+    <mc:Fallback>
+      <Relationship Id="rIdAlternateDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/alternate-document.xml"/>
+    </mc:Fallback>
+  </mc:AlternateContent>
+  <mc:AlternateContent>
+    <mc:Choice Requires="r">
+      <r:Relationship Id="rIdAlternateAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/alternate-review.xml"/>
+    </mc:Choice>
+    <mc:Fallback>
+      <Relationship Id="rIdAlternateAuditFallback" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/alternate-fallback.xml"/>
+    </mc:Fallback>
+  </mc:AlternateContent>
+</Relationships>
+XML;
+
+$alternateContentGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $alternateContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $alternateContentRelationshipsXml],
+    ['name' => 'word/alternate-document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/alternate-review.xml', 'data' => '<review/>'],
+    ['name' => 'word/alternate-fallback.xml', 'data' => '<fallback/>'],
+    ['name' => 'word/hidden.xml', 'data' => '<hidden/>'],
+]));
+$alternateContentRoot = $alternateContentGraph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+$alternateContentRelationships = $alternateContentGraph->requireRelationshipsForSource('/');
+$markupCompatibilityAlternateContent = [
+    'sourceParts' => $alternateContentGraph->sourcePartNames(),
+    'relationshipIds' => array_map(
+        static fn ($relationship): string => $relationship->id,
+        $alternateContentRelationships->all()
+    ),
+    'officeDocumentTargetPart' => $alternateContentRoot['relationships'][0]['targetPart'] ?? null,
+    'officeDocumentValid' => $alternateContentRoot['valid'],
+    'auditContentType' => $alternateContentGraph->contentTypes()->contentTypeForPart('/word/alternate-review.xml'),
+    'fallbackOverrideSelected' => array_key_exists('/word/alternate-fallback.xml', $alternateContentGraph->contentTypes()->overrides()),
+    'hiddenRelationshipLoaded' => $alternateContentRelationships->byId('rIdAlternateHidden') !== null,
+];
+
 $caseEquivalentTypes = new OpcContentTypes();
 $caseEquivalentTypes->addDefault('xml', 'application/xml');
 $caseEquivalentTypes->addOverride('/Word/Document.XML', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml');
@@ -2027,6 +2094,7 @@ $summary = [
         'strictXmlShapeGuards' => $strictXmlShapeGuards,
         'markupCompatibilityGuards' => $markupCompatibilityGuards,
         'markupCompatibilityProcessContent' => $markupCompatibilityProcessContent,
+        'markupCompatibilityAlternateContent' => $markupCompatibilityAlternateContent,
         'relationshipSourceAliasGraphRejected' => $relationshipSourceAliasGraphRejected,
         'partNameCaseCollisionGraphRejected' => $partNameCaseCollisionGraphRejected,
         'contentTypeOverrideCaseLookup' => $caseEquivalentTypes->contentTypeForPart('/word/document.xml'),
@@ -2767,6 +2835,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['markupCompatibilityProcessContent']['officeDocumentValid'] ?? null) !== true
         || ($summary['integrity']['markupCompatibilityProcessContent']['auditContentType'] ?? null) !== 'application/xml'
         || ($summary['integrity']['markupCompatibilityProcessContent']['hiddenRelationshipLoaded'] ?? null) !== false
+        || ($summary['integrity']['markupCompatibilityAlternateContent']['sourceParts'] ?? null) !== ['/']
+        || ($summary['integrity']['markupCompatibilityAlternateContent']['relationshipIds'] ?? null) !== ['rIdAlternateDocument', 'rIdAlternateAudit']
+        || ($summary['integrity']['markupCompatibilityAlternateContent']['officeDocumentTargetPart'] ?? null) !== '/word/alternate-document.xml'
+        || ($summary['integrity']['markupCompatibilityAlternateContent']['officeDocumentValid'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityAlternateContent']['auditContentType'] ?? null) !== 'application/xml'
+        || ($summary['integrity']['markupCompatibilityAlternateContent']['fallbackOverrideSelected'] ?? null) !== false
+        || ($summary['integrity']['markupCompatibilityAlternateContent']['hiddenRelationshipLoaded'] ?? null) !== false
         || $summary['packageParts']['/_rels/.rels']['relationshipSource'] !== '/'
         || $summary['packageParts']['/_rels/.rels']['relationshipSourceIsRelationshipPart'] !== false
         || $summary['packageParts']['/_rels/.rels']['relationshipSourceLoaded'] !== true

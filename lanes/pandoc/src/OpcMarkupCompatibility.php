@@ -154,6 +154,21 @@ final class OpcMarkupCompatibility
                     continue;
                 }
 
+                if ($child->namespaceURI === self::NAMESPACE_URI && $child->localName === 'AlternateContent') {
+                    array_push(
+                        $children,
+                        ...self::alternateContentPackageChildElements(
+                            $child,
+                            $packageNamespace,
+                            $ignorableNamespaces,
+                            $processContentElements,
+                            $unsupportedElementMessage,
+                            $textContentMessage,
+                        )
+                    );
+                    continue;
+                }
+
                 if (self::isIgnorableExtensionElement($child, $ignorableNamespaces)) {
                     if (self::shouldProcessContent($child, $processContentElements)) {
                         array_push(
@@ -185,6 +200,84 @@ final class OpcMarkupCompatibility
 
     /**
      * @param array<string, true> $ignorableNamespaces
+     * @param array<string, true> $processContentElements
+     * @return list<\DOMElement>
+     */
+    private static function alternateContentPackageChildElements(
+        \DOMElement $alternateContent,
+        string $packageNamespace,
+        array $ignorableNamespaces,
+        array $processContentElements,
+        string $unsupportedElementMessage,
+        string $textContentMessage,
+    ): array {
+        self::assertAlternateContentAttributes($alternateContent, 'OPC AlternateContent');
+
+        $selectedChoice = null;
+        $fallback = null;
+        $choiceSeen = false;
+        $fallbackSeen = false;
+
+        foreach ($alternateContent->childNodes as $child) {
+            if (($child instanceof \DOMText || $child instanceof \DOMCdataSection) && trim($child->nodeValue ?? '') === '') {
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NAMESPACE_URI) {
+                throw new \InvalidArgumentException('OPC AlternateContent may only contain mc:Choice and mc:Fallback children');
+            }
+
+            if ($child->localName === 'Choice') {
+                if ($fallbackSeen) {
+                    throw new \InvalidArgumentException('OPC AlternateContent mc:Choice children must precede mc:Fallback');
+                }
+
+                $choiceSeen = true;
+                self::assertAlternateContentChoiceAttributes($child);
+                if (
+                    $selectedChoice === null
+                    && self::alternateContentChoiceRequiresSupportedPackageNamespace($child, $packageNamespace)
+                ) {
+                    $selectedChoice = $child;
+                }
+                continue;
+            }
+
+            if ($child->localName === 'Fallback') {
+                if ($fallbackSeen) {
+                    throw new \InvalidArgumentException('OPC AlternateContent must not contain more than one mc:Fallback');
+                }
+
+                $fallbackSeen = true;
+                self::assertAlternateContentAttributes($child, 'OPC AlternateContent mc:Fallback');
+                $fallback = $child;
+                continue;
+            }
+
+            throw new \InvalidArgumentException('OPC AlternateContent may only contain mc:Choice and mc:Fallback children');
+        }
+
+        if (!$choiceSeen) {
+            throw new \InvalidArgumentException('OPC AlternateContent must contain at least one mc:Choice');
+        }
+
+        $selectedBranch = $selectedChoice ?? $fallback;
+        if (!$selectedBranch instanceof \DOMElement) {
+            throw new \InvalidArgumentException('OPC AlternateContent has no supported mc:Choice and no mc:Fallback');
+        }
+
+        return self::packageChildElements(
+            $selectedBranch,
+            $packageNamespace,
+            $ignorableNamespaces,
+            $processContentElements,
+            $unsupportedElementMessage,
+            $textContentMessage,
+        );
+    }
+
+    /**
+     * @param array<string, true> $ignorableNamespaces
      */
     public static function isIgnorableExtensionAttribute(\DOMAttr $attribute, array $ignorableNamespaces): bool
     {
@@ -212,6 +305,66 @@ final class OpcMarkupCompatibility
 
         return isset($processContentElements[$namespace . "\0" . $element->localName])
             || isset($processContentElements[$namespace . "\0*"]);
+    }
+
+    private static function assertAlternateContentAttributes(\DOMElement $element, string $label): void
+    {
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            if (self::isNamespaceDeclaration($attribute)) {
+                continue;
+            }
+
+            throw new \InvalidArgumentException($label . ' contains unsupported attribute: ' . $attribute->name);
+        }
+    }
+
+    private static function assertAlternateContentChoiceAttributes(\DOMElement $choice): void
+    {
+        $hasRequires = false;
+        foreach ($choice->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            if (self::isNamespaceDeclaration($attribute)) {
+                continue;
+            }
+
+            if (($attribute->namespaceURI ?? '') === '' && $attribute->name === 'Requires') {
+                $hasRequires = true;
+                continue;
+            }
+
+            throw new \InvalidArgumentException('OPC AlternateContent mc:Choice contains unsupported attribute: ' . $attribute->name);
+        }
+
+        if (!$hasRequires || trim($choice->getAttribute('Requires')) === '') {
+            throw new \InvalidArgumentException('OPC AlternateContent mc:Choice requires a non-empty Requires attribute');
+        }
+    }
+
+    private static function alternateContentChoiceRequiresSupportedPackageNamespace(\DOMElement $choice, string $packageNamespace): bool
+    {
+        foreach (preg_split('/\s+/', trim($choice->getAttribute('Requires'))) ?: [] as $prefix) {
+            if ($prefix === '' || preg_match('/^[A-Za-z_][A-Za-z0-9._-]*$/D', $prefix) !== 1) {
+                throw new \InvalidArgumentException('OPC AlternateContent mc:Choice Requires contains invalid prefix: ' . $prefix);
+            }
+
+            $namespace = $choice->lookupNamespaceURI($prefix);
+            if ($namespace === null || $namespace === '') {
+                throw new \InvalidArgumentException('OPC AlternateContent mc:Choice Requires references undeclared prefix: ' . $prefix);
+            }
+
+            if ($namespace !== $packageNamespace) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

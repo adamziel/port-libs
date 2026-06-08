@@ -317,6 +317,45 @@ HTML,
         exit(1);
     }
 
+    $epub2Default = (new DocTemplate())->renderResource('templates/default', [], [
+        'pagetitle' => 'Legacy EPUB Review Packet',
+        'titlepage' => true,
+        'lang' => 'en',
+        'dir' => 'ltr',
+        'csl-css' => true,
+        'title' => [
+            ['text' => 'Legacy EPUB Title'],
+            'Fallback Legacy EPUB Title',
+        ],
+        'subtitle' => 'WordPress archive handoff',
+        'author' => ['Migration bot'],
+        'creator' => [
+            ['role' => 'editor', 'text' => 'Content editor'],
+        ],
+        'publisher' => 'WordPress Migration',
+        'date' => '2026-06-08',
+        'rights' => 'Internal review only',
+    ], null, 'epub2+smart');
+    foreach ([
+        '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">',
+        '<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" dir="ltr">',
+        '<style type="text/css">',
+        'div.csl-entry',
+        '<h1 class="">Legacy EPUB Title</h1>',
+        '<h1 class="title">Fallback Legacy EPUB Title</h1>',
+        '<p class="subtitle">WordPress archive handoff</p>',
+        '<p class="editor">Content editor</p>',
+    ] as $needle) {
+        if (!str_contains($epub2Default, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate EPUB2 default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+    if (str_contains($epub2Default, 'epub:type=')) {
+        fwrite(STDERR, "Unexpected EPUB3 metadata in doctemplate EPUB2 fallback\n");
+        exit(1);
+    }
+
     $museDefault = (new DocTemplate())->renderResource('templates/default', [], [
         'author' => ['Migration bot', 'Content editor'],
         'title' => 'Muse Default Review',

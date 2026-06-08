@@ -3125,11 +3125,92 @@ HTML;
         $t->contains('<section>Imported EPUB body.</section>', $epubBody);
         $t->contains('<section>After EPUB body</section>', $epubBody);
 
+        $epub2TitlePage = $renderer->renderResource('templates/default', [], [
+            'titlepage' => true,
+            'pagetitle' => 'Legacy EPUB Review',
+            'lang' => 'en',
+            'dir' => 'ltr',
+            'csl-css' => true,
+            'highlighting-css' => 'code{color:crimson;}',
+            'css' => ['epub.css'],
+            'header-includes' => ['<meta name="review" content="legacy" />'],
+            'title' => [
+                ['text' => 'Title Text Without Type'],
+                'Fallback Title',
+            ],
+            'subtitle' => 'Legacy navigation packet',
+            'author' => ['Migration bot'],
+            'creator' => [
+                ['role' => 'editor', 'text' => 'Content editor'],
+            ],
+            'publisher' => 'WordPress Migration',
+            'date' => '2026-06-08',
+            'rights' => 'Internal review only',
+            'abstract-title' => 'Abstract',
+            'abstract' => '<p>Legacy EPUB titlepage template review.</p>',
+        ], null, 'epub2+smart');
+
+        foreach ([
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">',
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" dir="ltr">',
+            '<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />',
+            '<meta http-equiv="Content-Style-Type" content="text/css" />',
+            '<title>Legacy EPUB Review</title>',
+            '<style type="text/css">',
+            'div.csl-entry',
+            'code{color:crimson;}',
+            '<link rel="stylesheet" type="text/css" href="epub.css" />',
+            '<meta name="review" content="legacy" />',
+            '<body>',
+            '<h1 class="">Title Text Without Type</h1>',
+            '<h1 class="title">Fallback Title</h1>',
+            '<p class="subtitle">Legacy navigation packet</p>',
+            '<p class="author">Migration bot</p>',
+            '<p class="editor">Content editor</p>',
+            '<p class="publisher">WordPress Migration</p>',
+            '<p class="date">2026-06-08</p>',
+            '<div class="rights">Internal review only</div>',
+            '<div class="abstract-title">Abstract</div>',
+            '<p>Legacy EPUB titlepage template review.</p>',
+        ] as $needle) {
+            $t->contains($needle, $epub2TitlePage);
+        }
+        $t->same(false, str_contains($epub2TitlePage, 'epub:type='));
+
+        $epub2Cover = $renderer->renderResource('templates/default.epub2', [], [
+            'coverpage' => true,
+            'cover-image-width' => 640,
+            'cover-image-height' => 960,
+            'cover-image' => 'cover.jpg',
+        ]);
+        foreach ([
+            '<body id="cover">',
+            '<div id="cover-image">',
+            'viewBox="0 0 640 960"',
+            'xlink:href="../media/cover.jpg"',
+        ] as $needle) {
+            $t->contains($needle, $epub2Cover);
+        }
+
+        $epub2Body = $renderer->renderResource('templates/default.epub2', [], [
+            'include-before' => ['<section>Before legacy EPUB body</section>'],
+            'body' => '<section>Imported legacy EPUB body.</section>',
+            'include-after' => ['<section>After legacy EPUB body</section>'],
+        ]);
+        $t->contains('<section>Before legacy EPUB body</section>', $epub2Body);
+        $t->contains('<section>Imported legacy EPUB body.</section>', $epub2Body);
+        $t->contains('<section>After legacy EPUB body</section>', $epub2Body);
+
         $t->same('custom openxml', $renderer->renderResource('templates/default', [
             'templates/default.openxml' => 'custom $body$',
         ], [
             'body' => 'openxml',
         ], null, 'docx'));
+        $t->same('custom epub2', $renderer->renderResource('templates/default', [
+            'templates/default.epub2' => 'custom $body$',
+        ], [
+            'body' => 'epub2',
+        ], null, 'epub2'));
     },
 
     'renders bounded pandoc default icml template resource and alias' => static function (TestRunner $t): void {

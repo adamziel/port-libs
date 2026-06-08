@@ -2113,6 +2113,15 @@ $buildZip64EndOfCentralDirectoryBackedPackage = static function (string $zip) us
 
     return substr($zip, 0, $eocdOffset) . $zip64Eocd . $zip64Locator . $eocd;
 };
+$rewriteZip64EndOfCentralDirectoryPayloadSize = static function (string $zip, int $payloadSize) use ($packUInt64): string {
+    $summary = ZipPackage::endOfCentralDirectoryPreflight($zip);
+    $recordOffset = $summary['zip64EndOfCentralDirectoryOffset'];
+    if ($recordOffset === null) {
+        throw new RuntimeException('ZIP64 EOCD fixture was not found');
+    }
+
+    return substr_replace($zip, $packUInt64($payloadSize), $recordOffset + 4, 8);
+};
 $buildLocalHeaderNameMismatchBackedPackage = static function () use ($crc32): string {
     $centralName = 'word/document.xml';
     $localName = 'word/other.xml';
@@ -2901,12 +2910,15 @@ $zip64EocdMismatchBytes = $rewriteZipEndOfCentralDirectory($zip64LocatorBytes, [
     'totalEntryCount' => 2,
 ]);
 $zip64EocdMismatchAccounting = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($zip64EocdMismatchBytes);
+$zip64SmallRecordBytes = $rewriteZip64EndOfCentralDirectoryPayloadSize($zip64LocatorBytes, 40);
+$zip64SmallRecordAccounting = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($zip64SmallRecordBytes);
 $rawStrictSplitZipPreflight = ZipPackage::rawStrictImportPreflight($splitZipBytes, 4096, 100.0, 4096);
 $rawStrictArchiveExtraDataRecordPreflight = ZipPackage::rawStrictImportPreflight($archiveExtraDataRecordBytes, 4096, 100.0, 4096);
 $rawStrictZip64EocdPreflight = ZipPackage::rawStrictImportPreflight($zip64EocdBytes, 4096, 100.0, 4096);
 $rawStrictZip64LocatorPreflight = ZipPackage::rawStrictImportPreflight($zip64LocatorBytes, 4096, 100.0, 4096);
 $rawStrictZip64MalformedLocatorPreflight = ZipPackage::rawStrictImportPreflight($zip64MalformedLocatorBytes, 4096, 100.0, 4096);
 $rawStrictZip64EocdMismatchPreflight = ZipPackage::rawStrictImportPreflight($zip64EocdMismatchBytes, 4096, 100.0, 4096);
+$rawStrictZip64SmallRecordPreflight = ZipPackage::rawStrictImportPreflight($zip64SmallRecordBytes, 4096, 100.0, 4096);
 $rawStrictLocalHeaderNamePreflight = ZipPackage::rawStrictImportPreflight($buildLocalHeaderNameMismatchBackedPackage(), 4096, 100.0, 4096);
 $rawStrictLocalHeaderSpanPreflight = ZipPackage::rawStrictImportPreflight($buildUnclaimedLocalHeaderBackedPackage(), 4096, 100.0, 4096);
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
@@ -4537,6 +4549,17 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected raw strict ZIP import preflight to report ZIP64 EOCD field mismatches');
     }
 
+    if (
+        ($zip64SmallRecordAccounting['recordPayloadSize'] ?? null) !== 40
+        || ($zip64SmallRecordAccounting['recordEndsAtLocator'] ?? null) !== false
+        || !in_array('zip64-end-of-central-directory-record-too-small', $zip64SmallRecordAccounting['issues'] ?? [], true)
+        || !in_array('zip64-end-of-central-directory-record-gap-before-locator', $zip64SmallRecordAccounting['issues'] ?? [], true)
+        || !in_array('zip64-end-of-central-directory-record-too-small', $rawStrictZip64SmallRecordPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip64-end-of-central-directory-record-gap-before-locator', $rawStrictZip64SmallRecordPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to report ZIP64 EOCD payload-size policy diagnostics');
+    }
+
     if (($package->localNames()[0] ?? null) !== '[Content_Types].xml') {
         throw new RuntimeException('Expected local ZIP entry order to be inspectable for package preflight');
     }
@@ -5502,6 +5525,8 @@ echo 'zip64MalformedLocatorPolicy=' . ($zip64MalformedLocatorRejected ? 'rejecte
 echo 'zipRawStrictZip64MalformedLocatorDiagnostics=' . implode(',', $rawStrictZip64MalformedLocatorPreflight['diagnostics']) . "\n";
 echo 'zip64EocdMismatchFields=' . implode(',', $zip64EocdMismatchAccounting['eocdZip64MismatchedFields']) . "\n";
 echo 'zipRawStrictZip64EocdMismatchDiagnostics=' . implode(',', $rawStrictZip64EocdMismatchPreflight['diagnostics']) . "\n";
+echo 'zip64SmallRecordIssues=' . implode(',', $zip64SmallRecordAccounting['issues']) . "\n";
+echo 'zipRawStrictZip64SmallRecordDiagnostics=' . implode(',', $rawStrictZip64SmallRecordPreflight['diagnostics']) . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
 echo 'descriptor.entryCount=' . $descriptorDataDescriptorPreflight['descriptorEntryCount'] . "\n";
 echo 'descriptor.signedEntryCount=' . $descriptorDataDescriptorPreflight['signedDescriptorEntryCount'] . "\n";

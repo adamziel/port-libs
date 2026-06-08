@@ -742,6 +742,103 @@ XML;
         $badRelationshipsXml = '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:pc="urn:wordpress-opc-process-content" mc:Ignorable="pc" mc:ProcessContent="pc:Records"><pc:Records>text<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></pc:Records></Relationships>';
         $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($badRelationshipsXml, '/word/document.xml'));
     },
+    'processes bounded OPC markup compatibility AlternateContent records' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:p="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:future="urn:future-opc-records">
+  <mc:AlternateContent>
+    <mc:Choice Requires="future">
+      <Default Extension="hidden" ContentType="application/hidden"/>
+    </mc:Choice>
+    <mc:Fallback>
+      <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+      <Default Extension="xml" ContentType="application/xml"/>
+    </mc:Fallback>
+  </mc:AlternateContent>
+  <mc:AlternateContent>
+    <mc:Choice Requires="p">
+      <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+      <Override PartName="/word/review.xml" ContentType="application/xml"/>
+    </mc:Choice>
+    <mc:Fallback>
+      <Override PartName="/word/fallback.xml" ContentType="application/xml"/>
+    </mc:Fallback>
+  </mc:AlternateContent>
+</Types>
+XML;
+
+        $relationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:r="http://schemas.openxmlformats.org/package/2006/relationships" xmlns:future="urn:future-opc-relationships">
+  <mc:AlternateContent>
+    <mc:Choice Requires="future">
+      <Relationship Id="rIdHiddenDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/hidden.xml"/>
+    </mc:Choice>
+    <mc:Fallback>
+      <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+    </mc:Fallback>
+  </mc:AlternateContent>
+  <mc:AlternateContent>
+    <mc:Choice Requires="r">
+      <Relationship Id="rIdAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/review.xml"/>
+    </mc:Choice>
+    <mc:Fallback>
+      <Relationship Id="rIdFallbackAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/fallback.xml"/>
+    </mc:Fallback>
+  </mc:AlternateContent>
+</Relationships>
+XML;
+
+        $types = OpcContentTypes::fromXml($contentTypesXml);
+        $t->same([
+            'rels' => 'application/vnd.openxmlformats-package.relationships+xml',
+            'xml' => 'application/xml',
+        ], $types->defaults());
+        $t->same([
+            '/word/document.xml' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            '/word/review.xml' => 'application/xml',
+        ], $types->overrides());
+        $t->same(null, $types->contentTypeForPart('/word/hidden.hidden'));
+        $t->same('application/xml', $types->contentTypeForPart('/word/fallback.xml'));
+
+        $relationships = OpcRelationships::fromXml($relationshipsXml);
+        $t->same(['rIdDocument', 'rIdAudit'], array_map(
+            static fn (OpcRelationship $relationship): string => $relationship->id,
+            $relationships->all()
+        ));
+        $t->same('/word/document.xml', $relationships->resolveTarget('rIdDocument'));
+        $t->same('/word/review.xml', $relationships->resolveTarget('rIdAudit'));
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $relationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/review.xml', 'data' => '<review/>'],
+            ['name' => 'word/fallback.xml', 'data' => '<fallback/>'],
+        ]));
+
+        $root = $graph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+        $t->same(true, $root['valid']);
+        $t->same('/word/document.xml', $root['relationships'][0]['targetPart']);
+
+        $targets = [];
+        foreach ($graph->preflightTargetsForSource('/') as $target) {
+            $targets[$target['id']] = $target;
+        }
+        $t->same(['rIdDocument', 'rIdAudit'], array_keys($targets));
+        $t->same('/word/review.xml', $targets['rIdAudit']['target']);
+        $t->same(true, $targets['rIdAudit']['valid']);
+
+        foreach ([
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:p="' . OpcContentTypes::NAMESPACE_URI . '"><mc:AlternateContent><mc:Choice><Default Extension="xml" ContentType="application/xml"/></mc:Choice></mc:AlternateContent></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:future="urn:future-opc-records"><mc:AlternateContent><mc:Choice Requires="future"><Default Extension="xml" ContentType="application/xml"/></mc:Choice></mc:AlternateContent></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:p="' . OpcContentTypes::NAMESPACE_URI . '"><mc:AlternateContent><mc:Fallback/><mc:Choice Requires="p"><Default Extension="xml" ContentType="application/xml"/></mc:Choice></mc:AlternateContent></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:p="' . OpcContentTypes::NAMESPACE_URI . '"><mc:AlternateContent><mc:Choice Requires="p">text<Default Extension="xml" ContentType="application/xml"/></mc:Choice></mc:AlternateContent></Types>',
+        ] as $xml) {
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
+        }
+
+        $badRelationshipsXml = '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:r="' . OpcRelationships::NAMESPACE_URI . '"><mc:AlternateContent><mc:Choice Requires="missing"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></mc:Choice><mc:Fallback/></mc:AlternateContent></Relationships>';
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($badRelationshipsXml, '/word/document.xml'));
+    },
     'maps OPC source parts and relationship part names' => static function (TestRunner $t): void {
         $t->same('/_rels/.rels', OpcRelationships::relationshipPartNameForSource('/'));
         $t->same('/_rels/.rels', OpcRelationships::relationshipPartNameForSource('/.'));

@@ -471,6 +471,28 @@ $buildZip64EndOfCentralDirectoryPackage = static function () use ($buildZipPacka
 
     return substr($zip, 0, $eocdOffset) . $zip64Eocd . $zip64Locator . $eocd;
 };
+$rewriteZip64EndOfCentralDirectoryPayloadSize = static function (string $zip, int $payloadSize) use ($packUInt64): string {
+    $summary = ZipPackage::endOfCentralDirectoryPreflight($zip);
+    $recordOffset = $summary['zip64EndOfCentralDirectoryOffset'];
+    if ($recordOffset === null) {
+        throw new RuntimeException('ZIP64 EOCD record fixture not found');
+    }
+
+    return substr_replace($zip, $packUInt64($payloadSize), $recordOffset + 4, 8);
+};
+$insertZip64EndOfCentralDirectoryExtensibleData = static function (string $zip, string $extraData) use ($packUInt64): string {
+    $summary = ZipPackage::endOfCentralDirectoryPreflight($zip);
+    $recordOffset = $summary['zip64EndOfCentralDirectoryOffset'];
+    $locatorOffset = $summary['zip64EndOfCentralDirectoryLocatorOffset'];
+    $payloadSize = $summary['zip64EndOfCentralDirectoryPayloadSize'];
+    if ($recordOffset === null || $locatorOffset === null || $payloadSize === null) {
+        throw new RuntimeException('ZIP64 EOCD record fixture not found');
+    }
+
+    $zip = substr_replace($zip, $packUInt64($payloadSize + strlen($extraData)), $recordOffset + 4, 8);
+
+    return substr($zip, 0, $locatorOffset) . $extraData . substr($zip, $locatorOffset);
+};
 $rewriteEndOfCentralDirectory = static function (string $zip, array $fields): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -3258,6 +3280,9 @@ return [
         $t->same($eocdSummary['zip64EndOfCentralDirectoryOffset'], $summary['recordOffset']);
         $t->same(44, $summary['recordPayloadSize']);
         $t->same(56, $summary['recordSize']);
+        $t->same($summary['locatorOffset'], $summary['recordEnd']);
+        $t->same(true, $summary['recordEndsAtLocator']);
+        $t->same(0, $summary['recordExtensibleDataSize']);
         $t->same(45, $summary['versionMadeBy']);
         $t->same(45, $summary['versionNeededToExtract']);
         $t->same(0, $summary['locatorDiskWithEndOfCentralDirectory']);
@@ -3326,6 +3351,72 @@ return [
         $t->same(null, $sentinelOnlySummary['eocdFieldsMatchZip64Record']);
         $t->same([], $sentinelOnlySummary['eocdZip64MismatchedFields']);
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($sentinelOnlyZip));
+    },
+
+    'preflights zip64 end of central directory record size policy before package import' => static function (TestRunner $t) use (
+        $buildZip64EndOfCentralDirectoryPackage,
+        $rewriteZip64EndOfCentralDirectoryPayloadSize,
+        $insertZip64EndOfCentralDirectoryExtensibleData
+    ): void {
+        $zip = $buildZip64EndOfCentralDirectoryPackage();
+        $validSummary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($zip);
+
+        $t->same(44, $validSummary['recordPayloadSize']);
+        $t->same(56, $validSummary['recordSize']);
+        $t->same($validSummary['locatorOffset'], $validSummary['recordEnd']);
+        $t->same(true, $validSummary['recordEndsAtLocator']);
+        $t->same(0, $validSummary['recordExtensibleDataSize']);
+
+        $tooSmallZip = $rewriteZip64EndOfCentralDirectoryPayloadSize($zip, 40);
+        $tooSmallSummary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($tooSmallZip);
+        $tooSmallRaw = ZipPackage::rawStrictImportPreflight($tooSmallZip, 512, 20.0, 512);
+
+        $t->same(40, $tooSmallSummary['recordPayloadSize']);
+        $t->same(52, $tooSmallSummary['recordSize']);
+        $t->same($tooSmallSummary['recordOffset'] + 52, $tooSmallSummary['recordEnd']);
+        $t->same(false, $tooSmallSummary['recordEndsAtLocator']);
+        $t->same(0, $tooSmallSummary['recordExtensibleDataSize']);
+        $t->same([
+            'zip64-end-of-central-directory',
+            'zip64-end-of-central-directory-record-too-small',
+            'zip64-end-of-central-directory-record-gap-before-locator',
+        ], $tooSmallSummary['issues']);
+        $t->same($tooSmallSummary, $tooSmallRaw['zip64EndOfCentralDirectory']);
+        $t->contains('zip64-end-of-central-directory-record-too-small', implode(',', $tooSmallRaw['diagnostics']));
+        $t->contains('zip64-end-of-central-directory-record-gap-before-locator', implode(',', $tooSmallRaw['diagnostics']));
+
+        $overlapZip = $rewriteZip64EndOfCentralDirectoryPayloadSize($zip, 60);
+        $overlapSummary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($overlapZip);
+        $overlapRaw = ZipPackage::rawStrictImportPreflight($overlapZip, 512, 20.0, 512);
+
+        $t->same(60, $overlapSummary['recordPayloadSize']);
+        $t->same(72, $overlapSummary['recordSize']);
+        $t->same($overlapSummary['locatorOffset'] + 16, $overlapSummary['recordEnd']);
+        $t->same(false, $overlapSummary['recordEndsAtLocator']);
+        $t->same(16, $overlapSummary['recordExtensibleDataSize']);
+        $t->same([
+            'zip64-end-of-central-directory',
+            'zip64-end-of-central-directory-extensible-data-sector',
+            'zip64-end-of-central-directory-record-overlaps-locator',
+        ], $overlapSummary['issues']);
+        $t->same($overlapSummary, $overlapRaw['zip64EndOfCentralDirectory']);
+        $t->contains('zip64-end-of-central-directory-extensible-data-sector', implode(',', $overlapRaw['diagnostics']));
+        $t->contains('zip64-end-of-central-directory-record-overlaps-locator', implode(',', $overlapRaw['diagnostics']));
+
+        $extensibleData = 'pandoc-zip64-review';
+        $extensibleZip = $insertZip64EndOfCentralDirectoryExtensibleData($zip, $extensibleData);
+        $extensibleSummary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($extensibleZip);
+
+        $t->same(44 + strlen($extensibleData), $extensibleSummary['recordPayloadSize']);
+        $t->same(56 + strlen($extensibleData), $extensibleSummary['recordSize']);
+        $t->same($extensibleSummary['locatorOffset'], $extensibleSummary['recordEnd']);
+        $t->same(true, $extensibleSummary['recordEndsAtLocator']);
+        $t->same(strlen($extensibleData), $extensibleSummary['recordExtensibleDataSize']);
+        $t->same([
+            'zip64-end-of-central-directory',
+            'zip64-end-of-central-directory-extensible-data-sector',
+        ], $extensibleSummary['issues']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($extensibleZip));
     },
 
     'preflights malformed zip64 end of central directory locators before package import' => static function (TestRunner $t) use ($buildZip64EndOfCentralDirectoryPackage, $packUInt64): void {
