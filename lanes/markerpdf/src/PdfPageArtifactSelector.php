@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PortLibs\MarkerPDF;
 
+use InvalidArgumentException;
+
 final class PdfPageArtifactSelector
 {
     private const AMBIGUOUS_PAGE_MARKER_WRAPPER = '__markerpdf_ambiguous_page_marker_wrapper';
@@ -240,6 +242,7 @@ final class PdfPageArtifactSelector
         }
 
         $artifacts = [];
+        $seenPageKeys = [];
         foreach ($value as $key => $candidate) {
             $pageKey = self::integerArrayKey($key);
             if ($pageKey === null || !is_array($candidate) || array_is_list($candidate) || !self::hasDirectArtifactPayload($candidate)) {
@@ -250,6 +253,7 @@ final class PdfPageArtifactSelector
                 return null;
             }
 
+            self::rememberArtifactPageKey($seenPageKeys, $pageKey);
             if (!self::hasPotentialPageMarker($candidate)) {
                 $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
             }
@@ -524,6 +528,7 @@ final class PdfPageArtifactSelector
         }
 
         $artifacts = [];
+        $seenPageKeys = [];
         foreach ($value as $key => $candidate) {
             $pageKey = self::integerArrayKey($key);
             if ($pageKey === null || !is_array($candidate) || array_is_list($candidate) || !self::hasDirectArtifactPayload($candidate)) {
@@ -534,6 +539,7 @@ final class PdfPageArtifactSelector
                 return null;
             }
 
+            self::rememberArtifactPageKey($seenPageKeys, $pageKey);
             if (!self::hasPotentialPageMarker($candidate)) {
                 $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
             }
@@ -541,6 +547,19 @@ final class PdfPageArtifactSelector
         }
 
         return count($artifacts) > 1 ? $artifacts : null;
+    }
+
+    /**
+     * @param array<string, true> $seenPageKeys
+     */
+    private static function rememberArtifactPageKey(array &$seenPageKeys, int $pageKey): void
+    {
+        $fingerprint = (string) $pageKey;
+        if (isset($seenPageKeys[$fingerprint])) {
+            throw new InvalidArgumentException('Supplied page artifact map contains duplicate normalized page keys.');
+        }
+
+        $seenPageKeys[$fingerprint] = true;
     }
 
     private static function isIgnorableArtifactMapEntry(mixed $candidate): bool
