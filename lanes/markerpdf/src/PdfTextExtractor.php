@@ -8775,6 +8775,7 @@ final class PdfTextExtractor
         bool $positiveRequired,
         bool $missingInvalid
     ): ?array {
+        $duplicateDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($dictionary, $name);
         $offset = $this->topLevelNameValueOffset($dictionary, $name);
         if ($offset === null) {
             if (!$missingInvalid) {
@@ -8813,15 +8814,18 @@ final class PdfTextExtractor
         $resolvedInteger = is_int($analysis['resolved_integer'] ?? null) ? $analysis['resolved_integer'] : null;
         $positive = $resolvedInteger !== null && $resolvedInteger > 0;
         $valid = ($analysis['valid_integer'] ?? false) === true
+            && $duplicateDeclarationCount === 0
             && !$trailingTopLevelOperand
             && (!$positiveRequired || $positive);
         if ($valid) {
             return null;
         }
 
-        $reason = $trailingTopLevelOperand
+        $reason = $duplicateDeclarationCount > 0
+            ? 'duplicate_top_level_declaration'
+            : ($trailingTopLevelOperand
             ? 'trailing_top_level_operand'
-            : (is_string($analysis['reason'] ?? null) ? $analysis['reason'] : 'malformed_integer_operand');
+            : (is_string($analysis['reason'] ?? null) ? $analysis['reason'] : 'malformed_integer_operand'));
         if ($reason === 'valid_integer' && $positiveRequired && !$positive) {
             $reason = 'nonpositive_integer_operand';
         }
@@ -8835,6 +8839,9 @@ final class PdfTextExtractor
             'positive_required' => $positiveRequired,
             'positive' => $positive,
             'trailing_top_level_operand' => $trailingTopLevelOperand,
+            ...($duplicateDeclarationCount > 0 ? [
+                'duplicate_declaration_count' => $duplicateDeclarationCount,
+            ] : []),
             'value_preview' => is_string($analysis['value_preview'] ?? null)
                 ? $analysis['value_preview']
                 : null,
@@ -8967,6 +8974,7 @@ final class PdfTextExtractor
             $boundary['reason'] ?? null,
             [
                 'trailing_top_level_operand',
+                'duplicate_top_level_declaration',
                 'malformed_integer_operand',
                 'unresolved_indirect_operand',
                 'cyclic_indirect_operand',
