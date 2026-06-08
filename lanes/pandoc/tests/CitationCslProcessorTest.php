@@ -8836,6 +8836,141 @@ XML);
         $t->contains('<dt>Smith et al. 2026b</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026b. Smith Doe Second Packet. https://example.test/smith-doe-b.</dd>', $blocks);
         $t->contains('<dt>Smith et al. 2026</dt><dd>Smith, A.; Ng, N.; Rao, R. 2026. Smith Ng Packet. https://example.test/smith-ng.</dd>', $blocks);
     },
+    'applies bounded csl given names before add names and year suffix disambiguation' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'smith-ada-doe-a',
+                'type' => 'report',
+                'title' => 'Ada Doe First Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['family' => 'Doe', 'given' => 'Jane'],
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/ada-doe-a',
+            ],
+            [
+                'id' => 'smith-ada-doe-b',
+                'type' => 'report',
+                'title' => 'Ada Doe Second Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['family' => 'Doe', 'given' => 'Jane'],
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/ada-doe-b',
+            ],
+            [
+                'id' => 'smith-alan-doe',
+                'type' => 'report',
+                'title' => 'Alan Doe Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Alan'],
+                    ['family' => 'Doe', 'given' => 'Jane'],
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/alan-doe',
+            ],
+            [
+                'id' => 'smith-ada-ng',
+                'type' => 'report',
+                'title' => 'Ada Ng Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Rao', 'given' => 'Raj'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/ada-ng',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Given Add Names Year Disambiguation Review</title>
+    <id>https://example.test/styles/bounded-given-add-names-year-disambiguation-review</id>
+    <updated>2026-06-08T10:01:34+00:00</updated>
+  </info>
+  <citation disambiguate-add-givenname="true" disambiguate-add-names="true" disambiguate-add-year-suffix="true" collapse="year-suffix">
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" et-al-min="3" et-al-use-first="1">
+          <name initialize-with=". "/>
+        </names>
+        <group delimiter="">
+          <date variable="issued"><date-part name="year"/></date>
+          <text variable="year-suffix"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <group delimiter="">
+        <date variable="issued"><date-part name="year"/></date>
+        <text variable="year-suffix"/>
+      </group>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same(true, $summary['citationOptions']['disambiguateAddGivenName'] ?? null);
+        $t->same(true, $summary['citationOptions']['disambiguateAddNames'] ?? null);
+        $t->same(true, $summary['citationOptions']['disambiguateAddYearSuffix'] ?? null);
+        $t->same('(Ada Smith, Doe, et al. 2026a,b; Alan Smith et al. 2026; Ada Smith, Ng, et al. 2026)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'smith-ada-doe-a', 'text' => '[@smith-ada-doe-a]']),
+            new AstNode('citation', ['id' => 'smith-ada-doe-b', 'text' => '[@smith-ada-doe-b]']),
+            new AstNode('citation', ['id' => 'smith-alan-doe', 'text' => '[@smith-alan-doe]']),
+            new AstNode('citation', ['id' => 'smith-ada-ng', 'text' => '[@smith-ada-ng]']),
+        ]));
+        $t->same('Smith, A.; Doe, J.; Roe, P. 2026a. Ada Doe First Packet. https://example.test/ada-doe-a.', $processor->renderBibliographyEntry('smith-ada-doe-a'));
+        $t->same('Smith, A.; Doe, J.; Roe, P. 2026b. Ada Doe Second Packet. https://example.test/ada-doe-b.', $processor->renderBibliographyEntry('smith-ada-doe-b'));
+        $t->same('Smith, A.; Doe, J.; Roe, P. 2026. Alan Doe Packet. https://example.test/alan-doe.', $processor->renderBibliographyEntry('smith-alan-doe'));
+        $t->same('Smith, A.; Ng, N.; Rao, R. 2026. Ada Ng Packet. https://example.test/ada-ng.', $processor->renderBibliographyEntry('smith-ada-ng'));
+
+        $document = (new MarkdownReader())->read('Review cites [@smith-ada-doe-a; @smith-ada-doe-b; @smith-alan-doe; @smith-ada-ng] before publishing imported source notes.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $citationNodes = [];
+        $collectCitations = static function (AstNode $node) use (&$collectCitations, &$citationNodes): void {
+            if ($node->type === 'citation') {
+                $citationNodes[(string) $node->attr('id', '')] = $node;
+            }
+
+            foreach ($node->children as $child) {
+                $collectCitations($child);
+            }
+        };
+        $collectCitations($processed);
+        $t->same('full', $citationNodes['smith-ada-doe-a']->attr('cslGivenNameDisambiguation'));
+        $t->same('full', $citationNodes['smith-ada-doe-b']->attr('cslGivenNameDisambiguation'));
+        $t->same('full', $citationNodes['smith-alan-doe']->attr('cslGivenNameDisambiguation'));
+        $t->same('full', $citationNodes['smith-ada-ng']->attr('cslGivenNameDisambiguation'));
+        $t->same(2, $citationNodes['smith-ada-doe-a']->attr('cslDisambiguateNameCount'));
+        $t->same(2, $citationNodes['smith-ada-doe-b']->attr('cslDisambiguateNameCount'));
+        $t->same(null, $citationNodes['smith-alan-doe']->attr('cslDisambiguateNameCount'));
+        $t->same(2, $citationNodes['smith-ada-ng']->attr('cslDisambiguateNameCount'));
+        $t->same('a', $citationNodes['smith-ada-doe-a']->attr('cslYearSuffix'));
+        $t->same('b', $citationNodes['smith-ada-doe-b']->attr('cslYearSuffix'));
+        $t->same('', $citationNodes['smith-alan-doe']->attr('cslYearSuffix'));
+        $t->same('', $citationNodes['smith-ada-ng']->attr('cslYearSuffix'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (Ada Smith, Doe, et al. 2026a,b; Alan Smith et al. 2026; Ada Smith, Ng, et al. 2026) before publishing imported source notes.</p>', $blocks);
+        $t->contains('<dt>Smith et al. 2026a</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026a. Ada Doe First Packet. https://example.test/ada-doe-a.</dd>', $blocks);
+        $t->contains('<dt>Smith et al. 2026b</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026b. Ada Doe Second Packet. https://example.test/ada-doe-b.</dd>', $blocks);
+        $t->contains('<dt>Smith et al. 2026</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026. Alan Doe Packet. https://example.test/alan-doe.</dd>', $blocks);
+        $t->contains('<dt>Smith et al. 2026</dt><dd>Smith, A.; Ng, N.; Rao, R. 2026. Ada Ng Packet. https://example.test/ada-ng.</dd>', $blocks);
+    },
     'applies bounded csl locator conditionals for page chapter and section locators' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
