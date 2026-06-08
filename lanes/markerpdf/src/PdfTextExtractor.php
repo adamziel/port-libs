@@ -24101,15 +24101,14 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $metrics = $this->nullableSingleNumbersFromPdfArrayResolvingObjects($metricsList, $objects);
-                for ($offset = 0, $metricCount = count($metrics); $offset + 2 < $metricCount; $offset += 3) {
-                    $verticalDisplacement = $this->finiteFontAdvanceMetric($metrics[$offset]);
-                    $positionX = $this->finiteFontAdvanceMetric($metrics[$offset + 1]);
-                    $positionY = $this->finiteFontAdvanceMetric($metrics[$offset + 2]);
-                    if ($verticalDisplacement === null || $positionX === null || $positionY === null) {
-                        continue;
-                    }
-                    $cid = $firstCid + intdiv($offset, 3);
+                $metrics = $this->finiteVerticalFontAdvanceMetricsFromW2Array($metricsList, $objects);
+                if ($metrics === null) {
+                    $index++;
+                    continue;
+                }
+
+                foreach ($metrics as $offset => $verticalDisplacement) {
+                    $cid = $firstCid + $offset;
                     if ($cid >= 0 && $cid <= 0xffff) {
                         $displacements[$cid] = $verticalDisplacement;
                     }
@@ -24135,6 +24134,33 @@ final class PdfTextExtractor
             for ($cid = $firstCid, $limit = min($lastCid, 0xffff); $cid <= $limit; $cid++) {
                 $displacements[$cid] = $verticalDisplacement;
             }
+        }
+
+        return $displacements;
+    }
+
+    /**
+     * @return list<float>|null
+     * @param array<int, string> $objects
+     */
+    private function finiteVerticalFontAdvanceMetricsFromW2Array(string $arrayBody, array $objects): ?array
+    {
+        $metrics = $this->nullableSingleNumbersFromPdfArrayResolvingObjects($arrayBody, $objects);
+        $metricCount = count($metrics);
+        if ($metricCount === 0 || $metricCount % 3 !== 0) {
+            return null;
+        }
+
+        $displacements = [];
+        for ($offset = 0; $offset < $metricCount; $offset += 3) {
+            $verticalDisplacement = $this->finiteFontAdvanceMetric($metrics[$offset]);
+            $positionX = $this->finiteFontAdvanceMetric($metrics[$offset + 1]);
+            $positionY = $this->finiteFontAdvanceMetric($metrics[$offset + 2]);
+            if ($verticalDisplacement === null || $positionX === null || $positionY === null) {
+                return null;
+            }
+
+            $displacements[] = $verticalDisplacement;
         }
 
         return $displacements;
