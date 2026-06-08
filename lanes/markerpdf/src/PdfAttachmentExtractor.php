@@ -4801,12 +4801,12 @@ final class PdfAttachmentExtractor
             return false;
         }
 
-        if ($offset === 0) {
-            return true;
+        if ($this->isPdfWhitespace($data[$offset]) || $data[$offset] === '%') {
+            return false;
         }
 
-        if ($data[$offset] === '%') {
-            return false;
+        if ($offset === 0) {
+            return true;
         }
 
         $index = 0;
