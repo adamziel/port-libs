@@ -5019,6 +5019,117 @@ XML);
         $t->same('Manual Desk', $manualItem['shortAuthors'][0]['literal'] ?? null);
         $t->same('(MLS)', $manual->renderCitationCluster([$citation('manual-label', '[@manual-label]')]));
     },
+    'maps bounded biblatex label disambiguation fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{label-field-source,
+  author     = {Smith, Ada},
+  title      = {Migration Label Packet},
+  date       = {2026},
+  publisher  = {Review Press},
+  labelalpha = {Smi26},
+  labeltitle = {migration label packet},
+  extradate  = {2},
+  extratitle = {a}
+}
+
+@online{label-alias-source,
+  author      = {Ng, Nia},
+  title       = {Alias Label Source},
+  date        = {2025},
+  label-alpha = {Ng25},
+  label-title = {alias label source},
+  extra-date  = {1},
+  extra-title = {b}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Smi26', $items[0]['label-alpha'] ?? null);
+        $t->same('migration label packet', $items[0]['label-title'] ?? null);
+        $t->same('2', $items[0]['extra-date'] ?? null);
+        $t->same('a', $items[0]['extra-title'] ?? null);
+        $t->same('Ng25', $items[1]['label-alpha'] ?? null);
+        $t->same('alias label source', $items[1]['label-title'] ?? null);
+        $t->same('1', $items[1]['extra-date'] ?? null);
+        $t->same('b', $items[1]['extra-title'] ?? null);
+        $t->same('Smi26', $items[0]['rawBibtex']['fields']['labelalpha'] ?? null);
+        $t->same('Ng25', $items[1]['rawBibtex']['fields']['label-alpha'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $labelField = $processor->item('label-field-source');
+        $labelAlias = $processor->item('label-alias-source');
+        $t->same('Smi26', $labelField['labelAlpha'] ?? null);
+        $t->same('migration label packet', $labelField['labelTitle'] ?? null);
+        $t->same('2', $labelField['extraDate'] ?? null);
+        $t->same('a', $labelField['extraTitle'] ?? null);
+        $t->same('Ng25', $labelAlias['labelAlpha'] ?? null);
+        $t->same('alias label source', $labelAlias['labelTitle'] ?? null);
+        $t->same('1', $labelAlias['extraDate'] ?? null);
+        $t->same('b', $labelAlias['extraTitle'] ?? null);
+        $t->same('(Smith 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('label-field-source', '[@label-field-source]'),
+            $citation('label-alias-source', '[@label-alias-source]'),
+        ]));
+        $t->same(
+            'Smith, Ada. Migration Label Packet. Review Press, 2026. Label alpha: Smi26. Label title: migration label packet. Extra date: 2. Extra title: a.',
+            $processor->renderBibliographyEntry('label-field-source')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="label-alpha"/>
+        <text variable="label-title"/>
+        <text variable="extra-date"/>
+        <text variable="extra-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="labelalpha"/>
+      <text variable="labeltitle"/>
+      <text variable="extradate"/>
+      <text variable="extratitle"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | Smi26 | migration label packet | 2 | a; Ng | Ng25 | alias label source | 1 | b]', $styled->renderCitationCluster([
+            $citation('label-field-source', '[@label-field-source]'),
+            $citation('label-alias-source', '[@label-alias-source]'),
+        ]));
+        $t->same('Migration Label Packet :: Smi26 :: migration label packet :: 2 :: a', $styled->renderBibliographyEntry('label-field-source'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-label-fields',
+            'title' => 'Manual Label Fields',
+            'label-alpha' => 'MAN',
+            'label-title' => 'manual label',
+            'extra-date' => '3',
+            'extra-title' => 'c',
+        ]]);
+        $manualItem = $manual->item('manual-label-fields');
+        $t->same('MAN', $manualItem['labelAlpha'] ?? null);
+        $t->same('manual label', $manualItem['labelTitle'] ?? null);
+        $t->same('3', $manualItem['extraDate'] ?? null);
+        $t->same('c', $manualItem['extraTitle'] ?? null);
+        $t->same(
+            'Manual Label Fields. Label alpha: MAN. Label title: manual label. Extra date: 3. Extra title: c.',
+            $manual->renderBibliographyEntry('manual-label-fields')
+        );
+
+        $document = (new MarkdownReader())->read('Label fields @label-field-source and [@label-alias-source] keep imported label disambiguation metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Label fields Smith (2026) and (Ng 2025) keep imported label disambiguation metadata visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Label Packet. Review Press, 2026. Label alpha: Smi26. Label title: migration label packet. Extra date: 2. Extra title: a.</dd>', $blocks);
+    },
     'maps bounded biblatex others name sentinel into csl et al metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{truncated-review,

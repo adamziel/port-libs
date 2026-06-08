@@ -59,6 +59,9 @@ $koi8RText = (string) $koi8RSource->children[1]->attr('text');
 $koi8UBytes = "# \xF5\xCB\xD2\xC1\xA7\xCE\xC1\n\n\xF2\xC5\xC4\xC1\xCB\xD4\xCF\xD2 \xEB\xC9\xA7\xD7; \xA7\xD6\xC1\xCB \xA6 \xAD\xC1\xCE\xCF\xCB; \xB4\xB6\xB7\xBD.";
 $koi8USource = (new MarkdownReader())->readBytes($koi8UBytes, 'koi8-u');
 $koi8UText = (string) $koi8USource->children[1]->attr('text');
+$macCyrillicBytes = "# \x88\xEC\xEF\xEE\xF0\xF2\n\n\x90\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \xD2\xEF\xF0\xE8\xE2\xE5\xF2\xD3 \xD1 \xFF20; \xDD\xEB\xEA\xE0 \xDC 7; \xBA\xBB\xB8\xB9.";
+$macCyrillicSource = (new MarkdownReader())->readBytes($macCyrillicBytes, 'x-mac-cyrillic');
+$macCyrillicText = (string) $macCyrillicSource->children[1]->attr('text');
 $ibm437Bytes = "# DOS 437\n\nBox \xC9\xCD\xBB\xBA\xCC; r\x82sum\x82; \xE0\xE1 \xF8\xF1.";
 $ibm437Source = (new MarkdownReader())->readBytes($ibm437Bytes, 'cp437');
 $ibm437Text = (string) $ibm437Source->children[1]->attr('text');
@@ -467,6 +470,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($koi8USource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($koi8UText) . '/' . UnicodeText::displayWidth($koi8UText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Mac Cyrillic source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $macCyrillicText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macCyrillicSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macCyrillicText) . '/' . UnicodeText::displayWidth($macCyrillicText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'IBM437 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $ibm437Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm437Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm437Text) . '/' . UnicodeText::displayWidth($ibm437Text, 'wide')])]),
@@ -793,6 +801,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>KOI8-U source</td><td>Редактор Київ; їжак і ґанок; ЄІЇҐ.</td><td>koi8-u:34/52</td>')) {
         throw new RuntimeException('charset handoff self-test missing KOI8-U Ukrainian decode audit row');
+    }
+    if (($macCyrillicSource->attr('sourceEncoding')['encoding'] ?? '') !== 'mac-cyrillic') {
+        throw new RuntimeException('charset handoff self-test missing Mac Cyrillic source encoding');
+    }
+    if (!str_contains($blocks, '<td>Mac Cyrillic source</td><td>Редактор “привет” — €20; Ёлка № 7; ЇїЄє.</td><td>mac-cyrillic:40/63</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Mac Cyrillic decode audit row');
     }
     if (($ibm437Source->attr('sourceEncoding')['encoding'] ?? '') !== 'ibm437') {
         throw new RuntimeException('charset handoff self-test missing IBM437 source encoding');

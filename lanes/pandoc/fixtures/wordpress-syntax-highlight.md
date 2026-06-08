@@ -1100,3 +1100,22 @@ function openReview(url: string) {
 }
 </style>
 ```
+
+``` {.ml #ocaml-review .numberLines startFrom=880}
+(* WordPress import review normalizer *)
+open Yojson.Safe
+
+type review_packet = {
+  source_id : int;
+  title : string option;
+  media : string list;
+}
+
+let normalize_title ?(fallback="Untitled") packet =
+  match packet.title with
+  | Some title when String.trim title <> "" -> String.trim title
+  | _ -> Printf.sprintf "Import %d" packet.source_id
+
+let blocks = [ "core/paragraph"; "core/html" ]
+let reviewed = Result.Ok true
+```

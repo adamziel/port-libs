@@ -8819,6 +8819,23 @@ final class MarkdownReader
 
         if (
             preg_match(
+                '/^ {0,3}\\\\(DeclarePairedDelimiter)(?:\{\\\\([A-Za-z]+)\}|\\\\([A-Za-z]+))\{((?:\\\\.|[^{}])*)\}\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
+                $line,
+                $m
+            ) === 1
+        ) {
+            $name = ($m[2] ?? '') !== '' ? $m[2] : $m[3];
+
+            return [
+                'command' => $m[1],
+                'name' => $name,
+                'arity' => 1,
+                'template' => '\\left' . trim($m[4]) . ' #1 \\right' . trim($m[5]),
+            ];
+        }
+
+        if (
+            preg_match(
                 '/^ {0,3}\\\\((?:re)?newcommand|providecommand)\{\\\\([A-Za-z]+)\}(?:\[(\d+)])?(?:\[[^\]\r\n]*])?\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
                 $line,
                 $m

@@ -2391,6 +2391,9 @@ if (($argv[1] ?? '') === '--self-test') {
         . $smallRegularFat
         . $padTo($smallRegularDirectory, $sectorSize)
         . $padTo($smallRegularWordDocument, $sectorSize);
+    $unusedPhysicalSectorId = intdiv(strlen($docBytes) - $sectorSize, $sectorSize);
+    $docBytesWithUnusedPhysicalSector = $docBytes . str_repeat("\0", $sectorSize);
+    $unownedFatMarkerEntryOffset = 512 + ($unusedPhysicalSectorId * 4);
     foreach ([
         'unsupported CFB major version' => substr_replace($docBytes, $u16(5), 26, 2),
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
@@ -2404,6 +2407,10 @@ if (($argv[1] ?? '') === '--self-test') {
         'unterminated CFB DIFAT overflow chain' => substr_replace($docBytes, $u32(0), 512 + ($difatSector * $sectorSize) + ($sectorSize - 4), 4),
         'surplus CFB DIFAT FAT-sector listing' => substr_replace($docBytes, $u32(1), 512 + ($difatSector * $sectorSize) + 4, 4),
         'CFB FAT entry beyond physical file' => substr_replace($docBytes, $u32($end), 512 + (127 * 4), 4),
+        'reserved CFB FAT marker on physical sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32(0xfffffffb), $unownedFatMarkerEntryOffset, 4),
+        'out-of-range CFB FAT pointer on physical sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32($unusedPhysicalSectorId + 16), $unownedFatMarkerEntryOffset, 4),
+        'unowned CFB FATSECT marker on physical sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32(0xfffffffd), $unownedFatMarkerEntryOffset, 4),
+        'unowned CFB DIFSECT marker on physical sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32(0xfffffffc), $unownedFatMarkerEntryOffset, 4),
         'CFB root sibling directory reference' => substr_replace($docBytes, $u32($wordDocumentDirectoryId), $directoryFieldOffset(0, 68), 4),
         'CFB stream child directory reference' => substr_replace($docBytes, $u32($objectPoolDirectoryId), $directoryFieldOffset($wordDocumentDirectoryId, 76), 4),
         'CFB stream storage CLSID metadata' => substr_replace($docBytes, "\x01", $directoryFieldOffset($wordDocumentDirectoryId, 80), 1),

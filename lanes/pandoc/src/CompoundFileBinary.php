@@ -189,6 +189,7 @@ final class CompoundFileBinary
                 $fat[] = self::u32($sectorBytes, $offset);
             }
         }
+        self::validateFatEntryValues($fat, $sectorCount, $fatSectorIds, array_map('intval', array_keys($seenDifat)));
         for ($sectorId = $sectorCount, $fatEntryCount = count($fat); $sectorId < $fatEntryCount; $sectorId++) {
             if ($fat[$sectorId] !== self::FREESECT) {
                 throw new \RuntimeException('CFB FAT entries beyond the physical file must be marked FREESECT');
@@ -858,6 +859,50 @@ final class CompoundFileBinary
     private static function isRegularSector(int $sector): bool
     {
         return $sector >= 0 && $sector <= self::MAXREGSECT;
+    }
+
+    /**
+     * @param list<int> $fat
+     * @param list<int> $fatSectorIds
+     * @param list<int> $difatSectorIds
+     */
+    private static function validateFatEntryValues(array $fat, int $sectorCount, array $fatSectorIds, array $difatSectorIds): void
+    {
+        $fatSectorSet = array_fill_keys($fatSectorIds, true);
+        $difatSectorSet = array_fill_keys($difatSectorIds, true);
+        for ($sectorId = 0; $sectorId < $sectorCount; $sectorId++) {
+            if (!array_key_exists($sectorId, $fat)) {
+                throw new \RuntimeException('CFB FAT does not cover all physical sectors');
+            }
+
+            $value = (int) $fat[$sectorId];
+            if (self::isRegularSector($value)) {
+                if ($value >= $sectorCount) {
+                    throw new \RuntimeException('CFB FAT entry points outside the file');
+                }
+                continue;
+            }
+
+            if ($value === self::FREESECT || $value === self::ENDOFCHAIN) {
+                continue;
+            }
+
+            if ($value === self::FATSECT) {
+                if (!isset($fatSectorSet[$sectorId])) {
+                    throw new \RuntimeException('CFB FATSECT marker appears on a non-FAT sector');
+                }
+                continue;
+            }
+
+            if ($value === self::DIFSECT) {
+                if (!isset($difatSectorSet[$sectorId])) {
+                    throw new \RuntimeException('CFB DIFSECT marker appears on a non-DIFAT sector');
+                }
+                continue;
+            }
+
+            throw new \RuntimeException('CFB FAT entry contains a reserved sector marker');
+        }
     }
 
     private static function sectorCount(string $bytes, int $sectorSize): int

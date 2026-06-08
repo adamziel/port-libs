@@ -1372,6 +1372,11 @@ final class MathTexConverter
             return $declaredOperator;
         }
 
+        $pairedDelimiter = $this->readRawTexDeclaredPairedDelimiter($source);
+        if ($pairedDelimiter !== null) {
+            return $pairedDelimiter;
+        }
+
         if (preg_match('/^\\\\(?:(?:re)?newcommand|providecommand)/', $source, $m) !== 1) {
             return null;
         }
@@ -1468,6 +1473,99 @@ final class MathTexConverter
             'arity' => 0,
             'template' => '\\operatorname' . (($m[1] ?? '') === '*' ? '*' : '') . '{' . $normalizedOperatorName . '}',
         ];
+    }
+
+    /**
+     * @return array{name:string, arity:int, template:string}|null
+     */
+    private function readRawTexDeclaredPairedDelimiter(string $source): ?array
+    {
+        if (preg_match('/^\\\\DeclarePairedDelimiter(?![A-Za-z])/', $source, $m) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($m[0]);
+        $name = $this->readRawTexMacroNameReference($source, $offset, 'paired delimiter');
+
+        $this->skipWhitespace($source, $offset);
+        $openDelimiter = $this->readTexBraceArgument($source, $offset);
+        if ($openDelimiter === null) {
+            throw new \InvalidArgumentException('Expected TeX paired delimiter opening delimiter at offset ' . $offset);
+        }
+        $offset = $openDelimiter['next'];
+
+        $this->skipWhitespace($source, $offset);
+        $closeDelimiter = $this->readTexBraceArgument($source, $offset);
+        if ($closeDelimiter === null) {
+            throw new \InvalidArgumentException('Expected TeX paired delimiter closing delimiter at offset ' . $offset);
+        }
+        $offset = $closeDelimiter['next'];
+
+        $this->skipWhitespace($source, $offset);
+        if ($offset !== strlen($source)) {
+            throw new \InvalidArgumentException('Unexpected TeX paired delimiter trailing content at offset ' . $offset);
+        }
+
+        return [
+            'name' => $name,
+            'arity' => 1,
+            'template' => '\\left' . $this->normalizePairedDelimiterSource($openDelimiter['value'], 'opening')
+                . ' #1 \\right' . $this->normalizePairedDelimiterSource($closeDelimiter['value'], 'closing'),
+        ];
+    }
+
+    private function readRawTexMacroNameReference(string $source, int &$offset, string $label): string
+    {
+        $this->skipWhitespace($source, $offset);
+        if (($source[$offset] ?? '') === '{') {
+            $name = $this->readTexBraceArgument($source, $offset);
+            if ($name === null || preg_match('/^\\\\([A-Za-z]+)$/', trim($name['value']), $nameMatch) !== 1) {
+                throw new \InvalidArgumentException('Expected TeX ' . $label . ' macro name at offset ' . $offset);
+            }
+
+            $offset = $name['next'];
+
+            return $nameMatch[1];
+        }
+
+        if (($source[$offset] ?? '') !== '\\') {
+            throw new \InvalidArgumentException('Expected TeX ' . $label . ' macro name at offset ' . $offset);
+        }
+
+        $offset++;
+        $name = $this->readCommandName($source, $offset);
+        if (preg_match('/^[A-Za-z]+$/', $name) !== 1) {
+            throw new \InvalidArgumentException('Expected TeX ' . $label . ' macro name at offset ' . $offset);
+        }
+
+        return $name;
+    }
+
+    private function normalizePairedDelimiterSource(string $delimiter, string $side): string
+    {
+        $delimiter = trim($delimiter);
+        if ($delimiter === '') {
+            throw new \InvalidArgumentException('Expected TeX paired delimiter ' . $side . ' delimiter');
+        }
+
+        if ($delimiter === '.') {
+            return '.';
+        }
+
+        if (strlen($delimiter) === 1 && str_contains('()[]|/<>', $delimiter)) {
+            return $delimiter;
+        }
+
+        if (($delimiter[0] ?? '') === '\\') {
+            $offset = 1;
+            $command = $this->readCommandName($delimiter, $offset);
+            $this->skipWhitespace($delimiter, $offset);
+            if ($offset === strlen($delimiter) && isset(self::DELIMITER_COMMANDS[$command])) {
+                return '\\' . $command;
+            }
+        }
+
+        throw new \InvalidArgumentException('Unsupported TeX paired delimiter ' . $side . ' delimiter ' . $delimiter);
     }
 
     private function normalizeMathOperatorNameText(string $text): string

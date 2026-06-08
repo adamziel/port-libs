@@ -388,6 +388,12 @@ if (!$vueCodeBlock instanceof PortLibs\Pandoc\AstNode || $vueCodeBlock->type !==
 }
 $vue = $highlighter->highlightCodeBlock($vueCodeBlock, 'breezedark');
 $vueWordpressBlock = $highlighter->wordpressHtmlBlock($vueCodeBlock, 'breezedark');
+$ocamlCodeBlock = $document->children[61] ?? null;
+if (!$ocamlCodeBlock instanceof PortLibs\Pandoc\AstNode || $ocamlCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an OCaml code block');
+}
+$ocaml = $highlighter->highlightCodeBlock($ocamlCodeBlock, 'monochrome');
+$ocamlWordpressBlock = $highlighter->wordpressHtmlBlock($ocamlCodeBlock, 'monochrome');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1661,6 +1667,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($vueWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
         throw new RuntimeException('Expected Vue WordPress style metadata');
     }
+    if (($ocaml['language'] ?? '') !== 'ocaml') {
+        throw new RuntimeException('Expected OCaml language handoff');
+    }
+    if (($ocaml['requestedLanguage'] ?? '') !== 'ml') {
+        throw new RuntimeException('Expected ML requested-language wrapper handoff');
+    }
+    if (($ocaml['lineNumbering']['start'] ?? null) !== 880) {
+        throw new RuntimeException('Expected OCaml source startFrom line-number handoff');
+    }
+    if (!str_contains($ocaml['html'], '<span class="kw">open</span> <span class="dt">Yojson.Safe</span>')) {
+        throw new RuntimeException('Expected OCaml open module token handoff');
+    }
+    if (!str_contains($ocaml['html'], '<span class="ot">source_id</span> <span class="op">:</span> <span class="dt">int</span><span class="op">;</span>')) {
+        throw new RuntimeException('Expected OCaml record-field token handoff');
+    }
+    if (!str_contains($ocaml['html'], '<span class="kw">let</span> <span class="fu">normalize_title</span>')) {
+        throw new RuntimeException('Expected OCaml function binding token handoff');
+    }
+    if (!str_contains($ocaml['html'], '<span class="dt">Printf</span><span class="op">.</span><span class="fu">sprintf</span>')) {
+        throw new RuntimeException('Expected OCaml module function token handoff');
+    }
+    if (!str_contains($ocamlWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
+        throw new RuntimeException('Expected OCaml WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1742,6 +1772,7 @@ echo "kotlinHighlightedHtml:\n" . $kotlin['html'] . "\n";
 echo "scalaHighlightedHtml:\n" . $scala['html'] . "\n";
 echo "elixirHighlightedHtml:\n" . $elixir['html'] . "\n";
 echo "vueHighlightedHtml:\n" . $vue['html'] . "\n";
+echo "ocamlHighlightedHtml:\n" . $ocaml['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1793,4 +1824,5 @@ echo "kotlinWordpressBlock:\n" . $kotlinWordpressBlock . "\n";
 echo "scalaWordpressBlock:\n" . $scalaWordpressBlock . "\n";
 echo "elixirWordpressBlock:\n" . $elixirWordpressBlock . "\n";
 echo "vueWordpressBlock:\n" . $vueWordpressBlock . "\n";
+echo "ocamlWordpressBlock:\n" . $ocamlWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

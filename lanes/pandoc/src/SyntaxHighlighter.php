@@ -185,6 +185,10 @@ final class SyntaxHighlighter
         'nginx-conf' => 'nginx',
         'nginx-config' => 'nginx',
         'nginxconf' => 'nginx',
+        'ml' => 'ocaml',
+        'mli' => 'ocaml',
+        'ocaml' => 'ocaml',
+        'ocaml-interface' => 'ocaml',
         'perl' => 'perl',
         'pl' => 'perl',
         'pgsql' => 'sql',
@@ -206,6 +210,8 @@ final class SyntaxHighlighter
         'q' => 'r',
         'r' => 'r',
         'ractive' => 'mustache',
+        'reason' => 'ocaml',
+        'reasonml' => 'ocaml',
         'rdf' => 'xml',
         'rss' => 'xml',
         'r-script' => 'r',
@@ -710,6 +716,7 @@ final class SyntaxHighlighter
             'mustache' => $this->tokenizeMustache($code),
             'nginx' => $this->tokenizeNginx($code),
             'nix' => $this->tokenizeNix($code),
+            'ocaml' => $this->tokenizeOcaml($code),
             'perl' => $this->tokenizePerl($code),
             'php' => $this->tokenizePhp($code),
             'powershell' => $this->tokenizePowerShell($code),
@@ -2496,6 +2503,33 @@ final class SyntaxHighlighter
             ['function', '/^\\b(?:assert|collectgarbage|dofile|error|getmetatable|ipairs|load|next|pairs|pcall|print|rawequal|rawget|rawlen|rawset|require|select|setmetatable|tonumber|tostring|type|warn|xpcall)\\b/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:\\.\\.\\.|\\.\\.|==|~=|<=|>=|::|\\/\\/|[{}()[\\];,.+*\\/%=#<>:-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeOcaml(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\(\*[\s\S]*?\*\)/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['constant', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['attribute', '/^\[@{1,3}[A-Za-z_][A-Za-z0-9_\'.-]*/'],
+            ['attribute', '/^%[A-Za-z_][A-Za-z0-9_\'.-]*/'],
+            ['attribute', '/^[~?][A-Za-z_][A-Za-z0-9_\']*:?(?=\s*)/'],
+            ['attribute', '/^\b[a-z_][A-Za-z0-9_\']*(?=\s*:)/'],
+            ['keyword', '/^\b(?:and|as|assert|begin|class|constraint|do|done|downto|else|end|exception|external|for|fun|function|functor|if|in|include|inherit|initializer|lazy|let|match|method|module|mutable|new|nonrec|object|of|open|or|private|rec|sig|struct|then|to|try|type|val|virtual|when|while|with)\b/'],
+            ['constant', '/^\b(?:Error|False|None|Ok|Some|True|false|true)\b/'],
+            ['datatype', '/^\b(?:array|bool|bytes|char|float|int|list|option|result|string|unit)\b/'],
+            ['datatype', '/^\b[A-Z][A-Za-z0-9_\']*(?:\.[A-Z][A-Za-z0-9_\']*)*/'],
+            ['number', '/^-?\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|0[oO][0-7](?:_?[0-7])*|\d(?:_?\d)*(?:\.\d(?:_?\d)*)?(?:[eE][+-]?\d(?:_?\d)*)?)\b/'],
+            ['function', '/^\b[A-Z][A-Za-z0-9_\']*(?:\.[A-Za-z_][A-Za-z0-9_\']*)+\b/'],
+            ['function', '/^\b(?:compare|decode|encode|find|map|mem|printf|sprintf|trim|value)\b/'],
+            ['function', '/^\b[a-z_][A-Za-z0-9_\']*(?=\s*(?:[({]|\?|\~|:))/'],
+            ['variable', '/^\b_[A-Za-z0-9_\']*\b/'],
+            ['variable', '/^\b[a-z_][A-Za-z0-9_\']*\b/'],
+            ['operator', '/^(?:->|=>|\|>|@@|::|:=|==|!=|<>|<=|>=|&&|\|\||\?\?|[{}()[\];,.+*\/%=!<>?:&|^~-])/'],
         ]);
     }
 

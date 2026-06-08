@@ -150,6 +150,12 @@ return [
         $t->same('nginx', SyntaxHighlighter::normalizeLanguage('nginxconf'));
         $t->same('nginx', SyntaxHighlighter::normalizeLanguage('nginx-config'));
         $t->same('nginx', SyntaxHighlighter::normalizeLanguage('language-nginx'));
+        $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('ocaml'));
+        $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('ml'));
+        $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('mli'));
+        $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('reason'));
+        $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('reasonml'));
+        $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('language-ocaml-interface'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('make'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('makefile'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('GNUmakefile'));
@@ -1892,6 +1898,48 @@ return [
         $t->same('html-vue', $directVue['requestedLanguage']);
         $t->contains('<span class="fu">&lt;ImportCard</span> <span class="ot">:title</span><span class="op">=</span><span class="st">&quot;post.title&quot;</span><span class="op">&gt;{{</span>', $directVue['html']);
         $t->contains('<span class="op">&gt;{{</span> <span class="va">post</span><span class="op">.</span><span class="va">title</span> <span class="op">??</span> <span class="st">&quot;Untitled&quot;</span> <span class="op">}}</span>', $directVue['html']);
+    },
+    'highlights ocaml review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[61] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an OCaml code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'monochrome');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'monochrome');
+        $directReason = $highlighter->highlight('let normalizeTitle = "Untitled";', 'reasonml');
+
+        $t->same('ml', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('ml'));
+        $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('ocaml-interface'));
+        $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('reasonml'));
+        $t->same('ocaml', $highlighted['language']);
+        $t->same('ml', $highlighted['requestedLanguage']);
+        $t->same('monochrome', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(880, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource ml numberLines"><code class="sourceCode ocaml" style="counter-reset: source-line 879;">', $highlighted['html']);
+        $t->contains('<span id="ocaml-review-880"><a href="#ocaml-review-880"></a><span class="co">(* WordPress import review normalizer *)</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">open</span> <span class="dt">Yojson.Safe</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span> <span class="va">review_packet</span> <span class="op">=</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">source_id</span> <span class="op">:</span> <span class="dt">int</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">title</span> <span class="op">:</span> <span class="dt">string</span> <span class="dt">option</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="fu">normalize_title</span> <span class="op">?(</span><span class="va">fallback</span><span class="op">=</span><span class="st">&quot;Untitled&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="op">|</span> <span class="cn">Some</span> <span class="va">title</span> <span class="kw">when</span> <span class="dt">String</span><span class="op">.</span><span class="fu">trim</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Printf</span><span class="op">.</span><span class="fu">sprintf</span> <span class="st">&quot;Import %d&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Result.Ok</span> <span class="cn">true</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="monochrome">', $wordpressBlock);
+        $t->contains('<span class="st">&quot;core/paragraph&quot;</span><span class="op">;</span> <span class="st">&quot;core/html&quot;</span>', $wordpressBlock);
+        $t->same('ocaml', $directReason['language']);
+        $t->same('reasonml', $directReason['requestedLanguage']);
+        $t->contains('<span class="kw">let</span> <span class="va">normalizeTitle</span> <span class="op">=</span> <span class="st">&quot;Untitled&quot;</span><span class="op">;</span>', $directReason['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

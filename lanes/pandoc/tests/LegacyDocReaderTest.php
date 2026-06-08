@@ -1854,6 +1854,25 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($corruptDocBytes));
     },
+    'rejects unowned CFB FAT marker entries on physical sectors before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Reserved FAT marker packet\r"),
+        ]);
+        $sectorSize = 512;
+        $unusedSectorId = intdiv(strlen($bytes) - $sectorSize, $sectorSize);
+        $bytesWithUnusedSector = $bytes . str_repeat("\0", $sectorSize);
+        $fatEntryOffset = $sectorSize + ($unusedSectorId * 4);
+
+        foreach ([
+            'reserved marker' => 0xfffffffb,
+            'out-of-range regular sector pointer' => $unusedSectorId + 16,
+            'unowned FATSECT marker' => 0xfffffffd,
+            'unowned DIFSECT marker' => 0xfffffffc,
+        ] as $_label => $fatEntryValue) {
+            $corruptDocBytes = substr_replace($bytesWithUnusedSector, $u32($fatEntryValue), $fatEntryOffset, 4);
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($corruptDocBytes));
+        }
+    },
     'rejects inconsistent CFB MiniFAT and DIFAT header chains before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',

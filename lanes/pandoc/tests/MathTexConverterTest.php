@@ -402,6 +402,46 @@ return [
         $t->contains('<munderover><mi>arg review</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover>', $readerMathml);
         $t->true(!str_contains($mathml . $readerMathml, '<mi>\\argreview</mi>'));
     },
+    'captures bounded declared paired delimiters from markdown for mathml handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '\\DeclarePairedDelimiter{\\wpabs}{\\lvert}{\\rvert}',
+            '\\DeclarePairedDelimiter\\wpangle{\\langle}{\\rangle}',
+            '',
+            '$\\wpabs{p_i + m_i} + \\wpangle{q_i}$',
+        ]));
+        $firstDeclaration = $document->children[0];
+        $secondDeclaration = $document->children[1];
+        $math = $document->children[2]->children[0];
+        $macros = $converter->macroDefinitionsFromDocument($document);
+        $mathml = $converter->texToMathMl('\\wpabs{p_i + m_i} + \\wpangle{q_i}', true, $macros);
+        $readerMathml = $converter->mathMlFor($math);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\wpabs{x_i}', false, $macros);
+
+        $t->same('raw_tex', $firstDeclaration->type);
+        $t->same('DeclarePairedDelimiter', $firstDeclaration->attr('command'));
+        $t->same('\\DeclarePairedDelimiter{\\wpabs}{\\lvert}{\\rvert}', $firstDeclaration->attr('tex'));
+        $t->same('raw_tex', $secondDeclaration->type);
+        $t->same('DeclarePairedDelimiter', $secondDeclaration->attr('command'));
+        $t->same('\\DeclarePairedDelimiter\\wpangle{\\langle}{\\rangle}', $secondDeclaration->attr('tex'));
+        $t->same([
+            'wpabs' => ['arity' => 1, 'template' => '\\left\\lvert #1 \\right\\rvert'],
+            'wpangle' => ['arity' => 1, 'template' => '\\left\\langle #1 \\right\\rangle'],
+        ], $macros);
+        $t->same('\\left\\lvert p_i + m_i \\right\\rvert + \\left\\langle q_i \\right\\rangle', $math->attr('text'));
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+        $t->contains('<mo fence="true" stretchy="true">|</mo><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo fence="true" stretchy="true">|</mo><mo>+</mo><mo fence="true" stretchy="true">⟨</mo><msub><mi>q</mi><mi>i</mi></msub><mo fence="true" stretchy="true">⟩</mo>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">\\wpabs{p_i + m_i} + \\wpangle{q_i}</annotation>', $mathml);
+        $t->contains('<mo fence="true" stretchy="true">|</mo><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo fence="true" stretchy="true">|</mo>', $readerMathml);
+        $t->contains('alttext="vertical bar x sub i vertical bar"', $accessibleMathml);
+        $t->true(!str_contains($mathml . $readerMathml, '<mi>\\wpabs</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiter{\\bad}{\\input{secret}}{\\rvert}']),
+        ])));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiter{\\bad}{\\lvert}{}']),
+        ])));
+    },
     'rejects unsupported bounded tex macro definitions before mathml conversion' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
