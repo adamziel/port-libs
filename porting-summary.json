@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-08 23:45:49 UTC",
-    "sourceCommit": "04878c2d5c57d16172dcae66b4ced2d6a4447658",
-    "sourceCommitShort": "04878c2d5c57",
+    "generated": "2026-06-08 23:46:35 UTC",
+    "sourceCommit": "188120ad12d64170af6df8437e20fe1b6e719eb9",
+    "sourceCommitShort": "188120ad12d6",
     "sourceBranch": "unknown",
-    "dashboardCommit": "04878c2d5c57d16172dcae66b4ced2d6a4447658",
-    "dashboardCommitShort": "04878c2d5c57",
+    "dashboardCommit": "188120ad12d64170af6df8437e20fe1b6e719eb9",
+    "dashboardCommitShort": "188120ad12d6",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2401",
-            "coverage": "2,401 / 2,276 (105.5%)",
+            "mapped": "2402",
+            "coverage": "2,402 / 2,276 (105.5%)",
             "mapPercent": "105.5%",
             "unmapped": "0",
-            "php": "1,982 pass / 0 fail",
+            "php": "1,984 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-08 UTC table geometry current-base legacy table placement ali...",
-            "currentWork": "XML/HTML5 DOM current-base MathML annotation source metadata slice completed; focused...",
-            "nextTarget": "For XML/HTML5 DOM follow-up, choose a non-overlapping native...",
-            "remainingGate": "No new support component is needed for this slice: it reuses native H...",
+            "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
+            "nextTarget": "For DOCX/OpenXML follow-up, choose a non-overlapping bounded...",
+            "remainingGate": "No new support component is needed for this slice: it reuses native D...",
             "commit": "pending fast ba..."
         },
         {

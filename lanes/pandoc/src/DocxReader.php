@@ -7450,7 +7450,7 @@ final class DocxReader
                     )
                 );
                 if ($image instanceof AstNode) {
-                    $nodes[] = $image;
+                    $nodes[] = $this->drawingHyperlinkWrappedNode($image, $docPr, $relationships);
                 }
             }
 
@@ -7896,6 +7896,139 @@ final class DocxReader
         ];
 
         return new AstNode('image', $attrs, $alt === '' ? [] : [new AstNode('text', ['text' => $alt])]);
+    }
+
+    private function drawingHyperlinkWrappedNode(AstNode $image, ?\DOMElement $docPr, OpcRelationships $relationships): AstNode
+    {
+        $attrs = $this->drawingHyperlinkAttrs($docPr, $relationships, 'click');
+        if ($attrs === null) {
+            return $image;
+        }
+
+        $hoverAttrs = $this->drawingHyperlinkAttrs($docPr, $relationships, 'hover');
+        if ($hoverAttrs !== null && isset($hoverAttrs['attributes']) && is_array($hoverAttrs['attributes'])) {
+            $attrs['attributes'] = array_merge($attrs['attributes'] ?? [], $this->prefixedDrawingHoverAttrs($hoverAttrs['attributes']));
+            if (isset($hoverAttrs['url']) && is_string($hoverAttrs['url']) && $hoverAttrs['url'] !== '') {
+                $attrs['attributes']['data-docx-drawing-hover-url'] = $hoverAttrs['url'];
+            }
+            if (isset($hoverAttrs['title']) && is_string($hoverAttrs['title']) && $hoverAttrs['title'] !== '') {
+                $attrs['attributes']['data-docx-drawing-hover-tooltip'] = $hoverAttrs['title'];
+            }
+        }
+
+        return new AstNode('link', $attrs, [$image]);
+    }
+
+    /**
+     * @return array{url:string, title?:string, classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function drawingHyperlinkAttrs(?\DOMElement $docPr, OpcRelationships $relationships, string $kind): ?array
+    {
+        if (!$docPr instanceof \DOMElement) {
+            return null;
+        }
+
+        $element = $this->firstChildElement(
+            $docPr,
+            self::DRAWINGML_MAIN_NS,
+            $kind === 'hover' ? 'hlinkHover' : 'hlinkClick'
+        );
+        if (!$element instanceof \DOMElement) {
+            return null;
+        }
+
+        $relationshipId = trim((string) ($this->relationshipAttr($element, 'id') ?? ''));
+        if ($relationshipId === '') {
+            return null;
+        }
+
+        $relationship = $relationships->byId($relationshipId);
+        if (!$relationship instanceof OpcRelationship || $relationship->type !== self::REL_TYPE_HYPERLINK) {
+            return null;
+        }
+
+        $target = $relationships->resolveTarget($relationship);
+        $attributes = [
+            'data-docx-drawing-hyperlink' => $kind,
+            'data-docx-relationship-id' => $relationshipId,
+            'data-docx-relationship-type' => $relationship->type,
+        ];
+        $attrs = [
+            'url' => $target,
+            'classes' => ['docx-drawing-hyperlink', 'docx-drawing-hyperlink-' . $kind],
+            'attributes' => $attributes,
+        ];
+
+        $tooltip = trim($element->getAttribute('tooltip'));
+        if ($tooltip !== '') {
+            $attrs['title'] = $tooltip;
+            $attrs['attributes']['data-docx-tooltip'] = $tooltip;
+        }
+
+        foreach ([
+            'action' => 'data-docx-action',
+            'tgtFrame' => 'data-docx-target-frame',
+        ] as $source => $targetAttribute) {
+            $value = trim($element->getAttribute($source));
+            if ($value !== '') {
+                $attrs['attributes'][$targetAttribute] = $value;
+            }
+        }
+
+        foreach ([
+            'history' => 'data-docx-history',
+            'highlightClick' => 'data-docx-highlight-click',
+            'endSnd' => 'data-docx-end-sound',
+        ] as $source => $targetAttribute) {
+            $value = trim($element->getAttribute($source));
+            if ($value === '') {
+                continue;
+            }
+
+            $onOff = $this->onOffStringValue($value);
+            $attrs['attributes'][$targetAttribute] = $onOff === null ? $value : ($onOff ? 'true' : 'false');
+        }
+
+        if (!$relationship->isExternal()) {
+            $attrs['attributes']['data-docx-external'] = 'false';
+
+            return $attrs;
+        }
+
+        $externalTarget = $relationship->externalTargetPreflight();
+        if (!$externalTarget['allowed']) {
+            return null;
+        }
+
+        $attrs['attributes']['data-docx-external'] = 'true';
+        $attrs['attributes']['data-docx-external-kind'] = $externalTarget['kind'];
+        if ($externalTarget['scheme'] !== null) {
+            $attrs['attributes']['data-docx-external-scheme'] = $externalTarget['scheme'];
+        }
+        $attrs['attributes']['data-docx-external-allowed'] = 'true';
+
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, string>
+     */
+    private function prefixedDrawingHoverAttrs(array $attributes): array
+    {
+        $prefixed = [];
+        foreach ($attributes as $name => $value) {
+            if ($name === 'data-docx-drawing-hyperlink') {
+                continue;
+            }
+
+            $suffix = str_starts_with($name, 'data-docx-')
+                ? substr($name, strlen('data-docx-'))
+                : $name;
+            $prefixed['data-docx-drawing-hover-' . $suffix] = $value;
+        }
+
+        return $prefixed;
     }
 
     /**

@@ -604,6 +604,11 @@ final class CitationCslProcessor
             $parts[] = $part;
         }
 
+        $entrySetSummary = $this->entrySetSummary($item);
+        if ($entrySetSummary !== '') {
+            $parts[] = $this->withTerminalPunctuation($entrySetSummary);
+        }
+
         $source = trim((string) ($item['source'] ?? ''));
         if ($source !== '') {
             $parts[] = 'Source: ' . rtrim($source, '.') . '.';
@@ -933,6 +938,9 @@ final class CitationCslProcessor
         $biblatexRefsection = self::firstStringField($item, ['biblatexRefsection', 'biblatex-refsection', 'refsection', 'ref-section']);
         $biblatexRefsegment = self::firstStringField($item, ['biblatexRefsegment', 'biblatex-refsegment', 'refsegment', 'ref-segment']);
         $citationAliases = self::stringListFromFirstField($item, ['citation-aliases', 'citationAliases', 'ids']);
+        $entrySetKeys = self::stringListFromFirstField($item, ['entrySet', 'entry-set', 'entryset']);
+        $entrySetItems = self::relatedItemSummaries($item['entrySetItems'] ?? $item['entry-set-items'] ?? [], $id, 'entrySetItems');
+        $missingEntrySetKeys = self::stringListFromFirstField($item, ['missingEntrySetKeys', 'missing-entry-set-keys', 'missing-entryset-keys']);
 
         return [
             'id' => $id,
@@ -1047,6 +1055,10 @@ final class CitationCslProcessor
             'keywordSummary' => implode('; ', $keywords),
             'sourceFiles' => $sourceFilePolicy['files'],
             'sourceFileDiagnostics' => $sourceFileDiagnostics,
+            'entrySetKeys' => $entrySetKeys,
+            'entrySetItems' => $entrySetItems,
+            'missingEntrySetKeys' => $missingEntrySetKeys,
+            'entrySetSummary' => self::summarizedReferenceValues($entrySetItems, $missingEntrySetKeys, $entrySetKeys),
             'relatedKeys' => self::stringListFromFirstField($item, ['relatedKeys', 'related-keys', 'related']),
             'relatedType' => self::firstStringField($item, ['relatedType', 'related-type', 'relatedtype']),
             'relatedString' => self::firstStringField($item, ['relatedString', 'related-string', 'relatedstring']),
@@ -1850,6 +1862,38 @@ final class CitationCslProcessor
         $date = trim((string) ($issuedDate['display'] ?? ''));
 
         return $date !== '' ? $label . ' (' . $date . ')' : $label;
+    }
+
+    /**
+     * @param list<array{display:string}> $referencedItems
+     * @param list<string> $missingKeys
+     * @param list<string> $fallbackKeys
+     */
+    private static function summarizedReferenceValues(array $referencedItems, array $missingKeys, array $fallbackKeys): string
+    {
+        $values = [];
+        foreach ($referencedItems as $referencedItem) {
+            $display = trim((string) ($referencedItem['display'] ?? ''));
+            if ($display !== '') {
+                $values[] = $display;
+            }
+        }
+
+        foreach ($missingKeys as $key) {
+            $key = trim((string) $key);
+            if ($key !== '') {
+                $values[] = 'missing: ' . $key;
+            }
+        }
+
+        if ($values === []) {
+            $values = array_values(array_filter(
+                array_map(static fn (mixed $key): string => trim((string) $key), $fallbackKeys),
+                static fn (string $key): bool => $key !== ''
+            ));
+        }
+
+        return implode('; ', $values);
     }
 
     /**
@@ -6086,6 +6130,37 @@ final class CitationCslProcessor
         return $label . ': ' . $values;
     }
 
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function entrySetSummary(array $item): string
+    {
+        $values = $this->entrySetSummaryValues($item);
+
+        return $values === '' ? '' : 'Entry set: ' . $values;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function entrySetSummaryValues(array $item): string
+    {
+        $summary = trim((string) ($item['entrySetSummary'] ?? ''));
+        if ($summary !== '') {
+            return $summary;
+        }
+
+        $entrySetItems = $item['entrySetItems'] ?? [];
+        $missing = $item['missingEntrySetKeys'] ?? [];
+        $keys = $item['entrySetKeys'] ?? [];
+
+        return self::summarizedReferenceValues(
+            is_array($entrySetItems) ? $entrySetItems : [],
+            is_array($missing) ? array_values(array_map('strval', $missing)) : [],
+            is_array($keys) ? array_values(array_map('strval', $keys)) : []
+        );
+    }
+
     private static function defaultRelatedTypeLabel(string $type): string
     {
         return match (strtolower(str_replace('_', '-', trim($type)))) {
@@ -7922,6 +7997,10 @@ final class CitationCslProcessor
             'lista', 'listb', 'listc', 'listd', 'liste', 'listf' => $this->biblatexCustomListValue($item, $normalized),
             'biblatex-custom-names', 'biblatex-custom-name-summary', 'biblatex-custom-names-summary' => (string) ($item['biblatexCustomNameSummary'] ?? ''),
             'namea', 'nameb', 'namec' => $this->biblatexCustomNameValue($item, $normalized),
+            'entry-set', 'entryset' => $this->entrySetSummaryValues($item),
+            'entry-set-summary', 'entryset-summary' => (string) ($item['entrySetSummary'] ?? ''),
+            'entry-set-keys', 'entryset-keys' => implode(', ', is_array($item['entrySetKeys'] ?? null) ? $item['entrySetKeys'] : []),
+            'missing-entry-set-keys', 'missing-entryset-keys' => implode(', ', is_array($item['missingEntrySetKeys'] ?? null) ? $item['missingEntrySetKeys'] : []),
             'issued-status', 'issued-date-status' => $this->dateMarkerStatusForVariable($item, 'issued'),
             'accessed-status', 'accessed-date-status' => $this->dateMarkerStatusForVariable($item, 'accessed'),
             'available-status', 'available-date-status' => $this->dateMarkerStatusForVariable($item, 'available-date'),

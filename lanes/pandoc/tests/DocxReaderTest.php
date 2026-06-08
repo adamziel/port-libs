@@ -141,6 +141,55 @@ $linkedMediaDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$drawingHyperlinkContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+$drawingHyperlinkRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdLinkedHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/linked-hero.png"/>
+  <Relationship Id="rIdUnsafeHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/unsafe-hero.png"/>
+  <Relationship Id="rIdHeroClick" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source-packet?media=hero" TargetMode="External"/>
+  <Relationship Id="rIdHeroHover" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source-packet/preview" TargetMode="External"/>
+  <Relationship Id="rIdUnsafeClick" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+</Relationships>
+XML;
+
+$drawingHyperlinkDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="25" name="Linked hero" descr="Linked hero alt" title="Hero drawing title">
+              <a:hlinkClick r:id="rIdHeroClick" tooltip="Open source packet" action="ppaction://hlinkshowjump?jump=nextslide" history="1" highlightClick="1"/>
+              <a:hlinkHover r:id="rIdHeroHover" tooltip="Preview source packet"/>
+            </wp:docPr>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdLinkedHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:inline>
+          <wp:inline>
+            <wp:docPr id="26" name="Unsafe linked hero" descr="Unsafe click alt" title="Unsafe drawing title">
+              <a:hlinkClick r:id="rIdUnsafeClick" tooltip="Unsafe source packet"/>
+            </wp:docPr>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdUnsafeHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $captionedDrawingContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -3368,6 +3417,22 @@ $buildLinkedMediaPackage = static function () use ($linkedMediaContentTypesXml, 
     ]);
 };
 
+$buildDrawingHyperlinkPackage = static function () use (
+    $drawingHyperlinkContentTypesXml,
+    $packageRelationshipsXml,
+    $drawingHyperlinkRelationshipsXml,
+    $drawingHyperlinkDocumentXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $drawingHyperlinkContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $drawingHyperlinkDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $drawingHyperlinkRelationshipsXml],
+        ['name' => 'word/media/linked-hero.png', 'data' => 'LINKEDHERO'],
+        ['name' => 'word/media/unsafe-hero.png', 'data' => 'UNSAFEHERO'],
+    ]);
+};
+
 $buildCaptionedDrawingPackage = static function () use (
     $captionedDrawingContentTypesXml,
     $packageRelationshipsXml,
@@ -4440,6 +4505,82 @@ return [
         $t->same(true, $media['items'][3]['external']);
         $t->same(0, $media['items'][3]['usedCount']);
         $t->same(['external-target-unsafe-scheme'], $media['items'][3]['issues']);
+    },
+    'preserves DOCX DrawingML image hyperlinks as safe linked media handoffs' => static function (TestRunner $t) use ($buildDrawingHyperlinkPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildDrawingHyperlinkPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(2, count($paragraph->children));
+
+        $link = $paragraph->children[0];
+        $t->same('link', $link->type);
+        $t->same('https://example.test/source-packet?media=hero', $link->attr('url'));
+        $t->same('Open source packet', $link->attr('title'));
+        $t->same(['docx-drawing-hyperlink', 'docx-drawing-hyperlink-click'], $link->attr('classes'));
+        $linkAttrs = $link->attr('attributes');
+        $t->same('click', $linkAttrs['data-docx-drawing-hyperlink']);
+        $t->same('rIdHeroClick', $linkAttrs['data-docx-relationship-id']);
+        $t->same(DocxReader::REL_TYPE_HYPERLINK, $linkAttrs['data-docx-relationship-type']);
+        $t->same('Open source packet', $linkAttrs['data-docx-tooltip']);
+        $t->same('ppaction://hlinkshowjump?jump=nextslide', $linkAttrs['data-docx-action']);
+        $t->same('true', $linkAttrs['data-docx-history']);
+        $t->same('true', $linkAttrs['data-docx-highlight-click']);
+        $t->same('true', $linkAttrs['data-docx-external']);
+        $t->same('absolute-uri', $linkAttrs['data-docx-external-kind']);
+        $t->same('https', $linkAttrs['data-docx-external-scheme']);
+        $t->same('true', $linkAttrs['data-docx-external-allowed']);
+        $t->same('rIdHeroHover', $linkAttrs['data-docx-drawing-hover-relationship-id']);
+        $t->same('https://example.test/source-packet/preview', $linkAttrs['data-docx-drawing-hover-url']);
+        $t->same('Preview source packet', $linkAttrs['data-docx-drawing-hover-tooltip']);
+        $t->same('true', $linkAttrs['data-docx-drawing-hover-external']);
+        $t->same('absolute-uri', $linkAttrs['data-docx-drawing-hover-external-kind']);
+        $t->same('https', $linkAttrs['data-docx-drawing-hover-external-scheme']);
+        $t->same('true', $linkAttrs['data-docx-drawing-hover-external-allowed']);
+
+        $linkedImage = $link->children[0];
+        $t->same('image', $linkedImage->type);
+        $t->same('word/media/linked-hero.png', $linkedImage->attr('url'));
+        $t->same('/word/media/linked-hero.png', $linkedImage->attr('sourcePart'));
+        $t->same(false, $linkedImage->attr('external'));
+        $t->same('rIdLinkedHero', $linkedImage->attr('relationshipId'));
+        $t->same('Linked hero alt', $linkedImage->attr('alt'));
+        $t->same('Hero drawing title', $linkedImage->attr('title'));
+        $t->same(10, $linkedImage->attr('bytes'));
+
+        $unsafeClickImage = $paragraph->children[1];
+        $t->same('image', $unsafeClickImage->type);
+        $t->same('word/media/unsafe-hero.png', $unsafeClickImage->attr('url'));
+        $t->same('/word/media/unsafe-hero.png', $unsafeClickImage->attr('sourcePart'));
+        $t->same('Unsafe click alt', $unsafeClickImage->attr('alt'));
+        $t->same('Unsafe drawing title', $unsafeClickImage->attr('title'));
+        $t->same(10, $unsafeClickImage->attr('bytes'));
+
+        $t->contains('[![Linked hero alt](word/media/linked-hero.png "Hero drawing title")](https://example.test/source-packet?media=hero "Open source packet"){.docx-drawing-hyperlink .docx-drawing-hyperlink-click', $markdown);
+        $t->contains('data-docx-drawing-hover-url="https://example.test/source-packet/preview"', $markdown);
+        $t->contains('![Unsafe click alt](word/media/unsafe-hero.png "Unsafe drawing title")', $markdown);
+        $t->true(!str_contains($markdown, 'javascript:alert'), 'Unsafe DrawingML image hyperlink target should not render to Markdown');
+
+        $t->contains('<a href="https://example.test/source-packet?media=hero" title="Open source packet" class="docx-drawing-hyperlink docx-drawing-hyperlink-click" data-docx-drawing-hyperlink="click" data-docx-relationship-id="rIdHeroClick"', $blocks);
+        $t->contains('<img src="word/media/linked-hero.png" alt="Linked hero alt" title="Hero drawing title"/>', $blocks);
+        $t->contains('data-docx-drawing-hover-url="https://example.test/source-packet/preview"', $blocks);
+        $t->contains('<img src="word/media/unsafe-hero.png" alt="Unsafe click alt" title="Unsafe drawing title"/>', $blocks);
+        $t->true(!str_contains($blocks, 'javascript:alert'), 'Unsafe DrawingML image hyperlink target should not render to WordPress blocks');
+
+        $media = $result['importReport']['media'];
+        $t->same(2, $media['count']);
+        $t->same(2, $media['embeddedCount']);
+        $t->same(0, $media['missingCount']);
+        $t->same(1, $media['items'][0]['usedCount']);
+        $t->same(['Linked hero alt'], $media['items'][0]['altTexts']);
+        $t->same(['Hero drawing title'], $media['items'][0]['titles']);
+        $t->same(1, $media['items'][1]['usedCount']);
+        $t->same(['Unsafe click alt'], $media['items'][1]['altTexts']);
+        $t->same(['Unsafe drawing title'], $media['items'][1]['titles']);
     },
     'groups DOCX image drawings followed by Caption-style paragraphs as figures' => static function (TestRunner $t) use ($buildCaptionedDrawingPackage): void {
         $reader = new DocxReader();

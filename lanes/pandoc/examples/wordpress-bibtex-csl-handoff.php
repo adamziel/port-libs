@@ -1796,7 +1796,7 @@ XML);
         '<dt>Smith 2026</dt><dd>Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.</dd>',
         '<dt>Müller et al. 2026</dt><dd>Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.</dd>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. Keywords: wordpress; import; reviewer. https://example.test/glossary.</dd>',
-        '<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>',
+        '<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026. Entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source.</dd>',
         '<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.</dd>',
         '<p>The xref chapter Ng (2025) keeps see-also parent metadata visible without crossref inheritance.</p>',
         '<dt>Ng 2025</dt><dd>Ng, Nia. Xref Chapter Review. 2025. 7-9. Xref: Migration Source Dossier (2026); missing: missing-dossier.</dd>',

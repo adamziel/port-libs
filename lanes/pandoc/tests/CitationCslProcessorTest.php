@@ -601,6 +601,9 @@ BIB;
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $set = $processor->item('migration-review-set');
         $manual = $processor->item('related-manual');
+        $t->same(['audit-paper', 'archived-site', 'missing-source'], $set['entrySetKeys'] ?? null);
+        $t->same(['missing-source'], $set['missingEntrySetKeys'] ?? null);
+        $t->same('Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source', $set['entrySetSummary'] ?? null);
         $t->same(['audit-paper', 'archived-site', 'missing-source'], $set['raw']['entrySet'] ?? null);
         $t->same(['missing-source'], $set['raw']['missingEntrySetKeys'] ?? null);
         $t->same('Packet Audit Trails', $set['raw']['entrySetItems'][0]['title'] ?? null);
@@ -614,8 +617,86 @@ BIB;
         $document = (new MarkdownReader())->read('Review cites @migration-review-set and related manual @related-manual.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites Migration Review Set (2026) and related manual Curator (2024).</p>', $blocks);
-        $t->contains('<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>', $blocks);
+        $t->contains('<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026. Entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source.</dd>', $blocks);
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.</dd>', $blocks);
+    },
+    'renders bounded biblatex entry set summaries into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@set{migration-review-set,
+  title    = {Migration Review Set},
+  date     = {2026-06-05},
+  entryset = {audit-paper, archived-site, missing-source}
+}
+
+@inproceedings{audit-paper,
+  options = {dataonly},
+  author  = {Smith, Ada},
+  title   = {Packet Audit Trails},
+  date    = {2026},
+  pages   = {12--18}
+}
+
+@online{archived-site,
+  options = {dataonly},
+  author  = {{Archive Team}},
+  title   = {Archive Site},
+  date    = {2026-05-31},
+  url     = {https://example.test/archive-site}
+}
+BIB;
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $set = $processor->item('migration-review-set');
+        $t->same(['audit-paper', 'archived-site', 'missing-source'], $set['entrySetKeys'] ?? null);
+        $t->same(['missing-source'], $set['missingEntrySetKeys'] ?? null);
+        $t->same('Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source', $set['entrySetSummary'] ?? null);
+        $t->same(
+            'Migration Review Set. 2026. Entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source.',
+            $processor->renderBibliographyEntry('migration-review-set')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="entry-set-summary"/>
+        <text variable="entry-set-keys"/>
+        <text variable="missing-entry-set-keys"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="entry-set"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Migration Review Set | Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source | audit-paper, archived-site, missing-source | missing-source]', $styled->renderCitationCluster([$citation('migration-review-set', '[@migration-review-set]')]));
+        $t->same('Migration Review Set :: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source', $styled->renderBibliographyEntry('migration-review-set'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-entry-set',
+            'title' => 'Manual Entry Set',
+            'entry-set' => 'manual-a, manual-missing',
+            'missing-entry-set-keys' => ['manual-missing'],
+            'entrySetItems' => [[
+                'id' => 'manual-a',
+                'title' => 'Manual A',
+                'issued' => ['date-parts' => [[2025]]],
+            ]],
+        ]])->item('manual-entry-set');
+        $t->same(['manual-a', 'manual-missing'], $direct['entrySetKeys'] ?? null);
+        $t->same('Manual A (2025); missing: manual-missing', $direct['entrySetSummary'] ?? null);
+
+        $document = (new MarkdownReader())->read('Entry-set source @migration-review-set keeps member provenance visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Entry-set source Migration Review Set (2026) keeps member provenance visible.</p>', $blocks);
+        $t->contains('<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026. Entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source.</dd>', $blocks);
     },
     'normalizes bounded biblatex related references into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
