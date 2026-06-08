@@ -9719,6 +9719,9 @@ final class PdfMetadataExtractor
      * The top-level security-handler /Filter names the encryption handler.
      * Duplicate declarations are ambiguous even when the selected value is an
      * unsupported handler, because another parser may choose the earlier value.
+     * A single composite, unresolved, or bare-token declaration is also
+     * fail-closed: the handler selector itself cannot be trusted before
+     * password validation.
      *
      * @param array<int, string> $objects
      * @return array<string, mixed>
@@ -9761,12 +9764,15 @@ final class PdfMetadataExtractor
             $entries,
             static fn (array $entry): bool => ($entry['status'] ?? null) !== 'security_handler_filter_name'
         ));
-        if (!$duplicate) {
+        $selectedIndex = count($entries) - 1;
+        $selectedEntry = $entries[$selectedIndex] ?? [];
+        $singleMalformedDeclaration = !$duplicate
+            && $malformedEntries !== []
+            && !in_array($selectedEntry['operand_shape'] ?? null, ['literal_string', 'hex_string'], true);
+        if (!$duplicate && !$singleMalformedDeclaration) {
             return [];
         }
 
-        $selectedIndex = count($entries) - 1;
-        $selectedEntry = $entries[$selectedIndex] ?? [];
         $ambiguous = true;
 
         return [
@@ -9801,7 +9807,9 @@ final class PdfMetadataExtractor
                 ),
                 static fn (mixed $shape): bool => is_string($shape)
             ))),
-            'status' => 'duplicate_security_handler_filter_entries_review',
+            'status' => $duplicate
+                ? 'duplicate_security_handler_filter_entries_review'
+                : 'malformed_security_handler_filter_entries_review',
             'entries' => $entries,
             'review_only' => true,
             'executes_decryption' => false,
