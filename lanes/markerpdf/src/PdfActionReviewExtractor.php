@@ -838,6 +838,10 @@ final class PdfActionReviewExtractor
 
         $dict = $this->dictionaryItems($resolved);
         if ($dict !== null && array_key_exists('D', $dict)) {
+            if ($this->resolvedDictionaryHasDuplicateKeys($resolved, self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)) {
+                return null;
+            }
+
             return $this->remoteDestinationValue($dict['D']);
         }
 

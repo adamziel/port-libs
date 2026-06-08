@@ -4450,7 +4450,7 @@ final class PdfImageRenderer
 
     private function inlineImageMalformedDictionaryTailOperandToken(string $token): bool
     {
-        if (preg_match('/^[+-]?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?$/', $token) === 1) {
+        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/', $token) === 1) {
             return true;
         }
 
