@@ -53,6 +53,9 @@ final class SyntaxHighlighter
         'awk' => 'awk',
         'awk-script' => 'awk',
         'bash' => 'bash',
+        'bat' => 'batch',
+        'batch' => 'batch',
+        'batchfile' => 'batch',
         'c' => 'c',
         'cargo-lock' => 'toml',
         'c#' => 'csharp',
@@ -71,6 +74,8 @@ final class SyntaxHighlighter
         'cmake-in' => 'cmake',
         'cmakelists' => 'cmake',
         'cmakelists-txt' => 'cmake',
+        'cmd' => 'batch',
+        'cmd-exe' => 'batch',
         'console' => 'bash',
         'containerfile' => 'dockerfile',
         'css' => 'css',
@@ -79,6 +84,7 @@ final class SyntaxHighlighter
         'diff' => 'diff',
         'docker' => 'dockerfile',
         'dockerfile' => 'dockerfile',
+        'dosbatch' => 'batch',
         'dot' => 'dot',
         'edn' => 'clojure',
         'elm' => 'elm',
@@ -694,6 +700,7 @@ final class SyntaxHighlighter
             'asciidoc' => $this->tokenizeAsciiDoc($code),
             'awk' => $this->tokenizeAwk($code),
             'bash' => $this->tokenizeBash($code),
+            'batch' => $this->tokenizeBatch($code),
             'c', 'cpp' => $this->tokenizeC($code),
             'clojure' => $this->tokenizeClojure($code),
             'cmake' => $this->tokenizeCMake($code),
@@ -2815,6 +2822,34 @@ final class SyntaxHighlighter
             ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*:)/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
             ['operator', '/^(?:=>|==|!=|<=|>=|\\.\\.\\.|[{}()[\\],.:;=+*\\/%!<>?&|#~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeBatch(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^::[^\n]*/'],
+            ['comment', '/^@?\bREM\b[^\n]*/i'],
+            ['region', '/^:[A-Za-z0-9_.-]+/'],
+            ['string', '/^"(?:\^\^|\^.|[^"\^])*"/s'],
+            ['variable', '/^%[A-Za-z_][A-Za-z0-9_]*%/'],
+            ['variable', '/^%~[fdpnxsatz]*\d/i'],
+            ['variable', '/^%\d/'],
+            ['variable', '/^%%[A-Za-z_][A-Za-z0-9_]*/'],
+            ['variable', '/^![A-Za-z_][A-Za-z0-9_]*!/'],
+            ['keyword', '/^@?\b(?:assoc|break|call|cd|chcp|cls|copy|del|dir|do|echo|else|endlocal|erase|exit|for|goto|if|in|md|mkdir|move|not|path|pause|popd|prompt|pushd|rd|ren|rename|rmdir|set|setlocal|shift|start|title|type|verify|xcopy)\b/i'],
+            ['operator', '/^\b(?:EQU|NEQ|LSS|LEQ|GTR|GEQ)\b/i'],
+            ['constant', '/^\b(?:defined|errorlevel|exist|nul|off|on)\b/i'],
+            ['function', '/^\b(?:composer|curl|mysql|php|powershell|robocopy|wp|wsl)(?=\s|$|[&|<>])/i'],
+            ['attribute', '/^--[A-Za-z0-9][A-Za-z0-9_-]*/'],
+            ['attribute', '/^\/[A-Za-z?][A-Za-z0-9_:-]*/'],
+            ['variable', '/^[A-Za-z_][A-Za-z0-9_]*(?=\s*=)/'],
+            ['number', '/^-?\b\d+(?:\.\d+)?\b/'],
+            ['variable', '/^\b[A-Za-z_][A-Za-z0-9_.-]*\b/'],
+            ['operator', '/^(?:\^\^|\^.|&&|\|\||>>|<<|==|[()&|<>@=+*\/%,;:!-])/'],
         ]);
     }
 

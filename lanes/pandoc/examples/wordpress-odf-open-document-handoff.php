@@ -289,6 +289,8 @@ $metaXml = <<<'XML'
     <dc:language>en</dc:language>
     <meta:generator>LibreOffice/7.6.4$Linux_X86_64 LibreOffice_project/7.6.4</meta:generator>
     <meta:editing-duration>PT1H2M3S</meta:editing-duration>
+    <meta:modification-date>2026-06-08T19:55:00Z</meta:modification-date>
+    <meta:modification-time>PT19H55M00S</meta:modification-time>
     <meta:printed-by>Migration Printer</meta:printed-by>
     <meta:print-date>2026-06-08</meta:print-date>
     <meta:print-time>PT12H34M56S</meta:print-time>
@@ -364,6 +366,10 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['metadata']['generator'] ?? '') !== 'LibreOffice/7.6.4$Linux_X86_64 LibreOffice_project/7.6.4') {
         throw new RuntimeException('Expected ODT generator metadata');
+    }
+    if (($result['metadata']['modificationDate'] ?? '') !== '2026-06-08T19:55:00Z'
+        || ($result['metadata']['modificationTime'] ?? '') !== 'PT19H55M00S') {
+        throw new RuntimeException('Expected ODT package modification metadata');
     }
     if (($result['metadata']['template']['href'] ?? '') !== 'Templates/import-review.ott'
         || ($result['metadata']['template']['title'] ?? '') !== 'Import Review Template') {

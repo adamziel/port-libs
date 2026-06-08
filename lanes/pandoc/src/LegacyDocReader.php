@@ -63,6 +63,10 @@ final class LegacyDocReader
     private const FIB_LCB_PLCF_FLD_EDN = 0x021e;
     private const FIB_FC_STTBF_RMARK = 0x0232;
     private const FIB_LCB_STTBF_RMARK = 0x0236;
+    private const FIB_FC_STTBF_CAPTION = 0x023a;
+    private const FIB_LCB_STTBF_CAPTION = 0x023e;
+    private const FIB_FC_STTBF_AUTO_CAPTION = 0x0242;
+    private const FIB_LCB_STTBF_AUTO_CAPTION = 0x0246;
     private const FIB_FC_PLCF_FLD_TXBX = 0x0262;
     private const FIB_LCB_PLCF_FLD_TXBX = 0x0266;
     private const FIB_FC_PLCF_FLD_HDR_TXBX = 0x0272;
@@ -149,7 +153,7 @@ final class LegacyDocReader
     private array $activeExternalFileReferences = [];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
     public function readBytes(string $bytes): array
     {
@@ -157,7 +161,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -364,6 +368,18 @@ final class LegacyDocReader
             $metadata['revisionAuthors'] = $revisionAuthors;
             $metadata['revisionAuthorPolicy'] = 'metadata-only-native-review';
         }
+        $captionDefinitions = $this->captionDefinitionReport($wordDocument, $tableStream, $fib);
+        if ($captionDefinitions !== []) {
+            $metadata['captionDefinitionCount'] = count($captionDefinitions);
+            $metadata['captionDefinitions'] = $captionDefinitions;
+            $metadata['captionDefinitionPolicy'] = 'metadata-only-native-review';
+        }
+        $autoCaptionRules = $this->autoCaptionRuleReport($wordDocument, $tableStream, $fib, $captionDefinitions);
+        if ($autoCaptionRules !== []) {
+            $metadata['autoCaptionRuleCount'] = count($autoCaptionRules);
+            $metadata['autoCaptionRules'] = $autoCaptionRules;
+            $metadata['autoCaptionPolicy'] = 'metadata-only-native-review';
+        }
         $comments = $this->commentReferenceReport($wordDocument, $tableStream, $textResult['text'], $subdocumentTexts, $commentAuthors);
         if ($comments !== []) {
             $metadata['commentReferenceCount'] = count($comments);
@@ -434,6 +450,8 @@ final class LegacyDocReader
             'comments' => $comments,
             'commentAuthors' => $commentAuthors,
             'revisionAuthors' => $revisionAuthors,
+            'captionDefinitions' => $captionDefinitions,
+            'autoCaptionRules' => $autoCaptionRules,
             'fieldCharacters' => $fieldCharacters,
             'fields' => $fields,
             'fieldStories' => $fieldStories,
@@ -483,6 +501,8 @@ final class LegacyDocReader
             'comments' => $comments,
             'commentAuthors' => $commentAuthors,
             'revisionAuthors' => $revisionAuthors,
+            'captionDefinitions' => $captionDefinitions,
+            'autoCaptionRules' => $autoCaptionRules,
             'fieldCharacters' => $fieldCharacters,
             'fields' => $fields,
             'fieldStories' => $fieldStories,
@@ -4318,6 +4338,296 @@ final class LegacyDocReader
         }
 
         return $records;
+    }
+
+    /**
+     * @param array<string,mixed> $fib
+     * @return list<array<string,mixed>>
+     */
+    private function captionDefinitionReport(string $wordDocument, ?string $tableStream, array $fib): array
+    {
+        if (strlen($wordDocument) < self::FIB_LCB_STTBF_CAPTION + 4) {
+            return [];
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_STTBF_CAPTION);
+        if ($length === 0 || ($fib['template'] ?? false) !== true) {
+            return [];
+        }
+        if ($tableStream === null) {
+            throw new \RuntimeException('Legacy DOC caption definitions require the selected table stream');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_STTBF_CAPTION);
+
+        return $this->parseSttbfCaption(
+            $this->tableStreamSlice($tableStream, $offset, $length, 'SttbfCaption caption definition table')
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $fib
+     * @param list<array<string,mixed>> $captionDefinitions
+     * @return list<array<string,mixed>>
+     */
+    private function autoCaptionRuleReport(string $wordDocument, ?string $tableStream, array $fib, array $captionDefinitions): array
+    {
+        if (strlen($wordDocument) < self::FIB_LCB_STTBF_AUTO_CAPTION + 4) {
+            return [];
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_STTBF_AUTO_CAPTION);
+        if ($length === 0 || ($fib['template'] ?? false) !== true) {
+            return [];
+        }
+        if ($tableStream === null) {
+            throw new \RuntimeException('Legacy DOC AutoCaption rules require the selected table stream');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_STTBF_AUTO_CAPTION);
+
+        return $this->parseSttbfAutoCaption(
+            $this->tableStreamSlice($tableStream, $offset, $length, 'SttbfAutoCaption rule table'),
+            $captionDefinitions
+        );
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parseSttbfCaption(string $bytes): array
+    {
+        $length = strlen($bytes);
+        if ($length < 6) {
+            throw new \RuntimeException('Legacy DOC caption definition table is truncated');
+        }
+        if (self::u16($bytes, 0) !== 0xffff) {
+            throw new \RuntimeException('Legacy DOC caption definition table must use extended strings');
+        }
+
+        $count = self::u16($bytes, 2);
+        if ($count > 1024) {
+            throw new \RuntimeException('Legacy DOC caption definition table contains too many captions');
+        }
+        if (self::u16($bytes, 4) !== 6) {
+            throw new \RuntimeException('Legacy DOC caption definition table must contain 6-byte CAPI records');
+        }
+
+        $cursor = 6;
+        $records = [];
+        for ($index = 0; $index < $count; $index++) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC caption label length is truncated');
+            }
+
+            $characters = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if ($characters === 0 || $characters > 40) {
+                throw new \RuntimeException('Legacy DOC caption labels must contain between 1 and 40 characters');
+            }
+
+            $byteLength = $characters * 2;
+            if ($cursor + $byteLength + 6 > $length) {
+                throw new \RuntimeException('Legacy DOC caption definition table points outside its string or CAPI data');
+            }
+
+            $label = $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
+            $cursor += $byteLength;
+            $record = $this->parseCaptionCapi(substr($bytes, $cursor, 6), $index, $label, $characters);
+            $cursor += 6;
+
+            $records[] = $record;
+        }
+        if ($cursor !== $length) {
+            throw new \RuntimeException('Legacy DOC caption definition table contains trailing bytes');
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function parseCaptionCapi(string $bytes, int $index, string $label, int $characters): array
+    {
+        if (strlen($bytes) !== 6) {
+            throw new \RuntimeException('Legacy DOC caption CAPI record is truncated');
+        }
+
+        $flags = self::u16($bytes, 0);
+        $insertLocationCode = $flags & 0x0003;
+        if (!in_array($insertLocationCode, [0, 1], true)) {
+            throw new \RuntimeException('Legacy DOC caption CAPI insert location is invalid');
+        }
+
+        $includeChapterNumber = (($flags >> 2) & 0x0001) === 1;
+        $headingLevel = ($flags >> 3) & 0x000f;
+        $noLabel = (($flags >> 15) & 0x0001) === 1;
+        $numberFormatCode = self::u16($bytes, 2);
+        if (!$this->isKnownMsonfc($numberFormatCode)) {
+            throw new \RuntimeException('Legacy DOC caption CAPI number format is not a known MSONFC value');
+        }
+
+        $separatorCode = self::u16($bytes, 4);
+        $record = [
+            'index' => $index,
+            'sourceTable' => 'SttbfCaption',
+            'label' => $label,
+            'labelCharacterCount' => $characters,
+            'insertLocationCode' => $insertLocationCode,
+            'insertLocation' => $insertLocationCode === 0 ? 'below-selected-item' : 'above-selected-item',
+            'includeLabel' => !$noLabel,
+            'includeChapterNumber' => $includeChapterNumber,
+            'numberFormatCode' => $numberFormatCode,
+            'numberFormat' => $this->msonfcNumberFormat($numberFormatCode),
+            'canExposeBytes' => false,
+            'extractionPolicy' => 'metadata-only-native-review',
+        ];
+        if ($noLabel) {
+            $record['noLabel'] = true;
+        }
+        if ($includeChapterNumber) {
+            if ($headingLevel < 1 || $headingLevel > 9) {
+                throw new \RuntimeException('Legacy DOC caption CAPI chapter heading level is invalid');
+            }
+            if (!$this->isValidCaptionSeparatorCode($separatorCode)) {
+                throw new \RuntimeException('Legacy DOC caption CAPI chapter separator is invalid');
+            }
+
+            $record['headingLevel'] = $headingLevel;
+            $record['chapterSeparatorCode'] = $separatorCode;
+            $record['chapterSeparator'] = $this->captionSeparatorName($separatorCode);
+            $record['chapterSeparatorCharacter'] = $this->captionSeparatorCharacter($separatorCode);
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $captionDefinitions
+     * @return list<array<string,mixed>>
+     */
+    private function parseSttbfAutoCaption(string $bytes, array $captionDefinitions): array
+    {
+        $length = strlen($bytes);
+        if ($length < 6) {
+            throw new \RuntimeException('Legacy DOC AutoCaption table is truncated');
+        }
+        if (self::u16($bytes, 0) !== 0xffff) {
+            throw new \RuntimeException('Legacy DOC AutoCaption table must use extended strings');
+        }
+
+        $count = self::u16($bytes, 2);
+        if ($count > 1024) {
+            throw new \RuntimeException('Legacy DOC AutoCaption table contains too many rules');
+        }
+        if (self::u16($bytes, 4) !== 2) {
+            throw new \RuntimeException('Legacy DOC AutoCaption table must contain 2-byte caption indexes');
+        }
+
+        $cursor = 6;
+        $records = [];
+        for ($index = 0; $index < $count; $index++) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC AutoCaption ProgID length is truncated');
+            }
+
+            $characters = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if ($characters === 0 || $characters > 255) {
+                throw new \RuntimeException('Legacy DOC AutoCaption ProgID must contain between 1 and 255 characters');
+            }
+
+            $byteLength = $characters * 2;
+            if ($cursor + $byteLength + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC AutoCaption table points outside its ProgID or index data');
+            }
+
+            $progId = $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
+            $cursor += $byteLength;
+            $captionIndex = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if (!array_key_exists($captionIndex, $captionDefinitions)) {
+                throw new \RuntimeException('Legacy DOC AutoCaption table references an unknown caption definition');
+            }
+
+            $caption = $captionDefinitions[$captionIndex];
+            $record = [
+                'index' => $index,
+                'sourceTable' => 'SttbfAutoCaption',
+                'progId' => $progId,
+                'progIdCharacterCount' => $characters,
+                'captionIndex' => $captionIndex,
+                'captionLabel' => (string) ($caption['label'] ?? ''),
+                'captionInsertLocation' => (string) ($caption['insertLocation'] ?? ''),
+                'captionNumberFormat' => (string) ($caption['numberFormat'] ?? ''),
+                'canExposeBytes' => false,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ];
+            if (isset($caption['headingLevel'])) {
+                $record['captionHeadingLevel'] = (int) $caption['headingLevel'];
+            }
+            if (isset($caption['chapterSeparator'])) {
+                $record['captionChapterSeparator'] = (string) $caption['chapterSeparator'];
+            }
+
+            $records[] = $record;
+        }
+        if ($cursor !== $length) {
+            throw new \RuntimeException('Legacy DOC AutoCaption table contains trailing bytes');
+        }
+
+        return $records;
+    }
+
+    private function isKnownMsonfc(int $numberFormatCode): bool
+    {
+        return ($numberFormatCode >= 0x00 && $numberFormatCode <= 0x3b)
+            || $numberFormatCode === 0xff;
+    }
+
+    private function msonfcNumberFormat(int $numberFormatCode): string
+    {
+        return [
+            0x00 => 'decimal',
+            0x01 => 'upperRoman',
+            0x02 => 'lowerRoman',
+            0x03 => 'upperLetter',
+            0x04 => 'lowerLetter',
+            0x05 => 'ordinal',
+            0x06 => 'cardinalText',
+            0x07 => 'ordinalText',
+            0x08 => 'hex',
+            0x16 => 'decimalZero',
+            0x17 => 'bullet',
+            0xff => 'none',
+        ][$numberFormatCode] ?? sprintf('msonfc-0x%02x', $numberFormatCode);
+    }
+
+    private function isValidCaptionSeparatorCode(int $separatorCode): bool
+    {
+        return in_array($separatorCode, [0x001e, 0x002e, 0x003a, 0x2013, 0x2014], true);
+    }
+
+    private function captionSeparatorName(int $separatorCode): string
+    {
+        return [
+            0x001e => 'hyphen',
+            0x002e => 'period',
+            0x003a => 'colon',
+            0x2013 => 'en-dash',
+            0x2014 => 'em-dash',
+        ][$separatorCode];
+    }
+
+    private function captionSeparatorCharacter(int $separatorCode): string
+    {
+        return match ($separatorCode) {
+            0x001e => '-',
+            0x002e => '.',
+            0x003a => ':',
+            0x2013, 0x2014 => self::codepointToUtf8($separatorCode),
+        };
     }
 
     /**

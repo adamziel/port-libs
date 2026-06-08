@@ -104,6 +104,8 @@ final class CslStyle
         'number|short' => ['single' => 'no.', 'multiple' => 'nos.'],
         'edition|long' => ['single' => 'edition', 'multiple' => 'editions'],
         'edition|short' => ['single' => 'ed.', 'multiple' => 'eds.'],
+        'version|long' => ['single' => 'version', 'multiple' => 'versions'],
+        'version|short' => ['single' => 'ver.', 'multiple' => 'vers.'],
         'ordinal|long' => ['single' => 'th', 'multiple' => 'th'],
         'ordinal-01|long' => ['single' => 'st', 'multiple' => 'st'],
         'ordinal-02|long' => ['single' => 'nd', 'multiple' => 'nd'],
@@ -1578,6 +1580,7 @@ final class CslStyle
             'collection-number',
             'part-number',
             'part',
+            'version',
         ];
     }
 

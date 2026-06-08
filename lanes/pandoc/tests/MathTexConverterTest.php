@@ -572,6 +572,28 @@ return [
         $t->contains('<msup><mi>sin</mi><mn>2</mn></msup><mi>θ</mi>', $functionMathml);
         $t->contains('<msub><mi>log</mi><mn>10</mn></msub><mi>x</mi><mo>+</mo><msubsup><mo>∏</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mn>3</mn></msubsup><mi>k</mi>', $functionMathml);
     },
+    'converts bounded tex large operator aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $setMathml = $converter->texToMathMl('\\bigcup_{i=1}^{n} A_i + \\bigcap_{j} B_j + \\coprod\\limits_{k=0}^{m} C_k', true);
+        $integralMathml = $converter->texToMathMl('\\iint_D f(x,y) dx dy + \\iiint_V g + \\oint_C h + \\oiint_S q + \\oiiint_W r');
+        $circledMathml = $converter->texToMathMl('\\bigoplus_i G_i + \\bigotimes_j H_j + \\bigodot_k Z_k + \\bigsqcup_{r} Q_r + \\bigvee P + \\bigwedge R');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\bigcup_i A_i + \\iint_D f');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $setMathml);
+        $t->contains('<msubsup><mo>⋃</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup><msub><mi>A</mi><mi>i</mi></msub>', $setMathml);
+        $t->contains('<msub><mo>⋂</mo><mi>j</mi></msub><msub><mi>B</mi><mi>j</mi></msub>', $setMathml);
+        $t->contains('<munderover><mo>∐</mo><mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow><mi>m</mi></munderover><msub><mi>C</mi><mi>k</mi></msub>', $setMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\bigcup_{i=1}^{n} A_i + \\bigcap_{j} B_j + \\coprod\\limits_{k=0}^{m} C_k</annotation>', $setMathml);
+        $t->contains('<msub><mo>∬</mo><mi>D</mi></msub><mi>f</mi><mo>(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>)</mo><mi>d</mi><mi>x</mi><mi>d</mi><mi>y</mi>', $integralMathml);
+        $t->contains('<msub><mo>∭</mo><mi>V</mi></msub><mi>g</mi><mo>+</mo><msub><mo>∮</mo><mi>C</mi></msub><mi>h</mi><mo>+</mo><msub><mo>∯</mo><mi>S</mi></msub><mi>q</mi><mo>+</mo><msub><mo>∰</mo><mi>W</mi></msub><mi>r</mi>', $integralMathml);
+        $t->contains('<msub><mo>⨁</mo><mi>i</mi></msub><msub><mi>G</mi><mi>i</mi></msub><mo>+</mo><msub><mo>⨂</mo><mi>j</mi></msub><msub><mi>H</mi><mi>j</mi></msub>', $circledMathml);
+        $t->contains('<msub><mo>⨀</mo><mi>k</mi></msub><msub><mi>Z</mi><mi>k</mi></msub><mo>+</mo><msub><mo>⨆</mo><mi>r</mi></msub><msub><mi>Q</mi><mi>r</mi></msub><mo>+</mo><mo>⋁</mo><mi>P</mi><mo>+</mo><mo>⋀</mo><mi>R</mi>', $circledMathml);
+        $t->contains('big union', $accessibleMathml);
+        $t->contains('double integral', $accessibleMathml);
+        $t->contains('big_union', $accessibleMathml);
+        $t->true(!str_contains($setMathml . $integralMathml . $circledMathml, '<mi>\\bigcup</mi>'));
+        $t->true(!str_contains($setMathml . $integralMathml . $circledMathml, '<mi>\\iint</mi>'));
+    },
     'converts bounded tex explicit operator limits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $limitsMathml = $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\prod\\limits^{N} q', true);

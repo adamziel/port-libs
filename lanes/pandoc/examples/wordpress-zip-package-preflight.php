@@ -801,6 +801,56 @@ $buildZip64SizeUpgradeBackedPackage = static function () use ($crc32, $packUInt6
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildZip64LocalHeaderMismatchBackedPackage = static function () use ($crc32, $packUInt64): string {
+    $centralName = 'word/document.xml';
+    $localName = 'word/media/spoofed-local-header.bin';
+    $data = "ZIP64 offset should not hide a spoofed local header name\n";
+    $crc = $crc32($data);
+    $zip64OffsetValue = $packUInt64(0);
+    $zip64Extra = pack('vv', 0x0001, strlen($zip64OffsetValue)) . $zip64OffsetValue;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($localName),
+        0
+    );
+    $body .= $localName . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($centralName),
+        strlen($zip64Extra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0xffffffff
+    );
+    $central .= $centralName . $zip64Extra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildDriveLetterBackedPackage = static function () use ($crc32): string {
     $name = 'C:word/media/review.png';
     $data = "Drive-letter media path should stay blocked\n";
@@ -3356,6 +3406,9 @@ try {
     $zip64SizeUpgradeRejected = str_contains($exception->getMessage(), 'ZIP64')
         || str_contains($exception->getMessage(), 'Split ZIP entry data');
 }
+$zip64LocalHeaderMismatchBytes = $buildZip64LocalHeaderMismatchBackedPackage();
+$zip64LocalHeaderMismatchPreflight = ZipPackage::zip64ExtraFieldPreflight($zip64LocalHeaderMismatchBytes);
+$zip64LocalHeaderMismatchRawStrict = ZipPackage::rawStrictImportPreflight($zip64LocalHeaderMismatchBytes, 4096, 100.0, 4096);
 $driveLetterRejected = false;
 try {
     ZipPackage::fromString($buildDriveLetterBackedPackage());
@@ -4943,6 +4996,19 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP64 size-upgrade extra fields to be planned and rejected before media import');
     }
 
+    if (
+        ($zip64LocalHeaderMismatchPreflight['mismatchedLocalHeaderEntryCount'] ?? null) !== 1
+        || ($zip64LocalHeaderMismatchPreflight['zip64Entries'][0]['localHeaderOffsetSource'] ?? null) !== 'zip64-extra-field'
+        || ($zip64LocalHeaderMismatchPreflight['zip64Entries'][0]['localName'] ?? null) !== 'word/media/spoofed-local-header.bin'
+        || ($zip64LocalHeaderMismatchPreflight['zip64Entries'][0]['rawNameMatchesLocalHeader'] ?? null) !== false
+        || ($zip64LocalHeaderMismatchPreflight['zip64Entries'][0]['decodedNameMatchesLocalHeader'] ?? null) !== false
+        || !in_array('zip64-local-header-name-mismatch', $zip64LocalHeaderMismatchPreflight['issues'] ?? [], true)
+        || !in_array('zip64-local-header-decoded-name-mismatch', $zip64LocalHeaderMismatchPreflight['issues'] ?? [], true)
+        || !in_array('zip64-local-header-name-mismatch', $zip64LocalHeaderMismatchRawStrict['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected ZIP64 local-header offset spoofing to stay visible before package import');
+    }
+
     if (!$driveLetterRejected) {
         throw new RuntimeException('Expected drive-letter ZIP paths to be rejected before media import');
     }
@@ -5349,6 +5415,8 @@ echo 'zip64ExtraFieldIssues=' . implode(',', $zip64ExtraPreflight['zip64Entries'
 echo 'zip64SizeUpgradePolicy=' . ($zip64SizeUpgradeRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64SizeUpgradeFields=' . implode(',', $zip64SizeUpgradePreflight['zip64Entries'][0]['centralZip64RequiredFields'] ?? []) . "\n";
 echo 'zip64SizeUpgradeLocalOffset=' . ($zip64SizeUpgradePreflight['zip64Entries'][0]['centralZip64Values']['localHeaderOffset'] ?? 'none') . "\n";
+echo 'zip64LocalHeaderMismatchCount=' . $zip64LocalHeaderMismatchPreflight['mismatchedLocalHeaderEntryCount'] . "\n";
+echo 'zip64LocalHeaderMismatchIssues=' . implode(',', $zip64LocalHeaderMismatchPreflight['issues'] ?? []) . "\n";
 echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipControlNamePolicy=' . ($zipControlNameRejected ? 'rejected' : 'not-rejected') . "\n";

@@ -269,6 +269,8 @@ return [
     <dc:title>ODT Import Packet</dc:title>
     <meta:generator>LibreOffice/7.6.4$Linux_X86_64 LibreOffice_project/7.6.4</meta:generator>
     <meta:editing-duration>PT1H2M3S</meta:editing-duration>
+    <meta:modification-date>2026-06-08T19:55:00Z</meta:modification-date>
+    <meta:modification-time>PT19H55M00S</meta:modification-time>
     <meta:printed-by>Migration Printer</meta:printed-by>
     <meta:print-date>2026-06-08</meta:print-date>
     <meta:print-time>PT12H34M56S</meta:print-time>
@@ -284,6 +286,8 @@ XML;
 
         $t->same('LibreOffice/7.6.4$Linux_X86_64 LibreOffice_project/7.6.4', $metadata['generator']);
         $t->same('PT1H2M3S', $metadata['editingDuration']);
+        $t->same('2026-06-08T19:55:00Z', $metadata['modificationDate']);
+        $t->same('PT19H55M00S', $metadata['modificationTime']);
         $t->same('Migration Printer', $metadata['printedBy']);
         $t->same('2026-06-08', $metadata['printDate']);
         $t->same('PT12H34M56S', $metadata['printTime']);
@@ -301,7 +305,9 @@ XML;
         $t->same('new', $metadata['hyperlinkBehaviour']['show']);
         $t->same('_blank', $metadata['hyperlinkBehaviour']['targetFrameName']);
         $t->same('Import Review Template', $result['document']->attr('metadata')['template']['title']);
+        $t->same('2026-06-08T19:55:00Z', $result['document']->attr('metadata')['modificationDate']);
         $t->same('PT15M', $result['importReport']['metadata']['autoReload']['delay']);
+        $t->same('PT19H55M00S', $result['importReport']['metadata']['modificationTime']);
         $t->same('_blank', $result['importReport']['metadata']['hyperlinkBehaviour']['targetFrameName']);
     },
     'maps ODT page layouts and master pages into import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {

@@ -3704,6 +3704,10 @@ final class ZipPackage
      *     centralZip64ExtraFieldEntryCount:int,
      *     localZip64ExtraFieldEntryCount:int,
      *     requiresZip64EntryCount:int,
+     *     mismatchedLocalHeaderEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     mismatchedLocalHeaderEntries:list<array<string, mixed>>,
      *     zip64Entries:list<array<string, mixed>>,
      *     entries:list<array<string, mixed>>
      * }
@@ -3726,6 +3730,8 @@ final class ZipPackage
         $centralZip64ExtraFieldEntryCount = 0;
         $localZip64ExtraFieldEntryCount = 0;
         $requiresZip64EntryCount = 0;
+        $mismatchedLocalHeaderEntries = [];
+        $packageIssues = [];
         $cursor = $centralDirectoryOffset;
 
         for ($index = 0; $index < $entryCount; $index++) {
@@ -3747,9 +3753,13 @@ final class ZipPackage
             self::assertRange($bytes, $variableStart, $nameLength + $extraLength + $commentLength, 'central directory entry variable fields');
 
             $rawName = substr($bytes, $variableStart, $nameLength);
-            $name = (($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0 && preg_match('//u', $rawName) === 1)
-                ? $rawName
-                : self::decodeCp437($rawName);
+            if (($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0 && preg_match('//u', $rawName) === 1) {
+                $name = $rawName;
+                $nameEncoding = 'utf-8';
+            } else {
+                $name = self::decodeCp437($rawName);
+                $nameEncoding = 'cp437';
+            }
             $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
             $centralExtraFields = ZipPackageEntry::extraFieldsFromData(
                 $centralExtraFieldData,
@@ -3785,18 +3795,39 @@ final class ZipPackage
             $localPlan = self::zip64ExtraFieldPlan(null, [], "local extra fields for {$name}");
             $localHeaderCompressedSize = null;
             $localHeaderUncompressedSize = null;
+            $localRawName = null;
+            $localName = null;
+            $localNameEncoding = null;
+            $localHeaderFlags = null;
+            $localHeaderMethod = null;
+            $localRawNameMatchesCentral = null;
+            $localDecodedNameMatchesCentral = null;
+            $localFlagsMatchCentral = null;
+            $localMethodMatchesCentral = null;
             if ($actualLocalHeaderOffset !== null) {
                 self::assertRange($bytes, $actualLocalHeaderOffset, 30, "local file header for {$name}");
                 if (substr($bytes, $actualLocalHeaderOffset, 4) !== self::LOCAL_FILE_SIGNATURE) {
                     throw new \RuntimeException("Invalid ZIP local file header for entry {$name}");
                 }
 
+                $localHeaderFlags = self::readUInt16($bytes, $actualLocalHeaderOffset + 6);
+                $localHeaderMethod = self::readUInt16($bytes, $actualLocalHeaderOffset + 8);
                 $localHeaderCompressedSize = self::readUInt32($bytes, $actualLocalHeaderOffset + 18);
                 $localHeaderUncompressedSize = self::readUInt32($bytes, $actualLocalHeaderOffset + 22);
                 $localNameLength = self::readUInt16($bytes, $actualLocalHeaderOffset + 26);
                 $localExtraLength = self::readUInt16($bytes, $actualLocalHeaderOffset + 28);
                 $localVariableStart = $actualLocalHeaderOffset + 30;
                 self::assertRange($bytes, $localVariableStart, $localNameLength + $localExtraLength, "local file header variable fields for {$name}");
+                $localRawName = substr($bytes, $localVariableStart, $localNameLength);
+                self::assertSafePartName($localRawName);
+                if (($localHeaderFlags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0 && preg_match('//u', $localRawName) === 1) {
+                    $localName = $localRawName;
+                    $localNameEncoding = 'utf-8';
+                } else {
+                    $localName = self::decodeCp437($localRawName);
+                    $localNameEncoding = 'cp437';
+                }
+                self::assertSafePartName($localName);
                 $localExtraFieldData = substr($bytes, $localVariableStart + $localNameLength, $localExtraLength);
                 $localExtraFields = ZipPackageEntry::extraFieldsFromData(
                     $localExtraFieldData,
@@ -3819,6 +3850,11 @@ final class ZipPackage
                     $localRequiredFields,
                     "local extra fields for {$name}"
                 );
+
+                $localRawNameMatchesCentral = $localRawName === $rawName;
+                $localDecodedNameMatchesCentral = $localName === $name;
+                $localFlagsMatchCentral = $localHeaderFlags === $flags;
+                $localMethodMatchesCentral = $localHeaderMethod === $method;
             }
 
             $requiresZip64 = $centralRequiredFields !== [] || $localPlan['requiredFields'] !== [];
@@ -3843,6 +3879,20 @@ final class ZipPackage
             if ($requiresZip64) {
                 $issues[] = 'zip64-size-or-offset-sentinel';
             }
+            if (($hasZip64ExtraField || $requiresZip64) && $actualLocalHeaderOffset !== null) {
+                if ($localRawNameMatchesCentral === false) {
+                    $issues[] = 'zip64-local-header-name-mismatch';
+                }
+                if ($localDecodedNameMatchesCentral === false) {
+                    $issues[] = 'zip64-local-header-decoded-name-mismatch';
+                }
+                if ($localFlagsMatchCentral === false) {
+                    $issues[] = 'zip64-local-header-flags-mismatch';
+                }
+                if ($localMethodMatchesCentral === false) {
+                    $issues[] = 'zip64-local-header-compression-method-mismatch';
+                }
+            }
             $issues = array_values(array_unique(array_merge(
                 $issues,
                 $centralPlan['issues'],
@@ -3852,6 +3902,7 @@ final class ZipPackage
             $summary = [
                 'name' => $name,
                 'rawName' => $rawName,
+                'nameEncoding' => $nameEncoding,
                 'centralDirectoryIndex' => $index,
                 'compressionMethod' => $method,
                 'centralCompressedSize' => $compressedSize,
@@ -3859,8 +3910,18 @@ final class ZipPackage
                 'centralLocalHeaderOffset' => $localHeaderOffset,
                 'centralDiskStart' => $diskStart,
                 'localHeaderOffset' => $actualLocalHeaderOffset,
+                'localHeaderOffsetSource' => $localHeaderOffset === 0xffffffff ? 'zip64-extra-field' : 'central-directory',
+                'localRawName' => $localRawName,
+                'localName' => $localName,
+                'localNameEncoding' => $localNameEncoding,
+                'localGeneralPurposeFlags' => $localHeaderFlags,
+                'localCompressionMethod' => $localHeaderMethod,
                 'localHeaderCompressedSize' => $localHeaderCompressedSize,
                 'localHeaderUncompressedSize' => $localHeaderUncompressedSize,
+                'rawNameMatchesLocalHeader' => $localRawNameMatchesCentral,
+                'decodedNameMatchesLocalHeader' => $localDecodedNameMatchesCentral,
+                'generalPurposeFlagsMatchLocalHeader' => $localFlagsMatchCentral,
+                'compressionMethodMatchesLocalHeader' => $localMethodMatchesCentral,
                 'centralZip64ExtraFieldPresent' => $centralPlan['present'],
                 'centralZip64RequiredFields' => $centralPlan['requiredFields'],
                 'centralZip64Values' => $centralPlan['values'],
@@ -3877,6 +3938,19 @@ final class ZipPackage
             if ($hasZip64ExtraField || $requiresZip64) {
                 $zip64Entries[] = $summary;
             }
+            if (
+                in_array('zip64-local-header-name-mismatch', $issues, true)
+                || in_array('zip64-local-header-decoded-name-mismatch', $issues, true)
+                || in_array('zip64-local-header-flags-mismatch', $issues, true)
+                || in_array('zip64-local-header-compression-method-mismatch', $issues, true)
+            ) {
+                $mismatchedLocalHeaderEntries[] = $summary;
+            }
+            foreach ($issues as $issue) {
+                if (!in_array($issue, $packageIssues, true)) {
+                    $packageIssues[] = $issue;
+                }
+            }
 
             $cursor += 46 + $nameLength + $extraLength + $commentLength;
         }
@@ -3891,6 +3965,10 @@ final class ZipPackage
             'centralZip64ExtraFieldEntryCount' => $centralZip64ExtraFieldEntryCount,
             'localZip64ExtraFieldEntryCount' => $localZip64ExtraFieldEntryCount,
             'requiresZip64EntryCount' => $requiresZip64EntryCount,
+            'mismatchedLocalHeaderEntryCount' => count($mismatchedLocalHeaderEntries),
+            'isSupportedByBoundedReader' => $packageIssues === [],
+            'issues' => $packageIssues,
+            'mismatchedLocalHeaderEntries' => $mismatchedLocalHeaderEntries,
             'zip64Entries' => $zip64Entries,
             'entries' => $entries,
         ];
@@ -4625,6 +4703,9 @@ final class ZipPackage
             }
             if ($zip64ExtraFields !== null && $zip64ExtraFields['requiresZip64EntryCount'] > 0) {
                 $addDiagnostic('zip64-size-or-offset-sentinel');
+            }
+            if ($zip64ExtraFields !== null && !$zip64ExtraFields['isSupportedByBoundedReader']) {
+                $addDiagnostics($zip64ExtraFields['issues']);
             }
 
             $dataDescriptors = $runPreflight(

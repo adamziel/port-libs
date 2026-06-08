@@ -3452,10 +3452,41 @@ CSS;
             );
         }
 
-        $resources = $this->withDefaultPartialResourceFallbacks($resources, $searchDirectories);
-
         $partials = [];
         $sources = [];
+        $this->registerPartialResources(
+            $resources,
+            $templatePath,
+            $searchDirectories,
+            $partialExtensionFallbacks,
+            $partials,
+            $sources,
+        );
+        $this->registerPartialResources(
+            $this->defaultPartialResourceFallbackMap($resources, $searchDirectories),
+            $templatePath,
+            $searchDirectories,
+            $partialExtensionFallbacks,
+            $partials,
+            $sources,
+        );
+        $sources[self::DEFAULT_PARTIAL_FALLBACK_SENTINEL] = '1';
+
+        return [
+            'partials' => $partials,
+            'sources' => $sources,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $resources
+     * @param list<string> $searchDirectories
+     * @param list<string> $partialExtensionFallbacks
+     * @param array<string, string> $partials
+     * @param array<string, string> $sources
+     */
+    private function registerPartialResources(array $resources, string $templatePath, array $searchDirectories, array $partialExtensionFallbacks, array &$partials, array &$sources): void
+    {
         foreach ($searchDirectories as $directory) {
             foreach ($partialExtensionFallbacks as $extension) {
                 foreach ($resources as $resourcePath => $source) {
@@ -3477,12 +3508,6 @@ CSS;
                 }
             }
         }
-        $sources[self::DEFAULT_PARTIAL_FALLBACK_SENTINEL] = '1';
-
-        return [
-            'partials' => $partials,
-            'sources' => $sources,
-        ];
     }
 
     /**
@@ -3490,8 +3515,9 @@ CSS;
      * @param list<string> $searchDirectories
      * @return array<string, string>
      */
-    private function withDefaultPartialResourceFallbacks(array $resources, array $searchDirectories): array
+    private function defaultPartialResourceFallbackMap(array $resources, array $searchDirectories): array
     {
+        $defaults = [];
         foreach ($searchDirectories as $directory) {
             foreach ($this->defaultTemplateResourceBasenames() as $basename) {
                 $resourcePath = $this->joinTemplateResourcePath($directory, $basename);
@@ -3501,12 +3527,12 @@ CSS;
 
                 $default = $this->defaultTemplateResourceForBasename($basename);
                 if ($default !== null) {
-                    $resources[$resourcePath] = $default;
+                    $defaults[$resourcePath] = $default;
                 }
             }
         }
 
-        return $resources;
+        return $defaults;
     }
 
     /**

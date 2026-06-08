@@ -348,6 +348,36 @@ $sttbFnm = static function (array $references) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$sttbfCaption = static function (array $captions) use ($u16, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(count($captions)) . $u16(6);
+    foreach ($captions as $caption) {
+        $label = (string) $caption['label'];
+        $encoded = $utf16le($label);
+        $flags = ((int) ($caption['insertLocationCode'] ?? 0) & 0x0003)
+            | (!empty($caption['includeChapterNumber']) ? (1 << 2) : 0)
+            | (((int) ($caption['headingLevel'] ?? 0) & 0x000f) << 3)
+            | (!empty($caption['noLabel']) ? (1 << 15) : 0);
+        $bytes .= $u16(intdiv(strlen($encoded), 2))
+            . $encoded
+            . $u16($flags)
+            . $u16((int) ($caption['numberFormatCode'] ?? 0))
+            . $u16((int) ($caption['chapterSeparatorCode'] ?? 0));
+    }
+
+    return $bytes;
+};
+$sttbfAutoCaption = static function (array $rules) use ($u16, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(count($rules)) . $u16(2);
+    foreach ($rules as $rule) {
+        $progId = (string) $rule['progId'];
+        $encoded = $utf16le($progId);
+        $bytes .= $u16(intdiv(strlen($encoded), 2))
+            . $encoded
+            . $u16((int) $rule['captionIndex']);
+    }
+
+    return $bytes;
+};
 $routeSlip = static function (array $recipients, array $options = []) use ($u16): string {
     $ansi = static function (string $value) use ($u16): string {
         return $u16(strlen($value)) . $value;
@@ -668,7 +698,7 @@ $chpxFkpPage = $appendFkp($wordDocument, 3);
 $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x0409), 6, 2);
-$wordDocument = substr_replace($wordDocument, $u16(0x3e3c), 10, 2);
+$wordDocument = substr_replace($wordDocument, $u16(0x3e3d), 10, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x00bf), 12, 2);
 $wordDocument = substr_replace($wordDocument, $u32(0), 24, 4);
 $wordDocument = substr_replace($wordDocument, $u32($subdocumentByteEnd), 28, 4);
@@ -989,6 +1019,32 @@ $routeSlipTable = $routeSlip([
     'title' => 'Route packet 42',
 ]);
 $revisionAuthorTable = $sttbUnicode(['Unknown', 'Migration Lead', 'Review Editor', 'Archive Owner']);
+$captionDefinitionTable = $sttbfCaption([
+    [
+        'label' => 'Figure',
+        'insertLocationCode' => 1,
+        'includeChapterNumber' => true,
+        'headingLevel' => 2,
+        'numberFormatCode' => 1,
+        'chapterSeparatorCode' => 0x002e,
+    ],
+    [
+        'label' => 'Table',
+        'insertLocationCode' => 0,
+        'noLabel' => true,
+        'numberFormatCode' => 0xff,
+    ],
+]);
+$autoCaptionTable = $sttbfAutoCaption([
+    [
+        'progId' => 'Word.Picture.8',
+        'captionIndex' => 0,
+    ],
+    [
+        'progId' => 'Excel.Chart.8',
+        'captionIndex' => 1,
+    ],
+]);
 $fcDop = strlen($clx);
 $fcPlcfFldMom = $fcDop + strlen($dop);
 $fcPlcfFldHdr = $fcPlcfFldMom + strlen($plcfldMom);
@@ -1002,7 +1058,9 @@ $fcSttbSavedBy = $fcStwUser + strlen($documentVariablesTable);
 $fcSttbFnm = $fcSttbSavedBy + strlen($saveHistoryTable);
 $fcRouteSlip = $fcSttbFnm + strlen($externalFileTable);
 $fcSttbfRMark = $fcRouteSlip + strlen($routeSlipTable);
-$fcSttbfBkmk = $fcSttbfRMark + strlen($revisionAuthorTable);
+$fcSttbfCaption = $fcSttbfRMark + strlen($revisionAuthorTable);
+$fcSttbfAutoCaption = $fcSttbfCaption + strlen($captionDefinitionTable);
+$fcSttbfBkmk = $fcSttbfAutoCaption + strlen($autoCaptionTable);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
 $fcPlcffndRef = $fcPlcfBkl + strlen($plcfBkl);
@@ -1018,7 +1076,7 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $externalFileTable . $routeSlipTable . $revisionAuthorTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $externalFileTable . $routeSlipTable . $revisionAuthorTable . $captionDefinitionTable . $autoCaptionTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfHdd), 0x00f2, 4);
@@ -1057,6 +1115,10 @@ $wordDocument = substr_replace($wordDocument, $u32($fcRouteSlip), 0x02ca, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($routeSlipTable)), 0x02ce, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfRMark), 0x0232, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($revisionAuthorTable)), 0x0236, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcSttbfCaption), 0x023a, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($captionDefinitionTable)), 0x023e, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcSttbfAutoCaption), 0x0242, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($autoCaptionTable)), 0x0246, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfBkmk), 0x0142, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($sttbfBkmk)), 0x0146, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkf), 0x014a, 4);
@@ -1545,6 +1607,8 @@ $summary = [
     'comments' => $result['comments'],
     'commentAuthors' => $result['commentAuthors'],
     'revisionAuthors' => $result['revisionAuthors'],
+    'captionDefinitions' => $result['captionDefinitions'],
+    'autoCaptionRules' => $result['autoCaptionRules'],
     'fieldCharacters' => $result['fieldCharacters'],
     'fields' => $result['fields'],
     'fieldStories' => $result['fieldStories'],
@@ -1702,6 +1766,43 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($summary['wordpressBlocks'], 'Archive Owner') || str_contains($summary['wordpressBlocks'], 'Review Editor')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered revision author metadata into blocks');
     }
+    if (($summary['metadata']['captionDefinitionCount'] ?? null) !== 2 || count($summary['captionDefinitions'] ?? []) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfCaption metadata');
+    }
+    if (($summary['metadata']['captionDefinitionPolicy'] ?? '') !== 'metadata-only-native-review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfCaption metadata-only policy');
+    }
+    if (($summary['captionDefinitions'][0]['label'] ?? '') !== 'Figure'
+        || ($summary['captionDefinitions'][0]['insertLocation'] ?? '') !== 'above-selected-item'
+        || ($summary['captionDefinitions'][0]['headingLevel'] ?? null) !== 2
+        || ($summary['captionDefinitions'][0]['numberFormat'] ?? '') !== 'upperRoman'
+        || ($summary['captionDefinitions'][0]['chapterSeparator'] ?? '') !== 'period'
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfCaption Figure CAPI metadata');
+    }
+    if (($summary['captionDefinitions'][1]['label'] ?? '') !== 'Table'
+        || ($summary['captionDefinitions'][1]['includeLabel'] ?? null) !== false
+        || ($summary['captionDefinitions'][1]['numberFormat'] ?? '') !== 'none'
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfCaption no-label metadata');
+    }
+    if (($summary['metadata']['autoCaptionRuleCount'] ?? null) !== 2 || count($summary['autoCaptionRules'] ?? []) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfAutoCaption metadata');
+    }
+    if (($summary['metadata']['autoCaptionPolicy'] ?? '') !== 'metadata-only-native-review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfAutoCaption metadata-only policy');
+    }
+    if (($summary['autoCaptionRules'][0]['progId'] ?? '') !== 'Word.Picture.8'
+        || ($summary['autoCaptionRules'][0]['captionLabel'] ?? '') !== 'Figure'
+        || ($summary['autoCaptionRules'][0]['captionHeadingLevel'] ?? null) !== 2
+        || ($summary['autoCaptionRules'][1]['progId'] ?? '') !== 'Excel.Chart.8'
+        || ($summary['autoCaptionRules'][1]['captionLabel'] ?? '') !== 'Table'
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfAutoCaption rule linkage');
+    }
+    if (str_contains($summary['wordpressBlocks'], 'Word.Picture.8') || str_contains($summary['wordpressBlocks'], 'Excel.Chart.8')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered AutoCaption ProgIDs into blocks');
+    }
     $documentProperties = $summary['documentProperties'] ?? null;
     $documentPolicyFlags = is_array($documentProperties) && is_array($documentProperties['policyFlags'] ?? null) ? $documentProperties['policyFlags'] : [];
     if (!is_array($documentProperties) || ($summary['metadata']['documentPropertyByteCount'] ?? null) !== 84 || ($documentProperties['byteCount'] ?? null) !== 84) {
@@ -1748,6 +1849,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB version/quick-save provenance');
     }
     if (($summary['metadata']['fibBase']['flags'] ?? []) !== [
+        'template',
         'complex',
         'hasPictures',
         'tableStream1',

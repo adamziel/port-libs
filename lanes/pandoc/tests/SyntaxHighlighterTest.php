@@ -65,6 +65,11 @@ return [
         $t->same('awk', SyntaxHighlighter::normalizeLanguage('gawk'));
         $t->same('awk', SyntaxHighlighter::normalizeLanguage('mawk'));
         $t->same('awk', SyntaxHighlighter::normalizeLanguage('language-awk-script'));
+        $t->same('batch', SyntaxHighlighter::normalizeLanguage('bat'));
+        $t->same('batch', SyntaxHighlighter::normalizeLanguage('batchfile'));
+        $t->same('batch', SyntaxHighlighter::normalizeLanguage('cmd'));
+        $t->same('batch', SyntaxHighlighter::normalizeLanguage('cmd.exe'));
+        $t->same('batch', SyntaxHighlighter::normalizeLanguage('language-dosbatch'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('rst'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('rest'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('reStructuredText'));
@@ -3153,6 +3158,47 @@ return [
         $t->same('gawk', $directAwk['requestedLanguage']);
         $t->contains('<span class="re">BEGIN</span> <span class="op">{</span> <span class="va">FS</span><span class="op">=</span><span class="st">&quot;,&quot;</span>', $directAwk['html']);
         $t->contains('<span class="va">NR</span> <span class="op">&gt;</span> <span class="dv">1</span> <span class="op">{</span> <span class="kw">print</span> <span class="va">$1</span><span class="op">,</span> <span class="fu">tolower</span><span class="op">(</span><span class="va">$2</span><span class="op">)</span>', $directAwk['html']);
+    },
+    'highlights windows batch import review scripts with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[65] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Windows batch review script code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directCmd = $highlighter->highlight('@if "%WP_ENV%"=="prod" echo ok', 'cmd.exe');
+
+        $t->same('bat', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('batch', $highlighted['language']);
+        $t->same('bat', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(960, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource bat numberLines"><code class="sourceCode batch" style="counter-reset: source-line 959;">', $highlighted['html']);
+        $t->contains('<span id="batch-review-960"><a href="#batch-review-960"></a><span class="kw">@echo</span> <span class="cn">off</span></span>', $highlighted['html']);
+        $t->contains('<span id="batch-review-961"><a href="#batch-review-961"></a><span class="co">REM Windows WordPress import review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">setlocal</span> <span class="va">EnableExtensions</span> <span class="va">EnableDelayedExpansion</span>', $highlighted['html']);
+        $t->contains('<span class="kw">set</span> <span class="st">&quot;SOURCE_DIR=%~dp0exports&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="kw">not</span> <span class="cn">exist</span> <span class="st">&quot;%SOURCE_DIR%\\wxr.xml&quot;</span> <span class="op">(</span>', $highlighted['html']);
+        $t->contains('<span class="kw">for</span> <span class="va">%%P</span> <span class="kw">in</span> <span class="op">(</span><span class="st">&quot;%SOURCE_DIR%\\*.html&quot;</span><span class="op">)</span> <span class="kw">do</span> <span class="op">(</span>', $highlighted['html']);
+        $t->contains('<span class="fu">php</span> <span class="st">&quot;%~dp0tools\\normalize-title.php&quot;</span> <span class="st">&quot;%%~fP&quot;</span> <span class="op">&gt;&gt;</span> <span class="st">&quot;.\\review.log&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="va">!ERRORLEVEL!</span> <span class="op">NEQ</span> <span class="dv">0</span> <span class="kw">goto</span> <span class="re">:failed</span>', $highlighted['html']);
+        $t->contains('<span class="fu">wp</span> <span class="va">post</span> <span class="va">list</span> <span class="ot">--format</span><span class="op">=</span><span class="va">ids</span> <span class="op">&gt;</span> <span class="st">&quot;.\\post-ids.txt&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="re">:failed</span>', $highlighted['html']);
+        $t->contains('<span class="kw">exit</span> <span class="ot">/b</span> <span class="dv">2</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="kw">setlocal</span> <span class="va">EnableExtensions</span>', $wordpressBlock);
+        $t->same('batch', $directCmd['language']);
+        $t->same('cmd.exe', $directCmd['requestedLanguage']);
+        $t->contains('<span class="kw">@if</span> <span class="st">&quot;%WP_ENV%&quot;</span><span class="op">==</span><span class="st">&quot;prod&quot;</span> <span class="kw">echo</span> <span class="va">ok</span>', $directCmd['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

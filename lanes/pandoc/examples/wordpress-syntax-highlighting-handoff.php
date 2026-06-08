@@ -412,6 +412,12 @@ if (!$awkCodeBlock instanceof PortLibs\Pandoc\AstNode || $awkCodeBlock->type !==
 }
 $awk = $highlighter->highlightCodeBlock($awkCodeBlock, 'tango');
 $awkWordpressBlock = $highlighter->wordpressHtmlBlock($awkCodeBlock, 'tango');
+$batchCodeBlock = $document->children[65] ?? null;
+if (!$batchCodeBlock instanceof PortLibs\Pandoc\AstNode || $batchCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Windows batch review script code block');
+}
+$batch = $highlighter->highlightCodeBlock($batchCodeBlock, 'breezedark');
+$batchWordpressBlock = $highlighter->wordpressHtmlBlock($batchCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1781,6 +1787,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($awkWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
         throw new RuntimeException('Expected AWK WordPress style metadata');
     }
+    if (($batch['language'] ?? '') !== 'batch') {
+        throw new RuntimeException('Expected Windows batch language handoff');
+    }
+    if (($batch['requestedLanguage'] ?? '') !== 'bat') {
+        throw new RuntimeException('Expected BAT requested-language wrapper handoff');
+    }
+    if (($batch['lineNumbering']['start'] ?? null) !== 960) {
+        throw new RuntimeException('Expected Windows batch source startFrom line-number handoff');
+    }
+    if (!str_contains($batch['html'], '<span class="kw">setlocal</span> <span class="va">EnableExtensions</span> <span class="va">EnableDelayedExpansion</span>')) {
+        throw new RuntimeException('Expected Windows batch setlocal token handoff');
+    }
+    if (!str_contains($batch['html'], '<span class="kw">if</span> <span class="va">!ERRORLEVEL!</span> <span class="op">NEQ</span> <span class="dv">0</span> <span class="kw">goto</span> <span class="re">:failed</span>')) {
+        throw new RuntimeException('Expected Windows batch delayed-variable and operator token handoff');
+    }
+    if (!str_contains($batch['html'], '<span class="fu">wp</span> <span class="va">post</span> <span class="va">list</span> <span class="ot">--format</span><span class="op">=</span><span class="va">ids</span>')) {
+        throw new RuntimeException('Expected Windows batch WordPress CLI token handoff');
+    }
+    if (!str_contains($batchWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected Windows batch WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1866,6 +1893,7 @@ echo "vueCustomHighlightedHtml:\n" . $vueCustom['html'] . "\n";
 echo "ocamlHighlightedHtml:\n" . $ocaml['html'] . "\n";
 echo "juliaHighlightedHtml:\n" . $julia['html'] . "\n";
 echo "awkHighlightedHtml:\n" . $awk['html'] . "\n";
+echo "batchHighlightedHtml:\n" . $batch['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1921,4 +1949,5 @@ echo "vueCustomWordpressBlock:\n" . $vueCustomWordpressBlock . "\n";
 echo "ocamlWordpressBlock:\n" . $ocamlWordpressBlock . "\n";
 echo "juliaWordpressBlock:\n" . $juliaWordpressBlock . "\n";
 echo "awkWordpressBlock:\n" . $awkWordpressBlock . "\n";
+echo "batchWordpressBlock:\n" . $batchWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

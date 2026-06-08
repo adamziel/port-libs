@@ -452,6 +452,28 @@ return [
         $t->contains('<h1 id="dos-850">DOS 850</h1>', $blocks);
         $t->contains('<p>Español Français; Árvore e ızmir; fractions ½¼¾; box ╔═╗; ‗.</p>', $blocks);
     },
+    'decodes ibm852 dos central european source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# DOS 852\n\nCzech \xAC\x9F \xB7\xD8 \xE6\xE7 \xA6\xA7 \xFC\xFD; Polish \x9D\x88 \xA4\xA5 \xBD\xBE; Hungarian \x8A\x8B \xEB\xFB; box \xC9\xCD\xBB; \xF1.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp852');
+        $document = (new MarkdownReader())->readBytes($bytes, 'cspc852');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x85\x86\x88\x8A\x8B\x91\x92\x95\x96\xA4\xA5\xA6\xA7\xAC\xB7\xE6\xE7\xEB\xF0\xF1\xFC\xFD\xFF", 'ibm852');
+        $ibm850Comparison = UnicodeText::decodeBytes("\x85\xA6\xAC\xEB\xFC", 'ibm850');
+
+        $t->same('ibm852', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# DOS 852\n\nCzech Čč Ěě Šš Žž Řř; Polish Łł Ąą Żż; Hungarian Őő Űű; box ╔═╗; ˝.", $decoded['text']);
+        $t->same("ůćłŐőĹĺĽľĄąŽžČĚŠšŰ\u{00AD}˝Řř\u{00A0}", $specials['text']);
+        $t->same(22, UnicodeText::displayWidth($specials['text']));
+        $t->same('àª¼Ù³', $ibm850Comparison['text']);
+        $t->same(['encoding' => 'ibm852', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('DOS 852', $document->children[0]->attr('text'));
+        $t->same('Czech Čč Ěě Šš Žž Řř; Polish Łł Ąą Żż; Hungarian Őő Űű; box ╔═╗; ˝.', $document->children[1]->attr('text'));
+        $t->same(67, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(74, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="dos-852">DOS 852</h1>', $blocks);
+        $t->contains('<p>Czech Čč Ěě Šš Žž Řř; Polish Łł Ąą Żż; Hungarian Őő Űű; box ╔═╗; ˝.</p>', $blocks);
+    },
     'decodes iso 8859 5 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xB8\xDC\xDF\xDE\xE0\xE2\n\n\xC0\xD5\xD4\xD0\xDA\xE2\xDE\xE0 \xDF\xE0\xD8\xD2\xD5\xE2; \xA1\xDB\xDA\xD0 \xF0 7.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-144');

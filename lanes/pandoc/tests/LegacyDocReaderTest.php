@@ -721,6 +721,36 @@ $sttbFnm = static function (array $references) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$sttbfCaption = static function (array $captions) use ($u16, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(count($captions)) . $u16(6);
+    foreach ($captions as $caption) {
+        $label = (string) $caption['label'];
+        $encoded = $utf16le($label);
+        $flags = ((int) ($caption['insertLocationCode'] ?? 0) & 0x0003)
+            | (!empty($caption['includeChapterNumber']) ? (1 << 2) : 0)
+            | (((int) ($caption['headingLevel'] ?? 0) & 0x000f) << 3)
+            | (!empty($caption['noLabel']) ? (1 << 15) : 0);
+        $bytes .= $u16(intdiv(strlen($encoded), 2))
+            . $encoded
+            . $u16($flags)
+            . $u16((int) ($caption['numberFormatCode'] ?? 0))
+            . $u16((int) ($caption['chapterSeparatorCode'] ?? 0));
+    }
+
+    return $bytes;
+};
+$sttbfAutoCaption = static function (array $rules) use ($u16, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(count($rules)) . $u16(2);
+    foreach ($rules as $rule) {
+        $progId = (string) $rule['progId'];
+        $encoded = $utf16le($progId);
+        $bytes .= $u16(intdiv(strlen($encoded), 2))
+            . $encoded
+            . $u16((int) $rule['captionIndex']);
+    }
+
+    return $bytes;
+};
 $routeSlip = static function (array $recipients, array $options = []) use ($u16): string {
     $ansi = static function (string $value) use ($u16): string {
         return $u16(strlen($value)) . $value;
@@ -2958,6 +2988,144 @@ return [
         $missingTableWordDocument = $buildExtendedFibWordDocument("Missing revision author table stream packet\r");
         $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(0), 0x0232, 4);
         $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(strlen($revisionAuthorTable)), 0x0236, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $missingTableWordDocument,
+        ])));
+    },
+    'extracts legacy DOC SttbfCaption and AutoCaption metadata for template review' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbfCaption, $sttbfAutoCaption, $u16, $u32): void {
+        $captionTable = $sttbfCaption([
+            [
+                'label' => 'Figure',
+                'insertLocationCode' => 1,
+                'includeChapterNumber' => true,
+                'headingLevel' => 2,
+                'numberFormatCode' => 1,
+                'chapterSeparatorCode' => 0x002e,
+            ],
+            [
+                'label' => 'Table',
+                'insertLocationCode' => 0,
+                'noLabel' => true,
+                'numberFormatCode' => 0xff,
+            ],
+        ]);
+        $autoCaptionTable = $sttbfAutoCaption([
+            [
+                'progId' => 'Word.Picture.8',
+                'captionIndex' => 0,
+            ],
+            [
+                'progId' => 'Excel.Chart.8',
+                'captionIndex' => 1,
+            ],
+        ]);
+        $tableStream = $captionTable . $autoCaptionTable;
+        $wordDocument = $buildExtendedFibWordDocument("Caption template review packet\r", 0x0001);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x023a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($captionTable)), 0x023e, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($captionTable)), 0x0242, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($autoCaptionTable)), 0x0246, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $tableStream,
+        ]));
+        $metadata = $result['metadata'];
+        $captionDefinitions = $result['captionDefinitions'];
+        $autoCaptionRules = $result['autoCaptionRules'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $markdown = (new MarkdownWriter())->write($result['document']);
+
+        $t->same(2, count($captionDefinitions));
+        $t->same(2, $metadata['captionDefinitionCount']);
+        $t->same('metadata-only-native-review', $metadata['captionDefinitionPolicy']);
+        $t->same($captionDefinitions, $metadata['captionDefinitions']);
+        $t->same($captionDefinitions, $result['document']->attr('captionDefinitions'));
+        $t->same($captionDefinitions, $result['document']->attr('meta')['captionDefinitions']);
+        $t->same(0, $captionDefinitions[0]['index']);
+        $t->same('SttbfCaption', $captionDefinitions[0]['sourceTable']);
+        $t->same('Figure', $captionDefinitions[0]['label']);
+        $t->same(6, $captionDefinitions[0]['labelCharacterCount']);
+        $t->same(1, $captionDefinitions[0]['insertLocationCode']);
+        $t->same('above-selected-item', $captionDefinitions[0]['insertLocation']);
+        $t->same(true, $captionDefinitions[0]['includeLabel']);
+        $t->same(true, $captionDefinitions[0]['includeChapterNumber']);
+        $t->same(2, $captionDefinitions[0]['headingLevel']);
+        $t->same(1, $captionDefinitions[0]['numberFormatCode']);
+        $t->same('upperRoman', $captionDefinitions[0]['numberFormat']);
+        $t->same(0x002e, $captionDefinitions[0]['chapterSeparatorCode']);
+        $t->same('period', $captionDefinitions[0]['chapterSeparator']);
+        $t->same('.', $captionDefinitions[0]['chapterSeparatorCharacter']);
+        $t->same(false, $captionDefinitions[0]['canExposeBytes']);
+        $t->same('metadata-only-native-review', $captionDefinitions[0]['extractionPolicy']);
+        $t->same(1, $captionDefinitions[1]['index']);
+        $t->same('Table', $captionDefinitions[1]['label']);
+        $t->same('below-selected-item', $captionDefinitions[1]['insertLocation']);
+        $t->same(false, $captionDefinitions[1]['includeLabel']);
+        $t->same(true, $captionDefinitions[1]['noLabel']);
+        $t->same(false, $captionDefinitions[1]['includeChapterNumber']);
+        $t->same(0xff, $captionDefinitions[1]['numberFormatCode']);
+        $t->same('none', $captionDefinitions[1]['numberFormat']);
+        $t->true(!array_key_exists('headingLevel', $captionDefinitions[1]));
+
+        $t->same(2, count($autoCaptionRules));
+        $t->same(2, $metadata['autoCaptionRuleCount']);
+        $t->same('metadata-only-native-review', $metadata['autoCaptionPolicy']);
+        $t->same($autoCaptionRules, $metadata['autoCaptionRules']);
+        $t->same($autoCaptionRules, $result['document']->attr('autoCaptionRules'));
+        $t->same($autoCaptionRules, $result['document']->attr('meta')['autoCaptionRules']);
+        $t->same(0, $autoCaptionRules[0]['index']);
+        $t->same('SttbfAutoCaption', $autoCaptionRules[0]['sourceTable']);
+        $t->same('Word.Picture.8', $autoCaptionRules[0]['progId']);
+        $t->same(14, $autoCaptionRules[0]['progIdCharacterCount']);
+        $t->same(0, $autoCaptionRules[0]['captionIndex']);
+        $t->same('Figure', $autoCaptionRules[0]['captionLabel']);
+        $t->same('above-selected-item', $autoCaptionRules[0]['captionInsertLocation']);
+        $t->same('upperRoman', $autoCaptionRules[0]['captionNumberFormat']);
+        $t->same(2, $autoCaptionRules[0]['captionHeadingLevel']);
+        $t->same('period', $autoCaptionRules[0]['captionChapterSeparator']);
+        $t->same('Excel.Chart.8', $autoCaptionRules[1]['progId']);
+        $t->same(1, $autoCaptionRules[1]['captionIndex']);
+        $t->same('Table', $autoCaptionRules[1]['captionLabel']);
+        $t->same('none', $autoCaptionRules[1]['captionNumberFormat']);
+        $t->same(false, $autoCaptionRules[1]['canExposeBytes']);
+        $t->same('metadata-only-native-review', $autoCaptionRules[1]['extractionPolicy']);
+        $t->contains('<p>Caption template review packet</p>', $blocks);
+        $t->contains('Caption template review packet', $markdown);
+        $t->true(!str_contains($blocks, 'Word.Picture.8'));
+        $t->true(!str_contains($blocks, 'Excel.Chart.8'));
+        $t->true(!str_contains($blocks, 'Figure'));
+        $t->true(!str_contains($markdown, 'Excel.Chart.8'));
+
+        $buildDocBytes = static function (string $captionTableBytes, string $autoCaptionTableBytes) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
+            $wordDocument = $buildExtendedFibWordDocument("Malformed caption metadata packet\r", 0x0001);
+            $wordDocument = substr_replace($wordDocument, $u32(0), 0x023a, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($captionTableBytes)), 0x023e, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($captionTableBytes)), 0x0242, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($autoCaptionTableBytes)), 0x0246, 4);
+
+            return $buildCfb([
+                'WordDocument' => $wordDocument,
+                '0Table' => $captionTableBytes . $autoCaptionTableBytes,
+            ]);
+        };
+        foreach ([
+            'caption wrong extended marker' => [substr_replace($captionTable, $u16(0), 0, 2), $autoCaptionTable],
+            'caption wrong extra bytes' => [substr_replace($captionTable, $u16(2), 4, 2), $autoCaptionTable],
+            'caption oversized label' => [$sttbfCaption([['label' => str_repeat('A', 41)]]), $autoCaptionTable],
+            'caption invalid insert location' => [$sttbfCaption([['label' => 'Figure', 'insertLocationCode' => 3]]), $autoCaptionTable],
+            'caption invalid heading' => [$sttbfCaption([['label' => 'Figure', 'includeChapterNumber' => true, 'numberFormatCode' => 1, 'chapterSeparatorCode' => 0x002e]]), $autoCaptionTable],
+            'caption invalid separator' => [$sttbfCaption([['label' => 'Figure', 'includeChapterNumber' => true, 'headingLevel' => 1, 'numberFormatCode' => 1, 'chapterSeparatorCode' => 0x002d]]), $autoCaptionTable],
+            'autocaption wrong extra bytes' => [$captionTable, substr_replace($autoCaptionTable, $u16(0), 4, 2)],
+            'autocaption unknown caption index' => [$captionTable, $sttbfAutoCaption([['progId' => 'Word.Picture.8', 'captionIndex' => 3]])],
+            'autocaption trailing bytes' => [$captionTable, $autoCaptionTable . "\0"],
+        ] as [$captionTableBytes, $autoCaptionTableBytes]) {
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes($captionTableBytes, $autoCaptionTableBytes)));
+        }
+
+        $missingTableWordDocument = $buildExtendedFibWordDocument("Missing caption table stream packet\r", 0x0001);
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(0), 0x023a, 4);
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(strlen($captionTable)), 0x023e, 4);
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
             'WordDocument' => $missingTableWordDocument,
         ])));

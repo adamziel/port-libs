@@ -1196,3 +1196,28 @@ END {
     print "reviewed", NR - 1 > "/dev/stderr"
 }
 ```
+
+``` {.bat #batch-review .numberLines startFrom=960}
+@echo off
+REM Windows WordPress import review
+setlocal EnableExtensions EnableDelayedExpansion
+set "SOURCE_DIR=%~dp0exports"
+set "WP_ENV=production"
+if not exist "%SOURCE_DIR%\wxr.xml" (
+    echo Missing export: "%SOURCE_DIR%\wxr.xml"
+    exit /b 1
+)
+for %%P in ("%SOURCE_DIR%\*.html") do (
+    php "%~dp0tools\normalize-title.php" "%%~fP" >> ".\review.log"
+    if !ERRORLEVEL! NEQ 0 goto :failed
+)
+wp post list --format=ids > ".\post-ids.txt"
+goto :done
+
+:failed
+echo Import review failed for %WP_ENV%
+exit /b 2
+
+:done
+endlocal
+```

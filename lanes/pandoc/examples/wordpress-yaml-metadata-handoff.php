@@ -1000,6 +1000,20 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('YAML metadata self-test missing collection provenance ' . str_replace("\0", ' ', $expectedCollectionPair));
         }
     }
+    foreach ([
+        '/review-label-set' => 'set',
+        '/block-label-set' => 'set',
+        '/sequence-label-sets/0' => 'set',
+        '/sequence-label-sets/1' => 'set',
+        '/review-order_' => 'omap',
+        '/ordered-review/reviewer-pairs' => 'pairs',
+        '/flow-ordered-review/steps' => 'omap',
+        '/flow-ordered-review/reviewers' => 'pairs',
+    ] as $expectedPath => $expectedTag) {
+        if (($yamlCollectionByPath[$expectedPath]['explicitTag'] ?? '') !== $expectedTag) {
+            throw new RuntimeException('YAML metadata self-test missing explicit collection tag provenance ' . $expectedPath . ' ' . $expectedTag);
+        }
+    }
     $foundPlainReviewCollectionRange = false;
     foreach ($yamlCollectionProvenance as $entry) {
         if (($entry['path'] ?? '') !== '/plain-continuation-review') {

@@ -3502,6 +3502,46 @@ HTML,
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('${ components/styles.html() }', []));
     },
 
+    'prefers pandoc user-data default partial resources before bundled defaults' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $userData = $renderer->renderResource('reports/review.html', [
+            'reports/review.html' => <<<'HTML'
+<article>
+<section>${ default.plain() }</section>
+<section>${ default.markdown() }</section>
+</article>
+HTML,
+            'wp-data/templates/default.plain' => 'user plain: $body$',
+            'wp-data/templates/default.markdown' => 'user markdown: $body$',
+        ], [
+            'body' => 'User data body',
+        ], 'wp-data');
+
+        $t->same(implode("\n", [
+            '<article>',
+            '<section>user plain: User data body</section>',
+            '<section>user markdown: User data body</section>',
+            '</article>',
+        ]), $userData);
+
+        $mainTemplateDirectory = $renderer->renderResource('reports/review.html', [
+            'reports/review.html' => '<section>${ default.plain() }</section>',
+            'reports/default.plain' => 'main plain: $body$',
+            'wp-data/templates/default.plain' => 'user plain: $body$',
+        ], [
+            'body' => 'Main body',
+        ], 'wp-data');
+        $t->same('<section>main plain: Main body</section>', $mainTemplateDirectory);
+
+        $bundled = $renderer->renderResource('reports/review.html', [
+            'reports/review.html' => '<section>${ default.plain() }</section>',
+        ], [
+            'body' => 'Bundled body',
+        ], 'wp-data');
+        $t->same('<section>Bundled body</section>', $bundled);
+    },
+
     'renders pandoc default template resources by basename outside templates directory' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

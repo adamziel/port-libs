@@ -5431,6 +5431,61 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
 
+    'preflights zip64 local header compatibility before package import' => static function (TestRunner $t) use ($buildZipPackage, $packUInt64): void {
+        $centralName = 'word/document.xml';
+        $localName = 'word/media/spoofed-local-header.bin';
+        $data = "ZIP64 local header offset should not hide a spoofed local name\n";
+        $zip64OffsetValue = $packUInt64(0);
+        $zip64OffsetExtra = pack('vv', 0x0001, strlen($zip64OffsetValue)) . $zip64OffsetValue;
+        $zip = $buildZipPackage([
+            [
+                'name' => $centralName,
+                'localName' => $localName,
+                'data' => $data,
+                'method' => 0,
+                'centralLocalHeaderOffset' => 0xffffffff,
+                'centralExtra' => $zip64OffsetExtra,
+            ],
+        ]);
+
+        $summary = ZipPackage::zip64ExtraFieldPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 20.0, 1024);
+        $entry = $summary['entries'][0];
+
+        $t->same(1, $summary['entryCount']);
+        $t->same(1, $summary['zip64ExtraFieldEntryCount']);
+        $t->same(1, $summary['requiresZip64EntryCount']);
+        $t->same(1, $summary['mismatchedLocalHeaderEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same([
+            'zip64-extra-field',
+            'zip64-size-or-offset-sentinel',
+            'zip64-local-header-name-mismatch',
+            'zip64-local-header-decoded-name-mismatch',
+        ], $summary['issues']);
+        $t->same($centralName, $entry['name']);
+        $t->same('utf-8', $entry['nameEncoding']);
+        $t->same(0xffffffff, $entry['centralLocalHeaderOffset']);
+        $t->same(0, $entry['localHeaderOffset']);
+        $t->same('zip64-extra-field', $entry['localHeaderOffsetSource']);
+        $t->same($localName, $entry['localRawName']);
+        $t->same($localName, $entry['localName']);
+        $t->same('utf-8', $entry['localNameEncoding']);
+        $t->same(0x0800, $entry['localGeneralPurposeFlags']);
+        $t->same(0, $entry['localCompressionMethod']);
+        $t->same(false, $entry['rawNameMatchesLocalHeader']);
+        $t->same(false, $entry['decodedNameMatchesLocalHeader']);
+        $t->same(true, $entry['generalPurposeFlagsMatchLocalHeader']);
+        $t->same(true, $entry['compressionMethodMatchesLocalHeader']);
+        $t->same($entry, $summary['mismatchedLocalHeaderEntries'][0]);
+        $t->same($entry, $summary['zip64Entries'][0]);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(1, $rawStrict['zip64ExtraFields']['mismatchedLocalHeaderEntryCount']);
+        $t->contains('zip64-local-header-name-mismatch', implode(',', $rawStrict['diagnostics']));
+        $t->contains('raw-local-header-names-preflight-failed', implode(',', $rawStrict['diagnostics']));
+    },
+
     'rejects zip64 extra field metadata before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip64Extra = pack('vv', 0x0001, 8) . str_repeat("\0", 8);
         $summary = ZipPackage::zip64ExtraFieldPreflight($buildZipPackage([

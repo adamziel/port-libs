@@ -477,7 +477,7 @@ final class OdfReader
                 $metadata['editingCycles'] = self::normalizedText($child);
                 continue;
             }
-            if (in_array($child->localName, ['generator', 'editing-duration', 'printed-by', 'print-date', 'print-time'], true)) {
+            if (in_array($child->localName, ['generator', 'editing-duration', 'modification-date', 'modification-time', 'printed-by', 'print-date', 'print-time'], true)) {
                 $text = self::normalizedText($child);
                 if ($text !== '') {
                     $metadata[self::camelCase($child->localName)] = $text;

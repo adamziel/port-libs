@@ -15404,6 +15404,104 @@ XML);
         $t->contains('<dt>Migration Review Film 2026</dt><dd>Migration Review Film :: Producer, Pia :: Performer, Pat; Archive Ensemble :: Narrator, Nia :: Host, Hugo :: Guest, Gia :: Executive, Eli :: Writer, Sam :: Producer 1: source credit verified; Script writer 1 family: script credit verified</dd>', $blocks);
         $t->contains('<dt>Migration Review Podcast 2025</dt><dd>Migration Review Podcast :: Ng, Nia :: Roe, Pat</dd>', $blocks);
     },
+    'applies bounded csl version number labels and text forms' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'versioned-manual',
+                'type' => 'book',
+                'title' => 'Versioned Import Manual',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'version' => '2',
+            ],
+            [
+                'id' => 'version-range',
+                'type' => 'dataset',
+                'title' => 'Versioned Export Data',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'version' => '2-4',
+            ],
+            [
+                'id' => 'named-version',
+                'type' => 'software',
+                'title' => 'Named Channel Build',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'version' => 'release candidate',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Version Number Review</title>
+    <id>https://example.test/styles/bounded-version-number-review</id>
+    <updated>2026-06-08T20:05:13+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <choose>
+          <if is-numeric="version">
+            <group delimiter=" ">
+              <label variable="version" form="short"/>
+              <number variable="version" form="ordinal"/>
+            </group>
+          </if>
+          <else>
+            <text variable="version" prefix="version "/>
+          </else>
+        </choose>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="version"/>
+        <text variable="version" form="roman"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $children = $summary['citationRendering'][0]['children'] ?? [];
+        $branches = $children[1]['branches'] ?? [];
+        $versionBranchGroup = $branches[0]['children'][0] ?? [];
+        $versionBranchChildren = $versionBranchGroup['children'] ?? [];
+        $t->same(['version'], $branches[0]['isNumeric'] ?? null);
+        $t->same('group', $versionBranchGroup['type'] ?? null);
+        $t->same('version', $versionBranchChildren[0]['variable'] ?? null);
+        $t->same('short', $versionBranchChildren[0]['form'] ?? null);
+        $t->same('version', $versionBranchChildren[1]['variable'] ?? null);
+        $t->same('ordinal', $versionBranchChildren[1]['form'] ?? null);
+
+        $t->same('(Smith ver. 2nd; Ng vers. 2nd-4th; Roe version release candidate)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'versioned-manual', 'text' => '[@versioned-manual]']),
+            new AstNode('citation', ['id' => 'version-range', 'text' => '[@version-range]']),
+            new AstNode('citation', ['id' => 'named-version', 'text' => '[@named-version]']),
+        ]));
+        $t->same('Versioned Import Manual :: version ii', $processor->renderBibliographyEntry('versioned-manual'));
+        $t->same('Versioned Export Data :: versions ii-iv', $processor->renderBibliographyEntry('version-range'));
+        $t->same('Named Channel Build :: version release candidate', $processor->renderBibliographyEntry('named-version'));
+
+        $document = (new MarkdownReader())->read('Versioned imports [@versioned-manual; @version-range; @named-version] keep release numbers visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Versioned imports (Smith ver. 2nd; Ng vers. 2nd-4th; Roe version release candidate) keep release numbers visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Versioned Import Manual :: version ii</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Versioned Export Data :: versions ii-iv</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>Named Channel Build :: version release candidate</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

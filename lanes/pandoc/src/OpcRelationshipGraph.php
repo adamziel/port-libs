@@ -3339,6 +3339,10 @@ final class OpcRelationshipGraph
             $issues[] = 'unsupported-relationship-transform-child';
         }
 
+        if ($sourceIds === [] && $sourceTypes === []) {
+            $issues[] = 'empty-relationship-selector';
+        }
+
         return [
             'sourceIds' => $sourceIds,
             'sourceTypes' => $sourceTypes,

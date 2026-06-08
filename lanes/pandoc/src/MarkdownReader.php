@@ -1802,15 +1802,16 @@ final class MarkdownReader
     {
         [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
         $sourceValue = $this->stripYamlTrailingComment($sourceValue);
-        if ($this->yamlHasExplicitOrderedPairsTag($tags)) {
-            $value = $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children);
+        $orderedPairsTag = $this->yamlExplicitOrderedPairsTag($tags);
+        if ($orderedPairsTag !== null) {
+            $value = $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children, $childrenSourceLines, $orderedPairsTag);
             $this->rememberYamlAnchor($anchorName, $value);
 
             return [$value, $anchorName];
         }
 
         if ($this->yamlHasExplicitTag($tags, 'set')) {
-            $value = $this->parseYamlExplicitSetValue($sourceValue, $children, $childrenSourceLines);
+            $value = $this->parseYamlExplicitSetValue($sourceValue, $children, $childrenSourceLines, 'set');
             $this->rememberYamlAnchor($anchorName, $value);
 
             return [$value, $anchorName];
@@ -2209,7 +2210,8 @@ final class MarkdownReader
         string $style,
         int $memberCount,
         ?int $sourceLine = null,
-        array $contentSourceLines = []
+        array $contentSourceLines = [],
+        ?string $explicitTag = null
     ): void {
         if (!$this->yamlMetadataRecordCollectionProvenance || $memberCount < 1) {
             return;
@@ -2231,6 +2233,9 @@ final class MarkdownReader
             'style' => $style,
             'memberCount' => (string) $memberCount,
         ];
+        if ($explicitTag !== null && $explicitTag !== '') {
+            $entry['explicitTag'] = $explicitTag;
+        }
         $path = $this->currentYamlMetadataDiagnosticPath();
         if ($path !== null) {
             $entry['path'] = $path;
@@ -2408,12 +2413,13 @@ final class MarkdownReader
                 $index++;
             }
 
-            if ($this->yamlHasExplicitOrderedPairsTag($tags)) {
+            $orderedPairsTag = $this->yamlExplicitOrderedPairsTag($tags);
+            if ($orderedPairsTag !== null) {
                 $value = $this->withYamlMetadataPathSegment(
                     $itemPath,
                     fn (): array => $this->withYamlMetadataSourceLine(
                         $sourceLine,
-                        fn (): array => $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children)
+                        fn (): array => $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children, $childrenSourceLines, $orderedPairsTag)
                     )
                 );
                 $this->withYamlMetadataSourceLine(
@@ -2431,7 +2437,7 @@ final class MarkdownReader
                     $itemPath,
                     fn (): array => $this->withYamlMetadataSourceLine(
                         $sourceLine,
-                        fn (): array => $this->parseYamlExplicitSetValue($sourceValue, $children, $childrenSourceLines)
+                        fn (): array => $this->parseYamlExplicitSetValue($sourceValue, $children, $childrenSourceLines, 'set')
                     )
                 );
                 $this->withYamlMetadataSourceLine(
@@ -2955,14 +2961,15 @@ final class MarkdownReader
             return $parsed;
         }
 
-        if ($this->yamlHasExplicitOrderedPairsTag($tags)) {
-            $parsed = $this->parseYamlExplicitOrderedPairsValue($value, []);
+        $orderedPairsTag = $this->yamlExplicitOrderedPairsTag($tags);
+        if ($orderedPairsTag !== null) {
+            $parsed = $this->parseYamlExplicitOrderedPairsValue($value, [], null, $orderedPairsTag);
             $this->rememberYamlAnchor($anchorName, $parsed);
             return $parsed;
         }
 
         if ($this->yamlHasExplicitTag($tags, 'set')) {
-            $parsed = $this->parseYamlExplicitSetValue($value, []);
+            $parsed = $this->parseYamlExplicitSetValue($value, [], null, 'set');
             $this->rememberYamlAnchor($anchorName, $parsed);
             return $parsed;
         }
@@ -3416,7 +3423,12 @@ final class MarkdownReader
      * @param list<int|null>|null $childrenSourceLines
      * @return array<string, null>
      */
-    private function parseYamlExplicitSetValue(string $sourceValue, array $children, ?array $childrenSourceLines = null): array
+    private function parseYamlExplicitSetValue(
+        string $sourceValue,
+        array $children,
+        ?array $childrenSourceLines = null,
+        string $explicitTag = 'set'
+    ): array
     {
         $sourceValue = ltrim($sourceValue);
         if ($sourceValue !== '') {
@@ -3427,7 +3439,10 @@ final class MarkdownReader
                 );
 
             if ($candidate !== '' && $candidate[0] === '{' && str_ends_with(rtrim($candidate), '}') && $this->isBalancedYamlFlowCollection($candidate)) {
-                return $this->parseYamlFlowSet(substr(rtrim($candidate), 1, -1), $this->yamlMetadataCurrentSourceLine);
+                $set = $this->parseYamlFlowSet(substr(rtrim($candidate), 1, -1), $this->yamlMetadataCurrentSourceLine);
+                $this->recordYamlCollectionProvenance('mapping', 'flow', count($set), null, $childrenSourceLines ?? [], $explicitTag);
+
+                return $set;
             }
 
             return [];
@@ -3450,11 +3465,17 @@ final class MarkdownReader
                 trim($this->stripYamlFlowComments(implode("\n", $normalized)))
             );
             if ($first !== '' && $first[0] === '{' && str_ends_with(rtrim($candidate), '}') && $this->isBalancedYamlFlowCollection($candidate)) {
-                return $this->parseYamlFlowSet(substr(rtrim($candidate), 1, -1), $this->yamlMetadataCurrentSourceLine);
+                $set = $this->parseYamlFlowSet(substr(rtrim($candidate), 1, -1), $this->yamlMetadataCurrentSourceLine);
+                $this->recordYamlCollectionProvenance('mapping', 'flow', count($set), null, $childrenSourceLines, $explicitTag);
+
+                return $set;
             }
         }
 
-        return $this->parseYamlBlockSet($normalized, $childrenSourceLines);
+        $set = $this->parseYamlBlockSet($normalized, $childrenSourceLines);
+        $this->recordYamlCollectionProvenance('mapping', 'block', count($set), null, $childrenSourceLines, $explicitTag);
+
+        return $set;
     }
 
     /**
@@ -3576,9 +3597,15 @@ final class MarkdownReader
 
     /**
      * @param list<string> $children
+     * @param list<int|null>|null $childrenSourceLines
      * @return list<array{key:string, value:mixed}>
      */
-    private function parseYamlExplicitOrderedPairsValue(string $sourceValue, array $children): array
+    private function parseYamlExplicitOrderedPairsValue(
+        string $sourceValue,
+        array $children,
+        ?array $childrenSourceLines = null,
+        string $explicitTag = 'pairs'
+    ): array
     {
         $sourceValue = ltrim($sourceValue);
         if ($sourceValue !== '') {
@@ -3590,18 +3617,23 @@ final class MarkdownReader
 
             $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate($candidate, $this->yamlMetadataCurrentSourceLine);
             if ($flowPairs !== null) {
+                $this->recordYamlCollectionProvenance('sequence', 'flow', count($flowPairs), null, $childrenSourceLines ?? [], $explicitTag);
+
                 return $flowPairs;
             }
 
             return [];
         }
 
+        $childrenSourceLines ??= array_fill(0, count($children), null);
         $normalized = $this->stripYamlCommonIndent($children);
         while ($normalized !== [] && trim($normalized[0]) === '') {
             array_shift($normalized);
+            array_shift($childrenSourceLines);
         }
         while ($normalized !== [] && trim((string) end($normalized)) === '') {
             array_pop($normalized);
+            array_pop($childrenSourceLines);
         }
 
         if ($normalized !== []) {
@@ -3610,11 +3642,16 @@ final class MarkdownReader
             );
             $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate($candidate, $this->yamlMetadataCurrentSourceLine);
             if ($flowPairs !== null) {
+                $this->recordYamlCollectionProvenance('sequence', 'flow', count($flowPairs), null, $childrenSourceLines, $explicitTag);
+
                 return $flowPairs;
             }
         }
 
-        return $this->yamlOrderedPairsFromSequence($this->parseYamlSequence($normalized));
+        $pairs = $this->yamlOrderedPairsFromSequence($this->parseYamlSequence($normalized, $childrenSourceLines));
+        $this->recordYamlCollectionProvenance('sequence', 'block', count($pairs), null, $childrenSourceLines, $explicitTag);
+
+        return $pairs;
     }
 
     /**
@@ -4336,7 +4373,22 @@ final class MarkdownReader
      */
     private function yamlHasExplicitOrderedPairsTag(array $tags): bool
     {
-        return $this->yamlHasExplicitTag($tags, 'omap') || $this->yamlHasExplicitTag($tags, 'pairs');
+        return $this->yamlExplicitOrderedPairsTag($tags) !== null;
+    }
+
+    /**
+     * @param list<string> $tags
+     */
+    private function yamlExplicitOrderedPairsTag(array $tags): ?string
+    {
+        foreach ($tags as $tag) {
+            $normalized = $this->normalizeYamlTag($tag);
+            if ($normalized === 'omap' || $normalized === 'pairs') {
+                return $normalized;
+            }
+        }
+
+        return null;
     }
 
     private function normalizeYamlTag(string $tag): string

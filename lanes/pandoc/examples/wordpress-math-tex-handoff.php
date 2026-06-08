@@ -82,6 +82,8 @@ Prescript isotope audit $\prescript{14}{6}{C} + \prescript{\text{review}}{}{p_i}
 
 Operator limits audit $\sum\limits_{i=1}^{n} p_i + \lim\limits_{x \to 0} f(x) + \int\nolimits_{0}^{1} g(x) dx$ stays semantic.
 
+Large operator alias audit $\bigcup_{i=1}^{n} A_i + \bigcap_{j} B_j + \coprod\limits_{k=0}^{m} C_k + \iint_D f(x,y) dx dy + \bigoplus_i G_i$ stays semantic.
+
 Starred operator limits audit $\operatorname*{argmax}_{p_i \in P}^{\text{draft}} f(p_i) + \operatorname{median}\displaylimits_{i=1}^{n} p_i + \operatorname*{rank}\nolimits_{j} q_j$ stays semantic.
 
 Modulo audit $a \mod n + b \bmod m_i + x \pmod {n+1} + y \pod m_i$ stays semantic.
@@ -220,6 +222,7 @@ $summary = [
     'substackMathml' => $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)'),
     'prescriptMathml' => $converter->texToMathMl('\\prescript{14}{6}{C} + \\prescript{\\text{review}}{}{p_i} + \\prescript{}{L}{\\operatorname{score}}_j'),
     'operatorLimitsMathml' => $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx'),
+    'largeOperatorAliasMathml' => $converter->texToMathMl('\\bigcup_{i=1}^{n} A_i + \\bigcap_{j} B_j + \\coprod\\limits_{k=0}^{m} C_k + \\iint_D f(x,y) dx dy + \\bigoplus_i G_i'),
     'starredOperatorLimitsMathml' => $converter->texToMathMl('\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j'),
     'moduloMathml' => $converter->texToMathMl('a \\mod n + b \\bmod m_i + x \\pmod {n+1} + y \\pod m_i'),
     'mathClassMathml' => $converter->texToMathMl('\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathopen{[}q_i\\mathclose{]} + f\\mathpunct{,}g'),
@@ -349,6 +352,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['largeOperatorAliasMathml'], '<mi>\\bigcup</mi>')
+        || str_contains($summary['largeOperatorAliasMathml'], '<mi>\\iint</mi>')
+        || !str_contains($summary['largeOperatorAliasMathml'], '<msubsup><mo>⋃</mo>')
+        || !str_contains($summary['largeOperatorAliasMathml'], '<msub><mo>∬</mo><mi>D</mi></msub>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map large operator aliases');
+    }
+
+    if (
         str_contains($summary['bracedNotRelationMathml'], '<menclose notation="updiagonalstrike"><mo>')
         || !str_contains($summary['bracedNotRelationMathml'], '<mi>x</mi><mo>∉</mo><mi>S</mi><mo>+</mo><mi>y</mi><mo>≠</mo><mi>z</mi><mo>+</mo><mi>q</mi><mo>≰</mo><mi>r</mi><mo>+</mo><mi>u</mi><mo>≱</mo><mi>v</mi>')
     ) {
@@ -386,6 +398,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)\\)</span>',
         '<span class="math inline">\\(\\prescript{14}{6}{C} + \\prescript{\\text{review}}{}{p_i} + \\prescript{}{L}{\\operatorname{score}}_j\\)</span>',
         '<span class="math inline">\\(\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx\\)</span>',
+        '<span class="math inline">\\(\\bigcup_{i=1}^{n} A_i + \\bigcap_{j} B_j + \\coprod\\limits_{k=0}^{m} C_k + \\iint_D f(x,y) dx dy + \\bigoplus_i G_i\\)</span>',
         '<span class="math inline">\\(\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j\\)</span>',
         '<span class="math inline">\\(a \\mod n + b \\bmod m_i + x \\pmod {n+1} + y \\pod m_i\\)</span>',
         '<span class="math inline">\\(\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathopen{[}q_i\\mathclose{]} + f\\mathpunct{,}g\\)</span>',
@@ -525,6 +538,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>p</mi><mi>i</mi></msub>',
         '<munder><mo>lim</mo><mrow><mi>x</mi><mo>→</mo><mn>0</mn></mrow></munder><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo>',
         '<msubsup><mo>∫</mo><mn>0</mn><mn>1</mn></msubsup><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo><mi>d</mi><mi>x</mi>',
+        '<msubsup><mo>⋃</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup><msub><mi>A</mi><mi>i</mi></msub>',
+        '<msub><mo>∬</mo><mi>D</mi></msub><mi>f</mi><mo>(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>)</mo><mi>d</mi><mi>x</mi><mi>d</mi><mi>y</mi>',
+        '<annotation encoding="application/x-tex">\\bigcup_{i=1}^{n} A_i + \\bigcap_{j} B_j + \\coprod\\limits_{k=0}^{m} C_k + \\iint_D f(x,y) dx dy + \\bigoplus_i G_i</annotation>',
         '<munderover><mi>argmax</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover>',
         '<munderover><mi>median</mi><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover>',
         '<msub><mi>rank</mi><mi>j</mi></msub><msub><mi>q</mi><mi>j</mi></msub>',

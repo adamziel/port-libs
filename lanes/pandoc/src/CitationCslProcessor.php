@@ -7526,6 +7526,7 @@ final class CitationCslProcessor
             'collection-number',
             'part-number',
             'part',
+            'version',
         ], true);
     }
 

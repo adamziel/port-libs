@@ -516,6 +516,17 @@ HTML,
         }
     }
 
+    $userDataDefaultPartial = (new DocTemplate())->renderResource('review-packets/user-data-default.html', [
+        'review-packets/user-data-default.html' => '<article class="user-data-default-partial"><section>${ default.plain() }</section></article>',
+        'wp-data/templates/default.plain' => 'user-data default: $body$',
+    ], [
+        'body' => 'WordPress review body',
+    ], 'wp-data');
+    if ($userDataDefaultPartial !== '<article class="user-data-default-partial"><section>user-data default: WordPress review body</section></article>') {
+        fwrite(STDERR, "Missing expected doctemplate user-data default partial override\n");
+        exit(1);
+    }
+
     $basenameDefaultFallback = (new DocTemplate())->renderResource('review-packets/default.html5', [], [
         'pandoc-version' => '3.7.0',
         'pagetitle' => 'Basename Fallback Review',
