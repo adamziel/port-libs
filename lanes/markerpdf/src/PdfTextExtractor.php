@@ -22048,9 +22048,10 @@ final class PdfTextExtractor
             return ['state' => 'inherit'];
         }
 
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            $generation = (int) $match[2];
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference !== null) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
             $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
             if ($resolved === null) {
                 return ['state' => 'blocked'];
@@ -22181,9 +22182,10 @@ final class PdfTextExtractor
             return null;
         }
 
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            $generation = (int) $match[2];
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference !== null) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
             $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
             if ($resolved === null || $this->objectBodyIsStreamObject($resolved['body'])) {
                 return null;
