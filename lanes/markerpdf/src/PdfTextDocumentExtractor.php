@@ -173,6 +173,7 @@ final class PdfTextDocumentExtractor
         }
 
         $keyedPages = [];
+        $seenPageKeys = [];
         foreach ($pages as $key => $page) {
             $page = $this->unwrapSuppliedDictionaryPageEntry($page);
             $pageKey = $this->integerArrayKey($key);
@@ -187,6 +188,12 @@ final class PdfTextDocumentExtractor
             if (!is_array($page) || !array_key_exists('blocks', $page)) {
                 return $this->suppliedDictionaryPageListFallback($pages);
             }
+
+            $pageKeyFingerprint = (string) $pageKey;
+            if (isset($seenPageKeys[$pageKeyFingerprint])) {
+                throw new InvalidArgumentException('Supplied pdftext page map contains duplicate normalized page keys.');
+            }
+            $seenPageKeys[$pageKeyFingerprint] = true;
 
             $keyedPages[] = [
                 'key' => $pageKey,
