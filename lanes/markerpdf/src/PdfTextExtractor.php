@@ -172,7 +172,8 @@ final class PdfTextExtractor
                 $entry['stream'],
                 $entry['fontToUnicodeMaps'],
                 $entry['markedContentProperties'],
-                $entry['imageXObjectResourceNames']
+                $entry['imageXObjectResourceNames'],
+                $entry['inlineImageColorSpaceResources'] ?? []
             ) as $run) {
                 if ($run !== '') {
                     $runs[] = $run;
@@ -1709,7 +1710,8 @@ final class PdfTextExtractor
                 $entry['fontToUnicodeMaps'],
                 $entry['markedContentProperties'],
                 $pageIndex,
-                $entry['imageXObjectResourceNames']
+                $entry['imageXObjectResourceNames'],
+                $entry['inlineImageColorSpaceResources'] ?? []
             );
             if ($lines === []) {
                 continue;
@@ -1939,7 +1941,8 @@ final class PdfTextExtractor
                 $entry['stream'],
                 $entry['fontToUnicodeMaps'],
                 $entry['markedContentProperties'],
-                $entry['imageXObjectResourceNames']
+                $entry['imageXObjectResourceNames'],
+                $entry['inlineImageColorSpaceResources'] ?? []
             ) as $line) {
                 if ($line !== '') {
                     $lines[] = $line;
@@ -1961,7 +1964,8 @@ final class PdfTextExtractor
                 $entry['stream'],
                 $entry['fontToUnicodeMaps'],
                 $entry['markedContentProperties'],
-                $entry['imageXObjectResourceNames']
+                $entry['imageXObjectResourceNames'],
+                $entry['inlineImageColorSpaceResources'] ?? []
             ));
         }
 
@@ -2720,6 +2724,7 @@ final class PdfTextExtractor
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
                 'markedContentProperties' => [],
                 'imageXObjectResourceNames' => [],
+                'inlineImageColorSpaceResources' => [],
             ],
             $this->allDecodedStreams($pdfBytes, $objects)
         );
@@ -2803,6 +2808,7 @@ final class PdfTextExtractor
                 'fontToUnicodeMaps' => $expanded['fontToUnicodeMaps'],
                 'markedContentProperties' => $expanded['markedContentProperties'],
                 'imageXObjectResourceNames' => $expanded['imageXObjectResourceNames'],
+                'inlineImageColorSpaceResources' => $expanded['inlineImageColorSpaceResources'],
             ];
         }
 
@@ -2810,7 +2816,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}|null
+     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>, inlineImageColorSpaceResources: array<string, string>}|null
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<int|string, bool> $optionalContentStates
@@ -2856,6 +2862,7 @@ final class PdfTextExtractor
             'fontToUnicodeMaps' => $this->pageFontToUnicodeMaps($pageObjectNumber, $objects, $fontObjectMaps),
             'markedContentProperties' => $this->pageMarkedContentProperties($pageObjectNumber, $objects),
             'imageXObjectResourceNames' => [],
+            'inlineImageColorSpaceResources' => [],
         ];
 
         if ($streams !== []) {
@@ -2866,6 +2873,10 @@ final class PdfTextExtractor
 
             if ($resourceOwnerBody !== null) {
                 $expanded['imageXObjectResourceNames'] = $this->imageXObjectResourceNamesForResourceOwnerBody(
+                    $resourceOwnerBody,
+                    $objects
+                );
+                $expanded['inlineImageColorSpaceResources'] = $this->inlineImageColorSpaceResourcesForResourceOwnerBody(
                     $resourceOwnerBody,
                     $objects
                 );
@@ -4725,6 +4736,118 @@ final class PdfTextExtractor
         }
 
         return array_values(array_unique($names));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, string>
+     */
+    private function inlineImageColorSpaceResourcesForResourceOwnerBody(string $resourceOwnerBody, array $objects): array
+    {
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
+        $colorSpaceDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'ColorSpace');
+        if ($colorSpaceDictionary === null) {
+            return [];
+        }
+
+        $resources = [];
+        $duplicates = $this->duplicateTopLevelResourceEntryNames($colorSpaceDictionary);
+        $offset = 0;
+        $length = strlen($colorSpaceDictionary);
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($colorSpaceDictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($colorSpaceDictionary[$offset] !== '/') {
+                $nextOffset = $this->skipPdfValueAt($colorSpaceDictionary, $offset);
+                $offset = $nextOffset > $offset ? $nextOffset : $offset + 1;
+                continue;
+            }
+
+            $nameStart = $offset + 1;
+            $nameEnd = $nameStart;
+            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $colorSpaceDictionary[$nameEnd])) {
+                $nameEnd++;
+            }
+            if ($nameEnd === $nameStart) {
+                $offset++;
+                continue;
+            }
+
+            $resourceName = $this->decodePdfName(substr($colorSpaceDictionary, $nameStart, $nameEnd - $nameStart));
+            $valueOffset = $nameEnd;
+            $this->skipContentWhitespaceAndComments($colorSpaceDictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            if (!isset($duplicates[$resourceName]) && !$this->resourceEntryValueHasMalformedTail($colorSpaceDictionary, $valueOffset)) {
+                $value = $this->pdfValueAtOffset($colorSpaceDictionary, $valueOffset);
+                $resolved = $value === null ? null : $this->inlineImageColorSpaceResourceValueForTokenizer($value, $objects);
+                if ($resolved !== null) {
+                    $resources[$resourceName] = $resolved;
+                }
+            }
+
+            $nextOffset = $this->skipPdfValueAt($colorSpaceDictionary, $valueOffset);
+            $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+        }
+
+        return $resources;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function inlineImageColorSpaceResourceValueForTokenizer(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if ($value === '' || $value === 'null') {
+            return null;
+        }
+
+        $referenceOffset = 0;
+        $reference = $this->readPdfIndirectReferenceToken($value, $referenceOffset);
+        if ($reference !== null) {
+            $tailOffset = $referenceOffset;
+            $this->skipContentWhitespaceAndComments($value, $tailOffset);
+            if ($tailOffset < strlen($value)) {
+                return null;
+            }
+
+            $resolved = $this->resolvedResourceObjectBody($objects, $reference['objectNumber'], $reference['generation']);
+            if ($resolved === null || $this->objectBodyIsStreamObject($resolved['body'])) {
+                return null;
+            }
+
+            $value = trim($resolved['body']);
+        }
+
+        $valueOffset = 0;
+        $this->skipContentWhitespaceAndComments($value, $valueOffset);
+        $resolvedValue = $this->pdfValueAtOffset($value, $valueOffset);
+        if ($resolvedValue === null) {
+            return null;
+        }
+
+        $tailOffset = $this->skipPdfValueAt($value, $valueOffset);
+        $this->skipContentWhitespaceAndComments($value, $tailOffset);
+        if ($tailOffset < strlen($value)) {
+            return null;
+        }
+
+        $resolvedValue = trim($resolvedValue);
+        if (str_starts_with($resolvedValue, '<<')) {
+            return null;
+        }
+
+        return $this->canonicalInlineImageValue($resolvedValue, '/ColorSpace');
     }
 
     /**
@@ -39241,12 +39364,14 @@ final class PdfTextExtractor
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
      * @param list<string> $imageXObjectResourceNames
+     * @param array<string, string> $inlineImageColorSpaceResources
      */
     private function textRunsFromContentStream(
         string $stream,
         array $fontToUnicodeMaps,
         array $markedContentProperties = [],
-        array $imageXObjectResourceNames = []
+        array $imageXObjectResourceNames = [],
+        array $inlineImageColorSpaceResources = []
     ): array
     {
         $runs = [];
@@ -39269,7 +39394,7 @@ final class PdfTextExtractor
         $currentPathPoint = null;
         $currentSubpathStartPoint = null;
         $clipStateStack = [];
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokens($stream, false, $inlineImageColorSpaceResources) as $token) {
             if ($this->isTextShowingOperator($token)) {
                 if ($token === "'" || $token === '"') {
                     $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
@@ -39525,13 +39650,15 @@ final class PdfTextExtractor
      * @param array<string, array<string, mixed>> $fontToUnicodeMaps
      * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
      * @param list<string> $imageXObjectResourceNames
+     * @param array<string, string> $inlineImageColorSpaceResources
      */
     private function textSpanLinesFromContentStream(
         string $stream,
         array $fontToUnicodeMaps,
         array $markedContentProperties,
         int $pageIndex,
-        array $imageXObjectResourceNames = []
+        array $imageXObjectResourceNames = [],
+        array $inlineImageColorSpaceResources = []
     ): array {
         $lines = [];
         $spans = [];
@@ -39568,7 +39695,7 @@ final class PdfTextExtractor
         $currentSubpathStartPoint = null;
         $clipStateStack = [];
 
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokens($stream, false, $inlineImageColorSpaceResources) as $token) {
             if ($this->isTextShowingOperator($token)) {
                 if ($token === "'" || $token === '"') {
                     $this->pushSpanLine($lines, $spans);
@@ -40742,12 +40869,14 @@ final class PdfTextExtractor
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
      * @param list<string> $imageXObjectResourceNames
+     * @param array<string, string> $inlineImageColorSpaceResources
      */
     private function textLinesFromContentStream(
         string $stream,
         array $fontToUnicodeMaps,
         array $markedContentProperties = [],
-        array $imageXObjectResourceNames = []
+        array $imageXObjectResourceNames = [],
+        array $inlineImageColorSpaceResources = []
     ): array
     {
         $lines = [];
@@ -40782,7 +40911,7 @@ final class PdfTextExtractor
         $currentSubpathStartPoint = null;
         $clipStateStack = [];
 
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokens($stream, false, $inlineImageColorSpaceResources) as $token) {
             if ($this->isTextShowingOperator($token)) {
                 if ($token === "'" || $token === '"') {
                     $this->pushLine($lines, $currentLine);
@@ -41206,8 +41335,13 @@ final class PdfTextExtractor
 
     /**
      * @return list<string>
+     * @param array<string, string> $inlineImageColorSpaceResources
      */
-    private function contentTokens(string $stream, bool $preserveInlineImageOperator = false): array
+    private function contentTokens(
+        string $stream,
+        bool $preserveInlineImageOperator = false,
+        array $inlineImageColorSpaceResources = []
+    ): array
     {
         $tokens = [];
         $length = strlen($stream);
@@ -41265,7 +41399,7 @@ final class PdfTextExtractor
             $token = substr($stream, $start, $index - $start);
             if ($token === 'BI' && !$insideTextObject) {
                 $inlineImageEnd = $index;
-                if ($this->skipInlineImage($stream, $inlineImageEnd, $compatibilityDepth)) {
+                if ($this->skipInlineImage($stream, $inlineImageEnd, $compatibilityDepth, $inlineImageColorSpaceResources)) {
                     if ($preserveInlineImageOperator) {
                         $tokens[] = $token;
                     }
@@ -41291,7 +41425,15 @@ final class PdfTextExtractor
         return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
     }
 
-    private function skipInlineImage(string $stream, int &$index, int $outerCompatibilityDepth = 0): bool
+    /**
+     * @param array<string, string> $inlineImageColorSpaceResources
+     */
+    private function skipInlineImage(
+        string $stream,
+        int &$index,
+        int $outerCompatibilityDepth = 0,
+        array $inlineImageColorSpaceResources = []
+    ): bool
     {
         $length = strlen($stream);
         $consumeDataPrefixWhitespace = true;
@@ -41300,6 +41442,10 @@ final class PdfTextExtractor
         if ($dictionary === null || !$this->inlineImageDictionaryHasImageKeys($dictionary)) {
             return false;
         }
+        $boundaryDictionary = $this->inlineImageDictionaryWithColorSpaceResources(
+            $dictionary,
+            $inlineImageColorSpaceResources
+        );
 
         if ($consumeDataPrefixWhitespace) {
             $this->consumeInlineImageDataPrefixWhitespace($stream, $index);
@@ -41316,12 +41462,12 @@ final class PdfTextExtractor
 
             if (!$this->inlineImageEndMarkerAt($stream, $end) && $this->inlineImageTightEndMarkerAt($stream, $end)) {
                 $tightCandidate = substr($stream, $dataStart, $end - $dataStart);
-                if ($this->inlineImageTightEndCandidateMatchesBoundary($dictionary, $tightCandidate)) {
+                if ($this->inlineImageTightEndCandidateMatchesBoundary($boundaryDictionary, $tightCandidate)) {
                     $index = $end + 2;
                     return true;
                 }
 
-                if ($this->inlineImageTightEndCandidateCanStartPreviewFallback($dictionary, $tightCandidate)) {
+                if ($this->inlineImageTightEndCandidateCanStartPreviewFallback($boundaryDictionary, $tightCandidate)) {
                     $incompletePreviewFallbackEnd = $end;
                     $incompletePreviewFallbackCanCloseBeforeNextImage = true;
                 }
@@ -41369,20 +41515,20 @@ final class PdfTextExtractor
 
                 $rawCandidate = substr($stream, $dataStart, $end - $dataStart);
                 $candidate = $this->inlineImageDataCandidate($stream, $dataStart, $end);
-                if ($this->inlineImageCandidateMatchesDictionary($dictionary, $candidate, $rawCandidate)) {
+                if ($this->inlineImageCandidateMatchesDictionary($boundaryDictionary, $candidate, $rawCandidate)) {
                     $index = $end + 2;
                     return true;
                 }
 
-                if ($this->inlineImageRawTerminalWhitespaceCandidateMatchesSampleFloor($dictionary, $rawCandidate, $candidate)) {
+                if ($this->inlineImageRawTerminalWhitespaceCandidateMatchesSampleFloor($boundaryDictionary, $rawCandidate, $candidate)) {
                     $index = $end + 2;
                     return true;
                 }
 
-                if ($this->inlineImageCandidateIsIncompletePreviewOnly($dictionary, $candidate)) {
+                if ($this->inlineImageCandidateIsIncompletePreviewOnly($boundaryDictionary, $candidate)) {
                     $incompletePreviewFallbackEnd = $end;
                     $incompletePreviewFallbackCanCloseBeforeNextImage =
-                        $this->inlineImageIncompletePreviewCandidateReachedSampleFloor($dictionary, $candidate);
+                        $this->inlineImageIncompletePreviewCandidateReachedSampleFloor($boundaryDictionary, $candidate);
                 }
             }
 
@@ -43096,6 +43242,85 @@ final class PdfTextExtractor
         }
 
         return $canonical;
+    }
+
+    /**
+     * @param array<string, string> $colorSpaceResources
+     */
+    private function inlineImageDictionaryWithColorSpaceResources(string $dictionary, array $colorSpaceResources): string
+    {
+        if ($colorSpaceResources === []) {
+            return $dictionary;
+        }
+
+        $entries = [];
+        $index = 0;
+        $length = strlen($dictionary);
+        while ($index < $length) {
+            $keyToken = $this->readInlineImageToken($dictionary, $index);
+            if ($keyToken === null || !str_starts_with($keyToken, '/')) {
+                return $dictionary;
+            }
+
+            $valueToken = $this->readInlineImageToken($dictionary, $index);
+            if ($valueToken === null) {
+                return $dictionary;
+            }
+
+            $valueToken = $this->readInlineImageIndirectReferenceValue($dictionary, $index, $valueToken);
+            $key = $this->canonicalInlineImageKey($keyToken);
+            $value = $this->canonicalInlineImageValue($valueToken, $key);
+            if ($key === '/ColorSpace') {
+                $resourceValue = $this->inlineImageNamedColorSpaceResourceValue($valueToken, $value, $colorSpaceResources);
+                if ($resourceValue !== null) {
+                    $value = $resourceValue;
+                }
+            }
+
+            $entries[] = $key . ' ' . $value;
+        }
+
+        return implode(' ', $entries);
+    }
+
+    /**
+     * @param array<string, string> $colorSpaceResources
+     */
+    private function inlineImageNamedColorSpaceResourceValue(
+        string $rawValue,
+        string $canonicalValue,
+        array $colorSpaceResources
+    ): ?string {
+        $canonicalName = $this->inlineImageColorSpaceName($canonicalValue);
+        if ($canonicalName === null || !$this->inlineImageColorSpaceNameCanUseResource($canonicalName)) {
+            return null;
+        }
+
+        $rawValue = trim($rawValue);
+        if (!str_starts_with($rawValue, '/')) {
+            return null;
+        }
+
+        $resourceName = $this->decodePdfName(substr($rawValue, 1));
+
+        return $colorSpaceResources[$resourceName] ?? null;
+    }
+
+    private function inlineImageColorSpaceNameCanUseResource(string $name): bool
+    {
+        return !in_array($name, [
+            '/DeviceGray',
+            '/DeviceRGB',
+            '/DeviceCMYK',
+            '/CalGray',
+            '/CalRGB',
+            '/Lab',
+            '/ICCBased',
+            '/Indexed',
+            '/Separation',
+            '/DeviceN',
+            '/Pattern',
+        ], true);
     }
 
     private function inlineImageDictionaryHasImageKeys(string $dictionary): bool

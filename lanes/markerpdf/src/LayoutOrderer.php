@@ -472,6 +472,9 @@ final class LayoutOrderer
     private function decodeDirectOrderResultPayloadJsonEnvelope(string $value): mixed
     {
         $trimmed = trim($value);
+        if (str_starts_with($trimmed, "\xEF\xBB\xBF")) {
+            $trimmed = trim(substr($trimmed, 3));
+        }
         if ($trimmed === '' || !in_array($trimmed[0], ['[', '{'], true)) {
             return null;
         }
