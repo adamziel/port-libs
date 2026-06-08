@@ -517,6 +517,9 @@ final class Html5DomFragment
             self::markHtmlDialogReviewMetadata($node, $attrs, $diagnostics);
             $name = 'div';
         }
+        if ($mode === 'html' && $name === 'ruby') {
+            self::markHtmlRubyReviewMetadata($node, $attrs, $children, $diagnostics);
+        }
         if ($mode === 'html') {
             self::markHtmlHiddenInertReviewMetadata($node, $name, $attrs, $diagnostics);
         }
@@ -630,6 +633,159 @@ final class Html5DomFragment
         $state = strtolower(self::cleanHtmlMetadataAttribute($value));
 
         return $state === 'until-found' ? 'until-found' : 'hidden';
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlRubyReviewMetadata(
+        \DOMElement $element,
+        array &$attrs,
+        array $children,
+        array &$diagnostics
+    ): void {
+        $baseText = self::rubyBaseText($children);
+        $annotationText = self::rubyAnnotationText($children);
+        $fallbackText = self::rubyFallbackText($children);
+        if ($baseText === '' && $annotationText === '' && $fallbackText === '') {
+            return;
+        }
+
+        if ($baseText !== '') {
+            $attrs['data-pandoc-ruby-base'] = $baseText;
+        }
+        if ($annotationText !== '') {
+            $attrs['data-pandoc-ruby-annotation'] = $annotationText;
+        }
+        if ($fallbackText !== '') {
+            $attrs['data-pandoc-ruby-fallback'] = $fallbackText;
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'ruby-annotation-review',
+            'tag' => 'ruby',
+            'reason' => 'ruby-annotation-preserved-as-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     */
+    private static function rubyBaseText(array $children): string
+    {
+        $text = '';
+        foreach ($children as $child) {
+            if (($child['type'] ?? '') === 'element' && in_array(strtolower((string) ($child['name'] ?? '')), ['rp', 'rt', 'rtc'], true)) {
+                continue;
+            }
+
+            $text .= self::rubyNodeText($child);
+        }
+
+        return self::normalizeRubyMetadataText($text);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     */
+    private static function rubyAnnotationText(array $children): string
+    {
+        $annotations = [];
+        foreach ($children as $child) {
+            foreach (self::rubyAnnotationTextsFromNode($child) as $annotation) {
+                if ($annotation === '' || in_array($annotation, $annotations, true)) {
+                    continue;
+                }
+
+                $annotations[] = $annotation;
+            }
+        }
+
+        return implode(' | ', $annotations);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @return list<string>
+     */
+    private static function rubyAnnotationTextsFromNode(array $node): array
+    {
+        if (($node['type'] ?? '') !== 'element') {
+            return [];
+        }
+
+        $name = strtolower((string) ($node['name'] ?? ''));
+        $children = is_array($node['children'] ?? null) ? $node['children'] : [];
+        if ($name === 'rt') {
+            return [self::normalizeRubyMetadataText(self::rubyNodeText($node))];
+        }
+
+        if ($name !== 'rtc') {
+            return [];
+        }
+
+        $annotations = [];
+        foreach ($children as $child) {
+            if (($child['type'] ?? '') === 'element' && strtolower((string) ($child['name'] ?? '')) === 'rt') {
+                $annotations[] = self::normalizeRubyMetadataText(self::rubyNodeText($child));
+            }
+        }
+
+        if ($annotations === []) {
+            $annotations[] = self::normalizeRubyMetadataText(self::rubyNodeText($node));
+        }
+
+        return $annotations;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     */
+    private static function rubyFallbackText(array $children): string
+    {
+        $text = '';
+        foreach ($children as $child) {
+            if (($child['type'] ?? '') !== 'element' || strtolower((string) ($child['name'] ?? '')) !== 'rp') {
+                continue;
+            }
+
+            $text .= self::rubyNodeText($child);
+        }
+
+        return self::normalizeRubyMetadataText($text);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private static function rubyNodeText(array $node): string
+    {
+        if (($node['type'] ?? '') === 'text') {
+            return (string) ($node['text'] ?? '');
+        }
+        if (($node['type'] ?? '') !== 'element' || !is_array($node['children'] ?? null)) {
+            return '';
+        }
+
+        $text = '';
+        foreach ($node['children'] as $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+
+            $text .= self::rubyNodeText($child);
+        }
+
+        return $text;
+    }
+
+    private static function normalizeRubyMetadataText(string $text): string
+    {
+        $text = preg_replace('/[\t\r\n\f ]+/u', ' ', $text) ?? $text;
+
+        return trim($text);
     }
 
     /**

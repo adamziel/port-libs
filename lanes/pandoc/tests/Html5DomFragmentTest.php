@@ -2420,6 +2420,64 @@ return [
         }
         $t->true(!str_contains($blocks, ' translate='), 'Expected WordPress blocks to omit source translate attributes');
     },
+    'adds ruby annotation metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article><p>'
+            . '<ruby data-pandoc-ruby-annotation="source-spoof">&#28450;<rp>(</rp><rt>Kan ji</rt><rp>)</rp><rtc><rt>Han</rt><rt>character</rt></rtc></ruby>'
+            . '<ruby><rb>&#23383;</rb><rt>ji</rt></ruby>'
+            . '<ruby><span>&#28304;</span><rt>source<script>drop()</script></rt></ruby>'
+            . '</p></article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/ruby-annotation-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><p>'
+            . '<ruby data-pandoc-ruby-base="漢" data-pandoc-ruby-annotation="Kan ji | Han | character" data-pandoc-ruby-fallback="()">漢<rp>(</rp><rt>Kan ji</rt><rp>)</rp><rtc><rt>Han</rt><rt>character</rt></rtc></ruby>'
+            . '<ruby data-pandoc-ruby-base="字" data-pandoc-ruby-annotation="ji"><rb>字</rb><rt>ji</rt></ruby>'
+            . '<ruby data-pandoc-ruby-base="源" data-pandoc-ruby-annotation="source"><span>源</span><rt>source</rt></ruby>'
+            . '</p></article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('漢(Kan ji)Hancharacter字ji源source', $fragment->textContent());
+        $t->same(['article', 'p', 'rb', 'rp', 'rt', 'rtc', 'ruby', 'span'], $summary['elementNames']);
+        $t->same(['script'], $summary['blockedTags']);
+        $t->same(['data-pandoc-ruby-annotation'], $summary['filteredAttributes']);
+        $t->same([
+            'unsafe-attribute',
+            'ruby-annotation-review',
+            'ruby-annotation-review',
+            'blocked-tag',
+            'ruby-annotation-review',
+        ], $policyDiagnostics);
+        $rubies = $nodes[0]['children'][0]['children'];
+        $t->same([
+            'data-pandoc-ruby-base' => '漢',
+            'data-pandoc-ruby-annotation' => 'Kan ji | Han | character',
+            'data-pandoc-ruby-fallback' => '()',
+        ], $rubies[0]['attrs']);
+        $t->same([
+            'data-pandoc-ruby-base' => '字',
+            'data-pandoc-ruby-annotation' => 'ji',
+        ], $rubies[1]['attrs']);
+        $t->same([
+            'data-pandoc-ruby-base' => '源',
+            'data-pandoc-ruby-annotation' => 'source',
+        ], $rubies[2]['attrs']);
+        $t->same('/migration/ruby-annotation-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned ruby metadata to be stripped');
+        $t->true(!str_contains($html, '<script'), 'Expected active script in ruby annotation to be dropped');
+        $t->true(str_contains($blocks, 'data-pandoc-ruby-annotation="Kan ji | Han | character"'), 'Expected WordPress blocks to carry ruby annotation metadata');
+    },
     'converts passive named metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
