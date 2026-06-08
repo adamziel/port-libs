@@ -277,8 +277,8 @@ final class SingleDocumentConverter
             throw new InvalidArgumentException('Single-document runtime preflight output folder must not be empty.');
         }
 
-        $basename = basename($filename);
-        if ($basename === '' || $basename === '.' || $basename === '..') {
+        $basename = $this->upstreamOutputBasename($filename);
+        if ($basename === '.' || $basename === '..') {
             throw new InvalidArgumentException('Single-document runtime preflight filename must include a basename.');
         }
 
@@ -335,6 +335,8 @@ final class SingleDocumentConverter
             'output_policy' => [
                 'function' => 'save_markdown',
                 'uses_basename_after_conversion' => true,
+                'basename_source' => 'os.path.basename(fname) after convert_single_pdf returns',
+                'empty_basename_after_trailing_separator' => $basename === '' && str_ends_with($filename, '/'),
                 'existing_markdown' => $this->writer->markdownExists($outputFolder, $basename),
                 'skips_existing_markdown' => false,
                 'min_length_preflight' => false,
@@ -376,7 +378,7 @@ final class SingleDocumentConverter
 
         $started = microtime(true);
         $conversion = $this->normalizeConversion($converter($filename, $options));
-        $basename = basename($filename);
+        $basename = $this->upstreamOutputBasename($filename);
         $subfolder = $this->writer->saveMarkdown(
             $outputFolder,
             $basename,
@@ -394,6 +396,16 @@ final class SingleDocumentConverter
             'elapsed_seconds' => microtime(true) - $started,
             'options' => $options,
         ];
+    }
+
+    private function upstreamOutputBasename(string $filename): string
+    {
+        $lastSeparator = strrpos($filename, '/');
+        if ($lastSeparator === false) {
+            return $filename;
+        }
+
+        return substr($filename, $lastSeparator + 1);
     }
 
     /**
