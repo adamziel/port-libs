@@ -11,6 +11,8 @@ use Throwable;
 
 final class BatchConverter
 {
+    private const CONVERT_SINGLE_MODEL_SLOT_COUNT = 6;
+
     private OutputWriter $writer;
     private FiletypeDetector $filetypeDetector;
     private PdfTextExtractor $textExtractor;
@@ -4045,9 +4047,9 @@ final class BatchConverter
             ? $modelHandoff['model_share_memory_review']
             : [];
         $sharedModelIsEmptyList = $reusesParentModelList && ($shareMemoryReview['model_list_empty'] ?? false) === true;
-        $downstreamModelUnpackBoundary = $sharedModelIsEmptyList
-            ? 'convert-single-pdf-model-unpack-failed'
-            : null;
+        $downstreamModelUnpackBoundary = is_string($modelHandoff['model_list_arity_error_boundary'] ?? null)
+            ? (string) $modelHandoff['model_list_arity_error_boundary']
+            : ($sharedModelIsEmptyList ? 'convert-single-pdf-model-unpack-failed' : null);
 
         return [
             'source' => 'convert.py worker_init shared_model boundary',
@@ -4075,6 +4077,13 @@ final class BatchConverter
                 : null,
             'process_single_pdf_after_initializer' => $reached,
             'downstream_convert_single_pdf_model_unpack_boundary' => $downstreamModelUnpackBoundary,
+            'downstream_convert_single_pdf_model_unpack_error_class' => $modelHandoff['model_list_arity_error_class'] ?? null,
+            'downstream_convert_single_pdf_model_unpack_error_message' => $modelHandoff['model_list_arity_error_message'] ?? null,
+            'model_slot_expected_count' => self::CONVERT_SINGLE_MODEL_SLOT_COUNT,
+            'model_slot_count' => $shareMemoryReview['model_slot_count'] ?? null,
+            'model_list_arity_checked_in_worker_init' => false,
+            'model_list_arity_deferred_to_convert_single_pdf' => $downstreamModelUnpackBoundary !== null,
+            'process_single_pdf_catches_downstream_unpack_error' => $downstreamModelUnpackBoundary !== null,
             'upstream_worker_model_execution_required' => $usesWorkerModelLoad,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
@@ -4285,6 +4294,7 @@ final class BatchConverter
         $shareMemoryErrorBoundary = ($shareMemoryReview['share_memory_error_found'] ?? false) === true
             ? 'model-share-memory-failed'
             : null;
+        $modelListEmpty = ($shareMemoryReview['model_list_empty'] ?? false) === true;
 
         return [
             'source' => 'convert.py settings.TORCH_DEVICE model handoff',
@@ -4302,19 +4312,27 @@ final class BatchConverter
             'main_load_all_models' => $reached && !$usesMps,
             'share_memory_before_pool' => $reached && !$usesMps,
             'model_share_memory_loop_reached' => $reached && !$usesMps,
-            'model_list_empty' => ($shareMemoryReview['model_list_empty'] ?? false) === true,
-            'worker_init_receives_empty_model_list' => ($shareMemoryReview['model_list_empty'] ?? false) === true,
+            'model_list_empty' => $modelListEmpty,
+            'worker_init_receives_empty_model_list' => $modelListEmpty,
             'worker_loads_models_when_empty_list' => false,
-            'empty_model_list_conversion_error_boundary' => ($shareMemoryReview['model_list_empty'] ?? false) === true
+            'empty_model_list_conversion_error_boundary' => $modelListEmpty
                 ? 'convert-single-pdf-model-unpack-failed'
                 : null,
-            'empty_model_list_conversion_error_class' => ($shareMemoryReview['model_list_empty'] ?? false) === true
+            'empty_model_list_conversion_error_class' => $modelListEmpty
                 ? 'ValueError'
                 : null,
-            'empty_model_list_conversion_error_message' => ($shareMemoryReview['model_list_empty'] ?? false) === true
+            'empty_model_list_conversion_error_message' => $modelListEmpty
                 ? 'not enough values to unpack (expected 6, got 0)'
                 : null,
-            'empty_model_list_caught_by_process_single_pdf' => ($shareMemoryReview['model_list_empty'] ?? false) === true,
+            'empty_model_list_caught_by_process_single_pdf' => $modelListEmpty,
+            'model_slot_expected_count' => self::CONVERT_SINGLE_MODEL_SLOT_COUNT,
+            'model_slot_count' => $shareMemoryReview['model_slot_count'] ?? null,
+            'model_list_arity_matches_convert_single_pdf_unpack' => $shareMemoryReview['model_slot_count_matches_convert_single_pdf_unpack'] ?? null,
+            'model_list_arity_error_boundary' => $shareMemoryReview['model_list_arity_error_boundary'] ?? null,
+            'model_list_arity_error_class' => $shareMemoryReview['model_list_arity_error_class'] ?? null,
+            'model_list_arity_error_message' => $shareMemoryReview['model_list_arity_error_message'] ?? null,
+            'model_list_arity_error_caught_by_process_single_pdf' => ($shareMemoryReview['model_list_arity_error_boundary'] ?? null) !== null,
+            'model_list_arity_not_checked_before_pool_launch' => ($shareMemoryReview['model_list_arity_error_boundary'] ?? null) !== null,
             'worker_init_argument' => !$reached || $usesMps || $shareMemoryErrorBoundary !== null ? null : 'model_lst',
             'worker_loads_models_when_init_arg_null' => $usesMps,
             'warning' => $usesMps
@@ -4416,6 +4434,21 @@ final class BatchConverter
 
         $fixtureUsed = $reviewReached && $modelSlots !== null;
         $modelListEmpty = $fixtureUsed && $modelSlots === [];
+        $modelSlotCount = $fixtureUsed ? count($modelSlots) : null;
+        $modelListArityMismatch = $modelSlotCount !== null && $modelSlotCount !== self::CONVERT_SINGLE_MODEL_SLOT_COUNT;
+        $modelListArityErrorMessage = null;
+        if ($modelListArityMismatch && $modelSlotCount < self::CONVERT_SINGLE_MODEL_SLOT_COUNT) {
+            $modelListArityErrorMessage = sprintf(
+                'not enough values to unpack (expected %d, got %d)',
+                self::CONVERT_SINGLE_MODEL_SLOT_COUNT,
+                $modelSlotCount
+            );
+        } elseif ($modelListArityMismatch) {
+            $modelListArityErrorMessage = sprintf(
+                'too many values to unpack (expected %d)',
+                self::CONVERT_SINGLE_MODEL_SLOT_COUNT
+            );
+        }
         $shareMemoryErrorFound = $shareMemoryErrorSlotIndexes !== [];
         $modelListValue = null;
         if ($modelHandoffReached) {
@@ -4439,7 +4472,19 @@ final class BatchConverter
             'model_list_empty' => $fixtureUsed ? $modelListEmpty : null,
             'model_list_python_truthy' => $fixtureUsed ? !$modelListEmpty : null,
             'model_slot_fixture_used' => $fixtureUsed,
-            'model_slot_count' => $fixtureUsed ? count($modelSlots) : null,
+            'model_slot_expected_count' => self::CONVERT_SINGLE_MODEL_SLOT_COUNT,
+            'model_slot_count' => $modelSlotCount,
+            'model_slot_count_matches_convert_single_pdf_unpack' => $fixtureUsed ? !$modelListArityMismatch : null,
+            'model_list_arity_error_boundary' => $modelListArityMismatch
+                ? 'convert-single-pdf-model-unpack-failed'
+                : null,
+            'model_list_arity_error_class' => $modelListArityMismatch ? 'ValueError' : null,
+            'model_list_arity_error_message' => $modelListArityErrorMessage,
+            'model_list_arity_error_stage' => $modelListArityMismatch
+                ? 'convert_single_pdf model_lst unpack'
+                : null,
+            'model_list_arity_error_caught_by_process_single_pdf' => $modelListArityMismatch,
+            'model_list_arity_not_checked_before_pool_launch' => $modelListArityMismatch,
             'model_slots' => $slotRows,
             'none_model_slot_indexes' => $noneSlotIndexes,
             'share_memory_model_slot_indexes' => $shareMemorySlotIndexes,

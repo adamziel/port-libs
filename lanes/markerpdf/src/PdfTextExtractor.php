@@ -45341,6 +45341,14 @@ final class PdfTextExtractor
             $keyStart = $index;
             $keyToken = $this->readInlineImageToken($stream, $index);
             if ($keyToken === null) {
+                $dictionary = implode(' ', $entries);
+                $malformedTailBoundary = $this->inlineImageMalformedDictionaryTailBoundaryOffset($stream, $keyStart, $dictionary);
+                if ($malformedTailBoundary !== null) {
+                    $consumeDataPrefixWhitespace = $malformedTailBoundary['consumeDataPrefixWhitespace'];
+                    $index = $malformedTailBoundary['offset'];
+                    return $dictionary . ' /Filter /' . self::MALFORMED_IMAGE_FILTER_OPERAND;
+                }
+
                 return null;
             }
 
@@ -45436,6 +45444,11 @@ final class PdfTextExtractor
                 ];
             }
 
+            if ($this->consumeInlineImageMalformedClosingDelimiterTailToken($stream, $index)) {
+                $sawMalformedOperand = true;
+                continue;
+            }
+
             $token = $this->readInlineImageToken($stream, $index);
             if ($token === null) {
                 return null;
@@ -45463,6 +45476,21 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    private function consumeInlineImageMalformedClosingDelimiterTailToken(string $stream, int &$index): bool
+    {
+        if ($stream[$index] === ']') {
+            $index++;
+            return true;
+        }
+
+        if ($stream[$index] === '>' && $index + 1 < strlen($stream) && $stream[$index + 1] === '>') {
+            $index += 2;
+            return true;
+        }
+
+        return false;
     }
 
     private function inlineImageMalformedDictionaryTailOperandToken(string $token): bool

@@ -904,7 +904,7 @@ final class PdfPageArtifactSelector
     private static function directPayloadEnvelopePageKeys(array $artifact): array
     {
         $keys = [];
-        foreach (['pages', 'dictionary_output', 'pdftext'] as $envelopeKey) {
+        foreach (self::ARTIFACT_PAGE_LIST_ENVELOPES as $envelopeKey) {
             $value = $artifact[$envelopeKey] ?? null;
             if (is_array($value)) {
                 self::collectDirectPayloadEnvelopePageKeys($value, $keys, 0);
@@ -941,7 +941,7 @@ final class PdfPageArtifactSelector
             }
         }
 
-        foreach (['pages', 'dictionary_output', 'pdftext'] as $nestedKey) {
+        foreach (self::ARTIFACT_PAGE_LIST_ENVELOPES as $nestedKey) {
             $nested = $value[$nestedKey] ?? null;
             if (is_array($nested)) {
                 self::collectDirectPayloadEnvelopePageKeys($nested, $keys, $depth + 1);

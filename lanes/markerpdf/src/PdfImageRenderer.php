@@ -4538,6 +4538,11 @@ final class PdfImageRenderer
         while ($offset < $length) {
             $key = $this->readPdfValueWithOffset($body, $offset);
             if ($key === null) {
+                $tail = $this->inlineImageMalformedClosingDelimiterTailTokenAt($body, $offset);
+                if ($tail !== null) {
+                    return $sawImageKey;
+                }
+
                 $tail = $this->inlineImageBareTailTokenAt($body, $offset);
 
                 return $tail !== null && $sawImageKey && $this->inlineImageMalformedDictionaryTailOperandToken($tail);
@@ -4580,6 +4585,24 @@ final class PdfImageRenderer
         }
 
         return false;
+    }
+
+    private function inlineImageMalformedClosingDelimiterTailTokenAt(string $body, int $offset): ?string
+    {
+        $offset = $this->skipPdfWhitespace($body, $offset);
+        if ($offset >= strlen($body)) {
+            return null;
+        }
+
+        if ($body[$offset] === ']') {
+            return ']';
+        }
+
+        if ($body[$offset] === '>' && $offset + 1 < strlen($body) && $body[$offset + 1] === '>') {
+            return '>>';
+        }
+
+        return null;
     }
 
     private function inlineImageBareTailTokenAt(string $body, int $offset): ?string
