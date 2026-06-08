@@ -1510,6 +1510,10 @@ final class DocxReader
         $blocks = [];
         $pendingListParagraphs = [];
         $activeCommentRangeId = null;
+        $activeProofError = null;
+        $activeProofErrorNodes = [];
+        $activePermissionRange = null;
+        $activePermissionRangeNodes = [];
         $sectionNotePolicies = $this->isWordElement($container, 'body') ? $this->bodyNoteNumberingPolicySequence($container) : [];
         $sectionNotePolicyIndex = 0;
         if ($sectionNotePolicies !== []) {
@@ -1555,7 +1559,19 @@ final class DocxReader
 
             if ($this->isWordElement($child, 'p')) {
                 $paragraphHasTextboxRuns = $this->paragraphHasTextboxRuns($child);
-                $paragraphBlocks = $this->paragraphBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering, $activeCommentRangeId);
+                $paragraphBlocks = $this->paragraphBlocks(
+                    $child,
+                    $package,
+                    $relationships,
+                    $referencedNotes,
+                    $styles,
+                    $numbering,
+                    $activeCommentRangeId,
+                    $activeProofError,
+                    $activeProofErrorNodes,
+                    $activePermissionRange,
+                    $activePermissionRangeNodes
+                );
                 if (!$paragraphHasTextboxRuns && count($paragraphBlocks) === 1 && $paragraphBlocks[0]->type === 'paragraph') {
                     $paragraph = $paragraphBlocks[0];
                     $listDefinition = $paragraph->type === 'paragraph'
@@ -1718,6 +1734,10 @@ final class DocxReader
      * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @param array{kind:string, startType:string}|null $activeProofError
+     * @param list<AstNode> $activeProofErrorNodes
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $activePermissionRange
+     * @param list<AstNode> $activePermissionRangeNodes
      * @return list<AstNode>
      */
     private function paragraphBlocks(
@@ -1727,11 +1747,26 @@ final class DocxReader
         array $referencedNotes,
         array $styles,
         array $numbering,
-        ?string &$activeCommentRangeId
+        ?string &$activeCommentRangeId,
+        ?array &$activeProofError,
+        array &$activeProofErrorNodes,
+        ?array &$activePermissionRange,
+        array &$activePermissionRangeNodes
     ): array
     {
         if (!$this->paragraphHasTextboxRuns($paragraph)) {
-            $node = $this->paragraphNode($paragraph, $package, $relationships, $referencedNotes, $styles, $activeCommentRangeId);
+            $node = $this->paragraphNode(
+                $paragraph,
+                $package,
+                $relationships,
+                $referencedNotes,
+                $styles,
+                $activeCommentRangeId,
+                $activeProofError,
+                $activeProofErrorNodes,
+                $activePermissionRange,
+                $activePermissionRangeNodes
+            );
 
             return $node instanceof AstNode ? [$node] : [];
         }
@@ -1749,14 +1784,40 @@ final class DocxReader
                 continue;
             }
 
-            $this->appendParagraphSegment($blocks, $paragraph, $segmentChildren, $package, $relationships, $referencedNotes, $styles, $activeCommentRangeId);
+            $this->appendParagraphSegment(
+                $blocks,
+                $paragraph,
+                $segmentChildren,
+                $package,
+                $relationships,
+                $referencedNotes,
+                $styles,
+                $activeCommentRangeId,
+                $activeProofError,
+                $activeProofErrorNodes,
+                $activePermissionRange,
+                $activePermissionRangeNodes
+            );
             foreach ($textboxes as $textbox) {
                 array_push($blocks, ...$this->blockContainerChildren($textbox, $package, $relationships, $referencedNotes, $styles, $numbering));
             }
             $segmentChildren = [];
         }
 
-        $this->appendParagraphSegment($blocks, $paragraph, $segmentChildren, $package, $relationships, $referencedNotes, $styles, $activeCommentRangeId);
+        $this->appendParagraphSegment(
+            $blocks,
+            $paragraph,
+            $segmentChildren,
+            $package,
+            $relationships,
+            $referencedNotes,
+            $styles,
+            $activeCommentRangeId,
+            $activeProofError,
+            $activeProofErrorNodes,
+            $activePermissionRange,
+            $activePermissionRangeNodes
+        );
 
         return $blocks;
     }
@@ -1777,6 +1838,10 @@ final class DocxReader
      * @param list<\DOMElement> $children
      * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array{kind:string, startType:string}|null $activeProofError
+     * @param list<AstNode> $activeProofErrorNodes
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $activePermissionRange
+     * @param list<AstNode> $activePermissionRangeNodes
      */
     private function appendParagraphSegment(
         array &$blocks,
@@ -1786,7 +1851,11 @@ final class DocxReader
         ?OpcRelationships $relationships,
         array $referencedNotes,
         array $styles,
-        ?string &$activeCommentRangeId
+        ?string &$activeCommentRangeId,
+        ?array &$activeProofError,
+        array &$activeProofErrorNodes,
+        ?array &$activePermissionRange,
+        array &$activePermissionRangeNodes
     ): void {
         if ($children === []) {
             return;
@@ -1797,7 +1866,18 @@ final class DocxReader
             return;
         }
 
-        $node = $this->paragraphNode($segment, $package, $relationships, $referencedNotes, $styles, $activeCommentRangeId);
+        $node = $this->paragraphNode(
+            $segment,
+            $package,
+            $relationships,
+            $referencedNotes,
+            $styles,
+            $activeCommentRangeId,
+            $activeProofError,
+            $activeProofErrorNodes,
+            $activePermissionRange,
+            $activePermissionRangeNodes
+        );
         if ($node instanceof AstNode) {
             $blocks[] = $node;
         }
@@ -1959,6 +2039,10 @@ final class DocxReader
     /**
      * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array{kind:string, startType:string}|null $activeProofError
+     * @param list<AstNode> $activeProofErrorNodes
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $activePermissionRange
+     * @param list<AstNode> $activePermissionRangeNodes
      */
     private function paragraphNode(
         \DOMElement $paragraph,
@@ -1966,10 +2050,24 @@ final class DocxReader
         ?OpcRelationships $relationships,
         array $referencedNotes,
         array $styles,
-        ?string &$activeCommentRangeId
+        ?string &$activeCommentRangeId,
+        ?array &$activeProofError,
+        array &$activeProofErrorNodes,
+        ?array &$activePermissionRange,
+        array &$activePermissionRangeNodes
     ): ?AstNode
     {
-        $children = $this->paragraphInlines($paragraph, $package, $relationships, $referencedNotes, $activeCommentRangeId);
+        $children = $this->paragraphInlines(
+            $paragraph,
+            $package,
+            $relationships,
+            $referencedNotes,
+            $activeCommentRangeId,
+            $activeProofError,
+            $activeProofErrorNodes,
+            $activePermissionRange,
+            $activePermissionRangeNodes
+        );
         $text = $this->plainInlineText($children);
         if ($children === [] && $text === '') {
             return null;
@@ -2515,6 +2613,10 @@ final class DocxReader
 
     /**
      * @param array<string, AstNode> $referencedNotes
+     * @param array{kind:string, startType:string}|null $activeProofError
+     * @param list<AstNode> $activeProofErrorNodes
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $activePermissionRange
+     * @param list<AstNode> $activePermissionRangeNodes
      * @return list<AstNode>
      */
     private function paragraphInlines(
@@ -2522,15 +2624,15 @@ final class DocxReader
         ZipPackage $package,
         ?OpcRelationships $relationships,
         array $referencedNotes,
-        ?string &$activeCommentRangeId
+        ?string &$activeCommentRangeId,
+        ?array &$activeProofError,
+        array &$activeProofErrorNodes,
+        ?array &$activePermissionRange,
+        array &$activePermissionRangeNodes
     ): array
     {
         $inlines = [];
         $activeCommentRangeNodes = [];
-        $activeProofError = null;
-        $activeProofErrorNodes = [];
-        $activePermissionRange = null;
-        $activePermissionRangeNodes = [];
         $activeMoveRange = null;
         $activeMoveRangeNodes = [];
         $activeField = null;
@@ -2573,6 +2675,40 @@ final class DocxReader
             array_push($inlines, ...$nodes);
         };
 
+        $emitClosedRangeNode = function (AstNode $node, string $closedRange) use (
+            &$inlines,
+            &$activeCommentRangeId,
+            &$activeCommentRangeNodes,
+            &$activeProofError,
+            &$activeProofErrorNodes,
+            &$activePermissionRange,
+            &$activePermissionRangeNodes,
+            &$activeMoveRange,
+            &$activeMoveRangeNodes
+        ): void {
+            if ($closedRange !== 'proof' && $activeProofError !== null) {
+                $activeProofErrorNodes[] = $node;
+                return;
+            }
+
+            if ($closedRange !== 'permission' && $activePermissionRange !== null) {
+                $activePermissionRangeNodes[] = $node;
+                return;
+            }
+
+            if ($closedRange !== 'move' && $activeMoveRange !== null) {
+                $activeMoveRangeNodes[] = $node;
+                return;
+            }
+
+            if ($activeCommentRangeId !== null) {
+                $activeCommentRangeNodes[] = $node;
+                return;
+            }
+
+            $inlines[] = $node;
+        };
+
         $closeProofError = function (?string $endType = null) use (&$activeProofError, &$activeProofErrorNodes, $emitInlineNodes): void {
             if ($activeProofError === null) {
                 return;
@@ -2609,6 +2745,30 @@ final class DocxReader
             $activeMoveRangeNodes = [];
             if ($node instanceof AstNode) {
                 $emitInlineNodes([$node]);
+            }
+        };
+
+        $flushOpenProofErrorSegment = function () use (&$activeProofError, &$activeProofErrorNodes, $emitClosedRangeNode): void {
+            if ($activeProofError === null || $activeProofErrorNodes === []) {
+                return;
+            }
+
+            $node = $this->proofErrorRangeNode($activeProofError, $activeProofErrorNodes, null);
+            $activeProofErrorNodes = [];
+            if ($node instanceof AstNode) {
+                $emitClosedRangeNode($node, 'proof');
+            }
+        };
+
+        $flushOpenPermissionRangeSegment = function () use (&$activePermissionRange, &$activePermissionRangeNodes, $emitClosedRangeNode): void {
+            if ($activePermissionRange === null || $activePermissionRangeNodes === []) {
+                return;
+            }
+
+            $node = $this->permissionRangeNode($activePermissionRange, $activePermissionRangeNodes);
+            $activePermissionRangeNodes = [];
+            if ($node instanceof AstNode) {
+                $emitClosedRangeNode($node, 'permission');
             }
         };
 
@@ -2725,8 +2885,8 @@ final class DocxReader
             $nodes = $this->fieldResultNodes($activeField);
             $emitInlineNodes($nodes);
         }
-        $closeProofError(null);
-        $closePermissionRange(null);
+        $flushOpenProofErrorSegment();
+        $flushOpenPermissionRangeSegment();
         $closeMoveRange(null, null);
         if ($activeCommentRangeId !== null) {
             $this->appendCommentRangeSpan($inlines, $activeCommentRangeId, $activeCommentRangeNodes, $referencedNotes);

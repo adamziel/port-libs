@@ -271,6 +271,26 @@ XML],
       <w:r><w:t xml:space="preserve"> stay labeled.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Cross paragraph proof </w:t></w:r>
+      <w:proofErr w:type="gramStart"/>
+      <w:r><w:t>starts before review</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>continues after review</w:t></w:r>
+      <w:proofErr w:type="gramEnd"/>
+      <w:r><w:t xml:space="preserve"> for import.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Cross paragraph permission </w:t></w:r>
+      <w:permStart w:id="71" w:user="reviewer@example.test"/>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>starts protected</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>continues protected</w:t></w:r>
+      <w:permEnd w:id="71"/>
+      <w:r><w:t xml:space="preserve"> for handoff.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Character style reviewer label </w:t></w:r>
       <w:r><w:rPr><w:rStyle w:val="ReviewAlert"/></w:rPr><w:t>inherited urgency</w:t></w:r>
       <w:r><w:t xml:space="preserve"> and </w:t></w:r>
@@ -1133,6 +1153,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p><span class="docx-paragraph-align docx-align-center docx-formatting-change docx-paragraph-formatting-change" data-docx-paragraph-align="center" data-docx-formatting-change="paragraph" data-docx-change-id="24" data-docx-author="Layout Reviewer" data-docx-date="2026-06-05T18:30:00Z" data-docx-previous-paragraph-style="OldReviewLayout" data-docx-previous-paragraph-align="left">Tracked paragraph formatting remains auditable.</span></p>',
         '<p>Tracked run formatting <span class="docx-formatting-change docx-run-formatting-change" data-docx-formatting-change="run" data-docx-change-id="25" data-docx-author="Run Reviewer" data-docx-date="2026-06-05T18:35:00Z" data-docx-previous-italic="true" data-docx-previous-highlight="yellow" data-docx-previous-lang="fr-FR"><strong>approved label</strong></span> stays visible.</p>',
         '<p>Proof and permissions <span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd">migraton</span> plus <span class="docx-permission-range docx-permission-group" data-docx-permission-id="70" data-docx-permission-group="everyone"><strong>review window</strong></span> stay labeled.</p>',
+        '<p>Cross paragraph proof <span class="docx-proof-error docx-proof-grammar" data-docx-proof-error="grammar" data-docx-proof-start="gramStart">starts before review</span></p>',
+        '<p><span class="docx-proof-error docx-proof-grammar" data-docx-proof-error="grammar" data-docx-proof-start="gramStart" data-docx-proof-end="gramEnd">continues after review</span> for import.</p>',
+        '<p>Cross paragraph permission <span class="docx-permission-range docx-permission-user" data-docx-permission-id="71" data-docx-permission-user="reviewer@example.test"><strong>starts protected</strong></span></p>',
+        '<p><span class="docx-permission-range docx-permission-user" data-docx-permission-id="71" data-docx-permission-user="reviewer@example.test">continues protected</span> for handoff.</p>',
         '<p>Character style reviewer label <span class="docx-highlight docx-highlight-yellow docx-language docx-shading" data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR" data-docx-shading-fill="FFE699"><strong><em><u>inherited urgency</u></em></strong></span> and <span class="docx-shading docx-language" data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"><strong><u>muted follow-up</u></strong></span>.</p>',
         '<p>Theme font reviewer label <span class="docx-theme-font docx-font" data-docx-theme-font-ascii="majorHAnsi" data-docx-font-ascii="Aptos Display" data-docx-theme-font-hansi="majorHAnsi" data-docx-font-hansi="Aptos Display" data-docx-theme-font-east-asia="majorEastAsia" data-docx-font-east-asia="Yu Gothic" data-docx-theme-font-complex-script="majorBidi" data-docx-font-complex-script="Arial">major theme source</span> and <span class="docx-font docx-theme-font" data-docx-font-ascii="Source Serif" data-docx-font-hansi="Source Serif" data-docx-theme-font-east-asia="minorEastAsia" data-docx-font-east-asia="Meiryo" data-docx-theme-font-complex-script="minorBidi" data-docx-font-complex-script="Times New Roman">direct font override</span>.</p>',
         '<p>Multilingual source note <span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span> and <span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span> remain labeled.</p>',

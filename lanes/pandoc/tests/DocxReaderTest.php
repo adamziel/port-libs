@@ -1629,6 +1629,33 @@ $proofPermissionRangeDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$crossParagraphProofPermissionRangeDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Cross proof </w:t></w:r>
+      <w:proofErr w:type="spellStart"/>
+      <w:r><w:t>migraton starts</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>and closes here</w:t></w:r>
+      <w:proofErr w:type="spellEnd"/>
+      <w:r><w:t xml:space="preserve"> after proof.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Permission </w:t></w:r>
+      <w:permStart w:id="70" w:edGrp="everyone"/>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>starts here</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>continues here</w:t></w:r>
+      <w:permEnd w:id="70"/>
+      <w:r><w:t xml:space="preserve"> after permission.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $structuredDocumentTagXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -3039,6 +3066,14 @@ $buildProofPermissionRangePackage = static function () use ($contentTypesXml, $p
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $proofPermissionRangeDocumentXml],
+    ]);
+};
+
+$buildCrossParagraphProofPermissionRangePackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $crossParagraphProofPermissionRangeDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $crossParagraphProofPermissionRangeDocumentXml],
     ]);
 };
 
@@ -5664,6 +5699,74 @@ return [
 
         $t->contains('<p>Proofed <span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd">migraton</span> and <span class="docx-proof-error docx-proof-grammar" data-docx-proof-error="grammar" data-docx-proof-start="gramStart" data-docx-proof-end="gramEnd">needs review are</span> visible.</p>', $blocks);
         $t->contains('<p>Editable <span class="docx-permission-range docx-permission-group" data-docx-permission-id="7" data-docx-permission-group="everyone"><strong>review window</strong></span> and <span class="docx-permission-range docx-permission-user" data-docx-permission-id="8" data-docx-permission-user="reviewer@example.test">named reviewer slot</span>.</p>', $blocks);
+    },
+    'preserves DOCX cross-paragraph proof-error and permission ranges as reviewer spans' => static function (TestRunner $t) use ($buildCrossParagraphProofPermissionRangePackage): void {
+        $document = (new DocxReader())->readDocument($buildCrossParagraphProofPermissionRangePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+
+        $proofStartParagraph = $document->children[0];
+        $t->same('paragraph', $proofStartParagraph->type);
+        $t->same(2, count($proofStartParagraph->children));
+        $t->same('Cross proof ', $proofStartParagraph->children[0]->attr('text'));
+        $proofStart = $proofStartParagraph->children[1];
+        $t->same('span', $proofStart->type);
+        $t->same(['docx-proof-error', 'docx-proof-spelling'], $proofStart->attr('classes'));
+        $proofStartAttrs = $proofStart->attr('attributes');
+        $t->same('spelling', $proofStartAttrs['data-docx-proof-error']);
+        $t->same('spellStart', $proofStartAttrs['data-docx-proof-start']);
+        $t->same(null, $proofStartAttrs['data-docx-proof-end'] ?? null);
+        $t->same('migraton starts', $proofStart->children[0]->attr('text'));
+
+        $proofEndParagraph = $document->children[1];
+        $t->same('paragraph', $proofEndParagraph->type);
+        $t->same(2, count($proofEndParagraph->children));
+        $proofEnd = $proofEndParagraph->children[0];
+        $t->same('span', $proofEnd->type);
+        $t->same(['docx-proof-error', 'docx-proof-spelling'], $proofEnd->attr('classes'));
+        $proofEndAttrs = $proofEnd->attr('attributes');
+        $t->same('spelling', $proofEndAttrs['data-docx-proof-error']);
+        $t->same('spellStart', $proofEndAttrs['data-docx-proof-start']);
+        $t->same('spellEnd', $proofEndAttrs['data-docx-proof-end']);
+        $t->same('and closes here', $proofEnd->children[0]->attr('text'));
+        $t->same(' after proof.', $proofEndParagraph->children[1]->attr('text'));
+
+        $permissionStartParagraph = $document->children[2];
+        $t->same('paragraph', $permissionStartParagraph->type);
+        $t->same(2, count($permissionStartParagraph->children));
+        $t->same('Permission ', $permissionStartParagraph->children[0]->attr('text'));
+        $permissionStart = $permissionStartParagraph->children[1];
+        $t->same('span', $permissionStart->type);
+        $t->same(['docx-permission-range', 'docx-permission-group'], $permissionStart->attr('classes'));
+        $permissionStartAttrs = $permissionStart->attr('attributes');
+        $t->same('70', $permissionStartAttrs['data-docx-permission-id']);
+        $t->same('everyone', $permissionStartAttrs['data-docx-permission-group']);
+        $t->same('strong', $permissionStart->children[0]->type);
+        $t->same('starts here', $permissionStart->children[0]->children[0]->attr('text'));
+
+        $permissionEndParagraph = $document->children[3];
+        $t->same('paragraph', $permissionEndParagraph->type);
+        $t->same(2, count($permissionEndParagraph->children));
+        $permissionEnd = $permissionEndParagraph->children[0];
+        $t->same('span', $permissionEnd->type);
+        $t->same(['docx-permission-range', 'docx-permission-group'], $permissionEnd->attr('classes'));
+        $permissionEndAttrs = $permissionEnd->attr('attributes');
+        $t->same('70', $permissionEndAttrs['data-docx-permission-id']);
+        $t->same('everyone', $permissionEndAttrs['data-docx-permission-group']);
+        $t->same('continues here', $permissionEnd->children[0]->attr('text'));
+        $t->same(' after permission.', $permissionEndParagraph->children[1]->attr('text'));
+
+        $t->contains('Cross proof [migraton starts]{.docx-proof-error .docx-proof-spelling data-docx-proof-error="spelling" data-docx-proof-start="spellStart"}', $markdown);
+        $t->contains('[and closes here]{.docx-proof-error .docx-proof-spelling data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd"} after proof.', $markdown);
+        $t->contains('Permission [**starts here**]{.docx-permission-range .docx-permission-group data-docx-permission-id="70" data-docx-permission-group="everyone"}', $markdown);
+        $t->contains('[continues here]{.docx-permission-range .docx-permission-group data-docx-permission-id="70" data-docx-permission-group="everyone"} after permission.', $markdown);
+
+        $t->contains('<p>Cross proof <span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart">migraton starts</span></p>', $blocks);
+        $t->contains('<p><span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd">and closes here</span> after proof.</p>', $blocks);
+        $t->contains('<p>Permission <span class="docx-permission-range docx-permission-group" data-docx-permission-id="70" data-docx-permission-group="everyone"><strong>starts here</strong></span></p>', $blocks);
+        $t->contains('<p><span class="docx-permission-range docx-permission-group" data-docx-permission-id="70" data-docx-permission-group="everyone">continues here</span> after permission.</p>', $blocks);
     },
     'preserves DOCX structured document tag content controls with reviewer metadata' => static function (TestRunner $t) use ($buildStructuredDocumentTagPackage): void {
         $document = (new DocxReader())->readDocument($buildStructuredDocumentTagPackage());
