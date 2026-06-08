@@ -756,6 +756,9 @@ final class CitationCslProcessor
             'citationLabel' => self::firstStringField($item, ['citation-label', 'citationLabel', 'shorthand', 'label']),
             'shorthand' => self::firstStringField($item, ['shorthand']),
             'shorthandIntro' => self::firstStringField($item, ['shorthand-intro', 'shorthandIntro', 'shorthandintro']),
+            'sortShorthand' => self::firstStringField($item, ['sort-shorthand', 'sortShorthand', 'sortshorthand']),
+            'shorthandListSortKey' => self::firstStringField($item, ['shorthand-list-sort-key', 'shorthandListSortKey', 'list-shorthand', 'listshorthand'])
+                ?: self::shorthandListSortKey($item),
             'presort' => self::firstStringField($item, ['presort']),
             'sortKey' => self::firstStringField($item, ['sort-key', 'sortKey', 'sortkey']),
             'sortName' => self::firstStringField($item, ['sort-name', 'sortName', 'sortname']),
@@ -993,6 +996,19 @@ final class CitationCslProcessor
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function shorthandListSortKey(array $item): string
+    {
+        $sortShorthand = self::firstStringField($item, ['sort-shorthand', 'sortShorthand', 'sortshorthand']);
+        if ($sortShorthand !== '') {
+            return $sortShorthand;
+        }
+
+        return self::firstStringField($item, ['shorthand']);
     }
 
     /**
@@ -3890,6 +3906,7 @@ final class CitationCslProcessor
             'short-title' => $this->normalizeSortText($this->sortTitleValue($item) !== '' ? $this->sortTitleValue($item) : (string) $item['shortTitle']),
             'citation-label' => $this->normalizeSortText((string) $item['citationLabel']),
             'shorthand' => $this->normalizeSortText((string) $item['shorthand']),
+            'sort-shorthand', 'sortshorthand', 'list-shorthand', 'listshorthand', 'shorthand-list-sort-key' => $this->normalizeSortText((string) ($item['shorthandListSortKey'] ?? $item['sortShorthand'] ?? $item['shorthand'] ?? '')),
             'container-title' => $this->normalizeSortText((string) $item['containerTitle']),
             'issue-title', 'issuetitle' => $this->normalizeSortText((string) ($item['issueTitle'] ?? '')),
             'event', 'event-title' => $this->normalizeSortText((string) $item['eventTitle']),
@@ -5481,6 +5498,7 @@ final class CitationCslProcessor
             ['reviewedTitle', 'Reviewed title'],
             ['reprintTitle', 'Reprint title'],
             ['translatedTitle', 'Translated title'],
+            ['sortShorthand', 'Sort shorthand'],
             ['presort', 'Presort'],
             ['indexTitle', 'Index title'],
             ['indexSortTitle', 'Index sort title'],
@@ -7254,6 +7272,8 @@ final class CitationCslProcessor
             'citation-label' => (string) $item['citationLabel'],
             'shorthand' => (string) $item['shorthand'],
             'shorthand-intro' => (string) $item['shorthandIntro'],
+            'sort-shorthand', 'sortshorthand' => (string) ($item['sortShorthand'] ?? ''),
+            'list-shorthand', 'listshorthand', 'shorthand-list-sort-key', 'shorthand-list-sort' => (string) ($item['shorthandListSortKey'] ?? ''),
             'presort' => (string) ($item['presort'] ?? ''),
             'sort-key' => (string) $item['sortKey'],
             'sort-name' => (string) $item['sortName'],

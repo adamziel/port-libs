@@ -1978,6 +1978,27 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($surplusOverflowDifatEntry));
     },
+    'rejects non-FREESECT CFB DIFAT padding before stream lookup' => static function (TestRunner $t) use ($buildCfb, $moveFatListingToDifatSector, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+
+        foreach ([0xfffffffe, 0xfffffffd, 0xfffffffc, 0xfffffffb] as $reservedMarker) {
+            $dirtyHeaderDifatEntry = substr_replace($bytes, $u32($reservedMarker), 80, 4);
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($dirtyHeaderDifatEntry));
+        }
+
+        $fixture = $moveFatListingToDifatSector($bytes);
+        foreach ([0xfffffffe, 0xfffffffd, 0xfffffffc, 0xfffffffb] as $reservedMarker) {
+            $dirtyOverflowDifatEntry = substr_replace(
+                $fixture['bytes'],
+                $u32($reservedMarker),
+                512 + ((int) $fixture['difatSector'] * 512) + 4,
+                4
+            );
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($dirtyOverflowDifatEntry));
+        }
+    },
     'rejects invalid CFB directory object-type fields before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32, $u64): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',

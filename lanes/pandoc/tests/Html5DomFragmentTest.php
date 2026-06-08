@@ -1182,7 +1182,7 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<div aria-label="Migration notice" data-pandoc-dialog-state="closed"><p>Closed <a href="https://source.example.test/import/posts/closed.html">packet</a><a>bad</a></p></div>'
+        $expected = '<div data-pandoc-aria-label="Migration notice" data-pandoc-dialog-state="closed"><p>Closed <a href="https://source.example.test/import/posts/closed.html">packet</a><a>bad</a></p></div>'
             . '<div class="modal" data-pandoc-dialog-state="open"><h2>Open review</h2><p>Visible overlay content</p></div><p>after</p>';
         $policyDiagnostics = array_values(array_filter(
             $fragment->diagnosticCodes(),
@@ -1195,11 +1195,11 @@ return [
         $t->same('Closed packetbadOpen reviewVisible overlay contentafter', $fragment->textContent());
         $t->same(['a', 'div', 'h2', 'p'], $summary['elementNames']);
         $t->same(['base'], $summary['blockedTags']);
-        $t->same(['data-pandoc-dialog-state', 'href', 'onclick', 'open'], $summary['filteredAttributes']);
-        $t->same(['blocked-tag', 'unsafe-attribute', 'unsafe-url', 'dialog-review', 'unsafe-attribute', 'dialog-review'], $policyDiagnostics);
+        $t->same(['aria-label', 'data-pandoc-dialog-state', 'href', 'onclick', 'open'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'unsafe-attribute', 'aria-metadata-review', 'unsafe-url', 'dialog-review', 'unsafe-attribute', 'dialog-review'], $policyDiagnostics);
         $t->same('div', $nodes[0]['name']);
         $t->same([
-            'aria-label' => 'Migration notice',
+            'data-pandoc-aria-label' => 'Migration notice',
             'data-pandoc-dialog-state' => 'closed',
         ], $nodes[0]['attrs']);
         $t->same('https://source.example.test/import/posts/closed.html', $nodes[0]['children'][0]['children'][1]['attrs']['href']);
@@ -2477,6 +2477,83 @@ return [
         }
         $t->true(!str_contains($blocks, ' translate='), 'Expected WordPress blocks to omit source translate attributes');
     },
+    'converts aria roles and states into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<section role="region bad-role button" aria-label=" Import status " aria-describedby="status-note other_note bad&lt;id" aria-expanded="true" aria-current="PAGE" aria-sort="descending" aria-level="2" aria-valuenow=" 42.500 " aria-busy="maybe" aria-unsupported="source" data-pandoc-aria-label="source-spoof">'
+            . '<h2 id="status-note">Import status</h2><p role="presentation none" aria-hidden="true">Ready</p></section>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/aria-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<section data-pandoc-aria-role="region button" data-pandoc-aria-label="Import status" data-pandoc-aria-describedby="status-note other_note" data-pandoc-aria-expanded="true" data-pandoc-aria-current="page" data-pandoc-aria-sort="descending" data-pandoc-aria-level="2" data-pandoc-aria-valuenow="42.5">'
+            . '<h2 id="status-note">Import status</h2><p data-pandoc-aria-role="presentation none" data-pandoc-aria-hidden="true">Ready</p></section>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Import statusReady', $fragment->textContent());
+        $t->same(['h2', 'p', 'section'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([
+            'aria-busy',
+            'aria-current',
+            'aria-describedby',
+            'aria-expanded',
+            'aria-hidden',
+            'aria-label',
+            'aria-level',
+            'aria-sort',
+            'aria-unsupported',
+            'aria-valuenow',
+            'data-pandoc-aria-label',
+            'role',
+        ], $summary['filteredAttributes']);
+        $t->same([
+            'unsafe-attribute',
+            'aria-metadata-review',
+            'aria-metadata-review',
+            'unsafe-attribute',
+            'aria-metadata-review',
+            'aria-metadata-review',
+            'aria-metadata-review',
+            'aria-metadata-review',
+            'aria-metadata-review',
+            'aria-metadata-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'aria-metadata-review',
+            'aria-metadata-review',
+        ], $policyDiagnostics);
+        $t->same([
+            'data-pandoc-aria-role' => 'region button',
+            'data-pandoc-aria-label' => 'Import status',
+            'data-pandoc-aria-describedby' => 'status-note other_note',
+            'data-pandoc-aria-expanded' => 'true',
+            'data-pandoc-aria-current' => 'page',
+            'data-pandoc-aria-sort' => 'descending',
+            'data-pandoc-aria-level' => '2',
+            'data-pandoc-aria-valuenow' => '42.5',
+        ], $nodes[0]['attrs']);
+        $t->same(['id' => 'status-note'], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'data-pandoc-aria-role' => 'presentation none',
+            'data-pandoc-aria-hidden' => 'true',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same('/migration/aria-review.html', $document->children[0]->attr('part'));
+        foreach ([' role=', ' aria-', 'bad-role', 'bad&lt;id', 'source-spoof', 'aria-unsupported', 'maybe'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected source ARIA attribute to be stripped or converted: ' . $blocked);
+        }
+        $t->true(!str_contains($blocks, ' aria-'), 'Expected WordPress blocks to omit source ARIA attributes');
+    },
     'adds ruby annotation metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article><p>'
@@ -3284,7 +3361,7 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<figure aria-describedby="cap-note" data-pandoc-figure-align="right" data-pandoc-figure-caption="Cover caption source bad" data-pandoc-figure-caption-id="cap-note">'
+        $expected = '<figure data-pandoc-aria-describedby="cap-note" data-pandoc-figure-align="right" data-pandoc-figure-caption="Cover caption source bad" data-pandoc-figure-caption-id="cap-note">'
             . '<img src="https://source.example.test/import/posts/cover.png" alt="Cover">'
             . '<figcaption id="cap-note">  Cover <em>caption</em> <a href="https://source.example.test/import/posts/caption-source.html">source</a> <a>bad</a>  </figcaption>'
             . '</figure>'
@@ -3299,8 +3376,9 @@ return [
         $t->same('  Cover caption source bad  Invalid align caption', $fragment->textContent());
         $t->same(['a', 'em', 'figcaption', 'figure', 'img'], $summary['elementNames']);
         $t->same([], $summary['blockedTags']);
-        $t->same(['align', 'data-pandoc-figure-caption', 'href'], $summary['filteredAttributes']);
+        $t->same(['align', 'aria-describedby', 'data-pandoc-figure-caption', 'href'], $summary['filteredAttributes']);
         $t->same([
+            'aria-metadata-review',
             'unsafe-attribute',
             'unsafe-url',
             'figure-metadata-review',
@@ -3310,7 +3388,7 @@ return [
         ], $policyDiagnostics);
         $t->same('figure', $nodes[0]['name']);
         $t->same([
-            'aria-describedby' => 'cap-note',
+            'data-pandoc-aria-describedby' => 'cap-note',
             'data-pandoc-figure-align' => 'right',
             'data-pandoc-figure-caption' => 'Cover caption source bad',
             'data-pandoc-figure-caption-id' => 'cap-note',
@@ -3477,7 +3555,7 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<article data-source="legacy" aria-label="Review packet"><p data-review="keep">source</p><svg xmlns="http://www.w3.org/2000/svg"><image xlink:href="https://source.example.test/import/posts/cover.png"></image></svg></article>';
+        $expected = '<article data-source="legacy" data-pandoc-aria-label="Review packet"><p data-review="keep">source</p><svg xmlns="http://www.w3.org/2000/svg"><image xlink:href="https://source.example.test/import/posts/cover.png"></image></svg></article>';
         $policyDiagnostics = array_values(array_filter(
             $fragment->diagnosticCodes(),
             static fn (string $code): bool => $code !== 'libxml-repair'
@@ -3488,6 +3566,7 @@ return [
         $t->same(['article', 'image', 'p', 'svg'], $summary['elementNames']);
         $t->same([], $summary['blockedTags']);
         $t->same([
+            'aria-label',
             'data-pandoc-fragment-root',
             'data-pandoc-iframe-src',
             'data-pandoc-image-map-area',
@@ -3496,16 +3575,16 @@ return [
             'xmlns',
             'xmlns:xlink',
         ], $summary['filteredAttributes']);
-        $t->same(['unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same(['unsafe-attribute', 'unsafe-attribute', 'aria-metadata-review', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
         $t->same([
             'data-source' => 'legacy',
-            'aria-label' => 'Review packet',
+            'data-pandoc-aria-label' => 'Review packet',
         ], $nodes[0]['attrs']);
         $t->same(['data-review' => 'keep'], $nodes[0]['children'][0]['attrs']);
         $t->same(['xlink:href' => 'https://source.example.test/import/posts/cover.png'], $nodes[0]['children'][1]['children'][0]['attrs']);
         $t->same('/migration/reserved-data-attribute-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
-        foreach (['data-pandoc-', 'http://www.w3.org/1999/xhtml', 'xmlns:xlink'] as $blocked) {
+        foreach (['data-pandoc-link-rel', 'data-pandoc-fragment-root', 'data-pandoc-iframe-src', 'data-pandoc-image-map-area', 'data-pandoc-meta-name', 'http://www.w3.org/1999/xhtml', 'xmlns:xlink'] as $blocked) {
             $t->true(!str_contains($html, $blocked), 'Expected source-owned reserved attribute to be stripped: ' . $blocked);
         }
     },

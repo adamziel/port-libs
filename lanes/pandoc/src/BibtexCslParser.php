@@ -623,6 +623,8 @@ final class BibtexCslParser
             'label' => self::firstField($fields, ['label']),
             'shorthand' => self::firstField($fields, ['shorthand']),
             'shorthand-intro' => self::firstField($fields, ['shorthandintro', 'shorthand-intro']),
+            'sort-shorthand' => self::firstField($fields, ['sortshorthand', 'sort-shorthand']),
+            'shorthand-list-sort-key' => self::shorthandListSortKey($fields),
             'presort' => self::firstField($fields, ['presort']),
             'sort-key' => self::firstField($fields, ['sortkey', 'sort-key']),
             'sort-name' => self::firstField($fields, ['sortname', 'sort-name']),
@@ -1173,6 +1175,19 @@ final class BibtexCslParser
         }
 
         return self::firstField($fields, ['indextitle', 'index-title']);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function shorthandListSortKey(array $fields): string
+    {
+        $sortShorthand = self::firstField($fields, ['sortshorthand', 'sort-shorthand']);
+        if ($sortShorthand !== '') {
+            return $sortShorthand;
+        }
+
+        return self::firstField($fields, ['shorthand']);
     }
 
     /**

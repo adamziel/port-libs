@@ -4877,23 +4877,31 @@ CSS;
         }
 
         foreach ($segments as $offset => $segment) {
-            if ($offset === 0 && $segment === 'it') {
+            if ($offset === 0) {
+                if ($segment === 'it') {
+                    continue;
+                }
+
+                if (!$this->isVariableIdentifierPart($segment, false, false)) {
+                    throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
+                }
+
                 continue;
             }
 
-            if (!$this->isVariableIdentifierPart($segment, $offset > 0)) {
+            if (!$this->isVariableIdentifierPart($segment, true, true)) {
                 throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
             }
         }
     }
 
-    private function isVariableIdentifierPart(string $part, bool $allowLeadingDigit = false): bool
+    private function isVariableIdentifierPart(string $part, bool $allowLeadingDigit = false, bool $allowReserved = false): bool
     {
         if ($part === '') {
             return false;
         }
 
-        if (in_array($part, ['if', 'else', 'endif', 'elseif', 'for', 'endfor', 'sep', 'it'], true)) {
+        if (!$allowReserved && in_array($part, ['if', 'else', 'endif', 'elseif', 'for', 'endfor', 'sep', 'it'], true)) {
             return false;
         }
 

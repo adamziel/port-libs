@@ -9988,6 +9988,9 @@ final class DocxReader
             'part' => $relationshipSummary['targetPart'],
             'contentType' => $relationshipSummary['contentType'],
             'relationship' => $relationshipSummary,
+            'relationshipsPart' => null,
+            'relationshipCount' => 0,
+            'relationships' => [],
             'docPartCount' => 0,
             'items' => [],
             'issues' => $relationshipSummary['issues'],
@@ -10007,6 +10010,12 @@ final class DocxReader
         }
 
         $relationships = $graph->relationshipsForSource($relationshipSummary['targetPart']);
+        if ($relationships instanceof OpcRelationships) {
+            $glossary['relationshipsPart'] = $relationships->relationshipPartName();
+            $glossary['relationshipCount'] = count($relationships->all());
+            $glossary['relationships'] = $graph->summarizeTargetsForSource($relationshipSummary['targetPart']);
+        }
+
         $dom = self::loadXml($package->read($relationshipSummary['targetPart']), 'DOCX glossary document XML');
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement || !$this->isWordElement($root, 'glossaryDocument')) {
@@ -10045,7 +10054,7 @@ final class DocxReader
      * @param array<string, AstNode> $referencedNotes
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
      * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
-     * @return array{name:?string, style:?string, category:?string, gallery:?string, types:list<string>, description:?string, guid:?string, blockCount:int, text:string}
+     * @return array{name:?string, style:?string, category:?string, gallery:?string, types:list<string>, description:?string, guid:?string, blockCount:int, text:string, blocks:list<AstNode>}
      */
     private function glossaryDocPartItem(
         \DOMElement $docPart,
@@ -10080,6 +10089,7 @@ final class DocxReader
         return $metadata + [
             'blockCount' => count($blocks),
             'text' => $this->plainBlockText($blocks),
+            'blocks' => $blocks,
         ];
     }
 

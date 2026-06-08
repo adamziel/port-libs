@@ -1470,6 +1470,7 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.
         'sourceIds' => $transform['sourceIds'],
         'sourceTypes' => $transform['sourceTypes'],
         'followingCanonicalizationAlgorithm' => $transform['followingCanonicalizationAlgorithm'],
+        'followingCanonicalization' => $transform['followingCanonicalization'],
         'followedByCanonicalization' => $transform['followedByCanonicalization'],
         'relationshipIds' => $transform['relationshipIds'],
         'relationshipCount' => $transform['relationshipCount'],
@@ -2015,6 +2016,8 @@ $summary = [
                 'relationshipTransformCount' => $reference['relationshipTransformCount'],
                 'canonicalizationTransformCount' => $reference['canonicalizationTransformCount'],
                 'canonicalizationTransformAlgorithms' => $reference['canonicalizationTransformAlgorithms'],
+                'canonicalizationTransforms' => $reference['canonicalizationTransforms'],
+                'relationshipTransformFollowingCanonicalization' => $reference['relationshipTransformFollowingCanonicalization'],
                 'relationshipTransformFollowedByCanonicalization' => $reference['relationshipTransformFollowedByCanonicalization'],
                 'digestAlgorithm' => $reference['digestAlgorithm'],
                 'digestValueDecodedBytes' => $reference['digestValueDecodedBytes'],
@@ -2233,6 +2236,8 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatureSignedInfoReferences'][0]['relationshipTransformCount'] ?? null) !== 1
         || ($summary['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformCount'] ?? null) !== 1
         || ($summary['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformAlgorithms'] ?? null) !== ['http://www.w3.org/TR/2001/REC-xml-c14n-20010315']
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransforms'][0]['profile'] ?? null) !== 'inclusive-c14n-1.0'
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['relationshipTransformFollowingCanonicalization']['withComments'] ?? null) !== false
         || ($summary['digitalSignatureSignedInfoReferences'][0]['relationshipTransformFollowedByCanonicalization'] ?? null) !== true
         || ($summary['digitalSignatureSignedInfoReferences'][0]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2001/04/xmlenc#sha256'
         || ($summary['digitalSignatureSignedInfoReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
@@ -2254,6 +2259,8 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipTransformCount'] ?? null) !== 1
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformCount'] ?? null) !== 1
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformAlgorithms'] ?? null) !== ['http://www.w3.org/TR/2001/REC-xml-c14n-20010315']
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransforms'][0]['profile'] ?? null) !== 'inclusive-c14n-1.0'
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipTransformFollowingCanonicalization']['exclusive'] ?? null) !== false
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipTransformFollowedByCanonicalization'] ?? null) !== true
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2001/04/xmlenc#sha256'
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
@@ -2300,11 +2307,11 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipSourceClosure']['source'] ?? null) !== '/'
         || ($summary['relationshipSourceClosure']['relationshipType'] ?? null) !== OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE
         || ($summary['relationshipSourceClosure']['valid'] ?? null) !== false
-        || ($summary['relationshipSourceClosure']['issues'] ?? null) !== ['external-target-unsafe-scheme', 'relationship-type-not-absolute-uri']
+        || ($summary['relationshipSourceClosure']['issues'] ?? null) !== ['external-target-network-path-base-uri', 'external-target-unsafe-scheme', 'relationship-type-not-absolute-uri']
         || ($summary['relationshipSourceClosure']['expandedSourceCount'] ?? null) !== 4
         || ($summary['relationshipSourceClosure']['outsideSourceCount'] ?? null) !== 1
-        || ($summary['relationshipSourceClosure']['stopCount'] ?? null) !== 14
-        || ($summary['relationshipSourceClosure']['externalStopCount'] ?? null) !== 4
+        || ($summary['relationshipSourceClosure']['stopCount'] ?? null) !== 15
+        || ($summary['relationshipSourceClosure']['externalStopCount'] ?? null) !== 5
         || ($summary['relationshipSourceClosure']['invalidStopCount'] ?? null) !== 0
         || ($summary['relationshipSourceClosure']['missingStopCount'] ?? null) !== 0
         || ($summary['relationshipSourceClosure']['relationshipPartStopCount'] ?? null) !== 0
@@ -2330,7 +2337,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipSourceClosure']['stops']['rIdUnsafeReviewer']['issues'] ?? null) !== ['external-target-unsafe-scheme']
         || ($summary['relationshipSourceClosure']['stops']['rIdMalformedType']['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
         || ($summary['wordpressImport']['relationshipClosureReview']['expandedSourceCount'] ?? null) !== 4
-        || ($summary['wordpressImport']['relationshipClosureReview']['stopCount'] ?? null) !== 14
+        || ($summary['wordpressImport']['relationshipClosureReview']['stopCount'] ?? null) !== 15
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSourceLoaded'] ?? null) !== true
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipPartLoadAction'] ?? null) !== 'loaded'
@@ -2731,6 +2738,8 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureRelationshipTransforms'][0]['sourceIds'] ?? null) !== ['rIdHero', 'rIdReviewer']
         || ($summary['signatureRelationshipTransforms'][0]['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
         || ($summary['signatureRelationshipTransforms'][0]['followingCanonicalizationAlgorithm'] ?? null) !== 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'
+        || ($summary['signatureRelationshipTransforms'][0]['followingCanonicalization']['profile'] ?? null) !== 'inclusive-c14n-1.0'
+        || ($summary['signatureRelationshipTransforms'][0]['followingCanonicalization']['exclusive'] ?? null) !== false
         || ($summary['signatureRelationshipTransforms'][0]['followedByCanonicalization'] ?? null) !== true
         || ($summary['signatureRelationshipTransforms'][0]['relationshipIds'] ?? null) !== ['rIdEmbeddedWorkbook', 'rIdHero', 'rIdReviewer']
         || ($summary['signatureRelationshipTransforms'][0]['relationshipCount'] ?? null) !== 3

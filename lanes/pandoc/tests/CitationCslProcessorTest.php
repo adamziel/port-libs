@@ -5111,6 +5111,109 @@ XML);
         $t->same('Manual Desk', $manualItem['shortAuthors'][0]['literal'] ?? null);
         $t->same('(MLS)', $manual->renderCitationCluster([$citation('manual-label', '[@manual-label]')]));
     },
+    'maps bounded biblatex sort shorthand into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{zeta-shorthand,
+  author         = {Zed, Zoe},
+  title          = {Zeta Source Manual},
+  date           = {2026},
+  publisher      = {Review Press},
+  shorthand      = {Z-10},
+  sortshorthand  = {010 zeta source},
+  shorthandintro = {listed as Zeta Source}
+}
+
+@book{alpha-shorthand,
+  author         = {Adams, Ada},
+  title          = {Alpha Source Manual},
+  date           = {2025},
+  publisher      = {Review Press},
+  shorthand      = {A-2},
+  sort-shorthand = {002 alpha source}
+}
+
+@online{fallback-shorthand,
+  title     = {Fallback Shorthand Packet},
+  date      = {2024},
+  shorthand = {B-3},
+  url       = {https://example.test/fallback-shorthand}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('010 zeta source', $items[0]['sort-shorthand'] ?? null);
+        $t->same('010 zeta source', $items[0]['shorthand-list-sort-key'] ?? null);
+        $t->same('002 alpha source', $items[1]['sort-shorthand'] ?? null);
+        $t->same('002 alpha source', $items[1]['shorthand-list-sort-key'] ?? null);
+        $t->same('', $items[2]['sort-shorthand'] ?? null);
+        $t->same('B-3', $items[2]['shorthand-list-sort-key'] ?? null);
+        $t->same('010 zeta source', $items[0]['rawBibtex']['fields']['sortshorthand'] ?? null);
+        $t->same('002 alpha source', $items[1]['rawBibtex']['fields']['sort-shorthand'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $zeta = $processor->item('zeta-shorthand');
+        $alpha = $processor->item('alpha-shorthand');
+        $fallback = $processor->item('fallback-shorthand');
+        $t->same('010 zeta source', $zeta['sortShorthand'] ?? null);
+        $t->same('010 zeta source', $zeta['shorthandListSortKey'] ?? null);
+        $t->same('002 alpha source', $alpha['sortShorthand'] ?? null);
+        $t->same('002 alpha source', $alpha['shorthandListSortKey'] ?? null);
+        $t->same('', $fallback['sortShorthand'] ?? null);
+        $t->same('B-3', $fallback['shorthandListSortKey'] ?? null);
+        $t->same('Zed, Zoe. Zeta Source Manual. Review Press, 2026. Sort shorthand: 010 zeta source.', $processor->renderBibliographyEntry('zeta-shorthand'));
+        $t->same('Fallback Shorthand Packet. 2024. https://example.test/fallback-shorthand.', $processor->renderBibliographyEntry('fallback-shorthand'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort>
+      <key variable="sort-shorthand"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="citation-label"/>
+        <text variable="sortshorthand"/>
+        <text variable="shorthand-list-sort-key"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="sort-shorthand"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="sort-shorthand"/>
+      <text variable="list-shorthand"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[A-2 | 002 alpha source | 002 alpha source; Z-10 | 010 zeta source | 010 zeta source; B-3 | B-3]', $styled->renderCitationCluster([
+            $citation('zeta-shorthand', '[@zeta-shorthand]'),
+            $citation('fallback-shorthand', '[@fallback-shorthand]'),
+            $citation('alpha-shorthand', '[@alpha-shorthand]'),
+        ]));
+        $t->same('Alpha Source Manual :: 002 alpha source :: 002 alpha source', $styled->renderBibliographyEntry('alpha-shorthand'));
+        $t->same('Fallback Shorthand Packet :: B-3', $styled->renderBibliographyEntry('fallback-shorthand'));
+
+        $document = (new MarkdownReader())->read('List shorthand source @zeta-shorthand and [@alpha-shorthand] keep list sort keys visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>List shorthand source Z-10 and (A-2) keep list sort keys visible.</p>', $blocks);
+        $t->contains('<dt>Z-10</dt><dd>Zed, Zoe. Zeta Source Manual. Review Press, 2026. Sort shorthand: 010 zeta source.</dd>', $blocks);
+        $t->contains('<dt>A-2</dt><dd>Adams, Ada. Alpha Source Manual. Review Press, 2025. Sort shorthand: 002 alpha source.</dd>', $blocks);
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-sort-shorthand',
+            'title' => 'Manual Sort Shorthand',
+            'shorthand' => 'MSH',
+            'sort-shorthand' => '001 manual shorthand',
+        ]])->item('manual-sort-shorthand');
+        $t->same('001 manual shorthand', $manual['sortShorthand'] ?? null);
+        $t->same('001 manual shorthand', $manual['shorthandListSortKey'] ?? null);
+    },
     'maps bounded biblatex label disambiguation fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{label-field-source,

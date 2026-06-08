@@ -1002,6 +1002,85 @@ XML;
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('<td class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle" data-odf-cell-style-name="ReviewStatusCell" data-odf-cell-background-color="#fff4cc" data-odf-cell-vertical-align="middle" data-odf-cell-writing-mode="tb-rl" data-odf-cell-protect="protected" data-odf-cell-print-content="false" data-odf-cell-repeat-content="false" data-odf-cell-shrink-to-fit="true" style="background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt"><p>Source note</p></td>', $blocksHtml);
     },
+    'preserves ODT style map rules on table cell review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithStyleMaps = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="ReadyCell" style:family="table-cell">
+      <style:table-cell-properties fo:background-color="#e6ffed"/>
+    </style:style>
+    <style:style style:name="EscalatedCell" style:family="table-cell">
+      <style:table-cell-properties fo:background-color="#fff4cc"/>
+    </style:style>
+    <style:style style:name="ReviewDecisionCellBase" style:family="table-cell">
+      <style:table-cell-properties style:cell-protect="protected"/>
+      <style:map style:condition="cell-content()=&quot;Ready&quot;" style:apply-style-name="ReadyCell" style:base-cell-address="Review.B2"/>
+    </style:style>
+    <style:style style:name="ReviewDecisionCell" style:family="table-cell" style:parent-style-name="ReviewDecisionCellBase">
+      <style:table-cell-properties fo:border="0.5pt solid #999999"/>
+      <style:map style:condition="cell-content()=&quot;Escalated&quot;" style:apply-style-name="EscalatedCell" style:base-cell-address="Review.B3"/>
+    </style:style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithStyleMapCells = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="Conditional Styles">
+        <table:table-row>
+          <table:table-cell table:style-name="ReviewDecisionCell"><text:p>Ready</text:p></table:table-cell>
+          <table:table-cell><text:p>Plain</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithStyleMapCells, null, $stylesWithStyleMaps));
+        $table = $result['document']->children[0];
+        $cell = $table->children[0]->children[0]->children[0];
+        $plainCell = $table->children[0]->children[0]->children[1];
+        $styleMaps = $cell->attr('odfCellStyleMaps');
+        $htmlAttributes = $cell->attr('htmlAttributes');
+        $geometry = $table->attr('tableGeometry');
+        $coverage = is_array($geometry) ? ($geometry['coverage'] ?? []) : [];
+
+        $t->same('ReviewDecisionCell', $cell->attr('styleName'));
+        $t->same('ReviewDecisionCellBase', $cell->attr('style')['parentName']);
+        $t->same('protected', $cell->attr('style')['tableCellProperties']['cellProtect']);
+        $t->same('0.5pt solid #999999', $cell->attr('style')['tableCellProperties']['border']);
+        $t->same(2, count($styleMaps));
+        $t->same('cell-content()="Ready"', $styleMaps[0]['condition']);
+        $t->same('ReadyCell', $styleMaps[0]['applyStyleName']);
+        $t->same('Review.B2', $styleMaps[0]['baseCellAddress']);
+        $t->same('cell-content()="Escalated"', $styleMaps[1]['condition']);
+        $t->same('EscalatedCell', $styleMaps[1]['applyStyleName']);
+        $t->same('Review.B3', $styleMaps[1]['baseCellAddress']);
+        $t->same(null, $plainCell->attr('odfCellStyleMaps'));
+        $t->same(['odf-table-cell-style', 'odf-table-cell-protected', 'odf-table-cell-style-map'], $cell->attr('classes'));
+        $t->same('2', $htmlAttributes['data-odf-cell-style-map-count']);
+        $t->same('cell-content()="Ready"', $htmlAttributes['data-odf-cell-style-map-1-condition']);
+        $t->same('ReadyCell', $htmlAttributes['data-odf-cell-style-map-1-apply-style-name']);
+        $t->same('Review.B2', $htmlAttributes['data-odf-cell-style-map-1-base-cell-address']);
+        $t->same('cell-content()="Escalated"', $htmlAttributes['data-odf-cell-style-map-2-condition']);
+        $t->same('EscalatedCell', $htmlAttributes['data-odf-cell-style-map-2-apply-style-name']);
+        $t->same('Review.B3', $htmlAttributes['data-odf-cell-style-map-2-base-cell-address']);
+        $t->same('2', $coverage[0]['sourceAttributes']['htmlAttributes']['data-odf-cell-style-map-count'] ?? null);
+        $t->same('EscalatedCell', $coverage[0]['sourceAttributes']['htmlAttributes']['data-odf-cell-style-map-2-apply-style-name'] ?? null);
+        $t->same(2, $result['importReport']['styles']['styleMapCount']);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<td class="odf-table-cell-style odf-table-cell-protected odf-table-cell-style-map" data-odf-cell-style-name="ReviewDecisionCell" data-odf-cell-protect="protected" data-odf-cell-style-map-count="2" data-odf-cell-style-map-1-condition="cell-content()=&quot;Ready&quot;" data-odf-cell-style-map-1-apply-style-name="ReadyCell" data-odf-cell-style-map-1-base-cell-address="Review.B2" data-odf-cell-style-map-2-condition="cell-content()=&quot;Escalated&quot;" data-odf-cell-style-map-2-apply-style-name="EscalatedCell" data-odf-cell-style-map-2-base-cell-address="Review.B3" style="border:0.5pt solid #999999"><p>Ready</p></td>', $blocksHtml);
+    },
     'maps ODT table templates into table review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithTableTemplate = <<<'XML'
 <office:document-styles

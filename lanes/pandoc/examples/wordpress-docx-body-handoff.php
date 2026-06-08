@@ -742,7 +742,11 @@ XML],
 </w:settings>
 XML],
     ['name' => 'word/glossary/document.xml', 'data' => <<<'XML'
-<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:docParts>
     <w:docPart>
       <w:docPartPr>
@@ -758,11 +762,30 @@ XML],
       </w:docPartPr>
       <w:docPartBody>
         <w:p><w:r><w:t>Review checklist placeholder for import staging.</w:t></w:r></w:p>
+        <w:p>
+          <w:hyperlink r:id="rIdGlossarySource" w:tooltip="Glossary source"><w:r><w:t>Glossary checklist source</w:t></w:r></w:hyperlink>
+          <w:r><w:t xml:space="preserve"> </w:t></w:r>
+          <w:r>
+            <w:drawing>
+              <wp:inline>
+                <wp:docPr id="801" name="Glossary checklist logo" descr="Glossary checklist logo" title="Glossary checklist logo title"/>
+                <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdGlossaryLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+              </wp:inline>
+            </w:drawing>
+          </w:r>
+        </w:p>
       </w:docPartBody>
     </w:docPart>
   </w:docParts>
 </w:glossaryDocument>
 XML],
+    ['name' => 'word/glossary/_rels/document.xml.rels', 'data' => <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdGlossarySource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/glossary-checklist?post=42" TargetMode="External"/>
+  <Relationship Id="rIdGlossaryLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/glossary-logo.png"/>
+</Relationships>
+XML],
+    ['name' => 'word/glossary/media/glossary-logo.png', 'data' => 'GLOSSARYPNG'],
     ['name' => 'word/chunks/review.html', 'data' => '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>'],
     ['name' => 'word/chunks/plain-review.txt', 'data' => "\xEF\xBB\xBFPlain text source note\r\nSecond imported line\r\n\r\nFinal plain-text checkpoint."],
     ['name' => 'word/styles.xml', 'data' => <<<'XML'
@@ -1010,13 +1033,35 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['docxGlossary']['items'][0]['name'] ?? '') !== 'ReviewChecklistPlaceholder') {
         throw new RuntimeException('DOCX body handoff self-test missing glossary document part name');
     }
-    if (($summary['metadata']['docxGlossary']['items'][0]['text'] ?? '') !== 'Review checklist placeholder for import staging.') {
+    if (($summary['metadata']['docxGlossary']['items'][0]['text'] ?? '') !== "Review checklist placeholder for import staging.\nGlossary checklist source Glossary checklist logo") {
         throw new RuntimeException('DOCX body handoff self-test missing glossary document part text');
     }
     if (($summary['importReport']['glossary']['relationship']['id'] ?? '') !== 'rIdGlossary') {
         throw new RuntimeException('DOCX body handoff self-test missing glossary relationship import report');
     }
-    if (($summary['importReport']['media']['embeddedCount'] ?? 0) !== 2) {
+    if (($summary['metadata']['docxGlossary']['relationshipsPart'] ?? '') !== '/word/glossary/_rels/document.xml.rels') {
+        throw new RuntimeException('DOCX body handoff self-test missing glossary-local relationships part');
+    }
+    if (($summary['metadata']['docxGlossary']['relationshipCount'] ?? 0) !== 2) {
+        throw new RuntimeException('DOCX body handoff self-test missing glossary-local relationship count');
+    }
+    if (($summary['metadata']['docxGlossary']['relationships'][0]['target'] ?? '') !== 'https://example.test/glossary-checklist?post=42') {
+        throw new RuntimeException('DOCX body handoff self-test missing glossary-local hyperlink relationship');
+    }
+    if (($summary['metadata']['docxGlossary']['relationships'][1]['target'] ?? '') !== '/word/glossary/media/glossary-logo.png') {
+        throw new RuntimeException('DOCX body handoff self-test missing glossary-local image relationship');
+    }
+    $glossaryBlock = $summary['metadata']['docxGlossary']['items'][0]['blocks'][1] ?? null;
+    if (!$glossaryBlock instanceof PortLibs\Pandoc\AstNode || ($glossaryBlock->children[0]->attr('url') ?? '') !== 'https://example.test/glossary-checklist?post=42') {
+        throw new RuntimeException('DOCX body handoff self-test missing parsed glossary hyperlink block');
+    }
+    if (($glossaryBlock->children[2]->attr('sourcePart') ?? '') !== '/word/glossary/media/glossary-logo.png') {
+        throw new RuntimeException('DOCX body handoff self-test missing parsed glossary image block');
+    }
+    if (($glossaryBlock->children[2]->attr('bytes') ?? 0) !== 11) {
+        throw new RuntimeException('DOCX body handoff self-test missing parsed glossary image byte count');
+    }
+    if (($summary['importReport']['media']['embeddedCount'] ?? 0) !== 3) {
         throw new RuntimeException('DOCX body handoff self-test missing media import report');
     }
     if (($summary['importReport']['media']['items'][0]['bytes'] ?? 0) !== 7) {
@@ -1027,6 +1072,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['importReport']['media']['items'][2]['id'] ?? '') !== 'rIdVmlBadge' || ($summary['importReport']['media']['items'][2]['usedCount'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing VML image media handoff');
+    }
+    if (($summary['importReport']['media']['items'][3]['source'] ?? '') !== '/word/glossary/document.xml' || ($summary['importReport']['media']['items'][3]['bytes'] ?? 0) !== 11) {
+        throw new RuntimeException('DOCX body handoff self-test missing glossary image media handoff');
     }
     if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 6 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 8) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');

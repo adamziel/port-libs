@@ -134,6 +134,8 @@ final class CompoundFileBinary
             $sector = self::u32($bytes, 76 + ($index * 4));
             if (self::isRegularSector($sector)) {
                 $difat[] = $sector;
+            } elseif ($sector !== self::FREESECT) {
+                throw new \RuntimeException('CFB DIFAT FAT-sector entries must be regular sectors or FREESECT');
             }
         }
 
@@ -151,6 +153,8 @@ final class CompoundFileBinary
                 $fatSector = self::u32($sectorBytes, $entry * 4);
                 if (self::isRegularSector($fatSector)) {
                     $difat[] = $fatSector;
+                } elseif ($fatSector !== self::FREESECT) {
+                    throw new \RuntimeException('CFB DIFAT FAT-sector entries must be regular sectors or FREESECT');
                 }
             }
             $difatSector = self::u32($sectorBytes, $sectorSize - 4);

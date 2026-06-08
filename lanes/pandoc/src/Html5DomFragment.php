@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review', 'aria-metadata-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -3215,6 +3215,14 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlAriaMetadataAttribute($name)) {
+                $ariaMetadata = self::normalizeHtmlAriaMetadataAttribute($name, $value, $tagName, $diagnostics);
+                foreach ($ariaMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isBlockedAttribute($name, $foreignContext)) {
                 $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
@@ -3931,6 +3939,449 @@ final class Html5DomFragment
     private static function isSafeAttributeName(string $name): bool
     {
         return preg_match('/^(?:[A-Za-z_:][A-Za-z0-9:._-]*|aria-[A-Za-z0-9._-]+|data-[A-Za-z0-9._:-]+)$/', $name) === 1;
+    }
+
+    private static function isHtmlAriaMetadataAttribute(string $name): bool
+    {
+        $attribute = strtolower($name);
+
+        return $attribute === 'role' || str_starts_with($attribute, 'aria-');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlAriaMetadataAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): array {
+        $attribute = strtolower($name);
+        if ($attribute === 'role') {
+            $roles = self::normalizeHtmlAriaRoleTokens($value, $tagName, $diagnostics);
+            if ($roles === null) {
+                return [];
+            }
+
+            self::addHtmlAriaMetadataDiagnostic($diagnostics, $tagName, 'role');
+
+            return ['data-pandoc-aria-role' => $roles];
+        }
+
+        $metadataValue = null;
+        if (self::isHtmlAriaTextAttribute($attribute)) {
+            $metadataValue = self::normalizeHtmlAriaTextValue($value);
+        } elseif (self::isHtmlAriaIdrefAttribute($attribute)) {
+            $metadataValue = self::normalizeHtmlAriaIdrefValue($attribute, $value, $tagName, $diagnostics);
+        } elseif (self::isHtmlAriaTokenAttribute($attribute)) {
+            $metadataValue = self::normalizeHtmlAriaTokenValue($attribute, $value, $tagName, $diagnostics);
+        } elseif (self::isHtmlAriaIntegerAttribute($attribute)) {
+            $metadataValue = self::normalizeHtmlAriaIntegerValue($attribute, $value, $tagName, $diagnostics);
+        } elseif (self::isHtmlAriaNumberAttribute($attribute)) {
+            $metadataValue = self::normalizeHtmlAriaNumberValue($attribute, $value, $tagName, $diagnostics);
+        } else {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => $attribute,
+                'reason' => 'unsupported-aria-review-attribute',
+            ];
+
+            return [];
+        }
+
+        if ($metadataValue === null) {
+            return [];
+        }
+
+        self::addHtmlAriaMetadataDiagnostic($diagnostics, $tagName, $attribute);
+
+        return ['data-pandoc-' . $attribute => $metadataValue];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlAriaRoleTokens(string $value, string $tagName, array &$diagnostics): ?string
+    {
+        $tokens = self::splitHtmlSemanticTokens($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $roles = [];
+        foreach ($tokens as $token) {
+            $role = strtolower($token);
+            if (!self::isReviewableHtmlAriaRole($role)) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => $tagName,
+                    'attribute' => 'role',
+                    'token' => $token,
+                ];
+                continue;
+            }
+
+            if (!in_array($role, $roles, true)) {
+                $roles[] = $role;
+            }
+        }
+
+        return $roles === [] ? null : implode(' ', $roles);
+    }
+
+    private static function isReviewableHtmlAriaRole(string $role): bool
+    {
+        return in_array($role, [
+            'alert',
+            'alertdialog',
+            'application',
+            'article',
+            'banner',
+            'blockquote',
+            'button',
+            'caption',
+            'cell',
+            'checkbox',
+            'code',
+            'columnheader',
+            'combobox',
+            'command',
+            'complementary',
+            'contentinfo',
+            'definition',
+            'deletion',
+            'dialog',
+            'directory',
+            'document',
+            'emphasis',
+            'feed',
+            'figure',
+            'form',
+            'generic',
+            'grid',
+            'gridcell',
+            'group',
+            'heading',
+            'img',
+            'insertion',
+            'link',
+            'list',
+            'listbox',
+            'listitem',
+            'log',
+            'main',
+            'mark',
+            'marquee',
+            'math',
+            'menu',
+            'menubar',
+            'menuitem',
+            'menuitemcheckbox',
+            'menuitemradio',
+            'meter',
+            'navigation',
+            'none',
+            'note',
+            'option',
+            'paragraph',
+            'presentation',
+            'progressbar',
+            'radio',
+            'radiogroup',
+            'region',
+            'row',
+            'rowgroup',
+            'rowheader',
+            'scrollbar',
+            'search',
+            'searchbox',
+            'separator',
+            'slider',
+            'spinbutton',
+            'status',
+            'strong',
+            'subscript',
+            'superscript',
+            'switch',
+            'tab',
+            'table',
+            'tablist',
+            'tabpanel',
+            'term',
+            'textbox',
+            'time',
+            'timer',
+            'toolbar',
+            'tooltip',
+            'tree',
+            'treegrid',
+            'treeitem',
+        ], true);
+    }
+
+    private static function isHtmlAriaTextAttribute(string $attribute): bool
+    {
+        return in_array($attribute, [
+            'aria-braillelabel',
+            'aria-description',
+            'aria-keyshortcuts',
+            'aria-label',
+            'aria-placeholder',
+            'aria-roledescription',
+            'aria-valuetext',
+        ], true);
+    }
+
+    private static function normalizeHtmlAriaTextValue(string $value): ?string
+    {
+        $text = self::cleanHtmlMetadataAttribute($value);
+        if ($text === '' || strlen($text) > 512 || preg_match('/[<>{}`]/', $text) === 1) {
+            return null;
+        }
+
+        return $text;
+    }
+
+    private static function isHtmlAriaIdrefAttribute(string $attribute): bool
+    {
+        return in_array($attribute, [
+            'aria-activedescendant',
+            'aria-controls',
+            'aria-describedby',
+            'aria-details',
+            'aria-errormessage',
+            'aria-flowto',
+            'aria-labelledby',
+            'aria-owns',
+        ], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlAriaIdrefValue(
+        string $attribute,
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): ?string {
+        $tokens = self::splitHtmlSemanticTokens($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            if (!self::isSafeHtmlAriaIdToken($token)) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => $tagName,
+                    'attribute' => $attribute,
+                    'token' => $token,
+                ];
+                continue;
+            }
+
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        return $normalized === [] ? null : implode(' ', $normalized);
+    }
+
+    private static function isSafeHtmlAriaIdToken(string $token): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9_.:-]*$/', $token) === 1;
+    }
+
+    private static function isHtmlAriaTokenAttribute(string $attribute): bool
+    {
+        return self::htmlAriaTokenStates($attribute) !== null;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private static function htmlAriaTokenStates(string $attribute): ?array
+    {
+        return match ($attribute) {
+            'aria-autocomplete' => ['inline', 'list', 'both', 'none'],
+            'aria-busy',
+            'aria-disabled',
+            'aria-expanded',
+            'aria-grabbed',
+            'aria-hidden',
+            'aria-modal',
+            'aria-multiline',
+            'aria-multiselectable',
+            'aria-readonly',
+            'aria-required',
+            'aria-selected' => ['true', 'false'],
+            'aria-checked',
+            'aria-pressed' => ['true', 'false', 'mixed'],
+            'aria-current' => ['false', 'true', 'page', 'step', 'location', 'date', 'time'],
+            'aria-dropeffect' => ['copy', 'execute', 'link', 'move', 'none', 'popup'],
+            'aria-haspopup' => ['false', 'true', 'menu', 'listbox', 'tree', 'grid', 'dialog'],
+            'aria-invalid' => ['false', 'true', 'grammar', 'spelling'],
+            'aria-live' => ['off', 'polite', 'assertive'],
+            'aria-orientation' => ['horizontal', 'vertical'],
+            'aria-relevant' => ['additions', 'removals', 'text', 'all'],
+            'aria-sort' => ['none', 'ascending', 'descending', 'other'],
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlAriaTokenValue(
+        string $attribute,
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): ?string {
+        $allowed = self::htmlAriaTokenStates($attribute);
+        if ($allowed === null) {
+            return null;
+        }
+
+        $tokens = self::splitHtmlSemanticTokens($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            $state = strtolower($token);
+            if (!in_array($state, $allowed, true)) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => $tagName,
+                    'attribute' => $attribute,
+                    'value' => $state,
+                ];
+                continue;
+            }
+
+            if (!in_array($state, $normalized, true)) {
+                $normalized[] = $state;
+            }
+        }
+
+        if ($normalized === []) {
+            return null;
+        }
+
+        return in_array($attribute, ['aria-dropeffect', 'aria-relevant'], true)
+            ? implode(' ', $normalized)
+            : $normalized[0];
+    }
+
+    private static function isHtmlAriaIntegerAttribute(string $attribute): bool
+    {
+        return in_array($attribute, [
+            'aria-colcount',
+            'aria-colindex',
+            'aria-colspan',
+            'aria-level',
+            'aria-posinset',
+            'aria-rowcount',
+            'aria-rowindex',
+            'aria-rowspan',
+            'aria-setsize',
+        ], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlAriaIntegerValue(
+        string $attribute,
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): ?string {
+        $cleaned = self::cleanHtmlMetadataAttribute($value);
+        if (preg_match('/^-?[0-9]+$/', $cleaned) !== 1) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => $attribute,
+            ];
+
+            return null;
+        }
+
+        $number = (int) $cleaned;
+        $allowsMinusOne = in_array($attribute, ['aria-colcount', 'aria-rowcount', 'aria-setsize'], true);
+        if ($number < ($allowsMinusOne ? -1 : 1) || $number === 0) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => $attribute,
+                'value' => $cleaned,
+            ];
+
+            return null;
+        }
+
+        return (string) $number;
+    }
+
+    private static function isHtmlAriaNumberAttribute(string $attribute): bool
+    {
+        return in_array($attribute, ['aria-valuemax', 'aria-valuemin', 'aria-valuenow'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlAriaNumberValue(
+        string $attribute,
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): ?string {
+        $cleaned = self::cleanHtmlMetadataAttribute($value);
+        if (preg_match('/^-?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/', $cleaned) !== 1) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => $attribute,
+            ];
+
+            return null;
+        }
+
+        $normalized = rtrim(rtrim($cleaned, '0'), '.');
+        if ($normalized === '' || $normalized === '-') {
+            $normalized = '0';
+        }
+        if (str_starts_with($normalized, '.')) {
+            $normalized = '0' . $normalized;
+        }
+        if (str_starts_with($normalized, '-.')) {
+            $normalized = '-0' . substr($normalized, 1);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlAriaMetadataDiagnostic(array &$diagnostics, string $tagName, string $attributeName): void
+    {
+        $diagnostics[] = [
+            'code' => 'aria-metadata-review',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'reason' => 'aria-attribute-preserved-as-review-metadata',
+        ];
     }
 
     private static function isHtmlSemanticMetadataAttribute(string $name): bool

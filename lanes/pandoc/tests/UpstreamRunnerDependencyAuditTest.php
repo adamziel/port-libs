@@ -4886,4 +4886,58 @@ return [
         $t->same([], $audit['projectUnconditionalFieldClosure']['unexpectedFields']);
         $t->same([], $audit['blockedReasons']);
     },
+    'blocks lua engine library file artifact globs before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            "library\n  import: test-options\n  build-depends:",
+            implode("\n", [
+                'library',
+                '  import: test-options',
+                '  extra-source-files: cbits/lua-runner.c',
+                '  extra-doc-files: docs/lua-runner.md',
+                '  extra-tmp-files: dist/lua-runner.tmp',
+                '  data-files:',
+                '    data/lua-filter.lua,',
+                '    data/defaults/*.json',
+                '  build-depends:',
+            ]),
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedConditionalBranches']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedNativeSystemFields']);
+        $t->same(['cbits/lua-runner.c'], $audit['luaEngineLibraryClosure']['presentExtraSourceFiles']);
+        $t->same(['docs/lua-runner.md'], $audit['luaEngineLibraryClosure']['presentExtraDocFiles']);
+        $t->same(['dist/lua-runner.tmp'], $audit['luaEngineLibraryClosure']['presentExtraTmpFiles']);
+        $t->same([
+            'data/defaults/*.json',
+            'data/lua-filter.lua',
+        ], $audit['luaEngineLibraryClosure']['presentDataFiles']);
+        $t->same($audit['luaEngineLibraryClosure']['presentExtraSourceFiles'], $audit['luaEngineLibraryClosure']['unexpectedExtraSourceFiles']);
+        $t->same($audit['luaEngineLibraryClosure']['presentExtraDocFiles'], $audit['luaEngineLibraryClosure']['unexpectedExtraDocFiles']);
+        $t->same($audit['luaEngineLibraryClosure']['presentExtraTmpFiles'], $audit['luaEngineLibraryClosure']['unexpectedExtraTmpFiles']);
+        $t->same($audit['luaEngineLibraryClosure']['presentDataFiles'], $audit['luaEngineLibraryClosure']['unexpectedDataFiles']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected pandoc-lua-engine library extra-source-files: cbits/lua-runner.c', $blocked);
+        $t->contains('unexpected pandoc-lua-engine library extra-doc-files: docs/lua-runner.md', $blocked);
+        $t->contains('unexpected pandoc-lua-engine library extra-tmp-files: dist/lua-runner.tmp', $blocked);
+        $t->contains('unexpected pandoc-lua-engine library data-files: data/defaults/*.json, data/lua-filter.lua', $blocked);
+        $t->contains('no unexpected pandoc-lua-engine library file artifact globs', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
 ];

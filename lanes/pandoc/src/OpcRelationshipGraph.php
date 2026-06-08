@@ -2100,7 +2100,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, canonicalizationTransforms:list<array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}>, relationshipTransformFollowingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>
      */
     public function preflightDigitalSignatureSignedInfoReferences(string $signaturePartName): array
     {
@@ -2464,7 +2464,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, followingCanonicalizationAlgorithm:?string, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, followingCanonicalizationAlgorithm:?string, followingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}>
      */
     public function preflightSignatureRelationshipTransforms(string $signaturePartName): array
     {
@@ -2559,7 +2559,8 @@ final class OpcRelationshipGraph
                 $invalidSourceTypes = $selector['invalidSourceTypes'];
                 $sourceTypeIssues = $selector['sourceTypeIssues'];
                 $followingCanonicalizationAlgorithm = self::followingTransformAlgorithm($transforms, $transformIndex);
-                $followedByCanonicalization = self::isCanonicalizationTransformAlgorithm($followingCanonicalizationAlgorithm);
+                $followingCanonicalization = self::canonicalizationTransformMetadata($followingCanonicalizationAlgorithm);
+                $followedByCanonicalization = $followingCanonicalization !== null;
                 if (!$followedByCanonicalization) {
                     $issues[] = 'relationship-transform-not-followed-by-canonicalization';
                 }
@@ -2610,6 +2611,7 @@ final class OpcRelationshipGraph
                     'invalidSourceTypes' => $invalidSourceTypes,
                     'sourceTypeIssues' => $sourceTypeIssues,
                     'followingCanonicalizationAlgorithm' => $followingCanonicalizationAlgorithm,
+                    'followingCanonicalization' => $followingCanonicalization,
                     'followedByCanonicalization' => $followedByCanonicalization,
                     'relationshipIds' => $relationshipIds,
                     'relationshipCount' => $relationshipCount,
@@ -2910,7 +2912,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}
+     * @return array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, canonicalizationTransforms:list<array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}>, relationshipTransformFollowingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}
      */
     private static function digitalSignatureSignedInfoReferenceMetadata(
         \DOMElement $reference,
@@ -2982,19 +2984,27 @@ final class OpcRelationshipGraph
         $relationshipTransformCount = 0;
         $canonicalizationTransformCount = 0;
         $canonicalizationTransformAlgorithms = [];
+        $canonicalizationTransforms = [];
+        $relationshipTransformFollowingCanonicalization = null;
         $relationshipTransformFollowedByCanonicalization = null;
         foreach ($transformAlgorithms as $transformIndex => $algorithm) {
             if ($algorithm === self::RELATIONSHIP_TRANSFORM_ALGORITHM) {
                 $relationshipTransformCount++;
                 $followingAlgorithm = self::followingTransformAlgorithm($transforms, $transformIndex);
-                $followedByCanonicalization = self::isCanonicalizationTransformAlgorithm($followingAlgorithm);
+                $followingCanonicalization = self::canonicalizationTransformMetadata($followingAlgorithm);
+                $followedByCanonicalization = $followingCanonicalization !== null;
+                if ($relationshipTransformFollowingCanonicalization === null && $followingCanonicalization !== null) {
+                    $relationshipTransformFollowingCanonicalization = $followingCanonicalization;
+                }
                 $relationshipTransformFollowedByCanonicalization = $relationshipTransformFollowedByCanonicalization === null
                     ? $followedByCanonicalization
                     : $relationshipTransformFollowedByCanonicalization && $followedByCanonicalization;
             }
-            if (self::isCanonicalizationTransformAlgorithm($algorithm)) {
+            $canonicalizationTransform = self::canonicalizationTransformMetadata($algorithm);
+            if ($canonicalizationTransform !== null) {
                 $canonicalizationTransformCount++;
                 $canonicalizationTransformAlgorithms[] = $algorithm;
+                $canonicalizationTransforms[] = $canonicalizationTransform;
             }
         }
 
@@ -3058,6 +3068,8 @@ final class OpcRelationshipGraph
             'relationshipTransformCount' => $relationshipTransformCount,
             'canonicalizationTransformCount' => $canonicalizationTransformCount,
             'canonicalizationTransformAlgorithms' => $canonicalizationTransformAlgorithms,
+            'canonicalizationTransforms' => $canonicalizationTransforms,
+            'relationshipTransformFollowingCanonicalization' => $relationshipTransformFollowingCanonicalization,
             'relationshipTransformFollowedByCanonicalization' => $relationshipTransformFollowedByCanonicalization,
             'digestAlgorithm' => $digestAlgorithm,
             'digestValue' => $digestValue,
@@ -3382,16 +3394,56 @@ final class OpcRelationshipGraph
         return $following->getAttribute('Algorithm');
     }
 
-    private static function isCanonicalizationTransformAlgorithm(?string $algorithm): bool
+    /**
+     * @return array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}|null
+     */
+    private static function canonicalizationTransformMetadata(?string $algorithm): ?array
     {
-        return in_array($algorithm, [
-            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
-            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315#WithComments',
-            'http://www.w3.org/2001/10/xml-exc-c14n#',
-            'http://www.w3.org/2001/10/xml-exc-c14n#WithComments',
-            'http://www.w3.org/2006/12/xml-c14n11',
-            'http://www.w3.org/2006/12/xml-c14n11#WithComments',
-        ], true);
+        return match ($algorithm) {
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315' => [
+                'algorithm' => $algorithm,
+                'profile' => 'inclusive-c14n-1.0',
+                'version' => '1.0',
+                'exclusive' => false,
+                'withComments' => false,
+            ],
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315#WithComments' => [
+                'algorithm' => $algorithm,
+                'profile' => 'inclusive-c14n-1.0-with-comments',
+                'version' => '1.0',
+                'exclusive' => false,
+                'withComments' => true,
+            ],
+            'http://www.w3.org/2001/10/xml-exc-c14n#' => [
+                'algorithm' => $algorithm,
+                'profile' => 'exclusive-c14n-1.0',
+                'version' => '1.0',
+                'exclusive' => true,
+                'withComments' => false,
+            ],
+            'http://www.w3.org/2001/10/xml-exc-c14n#WithComments' => [
+                'algorithm' => $algorithm,
+                'profile' => 'exclusive-c14n-1.0-with-comments',
+                'version' => '1.0',
+                'exclusive' => true,
+                'withComments' => true,
+            ],
+            'http://www.w3.org/2006/12/xml-c14n11' => [
+                'algorithm' => $algorithm,
+                'profile' => 'c14n-1.1',
+                'version' => '1.1',
+                'exclusive' => false,
+                'withComments' => false,
+            ],
+            'http://www.w3.org/2006/12/xml-c14n11#WithComments' => [
+                'algorithm' => $algorithm,
+                'profile' => 'c14n-1.1-with-comments',
+                'version' => '1.1',
+                'exclusive' => false,
+                'withComments' => true,
+            ],
+            default => null,
+        };
     }
 
     /**

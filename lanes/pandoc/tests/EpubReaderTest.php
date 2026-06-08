@@ -2982,6 +2982,97 @@ XML;
         $t->same($mediaTypes, $result['importReport']['mediaTypes']);
         $t->same($mediaTypes, $result['document']->attr('mediaTypes'));
     },
+    'reports invalid OPF manifest fallback chains in media type preflight' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $fallbackXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Fallback content remains reviewable.</p></body></html>
+XML;
+        $opfWithFallbackChains = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="custom-ok" href="widgets/custom-ok.bin" media-type="application/x-review-widget" fallback="ok-fallback"/>'
+            . '<item id="ok-fallback" href="text/ok-fallback.xhtml" media-type="application/xhtml+xml"/>'
+            . '<item id="custom-missing" href="widgets/custom-missing.bin" media-type="application/x-review-widget" fallback="missing-fallback"/>'
+            . '<item id="custom-cycle" href="widgets/custom-cycle.bin" media-type="application/x-review-widget" fallback="cycle-b"/>'
+            . '<item id="cycle-b" href="widgets/cycle-b.bin" media-type="application/x-review-widget" fallback="custom-cycle"/>'
+            . '<item id="custom-unsupported" href="widgets/custom-unsupported.bin" media-type="application/x-review-widget" fallback="unsupported-terminal"/>'
+            . '<item id="unsupported-terminal" href="widgets/unsupported-terminal.bin" media-type="application/x-unsupported-terminal"/>'
+            . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithFallbackChains,
+            null,
+            [
+                ['name' => 'OEBPS/widgets/custom-ok.bin', 'data' => 'CUSTOM-OK'],
+                ['name' => 'OEBPS/text/ok-fallback.xhtml', 'data' => $fallbackXhtml],
+                ['name' => 'OEBPS/widgets/custom-missing.bin', 'data' => 'CUSTOM-MISSING'],
+                ['name' => 'OEBPS/widgets/custom-cycle.bin', 'data' => 'CUSTOM-CYCLE'],
+                ['name' => 'OEBPS/widgets/cycle-b.bin', 'data' => 'CYCLE-B'],
+                ['name' => 'OEBPS/widgets/custom-unsupported.bin', 'data' => 'CUSTOM-UNSUPPORTED'],
+                ['name' => 'OEBPS/widgets/unsupported-terminal.bin', 'data' => 'UNSUPPORTED-TERMINAL'],
+            ]
+        ));
+
+        $mediaTypes = $result['mediaTypes'];
+        $itemsById = $mediaTypes['itemsById'];
+        $assetById = [];
+        foreach ($result['assets'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+
+        $ok = $itemsById['custom-ok'];
+        $t->same('manifest-fallback', $ok['fallbackCoverage']);
+        $t->same(true, $ok['fallbackResolved']);
+        $t->same(true, $ok['fallbackUsable']);
+        $t->same('ok-fallback', $ok['fallbackTerminalId']);
+        $t->same('application/xhtml+xml', $ok['fallbackTerminalMediaType']);
+        $t->same(true, $ok['fallbackTerminalCoreMediaType']);
+        $t->same(true, $ok['fallbackTerminalEpubContentDocument']);
+        $t->same(['ok-fallback'], array_map(static fn (array $item): string => $item['id'], $ok['fallbackChain']));
+        $t->same(false, $ok['reviewRequired']);
+        $t->same([], $ok['diagnostics']);
+
+        $missing = $itemsById['custom-missing'];
+        $t->same('invalid-manifest-fallback', $missing['fallbackCoverage']);
+        $t->same(false, $missing['fallbackResolved']);
+        $t->same(false, $missing['fallbackUsable']);
+        $t->same([], $missing['fallbackChain']);
+        $t->same(null, $missing['fallbackTerminalId']);
+        $t->same(true, $missing['reviewRequired']);
+        $t->same(['unresolved-manifest-fallback', 'foreign-resource-without-fallback'], $missing['reviewFlags']);
+        $t->same(['missing-manifest-fallback-item', 'foreign-resource-without-fallback'], array_column($missing['diagnostics'], 'type'));
+        $t->same('missing-fallback', $missing['diagnostics'][0]['fallback']);
+
+        $cycle = $itemsById['custom-cycle'];
+        $t->same('invalid-manifest-fallback', $cycle['fallbackCoverage']);
+        $t->same(false, $cycle['fallbackResolved']);
+        $t->same(false, $cycle['fallbackUsable']);
+        $t->same(['cycle-b'], array_map(static fn (array $item): string => $item['id'], $cycle['fallbackChain']));
+        $t->same('cycle-b', $cycle['fallbackTerminalId']);
+        $t->same(['cyclic-manifest-fallback', 'foreign-resource-without-fallback'], $cycle['reviewFlags']);
+        $t->same(['cyclic-manifest-fallback-chain', 'foreign-resource-without-fallback'], array_column($cycle['diagnostics'], 'type'));
+        $t->same('custom-cycle', $cycle['diagnostics'][0]['fallback']);
+
+        $unsupported = $itemsById['custom-unsupported'];
+        $t->same('invalid-manifest-fallback', $unsupported['fallbackCoverage']);
+        $t->same(false, $unsupported['fallbackResolved']);
+        $t->same(false, $unsupported['fallbackUsable']);
+        $t->same('unsupported-terminal', $unsupported['fallbackTerminalId']);
+        $t->same('application/x-unsupported-terminal', $unsupported['fallbackTerminalMediaType']);
+        $t->same(false, $unsupported['fallbackTerminalCoreMediaType']);
+        $t->same(false, $unsupported['fallbackTerminalEpubContentDocument']);
+        $t->same(false, $unsupported['fallbackTerminalExemptResource']);
+        $t->same(['unsupported-terminal'], array_map(static fn (array $item): string => $item['id'], $unsupported['fallbackChain']));
+        $t->same(['unsupported-manifest-fallback', 'foreign-resource-without-fallback'], $unsupported['reviewFlags']);
+        $t->same(['unsupported-manifest-fallback-terminal', 'foreign-resource-without-fallback'], array_column($unsupported['diagnostics'], 'type'));
+        $t->same('unsupported-terminal', $unsupported['diagnostics'][0]['terminalId']);
+
+        $t->same($missing['diagnostics'], $assetById['custom-missing']['mediaTypeDiagnostics']);
+        $t->same($cycle['reviewFlags'], $assetById['custom-cycle']['mediaTypeReviewFlags']);
+        $t->same($unsupported['fallbackChain'], $assetById['custom-unsupported']['mediaTypeReport']['fallbackChain']);
+        $t->same($mediaTypes, $result['importReport']['mediaTypes']);
+        $t->same($mediaTypes, $result['document']->attr('mediaTypes'));
+    },
     'parses OPF metadata link records without treating linked records as undeclared assets' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $reviewRecordBytes = '{"@context":"https://schema.org","name":"WordPress EPUB review record"}';
         $opfWithMetadataLinks = str_replace(

@@ -2142,6 +2142,7 @@ $glossaryContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>
 </Types>
@@ -2240,6 +2241,52 @@ $glossaryPartXml = <<<'XML'
     </w:docPart>
   </w:docParts>
 </w:glossaryDocument>
+XML;
+
+$glossaryRelationshipPartXml = <<<'XML'
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:docParts>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="GlossaryRelationshipEntry"/>
+        <w:style w:val="ReviewGlossary"/>
+        <w:category>
+          <w:name w:val="Migration Review"/>
+          <w:gallery w:val="AutoText"/>
+        </w:category>
+        <w:types><w:type w:val="autoText"/></w:types>
+        <w:description w:val="Reusable glossary entry with local package relationships"/>
+        <w:guid w:val="{33333333-4444-5555-6666-888888888888}"/>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p>
+          <w:r><w:t xml:space="preserve">Related glossary assets: </w:t></w:r>
+          <w:hyperlink r:id="rIdGlossarySource" w:tooltip="Glossary source"><w:r><w:t>source link</w:t></w:r></w:hyperlink>
+          <w:r><w:t xml:space="preserve"> </w:t></w:r>
+          <w:r>
+            <w:drawing>
+              <wp:inline>
+                <wp:docPr id="301" name="Glossary logo" descr="Glossary logo alt" title="Glossary logo title"/>
+                <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdGlossaryLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+              </wp:inline>
+            </w:drawing>
+          </w:r>
+        </w:p>
+      </w:docPartBody>
+    </w:docPart>
+  </w:docParts>
+</w:glossaryDocument>
+XML;
+
+$glossaryRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdGlossarySource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/glossary-source" TargetMode="External"/>
+  <Relationship Id="rIdGlossaryLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/glossary-logo.png"/>
+</Relationships>
 XML;
 
 $smartTagDocumentXml = <<<'XML'
@@ -3585,6 +3632,25 @@ $buildGlossaryPackage = static function () use (
         ['name' => 'word/document.xml', 'data' => $glossaryDocumentXml],
         ['name' => 'word/_rels/document.xml.rels', 'data' => $glossaryDocumentRelationshipsXml],
         ['name' => 'word/glossary/document.xml', 'data' => $glossaryPartXml],
+    ]);
+};
+
+$buildGlossaryRelationshipPackage = static function () use (
+    $glossaryContentTypesXml,
+    $packageRelationshipsXml,
+    $glossaryDocumentRelationshipsXml,
+    $glossaryDocumentXml,
+    $glossaryRelationshipPartXml,
+    $glossaryRelationshipsXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $glossaryContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $glossaryDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $glossaryDocumentRelationshipsXml],
+        ['name' => 'word/glossary/document.xml', 'data' => $glossaryRelationshipPartXml],
+        ['name' => 'word/glossary/_rels/document.xml.rels', 'data' => $glossaryRelationshipsXml],
+        ['name' => 'word/glossary/media/glossary-logo.png', 'data' => 'PNGDATA'],
     ]);
 };
 
@@ -6954,6 +7020,63 @@ return [
         $t->contains('data-docx-sdt-doc-part-category="Migration Review"', $blocks);
         $t->contains('<div class="docx-content-control docx-content-control-doc-part-list" data-docx-sdt-id="121" data-docx-sdt-alias="Reusable Glossary List"', $blocks);
         $t->contains('data-docx-sdt-doc-part-gallery="AutoText"', $blocks);
+    },
+    'preserves DOCX glossary-local relationships and parsed docPart blocks' => static function (TestRunner $t) use ($buildGlossaryRelationshipPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildGlossaryRelationshipPackage());
+        $glossary = $result['metadata']['docxGlossary'];
+
+        $t->same('/word/glossary/document.xml', $glossary['part']);
+        $t->same('/word/glossary/_rels/document.xml.rels', $glossary['relationshipsPart']);
+        $t->same(2, $glossary['relationshipCount']);
+        $t->same(2, count($glossary['relationships']));
+        $t->same('rIdGlossarySource', $glossary['relationships'][0]['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', $glossary['relationships'][0]['type']);
+        $t->same('https://example.test/glossary-source', $glossary['relationships'][0]['target']);
+        $t->same(true, $glossary['relationships'][0]['external']);
+        $t->same(null, $glossary['relationships'][0]['contentType']);
+        $t->same('rIdGlossaryLogo', $glossary['relationships'][1]['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', $glossary['relationships'][1]['type']);
+        $t->same('/word/glossary/media/glossary-logo.png', $glossary['relationships'][1]['target']);
+        $t->same(false, $glossary['relationships'][1]['external']);
+        $t->same('image/png', $glossary['relationships'][1]['contentType']);
+        $t->same(1, $glossary['docPartCount']);
+        $t->same(1, count($glossary['items']));
+
+        $item = $glossary['items'][0];
+        $t->same('GlossaryRelationshipEntry', $item['name']);
+        $t->same('ReviewGlossary', $item['style']);
+        $t->same('Migration Review', $item['category']);
+        $t->same('AutoText', $item['gallery']);
+        $t->same(['autoText'], $item['types']);
+        $t->same('Reusable glossary entry with local package relationships', $item['description']);
+        $t->same('{33333333-4444-5555-6666-888888888888}', $item['guid']);
+        $t->same(1, $item['blockCount']);
+        $t->same('Related glossary assets: source link Glossary logo alt', $item['text']);
+        $t->same(1, count($item['blocks']));
+
+        $paragraph = $item['blocks'][0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(4, count($paragraph->children));
+        $t->same('Related glossary assets: ', $paragraph->children[0]->attr('text'));
+        $link = $paragraph->children[1];
+        $t->same('link', $link->type);
+        $t->same('https://example.test/glossary-source', $link->attr('url'));
+        $t->same('Glossary source', $link->attr('title'));
+        $t->same('rIdGlossarySource', $link->attr('attributes')['data-docx-relationship-id']);
+        $t->same('source link', $link->children[0]->attr('text'));
+        $t->same(' ', $paragraph->children[2]->attr('text'));
+        $image = $paragraph->children[3];
+        $t->same('image', $image->type);
+        $t->same('rIdGlossaryLogo', $image->attr('relationshipId'));
+        $t->same('Glossary logo alt', $image->attr('alt'));
+        $t->same('Glossary logo title', $image->attr('title'));
+        $t->same('word/glossary/media/glossary-logo.png', $image->attr('url'));
+        $t->same('/word/glossary/media/glossary-logo.png', $image->attr('sourcePart'));
+        $t->same(false, $image->attr('external'));
+        $t->same(7, $image->attr('bytes'));
+        $t->same('Glossary logo alt', $image->children[0]->attr('text'));
+        $t->same($glossary, $result['importReport']['glossary']);
     },
     'preserves DOCX smart tag metadata around visible inline text' => static function (TestRunner $t) use ($buildSmartTagPackage): void {
         $document = (new DocxReader())->readDocument($buildSmartTagPackage());

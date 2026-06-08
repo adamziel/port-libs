@@ -6001,7 +6001,7 @@ final class EpubReader
     {
         foreach ($manifestById as $id => $item) {
             $binding = self::bindingForMediaType($bindings, (string) ($item['mediaType'] ?? ''));
-            $report = self::manifestItemMediaTypeReport($item, $binding);
+            $report = self::manifestItemMediaTypeReport($item, $binding, $manifestById);
 
             $item['mediaTypeReport'] = $report;
             $item['coreMediaType'] = $report['coreMediaType'];
@@ -6089,10 +6089,11 @@ final class EpubReader
     /**
      * @param array<string, mixed> $item
      * @param ?array<string, mixed> $binding
+     * @param ?array<string, array<string, mixed>> $manifestById
      *
      * @return array<string, mixed>
      */
-    private static function manifestItemMediaTypeReport(array $item, ?array $binding): array
+    private static function manifestItemMediaTypeReport(array $item, ?array $binding, ?array $manifestById = null): array
     {
         $id = (string) ($item['id'] ?? '');
         $mediaType = (string) ($item['mediaType'] ?? '');
@@ -6104,8 +6105,10 @@ final class EpubReader
         $exemptReason = $core ? null : self::exemptMediaTypeReason($mediaType, $part ?? '');
         $exempt = $exemptReason !== null;
         $foreignResource = !$core && !$exempt;
-        $fallbackId = self::nullableManifestId($item['fallback'] ?? null);
-        $hasManifestFallback = $fallbackId !== null;
+        $fallback = self::manifestFallbackCoverageReport($item, $manifestById ?? []);
+        $fallbackId = $fallback['fallbackId'];
+        $hasManifestFallback = (bool) $fallback['hasManifestFallback'];
+        $manifestFallbackUsable = (bool) $fallback['usable'];
         $fallbackStyleId = self::nullableManifestId($item['fallbackStyle'] ?? null);
         $hasFallbackStyle = $fallbackStyleId !== null;
         $bindingHandlerId = is_array($binding) && is_string($binding['handlerId'] ?? null) ? $binding['handlerId'] : null;
@@ -6119,19 +6122,34 @@ final class EpubReader
         if (($parts['valid'] ?? true) !== true) {
             $reviewFlags[] = 'invalid-media-type';
         }
-        if ($foreignResource && !$hasManifestFallback && !$bindingHandled) {
-            $reviewFlags[] = 'foreign-resource-without-fallback';
+        foreach ($fallback['diagnostics'] as $diagnostic) {
+            $diagnostics[] = $diagnostic;
+            $flag = match ($diagnostic['type'] ?? null) {
+                'missing-manifest-fallback-item' => 'unresolved-manifest-fallback',
+                'cyclic-manifest-fallback-chain' => 'cyclic-manifest-fallback',
+                'unsupported-manifest-fallback-terminal' => 'unsupported-manifest-fallback',
+                default => 'invalid-manifest-fallback',
+            };
+            if (!in_array($flag, $reviewFlags, true)) {
+                $reviewFlags[] = $flag;
+            }
+        }
+        if ($foreignResource && !$manifestFallbackUsable && !$bindingHandled) {
+            if (!in_array('foreign-resource-without-fallback', $reviewFlags, true)) {
+                $reviewFlags[] = 'foreign-resource-without-fallback';
+            }
             $diagnostics[] = [
                 'type' => 'foreign-resource-without-fallback',
                 'fallbackRequired' => true,
-                'fallbackId' => null,
+                'fallbackId' => $fallbackId,
                 'bindingHandlerId' => $bindingHandlerId,
-                'message' => 'EPUB OPF manifest item uses a non-core media type without a manifest fallback or OPF binding handler',
+                'message' => 'EPUB OPF manifest item uses a non-core media type without a usable manifest fallback or OPF binding handler',
             ];
         }
 
         $fallbackCoverage = match (true) {
-            $hasManifestFallback => 'manifest-fallback',
+            $hasManifestFallback && $manifestFallbackUsable => 'manifest-fallback',
+            $hasManifestFallback => 'invalid-manifest-fallback',
             $bindingHandled => 'binding-handler',
             $core => 'core-media-type',
             $exempt => 'exempt-resource',
@@ -6161,6 +6179,14 @@ final class EpubReader
             'exemptReason' => $exemptReason,
             'fallbackId' => $fallbackId,
             'hasManifestFallback' => $hasManifestFallback,
+            'fallbackResolved' => (bool) $fallback['resolved'],
+            'fallbackUsable' => $manifestFallbackUsable,
+            'fallbackChain' => $fallback['chain'],
+            'fallbackTerminalId' => $fallback['terminalId'],
+            'fallbackTerminalMediaType' => $fallback['terminalMediaType'],
+            'fallbackTerminalCoreMediaType' => $fallback['terminalCoreMediaType'],
+            'fallbackTerminalEpubContentDocument' => $fallback['terminalEpubContentDocument'],
+            'fallbackTerminalExemptResource' => $fallback['terminalExemptResource'],
             'fallbackStyleId' => $fallbackStyleId,
             'hasFallbackStyle' => $hasFallbackStyle,
             'bindingHandlerId' => $bindingHandlerId,
@@ -6168,6 +6194,135 @@ final class EpubReader
             'fallbackCoverage' => $fallbackCoverage,
             'reviewRequired' => $reviewFlags !== [],
             'reviewFlags' => $reviewFlags,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array{
+     *     fallbackId:?string,
+     *     hasManifestFallback:bool,
+     *     resolved:bool,
+     *     usable:bool,
+     *     chain:list<array<string, mixed>>,
+     *     terminalId:?string,
+     *     terminalMediaType:?string,
+     *     terminalCoreMediaType:?bool,
+     *     terminalEpubContentDocument:?bool,
+     *     terminalExemptResource:?bool,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function manifestFallbackCoverageReport(array $item, array $manifestById): array
+    {
+        $fallbackId = self::nullableManifestId($item['fallback'] ?? null);
+        if ($fallbackId === null) {
+            return [
+                'fallbackId' => null,
+                'hasManifestFallback' => false,
+                'resolved' => false,
+                'usable' => false,
+                'chain' => [],
+                'terminalId' => null,
+                'terminalMediaType' => null,
+                'terminalCoreMediaType' => null,
+                'terminalEpubContentDocument' => null,
+                'terminalExemptResource' => null,
+                'diagnostics' => [],
+            ];
+        }
+
+        $chain = [];
+        $diagnostics = [];
+        $visited = [];
+        $sourceId = (string) ($item['id'] ?? '');
+        if ($sourceId !== '') {
+            $visited[$sourceId] = true;
+        }
+        $current = $item;
+        $next = $fallbackId;
+
+        while ($next !== null) {
+            if (isset($visited[$next])) {
+                $diagnostics[] = [
+                    'type' => 'cyclic-manifest-fallback-chain',
+                    'id' => (string) ($current['id'] ?? ''),
+                    'fallback' => $next,
+                    'chainIds' => array_map(
+                        static fn (array $chainItem): string => (string) $chainItem['id'],
+                        $chain
+                    ),
+                    'message' => 'EPUB OPF manifest fallback chain cycles before reaching a core media type',
+                ];
+                break;
+            }
+
+            if (!isset($manifestById[$next])) {
+                $diagnostics[] = [
+                    'type' => 'missing-manifest-fallback-item',
+                    'id' => (string) ($current['id'] ?? ''),
+                    'fallback' => $next,
+                    'message' => 'EPUB OPF manifest fallback references an item id that is not in the OPF manifest',
+                ];
+                break;
+            }
+
+            $visited[$next] = true;
+            $current = $manifestById[$next];
+            $mediaType = (string) ($current['mediaType'] ?? '');
+            $part = is_string($current['part'] ?? null) ? (string) $current['part'] : '';
+            $coreKind = self::coreMediaTypeKind($mediaType);
+            $exemptReason = $coreKind === null ? self::exemptMediaTypeReason($mediaType, $part) : null;
+            $parts = self::mediaTypeParts($mediaType);
+            $epubContentDocument = in_array($parts['base'], [self::XHTML_MEDIA_TYPE, 'image/svg+xml'], true);
+            $chain[] = [
+                'id' => (string) ($current['id'] ?? ''),
+                'href' => (string) ($current['href'] ?? ''),
+                'target' => is_string($current['target'] ?? null) ? $current['target'] : null,
+                'part' => is_string($current['part'] ?? null) ? $current['part'] : null,
+                'external' => (bool) ($current['external'] ?? false),
+                'exists' => (bool) ($current['exists'] ?? false),
+                'mediaType' => $mediaType,
+                'baseMediaType' => $parts['base'],
+                'coreMediaType' => $coreKind !== null,
+                'coreMediaTypeKind' => $coreKind,
+                'epubContentDocument' => $epubContentDocument,
+                'exemptResource' => $exemptReason !== null,
+                'exemptReason' => $exemptReason,
+                'foreignResource' => $coreKind === null && $exemptReason === null,
+                'fallbackId' => self::nullableManifestId($current['fallback'] ?? null),
+            ];
+
+            $next = self::nullableManifestId($current['fallback'] ?? null);
+        }
+
+        $terminal = $chain === [] ? null : $chain[count($chain) - 1];
+        $terminalForeign = is_array($terminal) && ($terminal['foreignResource'] ?? false) === true;
+        if ($diagnostics === [] && $terminalForeign) {
+            $diagnostics[] = [
+                'type' => 'unsupported-manifest-fallback-terminal',
+                'id' => (string) ($item['id'] ?? ''),
+                'fallback' => $fallbackId,
+                'terminalId' => (string) ($terminal['id'] ?? ''),
+                'terminalMediaType' => (string) ($terminal['mediaType'] ?? ''),
+                'message' => 'EPUB OPF manifest fallback chain terminates at another non-core media type',
+            ];
+        }
+
+        return [
+            'fallbackId' => $fallbackId,
+            'hasManifestFallback' => true,
+            'resolved' => $diagnostics === [] && $chain !== [],
+            'usable' => $diagnostics === [] && $chain !== [] && !$terminalForeign,
+            'chain' => $chain,
+            'terminalId' => is_array($terminal) ? (string) $terminal['id'] : null,
+            'terminalMediaType' => is_array($terminal) ? (string) $terminal['mediaType'] : null,
+            'terminalCoreMediaType' => is_array($terminal) ? (bool) $terminal['coreMediaType'] : null,
+            'terminalEpubContentDocument' => is_array($terminal) ? (bool) $terminal['epubContentDocument'] : null,
+            'terminalExemptResource' => is_array($terminal) ? (bool) $terminal['exemptResource'] : null,
             'diagnostics' => $diagnostics,
         ];
     }

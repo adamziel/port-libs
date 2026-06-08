@@ -143,6 +143,7 @@ final class OdfReader
                     'pageLayoutCount' => count($styleCatalog['pageLayouts']),
                     'masterPageCount' => count($styleCatalog['masterPages']),
                     'tableTemplateCount' => count($styleCatalog['tableTemplates']),
+                    'styleMapCount' => $this->styleMapCount($styleCatalog['styles']),
                 ],
                 'listStyles' => [
                     'count' => count($styleCatalog['listStyles']),
@@ -1886,6 +1887,15 @@ final class OdfReader
             );
             array_push($classes, ...$this->tableCellStyleClasses($styleProperties));
         }
+        $styleMaps = is_array($style['styleMaps'] ?? null) ? $style['styleMaps'] : [];
+        if ($styleMaps !== []) {
+            $attrs['odfCellStyleMaps'] = $styleMaps;
+            $htmlAttributes = array_merge(
+                $htmlAttributes,
+                $this->styleMapHtmlAttributes('data-odf-cell-style-map', $styleMaps),
+            );
+            $classes[] = 'odf-table-cell-style-map';
+        }
 
         if ($htmlAttributes !== []) {
             $attrs['htmlAttributes'] = $htmlAttributes;
@@ -1995,6 +2005,32 @@ final class OdfReader
         $style = $this->tableCellStyleCss($properties);
         if ($style !== '') {
             $attributes['style'] = $style;
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param list<array<string, string>> $styleMaps
+     * @return array<string, string>
+     */
+    private function styleMapHtmlAttributes(string $prefix, array $styleMaps): array
+    {
+        $attributes = [
+            $prefix . '-count' => (string) count($styleMaps),
+        ];
+        foreach ($styleMaps as $index => $styleMap) {
+            $number = $index + 1;
+            foreach ([
+                'condition' => 'condition',
+                'applyStyleName' => 'apply-style-name',
+                'baseCellAddress' => 'base-cell-address',
+            ] as $source => $target) {
+                $value = $styleMap[$source] ?? '';
+                if ($value !== '') {
+                    $attributes[$prefix . '-' . $number . '-' . $target] = $value;
+                }
+            }
         }
 
         return $attributes;
@@ -6115,8 +6151,32 @@ final class OdfReader
         if ($cellProperties instanceof \DOMElement) {
             $definition['tableCellProperties'] = $this->tableCellProperties($cellProperties);
         }
+        $styleMaps = $this->styleMapDefinitions($style);
+        if ($styleMaps !== []) {
+            $definition['styleMaps'] = $styleMaps;
+        }
 
         return $definition;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function styleMapDefinitions(\DOMElement $style): array
+    {
+        $maps = [];
+        foreach (self::childElements($style, 'map', self::STYLE_NS) as $map) {
+            $definition = self::withoutEmpty([
+                'condition' => self::nullable(self::attr($map, self::STYLE_NS, 'condition')),
+                'applyStyleName' => self::nullable(self::attr($map, self::STYLE_NS, 'apply-style-name')),
+                'baseCellAddress' => self::nullable(self::attr($map, self::STYLE_NS, 'base-cell-address')),
+            ]);
+            if ($definition !== []) {
+                $maps[] = array_map(static fn (mixed $value): string => (string) $value, $definition);
+            }
+        }
+
+        return $maps;
     }
 
     /**
@@ -6391,6 +6451,22 @@ final class OdfReader
             array_map(static fn (mixed $value): string => (string) $value, $styles),
             static fn (string $value): bool => $value !== ''
         ));
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     */
+    private function styleMapCount(array $styles): int
+    {
+        $count = 0;
+        foreach ($styles as $style) {
+            $styleMaps = $style['styleMaps'] ?? [];
+            if (is_array($styleMaps)) {
+                $count += count($styleMaps);
+            }
+        }
+
+        return $count;
     }
 
     /**

@@ -3792,6 +3792,48 @@ HTML,
         ]), $output);
     },
 
+    'renders pandoc doctemplate child metadata keys named like controls' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->renderResource('packets/review.html', [
+            'packets/review.html' => <<<'HTML'
+<article>
+Root: $control.if$ / $control.elseif.sep$
+Loop: $for(control.for)$[$it.it$:$control.for.if$:$it.else$:$it.endfor$]$sep$, $endfor$
+Applied: ${ control.for:components/control-row()[ | ] }
+</article>
+HTML,
+            'packets/components/control-row.html' => '$control.for.it$->$it.if$/$it.endif$',
+        ], [
+            'control' => [
+                'if' => 'conditional metadata',
+                'elseif' => ['sep' => 'branch metadata'],
+                'for' => [
+                    [
+                        'it' => 'first-loop-item',
+                        'if' => 'first-child-if',
+                        'else' => 'first-child-else',
+                        'endif' => 'first-child-endif',
+                        'endfor' => 'first-child-endfor',
+                    ],
+                    [
+                        'it' => 'second-loop-item',
+                        'if' => 'second-child-if',
+                        'else' => 'second-child-else',
+                        'endif' => 'second-child-endif',
+                        'endfor' => 'second-child-endfor',
+                    ],
+                ],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            '<article>',
+            'Root: conditional metadata / branch metadata',
+            'Loop: [first-loop-item:first-child-if:first-child-else:first-child-endfor], [second-loop-item:second-child-if:second-child-else:second-child-endfor]',
+            'Applied: first-loop-item->first-child-if/first-child-endif | second-loop-item->second-child-if/second-child-endif',
+            '</article>',
+        ]), $output);
+    },
+
     'rejects unsafe pandoc doctemplate resource paths' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

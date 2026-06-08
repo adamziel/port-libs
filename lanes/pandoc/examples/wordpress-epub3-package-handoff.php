@@ -92,6 +92,7 @@ $opfXml = <<<'XML'
     <item id="slideshow-handler" href="text/slideshow-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
     <item id="bound-tour" href="interactive/tour.bin" media-type="application/x-bound-tour"/>
     <item id="bound-tour-handler" href="text/bound-tour-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
+    <item id="missing-fallback-widget" href="interactive/missing-fallback.bin" media-type="application/x-review-widget" fallback="missing-review-handler"/>
     <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>
     <item id="audio-chapter" href="audio/chapter.mp3" media-type="audio/mpeg"/>
     <item id="remote-audio-note" href="https://cdn.example.test/audio/source-note.mp3" media-type="audio/mpeg"/>
@@ -368,6 +369,7 @@ $packageParts = [
     ['name' => 'EPUB/text/bound-tour-fallback.xhtml', 'data' => $boundTourFallbackXhtml],
     ['name' => 'EPUB/slides/source-slideshow.xml', 'data' => '<slides><slide src="../images/cover.png"/></slides>'],
     ['name' => 'EPUB/interactive/tour.bin', 'data' => 'BOUND-TOUR'],
+    ['name' => 'EPUB/interactive/missing-fallback.bin', 'data' => 'MISSING-FALLBACK-WIDGET'],
     ['name' => 'EPUB/overlays/chapter.smil', 'data' => $smilXml],
     ['name' => 'EPUB/audio/chapter.mp3', 'data' => 'MP3-DATA'],
     ['name' => 'EPUB/styles/review.css', 'data' => $reviewCss],
@@ -998,11 +1000,21 @@ XML;
     if (($result['document']->children[1]->attr('resourceReviewFlags') ?? []) !== ['scripted']) {
         throw new RuntimeException('Expected WordPress fallback handoff block to expose scripted resource review flag');
     }
-    if (($result['mediaTypes']['manifestItemCount'] ?? null) !== 15 || ($result['mediaTypes']['coreMediaTypeCount'] ?? null) !== 13) {
+    if (($result['mediaTypes']['manifestItemCount'] ?? null) !== 16 || ($result['mediaTypes']['coreMediaTypeCount'] ?? null) !== 13) {
         throw new RuntimeException('Expected EPUB OPF media-type report to count core manifest resources');
     }
-    if (($result['mediaTypes']['foreignResourceCount'] ?? null) !== 2 || ($result['mediaTypes']['foreignResourceWithoutFallbackCount'] ?? null) !== 0) {
+    if (($result['mediaTypes']['foreignResourceCount'] ?? null) !== 3 || ($result['mediaTypes']['foreignResourceWithoutFallbackCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB OPF media-type report to classify custom resources as covered by fallback or bindings');
+    }
+    $missingFallbackMedia = $result['mediaTypes']['itemsById']['missing-fallback-widget'] ?? [];
+    if (($missingFallbackMedia['fallbackCoverage'] ?? null) !== 'invalid-manifest-fallback') {
+        throw new RuntimeException('Expected EPUB OPF media-type report to classify a missing fallback chain as invalid coverage');
+    }
+    if (($missingFallbackMedia['reviewFlags'] ?? []) !== ['unresolved-manifest-fallback', 'foreign-resource-without-fallback']) {
+        throw new RuntimeException('Expected EPUB OPF media-type report to preserve invalid fallback review flags');
+    }
+    if (($missingFallbackMedia['diagnostics'][0]['type'] ?? null) !== 'missing-manifest-fallback-item' || ($missingFallbackMedia['diagnostics'][1]['type'] ?? null) !== 'foreign-resource-without-fallback') {
+        throw new RuntimeException('Expected EPUB OPF media-type report to preserve missing fallback diagnostics');
     }
     if (($result['mediaTypes']['itemsById']['slideshow']['fallbackCoverage'] ?? null) !== 'manifest-fallback') {
         throw new RuntimeException('Expected EPUB OPF media-type report to preserve manifest fallback coverage for slideshow resources');
@@ -1015,6 +1027,9 @@ XML;
     }
     if (($result['document']->attr('mediaTypes')['itemsById']['bound-tour']['bindingHandlerId'] ?? null) !== 'bound-tour-handler') {
         throw new RuntimeException('Expected WordPress EPUB document handoff to expose OPF media-type fallback coverage');
+    }
+    if (($result['document']->attr('mediaTypes')['itemsById']['missing-fallback-widget']['reviewFlags'] ?? []) !== ['unresolved-manifest-fallback', 'foreign-resource-without-fallback']) {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose invalid OPF fallback diagnostics');
     }
     if (($result['xhtmlResourceReport']['externalReferenceCount'] ?? null) !== 3) {
         throw new RuntimeException('Expected EPUB XHTML content scan to keep remote references unfetched for review');
@@ -1488,6 +1503,8 @@ echo 'mediaForeignResources=' . ($result['mediaTypes']['foreignResourceCount'] ?
 echo 'mediaReviewRequired=' . ($result['mediaTypes']['reviewRequiredCount'] ?? 0) . "\n";
 echo 'slideshowMediaCoverage=' . ($result['mediaTypes']['itemsById']['slideshow']['fallbackCoverage'] ?? '') . "\n";
 echo 'boundTourMediaCoverage=' . ($result['mediaTypes']['itemsById']['bound-tour']['fallbackCoverage'] ?? '') . "\n";
+echo 'missingFallbackMediaCoverage=' . ($result['mediaTypes']['itemsById']['missing-fallback-widget']['fallbackCoverage'] ?? '') . "\n";
+echo 'missingFallbackReviewFlags=' . implode(',', $result['mediaTypes']['itemsById']['missing-fallback-widget']['reviewFlags'] ?? []) . "\n";
 echo 'xhtmlContentRemoteReferences=' . ($result['xhtmlResourceReport']['externalReferenceCount'] ?? 0) . "\n";
 echo 'xhtmlContentMathmlAssets=' . ($result['xhtmlResourceReport']['mathmlAssetCount'] ?? 0) . "\n";
 echo 'xhtmlContentSwitchAssets=' . ($result['xhtmlResourceReport']['switchAssetCount'] ?? 0) . "\n";

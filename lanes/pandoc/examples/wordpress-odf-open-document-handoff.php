@@ -56,6 +56,10 @@ $stylesXml = <<<'XML'
     </style:style>
     <style:style style:name="ReviewStatusCell" style:family="table-cell" style:parent-style-name="BaseProtectedCell">
       <style:table-cell-properties fo:background-color="#fff4cc" fo:border="0.5pt solid #999999" fo:padding-left="3pt" style:vertical-align="middle" style:writing-mode="tb-rl" style:repeat-content="false" style:shrink-to-fit="true"/>
+      <style:map style:condition="cell-content()=&quot;Status&quot;" style:apply-style-name="ReadyCell" style:base-cell-address="Review.B1"/>
+    </style:style>
+    <style:style style:name="ReadyCell" style:family="table-cell">
+      <style:table-cell-properties fo:background-color="#e6ffed"/>
     </style:style>
     <style:style style:name="StrongSource" style:family="text">
       <style:text-properties fo:font-weight="bold" fo:font-style="italic"/>
@@ -846,6 +850,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($result['importReport']['content']['tablePrintHiddenCellCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT styled/protected/print-hidden table cell metadata to be counted in the import report');
     }
+    if (($result['importReport']['styles']['styleMapCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT table-cell style-map metadata to be counted in the import report');
+    }
     if (($result['styles']['ReviewStatusCell']['tableCellProperties']['backgroundColor'] ?? '') !== '#fff4cc') {
         throw new RuntimeException('Expected ODT table-cell background style to survive style parsing');
     }
@@ -867,14 +874,19 @@ if (($argv[1] ?? '') === '--self-test') {
     $statusCellAttributes = $reviewCoverage[1]['sourceAttributes']['htmlAttributes'] ?? [];
     if (($statusCellAttributes['data-odf-cell-style-name'] ?? '') !== 'ReviewStatusCell'
         || ($statusCellAttributes['data-odf-cell-background-color'] ?? '') !== '#fff4cc'
-        || ($statusCellAttributes['data-odf-cell-protect'] ?? '') !== 'protected') {
+        || ($statusCellAttributes['data-odf-cell-protect'] ?? '') !== 'protected'
+        || ($statusCellAttributes['data-odf-cell-style-map-1-apply-style-name'] ?? '') !== 'ReadyCell') {
         throw new RuntimeException('Expected ODT styled cell metadata to survive table geometry review packets');
     }
     $calculatedCellAttributes = $reviewCoverage[2]['sourceAttributes']['htmlAttributes'] ?? [];
     if (($calculatedCellAttributes['data-odf-cell-formula'] ?? '') !== 'of:=COUNT([.A2:.B2])' || ($calculatedCellAttributes['data-odf-cell-value'] ?? '') !== '2') {
         throw new RuntimeException('Expected ODT calculated cell metadata to survive table geometry review packets');
     }
-    if (!str_contains($blocks, '<td class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle" data-odf-cell-style-name="ReviewStatusCell" data-odf-cell-background-color="#fff4cc" data-odf-cell-vertical-align="middle" data-odf-cell-writing-mode="tb-rl" data-odf-cell-protect="protected" data-odf-cell-print-content="false" data-odf-cell-repeat-content="false" data-odf-cell-shrink-to-fit="true" style="background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt"><p>Status</p></td>')) {
+    if (!str_contains($blocks, 'class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle odf-table-cell-style-map"')
+        || !str_contains($blocks, 'data-odf-cell-style-map-count="1"')
+        || !str_contains($blocks, 'data-odf-cell-style-map-1-condition="cell-content()=&quot;Status&quot;"')
+        || !str_contains($blocks, 'data-odf-cell-style-map-1-apply-style-name="ReadyCell"')
+        || !str_contains($blocks, 'data-odf-cell-style-map-1-base-cell-address="Review.B1"')) {
         throw new RuntimeException('Expected ODT styled table cell metadata to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<table class="odf-table-template" data-odf-table-name="Review" data-odf-table-style-name="ReviewTable" data-odf-table-template-name="ReviewTemplate" data-odf-table-template-exists="true" data-odf-table-template-style-count="9" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">')) {

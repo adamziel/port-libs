@@ -2225,6 +2225,20 @@ XML;
         $t->same(1, $relationshipReference['relationshipTransformCount']);
         $t->same(1, $relationshipReference['canonicalizationTransformCount']);
         $t->same(['http://www.w3.org/TR/2001/REC-xml-c14n-20010315'], $relationshipReference['canonicalizationTransformAlgorithms']);
+        $t->same([[
+            'algorithm' => 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+            'profile' => 'inclusive-c14n-1.0',
+            'version' => '1.0',
+            'exclusive' => false,
+            'withComments' => false,
+        ]], $relationshipReference['canonicalizationTransforms']);
+        $t->same([
+            'algorithm' => 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+            'profile' => 'inclusive-c14n-1.0',
+            'version' => '1.0',
+            'exclusive' => false,
+            'withComments' => false,
+        ], $relationshipReference['relationshipTransformFollowingCanonicalization']);
         $t->same(true, $relationshipReference['relationshipTransformFollowedByCanonicalization']);
         $t->same(6, $relationshipReference['digestValueDecodedBytes']);
         $t->same(true, $relationshipReference['valid']);
@@ -2236,6 +2250,8 @@ XML;
         $t->same(1, $relationshipWithoutCanonicalization['relationshipTransformCount']);
         $t->same(0, $relationshipWithoutCanonicalization['canonicalizationTransformCount']);
         $t->same([], $relationshipWithoutCanonicalization['canonicalizationTransformAlgorithms']);
+        $t->same([], $relationshipWithoutCanonicalization['canonicalizationTransforms']);
+        $t->same(null, $relationshipWithoutCanonicalization['relationshipTransformFollowingCanonicalization']);
         $t->same(false, $relationshipWithoutCanonicalization['relationshipTransformFollowedByCanonicalization']);
         $t->same(false, $relationshipWithoutCanonicalization['valid']);
         $t->same(['signed-info-relationship-transform-not-followed-by-canonicalization'], $relationshipWithoutCanonicalization['issues']);
@@ -2280,6 +2296,102 @@ XML;
         ], $missingReference['issues']);
 
         $t->throws(\RuntimeException::class, static fn (): array => $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/missing.xml'));
+    },
+    'maps OPC signature canonicalization transform algorithms to reviewer profiles' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/sig-profiles.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+</Relationships>
+XML;
+
+        $canonicalizationAlgorithms = [
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315#WithComments',
+            'http://www.w3.org/2001/10/xml-exc-c14n#',
+            'http://www.w3.org/2001/10/xml-exc-c14n#WithComments',
+            'http://www.w3.org/2006/12/xml-c14n11',
+            'http://www.w3.org/2006/12/xml-c14n11#WithComments',
+        ];
+        $referencesXml = '';
+        foreach ($canonicalizationAlgorithms as $algorithm) {
+            $referencesXml .= <<<XML
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="{$algorithm}"/>
+      </ds:Transforms>
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>SGVsbG8=</ds:DigestValue>
+    </ds:Reference>
+
+XML;
+        }
+
+        $signatureXml = <<<XML
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+{$referencesXml}  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => '_xmlsignatures/sig-profiles.xml', 'data' => $signatureXml],
+        ]));
+
+        $references = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig-profiles.xml');
+
+        $t->same(6, count($references));
+        $t->same([
+            'inclusive-c14n-1.0',
+            'inclusive-c14n-1.0-with-comments',
+            'exclusive-c14n-1.0',
+            'exclusive-c14n-1.0-with-comments',
+            'c14n-1.1',
+            'c14n-1.1-with-comments',
+        ], array_map(
+            static fn (array $reference): string => $reference['canonicalizationTransforms'][0]['profile'],
+            $references,
+        ));
+        $t->same([false, false, true, true, false, false], array_map(
+            static fn (array $reference): bool => $reference['relationshipTransformFollowingCanonicalization']['exclusive'],
+            $references,
+        ));
+        $t->same([false, true, false, true, false, true], array_map(
+            static fn (array $reference): bool => $reference['relationshipTransformFollowingCanonicalization']['withComments'],
+            $references,
+        ));
+        $t->same(['1.0', '1.0', '1.0', '1.0', '1.1', '1.1'], array_map(
+            static fn (array $reference): string => $reference['canonicalizationTransforms'][0]['version'],
+            $references,
+        ));
+        foreach ($references as $index => $reference) {
+            $t->same($canonicalizationAlgorithms[$index], $reference['canonicalizationTransformAlgorithms'][0]);
+            $t->same($reference['canonicalizationTransforms'][0], $reference['relationshipTransformFollowingCanonicalization']);
+            $t->same(true, $reference['relationshipTransformFollowedByCanonicalization']);
+            $t->same(true, $reference['valid']);
+        }
     },
     'flags invalid OPC digital signature relationship packages' => static function (TestRunner $t): void {
         $badSignedContentTypesXml = <<<'XML'
@@ -3047,6 +3159,13 @@ XML;
         $t->same([], $transforms[0]['sourceIds']);
         $t->same(['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink'], $transforms[0]['sourceTypes']);
         $t->same('http://www.w3.org/2006/12/xml-c14n11', $transforms[0]['followingCanonicalizationAlgorithm']);
+        $t->same([
+            'algorithm' => 'http://www.w3.org/2006/12/xml-c14n11',
+            'profile' => 'c14n-1.1',
+            'version' => '1.1',
+            'exclusive' => false,
+            'withComments' => false,
+        ], $transforms[0]['followingCanonicalization']);
         $t->same(true, $transforms[0]['followedByCanonicalization']);
         $t->same(['rIdReviewer'], $transforms[0]['relationshipIds']);
         $t->same(1, $transforms[0]['relationshipCount']);
@@ -3308,6 +3427,13 @@ XML;
         $t->same(['rIdHero'], $validTransforms[0]['sourceIds']);
         $t->same([OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE], $validTransforms[0]['sourceTypes']);
         $t->same('http://www.w3.org/TR/2001/REC-xml-c14n-20010315', $validTransforms[0]['followingCanonicalizationAlgorithm']);
+        $t->same([
+            'algorithm' => 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+            'profile' => 'inclusive-c14n-1.0',
+            'version' => '1.0',
+            'exclusive' => false,
+            'withComments' => false,
+        ], $validTransforms[0]['followingCanonicalization']);
         $t->same(true, $validTransforms[0]['followedByCanonicalization']);
         $t->same(['rIdEmbeddedWorkbook', 'rIdHero'], $validTransforms[0]['relationshipIds']);
         $t->same(2, $validTransforms[0]['relationshipCount']);
@@ -3323,6 +3449,13 @@ XML;
         $t->same(['rIdDocument'], $validTransforms[1]['sourceIds']);
         $t->same([], $validTransforms[1]['sourceTypes']);
         $t->same('http://www.w3.org/2001/10/xml-exc-c14n#', $validTransforms[1]['followingCanonicalizationAlgorithm']);
+        $t->same([
+            'algorithm' => 'http://www.w3.org/2001/10/xml-exc-c14n#',
+            'profile' => 'exclusive-c14n-1.0',
+            'version' => '1.0',
+            'exclusive' => true,
+            'withComments' => false,
+        ], $validTransforms[1]['followingCanonicalization']);
         $t->same(true, $validTransforms[1]['valid']);
         $t->same(['rIdDocument'], $validTransforms[1]['relationshipIds']);
         $t->contains('Target="word/document.xml"', $validTransforms[1]['relationshipXml']);
@@ -3331,6 +3464,7 @@ XML;
         $t->same(3, count($invalidTransforms));
         $t->same(false, $invalidTransforms[0]['followedByCanonicalization']);
         $t->same('http://www.w3.org/2000/09/xmldsig#enveloped-signature', $invalidTransforms[0]['followingCanonicalizationAlgorithm']);
+        $t->same(null, $invalidTransforms[0]['followingCanonicalization']);
         $t->same(false, $invalidTransforms[0]['valid']);
         $t->same([
             'relationship-transform-not-followed-by-canonicalization',

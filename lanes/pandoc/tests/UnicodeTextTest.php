@@ -370,6 +370,27 @@ return [
         $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
         $t->contains('<p>Редактор “привет” — €20; Ёлка № 7; ЇїЄє.</p>', $blocks);
     },
+    'decodes mac greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xB6\xEC\xEC\xC0\xE4\xE1\n\n\xAA\xF9\xEE\xF4\xC0\xEB\xF4\xE8\xF7 \xD2\xF0\xE8\xE7\xDC\xD3 \xD1 \xA9 20; \xD9\xDF \xFD\xFE; \xFF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-greek');
+        $document = (new MarkdownReader())->readBytes($bytes, 'macgreek');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA1\xA2\xA3\xAA\xAB\xB0\xB5\xBC\xBD\xBE\xBF\xC0\xCD\xCE\xD7\xD8\xD9\xDA\xDB\xDC\xDD\xDE\xDF\xE0\xE1\xE2\xE3\xF0\xF1\xF7\xFD\xFE\xFF", 'mac-greek');
+
+        $t->same('mac-greek', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Ελλάδα\n\nΣυντάκτης “πηγή” ― © 20; ΌΏ ΐΰ; \u{F8A0}.", $decoded['text']);
+        $t->same("ΓΔΘΣΪΑΒΦΫΨΩάΆΈΉΊΌΎέήίόΏύαβψπώςΐΰ\u{F8A0}", $specials['text']);
+        $t->same('mac-greek', $specials['encoding']);
+        $t->same(0, $specials['repairs']);
+        $t->same(['encoding' => 'mac-greek', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Ελλάδα', $document->children[0]->attr('text'));
+        $t->same("Συντάκτης “πηγή” ― © 20; ΌΏ ΐΰ; \u{F8A0}.", $document->children[1]->attr('text'));
+        $t->same(34, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(48, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="ελλάδα">Ελλάδα</h1>', $blocks);
+        $t->contains("<p>Συντάκτης “πηγή” ― © 20; ΌΏ ΐΰ; \u{F8A0}.</p>", $blocks);
+    },
     'decodes ibm866 dos cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \x88\xAC\xAF\xAE\xE0\xE2\n\n\x90\xA5\xA4\xA0\xAA\xE2\xAE\xE0 \xAF\xE0\xA8\xA2\xA5\xE2; \xF0\xAB\xAA\xA0 \xFC 7; \xB3\xC4\xDA.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp866');
