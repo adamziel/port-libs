@@ -23966,9 +23966,6 @@ final class PdfTextExtractor
         $graphicsStateDepth = max(0, $graphicsStateDepth);
         $markedContentDepth = max(0, $markedContentDepth);
         $compatibilityDepth = max(0, $compatibilityDepth);
-        if ($graphicsStateDepth === 0 && $markedContentDepth === 0 && $compatibilityDepth === 0) {
-            return true;
-        }
 
         $insideTextObject = false;
         $count = count($tokens);
@@ -23988,32 +23985,45 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($token === 'BX') {
+                $compatibilityDepth++;
+                continue;
+            } elseif ($token === 'EX') {
+                if ($compatibilityDepth === 0) {
+                    return false;
+                }
+
+                $compatibilityDepth--;
+                continue;
+            }
+
+            if ($compatibilityDepth > 0) {
+                continue;
+            }
+
             if ($token === 'q') {
                 $graphicsStateDepth++;
             } elseif ($token === 'Q') {
-                if ($graphicsStateDepth > 0) {
-                    $graphicsStateDepth--;
+                if ($graphicsStateDepth === 0) {
+                    return false;
                 }
+
+                $graphicsStateDepth--;
             } elseif ($token === 'BMC' || $token === 'BDC') {
                 $markedContentDepth++;
             } elseif ($token === 'EMC') {
-                if ($markedContentDepth > 0) {
-                    $markedContentDepth--;
+                if ($markedContentDepth === 0) {
+                    return false;
                 }
-            } elseif ($token === 'BX') {
-                $compatibilityDepth++;
-            } elseif ($token === 'EX') {
-                if ($compatibilityDepth > 0) {
-                    $compatibilityDepth--;
-                }
-            }
 
-            if ($graphicsStateDepth === 0 && $markedContentDepth === 0 && $compatibilityDepth === 0) {
-                return true;
+                $markedContentDepth--;
             }
         }
 
-        return false;
+        return !$insideTextObject
+            && $graphicsStateDepth === 0
+            && $markedContentDepth === 0
+            && $compatibilityDepth === 0;
     }
 
     /**

@@ -307,27 +307,7 @@ final class PdfPageArtifactSelector
      */
     private static function hasJsonDirectArtifactPayload(array $value): bool
     {
-        foreach ([
-            'bboxes',
-            'image',
-            'image_bbox',
-            'layout',
-            'layout_result',
-            'order',
-            'order_result',
-            'prediction',
-            'result',
-            'model_output',
-            'output',
-            'page_data',
-            'page_result',
-        ] as $key) {
-            if (array_key_exists($key, $value)) {
-                return true;
-            }
-        }
-
-        return false;
+        return self::hasSelectableArtifactPayload($value);
     }
 
     /**
@@ -345,10 +325,15 @@ final class PdfPageArtifactSelector
         }
 
         $artifacts = [];
+        $sawRawPdftextPageCopy = false;
         $seenPageKeys = [];
         foreach ($value as $key => $candidate) {
             $pageKey = self::integerArrayKey($key);
-            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate) || !self::hasDirectArtifactPayload($candidate)) {
+            if ($pageKey !== null && is_array($candidate) && !array_is_list($candidate) && self::isRawPdftextPageCopy($candidate)) {
+                $sawRawPdftextPageCopy = true;
+                continue;
+            }
+            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate) || !self::hasSelectableArtifactPayload($candidate)) {
                 if (self::isIgnorableArtifactMapEntry($candidate)) {
                     continue;
                 }
@@ -360,7 +345,7 @@ final class PdfPageArtifactSelector
             $artifacts[] = self::withEnvelopePageKey($candidate, $pageKey);
         }
 
-        return $artifacts !== [] ? $artifacts : null;
+        return $artifacts !== [] ? $artifacts : ($sawRawPdftextPageCopy ? [] : null);
     }
 
     public static function normalizeSuppliedArtifactValue(mixed $value): mixed
@@ -496,9 +481,29 @@ final class PdfPageArtifactSelector
      */
     private static function hasDirectArtifactPayload(array $value): bool
     {
+        if (self::hasSelectableArtifactPayload($value)) {
+            return true;
+        }
+
+        foreach (['blocks', 'bbox'] as $key) {
+            if (array_key_exists($key, $value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * `blocks` and a page-level `bbox` are pdftext page-copy fields. They are
+     * valid wrapper geometry, but they are not selectable layout/order/image
+     * artifacts by themselves.
+     *
+     * @param array<mixed> $value
+     */
+    private static function hasSelectableArtifactPayload(array $value): bool
+    {
         foreach ([
-            'blocks',
-            'bbox',
             'bboxes',
             'image',
             'image_bbox',
@@ -519,6 +524,16 @@ final class PdfPageArtifactSelector
         }
 
         return false;
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private static function isRawPdftextPageCopy(array $value): bool
+    {
+        return !self::hasSelectableArtifactPayload($value)
+            && array_key_exists('blocks', $value)
+            && array_key_exists('bbox', $value);
     }
 
     /**
@@ -573,7 +588,7 @@ final class PdfPageArtifactSelector
         $ignoredEntries = 0;
         foreach ($value as $key => $candidate) {
             $pageKey = self::integerArrayKey($key);
-            if (!is_array($candidate) || array_is_list($candidate) || !self::hasDirectArtifactPayload($candidate)) {
+            if (!is_array($candidate) || array_is_list($candidate) || !self::hasSelectableArtifactPayload($candidate)) {
                 if (self::isIgnorableArtifactMapEntry($candidate)) {
                     $ignoredEntries++;
                     continue;
@@ -583,7 +598,7 @@ final class PdfPageArtifactSelector
                 continue;
             }
 
-            if (self::hasDirectArtifactPayload($candidate)) {
+            if (self::hasSelectableArtifactPayload($candidate)) {
                 if ($payload !== null) {
                     return null;
                 }
@@ -628,10 +643,15 @@ final class PdfPageArtifactSelector
         }
 
         $artifacts = [];
+        $sawRawPdftextPageCopy = false;
         $seenPageKeys = [];
         foreach ($value as $key => $candidate) {
             $pageKey = self::integerArrayKey($key);
-            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate) || !self::hasDirectArtifactPayload($candidate)) {
+            if ($pageKey !== null && is_array($candidate) && !array_is_list($candidate) && self::isRawPdftextPageCopy($candidate)) {
+                $sawRawPdftextPageCopy = true;
+                continue;
+            }
+            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate) || !self::hasSelectableArtifactPayload($candidate)) {
                 if (self::isIgnorableArtifactMapEntry($candidate)) {
                     continue;
                 }
@@ -643,7 +663,11 @@ final class PdfPageArtifactSelector
             $artifacts[] = self::withEnvelopePageKey($candidate, $pageKey);
         }
 
-        return count($artifacts) > 1 ? $artifacts : null;
+        if (count($artifacts) > 1) {
+            return $artifacts;
+        }
+
+        return $sawRawPdftextPageCopy && $artifacts === [] ? [] : null;
     }
 
     /**

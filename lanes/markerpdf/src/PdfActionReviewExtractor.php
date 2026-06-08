@@ -290,13 +290,23 @@ final class PdfActionReviewExtractor
      */
     private function additionalActionMetadata(mixed $value): array
     {
-        $additionalActions = $this->resolveDictionary($value);
+        $resolvedAdditionalActions = $this->resolveValue($value);
+        $additionalActions = $this->dictionaryItems($resolvedAdditionalActions);
         if ($additionalActions === null) {
             return [];
         }
 
+        $malformedValueKeys = $this->dictionaryMalformedValueOperandKeySet($resolvedAdditionalActions);
         $actions = [];
         foreach ($additionalActions as $event => $actionValue) {
+            if (isset($malformedValueKeys[$event])) {
+                $actions[] = [
+                    'event' => $event,
+                    'event_label' => self::ANNOTATION_ACTION_EVENT_LABELS[$event] ?? 'annotation_additional_action',
+                ] + $this->malformedAdditionalActionEventReview($event, $resolvedAdditionalActions);
+                continue;
+            }
+
             $seen = [];
             foreach ($this->reviewActionsFromValue($actionValue, $seen) as $action) {
                 $actions[] = [
@@ -307,6 +317,37 @@ final class PdfActionReviewExtractor
         }
 
         return $actions;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function malformedAdditionalActionEventReview(string $event, mixed $additionalActions): array
+    {
+        $reviewFields = $this->malformedValueOperandReviewFields(
+            $additionalActions,
+            'annotation_additional_action_malformed_value_operands'
+        );
+        $review = is_array($reviewFields['malformed_action_operand_review'] ?? null)
+            ? $reviewFields['malformed_action_operand_review']
+            : [
+                'source' => 'annotation_additional_action_malformed_value_operands',
+                'review_only' => true,
+                'payload_included' => false,
+                'visible_text_source' => false,
+                'selected_entry_policy' => 'fail_closed_for_malformed_value',
+            ];
+
+        $review['keys'] = [$event];
+        if (is_array($review['unexpected_operand_counts'] ?? null)) {
+            $review['unexpected_operand_counts'] = array_intersect_key($review['unexpected_operand_counts'], [$event => true]);
+        }
+
+        return $this->reviewAction('unknown', 'malformed-action-dictionary', null, null, null, [], [], null, null, null, null)
+            + [
+                'malformed_action_operand_review' => $review,
+                'malformed_action_operand_keys' => [$event],
+            ];
     }
 
     /**

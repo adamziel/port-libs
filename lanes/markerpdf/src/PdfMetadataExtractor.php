@@ -20360,6 +20360,7 @@ final class PdfMetadataExtractor
             'ASCIIHexDecode', 'AHx' => (($offset = strpos($stream, '>')) !== false) ? $offset + 1 : null,
             'ASCII85Decode', 'A85' => (($offset = strpos($stream, '~>')) !== false) ? $offset + 2 : null,
             'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null) ? $offset + 1 : null,
+            'FlateDecode', 'Fl' => $this->metadataFlateExplicitEndByteOffset($stream),
             default => null,
         };
 
@@ -20378,13 +20379,21 @@ final class PdfMetadataExtractor
                 'A85',
                 'RunLengthDecode',
                 'RL',
+                'FlateDecode',
+                'Fl',
             ], true);
         }
 
-        return $this->metadataStreamHasOnlyWhitespaceAfterOffset($stream, $offset);
+        $allowComments = !in_array($filter, ['FlateDecode', 'Fl'], true);
+
+        return $this->metadataStreamHasOnlyWhitespaceAfterOffset($stream, $offset, $allowComments);
     }
 
-    private function metadataStreamHasOnlyWhitespaceAfterOffset(string $stream, int $offset): bool
+    private function metadataStreamHasOnlyWhitespaceAfterOffset(
+        string $stream,
+        int $offset,
+        bool $allowComments = true
+    ): bool
     {
         for ($index = $offset, $length = strlen($stream); $index < $length;) {
             if ($this->isPdfFilterWhitespace($stream[$index])) {
@@ -20392,7 +20401,7 @@ final class PdfMetadataExtractor
                 continue;
             }
 
-            if ($stream[$index] === '%') {
+            if ($allowComments && $stream[$index] === '%') {
                 $lineLength = strcspn($stream, "\r\n", $index);
                 if ($index + $lineLength >= $length) {
                     return true;
@@ -20405,6 +20414,46 @@ final class PdfMetadataExtractor
         }
 
         return true;
+    }
+
+    private function metadataFlateExplicitEndByteOffset(string $stream): ?int
+    {
+        if (
+            !function_exists('inflate_init')
+            || !function_exists('inflate_add')
+            || !function_exists('inflate_get_status')
+            || !function_exists('inflate_get_read_len')
+        ) {
+            return null;
+        }
+
+        $encodings = [];
+        foreach (['ZLIB_ENCODING_DEFLATE', 'ZLIB_ENCODING_RAW', 'ZLIB_ENCODING_GZIP'] as $constant) {
+            if (defined($constant)) {
+                $encodings[] = constant($constant);
+            }
+        }
+
+        $finish = defined('ZLIB_FINISH') ? constant('ZLIB_FINISH') : 4;
+        $streamEnd = defined('ZLIB_STREAM_END') ? constant('ZLIB_STREAM_END') : 1;
+        foreach (array_unique($encodings) as $encoding) {
+            $context = @inflate_init($encoding);
+            if ($context === false) {
+                continue;
+            }
+
+            $decoded = @inflate_add($context, $stream, $finish);
+            if ($decoded === false || @inflate_get_status($context) !== $streamEnd) {
+                continue;
+            }
+
+            $readLength = @inflate_get_read_len($context);
+            if (is_int($readLength) && $readLength > 0) {
+                return $readLength;
+            }
+        }
+
+        return null;
     }
 
     /**
