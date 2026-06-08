@@ -4968,6 +4968,8 @@ final class BatchConverter
     ): array {
         $inputWasAbsolute = str_starts_with($inputFolder, DIRECTORY_SEPARATOR);
         $outputWasAbsolute = str_starts_with($outputFolder, DIRECTORY_SEPARATOR);
+        $inputHasLeadingTilde = $this->pathHasLeadingTilde($inputFolder);
+        $outputHasLeadingTilde = $this->pathHasLeadingTilde($outputFolder);
         $processCwd = $this->absolutePath('.');
         $inputIsSymlink = is_link($absoluteInputFolder);
         $inputSymlinkTargetExists = $inputIsSymlink && file_exists($absoluteInputFolder);
@@ -4989,6 +4991,13 @@ final class BatchConverter
             'output_folder_abspath_call' => 'os.path.abspath(args.out_folder)',
             'input_folder_was_absolute' => $inputWasAbsolute,
             'output_folder_was_absolute' => $outputWasAbsolute,
+            'input_folder_has_leading_tilde' => $inputHasLeadingTilde,
+            'output_folder_has_leading_tilde' => $outputHasLeadingTilde,
+            'input_folder_tilde_expanded_to_home' => false,
+            'output_folder_tilde_expanded_to_home' => false,
+            'input_folder_literal_tilde_path' => $inputHasLeadingTilde ? $absoluteInputFolder : null,
+            'output_folder_literal_tilde_path' => $outputHasLeadingTilde ? $absoluteOutputFolder : null,
+            'literal_tilde_segment_preserved' => $inputHasLeadingTilde || $outputHasLeadingTilde,
             'input_folder_abspath_base' => $inputWasAbsolute ? 'already_absolute' : 'process_cwd',
             'output_folder_abspath_base' => $outputWasAbsolute ? 'already_absolute' : 'process_cwd',
             'process_cwd' => $processCwd,
@@ -5035,6 +5044,13 @@ final class BatchConverter
             : rtrim((string) getcwd(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $path;
 
         return $this->normalizeAbsolutePath($absolute);
+    }
+
+    private function pathHasLeadingTilde(string $path): bool
+    {
+        return $path === '~'
+            || str_starts_with($path, '~/')
+            || preg_match('/^~[^\/\\\\]*/', $path) === 1;
     }
 
     private function normalizeAbsolutePath(string $path): string
@@ -5084,6 +5100,7 @@ final class BatchConverter
         $input = $hasMetadataFile ? (string) $metadataFile : null;
         $isAbsoluteInput = $input !== null && str_starts_with($input, DIRECTORY_SEPARATOR);
         $isDashLiteral = $input === '-';
+        $hasLeadingTilde = $input !== null && $this->pathHasLeadingTilde($input);
         $processCwd = $hasMetadataFile ? $this->absolutePath('.') : null;
         $inputFolderCandidate = $hasMetadataFile && !$isAbsoluteInput
             ? $this->normalizeAbsolutePath($absoluteInputFolder . DIRECTORY_SEPARATOR . $input)
@@ -5102,6 +5119,9 @@ final class BatchConverter
             'metadata_file_abspath_order' => $hasMetadataFile ? 'after_chunk_files_before_json_load' : null,
             'metadata_file_abspath_base' => $hasMetadataFile ? ($isAbsoluteInput ? 'already_absolute' : 'process_cwd') : null,
             'metadata_file_process_cwd' => $processCwd,
+            'metadata_file_has_leading_tilde' => $hasLeadingTilde,
+            'metadata_file_tilde_expanded_to_home' => false,
+            'metadata_file_literal_tilde_path' => $hasLeadingTilde ? $absoluteMetadataFile : null,
             'metadata_file_is_dash_literal' => $isDashLiteral,
             'metadata_file_dash_path' => $isDashLiteral ? $absoluteMetadataFile : null,
             'metadata_file_dash_treated_as_stdin' => false,

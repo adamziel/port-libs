@@ -256,6 +256,30 @@ final class PdfPageArtifactSelector
     }
 
     /**
+     * Source-page keyed caches can store each layout/order/image artifact as a
+     * JSON object string. Decode before map selection so the numeric key stays
+     * attached as page identity instead of being lost during array_values().
+     */
+    private static function normalizeSuppliedArtifactMapCandidateValue(mixed $artifact): mixed
+    {
+        if (!is_string($artifact)) {
+            return self::normalizeSuppliedArtifactValue($artifact);
+        }
+
+        $decoded = self::decodeSuppliedArtifactJsonEnvelope($artifact);
+        if ($decoded === null) {
+            return $artifact;
+        }
+
+        $decoded = self::normalizeSuppliedArtifactValue($decoded);
+        if (!is_array($decoded) || !self::jsonDecodedValueLooksLikeSuppliedArtifact($decoded)) {
+            return $artifact;
+        }
+
+        return $decoded;
+    }
+
+    /**
      * @param array<mixed> $value
      */
     private static function jsonDecodedValueLooksLikeSuppliedArtifact(array $value, int $depth = 0): bool
@@ -328,6 +352,7 @@ final class PdfPageArtifactSelector
         $sawRawPdftextPageCopy = false;
         $seenPageKeys = [];
         foreach ($value as $key => $candidate) {
+            $candidate = self::normalizeSuppliedArtifactMapCandidateValue($candidate);
             $pageKey = self::integerArrayKey($key);
             if ($pageKey !== null && is_array($candidate) && !array_is_list($candidate) && self::isRawPdftextPageCopy($candidate)) {
                 $sawRawPdftextPageCopy = true;
@@ -590,6 +615,7 @@ final class PdfPageArtifactSelector
         $payloadKey = null;
         $ignoredEntries = 0;
         foreach ($value as $key => $candidate) {
+            $candidate = self::normalizeSuppliedArtifactMapCandidateValue($candidate);
             $pageKey = self::integerArrayKey($key);
             if (!is_array($candidate) || array_is_list($candidate) || !self::hasSelectableArtifactPayload($candidate)) {
                 if (self::isIgnorableArtifactMapEntry($candidate)) {
@@ -649,6 +675,7 @@ final class PdfPageArtifactSelector
         $sawRawPdftextPageCopy = false;
         $seenPageKeys = [];
         foreach ($value as $key => $candidate) {
+            $candidate = self::normalizeSuppliedArtifactMapCandidateValue($candidate);
             $pageKey = self::integerArrayKey($key);
             if ($pageKey !== null && is_array($candidate) && !array_is_list($candidate) && self::isRawPdftextPageCopy($candidate)) {
                 $sawRawPdftextPageCopy = true;

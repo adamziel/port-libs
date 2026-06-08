@@ -2512,6 +2512,7 @@ final class SuppliedDocumentConverter
 
         $hasArtifact = false;
         foreach ($value as $key => $candidate) {
+            $candidate = $this->normalizeSourcePageArtifactMapCandidateValue($candidate);
             if ($this->isIntegerArrayKey($key) && is_array($candidate) && !array_is_list($candidate) && $this->hasSourcePageArtifactPayload($candidate)) {
                 $hasArtifact = true;
                 continue;
@@ -2525,6 +2526,39 @@ final class SuppliedDocumentConverter
         }
 
         return $hasArtifact;
+    }
+
+    /**
+     * Source-page keyed layout/order/image sidecars can come from JSON caches
+     * as strings. Decode only artifact-shaped objects for option validation;
+     * actual selection and key preservation still happens in PdfPageArtifactSelector.
+     */
+    private function normalizeSourcePageArtifactMapCandidateValue(mixed $candidate): mixed
+    {
+        if (!is_string($candidate)) {
+            return PdfPageArtifactSelector::normalizeSuppliedArtifactValue($candidate);
+        }
+
+        $trimmed = trim($candidate);
+        if (str_starts_with($trimmed, "\xEF\xBB\xBF")) {
+            $trimmed = trim(substr($trimmed, 3));
+        }
+        if ($trimmed === '' || !in_array($trimmed[0], ['[', '{'], true)) {
+            return $candidate;
+        }
+
+        try {
+            $decoded = json_decode($trimmed, false, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return $candidate;
+        }
+
+        $decoded = PdfPageArtifactSelector::normalizeSuppliedArtifactValue($decoded);
+        if (!is_array($decoded) || !$this->hasSourcePageArtifactPayload($decoded)) {
+            return $candidate;
+        }
+
+        return $decoded;
     }
 
     private function isIgnorableSourcePageArtifactSidecar(mixed $candidate): bool

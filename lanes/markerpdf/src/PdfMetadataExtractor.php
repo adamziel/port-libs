@@ -2474,10 +2474,10 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * Catalog XMP stream /Length may be indirect, but it must resolve to one
-     * non-negative integer. If the helper object hides trailing operands, do
-     * not recover through endstream because root XMP promotion is a metadata
-     * trust boundary.
+     * Metadata stream /Length may be indirect, but it must resolve to one
+     * non-negative integer. If the dictionary value or helper object hides
+     * trailing operands, do not recover through endstream because metadata
+     * stream promotion/review is a trust boundary.
      *
      * @param array<int, string> $objects
      * @return array<string, mixed>
@@ -2492,12 +2492,19 @@ final class PdfMetadataExtractor
         if (count($values) > 1) {
             return [
                 'status' => 'rejected_duplicate_metadata_stream_length_keys',
+                'length_operand_boundary' => 'single_non_negative_integer',
+                'length_operand_boundary_rejected' => true,
                 'length_entry_count' => count($values),
             ];
         }
 
+        $trailingOperands = $this->dictionaryTopLevelSelectedValueTrailingOperands($dictionary, 'Length');
         $operand = $this->metadataStreamLengthOperandReview($values[0], $objects);
-        if (($operand['valid_length_operand'] ?? false) === true) {
+        if ($trailingOperands !== []) {
+            $operand = $this->metadataStreamLengthOperandReviewWithTrailingOperands($operand, $trailingOperands);
+        }
+
+        if (($operand['valid_length_operand'] ?? false) === true && $trailingOperands === []) {
             return [];
         }
 
@@ -2514,6 +2521,8 @@ final class PdfMetadataExtractor
 
         return [
             'status' => 'rejected_malformed_metadata_stream_length_operand',
+            'length_operand_boundary' => 'single_non_negative_integer',
+            'length_operand_boundary_rejected' => true,
             'length_operand_policy' => $this->metadataStreamLengthOperandPolicy(
                 1,
                 $dictionaryCount,
@@ -2530,6 +2539,33 @@ final class PdfMetadataExtractor
             'negative_length_operand_count' => $negativeCount,
             'length_operand' => $operand,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $operand
+     * @param list<string> $trailingOperands
+     * @return array<string, mixed>
+     */
+    private function metadataStreamLengthOperandReviewWithTrailingOperands(array $operand, array $trailingOperands): array
+    {
+        $extraOperand = $trailingOperands[0] ?? null;
+        if ($extraOperand === null) {
+            return $operand;
+        }
+
+        $operand['valid_length_operand'] = false;
+        $operand['extra_length_operand'] = true;
+        $operand['extra_length_operand_type'] = $this->metadataStreamFilterOperandTokenType($extraOperand);
+        $operand['extra_length_operand_preview'] = $this->metadataStreamFilterOperandPreview($extraOperand);
+        if ($operand['extra_length_operand_type'] === 'name') {
+            $name = $this->nameValueAt($extraOperand, 0);
+            if ($name !== null) {
+                $operand['extra_length_name_operand'] = true;
+                $operand['extra_length_name'] = $name;
+            }
+        }
+
+        return $operand;
     }
 
     /**
@@ -5972,9 +6008,16 @@ final class PdfMetadataExtractor
 
     private function dictionaryTopLevelSelectedValueHasTrailingOperands(string $dictionary, string $key): bool
     {
+        return $this->dictionaryTopLevelSelectedValueTrailingOperands($dictionary, $key) !== [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function dictionaryTopLevelSelectedValueTrailingOperands(string $dictionary, string $key): array
+    {
         $body = $this->normalizedDictionaryBody($dictionary);
-        $selectedHasTrailingOperands = false;
-        $found = false;
+        $selectedTrailingOperands = [];
 
         for ($offset = 0, $length = strlen($body); $offset < $length;) {
             $offset = $this->skipPdfWhitespace($body, $offset);
@@ -6002,14 +6045,13 @@ final class PdfMetadataExtractor
 
             $afterValue = $valueOffset + strlen($value);
             if ($this->decodePdfName($match[1]) === $key) {
-                $found = true;
-                $selectedHasTrailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue) !== [];
+                $selectedTrailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
             }
 
             $offset = $afterValue;
         }
 
-        return $found && $selectedHasTrailingOperands;
+        return $selectedTrailingOperands;
     }
 
     private function documentOutlineItemParentMatches(string $dictionary, array $objects, ?int $expectedParentObject): bool

@@ -4935,7 +4935,7 @@ final class PdfTextExtractor
         }
 
         $references = [];
-        foreach ($this->topLevelResourceReferenceEntries($patternDictionary) as $resourceName => $resource) {
+        foreach ($this->topLevelResourceReferenceEntries($patternDictionary, true) as $resourceName => $resource) {
             $objectNumber = $resource['objectNumber'];
             $generation = $resource['generation'];
             $resolved = $this->resolvedExactResourceReference($objects, $objectNumber, $generation);
