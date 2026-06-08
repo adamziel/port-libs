@@ -35232,6 +35232,12 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($char === '[') {
+                $arrayBody = $this->readPdfArrayAt($cmap, $index);
+                $index = $arrayBody === null ? $index + 1 : $index + strlen($arrayBody) + 2;
+                continue;
+            }
+
             if ($this->pdfKeywordAt($cmap, $index, 'endcmap')) {
                 $lastEndOffset = $index;
                 $index += strlen('endcmap');
