@@ -102,7 +102,7 @@ $opfXml = <<<'XML'
     <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
   </manifest>
   <spine id="source-spine" toc="toc" page-progression-direction="rtl">
-    <itemref id="chapter-spine" idref="chapter" linear="maybe" properties="rendition:page-spread-right page-spread-right rendition:flow-paginated rendition:align-x-center"/>
+    <itemref id="chapter-spine" idref="chapter" linear="maybe" properties="rendition:page-spread-right page-spread-right rendition:flow-paginated rendition:align-x-center rendition:layout-pre-paginated rendition:orientation-landscape rendition:spread-none"/>
     <itemref idref="slideshow" linear="no" properties="page-spread-left"/>
     <itemref idref="bound-tour" linear="no"/>
   </spine>
@@ -494,11 +494,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['spine'][0]['spineItemProperties']['flow']['value'] ?? null) !== 'paginated') {
         throw new RuntimeException('Expected EPUB spine item property report to expose rendition flow metadata');
     }
+    if (($result['spine'][0]['layout'] ?? null) !== 'pre-paginated' || ($result['spine'][0]['orientation'] ?? null) !== 'landscape' || ($result['spine'][0]['spread'] ?? null) !== 'none') {
+        throw new RuntimeException('Expected EPUB spine itemrefs to preserve local fixed-layout rendition overrides');
+    }
+    if (($result['spine'][0]['spineItemProperties']['layout']['fixedLayout'] ?? null) !== true || ($result['spine'][0]['spineItemProperties']['orientation']['value'] ?? null) !== 'landscape') {
+        throw new RuntimeException('Expected EPUB spine item property report to expose fixed-layout override metadata');
+    }
     if (($result['document']->children[0]->attr('pageProgressionDirection') ?? null) !== 'rtl' || ($result['document']->children[0]->attr('pageSpread') ?? null) !== 'right') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB reading-order metadata');
     }
     if (($result['document']->children[0]->attr('flow') ?? null) !== 'paginated' || ($result['document']->children[0]->attr('alignX') ?? null) !== 'center') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB rendition flow and align-x metadata');
+    }
+    if (($result['document']->children[0]->attr('layout') ?? null) !== 'pre-paginated' || ($result['document']->children[0]->attr('orientation') ?? null) !== 'landscape' || ($result['document']->children[0]->attr('spread') ?? null) !== 'none') {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB fixed-layout rendition overrides');
     }
     if (($result['spine'][0]['linearRaw'] ?? null) !== 'maybe' || ($result['spine'][0]['linearValid'] ?? null) !== false) {
         throw new RuntimeException('Expected invalid EPUB spine linear value to remain visible for review');

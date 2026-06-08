@@ -5608,6 +5608,12 @@ final class EpubReader
                 'flowProperties' => $itemProperties['flow']['properties'],
                 'alignX' => $itemProperties['alignX']['value'],
                 'alignXProperties' => $itemProperties['alignX']['properties'],
+                'layout' => $itemProperties['layout']['value'],
+                'layoutProperties' => $itemProperties['layout']['properties'],
+                'orientation' => $itemProperties['orientation']['value'],
+                'orientationProperties' => $itemProperties['orientation']['properties'],
+                'spread' => $itemProperties['spread']['value'],
+                'spreadProperties' => $itemProperties['spread']['properties'],
                 'mediaOverlay' => $manifestItem['mediaOverlay'],
                 'mediaOverlayReference' => $manifestItem['mediaOverlayReference'] ?? null,
                 'mediaOverlayDiagnostics' => $manifestItem['mediaOverlayDiagnostics'] ?? [],
@@ -5747,7 +5753,7 @@ final class EpubReader
     /**
      * @param list<string> $properties
      *
-     * @return array{pageSpread:array<string, mixed>, flow:array<string, mixed>, alignX:array<string, mixed>, diagnostics:list<array<string, mixed>>}
+     * @return array{pageSpread:array<string, mixed>, flow:array<string, mixed>, alignX:array<string, mixed>, layout:array<string, mixed>, orientation:array<string, mixed>, spread:array<string, mixed>, diagnostics:list<array<string, mixed>>}
      */
     private static function spineItemPropertyReport(array $properties): array
     {
@@ -5757,6 +5763,12 @@ final class EpubReader
         $flowValues = [];
         $alignXMatches = [];
         $alignXValues = [];
+        $layoutMatches = [];
+        $layoutValues = [];
+        $orientationMatches = [];
+        $orientationValues = [];
+        $spreadMatches = [];
+        $spreadValues = [];
         foreach ($properties as $property) {
             $placement = match ($property) {
                 'page-spread-left', 'rendition:page-spread-left' => 'left',
@@ -5801,6 +5813,52 @@ final class EpubReader
                 ];
                 $alignXValues[$alignX] = true;
             }
+
+            $layout = match ($property) {
+                'rendition:layout-reflowable' => 'reflowable',
+                'rendition:layout-pre-paginated', 'rendition:layout-prepaginated' => 'pre-paginated',
+                default => null,
+            };
+
+            if ($layout !== null) {
+                $layoutMatches[] = [
+                    'property' => $property,
+                    'value' => $layout,
+                ];
+                $layoutValues[$layout] = true;
+            }
+
+            $orientation = match ($property) {
+                'rendition:orientation-auto' => 'auto',
+                'rendition:orientation-landscape' => 'landscape',
+                'rendition:orientation-portrait' => 'portrait',
+                default => null,
+            };
+
+            if ($orientation !== null) {
+                $orientationMatches[] = [
+                    'property' => $property,
+                    'value' => $orientation,
+                ];
+                $orientationValues[$orientation] = true;
+            }
+
+            $spread = match ($property) {
+                'rendition:spread-auto' => 'auto',
+                'rendition:spread-none' => 'none',
+                'rendition:spread-both' => 'both',
+                'rendition:spread-landscape' => 'landscape',
+                'rendition:spread-portrait' => 'portrait',
+                default => null,
+            };
+
+            if ($spread !== null) {
+                $spreadMatches[] = [
+                    'property' => $property,
+                    'value' => $spread,
+                ];
+                $spreadValues[$spread] = true;
+            }
         }
 
         $spreadProperties = array_map(
@@ -5821,6 +5879,24 @@ final class EpubReader
         );
         $alignXValuesList = array_keys($alignXValues);
         $alignXConflicting = count($alignXValuesList) > 1;
+        $layoutProperties = array_map(
+            static fn (array $match): string => (string) $match['property'],
+            $layoutMatches
+        );
+        $layoutValuesList = array_keys($layoutValues);
+        $layoutConflicting = count($layoutValuesList) > 1;
+        $orientationProperties = array_map(
+            static fn (array $match): string => (string) $match['property'],
+            $orientationMatches
+        );
+        $orientationValuesList = array_keys($orientationValues);
+        $orientationConflicting = count($orientationValuesList) > 1;
+        $spreadOverrideProperties = array_map(
+            static fn (array $match): string => (string) $match['property'],
+            $spreadMatches
+        );
+        $spreadOverrideValuesList = array_keys($spreadValues);
+        $spreadOverrideConflicting = count($spreadOverrideValuesList) > 1;
         $diagnostics = [];
 
         if ($conflicting) {
@@ -5850,6 +5926,33 @@ final class EpubReader
             ];
         }
 
+        if ($layoutConflicting) {
+            $diagnostics[] = [
+                'type' => 'conflicting-spine-layout-properties',
+                'properties' => $layoutProperties,
+                'values' => $layoutValuesList,
+                'message' => 'EPUB spine itemref declares more than one rendition layout override value',
+            ];
+        }
+
+        if ($orientationConflicting) {
+            $diagnostics[] = [
+                'type' => 'conflicting-spine-orientation-properties',
+                'properties' => $orientationProperties,
+                'values' => $orientationValuesList,
+                'message' => 'EPUB spine itemref declares more than one rendition orientation override value',
+            ];
+        }
+
+        if ($spreadOverrideConflicting) {
+            $diagnostics[] = [
+                'type' => 'conflicting-spine-spread-properties',
+                'properties' => $spreadOverrideProperties,
+                'values' => $spreadOverrideValuesList,
+                'message' => 'EPUB spine itemref declares more than one rendition spread override value',
+            ];
+        }
+
         return [
             'pageSpread' => [
                 'placement' => $matches[0]['placement'] ?? null,
@@ -5870,6 +5973,28 @@ final class EpubReader
                 'matches' => $alignXMatches,
                 'values' => $alignXValuesList,
                 'conflicting' => $alignXConflicting,
+            ],
+            'layout' => [
+                'value' => $layoutMatches[0]['value'] ?? null,
+                'properties' => $layoutProperties,
+                'matches' => $layoutMatches,
+                'values' => $layoutValuesList,
+                'conflicting' => $layoutConflicting,
+                'fixedLayout' => ($layoutMatches[0]['value'] ?? null) === 'pre-paginated',
+            ],
+            'orientation' => [
+                'value' => $orientationMatches[0]['value'] ?? null,
+                'properties' => $orientationProperties,
+                'matches' => $orientationMatches,
+                'values' => $orientationValuesList,
+                'conflicting' => $orientationConflicting,
+            ],
+            'spread' => [
+                'value' => $spreadMatches[0]['value'] ?? null,
+                'properties' => $spreadOverrideProperties,
+                'matches' => $spreadMatches,
+                'values' => $spreadOverrideValuesList,
+                'conflicting' => $spreadOverrideConflicting,
             ],
             'diagnostics' => $diagnostics,
         ];
@@ -11036,6 +11161,12 @@ final class EpubReader
                 'flowProperties' => $item['flowProperties'] ?? [],
                 'alignX' => $item['alignX'] ?? null,
                 'alignXProperties' => $item['alignXProperties'] ?? [],
+                'layout' => $item['layout'] ?? null,
+                'layoutProperties' => $item['layoutProperties'] ?? [],
+                'orientation' => $item['orientation'] ?? null,
+                'orientationProperties' => $item['orientationProperties'] ?? [],
+                'spread' => $item['spread'] ?? null,
+                'spreadProperties' => $item['spreadProperties'] ?? [],
                 'spineItemProperties' => $item['spineItemProperties'] ?? [],
                 'spineItemDiagnostics' => $item['spineItemDiagnostics'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],

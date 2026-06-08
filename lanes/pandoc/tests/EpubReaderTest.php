@@ -1097,6 +1097,69 @@ XML;
         $t->same('scrolled-continuous', $result['document']->children[1]->attr('flow'));
         $t->same($second['spineItemDiagnostics'], $result['document']->children[1]->attr('spineItemDiagnostics'));
     },
+    'reports OPF spine fixed layout itemref override properties' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithFixedLayoutOverrides = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref idref="chapter-1" properties="rendition:layout-pre-paginated rendition:orientation-landscape rendition:spread-none"/>',
+            $opfXml
+        );
+        $opfWithFixedLayoutOverrides = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref idref="chapter-2" linear="no" properties="rendition:layout-reflowable rendition:layout-pre-paginated rendition:orientation-portrait rendition:orientation-auto rendition:spread-landscape rendition:spread-both"/>',
+            $opfWithFixedLayoutOverrides
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithFixedLayoutOverrides));
+
+        $first = $result['spine'][0];
+        $t->same('pre-paginated', $first['layout']);
+        $t->same(['rendition:layout-pre-paginated'], $first['layoutProperties']);
+        $t->same('pre-paginated', $first['spineItemProperties']['layout']['value']);
+        $t->same(true, $first['spineItemProperties']['layout']['fixedLayout']);
+        $t->same(false, $first['spineItemProperties']['layout']['conflicting']);
+        $t->same('landscape', $first['orientation']);
+        $t->same(['rendition:orientation-landscape'], $first['orientationProperties']);
+        $t->same('landscape', $first['spineItemProperties']['orientation']['value']);
+        $t->same(false, $first['spineItemProperties']['orientation']['conflicting']);
+        $t->same('none', $first['spread']);
+        $t->same(['rendition:spread-none'], $first['spreadProperties']);
+        $t->same('none', $first['spineItemProperties']['spread']['value']);
+        $t->same(false, $first['spineItemProperties']['spread']['conflicting']);
+        $t->same([], $first['spineItemDiagnostics']);
+
+        $second = $result['spine'][1];
+        $t->same('reflowable', $second['layout']);
+        $t->same(['reflowable', 'pre-paginated'], $second['spineItemProperties']['layout']['values']);
+        $t->same(true, $second['spineItemProperties']['layout']['conflicting']);
+        $t->same('portrait', $second['orientation']);
+        $t->same(['portrait', 'auto'], $second['spineItemProperties']['orientation']['values']);
+        $t->same(true, $second['spineItemProperties']['orientation']['conflicting']);
+        $t->same('landscape', $second['spread']);
+        $t->same(['landscape', 'both'], $second['spineItemProperties']['spread']['values']);
+        $t->same(true, $second['spineItemProperties']['spread']['conflicting']);
+        $t->same('conflicting-spine-layout-properties', $second['spineItemDiagnostics'][0]['type']);
+        $t->same(['rendition:layout-reflowable', 'rendition:layout-pre-paginated'], $second['spineItemDiagnostics'][0]['properties']);
+        $t->same('conflicting-spine-orientation-properties', $second['spineItemDiagnostics'][1]['type']);
+        $t->same(['portrait', 'auto'], $second['spineItemDiagnostics'][1]['values']);
+        $t->same('conflicting-spine-spread-properties', $second['spineItemDiagnostics'][2]['type']);
+        $t->same(['rendition:spread-landscape', 'rendition:spread-both'], $second['spineItemDiagnostics'][2]['properties']);
+
+        $spineProperties = $result['spineProperties'];
+        $t->same(3, count($spineProperties['itemDiagnostics']));
+        $t->same('conflicting-spine-layout-properties', $spineProperties['itemDiagnostics'][0]['type']);
+        $t->same(1, $spineProperties['itemDiagnostics'][0]['index']);
+        $t->same('chapter-2', $spineProperties['itemDiagnostics'][0]['idref']);
+        $t->same($spineProperties, $result['importReport']['spine']['properties']);
+
+        $t->same('pre-paginated', $result['document']->children[0]->attr('layout'));
+        $t->same('landscape', $result['document']->children[0]->attr('orientation'));
+        $t->same('none', $result['document']->children[0]->attr('spread'));
+        $t->same($first['spineItemProperties'], $result['document']->children[0]->attr('spineItemProperties'));
+        $t->same('reflowable', $result['document']->children[1]->attr('layout'));
+        $t->same('portrait', $result['document']->children[1]->attr('orientation'));
+        $t->same('landscape', $result['document']->children[1]->attr('spread'));
+        $t->same($second['spineItemDiagnostics'], $result['document']->children[1]->attr('spineItemDiagnostics'));
+    },
     'reports invalid OPF spine progression and conflicting spread diagnostics' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithInvalidSpineProperties = str_replace(
             '<spine toc="toc">',
