@@ -1030,6 +1030,26 @@ final class PdfMetadataExtractor
 
                 return $review;
             }
+            if (($xmpSummary['status'] ?? null) === 'rejected_malformed_xmp_xml') {
+                $review = $base + [
+                    'status' => 'rejected_malformed_document_xmp_xml',
+                    'object_number' => $objectNumber,
+                    'bytes' => strlen($stream['content']),
+                    'sha256' => hash('sha256', $stream['content']),
+                    'xmp_summary' => $xmpSummary,
+                ];
+
+                foreach ($this->metadataStreamDictionaryLabels($stream['dictionary'], $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
+                }
+
+                $filters = $this->streamFilters($stream['dictionary'], $objects);
+                if ($filters !== []) {
+                    $review['filters'] = $filters;
+                }
+
+                return $review;
+            }
 
             return [];
         }
@@ -17330,6 +17350,87 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * Undefined entity references and other XML well-formedness failures must
+     * fail closed before textContent can promote partial or trailing XMP.
+     *
+     * @return array<string, mixed>
+     */
+    private function xmpMalformedXmlReviewSummary(string $xml): array
+    {
+        $firstFailure = null;
+        foreach ($this->xmpXmlCandidates($xml) as $candidate) {
+            if (!$this->xmpMalformedXmlCandidateLooksLikeXmp($candidate['xml'])) {
+                continue;
+            }
+            if ($this->xmpXmlCandidateUnsafeMarkup($candidate['xml']) !== []) {
+                continue;
+            }
+
+            $previous = libxml_use_internal_errors(true);
+            $document = new DOMDocument();
+            $loaded = $document->loadXML($candidate['xml'], LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+            $errors = libxml_get_errors();
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+
+            if ($loaded) {
+                return [];
+            }
+
+            if ($firstFailure === null) {
+                $firstFailure = [
+                    'packet_encoding' => $candidate['packet_encoding'],
+                    'encoding_fallback' => $candidate['encoding_fallback'],
+                    'decoded_to_utf8' => $candidate['decoded_to_utf8'],
+                    'packet_boundary_applied' => $candidate['packet_boundary_applied'],
+                    'error_count' => count($errors),
+                ];
+            }
+        }
+
+        if ($firstFailure === null) {
+            return [];
+        }
+
+        $summary = [
+            'source' => 'xmp_packet_review',
+            'status' => 'rejected_malformed_xmp_xml',
+            'malformed_xml_boundary' => 'strict_dom_parse',
+            'reason' => 'xml_parse_failed',
+            'field_names' => [],
+            'field_count' => 0,
+            'author_count' => 0,
+            'keyword_count' => 0,
+            'packet_encoding' => $firstFailure['packet_encoding'],
+            'payload_included' => false,
+            'text_values_redacted' => true,
+            'redacted_fields' => ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords'],
+        ];
+
+        if ($firstFailure['error_count'] > 0) {
+            $summary['malformed_xml_error_count'] = $firstFailure['error_count'];
+        }
+        if ($firstFailure['packet_boundary_applied']) {
+            $summary['packet_boundary_applied'] = true;
+        }
+        if ($firstFailure['decoded_to_utf8']) {
+            $summary['decoded_to_utf8'] = true;
+        }
+        if ($firstFailure['encoding_fallback']) {
+            $summary['encoding_fallback'] = true;
+        }
+
+        return $summary;
+    }
+
+    private function xmpMalformedXmlCandidateLooksLikeXmp(string $xml): bool
+    {
+        return str_contains($xml, '<?xpacket')
+            || $this->xmlRootStartForLocalName($xml, 'xmpmeta') !== null
+            || $this->xmlRootStartForLocalName($xml, 'RDF') !== null;
+    }
+
+    /**
      * @return array{bytes: string, encoding: string}|null
      */
     private function xmpUtf16EncodingBoundary(string $xml): ?array
@@ -22913,7 +23014,12 @@ final class PdfMetadataExtractor
                 return $malformedEncoding;
             }
 
-            return $this->xmpPacketSafetyReviewSummary($xml);
+            $unsafeMarkup = $this->xmpPacketSafetyReviewSummary($xml);
+            if ($unsafeMarkup !== []) {
+                return $unsafeMarkup;
+            }
+
+            return $this->xmpMalformedXmlReviewSummary($xml);
         }
 
         $fieldNames = [];

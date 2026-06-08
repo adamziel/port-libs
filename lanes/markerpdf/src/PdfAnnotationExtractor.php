@@ -1950,6 +1950,7 @@ final class PdfAnnotationExtractor
         }
 
         $records = [];
+        $emittedAnnotationReferences = [];
         $offset = 0;
         $length = strlen($body);
 
@@ -1970,7 +1971,11 @@ final class PdfAnnotationExtractor
             if (str_starts_with($value, '<<')) {
                 $dictionary = $this->readPdfDictionaryAt($value, 0);
                 if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration, $objects)) {
-                    $records[] = ['body' => $dictionary, 'object' => null, 'generation' => null];
+                    $this->appendAnnotationRecordIfNew(
+                        $records,
+                        ['body' => $dictionary, 'object' => null, 'generation' => null],
+                        $emittedAnnotationReferences
+                    );
                 }
                 $offset = $endOffset;
                 continue;
@@ -1986,7 +1991,7 @@ final class PdfAnnotationExtractor
                     $depth + 1,
                     $seen
                 ) as $record) {
-                    $records[] = $record;
+                    $this->appendAnnotationRecordIfNew($records, $record, $emittedAnnotationReferences);
                 }
                 $offset = $endOffset;
                 continue;
@@ -1996,6 +2001,27 @@ final class PdfAnnotationExtractor
         }
 
         return $records;
+    }
+
+    /**
+     * @param list<array{body: string, object: int|null, generation?: int|null}> $records
+     * @param array{body: string, object: int|null, generation?: int|null} $record
+     * @param array<string, true> $emittedAnnotationReferences
+     */
+    private function appendAnnotationRecordIfNew(array &$records, array $record, array &$emittedAnnotationReferences): void
+    {
+        $object = $record['object'] ?? null;
+        $generation = $record['generation'] ?? null;
+        if (is_int($object) && is_int($generation)) {
+            $referenceKey = $this->annotationReferenceKey($object, $generation);
+            if (isset($emittedAnnotationReferences[$referenceKey])) {
+                return;
+            }
+
+            $emittedAnnotationReferences[$referenceKey] = true;
+        }
+
+        $records[] = $record;
     }
 
     /**

@@ -26570,11 +26570,11 @@ final class PdfTextExtractor
             }
 
             $index += 2;
-            if ($firstCid < 0 || $lastCid < $firstCid) {
+            if ($firstCid < 0 || $firstCid > 0xffff || $lastCid < $firstCid || $lastCid > 0xffff) {
                 continue;
             }
 
-            for ($cid = $firstCid, $limit = min($lastCid, 0xffff); $cid <= $limit; $cid++) {
+            for ($cid = $firstCid; $cid <= $lastCid; $cid++) {
                 $widths[$cid] = $width;
             }
         }
@@ -26670,11 +26670,11 @@ final class PdfTextExtractor
             }
 
             $index += 4;
-            if ($firstCid < 0 || $lastCid < $firstCid) {
+            if ($firstCid < 0 || $firstCid > 0xffff || $lastCid < $firstCid || $lastCid > 0xffff) {
                 continue;
             }
 
-            for ($cid = $firstCid, $limit = min($lastCid, 0xffff); $cid <= $limit; $cid++) {
+            for ($cid = $firstCid; $cid <= $lastCid; $cid++) {
                 $displacements[$cid] = $verticalDisplacement;
             }
         }

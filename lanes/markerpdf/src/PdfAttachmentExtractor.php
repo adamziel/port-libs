@@ -1844,6 +1844,9 @@ final class PdfAttachmentExtractor
         if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject, $objects)) {
             return null;
         }
+        if (!$this->streamObjectIsEmbeddedFile($streamObject, $objects)) {
+            return null;
+        }
 
         $embeddedFileStreamsEncrypted = $this->attachmentPolicySuppressesEmbeddedPayload($encryptionPolicy);
         $bytes = $embeddedFileStreamsEncrypted ? null : $this->decodedStreamBytes($streamObject, $objects);
@@ -3271,6 +3274,9 @@ final class PdfAttachmentExtractor
         if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject, $objects)) {
             return null;
         }
+        if (!$this->streamObjectIsEmbeddedFile($streamObject, $objects)) {
+            return null;
+        }
 
         if ($this->attachmentPolicySuppressesEmbeddedPayload($encryptionPolicy)) {
             $row = [
@@ -3437,6 +3443,9 @@ final class PdfAttachmentExtractor
             return [];
         }
         if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject, $objects)) {
+            return [];
+        }
+        if (!$this->streamObjectIsEmbeddedFile($streamObject, $objects)) {
             return [];
         }
 
@@ -3758,6 +3767,20 @@ final class PdfAttachmentExtractor
         }
 
         return $this->decodedStreamBytesForDictionary($streamBytes, $dict, $objects, $dictionaryBody);
+    }
+
+    /**
+     * Encrypted attachment preflight does not decode payload bytes, but it must
+     * still reject typed non-/EmbeddedFile streams before exposing review rows.
+     *
+     * @param array{generation: int, body: string, value: mixed, stream: string|null} $streamObject
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function streamObjectIsEmbeddedFile(array $streamObject, array $objects): bool
+    {
+        $dict = $this->dict($streamObject['value']);
+
+        return $dict !== null && $this->isEmbeddedFileStreamDictionary($dict, $objects);
     }
 
     /**
