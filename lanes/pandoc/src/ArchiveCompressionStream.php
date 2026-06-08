@@ -1122,6 +1122,28 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function inspectZipSplitArchivePolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $zipBytes = self::decodeZipBytes($bytes, $format, $maxUncompressedBytes);
+        $policy = ZipPackage::splitArchivePreflight($zipBytes);
+
+        return [
+            'format' => $format,
+            'zipBytes' => $zipBytes,
+            'packageByteSize' => strlen($zipBytes),
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
      * @return array{
      *     format:string,
      *     zipBytes:string,

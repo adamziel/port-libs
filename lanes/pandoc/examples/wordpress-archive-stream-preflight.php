@@ -167,7 +167,7 @@ $lz4DictionaryUncompressedFrame = static function (
         . pack('V', 0)
         . pack('V', intval(hash('xxh32', $decodedPayload), 16));
 };
-$zipDescriptorFixtureBytes = static function (array $entries, string $packageComment = ''): string {
+$zipDescriptorFixtureBytes = static function (array $entries, string $packageComment = '', array $eocd = []): string {
     $body = '';
     $centralDirectory = '';
     foreach ($entries as $entry) {
@@ -179,6 +179,7 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
         if ($descriptor) {
             $flags |= 0x0008;
         }
+        $diskStart = (int) ($entry['diskStart'] ?? 0);
 
         $payload = $method === 8 ? gzdeflate($data) : $data;
         $crc32 = (int) sprintf('%u', crc32($data));
@@ -224,7 +225,7 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
             strlen($name),
             0,
             0,
-            0,
+            $diskStart,
             0,
             0,
             $localHeaderOffset
@@ -236,10 +237,10 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
         . pack(
             'VvvvvVVv',
             0x06054b50,
-            0,
-            0,
-            count($entries),
-            count($entries),
+            (int) ($eocd['diskNumber'] ?? 0),
+            (int) ($eocd['centralDirectoryDisk'] ?? 0),
+            (int) ($eocd['diskEntryCount'] ?? count($entries)),
+            (int) ($eocd['totalEntryCount'] ?? count($entries)),
             strlen($centralDirectory),
             strlen($body),
             strlen($packageComment)
@@ -272,6 +273,7 @@ $nestedSourceBytes = "# Nested archive source\n\nReady for WordPress nested arch
 $nestedWordXml = '<w:document><w:body><w:p>Nested DOCX review packet</w:p></w:body></w:document>';
 $descriptorDocumentXml = '<w:document><w:body><w:p>Descriptor-backed DOCX source</w:p></w:body></w:document>';
 $descriptorFootnotesXml = '<w:footnotes><w:footnote w:id="1">Descriptor-backed note</w:footnote></w:footnotes>';
+$splitZipMediaBytes = "split archive media placeholder\n";
 $archiveBombContentBytes = str_repeat('A', 4096);
 
 $archive = TarArchive::fromEntries([
@@ -613,6 +615,45 @@ $descriptorZipInspection = ArchiveCompressionStream::inspectZipDataDescriptorPol
     ArchiveCompressionStream::FORMAT_GZIP_ZIP,
     strlen($descriptorZipBytes)
 );
+$splitZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Split ZIP source</w:p></w:body></w:document>',
+        'compressionMethod' => 8,
+    ],
+    [
+        'name' => 'word/media/split.png',
+        'data' => $splitZipMediaBytes,
+        'compressionMethod' => 0,
+        'diskStart' => 2,
+    ],
+], 'split zip review fixture', [
+    'diskNumber' => 1,
+    'centralDirectoryDisk' => 1,
+    'diskEntryCount' => 2,
+    'totalEntryCount' => 3,
+]);
+$splitZipGzip = GzipStream::build($splitZipBytes, [
+    'filename' => 'wordpress-split-package.zip',
+    'comment' => 'ZIP split archive policy fixture',
+    'headerCrc' => true,
+]);
+$splitZipInspection = ArchiveCompressionStream::inspectZipSplitArchivePolicy(
+    $splitZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($splitZipBytes)
+);
+$splitZipExtractionBlocked = false;
+try {
+    ZipPackage::fromString($splitZipBytes);
+} catch (RuntimeException) {
+    $splitZipExtractionBlocked = true;
+}
 $lz4DictionaryId = 0x1a2b3c4d;
 $lz4DictionaryDescriptor = chr(0x40 | 0x20 | 0x08 | 0x04 | 0x01)
     . chr(0x40)
@@ -934,6 +975,16 @@ if (in_array('--self-test', $argv, true)) {
         'zipDescriptorSignatures' => [true, false],
         'zipDescriptorLengths' => [16, 12],
         'zipDescriptorGzipFilename' => 'wordpress-descriptor-package.zip',
+        'zipSplitFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipSplitEntryCount' => 3,
+        'zipSplitDiskNumber' => 1,
+        'zipSplitCentralDirectoryDisk' => 1,
+        'zipSplitDiskEntryCount' => 2,
+        'zipSplitTotalEntryCount' => 3,
+        'zipSplitIssues' => ['split-archive-eocd', 'split-entry-disk-start'],
+        'zipSplitEntryNames' => ['[Content_Types].xml', 'word/document.xml', 'word/media/split.png'],
+        'zipSplitEntryDisks' => [0, 0, 2],
+        'zipSplitGzipFilename' => 'wordpress-split-package.zip',
         'lz4DictionaryFormat' => 'lz4',
         'lz4DictionaryPolicyType' => 'lz4-dictionary-policy',
         'lz4DictionaryExtractionPolicy' => 'dictionary-frames-blocked',
@@ -1128,6 +1179,25 @@ if (in_array('--self-test', $argv, true)) {
         || ($descriptorZipInspection['descriptorEntries'][1]['valueOffset'] ?? null) !== ($descriptorZipInspection['descriptorEntries'][1]['descriptorOffset'] ?? null)
         || ($descriptorZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipDescriptorGzipFilename']
         || $descriptorZipInspection['zipBytes'] !== $descriptorZipBytes
+        || $splitZipInspection['format'] !== $expected['zipSplitFormat']
+        || $splitZipInspection['zipBytes'] !== $splitZipBytes
+        || $splitZipInspection['packageByteSize'] !== strlen($splitZipBytes)
+        || $splitZipInspection['entryCount'] !== $expected['zipSplitEntryCount']
+        || $splitZipInspection['diskNumber'] !== $expected['zipSplitDiskNumber']
+        || $splitZipInspection['centralDirectoryDisk'] !== $expected['zipSplitCentralDirectoryDisk']
+        || $splitZipInspection['diskEntryCount'] !== $expected['zipSplitDiskEntryCount']
+        || $splitZipInspection['totalEntryCount'] !== $expected['zipSplitTotalEntryCount']
+        || $splitZipInspection['isSingleDisk'] !== false
+        || $splitZipInspection['hasSplitArchiveMarkers'] !== true
+        || $splitZipInspection['isSupportedByBoundedReader'] !== false
+        || $splitZipInspection['issues'] !== $expected['zipSplitIssues']
+        || $splitZipInspection['splitArchiveEntryCount'] !== 1
+        || ($splitZipInspection['splitArchiveEntries'][0]['name'] ?? null) !== 'word/media/split.png'
+        || ($splitZipInspection['splitArchiveEntries'][0]['diskStart'] ?? null) !== 2
+        || array_column($splitZipInspection['entries'], 'name') !== $expected['zipSplitEntryNames']
+        || array_column($splitZipInspection['entries'], 'diskStart') !== $expected['zipSplitEntryDisks']
+        || ($splitZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipSplitGzipFilename']
+        || !$splitZipExtractionBlocked
         || $lz4DictionaryInspection['format'] !== $expected['lz4DictionaryFormat']
         || $lz4DictionaryInspection['type'] !== $expected['lz4DictionaryPolicyType']
         || $lz4DictionaryInspection['extractionPolicy'] !== $expected['lz4DictionaryExtractionPolicy']
@@ -1316,6 +1386,12 @@ echo 'zipDescriptor.signedCount=' . $descriptorZipInspection['signedDescriptorEn
 echo 'zipDescriptor.unsignedCount=' . $descriptorZipInspection['unsignedDescriptorEntryCount'] . "\n";
 echo 'zipDescriptor.names=' . implode(',', array_column($descriptorZipInspection['descriptorEntries'], 'name')) . "\n";
 echo 'zipDescriptor.gzipFilename=' . $descriptorZipInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipSplit.format=' . $splitZipInspection['format'] . "\n";
+echo 'zipSplit.entryCount=' . $splitZipInspection['entryCount'] . "\n";
+echo 'zipSplit.issues=' . implode(',', $splitZipInspection['issues']) . "\n";
+echo 'zipSplit.entryDisks=' . implode(',', array_column($splitZipInspection['entries'], 'diskStart')) . "\n";
+echo 'zipSplit.gzipFilename=' . $splitZipInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipSplit.extractionBlocked=' . ($splitZipExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'lz4Dictionary.format=' . $lz4DictionaryInspection['format'] . "\n";
 echo 'lz4Dictionary.extractionPolicy=' . $lz4DictionaryInspection['extractionPolicy'] . "\n";
 echo 'lz4Dictionary.dictionaryFrameCount=' . $lz4DictionaryInspection['dictionaryFrameCount'] . "\n";

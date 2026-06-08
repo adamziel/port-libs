@@ -190,7 +190,7 @@ $lz4DictionaryUncompressedFrame = static function (
         . pack('V', intval(hash('xxh32', $decodedPayload), 16));
 };
 
-$zipFixtureBytes = static function (array $entries, string $packageComment = ''): string {
+$zipFixtureBytes = static function (array $entries, string $packageComment = '', array $eocd = []): string {
     $body = '';
     $centralDirectory = '';
     foreach ($entries as $entry) {
@@ -214,6 +214,7 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '')
         $centralExtra = (string) ($entry['centralExtra'] ?? $entry['extra'] ?? '');
         $localExtra = (string) ($entry['localExtra'] ?? $entry['extra'] ?? '');
         $comment = (string) ($entry['comment'] ?? '');
+        $diskStart = (int) ($entry['diskStart'] ?? 0);
         $payload = $method === 8 ? gzdeflate($data) : $data;
         $crc32 = (int) sprintf('%u', crc32($data));
         $localCrc32 = (int) ($entry['localCrc32'] ?? ($descriptor ? 0 : $crc32));
@@ -264,7 +265,7 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '')
             strlen($name),
             strlen($centralExtra),
             strlen($comment),
-            0,
+            $diskStart,
             0,
             (int) ($entry['externalAttributes'] ?? 0),
             $localHeaderOffset
@@ -276,10 +277,10 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '')
         . pack(
             'VvvvvVVv',
             0x06054b50,
-            0,
-            0,
-            count($entries),
-            count($entries),
+            (int) ($eocd['diskNumber'] ?? 0),
+            (int) ($eocd['centralDirectoryDisk'] ?? 0),
+            (int) ($eocd['diskEntryCount'] ?? count($entries)),
+            (int) ($eocd['totalEntryCount'] ?? count($entries)),
             strlen($centralDirectory),
             strlen($body),
             strlen($packageComment)
@@ -3150,6 +3151,110 @@ return [
         $t->throws(
             \RuntimeException::class,
             static fn (): array => ArchiveCompressionStream::inspectZipDataDescriptorPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
+    'preflights split zip disk markers across archive streams without exposing package entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $documentXml = '<w:document><w:body><w:p>Split ZIP document.xml</w:p></w:body></w:document>';
+        $mediaBytes = "split archive media placeholder\n";
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'compressionMethod' => 8,
+            ],
+            [
+                'name' => 'word/media/split.png',
+                'data' => $mediaBytes,
+                'compressionMethod' => 0,
+                'diskStart' => 2,
+            ],
+        ], 'split zip review fixture', [
+            'diskNumber' => 1,
+            'centralDirectoryDisk' => 1,
+            'diskEntryCount' => 2,
+            'totalEntryCount' => 3,
+        ]);
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-split-package.zip',
+                'comment' => 'zip split archive policy fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('split zip reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipSplitArchivePolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(3, $inspection['entryCount']);
+            $t->same(1, $inspection['diskNumber']);
+            $t->same(1, $inspection['centralDirectoryDisk']);
+            $t->same(2, $inspection['diskEntryCount']);
+            $t->same(3, $inspection['totalEntryCount']);
+            $t->same(false, $inspection['isSingleDisk']);
+            $t->same(true, $inspection['hasSplitArchiveMarkers']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same(['split-archive-eocd', 'split-entry-disk-start'], $inspection['issues']);
+            $t->same(1, $inspection['splitArchiveEntryCount']);
+            $t->same('word/media/split.png', $inspection['splitArchiveEntries'][0]['name']);
+            $t->same(2, $inspection['splitArchiveEntries'][0]['diskStart']);
+            $t->same(['split-entry-disk-start'], $inspection['splitArchiveEntries'][0]['issues']);
+            $t->same([
+                '[Content_Types].xml',
+                'word/document.xml',
+                'word/media/split.png',
+            ], array_column($inspection['entries'], 'name'));
+            $t->same([0, 0, 2], array_column($inspection['entries'], 'diskStart'));
+            $t->same([0, 1, 2], array_column($inspection['entries'], 'centralDirectoryIndex'));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipSplitArchivePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipSplitArchivePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-split-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('zip split archive policy fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('split zip reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zipBytes));
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipSplitArchivePolicy(
                 $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
                 ArchiveCompressionStream::FORMAT_GZIP_TAR,
                 strlen($zipBytes)
