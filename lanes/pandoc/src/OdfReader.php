@@ -3284,6 +3284,7 @@ final class OdfReader
             'drop-down',
             'conditional-text',
             'hidden-text',
+            'hidden-paragraph',
             'database-display',
             'database-name',
             'database-next',

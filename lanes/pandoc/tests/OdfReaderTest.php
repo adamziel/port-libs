@@ -3000,7 +3000,7 @@ XML;
   xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
   <office:body>
     <office:text>
-      <text:p>Conditional <text:conditional-text text:condition="ReviewStatus == &quot;ready&quot;" text:string-value-if-true="Ready to publish" text:string-value-if-false="Hold for review">Ready to publish</text:conditional-text> and hidden <text:hidden-text text:condition="NeedsReview == true" text:string-value="reviewer note">reviewer note</text:hidden-text> plus fallback <text:hidden-text text:condition="AuditOnly" text:string-value="fallback audit note"/>.</text:p>
+      <text:p>Conditional <text:conditional-text text:condition="ReviewStatus == &quot;ready&quot;" text:string-value-if-true="Ready to publish" text:string-value-if-false="Hold for review">Ready to publish</text:conditional-text> and hidden <text:hidden-text text:condition="NeedsReview == true" text:string-value="reviewer note">reviewer note</text:hidden-text> plus fallback <text:hidden-text text:condition="AuditOnly" text:string-value="fallback audit note"/> and paragraph marker <text:hidden-paragraph text:condition="ArchiveOnly" text:string-value="archive paragraph marker"/>.</text:p>
     </office:text>
   </office:body>
 </office:document-content>
@@ -3011,8 +3011,9 @@ XML;
         $conditional = $paragraph->children[1];
         $hidden = $paragraph->children[3];
         $fallback = $paragraph->children[5];
+        $hiddenParagraph = $paragraph->children[7];
 
-        $t->same('Conditional Ready to publish and hidden reviewer note plus fallback fallback audit note.', $paragraph->attr('text'));
+        $t->same('Conditional Ready to publish and hidden reviewer note plus fallback fallback audit note and paragraph marker archive paragraph marker.', $paragraph->attr('text'));
         $t->same('span', $conditional->type);
         $t->same(['odf-field', 'odf-field-conditional-text'], $conditional->attr('classes'));
         $t->same('conditional-text', $conditional->attr('fieldType'));
@@ -3032,14 +3033,20 @@ XML;
         $t->same('AuditOnly', $fallback->attr('fieldMetadata')['condition']);
         $t->same('fallback audit note', $fallback->attr('fieldMetadata')['stringValue']);
         $t->same('fallback audit note', $fallback->children[0]->attr('text'));
-        $t->same(3, $result['importReport']['content']['fieldCount']);
+        $t->same('hidden-paragraph', $hiddenParagraph->attr('fieldType'));
+        $t->same('ArchiveOnly', $hiddenParagraph->attr('fieldMetadata')['condition']);
+        $t->same('archive paragraph marker', $hiddenParagraph->attr('fieldMetadata')['stringValue']);
+        $t->same('archive paragraph marker', $hiddenParagraph->children[0]->attr('text'));
+        $t->same(4, $result['importReport']['content']['fieldCount']);
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('[Ready to publish]{.odf-field .odf-field-conditional-text data-odf-field-type="conditional-text" data-odf-field-condition="ReviewStatus == \"ready\"" data-odf-field-string-value-if-true="Ready to publish" data-odf-field-string-value-if-false="Hold for review"}', $markdown);
         $t->contains('[fallback audit note]{.odf-field .odf-field-hidden-text data-odf-field-type="hidden-text" data-odf-field-condition="AuditOnly" data-odf-field-string-value="fallback audit note"}', $markdown);
+        $t->contains('[archive paragraph marker]{.odf-field .odf-field-hidden-paragraph data-odf-field-type="hidden-paragraph" data-odf-field-condition="ArchiveOnly" data-odf-field-string-value="archive paragraph marker"}', $markdown);
         $t->contains('<span class="odf-field odf-field-conditional-text" data-odf-field-type="conditional-text" data-odf-field-condition="ReviewStatus == &quot;ready&quot;" data-odf-field-string-value-if-true="Ready to publish" data-odf-field-string-value-if-false="Hold for review">Ready to publish</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-hidden-text" data-odf-field-type="hidden-text" data-odf-field-condition="AuditOnly" data-odf-field-string-value="fallback audit note">fallback audit note</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-hidden-paragraph" data-odf-field-type="hidden-paragraph" data-odf-field-condition="ArchiveOnly" data-odf-field-string-value="archive paragraph marker">archive paragraph marker</span>', $blocksHtml);
     },
     'maps ODT placeholders into review spans without dropping source text' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPlaceholders = <<<'XML'
