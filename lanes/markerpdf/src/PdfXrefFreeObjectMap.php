@@ -111,8 +111,10 @@ final class PdfXrefFreeObjectMap
         $boundary = $entry['tokenOffset'] ?? null;
         $ignoredBoundary = self::latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes);
         $eofBoundary = self::latestTopLevelEofOffset($pdfBytes);
+        $entryEofBoundary = $entry === null
+            ? null
+            : self::firstTopLevelEofOffsetAfter($pdfBytes, $entry['tokenOffset']);
         if ($entry !== null && !self::startxrefEntryHasNumericOperand($pdfBytes, $entry)) {
-            $entryEofBoundary = self::firstTopLevelEofOffsetAfter($pdfBytes, $entry['tokenOffset']);
             if ($entryEofBoundary !== null) {
                 $eofBoundary = $entryEofBoundary;
             }
@@ -162,6 +164,15 @@ final class PdfXrefFreeObjectMap
 
         if ($eofBoundary !== null && $eofBoundary > $boundary) {
             $latestBeforeEof = self::latestClassicXrefTableOffset($pdfBytes, $eofBoundary);
+            if (
+                $entryEofBoundary !== null
+                && $latestBeforeEof !== null
+                && $latestBeforeEof > $entryEofBoundary
+                && self::xrefTableSectionAt($pdfBytes, $entry['offset']) === null
+                && !self::hasTopLevelStartxrefTokenBetweenOffsets($pdfBytes, $latestBeforeEof, $eofBoundary)
+            ) {
+                return $boundary;
+            }
             if (
                 $latestBeforeEof !== null
                 && $latestBeforeEof > $boundary

@@ -31700,8 +31700,10 @@ final class PdfTextExtractor
         $boundary = $entry['tokenOffset'] ?? null;
         $ignoredBoundary = $this->latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
         $eofBoundary = $this->latestTopLevelEofOffset($pdfBytes, $definitions);
+        $entryEofBoundary = $entry === null
+            ? null
+            : $this->firstTopLevelEofOffsetAfter($pdfBytes, $definitions, $entry['tokenOffset']);
         if ($entry !== null && !$this->startxrefEntryHasNumericOperand($pdfBytes, $entry)) {
-            $entryEofBoundary = $this->firstTopLevelEofOffsetAfter($pdfBytes, $definitions, $entry['tokenOffset']);
             if ($entryEofBoundary !== null) {
                 $eofBoundary = $entryEofBoundary;
             }
@@ -31766,6 +31768,20 @@ final class PdfTextExtractor
 
         if ($eofBoundary !== null && $eofBoundary > $boundary) {
             $latestBeforeEof = $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $eofBoundary);
+            if (
+                $entryEofBoundary !== null
+                && $latestBeforeEof !== null
+                && $latestBeforeEof > $entryEofBoundary
+                && $this->xrefTableSectionAt($pdfBytes, $entry['offset'], $definitions) === null
+                && !$this->hasTopLevelStartxrefTokenBetweenOffsets(
+                    $pdfBytes,
+                    $definitions,
+                    $latestBeforeEof,
+                    $eofBoundary
+                )
+            ) {
+                return $boundary;
+            }
             if (
                 $latestBeforeEof !== null
                 && $latestBeforeEof > $boundary
