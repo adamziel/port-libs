@@ -311,9 +311,9 @@ final class PdfPageArtifactSelector
 
         foreach ($value as $key => $candidate) {
             if (
-                self::integerArrayKey($key) !== null
-                && is_array($candidate)
+                is_array($candidate)
                 && self::jsonDecodedValueLooksLikeSuppliedArtifact($candidate, $depth + 1)
+                && self::integerArrayKey($key) !== null
             ) {
                 return true;
             }
@@ -353,12 +353,30 @@ final class PdfPageArtifactSelector
         $seenPageKeys = [];
         foreach ($value as $key => $candidate) {
             $candidate = self::normalizeSuppliedArtifactMapCandidateValue($candidate);
+            if (!is_array($candidate) || array_is_list($candidate)) {
+                if (self::isIgnorableArtifactMapEntry($candidate)) {
+                    continue;
+                }
+
+                return null;
+            }
+
+            $isRawPdftextPageCopy = self::isRawPdftextPageCopy($candidate);
+            $hasPayload = self::hasSelectableArtifactPayload($candidate);
+            if (!$isRawPdftextPageCopy && !$hasPayload) {
+                if (self::isIgnorableArtifactMapEntry($candidate)) {
+                    continue;
+                }
+
+                return null;
+            }
+
             $pageKey = self::integerArrayKey($key);
-            if ($pageKey !== null && is_array($candidate) && !array_is_list($candidate) && self::isRawPdftextPageCopy($candidate)) {
+            if ($pageKey !== null && $isRawPdftextPageCopy) {
                 $sawRawPdftextPageCopy = true;
                 continue;
             }
-            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate) || !self::hasSelectableArtifactPayload($candidate)) {
+            if ($pageKey === null || !$hasPayload) {
                 if (self::isIgnorableArtifactMapEntry($candidate)) {
                     continue;
                 }
@@ -616,7 +634,6 @@ final class PdfPageArtifactSelector
         $ignoredEntries = 0;
         foreach ($value as $key => $candidate) {
             $candidate = self::normalizeSuppliedArtifactMapCandidateValue($candidate);
-            $pageKey = self::integerArrayKey($key);
             if (!is_array($candidate) || array_is_list($candidate) || !self::hasSelectableArtifactPayload($candidate)) {
                 if (self::isIgnorableArtifactMapEntry($candidate)) {
                     $ignoredEntries++;
@@ -627,6 +644,7 @@ final class PdfPageArtifactSelector
                 continue;
             }
 
+            $pageKey = self::integerArrayKey($key);
             if (self::hasSelectableArtifactPayload($candidate)) {
                 if ($payload !== null) {
                     return null;
@@ -676,12 +694,30 @@ final class PdfPageArtifactSelector
         $seenPageKeys = [];
         foreach ($value as $key => $candidate) {
             $candidate = self::normalizeSuppliedArtifactMapCandidateValue($candidate);
+            if (!is_array($candidate) || array_is_list($candidate)) {
+                if (self::isIgnorableArtifactMapEntry($candidate)) {
+                    continue;
+                }
+
+                return null;
+            }
+
+            $isRawPdftextPageCopy = self::isRawPdftextPageCopy($candidate);
+            $hasPayload = self::hasSelectableArtifactPayload($candidate);
+            if (!$isRawPdftextPageCopy && !$hasPayload) {
+                if (self::isIgnorableArtifactMapEntry($candidate)) {
+                    continue;
+                }
+
+                return null;
+            }
+
             $pageKey = self::integerArrayKey($key);
-            if ($pageKey !== null && is_array($candidate) && !array_is_list($candidate) && self::isRawPdftextPageCopy($candidate)) {
+            if ($pageKey !== null && $isRawPdftextPageCopy) {
                 $sawRawPdftextPageCopy = true;
                 continue;
             }
-            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate) || !self::hasSelectableArtifactPayload($candidate)) {
+            if ($pageKey === null || !$hasPayload) {
                 if (self::isIgnorableArtifactMapEntry($candidate)) {
                     continue;
                 }
@@ -734,6 +770,10 @@ final class PdfPageArtifactSelector
     private static function integerArrayKey(int|string $key): ?int
     {
         if (is_int($key)) {
+            if ($key < 0) {
+                throw new InvalidArgumentException('Supplied page artifact map keys must be zero or greater.');
+            }
+
             return $key;
         }
 
@@ -743,9 +783,18 @@ final class PdfPageArtifactSelector
         }
 
         $number = ltrim($match[2], '0');
-        $integer = (int) ($number === '' ? '0' : $number);
+        $number = $number === '' ? '0' : $number;
+        $maxInteger = (string) PHP_INT_MAX;
+        if (strlen($number) > strlen($maxInteger) || (strlen($number) === strlen($maxInteger) && strcmp($number, $maxInteger) > 0)) {
+            throw new InvalidArgumentException('Supplied page artifact map keys must fit in a PHP integer.');
+        }
 
-        return $match[1] === '-' ? -$integer : $integer;
+        $integer = (int) $number;
+        if ($match[1] === '-' && $integer !== 0) {
+            throw new InvalidArgumentException('Supplied page artifact map keys must be zero or greater.');
+        }
+
+        return $integer;
     }
 
     /**
@@ -877,13 +926,16 @@ final class PdfPageArtifactSelector
 
         if (!array_is_list($value)) {
             foreach ($value as $key => $candidate) {
-                $pageKey = self::integerArrayKey($key);
                 if (
-                    $pageKey !== null
-                    && is_array($candidate)
+                    is_array($candidate)
                     && !array_is_list($candidate)
                     && self::hasEnvelopeBlockingDirectArtifactPayload($candidate)
                 ) {
+                    $pageKey = self::integerArrayKey($key);
+                    if ($pageKey === null) {
+                        continue;
+                    }
+
                     $keys[] = $pageKey;
                 }
             }

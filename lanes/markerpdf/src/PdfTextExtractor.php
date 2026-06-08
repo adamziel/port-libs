@@ -4940,8 +4940,13 @@ final class PdfTextExtractor
             return [];
         }
 
+        $duplicateResourceNames = $this->duplicateTopLevelResourceEntryNames($patternDictionary);
         $references = [];
         foreach ($this->topLevelResourceReferenceEntries($patternDictionary, true) as $resourceName => $resource) {
+            if (isset($duplicateResourceNames[$resourceName])) {
+                continue;
+            }
+
             $objectNumber = $resource['objectNumber'];
             $generation = $resource['generation'];
             $resolved = $this->resolvedExactResourceReference($objects, $objectNumber, $generation);
@@ -7029,6 +7034,14 @@ final class PdfTextExtractor
 
         $patternDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'Pattern');
         if ($patternDictionary === null) {
+            return [
+                'resource_name' => $patternName,
+                'resolved_from_resources' => false,
+                'resource_source' => null,
+            ];
+        }
+
+        if (isset($this->duplicateTopLevelResourceEntryNames($patternDictionary)[$patternName])) {
             return [
                 'resource_name' => $patternName,
                 'resolved_from_resources' => false,

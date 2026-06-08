@@ -5171,6 +5171,10 @@ final class PdfMetadataExtractor
             $metadata[$key] = $value;
         }
 
+        foreach ($this->documentOutlineRootMetadataStreamSummary($rootMetadataStreamReview) as $key => $value) {
+            $metadata[$key] = $value;
+        }
+
         foreach ($this->documentOutlineMetadataStreamSummary($items) as $key => $value) {
             $metadata[$key] = $value;
         }
@@ -5522,6 +5526,86 @@ final class PdfMetadataExtractor
         }
         if ($filters !== []) {
             $summary['item_metadata_stream_filters'] = $this->uniqueStrings($filters);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $review
+     * @return array<string, mixed>
+     */
+    private function documentOutlineRootMetadataStreamSummary(array $review): array
+    {
+        if ($review === []) {
+            return [];
+        }
+
+        $summary = [
+            'root_metadata_stream_count' => 1,
+            'root_metadata_stream_review_only' => true,
+            'root_metadata_stream_payload_included' => false,
+            'root_metadata_stream_accepted_as_document_xmp' => false,
+        ];
+
+        foreach ([
+            'status' => 'root_metadata_stream_status',
+            'type' => 'root_metadata_stream_type',
+            'subtype' => 'root_metadata_stream_subtype',
+            'operand_shape' => 'root_metadata_stream_operand_shape',
+        ] as $reviewKey => $summaryKey) {
+            if (is_string($review[$reviewKey] ?? null) && $review[$reviewKey] !== '') {
+                $summary[$summaryKey] = $review[$reviewKey];
+            }
+        }
+
+        foreach ([
+            'object_number' => 'root_metadata_stream_object',
+            'object_generation' => 'root_metadata_stream_object_generation',
+            'declared_entry_count' => 'root_metadata_stream_declared_entry_count',
+            'metadata_entry_count' => 'root_metadata_stream_metadata_entry_count',
+            'metadata_operand_count' => 'root_metadata_stream_metadata_operand_count',
+            'selected_entry_index' => 'root_metadata_stream_selected_entry_index',
+        ] as $reviewKey => $summaryKey) {
+            if (is_int($review[$reviewKey] ?? null)) {
+                $summary[$summaryKey] = $review[$reviewKey];
+            }
+        }
+
+        foreach ([
+            'duplicate_entries' => 'root_metadata_stream_duplicate_entries',
+            'selected_null_entry' => 'root_metadata_stream_selected_null_entry',
+            'indirect_reference_required' => 'root_metadata_stream_indirect_reference_required',
+            'metadata_reference_resolved' => 'root_metadata_stream_reference_resolved',
+            'has_stream' => 'root_metadata_stream_has_stream',
+        ] as $reviewKey => $summaryKey) {
+            if (is_bool($review[$reviewKey] ?? null)) {
+                $summary[$summaryKey] = $review[$reviewKey];
+            }
+        }
+
+        if (is_array($review['filters'] ?? null)) {
+            $filters = [];
+            foreach ($review['filters'] as $filter) {
+                if (is_string($filter) && $filter !== '') {
+                    $filters[] = $filter;
+                }
+            }
+            if ($filters !== []) {
+                $summary['root_metadata_stream_filters'] = $this->uniqueStrings($filters);
+            }
+        }
+
+        if (is_array($review['trailing_reference_object_numbers'] ?? null)) {
+            $objects = [];
+            foreach ($review['trailing_reference_object_numbers'] as $objectNumber) {
+                if (is_int($objectNumber)) {
+                    $objects[] = $objectNumber;
+                }
+            }
+            if ($objects !== []) {
+                $summary['root_metadata_stream_trailing_reference_objects'] = $this->uniqueIntegers($objects);
+            }
         }
 
         return $summary;
