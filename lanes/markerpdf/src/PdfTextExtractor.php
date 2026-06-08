@@ -37590,7 +37590,11 @@ final class PdfTextExtractor
             if ($char === '<') {
                 if (($cmap[$index + 1] ?? '') === '<') {
                     $dictionaryEnd = $this->pdfDictionaryEndOffset($cmap, $index);
-                    $index = $dictionaryEnd === null ? $index + 1 : $dictionaryEnd + 1;
+                    if ($dictionaryEnd === null) {
+                        return null;
+                    }
+
+                    $index = $dictionaryEnd + 1;
                     continue;
                 }
 
@@ -37711,6 +37715,8 @@ final class PdfTextExtractor
                         $index = $dictionaryEnd + 1;
                         continue;
                     }
+
+                    return $lastEndOffset;
                 }
 
                 $this->readHexToken($cmap, $index);
@@ -37774,6 +37780,8 @@ final class PdfTextExtractor
                         $index = $dictionaryEnd + 1;
                         continue;
                     }
+
+                    return null;
                 }
 
                 $this->readHexToken($cmap, $index);
@@ -38819,7 +38827,11 @@ final class PdfTextExtractor
             if ($char === '<') {
                 if (($cmap[$offset + 1] ?? '') === '<') {
                     $dictionaryEnd = $this->pdfDictionaryEndOffset($cmap, $offset);
-                    $offset = $dictionaryEnd === null ? $offset + 1 : $dictionaryEnd;
+                    if ($dictionaryEnd === null) {
+                        return null;
+                    }
+
+                    $offset = $dictionaryEnd;
                     continue;
                 }
 
@@ -38911,7 +38923,11 @@ final class PdfTextExtractor
             if ($char === '<') {
                 if (($cmap[$index + 1] ?? '') === '<') {
                     $dictionaryEnd = $this->pdfDictionaryEndOffset($cmap, $index);
-                    $index = $dictionaryEnd === null ? $index + 1 : $dictionaryEnd + 1;
+                    if ($dictionaryEnd === null) {
+                        return $mode;
+                    }
+
+                    $index = $dictionaryEnd + 1;
                     continue;
                 }
 
@@ -38983,7 +38999,11 @@ final class PdfTextExtractor
             if ($char === '<') {
                 if (($cmap[$index + 1] ?? '') === '<') {
                     $dictionaryEnd = $this->pdfDictionaryEndOffset($cmap, $index);
-                    $index = $dictionaryEnd === null ? $index + 1 : $dictionaryEnd + 1;
+                    if ($dictionaryEnd === null) {
+                        return $names;
+                    }
+
+                    $index = $dictionaryEnd + 1;
                     continue;
                 }
 
@@ -40566,8 +40586,7 @@ final class PdfTextExtractor
                 $end = $this->pdfDictionaryEndOffset($block, $index);
                 if ($end === null) {
                     $clean .= ' ';
-                    $index++;
-                    continue;
+                    break;
                 }
 
                 $clean .= str_repeat(' ', max(1, $end - $index + 1));
