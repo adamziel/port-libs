@@ -8849,8 +8849,7 @@ final class PdfMetadataExtractor
             }
         }
 
-        $filter = $this->dictionaryNameValue($dictionary, 'Filter', $objects)
-            ?? $this->dictionaryStringValue($dictionary, 'Filter');
+        $filter = $this->dictionaryResolvedNameOrStringValue($dictionary, 'Filter', $objects);
         if ($filter !== null) {
             $metadata['filter'] = $filter;
         }
@@ -8860,8 +8859,7 @@ final class PdfMetadataExtractor
             $metadata['security_handler_declaration_review'] = $securityHandlerDeclarationReview;
         }
 
-        $subfilter = $this->dictionaryNameValue($dictionary, 'SubFilter', $objects)
-            ?? $this->dictionaryStringValue($dictionary, 'SubFilter');
+        $subfilter = $this->dictionaryResolvedNameOrStringValue($dictionary, 'SubFilter', $objects);
         if ($subfilter !== null) {
             $metadata['subfilter'] = $subfilter;
         }
@@ -9061,6 +9059,52 @@ final class PdfMetadataExtractor
         }
 
         return $this->decodePdfName($match[1]);
+    }
+
+    /**
+     * Security handler names are usually PDF names but malformed samples often
+     * use string operands. Resolve a single indirect operand for review parity,
+     * while keeping unresolved, composite, or trailing operands out of the
+     * legacy scalar metadata field.
+     *
+     * @param array<int, string> $objects
+     */
+    private function dictionaryResolvedNameOrStringValue(string $dictionary, string $key, array $objects): ?string
+    {
+        $valueReviews = $this->dictionaryTopLevelValueReviews($dictionary, $key);
+        if ($valueReviews === []) {
+            return null;
+        }
+
+        $valueReview = $valueReviews[count($valueReviews) - 1];
+        if (($valueReview['single_value'] ?? true) !== true) {
+            return null;
+        }
+
+        $value = is_string($valueReview['value'] ?? null) ? $valueReview['value'] : '';
+        $reference = $this->objectReferenceFromValue($value);
+        $resolved = $this->resolvePdfValue($value, $objects);
+        if ($resolved === null && $reference !== null) {
+            return null;
+        }
+
+        $resolvedValue = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
+        $firstToken = $this->firstPdfValueToken($resolvedValue);
+        if ($firstToken === '' || !$this->pdfValueIsSingleToken($resolvedValue, $firstToken)) {
+            return null;
+        }
+
+        if ($firstToken[0] === '/' && preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $firstToken, $match) === 1) {
+            return $this->decodePdfName($match[1]);
+        }
+
+        if ($firstToken[0] === '(' || ($firstToken[0] === '<' && substr($firstToken, 0, 2) !== '<<')) {
+            return $this->pdfStringBytesFromValue($firstToken, $objects);
+        }
+
+        return $reference === null && preg_match('/^[^\s\[\]()<>{}\/%]+$/', $firstToken) === 1
+            ? $firstToken
+            : null;
     }
 
     /**

@@ -7345,12 +7345,13 @@ final class TableRecognizer
     }
 
     /**
-     * @param array<string, mixed> $record
+     * @param array<string|int, mixed> $record
      * @return list<float>|null
      */
     private function nullableBboxFromRecord(array $record): ?array
     {
         return $this->bboxFromExplicitCoordinateOrder($record)
+            ?? $this->bboxFromIndexedRecord($record)
             ?? $this->bboxFromValue($record['bbox'] ?? null)
             ?? $this->bboxFromNamedFields($record)
             ?? $this->bboxFromWrappedValue($record)
@@ -7369,6 +7370,20 @@ final class TableRecognizer
     private function bboxFromExplicitCoordinateOrder(array $record): ?array
     {
         $raw = $this->rawBboxCoordinatesFromExplicitCoordinateOrder($record);
+
+        return $raw === null ? null : $this->canonicalBbox($raw);
+    }
+
+    /**
+     * Raw row_bboxes/columns aliases can be direct four-value arrays, with
+     * optional table-level order metadata injected before localization.
+     *
+     * @param array<string|int, mixed> $record
+     * @return list<float>|null
+     */
+    private function bboxFromIndexedRecord(array $record): ?array
+    {
+        $raw = $this->rawBboxCoordinatesFromIndexedRecord($record);
 
         return $raw === null ? null : $this->canonicalBbox($raw);
     }
@@ -7646,6 +7661,9 @@ final class TableRecognizer
         if ($this->rawBboxCoordinatesFromExplicitCoordinateOrder($record) !== null) {
             return 'bbox_array_' . $this->bboxCoordinateOrderSource($record) . '_order';
         }
+        if ($this->rawBboxCoordinatesFromIndexedRecord($record) !== null) {
+            return 'bbox_array';
+        }
 
         $bbox = $record['bbox'] ?? null;
         if (is_array($bbox) && $this->bboxFromValue($bbox) !== null) {
@@ -7715,6 +7733,7 @@ final class TableRecognizer
     private function bboxEndpointOrderNormalizedFromRecord(array $record): bool
     {
         $raw = $this->rawBboxCoordinatesFromExplicitCoordinateOrder($record)
+            ?? $this->rawBboxCoordinatesFromIndexedRecord($record)
             ?? $this->rawBboxCoordinatesFromValue($record['bbox'] ?? null)
             ?? $this->rawBboxCoordinatesFromNamedFields($record)
             ?? $this->rawBboxCoordinatesFromWrappedValue($record)
@@ -7750,16 +7769,63 @@ final class TableRecognizer
     {
         $order = $this->bboxCoordinateOrder($record);
         $bbox = $record['bbox'] ?? null;
-        if ($order === null || !is_array($bbox) || !array_is_list($bbox)) {
+        if ($order === null) {
+            return null;
+        }
+        if (is_array($bbox) && array_is_list($bbox)) {
+            $value = array_values($bbox);
+        } else {
+            $value = $this->indexedBboxValueFromRecord($record);
+        }
+        if ($value === null) {
             return null;
         }
 
-        $raw = $this->rawBboxCoordinates($bbox);
+        $raw = $this->rawBboxCoordinates($value);
         if ($raw === null) {
             return null;
         }
 
         return $this->applyBboxCoordinateOrder($raw, $order);
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @return list<float>|null
+     */
+    private function rawBboxCoordinatesFromIndexedRecord(array $record): ?array
+    {
+        $value = $this->indexedBboxValueFromRecord($record);
+        if ($value === null) {
+            return null;
+        }
+
+        $raw = $this->rawBboxCoordinates($value);
+        if ($raw === null) {
+            return null;
+        }
+
+        $order = $this->bboxCoordinateOrder($record);
+
+        return $order === null ? $raw : $this->applyBboxCoordinateOrder($raw, $order);
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @return list<mixed>|null
+     */
+    private function indexedBboxValueFromRecord(array $record): ?array
+    {
+        if (
+            !array_key_exists(0, $record)
+            || !array_key_exists(1, $record)
+            || !array_key_exists(2, $record)
+            || !array_key_exists(3, $record)
+        ) {
+            return null;
+        }
+
+        return [$record[0], $record[1], $record[2], $record[3]];
     }
 
     /**

@@ -958,13 +958,8 @@ final class PdfAcroFormExtractor
 
         if ($body[$offset] === '<' && substr($body, $offset, 2) !== '<<') {
             $end = $this->skipHexString($body, $offset);
-            $hex = preg_replace('/\s+/', '', substr($body, $offset + 1, $end - $offset - 2)) ?? '';
-            if (strlen($hex) % 2 === 1) {
-                $hex .= '0';
-            }
-
-            $bytes = $hex === '' ? '' : hex2bin($hex);
-            if ($bytes === false) {
+            $bytes = $this->pdfHexStringBytes(substr($body, $offset + 1, $end - $offset - 2));
+            if ($bytes === null) {
                 return null;
             }
 
@@ -8584,12 +8579,9 @@ final class PdfAcroFormExtractor
 
         if ($body[$offset] === '<' && substr($body, $offset, 2) !== '<<') {
             $end = $this->skipHexString($body, $offset);
-            $hex = preg_replace('/\s+/', '', substr($body, $offset + 1, $end - $offset - 2)) ?? '';
-            if (strlen($hex) % 2 === 1) {
-                $hex .= '0';
-            }
-            $bytes = $hex === '' ? '' : hex2bin($hex);
-            if ($bytes === false) {
+            $endOffset = $end;
+            $bytes = $this->pdfHexStringBytes(substr($body, $offset + 1, $end - $offset - 2));
+            if ($bytes === null) {
                 return null;
             }
 
@@ -10640,12 +10632,8 @@ final class PdfAcroFormExtractor
 
         if ($value[0] === '<' && substr($value, 0, 2) !== '<<') {
             $end = $this->skipHexString($value, 0);
-            $hex = preg_replace('/\s+/', '', substr($value, 1, $end - 2)) ?? '';
-            if (strlen($hex) % 2 === 1) {
-                $hex .= '0';
-            }
-            $bytes = $hex === '' ? '' : hex2bin($hex);
-            return $bytes === false ? null : $this->decodePdfStringBytes($bytes);
+            $bytes = $this->pdfHexStringBytes(substr($value, 1, $end - 2));
+            return $bytes === null ? null : $this->decodePdfStringBytes($bytes);
         }
 
         if ($value[0] === '/') {
@@ -12763,6 +12751,20 @@ final class PdfAcroFormExtractor
         }
 
         return $bytes;
+    }
+
+    private function pdfHexStringBytes(string $hex): ?string
+    {
+        $hex = preg_replace('/\s+/', '', $hex) ?? '';
+        if ($hex !== '' && preg_match('/^[\da-fA-F]+$/', $hex) !== 1) {
+            return null;
+        }
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $bytes = $hex === '' ? '' : hex2bin($hex);
+        return $bytes === false ? null : $bytes;
     }
 
     private function decodeLiteralString(string $value): string

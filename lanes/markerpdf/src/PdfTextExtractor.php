@@ -42644,6 +42644,12 @@ final class PdfTextExtractor
                         $candidate,
                         null
                     )
+                    || $this->inlineIdentityCryptPrefixCandidateReachesSampleFloorBeforeFilterSurplus(
+                        $filters,
+                        $dictionary,
+                        $candidate,
+                        null
+                    )
                 )
             ) {
                 return true;
@@ -43460,7 +43466,8 @@ final class PdfTextExtractor
 
     /**
      * Identity Crypt is byte-preserving, so a bounded native filter after it can
-     * still define the original inline-image ownership boundary.
+     * still define the original inline-image ownership boundary. Without a
+     * sample floor, a non-empty bounded decode proves the same ownership.
      *
      * @param list<string|null> $filters
      */
@@ -43468,10 +43475,10 @@ final class PdfTextExtractor
         array $filters,
         string $dictionary,
         string $candidate,
-        int $expectedLength
+        ?int $expectedLength
     ): bool {
         $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
-        if ($expectedLength < 1 || count($nonNullFilters) < 2) {
+        if (($expectedLength !== null && $expectedLength < 1) || count($nonNullFilters) < 2) {
             return false;
         }
 
@@ -43527,7 +43534,7 @@ final class PdfTextExtractor
                 true
             );
             if ($decoded !== null) {
-                return strlen($decoded) >= $expectedLength;
+                return $expectedLength === null ? $decoded !== '' : strlen($decoded) >= $expectedLength;
             }
 
             $nativePrefix = $this->decodeInlineImageNativePrefixBeforePreviewFilter(
@@ -43537,7 +43544,8 @@ final class PdfTextExtractor
                 $boundedCandidate
             );
 
-            return $nativePrefix !== null && strlen($nativePrefix) >= $expectedLength;
+            return $nativePrefix !== null
+                && ($expectedLength === null ? $nativePrefix !== '' : strlen($nativePrefix) >= $expectedLength);
         }
 
         return false;
