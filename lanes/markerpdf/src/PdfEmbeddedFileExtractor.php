@@ -927,6 +927,7 @@ final class PdfEmbeddedFileExtractor
         ?array $encryptionPolicy = null
     ): ?array
     {
+        $fileSpecReference = $this->objectReferenceFromValue($value);
         $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
         if ($fileSpec === null) {
             return null;
@@ -981,6 +982,12 @@ final class PdfEmbeddedFileExtractor
                 'file_spec_object' => $fileSpec['object'],
                 'embedded_file_object' => $stream['object'],
             ];
+            if ($fileSpecReference !== null) {
+                $file['file_spec_generation'] = $fileSpecReference['generation'];
+            }
+            if (array_key_exists('generation', $stream) && is_int($stream['generation'])) {
+                $file['embedded_file_generation'] = $stream['generation'];
+            }
             foreach ($this->embeddedFileKeySelectionReview($filenameSource, $efKey) as $key => $metadataValue) {
                 $file[$key] = $metadataValue;
             }
@@ -2564,11 +2571,12 @@ final class PdfEmbeddedFileExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{object: int|null, dictionary: string}|null
+     * @return array{object: int|null, generation: int|null, dictionary: string}|null
      */
     private function embeddedFileStreamReviewFromValue(string $value, array $objects): ?array
     {
-        $objectNumber = $this->objectNumberFromReference($value);
+        $reference = $this->objectReferenceFromValue($value);
+        $objectNumber = $reference['objectNumber'] ?? null;
         $body = $objectNumber !== null ? $this->objectBodyFromReferenceValue($value, $objects) : trim($value);
         if ($body === null || $body === '') {
             return null;
@@ -2590,17 +2598,19 @@ final class PdfEmbeddedFileExtractor
 
         return [
             'object' => $objectNumber,
+            'generation' => $reference['generation'] ?? null,
             'dictionary' => $match[1],
         ];
     }
 
     /**
      * @param array<int, string> $objects
-     * @return array{object: int|null, dictionary: string, content: string, filters: list<string>}|null
+     * @return array{object: int|null, generation: int|null, dictionary: string, content: string, filters: list<string>}|null
      */
     private function embeddedFileStreamFromValue(string $value, array $objects): ?array
     {
-        $objectNumber = $this->objectNumberFromReference($value);
+        $reference = $this->objectReferenceFromValue($value);
+        $objectNumber = $reference['objectNumber'] ?? null;
         $body = $objectNumber !== null ? $this->objectBodyFromReferenceValue($value, $objects) : trim($value);
         if ($body === null || $body === '') {
             return null;
@@ -2623,6 +2633,7 @@ final class PdfEmbeddedFileExtractor
 
         return [
             'object' => $objectNumber,
+            'generation' => $reference['generation'] ?? null,
             'dictionary' => $stream['dictionary'],
             'content' => $stream['content'],
             'filters' => $stream['filters'],
@@ -3535,14 +3546,20 @@ final class PdfEmbeddedFileExtractor
             $fileSpecObject = $file['file_spec_object'] ?? null;
             $embeddedFileObject = $file['embedded_file_object'] ?? null;
             $filenameSource = $file['filename_source'] ?? null;
-            $streamKey = is_int($embeddedFileObject) ? 'stream:' . $embeddedFileObject : null;
+            $embeddedFileGeneration = $file['embedded_file_generation'] ?? null;
+            $streamKey = is_int($embeddedFileObject)
+                ? 'stream:' . $embeddedFileObject . ':' . (is_int($embeddedFileGeneration) ? $embeddedFileGeneration : 'unknown')
+                : null;
             if ($filenameSource === 'generated' && $streamKey !== null && isset($seenNamedStreams[$streamKey])) {
                 $this->mergeEmbeddedFileMirrorMetadata($deduped[$seenNamedStreams[$streamKey]], $file);
                 continue;
             }
 
+            $fileSpecGeneration = $file['file_spec_generation'] ?? null;
             $key = is_int($fileSpecObject) && is_int($embeddedFileObject)
-                ? 'objects:' . $fileSpecObject . ':' . $embeddedFileObject
+                ? 'objects:'
+                    . $fileSpecObject . ':' . (is_int($fileSpecGeneration) ? $fileSpecGeneration : 'unknown')
+                    . ':' . $embeddedFileObject . ':' . (is_int($embeddedFileGeneration) ? $embeddedFileGeneration : 'unknown')
                 : 'values:' . ($embeddedFileObject ?? 'direct') . ':' . ($file['name'] ?? '') . ':' . ($file['filename'] ?? '');
             if (isset($seen[$key])) {
                 $this->mergeEmbeddedFileMirrorMetadata($deduped[$seen[$key]], $file);

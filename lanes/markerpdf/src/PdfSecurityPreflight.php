@@ -537,6 +537,20 @@ final class PdfSecurityPreflight
             'permission_handler_review' => $handlerReview,
             'standard_authentication_review' => $standardAuthenticationReview,
             'standard_authentication_material_review' => $standardAuthenticationMaterialReview,
+            'standard_authentication_material_policy' => $this->standardAuthenticationMaterialPolicy($standardAuthenticationMaterialReview),
+            'standard_authentication_required_entry_count' => (int) ($standardAuthenticationMaterialReview['required_entry_count'] ?? 0),
+            'standard_authentication_present_required_entry_count' => (int) ($standardAuthenticationMaterialReview['present_required_entry_count'] ?? 0),
+            'standard_authentication_present_required_entries' => $this->stringListValue($standardAuthenticationMaterialReview, 'present_required_entries'),
+            'standard_authentication_missing_required_entries' => $this->stringListValue($standardAuthenticationMaterialReview, 'missing_required_entries'),
+            'standard_authentication_unresolved_required_entries' => $this->stringListValue($standardAuthenticationMaterialReview, 'unresolved_required_entries'),
+            'standard_authentication_length_mismatch_required_entries' => $this->stringListValue($standardAuthenticationMaterialReview, 'length_mismatch_required_entries'),
+            'standard_authentication_duplicate_required_entries' => $this->stringListValue($standardAuthenticationMaterialReview, 'duplicate_required_entries'),
+            'standard_authentication_required_entry_statuses' => $this->stringListValue($standardAuthenticationMaterialReview, 'required_entry_statuses'),
+            'standard_authentication_permission_digest_status' => is_string($standardAuthenticationMaterialReview['permission_digest_status'] ?? null)
+                ? $standardAuthenticationMaterialReview['permission_digest_status']
+                : null,
+            'standard_authentication_permission_digest_length_valid' => $standardAuthenticationMaterialReview['permission_digest_length_valid'] ?? null,
+            'standard_authentication_permission_digest_duplicate_entries' => (bool) ($standardAuthenticationMaterialReview['permission_digest_duplicate_entries'] ?? false),
             'standard_authentication_ready_for_password_attempt' => ($standardAuthenticationMaterialReview['present'] ?? false) === true
                 ? (bool) ($standardAuthenticationMaterialReview['ready_for_password_attempt'] ?? false)
                 : null,
@@ -790,6 +804,74 @@ final class PdfSecurityPreflight
                 ? 'standard_authentication_material_ready_for_password_attempt'
                 : 'standard_authentication_material_incomplete_or_malformed_review',
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $review
+     */
+    private function standardAuthenticationMaterialPolicy(array $review): string
+    {
+        if (($review['standard_handler'] ?? false) !== true) {
+            return 'standard_authentication_material_not_applicable';
+        }
+        if (($review['present'] ?? false) !== true) {
+            return 'standard_authentication_material_unavailable';
+        }
+        if (($review['ready_for_password_attempt'] ?? false) === true) {
+            return 'standard_authentication_material_ready_for_password_attempt';
+        }
+
+        if ($this->stringListValue($review, 'missing_required_entries') !== []) {
+            return 'standard_authentication_material_missing_required_entries';
+        }
+        if ($this->stringListValue($review, 'duplicate_required_entries') !== []) {
+            return 'standard_authentication_material_duplicate_required_entries';
+        }
+        if ($this->stringListValue($review, 'unresolved_required_entries') !== []) {
+            return 'standard_authentication_material_unresolved_required_entries';
+        }
+        if ($this->stringListValue($review, 'length_mismatch_required_entries') !== []) {
+            return 'standard_authentication_material_length_mismatch';
+        }
+        if (($review['permission_digest_duplicate_entries'] ?? false) === true) {
+            return 'standard_permission_digest_duplicate_entries';
+        }
+        if (
+            ($review['permission_digest_required'] ?? false) === true
+            && ($review['permission_digest_present'] ?? false) !== true
+        ) {
+            return 'standard_permission_digest_missing';
+        }
+
+        $digestStatus = is_string($review['permission_digest_status'] ?? null)
+            ? $review['permission_digest_status']
+            : null;
+        if (
+            $digestStatus !== null
+            && !in_array($digestStatus, [
+                'permission_digest_ciphertext_review',
+                'permission_digest_absent_for_legacy_revision',
+                'unexpected_permission_digest_for_legacy_revision_review',
+            ], true)
+        ) {
+            return 'standard_permission_digest_malformed';
+        }
+
+        return 'standard_authentication_material_incomplete_or_malformed';
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return list<string>
+     */
+    private function stringListValue(array $row, string $key): array
+    {
+        $values = is_array($row[$key] ?? null) ? $row[$key] : [];
+
+        return array_values(array_filter(
+            $values,
+            static fn (mixed $value): bool => is_string($value)
+        ));
     }
 
     /**
@@ -6570,6 +6652,20 @@ final class PdfSecurityPreflight
             'standard_permission_digest_ignored_for_permission_authentication' => (bool) ($standardAuthenticationMaterialReview['permission_digest_ignored_for_permission_authentication'] ?? false),
             'standard_authentication_review' => $standardAuthenticationReview,
             'standard_authentication_material_review' => $standardAuthenticationMaterialReview,
+            'standard_authentication_material_policy' => $this->standardAuthenticationMaterialPolicy($standardAuthenticationMaterialReview),
+            'standard_authentication_required_entry_count' => (int) ($standardAuthenticationMaterialReview['required_entry_count'] ?? 0),
+            'standard_authentication_present_required_entry_count' => (int) ($standardAuthenticationMaterialReview['present_required_entry_count'] ?? 0),
+            'standard_authentication_present_required_entries' => $this->stringListValue($standardAuthenticationMaterialReview, 'present_required_entries'),
+            'standard_authentication_missing_required_entries' => $this->stringListValue($standardAuthenticationMaterialReview, 'missing_required_entries'),
+            'standard_authentication_unresolved_required_entries' => $this->stringListValue($standardAuthenticationMaterialReview, 'unresolved_required_entries'),
+            'standard_authentication_length_mismatch_required_entries' => $this->stringListValue($standardAuthenticationMaterialReview, 'length_mismatch_required_entries'),
+            'standard_authentication_duplicate_required_entries' => $this->stringListValue($standardAuthenticationMaterialReview, 'duplicate_required_entries'),
+            'standard_authentication_required_entry_statuses' => $this->stringListValue($standardAuthenticationMaterialReview, 'required_entry_statuses'),
+            'standard_authentication_permission_digest_status' => is_string($standardAuthenticationMaterialReview['permission_digest_status'] ?? null)
+                ? $standardAuthenticationMaterialReview['permission_digest_status']
+                : null,
+            'standard_authentication_permission_digest_length_valid' => $standardAuthenticationMaterialReview['permission_digest_length_valid'] ?? null,
+            'standard_authentication_permission_digest_duplicate_entries' => (bool) ($standardAuthenticationMaterialReview['permission_digest_duplicate_entries'] ?? false),
             'standard_authentication_ready_for_password_attempt' => ($standardAuthenticationMaterialReview['present'] ?? false) === true
                 ? (bool) ($standardAuthenticationMaterialReview['ready_for_password_attempt'] ?? false)
                 : null,

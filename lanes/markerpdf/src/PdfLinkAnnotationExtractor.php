@@ -3242,6 +3242,12 @@ final class PdfLinkAnnotationExtractor
         if ($value === null) {
             return null;
         }
+        if (
+            $this->dictionaryValueHasTrailingOperand($body, $name)
+            || $this->resolvedValueHasTrailingOperand($value, $objects)
+        ) {
+            return null;
+        }
 
         $value = $this->resolveIndirectObjectValue($value, $objects);
         if (preg_match('/^[+-]?\d+/', trim($value), $match) !== 1) {

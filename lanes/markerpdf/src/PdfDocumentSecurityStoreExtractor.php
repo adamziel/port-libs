@@ -447,7 +447,7 @@ final class PdfDocumentSecurityStoreExtractor
         int $currentOffset,
         array $definitions
     ): ?int {
-        $previousOffset = $this->previousXrefOffsetFromSectionBody($body);
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($body, $definitions, $currentOffset);
         if ($previousOffset === null || $previousOffset < 0) {
             return $previousOffset;
         }
@@ -1004,11 +1004,83 @@ final class PdfDocumentSecurityStoreExtractor
         return null;
     }
 
-    private function previousXrefOffsetFromSectionBody(string $body): ?int
-    {
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<string, true> $seenReferences
+     */
+    private function previousXrefOffsetFromSectionBody(
+        string $body,
+        array $definitions = [],
+        ?int $beforeOffset = null,
+        array $seenReferences = []
+    ): ?int {
         $value = $this->valueAfterName($body, 'Prev');
+        if ($value === null) {
+            return null;
+        }
 
-        return $this->integerValueFromValue($value);
+        $arrayItems = $this->arrayItemsFromValue($value, []);
+        if ($arrayItems !== []) {
+            if (count($arrayItems) !== 1) {
+                return null;
+            }
+
+            $value = $arrayItems[0];
+        }
+
+        $integer = $this->integerValueFromValue($value);
+        if ($integer !== null) {
+            return $integer;
+        }
+
+        if ($definitions === [] || $beforeOffset === null) {
+            return null;
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return null;
+        }
+
+        $referenceKey = $reference['objectNumber'] . ':' . $reference['generation'];
+        if (isset($seenReferences[$referenceKey]) || count($seenReferences) >= 8) {
+            return null;
+        }
+        $seenReferences[$referenceKey] = true;
+
+        $definition = $this->directObjectDefinitionBeforeOffset(
+            $definitions[$reference['objectNumber']] ?? [],
+            $reference['generation'],
+            $beforeOffset
+        );
+        if ($definition === null) {
+            return null;
+        }
+
+        return $this->previousXrefOffsetFromSectionBody(
+            '<< /Prev ' . trim($definition['body']) . ' >>',
+            $definitions,
+            $definition['offset'],
+            $seenReferences
+        );
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionBeforeOffset(array $definitions, int $generation, int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['generation'] !== $generation || $definition['offset'] >= $beforeOffset) {
+                continue;
+            }
+
+            $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
     }
 
     /**

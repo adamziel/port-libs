@@ -2695,6 +2695,17 @@ final class PdfAnnotationExtractor
      */
     private function intValueAfterName(string $body, string $name, array $objects): ?int
     {
+        $rawValue = $this->valueAfterName($body, $name);
+        if ($rawValue === null) {
+            return null;
+        }
+        if (
+            $this->dictionaryValueHasTrailingOperand($body, $name)
+            || $this->resolvedValueHasTrailingOperand($rawValue, $objects)
+        ) {
+            return null;
+        }
+
         $value = $this->floatValueAfterName($body, $name, $objects);
 
         return $value === null ? null : (int) $value;

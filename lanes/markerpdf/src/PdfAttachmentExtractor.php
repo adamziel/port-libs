@@ -577,11 +577,21 @@ final class PdfAttachmentExtractor
         if (!is_int($attachmentStreamId) || !is_int($candidateStreamId) || $attachmentStreamId !== $candidateStreamId) {
             return false;
         }
+        if (!$this->sameKnownObjectGeneration(
+            $attachment['stream_object_generation'] ?? null,
+            $candidate['stream_object_generation'] ?? null
+        )) {
+            return false;
+        }
 
         $attachmentFileSpecId = $attachment['file_spec_object_id'] ?? null;
         $candidateFileSpecId = $candidate['file_spec_object_id'] ?? null;
         if (is_int($attachmentFileSpecId) && is_int($candidateFileSpecId)) {
-            return $attachmentFileSpecId === $candidateFileSpecId;
+            return $attachmentFileSpecId === $candidateFileSpecId
+                && $this->sameKnownObjectGeneration(
+                    $attachment['file_spec_object_generation'] ?? null,
+                    $candidate['file_spec_object_generation'] ?? null
+                );
         }
 
         if ($this->hasGeneratedFilenameMirror($attachment, $candidate)) {
@@ -591,6 +601,11 @@ final class PdfAttachmentExtractor
         return ($attachment['filename'] ?? null) === ($candidate['filename'] ?? null)
             && ($attachment['byte_length'] ?? null) === ($candidate['byte_length'] ?? null)
             && ($attachment['sha256'] ?? null) === ($candidate['sha256'] ?? null);
+    }
+
+    private function sameKnownObjectGeneration(mixed $left, mixed $right): bool
+    {
+        return !is_int($left) || !is_int($right) || $left === $right;
     }
 
     /**
@@ -1758,7 +1773,8 @@ final class PdfAttachmentExtractor
         ?array $encryptionPolicy = null,
         ?string $fileSpecRaw = null
     ): ?array {
-        $fileSpecObjectId = $this->refObjectId($fileSpecValue);
+        $fileSpecReference = $this->refObjectReference($fileSpecValue);
+        $fileSpecObjectId = $fileSpecReference['objectNumber'] ?? null;
         $fileSpecObject = $this->objectForReference($fileSpecValue, $objects);
         $fileSpecDictionaryBody = null;
         if ($fileSpecObject !== null) {
@@ -1816,6 +1832,7 @@ final class PdfAttachmentExtractor
         }
 
         $streamObjectId = $streamReference['objectId'];
+        $streamObjectGeneration = $streamReference['generation'];
         if ($filename === '') {
             $filename = 'attachment-' . $streamObjectId;
             $filenameSource = 'generated';
@@ -1880,6 +1897,7 @@ final class PdfAttachmentExtractor
             'source' => $source,
             'file_spec_object_id' => $fileSpecObjectId,
             'stream_object_id' => $streamObjectId,
+            'stream_object_generation' => $streamObjectGeneration,
             'ef_key' => $streamReference['key'],
             'filename' => $filename,
             'filename_source' => $filenameSource,
@@ -1892,6 +1910,9 @@ final class PdfAttachmentExtractor
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
+        if ($fileSpecReference !== null) {
+            $attachment['file_spec_object_generation'] = $fileSpecReference['generation'];
+        }
         foreach ($this->embeddedFileKeySelectionReview($filenameSource, $streamReference['key']) as $key => $metadataValue) {
             $attachment[$key] = $metadataValue;
         }
@@ -3528,7 +3549,7 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
-     * @return array{objectId: int, key: string, object: array{generation: int, body: string, value: mixed, stream: string|null}}|null
+     * @return array{objectId: int, generation: int, key: string, object: array{generation: int, body: string, value: mixed, stream: string|null}}|null
      */
     private function embeddedFileStreamReference(mixed $efValue, array $objects, string $preferredKey): ?array
     {
@@ -3539,10 +3560,15 @@ final class PdfAttachmentExtractor
 
         $keys = $this->embeddedFileKeyOrder($preferredKey);
         foreach ($keys as $key) {
-            $objectId = $this->refObjectId($ef[$key] ?? null);
+            $reference = $this->refObjectReference($ef[$key] ?? null);
             $object = $this->objectForReference($ef[$key] ?? null, $objects);
-            if ($objectId !== null && $object !== null) {
-                return ['objectId' => $objectId, 'key' => $key, 'object' => $object];
+            if ($reference !== null && $object !== null) {
+                return [
+                    'objectId' => $reference['objectNumber'],
+                    'generation' => $reference['generation'],
+                    'key' => $key,
+                    'object' => $object,
+                ];
             }
         }
 
