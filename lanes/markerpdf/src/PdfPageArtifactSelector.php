@@ -254,10 +254,7 @@ final class PdfPageArtifactSelector
             }
 
             self::rememberArtifactPageKey($seenPageKeys, $pageKey);
-            if (!self::hasPotentialPageMarker($candidate)) {
-                $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
-            }
-            $artifacts[] = $candidate;
+            $artifacts[] = self::withEnvelopePageKey($candidate, $pageKey);
         }
 
         return $artifacts !== [] ? $artifacts : null;
@@ -506,8 +503,8 @@ final class PdfPageArtifactSelector
             return null;
         }
 
-        if ($payload !== null && $payloadKey !== null && !self::hasPotentialPageMarker($payload)) {
-            $payload[self::ENVELOPE_PAGE_KEY_MARKER] = $payloadKey;
+        if ($payload !== null && $payloadKey !== null) {
+            $payload = self::withEnvelopePageKey($payload, $payloadKey);
         }
 
         return $dictionaryCount === 1 ? $payload : null;
@@ -540,10 +537,7 @@ final class PdfPageArtifactSelector
             }
 
             self::rememberArtifactPageKey($seenPageKeys, $pageKey);
-            if (!self::hasPotentialPageMarker($candidate)) {
-                $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
-            }
-            $artifacts[] = $candidate;
+            $artifacts[] = self::withEnvelopePageKey($candidate, $pageKey);
         }
 
         return count($artifacts) > 1 ? $artifacts : null;
@@ -560,6 +554,19 @@ final class PdfPageArtifactSelector
         }
 
         $seenPageKeys[$fingerprint] = true;
+    }
+
+    /**
+     * Source-page object-map keys are selector identity. They must agree with
+     * any inner page metadata before an artifact is aligned to a selected page.
+     *
+     * @param array<mixed> $payload
+     */
+    private static function withEnvelopePageKey(array $payload, int $pageKey): array
+    {
+        $payload[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
+
+        return $payload;
     }
 
     private static function isIgnorableArtifactMapEntry(mixed $candidate): bool
