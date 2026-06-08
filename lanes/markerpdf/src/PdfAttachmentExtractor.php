@@ -1553,7 +1553,7 @@ final class PdfAttachmentExtractor
             }
         }
 
-        if ($streamReference === null || !isset($objects[$streamReference['objectId']])) {
+        if ($streamReference === null) {
             return null;
         }
 
@@ -1562,7 +1562,7 @@ final class PdfAttachmentExtractor
             $filename = 'attachment-' . $streamObjectId;
             $filenameSource = 'generated';
         }
-        $streamObject = $objects[$streamObjectId];
+        $streamObject = $streamReference['object'];
         if ($streamObject['stream'] === null) {
             return null;
         }
@@ -3214,7 +3214,7 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
-     * @return array{objectId: int, key: string}|null
+     * @return array{objectId: int, key: string, object: array{generation: int, body: string, value: mixed, stream: string|null}}|null
      */
     private function embeddedFileStreamReference(mixed $efValue, array $objects, string $preferredKey): ?array
     {
@@ -3226,15 +3226,17 @@ final class PdfAttachmentExtractor
         $keys = $this->embeddedFileKeyOrder($preferredKey);
         foreach ($keys as $key) {
             $objectId = $this->refObjectId($ef[$key] ?? null);
-            if ($objectId !== null && $this->objectForReference($ef[$key] ?? null, $objects) !== null) {
-                return ['objectId' => $objectId, 'key' => $key];
+            $object = $this->objectForReference($ef[$key] ?? null, $objects);
+            if ($objectId !== null && $object !== null) {
+                return ['objectId' => $objectId, 'key' => $key, 'object' => $object];
             }
         }
 
         foreach ($ef as $key => $value) {
             $objectId = $this->refObjectId($value);
-            if ($objectId !== null && $this->objectForReference($value, $objects) !== null) {
-                return ['objectId' => $objectId, 'key' => is_string($key) ? $key : 'unknown'];
+            $object = $this->objectForReference($value, $objects);
+            if ($objectId !== null && $object !== null) {
+                return ['objectId' => $objectId, 'key' => is_string($key) ? $key : 'unknown', 'object' => $object];
             }
         }
 
