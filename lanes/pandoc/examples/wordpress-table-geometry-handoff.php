@@ -160,6 +160,22 @@ $legacyFrameTables = array_values(array_filter(
     $legacyFrameDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$directionalityDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="directionality-grid" data-source="html-reader" dir="rtl">
+<caption>Directionality review</caption>
+<thead dir="ltr">
+<tr dir="rtl"><th>Scope</th><th dir="auto">State</th></tr>
+</thead>
+<tbody dir="rtl" data-section="body">
+<tr><th>Posts</th><td>جاهز</td></tr>
+<tr dir="ltr"><th>Media</th><td dir="auto">Review</td></tr>
+</tbody>
+</table>
+HTML);
+$directionalityTables = array_values(array_filter(
+    $directionalityDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $captionSourceDocument = (new MarkdownReader())->read(<<<'HTML'
 <table>
 <caption id="caption-source-handoff" class="source-caption" data-origin="html-reader" aria-label="Caption source" style="caption-side: bottom" onclick="blocked()">Caption source handoff</caption>
@@ -1121,6 +1137,7 @@ $document = new AstNode('document', [], [
     ...$inheritedAlignmentTables,
     ...$verticalAlignmentTables,
     ...$legacyFrameTables,
+    ...$directionalityTables,
     ...$readerHandoffTables,
     ...$captionSourceTables,
     ...$axisSourceTables,
@@ -2311,6 +2328,53 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($legacyFramePacket, JSON_THROW_ON_ERROR);
     json_encode($legacyFrameDowngrades, JSON_THROW_ON_ERROR);
+
+    $directionalityTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'directionality-grid') {
+            $directionalityTable = $node;
+            break;
+        }
+    }
+    $directionalityPacket = $directionalityTable instanceof AstNode ? $directionalityTable->attr('tableGeometry') : null;
+    $directionalityDowngrades = $directionalityTable instanceof AstNode ? TableGeometry::reviewPacket($directionalityTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $directionalityDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $directionalityDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-direction'
+        ));
+        $directionalityDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$directionalityTable instanceof AstNode
+        || !is_array($directionalityPacket)
+        || ($directionalityPacket['directionality']['table']['direction'] ?? null) !== 'rtl'
+        || ($directionalityPacket['directionality']['sections'][0]['direction'] ?? null) !== 'ltr'
+        || ($directionalityPacket['directionality']['rows'][1]['direction'] ?? null) !== 'ltr'
+        || ($directionalityPacket['directionality']['cells'][1]['direction'] ?? null) !== 'auto'
+        || ($directionalityPacket['directionality']['cells'][3]['source'] ?? null) !== 'section'
+        || ($directionalityPacket['summary']['hasTableDirectionality'] ?? null) !== true
+        || ($directionalityPacket['summary']['directionalCellCount'] ?? null) !== 6
+        || ($directionalityPacket['summary']['tableDirections'] ?? null) !== ['auto', 'ltr', 'rtl']
+        || ($directionalityDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-direction-requires-raw-html'
+        || ($directionalityDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-direction-review-required'
+        || ($directionalityDiagnostics['latex']['code'] ?? null) !== 'latex-table-direction-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML table directionality metadata');
+    }
+    if (
+        !str_contains($blocks, '<table id="directionality-grid" data-source="html-reader" dir="rtl">')
+        || !str_contains($blocks, '<thead dir="ltr"><tr dir="rtl"><th>Scope</th><th dir="auto">State</th></tr></thead>')
+        || !str_contains($blocks, '<tbody dir="rtl" data-section="body"><tr><th>Posts</th><td>جاهز</td></tr><tr dir="ltr"><th>Media</th><td dir="auto">Review</td></tr></tbody>')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for HTML directionality handoff');
+    }
+    json_encode($directionalityPacket, JSON_THROW_ON_ERROR);
+    json_encode($directionalityDowngrades, JSON_THROW_ON_ERROR);
 
     $readerTable = null;
     foreach ($document->children as $node) {

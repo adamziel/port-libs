@@ -532,6 +532,16 @@ $typedFiletime = static function (string $iso8601) use ($u64): string {
 $typedClsid = static function (string $clsid) use ($clsidBytes): string {
     return pack('v', 0x0048) . "\0\0" . $clsidBytes($clsid);
 };
+$typedThumbnail = static function (int $clipboardTag, ?int $formatId, string $data) use ($u32): string {
+    $payload = $u32($clipboardTag);
+    if ($clipboardTag !== 0) {
+        $payload .= $u32($formatId ?? 0) . $data;
+    }
+
+    $raw = pack('v', 0x0047) . "\0\0" . $u32(strlen($payload)) . $payload;
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
 $typedVectorLpstr = static function (array $values) use ($padTo): string {
     $payload = pack('V', count($values));
     foreach ($values as $value) {
@@ -2282,6 +2292,35 @@ return [
         $t->same(3, $metadata['documentSecurity']);
         $t->same(['passwordProtected', 'readOnlyRecommended'], $metadata['documentSecurityFlags']);
         $t->same('Unicode Legacy Packet Ω', $result['document']->attr('meta')['title']);
+    },
+    'extracts legacy DOC SummaryInformation thumbnail clipboard metadata without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedThumbnail): void {
+        $thumbnailBytes = 'DIB legacy thumbnail review packet';
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Thumbnail metadata review packet\r"),
+            "\x05SummaryInformation" => $typedPropertySet([
+                17 => $typedThumbnail(0xffffffff, 0x00000008, $thumbnailBytes),
+            ]),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+        $thumbnail = $metadata['thumbnail'] ?? null;
+
+        $t->same(true, is_array($thumbnail));
+        $t->same('thumbnail', $thumbnail['type'] ?? null);
+        $t->same('SummaryInformation', $thumbnail['source'] ?? null);
+        $t->same('windows', $thumbnail['clipboardTag'] ?? null);
+        $t->same(0xffffffff, $thumbnail['clipboardTagValue'] ?? null);
+        $t->same(0x00000008, $thumbnail['formatId'] ?? null);
+        $t->same('dib', $thumbnail['format'] ?? null);
+        $t->same(strlen($thumbnailBytes), $thumbnail['byteCount'] ?? null);
+        $t->same(hash('sha256', $thumbnailBytes), $thumbnail['sha256'] ?? null);
+        $t->same('metadata-only-native-review', $thumbnail['extractionPolicy'] ?? null);
+        $t->same(false, $thumbnail['canExposeBytes'] ?? null);
+        $t->same('dib', $metadata['thumbnailFormat'] ?? null);
+        $t->same(strlen($thumbnailBytes), $metadata['thumbnailByteCount'] ?? null);
+        $t->same($thumbnail, $result['document']->attr('meta')['thumbnail'] ?? null);
+        $t->same(false, str_contains(json_encode($metadata, JSON_THROW_ON_ERROR), 'DIB legacy thumbnail review packet'));
     },
     'surfaces legacy DOC FibBase language and document-state flags for review' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u16): void {
         $wordDocument = $buildSimpleWordDocument("FibBase review packet\r", 0x2c33);

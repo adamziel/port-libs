@@ -4338,6 +4338,93 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfStructureClassMap']);
     },
 
+    'fake runner extracts bounded pdf structure class usage metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/struct-class-usage.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R 11 0 R] /ClassMap << /ReviewFigure 12 0 R /ReviewCell [13 0 R << /O /Table /RowSpan 2 /ColSpan 3 /Scope /Column /Headers [14 0 R] >>] /ReviewList << /O /List /ListNumbering /UpperAlpha >> >> >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /Figure /P 9 0 R /C [/ReviewFigure /ReviewCell /MissingClass] /K 0 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /StructElem /S /LBody /P 9 0 R /C /ReviewList /K 1 >>',
+            'endobj',
+            '12 0 obj',
+            '<< /O /Layout /Placement /Block /WritingMode /LrTb /TextAlign /Center /BlockAlign /Middle /InlineAlign /Center /BBox [72 648 540 720] /R 4 >>',
+            'endobj',
+            '13 0 obj',
+            '<< /O /Layout /Placement /Inline /TextAlign /End /BBox [72 600 540 620] /R 2 >>',
+            'endobj',
+            '14 0 obj',
+            '<< /Type /StructElem /S /TH /P 9 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/struct-class-usage.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/struct-class-usage.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'object' => '10 0 R',
+                'type' => 'Figure',
+                'classNames' => ['ReviewFigure', 'ReviewCell', 'MissingClass'],
+                'missingClasses' => ['MissingClass'],
+                'mappedAttributeCounts' => [
+                    'ReviewCell' => 2,
+                    'ReviewFigure' => 1,
+                ],
+            ],
+            [
+                'object' => '11 0 R',
+                'type' => 'LBody',
+                'classNames' => ['ReviewList'],
+                'missingClasses' => [],
+                'mappedAttributeCounts' => [
+                    'ReviewList' => 1,
+                ],
+            ],
+        ];
+
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureClassUsage']);
+        $t->contains('pdf-byte-structure-class-usage:2', $diagnostics);
+        $t->contains('pdf-byte-structure-class-used:MissingClass', $diagnostics);
+        $t->contains('pdf-byte-structure-class-used:ReviewCell', $diagnostics);
+        $t->contains('pdf-byte-structure-class-used:ReviewFigure', $diagnostics);
+        $t->contains('pdf-byte-structure-class-used:ReviewList', $diagnostics);
+        $t->contains('pdf-byte-structure-class-missing:1', $diagnostics);
+        $t->contains('pdf-byte-structure-class-attributes:4', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureClassUsage']);
+    },
+
     'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);

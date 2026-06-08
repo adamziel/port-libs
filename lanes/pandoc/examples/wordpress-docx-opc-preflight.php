@@ -2013,6 +2013,8 @@ $summary = [
                 'relationshipPart' => $reference['relationshipPart'],
                 'referenceContentType' => $reference['referenceContentType'],
                 'referenceContentTypeMatches' => $reference['referenceContentTypeMatches'],
+                'relationshipTransformIndexes' => $reference['relationshipTransformIndexes'],
+                'canonicalizationTransformIndexes' => $reference['canonicalizationTransformIndexes'],
                 'relationshipTransformCount' => $reference['relationshipTransformCount'],
                 'canonicalizationTransformCount' => $reference['canonicalizationTransformCount'],
                 'canonicalizationTransformAlgorithms' => $reference['canonicalizationTransformAlgorithms'],
@@ -2233,6 +2235,8 @@ if (($argv[1] ?? '') === '--self-test') {
             'http://schemas.openxmlformats.org/package/2006/RelationshipTransform',
             'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
         ]
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['relationshipTransformIndexes'] ?? null) !== [0]
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformIndexes'] ?? null) !== [1]
         || ($summary['digitalSignatureSignedInfoReferences'][0]['relationshipTransformCount'] ?? null) !== 1
         || ($summary['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformCount'] ?? null) !== 1
         || ($summary['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformAlgorithms'] ?? null) !== ['http://www.w3.org/TR/2001/REC-xml-c14n-20010315']
@@ -2256,6 +2260,8 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['targetPart'] ?? null) !== '/word/_rels/document.xml.rels'
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipPart'] ?? null) !== true
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipTransformIndexes'] ?? null) !== [0]
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformIndexes'] ?? null) !== [1]
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipTransformCount'] ?? null) !== 1
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformCount'] ?? null) !== 1
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformAlgorithms'] ?? null) !== ['http://www.w3.org/TR/2001/REC-xml-c14n-20010315']

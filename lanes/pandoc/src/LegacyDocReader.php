@@ -113,6 +113,7 @@ final class LegacyDocReader
     private const FIELD_CHARACTER_BEGIN = 0x13;
     private const FIELD_CHARACTER_SEPARATOR = 0x14;
     private const FIELD_CHARACTER_END = 0x15;
+    private const MAX_CLIPBOARD_DATA_BYTES = 8388608;
     private const FIELD_TYPE_NAMES = [
         0x03 => 'ref',
         0x05 => 'noteref',
@@ -5656,6 +5657,7 @@ final class LegacyDocReader
             0x0040 => $valueOffset + 8 <= strlen($bytes)
                 ? ['value' => $this->readFiletime($bytes, $valueOffset), 'bytes' => 12]
                 : null,
+            0x0047 => $this->typedSizedValue($this->readClipboardDataWithSize($bytes, $valueOffset)),
             0x0048 => $valueOffset + 16 <= strlen($bytes)
                 ? ['value' => self::formatClsid(substr($bytes, $valueOffset, 16)), 'bytes' => 20]
                 : null,
@@ -5680,6 +5682,85 @@ final class LegacyDocReader
             'value' => $sizedValue['value'],
             'bytes' => 4 + $sizedValue['bytes'],
         ];
+    }
+
+    /**
+     * @return array{value:array<string,mixed>,bytes:int}|null
+     */
+    private function readClipboardDataWithSize(string $bytes, int $offset): ?array
+    {
+        if ($offset + 8 > strlen($bytes)) {
+            return null;
+        }
+
+        $declaredBytes = self::u32($bytes, $offset);
+        if (
+            $declaredBytes < 4
+            || $declaredBytes > self::MAX_CLIPBOARD_DATA_BYTES
+            || $offset + 4 + $declaredBytes > strlen($bytes)
+        ) {
+            return null;
+        }
+
+        $clipboardTag = self::u32($bytes, $offset + 4);
+        $record = [
+            'type' => 'clipboardData',
+            'clipboardTag' => $this->clipboardTagName($clipboardTag),
+            'clipboardTagValue' => $clipboardTag,
+            'hasData' => $clipboardTag !== 0,
+            'byteCount' => 0,
+            'extractionPolicy' => 'metadata-only-native-review',
+            'canExposeBytes' => false,
+        ];
+
+        if ($clipboardTag === 0) {
+            if ($declaredBytes !== 4) {
+                return null;
+            }
+
+            return [
+                'value' => $record,
+                'bytes' => $this->consumeDwordPadding($bytes, $offset, 4 + $declaredBytes),
+            ];
+        }
+
+        if ($declaredBytes < 8) {
+            return null;
+        }
+
+        $formatId = self::u32($bytes, $offset + 8);
+        $dataOffset = $offset + 12;
+        $dataLength = $declaredBytes - 8;
+        $data = substr($bytes, $dataOffset, $dataLength);
+        $record['formatId'] = $formatId;
+        $record['format'] = $this->clipboardFormatName($formatId);
+        $record['byteCount'] = $dataLength;
+        $record['sha256'] = hash('sha256', $data);
+
+        return [
+            'value' => $record,
+            'bytes' => $this->consumeDwordPadding($bytes, $offset, 4 + $declaredBytes),
+        ];
+    }
+
+    private function clipboardTagName(int $clipboardTag): string
+    {
+        return match ($clipboardTag) {
+            0x00000000 => 'none',
+            0xffffffff => 'windows',
+            0xfffffffe => 'macintosh',
+            default => 'application-specific',
+        };
+    }
+
+    private function clipboardFormatName(int $formatId): string
+    {
+        return match ($formatId) {
+            0x00000003 => 'metafilepict',
+            0x00000008 => 'dib',
+            0x0000000e => 'enhanced-metafile',
+            default => 'unknown',
+        };
     }
 
     /**
@@ -5741,6 +5822,21 @@ final class LegacyDocReader
         if ($kind === 'summary' && isset($metadata['documentSecurity']) && is_int($metadata['documentSecurity'])) {
             $metadata['documentSecurityFlags'] = $this->documentSecurityFlags($metadata['documentSecurity']);
         }
+        if ($kind === 'summary') {
+            $thumbnail = $this->summaryThumbnailMetadata($properties[17] ?? null);
+            if ($thumbnail !== null) {
+                $metadata['thumbnail'] = $thumbnail;
+                $metadata['thumbnailClipboardTag'] = (string) ($thumbnail['clipboardTag'] ?? '');
+                $metadata['thumbnailByteCount'] = (int) ($thumbnail['byteCount'] ?? 0);
+                $metadata['thumbnailPolicy'] = (string) ($thumbnail['extractionPolicy'] ?? '');
+                if (isset($thumbnail['format'])) {
+                    $metadata['thumbnailFormat'] = (string) $thumbnail['format'];
+                }
+                if (isset($thumbnail['sha256'])) {
+                    $metadata['thumbnailSha256'] = (string) $thumbnail['sha256'];
+                }
+            }
+        }
         if ($kind === 'document-summary') {
             $documentParts = $this->stringList($properties[13] ?? null);
             if ($documentParts !== []) {
@@ -5754,6 +5850,23 @@ final class LegacyDocReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private function summaryThumbnailMetadata(mixed $value): ?array
+    {
+        if (!is_array($value) || ($value['type'] ?? null) !== 'clipboardData') {
+            return null;
+        }
+
+        $thumbnail = $value;
+        $thumbnail['type'] = 'thumbnail';
+        $thumbnail['source'] = 'SummaryInformation';
+        $thumbnail['conformsTo'] = 'VT_CF';
+
+        return $thumbnail;
     }
 
     /**

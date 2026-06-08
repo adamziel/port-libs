@@ -128,6 +128,7 @@ final class ArchiveCompressionStream
      *     policy:string,
      *     candidateCount:int,
      *     packageCount:int,
+     *     unsupportedCompressionCount:int,
      *     diagnosticCount:int,
      *     depthLimitReachedCount:int,
      *     depthLimitedCandidateCount:int,
@@ -161,12 +162,17 @@ final class ArchiveCompressionStream
         }
 
         $packageCount = 0;
+        $unsupportedCompressionCount = 0;
         $diagnosticCount = 0;
         $depthLimitReachedCount = 0;
         $depthLimitedCandidateCount = 0;
         foreach ($entries as $entry) {
             if (($entry['status'] ?? null) === 'package') {
                 $packageCount++;
+            }
+
+            if (($entry['status'] ?? null) === 'unsupported-compression') {
+                $unsupportedCompressionCount++;
             }
 
             if (($entry['diagnostics'] ?? []) !== []) {
@@ -188,6 +194,7 @@ final class ArchiveCompressionStream
             'policy' => 'metadata-only-no-extraction',
             'candidateCount' => count($entries),
             'packageCount' => $packageCount,
+            'unsupportedCompressionCount' => $unsupportedCompressionCount,
             'diagnosticCount' => $diagnosticCount,
             'depthLimitReachedCount' => $depthLimitReachedCount,
             'depthLimitedCandidateCount' => $depthLimitedCandidateCount,
@@ -628,6 +635,7 @@ final class ArchiveCompressionStream
      *     nestedCandidateCount:int,
      *     nestedPackageCount:int,
      *     nestedUnreadableCount:int,
+     *     nestedUnsupportedCompressionCount:int,
      *     nestedDiagnosticCount:int,
      *     recordDiagnosticCount:int,
      *     ratioDiagnosticCount:int,
@@ -702,6 +710,7 @@ final class ArchiveCompressionStream
         $packageCount = 0;
         $nestedPackageCount = 0;
         $nestedUnreadableCount = 0;
+        $nestedUnsupportedCompressionCount = 0;
         $nestedDiagnosticCount = 0;
         $recordDiagnosticCount = 0;
         $ratioDiagnosticCount = 0;
@@ -736,6 +745,8 @@ final class ArchiveCompressionStream
                 }
             } elseif ($isNested && ($record['status'] ?? null) === 'unreadable') {
                 $nestedUnreadableCount++;
+            } elseif ($isNested && ($record['status'] ?? null) === 'unsupported-compression') {
+                $nestedUnsupportedCompressionCount++;
             }
 
             if (($record['diagnostics'] ?? []) !== []) {
@@ -761,6 +772,10 @@ final class ArchiveCompressionStream
             $diagnostics[] = 'nested-package-detection-failed';
         }
 
+        if ($nestedUnsupportedCompressionCount > 0) {
+            $diagnostics[] = 'nested-package-unsupported-compression';
+        }
+
         if ($depthLimitReachedCount > 0) {
             $diagnostics[] = 'nested-package-depth-limit-reached';
         }
@@ -775,6 +790,7 @@ final class ArchiveCompressionStream
             'nestedCandidateCount' => count($entries),
             'nestedPackageCount' => $nestedPackageCount,
             'nestedUnreadableCount' => $nestedUnreadableCount,
+            'nestedUnsupportedCompressionCount' => $nestedUnsupportedCompressionCount,
             'nestedDiagnosticCount' => $nestedDiagnosticCount,
             'recordDiagnosticCount' => $recordDiagnosticCount,
             'ratioDiagnosticCount' => $ratioDiagnosticCount,
@@ -2988,6 +3004,19 @@ final class ArchiveCompressionStream
                 continue;
             }
 
+            $unsupportedPolicy = self::nestedUnsupportedCompressionPolicy($payload['entryName'], $payload['data']);
+            if ($unsupportedPolicy !== null) {
+                $entries[] = self::unsupportedNestedArchiveBombRecord(
+                    $path,
+                    $parentPath,
+                    $payload,
+                    $depth,
+                    $reasons,
+                    $unsupportedPolicy
+                );
+                continue;
+            }
+
             try {
                 $nested = self::detectPackageCandidate(
                     $payload['data'],
@@ -3077,6 +3106,58 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @param array{parentKind:string, entryName:string, size:int, data:?string, readError:?string} $payload
+     * @param list<string> $candidateReasons
+     * @param array<string, mixed> $policy
+     * @return array<string, mixed>
+     */
+    private static function unsupportedNestedArchiveBombRecord(
+        string $path,
+        string $parentPath,
+        array $payload,
+        int $depth,
+        array $candidateReasons,
+        array $policy
+    ): array {
+        return [
+            'status' => 'unsupported-compression',
+            'path' => $path,
+            'parentPath' => $parentPath,
+            'parentKind' => $payload['parentKind'],
+            'entryName' => $payload['entryName'],
+            'depth' => $depth,
+            'kind' => $policy['candidateKind'],
+            'format' => $policy['format'],
+            'candidateFormat' => $policy['candidateFormat'],
+            'sourceName' => $policy['sourceName'],
+            'compressedSize' => $payload['size'],
+            'decodedPackageSize' => null,
+            'entryUncompressedSize' => null,
+            'entryCount' => 0,
+            'entryNames' => [],
+            'candidateReasons' => $candidateReasons,
+            'streamCompressionRatio' => null,
+            'packageExpansionRatio' => null,
+            'totalExpansionRatio' => null,
+            'signatureMatched' => $policy['signatureMatched'],
+            'signatureName' => $policy['signatureName'],
+            'signatureBytesHex' => $policy['signatureBytesHex'],
+            'streamHeaderSize' => $policy['streamHeaderSize'],
+            'streamFlagsHex' => $policy['streamFlagsHex'],
+            'blockSize100k' => $policy['blockSize100k'],
+            'ratioDiagnosticCount' => 0,
+            'policy' => $policy['handoffPolicy'],
+            'handoffPolicy' => $policy['handoffPolicy'],
+            'extractionPolicy' => $policy['extractionPolicy'],
+            'diagnostics' => $policy['diagnostics'],
+            'depthLimitReached' => false,
+            'depthLimitedCandidateCount' => 0,
+            'depthLimitedCandidateNames' => [],
+            'depthLimitedCandidates' => [],
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $candidate
      * @param list<array<string, mixed>> $entries
      */
@@ -3123,6 +3204,15 @@ final class ArchiveCompressionStream
                 continue;
             }
 
+            $unsupportedPolicy = self::nestedUnsupportedCompressionPolicy($payload['entryName'], $payload['data']);
+            if ($unsupportedPolicy !== null) {
+                $entries[] = self::unsupportedNestedPackageRecord(
+                    $base,
+                    $unsupportedPolicy
+                );
+                continue;
+            }
+
             try {
                 $nested = self::detectPackageCandidate(
                     $payload['data'],
@@ -3156,6 +3246,39 @@ final class ArchiveCompressionStream
                 );
             }
         }
+    }
+
+    /**
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $policy
+     * @return array<string, mixed>
+     */
+    private static function unsupportedNestedPackageRecord(array $base, array $policy): array
+    {
+        return $base + [
+            'status' => 'unsupported-compression',
+            'kind' => $policy['candidateKind'],
+            'format' => $policy['format'],
+            'candidateFormat' => $policy['candidateFormat'],
+            'sourceName' => $policy['sourceName'],
+            'entryCount' => 0,
+            'entryNames' => [],
+            'uncompressedSize' => null,
+            'packageByteSize' => null,
+            'signatureMatched' => $policy['signatureMatched'],
+            'signatureName' => $policy['signatureName'],
+            'signatureBytesHex' => $policy['signatureBytesHex'],
+            'streamHeaderSize' => $policy['streamHeaderSize'],
+            'streamFlagsHex' => $policy['streamFlagsHex'],
+            'blockSize100k' => $policy['blockSize100k'],
+            'handoffPolicy' => $policy['handoffPolicy'],
+            'extractionPolicy' => $policy['extractionPolicy'],
+            'diagnostics' => $policy['diagnostics'],
+            'depthLimitReached' => false,
+            'depthLimitedCandidateCount' => 0,
+            'depthLimitedCandidateNames' => [],
+            'depthLimitedCandidates' => [],
+        ];
     }
 
     /**
@@ -3395,6 +3518,10 @@ final class ArchiveCompressionStream
             if (self::startsWithTarHeader($data)) {
                 $reasons[] = 'signature:tar';
             }
+            $unsupportedSignature = self::unsupportedCompressionSignature($data);
+            if ($unsupportedSignature !== null) {
+                $reasons[] = 'signature:unsupported-' . $unsupportedSignature['format'];
+            }
         }
 
         return array_values(array_unique($reasons));
@@ -3436,7 +3563,48 @@ final class ArchiveCompressionStream
             }
         }
 
-        return $reasons;
+        $unsupported = self::nestedUnsupportedCompressionNameCandidateReasons($entryName);
+        if ($unsupported !== []) {
+            $reasons = array_merge($reasons, $unsupported);
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function nestedUnsupportedCompressionNameCandidateReasons(string $entryName): array
+    {
+        $candidate = self::unsupportedCompressionNameCandidate($entryName);
+        if ($candidate === null) {
+            return [];
+        }
+
+        $reason = 'extension:unsupported-' . $candidate['format'];
+        if ($candidate['kind'] !== null) {
+            $reason .= '-' . $candidate['kind'];
+        }
+
+        return [$reason];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function nestedUnsupportedCompressionPolicy(string $entryName, ?string $data): ?array
+    {
+        if ($data === null) {
+            return null;
+        }
+
+        if (self::unsupportedCompressionSignature($data) === null
+            && self::unsupportedCompressionNameCandidate($entryName) === null
+        ) {
+            return null;
+        }
+
+        return self::inspectUnsupportedCompressionStreamPolicy($data, $entryName);
     }
 
     /**

@@ -756,11 +756,13 @@ final class CitationCslProcessor
         $biblatexFieldAnnotations = self::biblatexFieldAnnotations($item, $id);
         $biblatexRefsection = self::firstStringField($item, ['biblatexRefsection', 'biblatex-refsection', 'refsection', 'ref-section']);
         $biblatexRefsegment = self::firstStringField($item, ['biblatexRefsegment', 'biblatex-refsegment', 'refsegment', 'ref-segment']);
+        $citationAliases = self::stringListFromFirstField($item, ['citation-aliases', 'citationAliases', 'ids']);
 
         return [
             'id' => $id,
             'type' => self::stringField($item, 'type'),
-            'citationAliases' => self::stringListFromFirstField($item, ['citation-aliases', 'citationAliases', 'ids']),
+            'citationAliases' => $citationAliases,
+            'citationAliasSummary' => implode('; ', $citationAliases),
             'citationLabel' => self::firstStringField($item, ['citation-label', 'citationLabel', 'shorthand', 'label']),
             'shorthand' => self::firstStringField($item, ['shorthand']),
             'shorthandIntro' => self::firstStringField($item, ['shorthand-intro', 'shorthandIntro', 'shorthandintro']),
@@ -5518,6 +5520,7 @@ final class CitationCslProcessor
             ['reviewedTitle', 'Reviewed title'],
             ['reprintTitle', 'Reprint title'],
             ['translatedTitle', 'Translated title'],
+            ['citationAliasSummary', 'Citation aliases'],
             ['sortShorthand', 'Sort shorthand'],
             ['presort', 'Presort'],
             ['indexTitle', 'Index title'],
@@ -7289,6 +7292,7 @@ final class CitationCslProcessor
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
             'citation-aliases', 'citation-alias' => implode(', ', is_array($item['citationAliases'] ?? null) ? $item['citationAliases'] : []),
+            'citation-alias-summary', 'citation-aliases-summary' => (string) ($item['citationAliasSummary'] ?? ''),
             'citation-label' => (string) $item['citationLabel'],
             'shorthand' => (string) $item['shorthand'],
             'shorthand-intro' => (string) $item['shorthandIntro'],

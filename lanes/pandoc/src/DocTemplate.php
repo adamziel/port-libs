@@ -3781,7 +3781,6 @@ CSS;
 
     private function findBracedDirectiveClosing(string $template, int $start): ?int
     {
-        $bracketDepth = 0;
         $inQuote = false;
         $escape = false;
         $length = strlen($template);
@@ -3799,12 +3798,12 @@ CSS;
             }
 
             if (!$inQuote && $char === '[') {
-                $bracketDepth++;
-                continue;
-            }
+                $separatorClosing = strpos($template, ']', $index + 1);
+                if ($separatorClosing === false) {
+                    return null;
+                }
 
-            if (!$inQuote && $char === ']' && $bracketDepth > 0) {
-                $bracketDepth--;
+                $index = $separatorClosing;
                 continue;
             }
 
@@ -3813,7 +3812,7 @@ CSS;
                 continue;
             }
 
-            if (!$inQuote && $bracketDepth === 0 && $char === '}') {
+            if (!$inQuote && $char === '}') {
                 return $index;
             }
         }

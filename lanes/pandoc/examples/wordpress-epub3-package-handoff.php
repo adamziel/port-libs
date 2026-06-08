@@ -345,6 +345,12 @@ $signaturesXml = <<<'XML'
 XML;
 
 $reviewCss = <<<'CSS'
+@media screen and (min-width: 700px), print {
+  body { line-height: 1.5; }
+}
+@supports (display: grid) {
+  .review-grid { display: grid; }
+}
 @font-face { font-family: "Source Review"; src: url("../fonts/source.otf") format("opentype"); }
 body { color: #222; background-image: url("../images/cover.png"); }
 CSS;
@@ -1097,6 +1103,15 @@ XML;
     if (($result['cssResourceReport']['fontFaceSourceCount'] ?? null) !== 1 || ($result['cssResourceReport']['fontFaceFamilies'] ?? []) !== ['Source Review']) {
         throw new RuntimeException('Expected EPUB CSS report to preserve font-face family and source counts');
     }
+    if (($result['cssResourceReport']['conditionalRuleCount'] ?? null) !== 2 || ($result['cssResourceReport']['mediaRuleCount'] ?? null) !== 1 || ($result['cssResourceReport']['supportsRuleCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB CSS report to preserve conditional stylesheet metadata');
+    }
+    if (($result['cssResourceReport']['mediaConditions'] ?? []) !== ['screen and (min-width: 700px)', 'print']) {
+        throw new RuntimeException('Expected EPUB CSS media conditions to stay inspectable');
+    }
+    if (($result['cssResourceReport']['supportsConditions'] ?? []) !== ['(display: grid)']) {
+        throw new RuntimeException('Expected EPUB CSS supports conditions to stay inspectable');
+    }
     $reviewCssFontFace = $result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['fontFaces'][0] ?? [];
     if (($reviewCssFontFace['family'] ?? null) !== 'Source Review' || ($reviewCssFontFace['sourceCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB CSS font-face descriptor metadata to remain inspectable');
@@ -1107,8 +1122,11 @@ XML;
     if (($reviewCssFontFace['sources'][0]['encrypted'] ?? null) !== true || ($reviewCssFontFace['sources'][0]['diagnostics'][0]['type'] ?? null) !== 'encrypted-css-font-face-source') {
         throw new RuntimeException('Expected EPUB CSS font-face source to expose encrypted font diagnostics');
     }
-    if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['reviewFlags'] ?? []) !== ['encrypted-references']) {
-        throw new RuntimeException('Expected EPUB CSS review flags to identify encrypted stylesheet dependencies');
+    if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['reviewFlags'] ?? []) !== ['encrypted-references', 'conditional-styles']) {
+        throw new RuntimeException('Expected EPUB CSS review flags to identify encrypted and conditional stylesheet dependencies');
+    }
+    if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['conditionalRules'][0]['conditionItems'] ?? []) !== ['screen and (min-width: 700px)', 'print']) {
+        throw new RuntimeException('Expected EPUB CSS per-stylesheet media condition metadata');
     }
     if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['references'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
         throw new RuntimeException('Expected EPUB CSS report to resolve font package dependency');
@@ -1525,6 +1543,9 @@ echo 'cssResourceReferences=' . ($result['cssResourceReport']['referenceCount'] 
 echo 'cssFontFaces=' . ($result['cssResourceReport']['fontFaceCount'] ?? 0) . "\n";
 echo 'cssFontFaceSources=' . ($result['cssResourceReport']['fontFaceSourceCount'] ?? 0) . "\n";
 echo 'cssEncryptedReferences=' . ($result['cssResourceReport']['encryptedReferenceCount'] ?? 0) . "\n";
+echo 'cssConditionalRules=' . ($result['cssResourceReport']['conditionalRuleCount'] ?? 0) . "\n";
+echo 'cssMediaConditions=' . implode('|', $result['cssResourceReport']['mediaConditions'] ?? []) . "\n";
+echo 'cssSupportsConditions=' . implode('|', $result['cssResourceReport']['supportsConditions'] ?? []) . "\n";
 echo 'remoteResourceDeclaredItems=' . ($result['remoteResources']['declaredCount'] ?? 0) . "\n";
 echo 'remoteResourceObservedAssets=' . ($result['remoteResources']['observedAssetCount'] ?? 0) . "\n";
 echo 'remoteResourceReferences=' . ($result['remoteResources']['remoteReferenceCount'] ?? 0) . "\n";

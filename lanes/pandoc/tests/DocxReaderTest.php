@@ -382,6 +382,84 @@ $drawingTextDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$drawingGeometryContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/charts/review-chart.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+</Types>
+XML;
+
+$drawingGeometryRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdGeometryLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/geometry-logo.png"/>
+  <Relationship Id="rIdGeometryChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/review-chart.xml"/>
+</Relationships>
+XML;
+
+$drawingGeometryDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
+  xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+  xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Geometry </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline distL="114300" distR="114300">
+            <wp:extent cx="914400" cy="457200"/>
+            <wp:effectExtent l="1000" t="2000" r="3000" b="4000"/>
+            <wp:docPr id="71" name="Inline logo" descr="Inline geometry alt" title="Inline geometry title"/>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdGeometryLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:anchor distT="240" distB="480" distL="120" distR="360" simplePos="0" relativeHeight="251659264" behindDoc="0" locked="1" layoutInCell="1" allowOverlap="0">
+            <wp:simplePos x="0" y="0"/>
+            <wp:positionH relativeFrom="column"><wp:align>right</wp:align></wp:positionH>
+            <wp:positionV relativeFrom="paragraph"><wp:posOffset>144000</wp:posOffset></wp:positionV>
+            <wp:extent cx="1828800" cy="914400"/>
+            <wp:wrapSquare wrapText="bothSides"/>
+            <wp:docPr id="72" name="Anchored chart" descr="Anchored chart review" title="Chart geometry"/>
+            <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rIdGeometryChart"/></a:graphicData></a:graphic>
+          </wp:anchor>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> plus </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:extent cx="600000" cy="300000"/>
+            <wp:docPr id="73" name="Inline callout" descr="Geometry callout" title="Callout geometry"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+                <wps:wsp>
+                  <a:txBody>
+                    <a:bodyPr/>
+                    <a:lstStyle/>
+                    <a:p><a:r><a:t>Geometry callout text</a:t></a:r></a:p>
+                  </a:txBody>
+                </wps:wsp>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $corePropertiesXml = <<<'XML'
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
   xmlns:dc="http://purl.org/dc/elements/1.1/"
@@ -3178,6 +3256,22 @@ $buildDrawingTextPackage = static function () use ($contentTypesXml, $packageRel
     ]);
 };
 
+$buildDrawingGeometryPackage = static function () use (
+    $drawingGeometryContentTypesXml,
+    $packageRelationshipsXml,
+    $drawingGeometryRelationshipsXml,
+    $drawingGeometryDocumentXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $drawingGeometryContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $drawingGeometryDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $drawingGeometryRelationshipsXml],
+        ['name' => 'word/media/geometry-logo.png', 'data' => 'GEOMETRYPAYLOAD'],
+        ['name' => 'word/charts/review-chart.xml', 'data' => '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>'],
+    ]);
+};
+
 $buildStylesNumberingPackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -4372,6 +4466,90 @@ return [
         $t->contains('Final callout]{.docx-drawing-text data-docx-drawing-kind="text"', $markdown);
         $t->contains('data-docx-docpr-descr="Visible review note"', $markdown);
         $t->contains('<p>Drawing text <span class="docx-drawing-text" data-docx-drawing-kind="text" data-docx-drawing-text-paragraphs="2" data-docx-docpr-id="61" data-docx-docpr-name="Reviewer callout" data-docx-docpr-descr="Visible review note" data-docx-docpr-title="Shape text title">Check source summary<br/>Second line<br/>Final callout</span> stays visible.</p>', $blocks);
+    },
+    'preserves DOCX DrawingML inline and anchor geometry metadata for review' => static function (TestRunner $t) use ($buildDrawingGeometryPackage): void {
+        $document = (new DocxReader())->readDocument($buildDrawingGeometryPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(7, count($paragraph->children));
+        $t->same('Geometry ', $paragraph->children[0]->attr('text'));
+
+        $image = $paragraph->children[1];
+        $t->same('image', $image->type);
+        $t->same('word/media/geometry-logo.png', $image->attr('url'));
+        $t->same('/word/media/geometry-logo.png', $image->attr('sourcePart'));
+        $t->same('Inline geometry alt', $image->attr('alt'));
+        $t->same('Inline geometry title', $image->attr('title'));
+        $t->same(['docx-drawing-geometry', 'docx-drawing-inline'], $image->attr('classes'));
+        $imageAttrs = $image->attr('attributes');
+        $t->same('inline', $imageAttrs['data-docx-drawing-placement']);
+        $t->same('914400', $imageAttrs['data-docx-width-emu']);
+        $t->same('457200', $imageAttrs['data-docx-height-emu']);
+        $t->same('1000', $imageAttrs['data-docx-effect-extent-left-emu']);
+        $t->same('2000', $imageAttrs['data-docx-effect-extent-top-emu']);
+        $t->same('3000', $imageAttrs['data-docx-effect-extent-right-emu']);
+        $t->same('4000', $imageAttrs['data-docx-effect-extent-bottom-emu']);
+        $t->same('114300', $imageAttrs['data-docx-distance-left-emu']);
+        $t->same('114300', $imageAttrs['data-docx-distance-right-emu']);
+
+        $chart = $paragraph->children[3];
+        $t->same('span', $chart->type);
+        $t->same(
+            ['docx-drawing-placeholder', 'docx-drawing-chart', 'docx-drawing-geometry', 'docx-drawing-anchor', 'docx-wrap-square'],
+            $chart->attr('classes')
+        );
+        $chartAttrs = $chart->attr('attributes');
+        $t->same('chart', $chartAttrs['data-docx-drawing-kind']);
+        $t->same('72', $chartAttrs['data-docx-docpr-id']);
+        $t->same('Anchored chart', $chartAttrs['data-docx-docpr-name']);
+        $t->same('rIdGeometryChart', $chartAttrs['data-docx-relationship-id']);
+        $t->same('/word/charts/review-chart.xml', $chartAttrs['data-docx-target-part']);
+        $t->same('anchor', $chartAttrs['data-docx-drawing-placement']);
+        $t->same('1828800', $chartAttrs['data-docx-width-emu']);
+        $t->same('914400', $chartAttrs['data-docx-height-emu']);
+        $t->same('240', $chartAttrs['data-docx-distance-top-emu']);
+        $t->same('480', $chartAttrs['data-docx-distance-bottom-emu']);
+        $t->same('120', $chartAttrs['data-docx-distance-left-emu']);
+        $t->same('360', $chartAttrs['data-docx-distance-right-emu']);
+        $t->same('0', $chartAttrs['data-docx-anchor-simple-pos']);
+        $t->same('251659264', $chartAttrs['data-docx-anchor-relative-height']);
+        $t->same('0', $chartAttrs['data-docx-anchor-behind-doc']);
+        $t->same('1', $chartAttrs['data-docx-anchor-locked']);
+        $t->same('1', $chartAttrs['data-docx-anchor-layout-in-cell']);
+        $t->same('0', $chartAttrs['data-docx-anchor-allow-overlap']);
+        $t->same('square', $chartAttrs['data-docx-wrap']);
+        $t->same('bothSides', $chartAttrs['data-docx-wrap-text']);
+        $t->same('column', $chartAttrs['data-docx-position-h-relative-from']);
+        $t->same('right', $chartAttrs['data-docx-position-h-align']);
+        $t->same('paragraph', $chartAttrs['data-docx-position-v-relative-from']);
+        $t->same('144000', $chartAttrs['data-docx-position-v-offset-emu']);
+        $t->same('DOCX chart: Anchored chart review', $chart->children[0]->attr('text'));
+
+        $shapeText = $paragraph->children[5];
+        $t->same('span', $shapeText->type);
+        $t->same(['docx-drawing-text', 'docx-drawing-geometry', 'docx-drawing-inline'], $shapeText->attr('classes'));
+        $textAttrs = $shapeText->attr('attributes');
+        $t->same('text', $textAttrs['data-docx-drawing-kind']);
+        $t->same('inline', $textAttrs['data-docx-drawing-placement']);
+        $t->same('600000', $textAttrs['data-docx-width-emu']);
+        $t->same('300000', $textAttrs['data-docx-height-emu']);
+        $t->same('73', $textAttrs['data-docx-docpr-id']);
+        $t->same('1', $textAttrs['data-docx-drawing-text-paragraphs']);
+        $t->same('Geometry callout text', $shapeText->children[0]->attr('text'));
+
+        $t->contains('![Inline geometry alt](word/media/geometry-logo.png "Inline geometry title"){.docx-drawing-geometry .docx-drawing-inline data-docx-drawing-placement="inline"', $markdown);
+        $t->contains('data-docx-width-emu="914400"', $markdown);
+        $t->contains('[DOCX chart: Anchored chart review]{.docx-drawing-placeholder .docx-drawing-chart .docx-drawing-geometry .docx-drawing-anchor .docx-wrap-square data-docx-drawing-kind="chart"', $markdown);
+        $t->contains('data-docx-position-v-offset-emu="144000"', $markdown);
+        $t->contains('[Geometry callout text]{.docx-drawing-text .docx-drawing-geometry .docx-drawing-inline data-docx-drawing-kind="text"', $markdown);
+        $t->contains('<img src="word/media/geometry-logo.png" alt="Inline geometry alt" title="Inline geometry title" class="docx-drawing-geometry docx-drawing-inline" data-docx-drawing-placement="inline"', $blocks);
+        $t->contains('data-docx-width-emu="914400" data-docx-height-emu="457200"', $blocks);
+        $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart docx-drawing-geometry docx-drawing-anchor docx-wrap-square" data-docx-drawing-kind="chart"', $blocks);
+        $t->contains('data-docx-position-h-align="right"', $blocks);
+        $t->contains('<span class="docx-drawing-text docx-drawing-geometry docx-drawing-inline" data-docx-drawing-kind="text" data-docx-drawing-text-paragraphs="1" data-docx-docpr-id="73"', $blocks);
     },
     'reports DOCX media import inventory and missing media relationships' => static function (TestRunner $t) use ($buildDocxPackage): void {
         $result = (new DocxReader())->readPackage($buildDocxPackage());

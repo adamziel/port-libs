@@ -6029,11 +6029,12 @@ BIB;
         $canonical = $processor->item('canonical-manual');
         $alias = $processor->item('legacy-manual');
         $t->same(['legacy-manual', 'source-packet-manual'], $canonical['citationAliases'] ?? null);
+        $t->same('legacy-manual; source-packet-manual', $canonical['citationAliasSummary'] ?? null);
         $t->same('canonical-manual', $alias['id'] ?? null);
         $t->same('legacy-manual', $alias['citationAlias'] ?? null);
         $t->same('Alias Import Manual', $alias['title'] ?? null);
         $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('legacy-manual', '[@legacy-manual]')]));
-        $t->same('Smith, Ada. Alias Import Manual. Review Press, 2026.', $processor->renderBibliographyEntry('source-packet-manual'));
+        $t->same('Smith, Ada. Alias Import Manual. Review Press, 2026. Citation aliases: legacy-manual; source-packet-manual.', $processor->renderBibliographyEntry('source-packet-manual'));
 
         $document = (new MarkdownReader())->read('Alias source @legacy-manual and primary [@canonical-manual] stay one bibliography item. Missing [@missing-source] remains visible.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
@@ -6046,7 +6047,7 @@ BIB;
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Alias source Smith (2026) and primary (Smith 2026) stay one bibliography item. Missing [@missing-source] remains visible.</p>', $blocks);
-        $t->same(1, substr_count($blocks, '<dt>Smith 2026</dt><dd>Smith, Ada. Alias Import Manual. Review Press, 2026.</dd>'));
+        $t->same(1, substr_count($blocks, '<dt>Smith 2026</dt><dd>Smith, Ada. Alias Import Manual. Review Press, 2026. Citation aliases: legacy-manual; source-packet-manual.</dd>'));
 
         $styled = $processor->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -6081,6 +6082,57 @@ XML);
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{a,title={A},ids={b}} @book{b,title={B}}'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{a,title={A},ids={alias}} @book{b,title={B},ids={alias}}'));
+    },
+    'renders bounded biblatex citation alias provenance for wordpress review' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{canonical-alias-review,
+  author = {{Alias Review Desk}},
+  title  = {Canonical Alias Packet},
+  date   = {2026},
+  url    = {https://example.test/canonical-alias},
+  ids    = {legacy-alias, migrated-source-alias}
+}
+BIB;
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $canonical = $processor->item('canonical-alias-review');
+        $legacyAlias = $processor->item('legacy-alias');
+        $t->same(['legacy-alias', 'migrated-source-alias'], $canonical['citationAliases'] ?? null);
+        $t->same('legacy-alias; migrated-source-alias', $canonical['citationAliasSummary'] ?? null);
+        $t->same('canonical-alias-review', $legacyAlias['id'] ?? null);
+        $t->same('legacy-alias', $legacyAlias['citationAlias'] ?? null);
+        $t->same('(Alias Review Desk 2026)', $processor->renderCitationCluster([$citation('legacy-alias', '[@legacy-alias]')]));
+        $t->same(
+            'Alias Review Desk. Canonical Alias Packet. 2026. Citation aliases: legacy-alias; migrated-source-alias. https://example.test/canonical-alias.',
+            $processor->renderBibliographyEntry('canonical-alias-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="citation-key"/>
+        <text variable="citation-alias-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="citation-alias-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[canonical-alias-review | legacy-alias; migrated-source-alias]', $styled->renderCitationCluster([$citation('migrated-source-alias', '[@migrated-source-alias]')]));
+        $t->same('Canonical Alias Packet :: legacy-alias; migrated-source-alias', $styled->renderBibliographyEntry('canonical-alias-review'));
+
+        $document = (new MarkdownReader())->read('Alias review @legacy-alias preserves source-era citation IDs.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Alias review Alias Review Desk (2026) preserves source-era citation IDs.</p>', $blocks);
+        $t->contains('<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. 2026. Citation aliases: legacy-alias; migrated-source-alias. https://example.test/canonical-alias.</dd>', $blocks);
     },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());

@@ -1839,7 +1839,7 @@ XML);
         '<p>Localized event source Ng (2026) keeps custom CSL event labels visible.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Localized Event Paper. Localized Proceedings. Event: Source Review Summit. Event addendum: Import track. Event type: atelier. Event organizer: Bureau de revue; Curator, Eli. Event place: Montreal. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54.</dd>',
         '<p>Alias source Alias Review Desk (2026) resolves to one canonical bibliography item.</p>',
-        '<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. Review Press, 2026.</dd>',
+        '<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. Review Press, 2026. Citation aliases: legacy-alias-source; source-packet-alias.</dd>',
         '<p>Subtype source Ng (2026) preserves source-kind metadata for review.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.</dd>',
         '<p>Split URL date source Ng (2026) preserves component access-date metadata.</p>',
@@ -1876,7 +1876,7 @@ XML);
         }
     }
 
-    if (substr_count($blocks, '<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. Review Press, 2026.</dd>') !== 1) {
+    if (substr_count($blocks, '<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. Review Press, 2026. Citation aliases: legacy-alias-source; source-packet-alias.</dd>') !== 1) {
         throw new RuntimeException('BibTeX CSL handoff self-test rendered duplicate alias bibliography entries');
     }
 

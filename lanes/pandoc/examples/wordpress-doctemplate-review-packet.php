@@ -29,6 +29,7 @@ for $title$$~$</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 <p class="review-sources">${ reviewSources/rest/uppercase[ / ] }</p>
 <p class="brace-separated-sources">${ reviewSources/uppercase[} ] }</p>
+<p class="bracket-separated-sources">${ reviewSources/uppercase[[ ] }</p>
 <p class="chomped-review-sources">${ reviewSourcesWithNewlines/chomp/uppercase[ / ] }</p>
 <p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
 <p class="style-metadata">$style:font-name$ / ${ style:family:components/style-token()[, ] }</p>
@@ -177,6 +178,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="authors">Migration bot, Content editor</p>',
         '<p class="review-sources">LINKS / LAYOUT</p>',
         '<p class="brace-separated-sources">MEDIA} LINKS} LAYOUT</p>',
+        '<p class="bracket-separated-sources">MEDIA[ LINKS[ LAYOUT</p>',
         '<p class="chomped-review-sources">MEDIA / LINKS / LAYOUT</p>',
         '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
         '<p class="style-metadata">Atkinson Hyperlegible / Heading_20_1=Alegreya, BodyText=Atkinson Hyperlegible</p>',

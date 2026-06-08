@@ -4626,6 +4626,138 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectNestedPackageStreamsAuto($upload, null, null, -1));
     },
 
+    'preflights unsupported nested archive compression candidates without external decompressors' => static function (TestRunner $t): void {
+        $xzTarBytes = "\xfd" . '7zXZ' . "\0\x00\x04" . 'xz-compressed-tar-placeholder';
+        $zstdDocxBytes = "\x28\xb5\x2f\xfd\x00" . 'zstandard-compressed-docx-placeholder';
+        $bzip2ZipBytes = 'BZh9' . 'bzip2-compressed-zip-placeholder';
+        $innerTar = TarArchive::fromEntries([
+            [
+                'name' => 'packet/deeper/report.zip.bz2',
+                'data' => $bzip2ZipBytes,
+            ],
+            [
+                'name' => 'packet/deeper/readme.md',
+                'data' => "Unsupported compression candidates stay metadata-only.\n",
+            ],
+        ]);
+        $innerGzip = GzipStream::build($innerTar->bytes(), [
+            'filename' => 'nested-unsupported.tar',
+            'comment' => 'nested unsupported compression carrier',
+        ]);
+        $outerTar = TarArchive::fromEntries([
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Outer packet\n\nUnsupported nested package streams require review.\n",
+            ],
+            [
+                'name' => 'packet/nested/review.tar.gz',
+                'data' => $innerGzip,
+            ],
+            [
+                'name' => 'packet/nested/source.tar.xz',
+                'data' => $xzTarBytes,
+            ],
+            [
+                'name' => 'packet/nested/export.docx.zst',
+                'data' => $zstdDocxBytes,
+            ],
+        ]);
+        $upload = GzipStream::build($outerTar->bytes(), [
+            'filename' => 'wordpress-unsupported-nested.tar',
+            'comment' => 'unsupported nested archive compression preflight',
+        ]);
+
+        $inspection = ArchiveCompressionStream::inspectNestedPackageStreamsAuto(
+            $upload,
+            strlen($outerTar->bytes()),
+            strlen($outerTar->bytes()),
+            2
+        );
+        $depthOne = ArchiveCompressionStream::inspectNestedPackageStreamsAuto(
+            $upload,
+            strlen($outerTar->bytes()),
+            strlen($outerTar->bytes()),
+            1
+        );
+        $bombPolicy = ArchiveCompressionStream::inspectNestedArchiveBombPolicyAuto(
+            $upload,
+            strlen($outerTar->bytes()),
+            strlen($outerTar->bytes()),
+            2
+        );
+
+        $byPath = [];
+        foreach ($inspection['entries'] as $entry) {
+            $byPath[$entry['path']] = $entry;
+        }
+
+        $bzip2Path = 'packet/nested/review.tar.gz!packet/deeper/report.zip.bz2';
+        $t->same(4, $inspection['candidateCount']);
+        $t->same(1, $inspection['packageCount']);
+        $t->same(3, $inspection['unsupportedCompressionCount']);
+        $t->same(3, $inspection['diagnosticCount']);
+        $t->same([
+            'packet/nested/review.tar.gz',
+            $bzip2Path,
+            'packet/nested/source.tar.xz',
+            'packet/nested/export.docx.zst',
+        ], array_column($inspection['entries'], 'path'));
+        $t->same('package', $byPath['packet/nested/review.tar.gz']['status']);
+        $t->same('unsupported-compression', $byPath[$bzip2Path]['status']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $byPath[$bzip2Path]['kind']);
+        $t->same('bzip2', $byPath[$bzip2Path]['format']);
+        $t->same('bzip2-zip', $byPath[$bzip2Path]['candidateFormat']);
+        $t->same([
+            'extension:unsupported-bzip2-zip',
+            'signature:unsupported-bzip2',
+        ], $byPath[$bzip2Path]['candidateReasons']);
+        $t->same('unsupported-compression-stream-blocked', $byPath[$bzip2Path]['extractionPolicy']);
+        $t->same([
+            'archive-compression-format-unsupported',
+            'archive-compression-format-bzip2-not-decoded',
+            'archive-external-decompressor-not-run',
+            'archive-package-bytes-not-exposed',
+        ], $byPath[$bzip2Path]['diagnostics']);
+        $t->same(9, $byPath[$bzip2Path]['blockSize100k']);
+        $t->same('unsupported-compression', $byPath['packet/nested/source.tar.xz']['status']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $byPath['packet/nested/source.tar.xz']['kind']);
+        $t->same('xz', $byPath['packet/nested/source.tar.xz']['format']);
+        $t->same('xz-tar', $byPath['packet/nested/source.tar.xz']['candidateFormat']);
+        $t->same(true, $byPath['packet/nested/source.tar.xz']['signatureMatched']);
+        $t->same('unsupported-compression', $byPath['packet/nested/export.docx.zst']['status']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $byPath['packet/nested/export.docx.zst']['kind']);
+        $t->same('zstandard', $byPath['packet/nested/export.docx.zst']['format']);
+        $t->same('zstandard-zip', $byPath['packet/nested/export.docx.zst']['candidateFormat']);
+        $t->same(false, isset($byPath[$bzip2Path]['data']));
+        $t->same(false, isset($byPath[$bzip2Path]['package']));
+        $t->same(false, isset($byPath['packet/nested/source.tar.xz']['tarBytes']));
+
+        $t->same(3, $depthOne['candidateCount']);
+        $t->same(1, $depthOne['packageCount']);
+        $t->same(2, $depthOne['unsupportedCompressionCount']);
+        $t->same(3, $depthOne['diagnosticCount']);
+        $t->same(1, $depthOne['depthLimitReachedCount']);
+        $t->same(1, $depthOne['depthLimitedCandidateCount']);
+        $t->same([$bzip2Path], [$depthOne['entries'][0]['path'] . '!' . ($depthOne['entries'][0]['depthLimitedCandidateNames'][0] ?? '')]);
+        $t->same([
+            'extension:unsupported-bzip2-zip',
+        ], $depthOne['entries'][0]['depthLimitedCandidates'][0]['candidateReasons']);
+
+        $bombEntriesByPath = [];
+        foreach ($bombPolicy['entries'] as $entry) {
+            $bombEntriesByPath[$entry['path']] = $entry;
+        }
+        $t->same(4, $bombPolicy['nestedCandidateCount']);
+        $t->same(1, $bombPolicy['nestedPackageCount']);
+        $t->same(3, $bombPolicy['nestedUnsupportedCompressionCount']);
+        $t->same(3, $bombPolicy['nestedDiagnosticCount']);
+        $t->same(['nested-package-unsupported-compression'], $bombPolicy['diagnostics']);
+        $t->same('unsupported-compression', $bombEntriesByPath[$bzip2Path]['status']);
+        $t->same('unsupported-compression-stream-blocked', $bombEntriesByPath[$bzip2Path]['extractionPolicy']);
+        $t->same(false, isset($bombEntriesByPath[$bzip2Path]['data']));
+        $t->same(false, isset($bombEntriesByPath[$bzip2Path]['package']));
+    },
+
     'preflights archive expansion ratios before conversion handoff' => static function (TestRunner $t): void {
         $manifestBytes = '{"source":"archive-bomb-policy","target":"wordpress"}';
         $contentTypeBytes = '<Types><Default Extension="md" ContentType="text/markdown"/></Types>';

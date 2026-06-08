@@ -1277,4 +1277,80 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'carries html table directionality into geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="bidi-source-grid" data-source="html-reader" dir="rtl">
+<caption>Direction source review</caption>
+<thead dir="ltr">
+<tr dir="rtl"><th>Scope</th><th dir="auto">State</th></tr>
+</thead>
+<tbody dir="rtl" data-section="body">
+<tr><th>Posts</th><td>جاهز</td></tr>
+<tr dir="ltr"><th>Media</th><td dir="auto">Review</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $directionDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-direction'
+            ));
+            $directionDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same('table', $table->type);
+        $t->same('rtl', $table->attr('htmlAttributes')['dir'] ?? null);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('rtl', $packet['directionality']['table']['direction'] ?? null);
+        $t->same('html-table-dir', $packet['directionality']['table']['source'] ?? null);
+        $t->same(['ltr', 'rtl'], array_map(static fn (array $section): string => (string) ($section['direction'] ?? ''), $packet['directionality']['sections'] ?? []));
+        $t->same(['head', 'body'], array_map(static fn (array $section): string => (string) ($section['section'] ?? ''), $packet['directionality']['sections'] ?? []));
+        $t->same(['rtl', 'ltr'], array_map(static fn (array $row): string => (string) ($row['direction'] ?? ''), $packet['directionality']['rows'] ?? []));
+        $t->same(['head', 'body'], array_map(static fn (array $row): string => (string) ($row['section'] ?? ''), $packet['directionality']['rows'] ?? []));
+        $t->same(['rtl', 'auto', 'rtl', 'rtl', 'ltr', 'auto'], array_map(static fn (array $coverage): string => (string) ($coverage['direction'] ?? ''), $packet['coverage'] ?? []));
+        $t->same(['row', 'cell', 'section', 'section', 'row', 'cell'], array_map(static fn (array $coverage): string => (string) ($coverage['directionSource'] ?? ''), $packet['coverage'] ?? []));
+        $t->same('auto', $packet['directionality']['cells'][1]['direction'] ?? null);
+        $t->same('cell', $packet['directionality']['cells'][1]['source'] ?? null);
+        $t->same('State', $packet['directionality']['cells'][1]['text'] ?? null);
+        $t->same('rtl', $packet['directionality']['cells'][3]['direction'] ?? null);
+        $t->same('section', $packet['directionality']['cells'][3]['source'] ?? null);
+        $t->same('ltr', $packet['directionality']['cells'][4]['direction'] ?? null);
+        $t->same('row', $packet['directionality']['cells'][4]['source'] ?? null);
+        $t->same(11, $packet['directionality']['summary']['directionRecordCount'] ?? null);
+        $t->same(6, $packet['directionality']['summary']['directionalCellCount'] ?? null);
+        $t->same(['auto', 'ltr', 'rtl'], $packet['directionality']['summary']['directions'] ?? null);
+        $t->same(true, $packet['summary']['hasTableDirectionality'] ?? null);
+        $t->same(6, $packet['summary']['directionalCellCount'] ?? null);
+        $t->same(['auto', 'ltr', 'rtl'], $packet['summary']['tableDirections'] ?? null);
+
+        $t->same([
+            'markdown-table-direction-requires-raw-html',
+            'asciidoc-table-direction-review-required',
+            'latex-table-direction-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $directionDiagnostics['markdown'],
+            $directionDiagnostics['asciidoc'],
+            $directionDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-direction', $directionDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same(['auto', 'ltr', 'rtl'], $directionDiagnostics['markdown']['directions'] ?? null);
+        $t->same(6, $directionDiagnostics['markdown']['directionalCellCount'] ?? null);
+
+        $t->contains('<table id="bidi-source-grid" data-source="html-reader" dir="rtl">', $blocks);
+        $t->contains('<thead dir="ltr"><tr dir="rtl"><th>Scope</th><th dir="auto">State</th></tr></thead>', $blocks);
+        $t->contains('<tbody dir="rtl" data-section="body"><tr><th>Posts</th><td>جاهز</td></tr><tr dir="ltr"><th>Media</th><td dir="auto">Review</td></tr></tbody>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
 ];

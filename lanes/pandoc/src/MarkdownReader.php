@@ -3088,6 +3088,7 @@ final class MarkdownReader
 
         $closing = $sourceValue[0] === '[' ? ']' : '}';
         if (!str_ends_with(rtrim($candidate), $closing) || !$this->isBalancedYamlFlowCollection($candidate)) {
+            $this->yamlMetadataInvalid = true;
             return null;
         }
 

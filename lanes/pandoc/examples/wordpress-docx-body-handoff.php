@@ -590,7 +590,7 @@ XML],
       </w:sdt>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
-    <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline><wp:anchor><wp:docPr id="10" name="Review chart" descr="Linked review chart alt" title="Linked review chart"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link="rIdExternalChart"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>
+    <w:p><w:r><w:drawing><wp:inline distL="114300" distR="114300"><wp:extent cx="914400" cy="457200"/><wp:effectExtent l="1000" t="2000" r="3000" b="4000"/><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline><wp:anchor><wp:docPr id="10" name="Review chart" descr="Linked review chart alt" title="Linked review chart"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link="rIdExternalChart"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>
     <w:p><w:r><w:pict><v:shape id="_x0000_i42" alt="VML badge alt"><v:imagedata r:id="rIdVmlBadge" o:title="VML badge title"/></v:shape></w:pict></w:r></w:p>
     <w:p>
       <w:r><w:t xml:space="preserve">Office drawing review </w:t></w:r>
@@ -1324,7 +1324,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Content-control checklist for reviewer handoff.</p>',
         '<span class="docx-content-control docx-content-control-checkbox" data-docx-sdt-id="142" data-docx-sdt-alias="Approval Checkbox" data-docx-sdt-tag="approval_checkbox" data-docx-sdt-type="checkbox" data-docx-sdt-checkbox-checked="false" data-docx-sdt-checkbox-checked-state-value="2612" data-docx-sdt-checkbox-checked-state-font="MS Gothic" data-docx-sdt-checkbox-unchecked-state-value="2610" data-docx-sdt-checkbox-unchecked-state-font="MS Gothic">Needs review</span>',
         '<span class="docx-content-control docx-content-control-drop-down-list" data-docx-sdt-id="143" data-docx-sdt-alias="Publish Target" data-docx-sdt-tag="publish_target" data-docx-sdt-type="drop-down-list" data-docx-sdt-list-kind="drop-down-list" data-docx-sdt-list-last-value="publish" data-docx-sdt-list-item-1-display-text="Draft review" data-docx-sdt-list-item-1-value="draft" data-docx-sdt-list-item-2-display-text="Publish to site" data-docx-sdt-list-item-2-value="publish" data-docx-sdt-list-item-count="2">Publish to site</span>',
-        '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
+        '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero" class="docx-drawing-geometry docx-drawing-inline" data-docx-drawing-placement="inline"',
+        'data-docx-width-emu="914400" data-docx-height-emu="457200"',
         '<img src="https://cdn.example.test/docx-review-chart.png" alt="Linked review chart alt" title="Linked review chart"/>',
         '<img src="word/media/vml-badge.png" alt="VML badge alt" title="VML badge title"/>',
         '<span class="docx-drawing-placeholder docx-drawing-chart" data-docx-drawing-kind="chart" data-docx-docpr-id="18" data-docx-docpr-name="Review chart" data-docx-docpr-descr="Imported review chart" data-docx-docpr-title="Review chart" data-docx-relationship-id="rIdReviewChart"',

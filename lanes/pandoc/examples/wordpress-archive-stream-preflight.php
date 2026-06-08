@@ -946,6 +946,8 @@ $nestedInnerTar = TarArchive::fromEntries([
         'data' => $nestedZipPackage->bytes(),
     ],
 ]);
+$nestedUnsupportedXzTarBytes = "\xfd" . '7zXZ' . "\0\x00\x04" . 'xz-compressed-tar-placeholder';
+$nestedUnsupportedZstandardDocxBytes = "\x28\xb5\x2f\xfd\x00" . 'zstandard-compressed-docx-placeholder';
 $nestedArchiveBytes = TarArchive::fromEntries([
     [
         'name' => 'packet/content.md',
@@ -965,6 +967,14 @@ $nestedArchiveBytes = TarArchive::fromEntries([
     [
         'name' => 'packet/nested/broken.zip',
         'data' => "PK\x03\x04truncated-nested-review",
+    ],
+    [
+        'name' => 'packet/nested/source.tar.xz',
+        'data' => $nestedUnsupportedXzTarBytes,
+    ],
+    [
+        'name' => 'packet/nested/export.docx.zst',
+        'data' => $nestedUnsupportedZstandardDocxBytes,
     ],
 ])->bytes();
 $nestedGzip = GzipStream::build($nestedArchiveBytes, [
@@ -1289,17 +1299,21 @@ if (in_array('--self-test', $argv, true)) {
         'lz4SplitPackageContent' => $lz4SplitPackageContentBytes,
         'nestedRootKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'nestedRootFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
-        'nestedCandidateCount' => 4,
+        'nestedCandidateCount' => 6,
         'nestedPackageCount' => 3,
-        'nestedDiagnosticCount' => 1,
+        'nestedUnsupportedCompressionCount' => 2,
+        'nestedDiagnosticCount' => 3,
         'nestedDepthLimitReachedCount' => 0,
         'nestedDepthLimitedCandidateCount' => 0,
         'nestedFirstPath' => 'packet/nested/review.tar.gz',
         'nestedDeeperPath' => 'packet/nested/review.tar.gz!packet/deeper/document.docx',
         'nestedBrokenPath' => 'packet/nested/broken.zip',
-        'nestedDepthOneCandidateCount' => 3,
+        'nestedUnsupportedXzPath' => 'packet/nested/source.tar.xz',
+        'nestedUnsupportedZstandardPath' => 'packet/nested/export.docx.zst',
+        'nestedDepthOneCandidateCount' => 5,
         'nestedDepthOnePackageCount' => 2,
-        'nestedDepthOneDiagnosticCount' => 2,
+        'nestedDepthOneUnsupportedCompressionCount' => 2,
+        'nestedDepthOneDiagnosticCount' => 4,
         'nestedDepthOneDepthLimitReachedCount' => 1,
         'nestedDepthOneDepthLimitedCandidateCount' => 1,
         'nestedDepthOneDepthLimitedCandidateNames' => ['packet/deeper/document.docx'],
@@ -1642,6 +1656,7 @@ if (in_array('--self-test', $argv, true)) {
         || $nestedInspection['rootFormat'] !== $expected['nestedRootFormat']
         || $nestedInspection['candidateCount'] !== $expected['nestedCandidateCount']
         || $nestedInspection['packageCount'] !== $expected['nestedPackageCount']
+        || $nestedInspection['unsupportedCompressionCount'] !== $expected['nestedUnsupportedCompressionCount']
         || $nestedInspection['diagnosticCount'] !== $expected['nestedDiagnosticCount']
         || $nestedInspection['depthLimitReachedCount'] !== $expected['nestedDepthLimitReachedCount']
         || $nestedInspection['depthLimitedCandidateCount'] !== $expected['nestedDepthLimitedCandidateCount']
@@ -1655,8 +1670,18 @@ if (in_array('--self-test', $argv, true)) {
         || ($nestedInspection['entries'][2]['candidateReasons'] ?? []) !== ['extension:zip-package', 'signature:zip']
         || ($nestedInspection['entries'][3]['path'] ?? null) !== $expected['nestedBrokenPath']
         || ($nestedInspection['entries'][3]['status'] ?? null) !== 'unreadable'
+        || ($nestedInspection['entries'][4]['path'] ?? null) !== $expected['nestedUnsupportedXzPath']
+        || ($nestedInspection['entries'][4]['status'] ?? null) !== 'unsupported-compression'
+        || ($nestedInspection['entries'][4]['candidateFormat'] ?? null) !== 'xz-tar'
+        || ($nestedInspection['entries'][4]['extractionPolicy'] ?? null) !== 'unsupported-compression-stream-blocked'
+        || ($nestedInspection['entries'][5]['path'] ?? null) !== $expected['nestedUnsupportedZstandardPath']
+        || ($nestedInspection['entries'][5]['status'] ?? null) !== 'unsupported-compression'
+        || ($nestedInspection['entries'][5]['candidateFormat'] ?? null) !== 'zstandard-zip'
+        || isset($nestedInspection['entries'][4]['tarBytes'])
+        || isset($nestedInspection['entries'][5]['package'])
         || $nestedDepthLimitInspection['candidateCount'] !== $expected['nestedDepthOneCandidateCount']
         || $nestedDepthLimitInspection['packageCount'] !== $expected['nestedDepthOnePackageCount']
+        || $nestedDepthLimitInspection['unsupportedCompressionCount'] !== $expected['nestedDepthOneUnsupportedCompressionCount']
         || $nestedDepthLimitInspection['diagnosticCount'] !== $expected['nestedDepthOneDiagnosticCount']
         || $nestedDepthLimitInspection['depthLimitReachedCount'] !== $expected['nestedDepthOneDepthLimitReachedCount']
         || $nestedDepthLimitInspection['depthLimitedCandidateCount'] !== $expected['nestedDepthOneDepthLimitedCandidateCount']
@@ -1892,11 +1917,13 @@ echo 'nested.rootKind=' . $nestedInspection['rootKind'] . "\n";
 echo 'nested.rootFormat=' . $nestedInspection['rootFormat'] . "\n";
 echo 'nested.candidateCount=' . $nestedInspection['candidateCount'] . "\n";
 echo 'nested.packageCount=' . $nestedInspection['packageCount'] . "\n";
+echo 'nested.unsupportedCompressionCount=' . $nestedInspection['unsupportedCompressionCount'] . "\n";
 echo 'nested.diagnosticCount=' . $nestedInspection['diagnosticCount'] . "\n";
 echo 'nested.depthLimitReachedCount=' . $nestedInspection['depthLimitReachedCount'] . "\n";
 echo 'nested.depthLimitedCandidateCount=' . $nestedInspection['depthLimitedCandidateCount'] . "\n";
 echo 'nested.paths=' . implode(',', array_map(static fn (array $entry): string => $entry['path'], $nestedInspection['entries'])) . "\n";
 echo 'nestedDepthOne.candidateCount=' . $nestedDepthLimitInspection['candidateCount'] . "\n";
+echo 'nestedDepthOne.unsupportedCompressionCount=' . $nestedDepthLimitInspection['unsupportedCompressionCount'] . "\n";
 echo 'nestedDepthOne.diagnosticCount=' . $nestedDepthLimitInspection['diagnosticCount'] . "\n";
 echo 'nestedDepthOne.depthLimitReachedCount=' . $nestedDepthLimitInspection['depthLimitReachedCount'] . "\n";
 echo 'nestedDepthOne.depthLimitedCandidateNames=' . implode(',', $nestedDepthLimitInspection['entries'][0]['depthLimitedCandidateNames'] ?? []) . "\n";

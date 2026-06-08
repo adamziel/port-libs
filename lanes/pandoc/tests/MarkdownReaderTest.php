@@ -4802,6 +4802,48 @@ return [
         $t->contains('<pre class="wp-block-code"><code>status: queued</code></pre>', $blocks);
         $t->contains('<h1 id="tab-indent-body">Tab indent body</h1>', $blocks);
     },
+    'keeps malformed pandoc yaml multiline flow collections as markdown body' => static function (TestRunner $t): void {
+        $mapDocument = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Broken flow **Packet**',
+            'review: {',
+            '  status: queued,',
+            '  labels: [front-matter, wordpress]',
+            'owner: Import Desk',
+            '...',
+            '',
+            '# Broken flow body',
+        ]));
+        $sequenceDocument = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Broken sequence flow **Packet**',
+            'labels: [',
+            '  migration,',
+            '  wordpress',
+            'owner: Import Desk',
+            '...',
+            '',
+            '# Broken sequence flow body',
+        ]));
+        $mapBlocks = (new WordPressBlockWriter())->write($mapDocument);
+        $sequenceBlocks = (new WordPressBlockWriter())->write($sequenceDocument);
+
+        $t->same(null, $mapDocument->attr('meta'));
+        $t->same(['horizontal_rule', 'paragraph', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $mapDocument->children));
+        $t->contains('review: {', $mapDocument->children[1]->attr('text'));
+        $t->contains('labels: [front-matter, wordpress]', $mapDocument->children[1]->attr('text'));
+        $t->same('broken-flow-body', $mapDocument->children[2]->attr('id'));
+        $t->contains('<p>title: Broken flow <strong>Packet</strong>', $mapBlocks);
+        $t->contains('<h1 id="broken-flow-body">Broken flow body</h1>', $mapBlocks);
+
+        $t->same(null, $sequenceDocument->attr('meta'));
+        $t->same(['horizontal_rule', 'paragraph', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $sequenceDocument->children));
+        $t->contains('labels: [', $sequenceDocument->children[1]->attr('text'));
+        $t->contains('owner: Import Desk', $sequenceDocument->children[1]->attr('text'));
+        $t->same('broken-sequence-flow-body', $sequenceDocument->children[2]->attr('id'));
+        $t->contains('<p>title: Broken sequence flow <strong>Packet</strong>', $sequenceBlocks);
+        $t->contains('<h1 id="broken-sequence-flow-body">Broken sequence flow body</h1>', $sequenceBlocks);
+    },
     'keeps yaml looking blocks inside fenced code out of document metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '```markdown',

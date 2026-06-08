@@ -2180,6 +2180,31 @@ XML;
     <ds:Reference URI="/word/media/missing.png">
       <ds:DigestValue>bad base64!</ds:DigestValue>
     </ds:Reference>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/2006/12/xml-c14n11"/>
+      </ds:Transforms>
+      <ds:DigestMethod Algorithm="urn:example:digest"/>
+      <ds:DigestValue>AA==</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+      </ds:Transforms>
+      <ds:DigestMethod Algorithm="urn:example:digest"/>
+      <ds:DigestValue>AA==</ds:DigestValue>
+    </ds:Reference>
   </ds:SignedInfo>
 </ds:Signature>
 XML;
@@ -2196,7 +2221,7 @@ XML;
 
         $references = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig-signed-info.xml');
 
-        $t->same(7, count($references));
+        $t->same(9, count($references));
 
         $documentReference = $references[0];
         $t->same('/_xmlsignatures/sig-signed-info.xml', $documentReference['signaturePart']);
@@ -2294,6 +2319,39 @@ XML;
             'missing-signed-info-reference-digest-method',
             'invalid-signed-info-reference-digest-value-base64',
         ], $missingReference['issues']);
+
+        $relationshipCanonicalizedBeforeTransform = $references[7];
+        $t->same('/word/_rels/document.xml.rels', $relationshipCanonicalizedBeforeTransform['targetPart']);
+        $t->same(true, $relationshipCanonicalizedBeforeTransform['relationshipPart']);
+        $t->same([
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+            'http://schemas.openxmlformats.org/package/2006/RelationshipTransform',
+            'http://www.w3.org/2006/12/xml-c14n11',
+        ], $relationshipCanonicalizedBeforeTransform['transformAlgorithms']);
+        $t->same([1], $relationshipCanonicalizedBeforeTransform['relationshipTransformIndexes'] ?? null);
+        $t->same([0, 2], $relationshipCanonicalizedBeforeTransform['canonicalizationTransformIndexes'] ?? null);
+        $t->same(1, $relationshipCanonicalizedBeforeTransform['relationshipTransformCount']);
+        $t->same(2, $relationshipCanonicalizedBeforeTransform['canonicalizationTransformCount']);
+        $t->same(true, $relationshipCanonicalizedBeforeTransform['relationshipTransformFollowedByCanonicalization']);
+        $t->same(false, $relationshipCanonicalizedBeforeTransform['valid']);
+        $t->same(['signed-info-relationship-transform-after-canonicalization'], $relationshipCanonicalizedBeforeTransform['issues']);
+
+        $multipleRelationshipTransforms = $references[8];
+        $t->same('/word/_rels/document.xml.rels', $multipleRelationshipTransforms['targetPart']);
+        $t->same(true, $multipleRelationshipTransforms['relationshipPart']);
+        $t->same([
+            'http://schemas.openxmlformats.org/package/2006/RelationshipTransform',
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+            'http://schemas.openxmlformats.org/package/2006/RelationshipTransform',
+            'http://www.w3.org/2001/10/xml-exc-c14n#',
+        ], $multipleRelationshipTransforms['transformAlgorithms']);
+        $t->same([0, 2], $multipleRelationshipTransforms['relationshipTransformIndexes'] ?? null);
+        $t->same([1, 3], $multipleRelationshipTransforms['canonicalizationTransformIndexes'] ?? null);
+        $t->same(2, $multipleRelationshipTransforms['relationshipTransformCount']);
+        $t->same(2, $multipleRelationshipTransforms['canonicalizationTransformCount']);
+        $t->same(true, $multipleRelationshipTransforms['relationshipTransformFollowedByCanonicalization']);
+        $t->same(false, $multipleRelationshipTransforms['valid']);
+        $t->same(['signed-info-multiple-relationship-transforms'], $multipleRelationshipTransforms['issues']);
 
         $t->throws(\RuntimeException::class, static fn (): array => $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/missing.xml'));
     },

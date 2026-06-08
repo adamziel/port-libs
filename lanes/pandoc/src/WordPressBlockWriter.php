@@ -637,7 +637,12 @@ final class WordPressBlockWriter
                 continue;
             }
 
-            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+            $value = $this->allowedTableHtmlAttrValue($name, $value);
+            if ($value === null) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
         }
 
         return $attrs;
@@ -848,7 +853,12 @@ final class WordPressBlockWriter
                 continue;
             }
 
-            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+            $value = $this->allowedTableHtmlAttrValue($name, $value);
+            if ($value === null) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
         }
 
         return $attrs;
@@ -1403,7 +1413,12 @@ final class WordPressBlockWriter
                 continue;
             }
 
-            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+            $value = $this->allowedTableHtmlAttrValue($name, $value);
+            if ($value === null) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
         }
 
         return $attrs;
@@ -1466,7 +1481,23 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'axis', 'bgcolor', 'char', 'charoff', 'headers', 'scope', 'style', 'summary', 'title', 'valign'], true);
+            || in_array($name, ['abbr', 'axis', 'bgcolor', 'char', 'charoff', 'dir', 'headers', 'scope', 'style', 'summary', 'title', 'valign'], true);
+    }
+
+    private function allowedTableHtmlAttrValue(string $name, mixed $value): ?string
+    {
+        if (!is_scalar($value)) {
+            return null;
+        }
+
+        $value = (string) $value;
+        if ($name !== 'dir') {
+            return $value;
+        }
+
+        $direction = strtolower(trim($value));
+
+        return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
     }
 
     private function renderCodeBlock(AstNode $node): string

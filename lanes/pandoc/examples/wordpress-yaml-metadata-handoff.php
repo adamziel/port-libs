@@ -536,6 +536,21 @@ MARKDOWN;
 $lateInvalidBlockScalarDocument = (new MarkdownReader())->read($lateInvalidBlockScalarMarkdown);
 $lateInvalidBlockScalarBlocks = (new WordPressBlockWriter())->write($lateInvalidBlockScalarDocument);
 
+$invalidFlowCollectionMarkdown = <<<'MARKDOWN'
+---
+title: Invalid flow collection **Packet**
+review: {
+  status: queued,
+  labels: [front-matter, wordpress]
+owner: Import Desk
+...
+
+# Invalid flow collection body
+MARKDOWN;
+
+$invalidFlowCollectionDocument = (new MarkdownReader())->read($invalidFlowCollectionMarkdown);
+$invalidFlowCollectionBlocks = (new WordPressBlockWriter())->write($invalidFlowCollectionDocument);
+
 $duplicateKeyMarkdown = <<<'MARKDOWN'
 ---
 title: Duplicate key packet
@@ -1653,6 +1668,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($lateInvalidBlockScalarBlocks, 'Second source line is not indented relative to the block scalar.</p>')) {
         throw new RuntimeException('YAML metadata self-test lost late invalid block scalar under-indented source line');
     }
+    if ($invalidFlowCollectionDocument->attr('meta') !== null) {
+        throw new RuntimeException('YAML metadata self-test accepted an unterminated multiline flow collection');
+    }
+    if (!str_contains($invalidFlowCollectionBlocks, '<p>title: Invalid flow collection <strong>Packet</strong>')) {
+        throw new RuntimeException('YAML metadata self-test failed to keep invalid flow title source visible');
+    }
+    if (!str_contains($invalidFlowCollectionBlocks, 'labels: [front-matter, wordpress]')) {
+        throw new RuntimeException('YAML metadata self-test failed to keep invalid flow labels source visible');
+    }
+    if (!str_contains($invalidFlowCollectionBlocks, '<h1 id="invalid-flow-collection-body">Invalid flow collection body</h1>')) {
+        throw new RuntimeException('YAML metadata self-test missing invalid flow fallback body heading');
+    }
     if (($duplicateKeyMeta['review']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing duplicate key final review status');
     }
@@ -1817,6 +1844,8 @@ echo 'Implicit opening title: ' . ($implicitOpeningMeta['title'] ?? '') . "\n";
 echo 'Implicit opening review: ' . ($implicitOpeningMeta['review']['status'] ?? '') . ' / priority ' . ($implicitOpeningMeta['review']['priority'] ?? '') . "\n";
 echo 'Implicit opening reference: ' . ($implicitOpeningMeta['references'][0]['id'] ?? '') . "\n";
 echo $implicitOpeningBlocks . "\n";
+echo 'Invalid flow collection metadata: ' . ($invalidFlowCollectionDocument->attr('meta') === null ? 'rejected' : 'accepted') . "\n";
+echo $invalidFlowCollectionBlocks . "\n";
 echo 'Duplicate key diagnostics: ' . implode(', ', array_column($duplicateKeyDiagnostics, 'path')) . "\n";
 echo 'Duplicate key final review: ' . ($duplicateKeyMeta['review']['status'] ?? '') . ' / ' . ($duplicateKeyMeta['flow-review']['owner'] ?? '') . "\n";
 echo $duplicateKeyBlocks . "\n";

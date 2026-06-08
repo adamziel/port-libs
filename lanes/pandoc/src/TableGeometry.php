@@ -305,7 +305,9 @@ final class TableGeometry
         $columnSpecs = self::columnSpecs($table, $columnCount);
         $coverage = [];
         $globalRowStart = 0;
+        $tableDirection = self::sourceDirection($table);
         foreach (self::sectionRowGroups($table, $columnCount) as $group) {
+            $sectionDirection = self::sourceDirection($group['node'] ?? null);
             $layoutRows = self::layoutRows($group['rows'], $columnCount);
             $sectionRowCount = count($layoutRows);
             foreach ($layoutRows as $rowIndex => $layoutRow) {
@@ -315,6 +317,7 @@ final class TableGeometry
                     'rowHeadColumns' => 0,
                     'rowRole' => $group['section'],
                 ];
+                $rowDirection = self::sourceDirection($rowEntry['row'] ?? null);
                 $headerRow = (bool) $rowEntry['header'];
                 $rowHeadColumns = (int) $rowEntry['rowHeadColumns'];
                 foreach ($layoutRow['cells'] as $cell) {
@@ -345,6 +348,13 @@ final class TableGeometry
                     $sourceRow = (int) ($cell['sourceRow'] ?? $rowIndex);
                     $sourceRowspan = max(1, (int) ($cell['sourceRowspan'] ?? $rawRowspan));
                     $sourceRowEnd = $sourceRow + $sourceRowspan;
+                    $cellDirection = self::sourceDirection($cell['node']);
+                    [$direction, $directionSource] = self::effectiveDirection([
+                        'table' => $tableDirection,
+                        'section' => $sectionDirection,
+                        'row' => $rowDirection,
+                        'cell' => $cellDirection,
+                    ]);
                     $record = [
                         'section' => $group['section'],
                         'row' => $rowIndex,
@@ -393,6 +403,22 @@ final class TableGeometry
                         $record['rowspanToEnd'] = true;
                         $record['sourceRowspanAttribute'] = 0;
                         $record['sourceRowspanMode'] = 'to-section-end';
+                    }
+                    if ($direction !== '') {
+                        $record['direction'] = $direction;
+                        $record['directionSource'] = $directionSource;
+                        if ($cellDirection !== '') {
+                            $record['sourceDirection'] = $cellDirection;
+                        }
+                        if ($rowDirection !== '') {
+                            $record['rowDirection'] = $rowDirection;
+                        }
+                        if ($sectionDirection !== '') {
+                            $record['sectionDirection'] = $sectionDirection;
+                        }
+                        if ($tableDirection !== '') {
+                            $record['tableDirection'] = $tableDirection;
+                        }
                     }
                     if ($hasColumnSources) {
                         $record['columnSources'] = $columnSources;
@@ -1602,6 +1628,7 @@ final class TableGeometry
      *     columnGroups:list<array<string, mixed>>,
      *     columnDecimalAlignments:list<array<string, mixed>>,
      *     cellDecimalAlignments:list<array<string, mixed>>,
+     *     directionality:array<string, mixed>,
      *     rowGroups:list<array<string, mixed>>,
      *     captions:array<string, array<string, mixed>>,
      *     sections:list<array<string, mixed>>,
@@ -1631,6 +1658,7 @@ final class TableGeometry
         $rowGroups = self::rowGroups($table, $columnCount);
         $sourceSummary = self::sourceSummaryRecord($table);
         $tableFrame = self::tableFrameMetadata($table);
+        $directionality = self::directionalityMetadata($table, $sections, $coverageRecords);
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $idPrefix = self::reviewPacketIdPrefix($table, $options);
         $writerDowngrades = [];
@@ -1659,6 +1687,7 @@ final class TableGeometry
             'columnGroups' => $columnGroups,
             'columnDecimalAlignments' => $columnDecimalAlignments,
             'cellDecimalAlignments' => $cellDecimalAlignments,
+            'directionality' => $directionality,
             'widthSummary' => $widthSummary,
             'sections' => self::serializableSectionGrids($sections),
             'rowGroups' => $rowGroups,
@@ -1687,6 +1716,7 @@ final class TableGeometry
                 $flatGrid,
                 $flatGridFallbacks,
                 $tableFrame,
+                $directionality,
                 (string) ($sourceSummary['text'] ?? '')
             ),
         ];
@@ -3371,6 +3401,34 @@ final class TableGeometry
         return '';
     }
 
+    private static function sourceDirection(mixed $node): string
+    {
+        return self::normalizeTableDirectionAttribute(self::sourceHtmlAttribute($node, 'dir'));
+    }
+
+    private static function normalizeTableDirectionAttribute(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['ltr', 'rtl', 'auto'], true) ? $value : '';
+    }
+
+    /**
+     * @param array{table?:string,section?:string,row?:string,cell?:string} $directions
+     * @return array{0:string,1:string}
+     */
+    private static function effectiveDirection(array $directions): array
+    {
+        foreach (['cell', 'row', 'section', 'table'] as $source) {
+            $direction = self::normalizeTableDirectionAttribute((string) ($directions[$source] ?? ''));
+            if ($direction !== '') {
+                return [$direction, $source];
+            }
+        }
+
+        return ['', ''];
+    }
+
     /**
      * @return array{text:string,source:string,attribute:string}
      */
@@ -3385,6 +3443,190 @@ final class TableGeometry
             'text' => $summary,
             'source' => 'html-table-summary',
             'attribute' => 'summary',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     * @param list<array<string, mixed>> $coverage
+     * @return array{
+     *     table:array<string, mixed>,
+     *     sections:list<array<string, mixed>>,
+     *     rows:list<array<string, mixed>>,
+     *     cells:list<array<string, mixed>>,
+     *     summary:array<string, mixed>
+     * }
+     */
+    private static function directionalityMetadata(AstNode $table, array $sections, array $coverage): array
+    {
+        $tableRecord = [];
+        $sectionRecords = [];
+        $rowRecords = [];
+        $cellRecords = [];
+        $directions = [];
+
+        $tableDirection = self::sourceDirection($table);
+        if ($tableDirection !== '') {
+            $tableRecord = [
+                'source' => 'html-table-dir',
+                'attribute' => 'dir',
+                'direction' => $tableDirection,
+            ];
+            $directions[] = $tableDirection;
+        }
+
+        foreach ($sections as $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            $sectionName = (string) ($section['section'] ?? '');
+            $globalRowStart = max(0, (int) ($section['globalRowStart'] ?? 0));
+            $rowEntries = is_array($section['rowEntries'] ?? null) ? $section['rowEntries'] : [];
+            $rowRange = self::sectionGridRowRange($section, $globalRowStart, count($rowEntries));
+            $sectionDirection = self::sourceDirection($section['node'] ?? null);
+            if ($sectionDirection !== '') {
+                $sectionRecords[] = [
+                    'source' => 'html-table-section-dir',
+                    'attribute' => 'dir',
+                    'section' => $sectionName,
+                    'direction' => $sectionDirection,
+                    'globalRowStart' => $rowRange[0],
+                    'globalRowEnd' => $rowRange[1],
+                    'rowRange' => $rowRange,
+                    'rowCount' => max(0, $rowRange[1] - $rowRange[0]),
+                ];
+                $directions[] = $sectionDirection;
+            }
+
+            foreach ($rowEntries as $rowIndex => $rowEntry) {
+                if (!is_array($rowEntry)) {
+                    continue;
+                }
+
+                $rowDirection = self::sourceDirection($rowEntry['row'] ?? null);
+                if ($rowDirection === '') {
+                    continue;
+                }
+
+                $rowRecords[] = [
+                    'source' => 'html-table-row-dir',
+                    'attribute' => 'dir',
+                    'section' => $sectionName,
+                    'rowRole' => (string) ($rowEntry['rowRole'] ?? $sectionName),
+                    'row' => (int) $rowIndex,
+                    'globalRow' => $globalRowStart + (int) $rowIndex,
+                    'direction' => $rowDirection,
+                ];
+                $directions[] = $rowDirection;
+            }
+        }
+
+        foreach ($coverage as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $direction = self::normalizeTableDirectionAttribute((string) ($record['direction'] ?? ''));
+            if ($direction === '') {
+                continue;
+            }
+
+            $node = $record['node'] ?? null;
+            $cell = [
+                'source' => (string) ($record['directionSource'] ?? 'cell'),
+                'attribute' => 'dir',
+                'section' => (string) ($record['section'] ?? ''),
+                'rowRole' => (string) ($record['rowRole'] ?? ''),
+                'row' => max(0, (int) ($record['row'] ?? 0)),
+                'globalRow' => max(0, (int) ($record['globalRow'] ?? 0)),
+                'column' => max(0, (int) ($record['column'] ?? 0)),
+                'sourceCell' => max(0, (int) ($record['sourceCell'] ?? 0)),
+                'sourceColumn' => max(0, (int) ($record['sourceColumn'] ?? 0)),
+                'direction' => $direction,
+                'text' => $node instanceof AstNode ? self::plainText($node) : (string) ($record['text'] ?? ''),
+            ];
+
+            foreach (['columns', 'sourceColumns', 'globalRows', 'sourceRows'] as $key) {
+                $values = self::intList($record[$key] ?? []);
+                if ($values !== []) {
+                    $cell[$key] = $values;
+                }
+            }
+
+            foreach (['colspan', 'rowspan', 'rawColspan', 'rawRowspan', 'sourceRowspan'] as $key) {
+                if (isset($record[$key]) && is_numeric($record[$key])) {
+                    $cell[$key] = max(0, (int) $record[$key]);
+                }
+            }
+
+            foreach (['sourceDirection', 'rowDirection', 'sectionDirection', 'tableDirection'] as $key) {
+                $value = self::normalizeTableDirectionAttribute((string) ($record[$key] ?? ''));
+                if ($value !== '') {
+                    $cell[$key] = $value;
+                }
+            }
+
+            if (($record['headerCell'] ?? false) === true) {
+                $cell['headerCell'] = true;
+            }
+
+            $cellRecords[] = $cell;
+            $directions[] = $direction;
+        }
+
+        $directions = array_values(array_unique(array_filter(
+            $directions,
+            static fn (string $direction): bool => $direction !== ''
+        )));
+        sort($directions);
+        $explicitCellDirectionCount = 0;
+        foreach ($cellRecords as $cell) {
+            if (($cell['source'] ?? '') === 'cell') {
+                $explicitCellDirectionCount++;
+            }
+        }
+
+        $directionRecordCount = ($tableRecord === [] ? 0 : 1)
+            + count($sectionRecords)
+            + count($rowRecords)
+            + count($cellRecords);
+        $summary = [
+            'hasDirectionality' => $directionRecordCount > 0,
+            'directionRecordCount' => $directionRecordCount,
+            'directions' => $directions,
+            'hasTableDirection' => $tableRecord !== [],
+            'sectionDirectionCount' => count($sectionRecords),
+            'rowDirectionCount' => count($rowRecords),
+            'directionalCellCount' => count($cellRecords),
+            'explicitCellDirectionCount' => $explicitCellDirectionCount,
+            'inheritedCellDirectionCount' => count($cellRecords) - $explicitCellDirectionCount,
+        ];
+
+        return [
+            'table' => $tableRecord,
+            'sections' => $sectionRecords,
+            'rows' => $rowRecords,
+            'cells' => $cellRecords,
+            'summary' => $summary,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyDirectionalitySummary(): array
+    {
+        return [
+            'hasDirectionality' => false,
+            'directionRecordCount' => 0,
+            'directions' => [],
+            'hasTableDirection' => false,
+            'sectionDirectionCount' => 0,
+            'rowDirectionCount' => 0,
+            'directionalCellCount' => 0,
+            'explicitCellDirectionCount' => 0,
+            'inheritedCellDirectionCount' => 0,
         ];
     }
 
@@ -4343,6 +4585,7 @@ final class TableGeometry
      * @param array<string, mixed> $flatGrid
      * @param list<array<string, mixed>> $flatGridFallbacks
      * @param array<string, mixed> $tableFrame
+     * @param array<string, mixed> $directionality
      * @return array<string, mixed>
      */
     private static function reviewPacketSummary(
@@ -4361,6 +4604,7 @@ final class TableGeometry
         array $flatGrid,
         array $flatGridFallbacks,
         array $tableFrame,
+        array $directionality,
         string $sourceSummary
     ): array
     {
@@ -4527,6 +4771,9 @@ final class TableGeometry
             ? $flatGrid['summary']
             : [];
         $flatGridFallbackSummary = self::flatGridFallbackSummary($flatGridFallbacks);
+        $directionalitySummary = is_array($directionality['summary'] ?? null)
+            ? $directionality['summary']
+            : self::emptyDirectionalitySummary();
         $globalRowIndexes = array_keys($globalRows);
         sort($globalRowIndexes, SORT_NUMERIC);
         $columnRollup = self::columnSummaryRollup($columnSummaries);
@@ -4604,6 +4851,12 @@ final class TableGeometry
             'tableFrame' => (string) ($tableFrame['frame'] ?? ''),
             'tableRules' => (string) ($tableFrame['rules'] ?? ''),
             'tableBorder' => (string) ($tableFrame['border'] ?? ''),
+            'hasTableDirectionality' => (bool) ($directionalitySummary['hasDirectionality'] ?? false),
+            'directionRecordCount' => (int) ($directionalitySummary['directionRecordCount'] ?? 0),
+            'directionalCellCount' => (int) ($directionalitySummary['directionalCellCount'] ?? 0),
+            'explicitCellDirectionCount' => (int) ($directionalitySummary['explicitCellDirectionCount'] ?? 0),
+            'inheritedCellDirectionCount' => (int) ($directionalitySummary['inheritedCellDirectionCount'] ?? 0),
+            'tableDirections' => self::stringList($directionalitySummary['directions'] ?? []),
             'hasShortCaptionBlocks' => (int) ($captions['short']['blockCount'] ?? 0) > 0,
             'shortCaptionBlockCount' => (int) ($captions['short']['blockCount'] ?? 0),
             'shortCaptionBlockTypes' => array_values(array_map(
@@ -5011,6 +5264,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
@@ -5085,6 +5339,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
@@ -5171,6 +5426,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
@@ -5886,6 +6142,51 @@ final class TableGeometry
             'attributeCount' => count(is_array($tableFrame['attributes'] ?? null) ? $tableFrame['attributes'] : []),
             'attributes' => $tableFrame['attributes'] ?? [],
             'sourceAttributes' => $tableFrame['sourceAttributes'] ?? [],
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
+    private static function tableDirectionWriterDiagnostics(AstNode $table, string $writer, array $coverage): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-table-direction-requires-raw-html', 'raw-html-table-direction'],
+            'asciidoc' => ['asciidoc-table-direction-review-required', 'table-direction-review'],
+            'latex' => ['latex-table-direction-review-required', 'table-direction-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $directionality = self::directionalityMetadata($table, self::sectionGrids($table), $coverage);
+        $summary = is_array($directionality['summary'] ?? null)
+            ? $directionality['summary']
+            : self::emptyDirectionalitySummary();
+        if (($summary['hasDirectionality'] ?? false) !== true) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-direction',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-dir',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'directions' => self::stringList($summary['directions'] ?? []),
+            'directionRecordCount' => (int) ($summary['directionRecordCount'] ?? 0),
+            'directionalCellCount' => (int) ($summary['directionalCellCount'] ?? 0),
+            'explicitCellDirectionCount' => (int) ($summary['explicitCellDirectionCount'] ?? 0),
+            'inheritedCellDirectionCount' => (int) ($summary['inheritedCellDirectionCount'] ?? 0),
+            'table' => $directionality['table'] ?? [],
+            'sections' => $directionality['sections'] ?? [],
+            'rows' => $directionality['rows'] ?? [],
+            'cells' => $directionality['cells'] ?? [],
         ]];
     }
 

@@ -6723,7 +6723,15 @@ final class DocxReader
                 $docPr = $this->drawingPropertiesForBlip($blip, $drawing);
                 $alt = $docPr instanceof \DOMElement ? (string) ($docPr->getAttribute('descr') ?: $docPr->getAttribute('name')) : '';
                 $title = $docPr instanceof \DOMElement ? $docPr->getAttribute('title') : '';
-                $image = $this->relationshipImageNode($relationshipId, $relationship, $package, $relationships, $alt, $title);
+                $image = $this->relationshipImageNode(
+                    $relationshipId,
+                    $relationship,
+                    $package,
+                    $relationships,
+                    $alt,
+                    $title,
+                    $this->drawingGeometryAttrs($this->drawingContainerForElement($blip, $drawing))
+                );
                 if ($image instanceof AstNode) {
                     $nodes[] = $image;
                 }
@@ -6757,7 +6765,11 @@ final class DocxReader
 
             $nodes[] = new AstNode(
                 'span',
-                $this->drawingTextAttrs($this->drawingPropertiesForElement($textBody, $drawing), $paragraphCount),
+                $this->drawingTextAttrs(
+                    $this->drawingPropertiesForElement($textBody, $drawing),
+                    $paragraphCount,
+                    $this->drawingGeometryAttrs($this->drawingContainerForElement($textBody, $drawing))
+                ),
                 $children
             );
         }
@@ -6853,7 +6865,7 @@ final class DocxReader
     /**
      * @return array{classes:list<string>, attributes:array<string, string>}
      */
-    private function drawingTextAttrs(?\DOMElement $docPr, int $paragraphCount): array
+    private function drawingTextAttrs(?\DOMElement $docPr, int $paragraphCount, array $metadataAttrs = []): array
     {
         $attributes = [
             'data-docx-drawing-kind' => 'text',
@@ -6874,10 +6886,10 @@ final class DocxReader
             }
         }
 
-        return [
+        return $this->mergeNodeMetadataAttrs([
             'classes' => ['docx-drawing-text'],
             'attributes' => $attributes,
-        ];
+        ], $metadataAttrs);
     }
 
     /**
@@ -6907,7 +6919,8 @@ final class DocxReader
                 $relationship,
                 $package,
                 $relationships,
-                $docPr
+                $docPr,
+                $this->drawingGeometryAttrs($this->drawingContainerForElement($chart, $drawing))
             );
         }
 
@@ -6931,7 +6944,11 @@ final class DocxReader
             }
 
             $docPr = $this->drawingPropertiesForElement($relIds, $drawing);
-            $attrs = $this->drawingPlaceholderBaseAttrs('diagram', $docPr);
+            $attrs = $this->drawingPlaceholderBaseAttrs(
+                'diagram',
+                $docPr,
+                $this->drawingGeometryAttrs($this->drawingContainerForElement($relIds, $drawing))
+            );
             foreach ($relationshipRoles as $role => $relationship) {
                 $rolePrefix = 'data-docx-diagram-' . $role;
                 $attrs['attributes'][$rolePrefix . '-id'] = $relationship->id;
@@ -6982,9 +6999,10 @@ final class DocxReader
         OpcRelationship $relationship,
         ZipPackage $package,
         OpcRelationships $relationships,
-        ?\DOMElement $docPr
+        ?\DOMElement $docPr,
+        array $metadataAttrs = []
     ): AstNode {
-        $attrs = $this->drawingPlaceholderBaseAttrs($kind, $docPr);
+        $attrs = $this->drawingPlaceholderBaseAttrs($kind, $docPr, $metadataAttrs);
         $attrs['attributes']['data-docx-relationship-id'] = $relationship->id;
         $attrs['attributes']['data-docx-relationship-type'] = $relationship->type;
         foreach ($this->drawingRelationshipTargetAttrs($relationship, $package, $relationships) as $name => $value) {
@@ -6999,7 +7017,7 @@ final class DocxReader
     /**
      * @return array{classes:list<string>, attributes:array<string, string>}
      */
-    private function drawingPlaceholderBaseAttrs(string $kind, ?\DOMElement $docPr): array
+    private function drawingPlaceholderBaseAttrs(string $kind, ?\DOMElement $docPr, array $metadataAttrs = []): array
     {
         $attributes = [
             'data-docx-drawing-kind' => $kind,
@@ -7019,10 +7037,10 @@ final class DocxReader
             }
         }
 
-        return [
+        return $this->mergeNodeMetadataAttrs([
             'classes' => ['docx-drawing-placeholder', 'docx-drawing-' . $kind],
             'attributes' => $attributes,
-        ];
+        ], $metadataAttrs);
     }
 
     /**
@@ -7126,9 +7144,10 @@ final class DocxReader
         ZipPackage $package,
         OpcRelationships $relationships,
         string $alt,
-        string $title
+        string $title,
+        array $metadataAttrs = []
     ): ?AstNode {
-        $attrs = $this->drawingImageBaseAttrs($relationshipId, $alt, $title);
+        $attrs = $this->drawingImageBaseAttrs($relationshipId, $alt, $title, $metadataAttrs);
 
         if ($relationship->isExternal()) {
             $externalTarget = $relationship->externalTargetPreflight();
@@ -7165,7 +7184,7 @@ final class DocxReader
     /**
      * @return array<string, mixed>
      */
-    private function drawingImageBaseAttrs(string $relationshipId, string $alt, string $title): array
+    private function drawingImageBaseAttrs(string $relationshipId, string $alt, string $title, array $metadataAttrs = []): array
     {
         $attrs = [
             'relationshipId' => $relationshipId,
@@ -7176,7 +7195,7 @@ final class DocxReader
             $attrs['title'] = $title;
         }
 
-        return $attrs;
+        return $this->mergeNodeMetadataAttrs($attrs, $metadataAttrs);
     }
 
     private function drawingPropertiesForBlip(\DOMElement $blip, \DOMElement $drawing): ?\DOMElement
@@ -7184,7 +7203,7 @@ final class DocxReader
         return $this->drawingPropertiesForElement($blip, $drawing);
     }
 
-    private function drawingPropertiesForElement(\DOMElement $element, \DOMElement $drawing): ?\DOMElement
+    private function drawingContainerForElement(\DOMElement $element, \DOMElement $drawing): ?\DOMElement
     {
         $node = $element->parentNode;
         while ($node instanceof \DOMElement) {
@@ -7192,7 +7211,7 @@ final class DocxReader
                 $node->namespaceURI === self::WORDPROCESSING_DRAWING_NS
                 && ($node->localName === 'inline' || $node->localName === 'anchor')
             ) {
-                return $this->firstChildElement($node, self::WORDPROCESSING_DRAWING_NS, 'docPr');
+                return $node;
             }
 
             if ($node === $drawing) {
@@ -7202,7 +7221,208 @@ final class DocxReader
             $node = $node->parentNode;
         }
 
+        return null;
+    }
+
+    private function drawingPropertiesForElement(\DOMElement $element, \DOMElement $drawing): ?\DOMElement
+    {
+        $container = $this->drawingContainerForElement($element, $drawing);
+        if ($container instanceof \DOMElement) {
+            return $this->firstChildElement($container, self::WORDPROCESSING_DRAWING_NS, 'docPr');
+        }
+
         return $this->firstDescendantElement($drawing, self::WORDPROCESSING_DRAWING_NS, 'docPr');
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>}
+     */
+    private function drawingGeometryAttrs(?\DOMElement $container): array
+    {
+        if (!$container instanceof \DOMElement) {
+            return [];
+        }
+
+        $placement = $container->localName === 'anchor' ? 'anchor' : 'inline';
+        $classes = ['docx-drawing-geometry', 'docx-drawing-' . $placement];
+        $attributes = ['data-docx-drawing-placement' => $placement];
+        $hasGeometry = false;
+
+        foreach ([
+            'distT' => 'data-docx-distance-top-emu',
+            'distB' => 'data-docx-distance-bottom-emu',
+            'distL' => 'data-docx-distance-left-emu',
+            'distR' => 'data-docx-distance-right-emu',
+        ] as $source => $target) {
+            $value = trim($container->getAttribute($source));
+            if ($value !== '') {
+                $attributes[$target] = $value;
+                $hasGeometry = true;
+            }
+        }
+
+        if ($placement === 'anchor') {
+            foreach ([
+                'simplePos' => 'data-docx-anchor-simple-pos',
+                'relativeHeight' => 'data-docx-anchor-relative-height',
+                'behindDoc' => 'data-docx-anchor-behind-doc',
+                'locked' => 'data-docx-anchor-locked',
+                'layoutInCell' => 'data-docx-anchor-layout-in-cell',
+                'allowOverlap' => 'data-docx-anchor-allow-overlap',
+            ] as $source => $target) {
+                $value = trim($container->getAttribute($source));
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                    $hasGeometry = true;
+                }
+            }
+        }
+
+        $extent = $this->firstChildElement($container, self::WORDPROCESSING_DRAWING_NS, 'extent');
+        if ($extent instanceof \DOMElement) {
+            foreach ([
+                'cx' => 'data-docx-width-emu',
+                'cy' => 'data-docx-height-emu',
+            ] as $source => $target) {
+                $value = trim($extent->getAttribute($source));
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                    $hasGeometry = true;
+                }
+            }
+        }
+
+        $effectExtent = $this->firstChildElement($container, self::WORDPROCESSING_DRAWING_NS, 'effectExtent');
+        if ($effectExtent instanceof \DOMElement) {
+            foreach ([
+                'l' => 'data-docx-effect-extent-left-emu',
+                't' => 'data-docx-effect-extent-top-emu',
+                'r' => 'data-docx-effect-extent-right-emu',
+                'b' => 'data-docx-effect-extent-bottom-emu',
+            ] as $source => $target) {
+                $value = trim($effectExtent->getAttribute($source));
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                    $hasGeometry = true;
+                }
+            }
+        }
+
+        foreach ($container->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::WORDPROCESSING_DRAWING_NS) {
+                continue;
+            }
+
+            if (str_starts_with($child->localName, 'wrap')) {
+                $wrapKind = $this->drawingWrapKind($child->localName);
+                if ($wrapKind !== null) {
+                    $attributes['data-docx-wrap'] = $wrapKind;
+                    $classes[] = 'docx-wrap-' . $wrapKind;
+                    $hasGeometry = true;
+                }
+
+                $wrapText = trim($child->getAttribute('wrapText'));
+                if ($wrapText !== '') {
+                    $attributes['data-docx-wrap-text'] = $wrapText;
+                    $hasGeometry = true;
+                }
+
+                continue;
+            }
+
+            if ($child->localName === 'positionH') {
+                $hasGeometry = $this->appendDrawingPositionAttrs($child, 'h', $attributes) || $hasGeometry;
+                continue;
+            }
+
+            if ($child->localName === 'positionV') {
+                $hasGeometry = $this->appendDrawingPositionAttrs($child, 'v', $attributes) || $hasGeometry;
+            }
+        }
+
+        if (!$hasGeometry) {
+            return [];
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function drawingWrapKind(string $localName): ?string
+    {
+        return match ($localName) {
+            'wrapNone' => 'none',
+            'wrapSquare' => 'square',
+            'wrapTight' => 'tight',
+            'wrapThrough' => 'through',
+            'wrapTopAndBottom' => 'top-and-bottom',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendDrawingPositionAttrs(\DOMElement $position, string $axis, array &$attributes): bool
+    {
+        $hasGeometry = false;
+        $relativeFrom = trim($position->getAttribute('relativeFrom'));
+        if ($relativeFrom !== '') {
+            $attributes['data-docx-position-' . $axis . '-relative-from'] = $relativeFrom;
+            $hasGeometry = true;
+        }
+
+        foreach ($position->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $value = trim($child->textContent);
+            if ($value === '') {
+                continue;
+            }
+
+            if ($child->localName === 'align') {
+                $attributes['data-docx-position-' . $axis . '-align'] = $value;
+                $hasGeometry = true;
+                continue;
+            }
+
+            if ($child->localName === 'posOffset') {
+                $attributes['data-docx-position-' . $axis . '-offset-emu'] = $value;
+                $hasGeometry = true;
+                continue;
+            }
+
+            if ($child->localName === 'pctPosHOffset' || $child->localName === 'pctPosVOffset') {
+                $attributes['data-docx-position-' . $axis . '-pct-offset'] = $value;
+                $hasGeometry = true;
+            }
+        }
+
+        return $hasGeometry;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param array{classes?:list<string>, attributes?:array<string, string>} $metadataAttrs
+     * @return array<string, mixed>
+     */
+    private function mergeNodeMetadataAttrs(array $attrs, array $metadataAttrs): array
+    {
+        if (isset($metadataAttrs['classes']) && is_array($metadataAttrs['classes'])) {
+            $classes = isset($attrs['classes']) && is_array($attrs['classes']) ? $attrs['classes'] : [];
+            $attrs['classes'] = array_values(array_unique(array_merge($classes, $metadataAttrs['classes'])));
+        }
+
+        if (isset($metadataAttrs['attributes']) && is_array($metadataAttrs['attributes'])) {
+            $attributes = isset($attrs['attributes']) && is_array($attrs['attributes']) ? $attrs['attributes'] : [];
+            $attrs['attributes'] = array_replace($attributes, $metadataAttrs['attributes']);
+        }
+
+        return $attrs;
     }
 
     private function vmlShapeForImageData(\DOMElement $imageData, \DOMElement $pict): ?\DOMElement

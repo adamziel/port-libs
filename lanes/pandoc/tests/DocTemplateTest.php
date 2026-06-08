@@ -848,6 +848,32 @@ TPL;
         ]), $output);
     },
 
+    'renders braced pandoc doctemplate separators containing opening brackets' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Sources: ${ sources[[ ] }
+Piped: ${ sources/uppercase[[ ] }
+Rows: ${ rows:row()[[ ] }
+Inline: ${ sources[[ ] }
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'sources' => ['media', 'links', 'layout'],
+            'rows' => [
+                ['source' => 'docx', 'message' => 'Imported heading'],
+                ['source' => 'odt', 'message' => 'Styled paragraph'],
+            ],
+        ], [
+            'row' => '$it.source$: $it.message$',
+        ]);
+
+        $t->same(implode("\n", [
+            'Sources: media[ links[ layout',
+            'Piped: MEDIA[ LINKS[ LAYOUT',
+            'Rows: docx: Imported heading[ odt: Styled paragraph',
+            'Inline: media[ links[ layout',
+        ]), $output);
+    },
+
     'renders pandoc doctemplate alphabetic pipe overflow markers' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

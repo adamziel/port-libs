@@ -10438,9 +10438,17 @@ final class EpubReader
         $fontFaceUrlSourceCount = 0;
         $fontFaceExternalSourceCount = 0;
         $fontFaceMissingSourceCount = 0;
+        $conditionalRuleCount = 0;
+        $mediaRuleCount = 0;
+        $supportsRuleCount = 0;
+        $importConditionCount = 0;
         $fontFaceItems = [];
         $fontFaceFamilies = [];
         $fontFaceDiagnostics = [];
+        $conditionalRules = [];
+        $mediaConditions = [];
+        $supportsConditions = [];
+        $importConditions = [];
         $reviewRequiredCount = 0;
 
         foreach ($manifest as $asset) {
@@ -10483,6 +10491,14 @@ final class EpubReader
                     'fontFaces' => [],
                     'fontFaceDiagnostics' => [],
                     'fontFaceDiagnosticCount' => 0,
+                    'conditionalRuleCount' => 0,
+                    'mediaRuleCount' => 0,
+                    'supportsRuleCount' => 0,
+                    'importConditionCount' => 0,
+                    'conditionalRules' => [],
+                    'mediaConditions' => [],
+                    'supportsConditions' => [],
+                    'importConditions' => [],
                     'reviewFlags' => ['missing-references'],
                     'references' => [],
                     'diagnostics' => $assetDiagnostics,
@@ -10525,6 +10541,27 @@ final class EpubReader
                 }
             }
 
+            $assetConditionalRules = self::cssConditionalAtRuleReports($css);
+            $assetMediaRules = array_values(array_filter(
+                $assetConditionalRules,
+                static fn (array $rule): bool => ($rule['kind'] ?? null) === 'media',
+            ));
+            $assetSupportsRules = array_values(array_filter(
+                $assetConditionalRules,
+                static fn (array $rule): bool => ($rule['kind'] ?? null) === 'supports',
+            ));
+            $assetImportConditions = array_values(array_filter(
+                array_map(
+                    static fn (array $reference): ?string => is_string($reference['importCondition'] ?? null)
+                        ? $reference['importCondition']
+                        : null,
+                    $references,
+                ),
+                static fn (?string $condition): bool => $condition !== null && $condition !== '',
+            ));
+            $assetMediaConditions = self::cssConditionalRuleConditions($assetMediaRules);
+            $assetSupportsConditions = self::cssConditionalRuleConditions($assetSupportsRules);
+
             $fontFaces = $this->cssFontFaceReports($package, $part, $css, $manifestByPart);
             $assetFontFaceCount = count($fontFaces);
             $assetFontFaceFamilies = [];
@@ -10552,7 +10589,7 @@ final class EpubReader
                     ] + $diagnostic;
                 }
             }
-            $reviewFlags = self::cssResourceReviewFlags($references);
+            $reviewFlags = self::cssResourceReviewFlags($references, $assetConditionalRules);
             if ($reviewFlags !== []) {
                 ++$reviewRequiredCount;
             }
@@ -10576,6 +10613,14 @@ final class EpubReader
                 'fontFaces' => $fontFaces,
                 'fontFaceDiagnostics' => $assetFontFaceDiagnostics,
                 'fontFaceDiagnosticCount' => count($assetFontFaceDiagnostics),
+                'conditionalRuleCount' => count($assetConditionalRules),
+                'mediaRuleCount' => count($assetMediaRules),
+                'supportsRuleCount' => count($assetSupportsRules),
+                'importConditionCount' => count($assetImportConditions),
+                'conditionalRules' => $assetConditionalRules,
+                'mediaConditions' => $assetMediaConditions,
+                'supportsConditions' => $assetSupportsConditions,
+                'importConditions' => $assetImportConditions,
                 'reviewFlags' => $reviewFlags,
                 'references' => $references,
                 'diagnostics' => $assetDiagnostics,
@@ -10591,12 +10636,20 @@ final class EpubReader
             $fontFaceUrlSourceCount += $assetFontFaceUrlSourceCount;
             $fontFaceExternalSourceCount += $assetFontFaceExternalSourceCount;
             $fontFaceMissingSourceCount += $assetFontFaceMissingSourceCount;
+            $conditionalRuleCount += count($assetConditionalRules);
+            $mediaRuleCount += count($assetMediaRules);
+            $supportsRuleCount += count($assetSupportsRules);
+            $importConditionCount += count($assetImportConditions);
             array_push($fontFaceItems, ...$fontFaces);
+            array_push($conditionalRules, ...$assetConditionalRules);
             foreach ($assetFontFaceFamilies as $family) {
                 if (!in_array($family, $fontFaceFamilies, true)) {
                     $fontFaceFamilies[] = $family;
                 }
             }
+            self::appendUniqueStrings($mediaConditions, $assetMediaConditions);
+            self::appendUniqueStrings($supportsConditions, $assetSupportsConditions);
+            self::appendUniqueStrings($importConditions, $assetImportConditions);
             foreach ($assetFontFaceDiagnostics as $diagnostic) {
                 $fontFaceDiagnostics[] = ['part' => $part] + $diagnostic;
             }
@@ -10626,6 +10679,14 @@ final class EpubReader
             'fontFaceItems' => $fontFaceItems,
             'fontFaceDiagnostics' => $fontFaceDiagnostics,
             'fontFaceDiagnosticCount' => count($fontFaceDiagnostics),
+            'conditionalRuleCount' => $conditionalRuleCount,
+            'mediaRuleCount' => $mediaRuleCount,
+            'supportsRuleCount' => $supportsRuleCount,
+            'importConditionCount' => $importConditionCount,
+            'conditionalRules' => $conditionalRules,
+            'mediaConditions' => $mediaConditions,
+            'supportsConditions' => $supportsConditions,
+            'importConditions' => $importConditions,
             'externalReferenceCount' => count($externalReferences),
             'missingReferenceCount' => count($missingReferences),
             'encryptedReferenceCount' => count($encryptedReferences),
@@ -10690,6 +10751,11 @@ final class EpubReader
                 'diagnostics' => $diagnostics,
             ];
             foreach (['imageSetCandidateIndex', 'imageSetCandidate', 'imageSetDescriptor', 'imageSetType'] as $tokenKey) {
+                if (array_key_exists($tokenKey, $token)) {
+                    $references[array_key_last($references)][$tokenKey] = $token[$tokenKey];
+                }
+            }
+            foreach (['importCondition', 'importLayer', 'importLayerAnonymous', 'importSupports', 'importMedia'] as $tokenKey) {
                 if (array_key_exists($tokenKey, $token)) {
                     $references[array_key_last($references)][$tokenKey] = $token[$tokenKey];
                 }
@@ -11133,39 +11199,171 @@ final class EpubReader
     /**
      * @return list<array<string, mixed>>
      */
+    private static function cssImportRuleTokens(string $css): array
+    {
+        $tokens = [];
+        $matchCount = preg_match_all('/@import\b/i', $css, $matches, \PREG_SET_ORDER | \PREG_OFFSET_CAPTURE);
+        if (!is_int($matchCount) || $matchCount === 0) {
+            return [];
+        }
+
+        foreach ($matches as $match) {
+            $start = is_int($match[0][1] ?? null) ? $match[0][1] : null;
+            if ($start === null) {
+                continue;
+            }
+
+            $end = self::cssTopLevelStatementEnd($css, $start);
+            $raw = trim(substr($css, $start, $end - $start));
+            if ($raw === '') {
+                continue;
+            }
+
+            $body = trim(substr($raw, strlen('@import')));
+            if (str_ends_with($body, ';')) {
+                $body = trim(substr($body, 0, -1));
+            }
+
+            $href = null;
+            $condition = '';
+            if (preg_match('/^url\(\s*(["\']?)(.*?)\1\s*\)\s*(.*)$/is', $body, $urlMatch) === 1) {
+                $href = trim((string) ($urlMatch[2] ?? ''));
+                $condition = trim((string) ($urlMatch[3] ?? ''));
+            } elseif (preg_match('/^(["\'])(.*?)\1\s*(.*)$/s', $body, $stringMatch) === 1) {
+                $href = trim((string) ($stringMatch[2] ?? ''));
+                $condition = trim((string) ($stringMatch[3] ?? ''));
+            }
+
+            if ($href === null || $href === '') {
+                continue;
+            }
+
+            $conditionFields = self::cssImportConditionFields($condition);
+            $tokens[] = [
+                'kind' => 'import',
+                'href' => $href,
+                'raw' => $raw,
+                '_offset' => $start,
+            ] + $conditionFields;
+        }
+
+        return $tokens;
+    }
+
+    private static function cssTopLevelStatementEnd(string $css, int $start): int
+    {
+        $length = strlen($css);
+        $quote = null;
+        $escaped = false;
+        $depth = 0;
+
+        for ($offset = $start; $offset < $length; ++$offset) {
+            $char = $css[$offset];
+            if ($quote !== null) {
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+                if ($char === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                ++$depth;
+                continue;
+            }
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+            if ($char === ';' && $depth === 0) {
+                return $offset + 1;
+            }
+            if ($char === '{' && $depth === 0) {
+                return $offset;
+            }
+        }
+
+        return $length;
+    }
+
+    /**
+     * @return array{importCondition:?string, importLayer:?string, importLayerAnonymous:bool, importSupports:?string, importMedia:?string}
+     */
+    private static function cssImportConditionFields(string $condition): array
+    {
+        $remaining = trim($condition);
+        $layer = null;
+        $layerAnonymous = false;
+        $supports = null;
+        $media = null;
+
+        if ($remaining !== '' && preg_match('/^layer\b/i', $remaining) === 1) {
+            $afterLayer = trim(substr($remaining, strlen('layer')));
+            if (($afterLayer[0] ?? '') === '(') {
+                $close = self::cssMatchingParenOffset($afterLayer, 0);
+                if ($close !== null) {
+                    $layer = trim(substr($afterLayer, 1, $close - 1));
+                    $remaining = trim(substr($afterLayer, $close + 1));
+                } else {
+                    $remaining = $afterLayer;
+                }
+            } else {
+                $layerAnonymous = true;
+                $layer = '';
+                $remaining = $afterLayer;
+            }
+        }
+
+        if ($remaining !== '' && preg_match('/^supports\s*\(/i', $remaining, $supportsMatch) === 1) {
+            $open = strpos($remaining, '(');
+            if ($open !== false) {
+                $close = self::cssMatchingParenOffset($remaining, $open);
+                if ($close !== null) {
+                    $supports = trim(substr($remaining, $open + 1, $close - $open - 1));
+                    $remaining = trim(substr($remaining, $close + 1));
+                }
+            }
+        }
+
+        if ($remaining !== '') {
+            $media = $remaining;
+        }
+
+        return [
+            'importCondition' => $condition === '' ? null : $condition,
+            'importLayer' => $layer,
+            'importLayerAnonymous' => $layerAnonymous,
+            'importSupports' => $supports,
+            'importMedia' => $media,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     private static function cssReferenceTokens(string $css): array
     {
         $tokens = [];
         $stripped = self::stripCssComments($css);
         $urlSkipSpans = [];
         $sequence = 0;
-        $importMatchCount = preg_match_all(
-            '/@import\s+(?:url\(\s*)?(["\']?)([^"\'\)\s;]+)\1\s*\)?/i',
-            $stripped,
-            $imports,
-            \PREG_SET_ORDER | \PREG_OFFSET_CAPTURE
-        );
-        if (is_int($importMatchCount) && $importMatchCount > 0) {
-            foreach ($imports as $match) {
-                $raw = (string) ($match[0][0] ?? '');
-                $start = is_int($match[0][1] ?? null) ? $match[0][1] : null;
-                if ($start !== null) {
-                    $urlSkipSpans[] = [$start, $start + strlen($raw)];
-                }
-
-                $href = trim((string) ($match[2][0] ?? ''));
-                if ($href === '') {
-                    continue;
-                }
-
-                $tokens[] = [
-                    'kind' => 'import',
-                    'href' => $href,
-                    'raw' => $raw === '' ? $href : $raw,
-                    '_offset' => $start ?? 0,
-                    '_sequence' => $sequence++,
-                ];
-            }
+        foreach (self::cssImportRuleTokens($stripped) as $importToken) {
+            $start = is_int($importToken['_offset'] ?? null) ? $importToken['_offset'] : 0;
+            $raw = (string) ($importToken['raw'] ?? '');
+            $urlSkipSpans[] = [$start, $start + strlen($raw)];
+            $importToken['_sequence'] = $sequence++;
+            $tokens[] = $importToken;
         }
 
         foreach (self::cssImageSetFunctions($stripped) as $imageSet) {
@@ -11462,13 +11660,105 @@ final class EpubReader
     }
 
     /**
-     * @param list<array<string, mixed>> $references
+     * @return list<array<string, mixed>>
+     */
+    private static function cssConditionalAtRuleReports(string $css): array
+    {
+        $rules = [];
+        $stripped = self::stripCssComments($css);
+        $matchCount = preg_match_all('/@(media|supports)\s+([^{};]+)\{/i', $stripped, $matches, \PREG_SET_ORDER | \PREG_OFFSET_CAPTURE);
+        if (!is_int($matchCount) || $matchCount === 0) {
+            return [];
+        }
+
+        foreach ($matches as $match) {
+            $kind = strtolower((string) ($match[1][0] ?? ''));
+            $condition = trim((string) ($match[2][0] ?? ''));
+            $start = is_int($match[0][1] ?? null) ? $match[0][1] : null;
+            if (($kind !== 'media' && $kind !== 'supports') || $condition === '' || $start === null) {
+                continue;
+            }
+
+            $open = strpos($stripped, '{', $start);
+            if ($open === false) {
+                continue;
+            }
+            $close = self::cssMatchingBraceOffset($stripped, $open);
+            if ($close === null) {
+                continue;
+            }
+
+            $body = substr($stripped, $open + 1, $close - $open - 1);
+            $nestedReferences = self::cssReferenceTokens($body);
+            $conditionItems = $kind === 'media'
+                ? array_values(array_filter(
+                    array_map(
+                        static fn (string $item): string => trim($item),
+                        self::splitCssTopLevelCommaList($condition),
+                    ),
+                    static fn (string $item): bool => $item !== '',
+                ))
+                : [$condition];
+
+            $rules[] = [
+                'index' => count($rules),
+                'kind' => $kind,
+                'condition' => $condition,
+                'conditionItems' => $conditionItems,
+                'conditionItemCount' => count($conditionItems),
+                'raw' => substr($stripped, $start, $close - $start + 1),
+                'rawSha256' => hash('sha256', substr($stripped, $start, $close - $start + 1)),
+                'bodySha256' => hash('sha256', $body),
+                'nestedReferenceCount' => count($nestedReferences),
+                'nestedReferences' => $nestedReferences,
+            ];
+        }
+
+        return $rules;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rules
      *
      * @return list<string>
      */
-    private static function cssResourceReviewFlags(array $references): array
+    private static function cssConditionalRuleConditions(array $rules): array
+    {
+        $conditions = [];
+        foreach ($rules as $rule) {
+            foreach (is_array($rule['conditionItems'] ?? null) ? $rule['conditionItems'] : [] as $condition) {
+                if (is_string($condition) && $condition !== '' && !in_array($condition, $conditions, true)) {
+                    $conditions[] = $condition;
+                }
+            }
+        }
+
+        return $conditions;
+    }
+
+    /**
+     * @param list<string> $target
+     * @param list<string> $values
+     */
+    private static function appendUniqueStrings(array &$target, array $values): void
+    {
+        foreach ($values as $value) {
+            if ($value !== '' && !in_array($value, $target, true)) {
+                $target[] = $value;
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     * @param list<array<string, mixed>> $conditionalRules
+     *
+     * @return list<string>
+     */
+    private static function cssResourceReviewFlags(array $references, array $conditionalRules = []): array
     {
         $flags = [];
+        $hasConditionalStyles = $conditionalRules !== [];
         foreach ($references as $reference) {
             if (($reference['external'] ?? false) === true) {
                 $flags['remote-resources'] = true;
@@ -11479,6 +11769,12 @@ final class EpubReader
             if (($reference['encrypted'] ?? false) === true) {
                 $flags['encrypted-references'] = true;
             }
+            if (($reference['kind'] ?? null) === 'import' && is_string($reference['importCondition'] ?? null)) {
+                $hasConditionalStyles = true;
+            }
+        }
+        if ($hasConditionalStyles) {
+            $flags['conditional-styles'] = true;
         }
 
         return array_keys($flags);

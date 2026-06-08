@@ -4219,11 +4219,13 @@ CSS;
         $t->same('style', $style['id']);
         $t->same(['remote-resources'], $style['manifestProperties']);
         $t->same(5, $style['referenceCount']);
-        $t->same(['remote-resources', 'missing-references'], $style['reviewFlags']);
+        $t->same(['remote-resources', 'missing-references', 'conditional-styles'], $style['reviewFlags']);
         $t->same('import', $style['references'][0]['kind']);
         $t->same('../styles/reset.css', $style['references'][0]['href']);
         $t->same('/OEBPS/styles/reset.css', $style['references'][0]['target']);
         $t->same('reset-style', $style['references'][0]['manifestId']);
+        $t->same('screen', $style['references'][0]['importCondition']);
+        $t->same('screen', $style['references'][0]['importMedia']);
         $t->same('url', $style['references'][1]['kind']);
         $t->same('/OEBPS/fonts/source.woff2', $style['references'][1]['part']);
         $t->same('font-main', $style['references'][1]['manifestId']);
@@ -4425,6 +4427,91 @@ CSS;
         $t->same(1, $remoteResources['cssExternalReferenceCount']);
         $t->same(0, $remoteResources['undeclaredAssetCount']);
         $t->same(true, $remoteResources['observedItemsByPart']['/OEBPS/styles/image-set.css']['manifestDeclared']);
+        $t->same($css, $result['importReport']['cssResourceReport']);
+        $t->same($css, $result['document']->attr('cssResourceReport'));
+    },
+    'reports EPUB stylesheet conditional at-rules for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithConditionalCss = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/conditional.css" media-type="text/css" properties="remote-resources"/>'
+            . '<item id="base-style" href="styles/base.css" media-type="text/css"/>',
+            $opfXml
+        );
+        $conditionalCss = <<<'CSS'
+@import url("../styles/base.css") layer(review) supports(display: grid) screen and (min-width: 700px);
+@media screen and (min-width: 700px), print {
+  .hero { background-image: url("../images/cover.png"); }
+}
+@supports (display: grid) and (not (display: subgrid)) {
+  .grid { background-image: url("https://cdn.example.test/grid.png"); }
+}
+@media speech {
+  .note { display: none; }
+}
+CSS;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithConditionalCss,
+            null,
+            [
+                ['name' => 'OEBPS/styles/conditional.css', 'data' => $conditionalCss],
+                ['name' => 'OEBPS/styles/base.css', 'data' => 'html { font-size: 100%; }'],
+            ]
+        ));
+
+        $css = $result['cssResourceReport'];
+        $style = $css['itemsByPart']['/OEBPS/styles/conditional.css'];
+
+        $t->same(2, $css['assetCount']);
+        $t->same(3, $css['referenceCount']);
+        $t->same(1, $css['importReferenceCount']);
+        $t->same(2, $css['urlReferenceCount']);
+        $t->same(3, $css['conditionalRuleCount']);
+        $t->same(2, $css['mediaRuleCount']);
+        $t->same(1, $css['supportsRuleCount']);
+        $t->same(1, $css['importConditionCount']);
+        $t->same(['screen and (min-width: 700px)', 'print', 'speech'], $css['mediaConditions']);
+        $t->same(['(display: grid) and (not (display: subgrid))'], $css['supportsConditions']);
+        $t->same($style['conditionalRules'], $css['conditionalRules']);
+
+        $t->same(['remote-resources', 'conditional-styles'], $style['reviewFlags']);
+        $t->same(3, $style['referenceCount']);
+        $t->same(3, $style['conditionalRuleCount']);
+        $t->same(2, $style['mediaRuleCount']);
+        $t->same(1, $style['supportsRuleCount']);
+        $t->same(1, $style['importConditionCount']);
+        $t->same('../styles/base.css', $style['references'][0]['href']);
+        $t->same('/OEBPS/styles/base.css', $style['references'][0]['part']);
+        $t->same('base-style', $style['references'][0]['manifestId']);
+        $t->same('layer(review) supports(display: grid) screen and (min-width: 700px)', $style['references'][0]['importCondition']);
+        $t->same('review', $style['references'][0]['importLayer']);
+        $t->same(false, $style['references'][0]['importLayerAnonymous']);
+        $t->same('display: grid', $style['references'][0]['importSupports']);
+        $t->same('screen and (min-width: 700px)', $style['references'][0]['importMedia']);
+
+        $firstMedia = $style['conditionalRules'][0];
+        $t->same('media', $firstMedia['kind']);
+        $t->same('screen and (min-width: 700px), print', $firstMedia['condition']);
+        $t->same(['screen and (min-width: 700px)', 'print'], $firstMedia['conditionItems']);
+        $t->same(2, $firstMedia['conditionItemCount']);
+        $t->same(1, $firstMedia['nestedReferenceCount']);
+
+        $supports = $style['conditionalRules'][1];
+        $t->same('supports', $supports['kind']);
+        $t->same('(display: grid) and (not (display: subgrid))', $supports['condition']);
+        $t->same(['(display: grid) and (not (display: subgrid))'], $supports['conditionItems']);
+        $t->same(1, $supports['nestedReferenceCount']);
+
+        $speech = $style['conditionalRules'][2];
+        $t->same('media', $speech['kind']);
+        $t->same('speech', $speech['condition']);
+        $t->same(0, $speech['nestedReferenceCount']);
+
+        $remoteResources = $result['remoteResources'];
+        $t->same(1, $remoteResources['cssExternalReferenceCount']);
+        $t->same(1, $remoteResources['remoteReferenceCount']);
+        $t->same(1, $remoteResources['observedAssetCount']);
+        $t->same(true, $remoteResources['observedItemsByPart']['/OEBPS/styles/conditional.css']['manifestDeclared']);
         $t->same($css, $result['importReport']['cssResourceReport']);
         $t->same($css, $result['document']->attr('cssResourceReport'));
     },
