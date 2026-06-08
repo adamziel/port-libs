@@ -2595,7 +2595,10 @@ final class PdfTextExtractor
                 return false;
             }
 
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer(
+                $tableSection['trailer'],
+                $this->latestDirectObjects($definitions)
+            );
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
                 if ($streamSection !== null) {
@@ -2666,7 +2669,10 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer(
+                $tableSection['trailer'],
+                $this->latestDirectObjects($definitions)
+            );
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
                 if ($streamSection !== null) {
@@ -29030,7 +29036,10 @@ final class PdfTextExtractor
                 return false;
             }
 
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer(
+                $tableSection['trailer'],
+                $this->latestDirectObjects($definitions)
+            );
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
                 if ($streamSection !== null) {
@@ -29500,7 +29509,10 @@ final class PdfTextExtractor
                 return ['parsed' => true, 'value' => $value];
             }
 
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer(
+                $tableSection['trailer'],
+                $this->latestDirectObjects($definitions)
+            );
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
                 if ($streamSection !== null) {
@@ -30973,7 +30985,7 @@ final class PdfTextExtractor
         if ($tableSection !== null) {
             $entries = [];
             $trailer = $tableSection['trailer'];
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer($trailer, $objects);
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $entries = array_merge(
                     $entries,
@@ -31094,7 +31106,7 @@ final class PdfTextExtractor
         if ($tableSection !== null) {
             $entries = [];
             $trailer = $tableSection['trailer'];
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer($trailer, $objects);
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $entries = array_merge(
                     $entries,
@@ -31191,7 +31203,7 @@ final class PdfTextExtractor
         if ($tableSection !== null) {
             $entries = [];
             $trailer = $tableSection['trailer'];
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer($trailer, $objects);
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $entries = array_merge(
                     $entries,
@@ -31419,7 +31431,7 @@ final class PdfTextExtractor
             $previousEntries = $previousOffset !== null && $previousOffset >= 0
                 ? $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets)
                 : [];
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer($trailer, $objects);
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions, $pdfBytes) as $objectNumber => $entry) {
                     if ($objectNumber === 0 || ($entry['type'] ?? null) !== 0) {
@@ -31615,7 +31627,7 @@ final class PdfTextExtractor
         if ($tableSection !== null) {
             $entries = [];
             $trailer = $tableSection['trailer'];
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer($trailer, $objects);
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions, $pdfBytes) as $objectNumber => $entry) {
                     if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'], $tableSection['entries'][$objectNumber])) {
@@ -31771,7 +31783,10 @@ final class PdfTextExtractor
                 return $root;
             }
 
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer(
+                $tableSection['trailer'],
+                $this->latestDirectObjects($definitions)
+            );
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
                 if ($streamSection !== null) {
@@ -32407,6 +32422,14 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
+    private function hybridXrefStreamOffsetFromTrailer(string $trailer, array $objects): ?int
+    {
+        return $this->topLevelPdfLastIntegerValueAfterNameResolvingObjects($trailer, 'XRefStm', $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
     private function topLevelPdfLastIntegerValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?int
     {
         $value = $this->topLevelPdfLastValueAfterName($body, $name);
@@ -32507,7 +32530,7 @@ final class PdfTextExtractor
         if ($tableSection !== null) {
             $entries = $tableSection['entries'];
             $trailer = $tableSection['trailer'];
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer($trailer, $objects);
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions, $pdfBytes) as $objectNumber => $entry) {
                     if (isset($entries[$objectNumber])) {
@@ -33402,7 +33425,7 @@ final class PdfTextExtractor
             $entries = $tableSection['entries'];
             $trailer = $tableSection['trailer'];
             $rootPresent = $this->topLevelPdfValueAfterName($trailer, 'Root') !== null;
-            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            $hybridStreamOffset = $this->hybridXrefStreamOffsetFromTrailer($trailer, $objects);
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $hybridStreamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
                 if ($hybridStreamSection !== null) {

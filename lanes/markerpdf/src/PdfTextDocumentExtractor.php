@@ -1027,18 +1027,19 @@ final class PdfTextDocumentExtractor
             }
         }
 
+        $bboxScale = array_key_exists('bbox', $page)
+            ? $this->dictionaryOutputPageBboxScale($page['bbox'])
+            : null;
+
         $rotation = $page['rotation'] ?? null;
         if (
             ($rotation === 90 || $rotation === 90.0 || $rotation === 270 || $rotation === 270.0)
-            && array_key_exists('bbox', $page)
+            && $bboxScale !== null
         ) {
-            $bboxScale = $this->dictionaryOutputPageBboxScale($page['bbox']);
-            if ($bboxScale !== null) {
-                return $bboxScale;
-            }
+            return $bboxScale;
         }
 
-        return $widthHeightScale;
+        return $widthHeightScale ?? $bboxScale;
     }
 
     /**
