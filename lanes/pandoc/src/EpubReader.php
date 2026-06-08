@@ -8897,6 +8897,7 @@ final class EpubReader
                 'contentResourceFlags' => $contentReport['flags'],
                 'contentResourceReviewFlags' => $contentReport['reviewFlags'],
                 'contentReferences' => $contentReport['references'],
+                'contentSwitches' => $contentReport['switches'],
                 'contentTriggers' => $contentReport['triggers'],
                 'contentSemantics' => $contentReport['semantics'],
                 'contentSemanticTypes' => $contentReport['semanticTypes'],
@@ -9722,6 +9723,11 @@ final class EpubReader
         $switchAssetCount = 0;
         $triggerAssetCount = 0;
         $triggerCount = 0;
+        $switchCount = 0;
+        $switchCaseCount = 0;
+        $switchDefaultCount = 0;
+        $validSwitchCount = 0;
+        $invalidSwitchCount = 0;
         $semanticAssetCount = 0;
         $semanticItemCount = 0;
         $semanticItems = [];
@@ -9745,6 +9751,12 @@ final class EpubReader
                 'reviewFlags' => is_array($report['reviewFlags'] ?? null) ? array_values($report['reviewFlags']) : [],
                 'referenceCount' => count(is_array($report['references'] ?? null) ? $report['references'] : []),
                 'references' => is_array($report['references'] ?? null) ? array_values($report['references']) : [],
+                'switchCount' => count(is_array($report['switches'] ?? null) ? $report['switches'] : []),
+                'switches' => is_array($report['switches'] ?? null) ? array_values($report['switches']) : [],
+                'switchCaseCount' => is_int($report['switchCaseCount'] ?? null) ? $report['switchCaseCount'] : 0,
+                'switchDefaultCount' => is_int($report['switchDefaultCount'] ?? null) ? $report['switchDefaultCount'] : 0,
+                'validSwitchCount' => is_int($report['validSwitchCount'] ?? null) ? $report['validSwitchCount'] : 0,
+                'invalidSwitchCount' => is_int($report['invalidSwitchCount'] ?? null) ? $report['invalidSwitchCount'] : 0,
                 'triggerCount' => count(is_array($report['triggers'] ?? null) ? $report['triggers'] : []),
                 'triggers' => is_array($report['triggers'] ?? null) ? array_values($report['triggers']) : [],
                 'validTriggerCount' => is_int($report['validTriggerCount'] ?? null) ? $report['validTriggerCount'] : 0,
@@ -9759,6 +9771,11 @@ final class EpubReader
             ];
 
             $referenceCount += $item['referenceCount'];
+            $switchCount += $item['switchCount'];
+            $switchCaseCount += $item['switchCaseCount'];
+            $switchDefaultCount += $item['switchDefaultCount'];
+            $validSwitchCount += $item['validSwitchCount'];
+            $invalidSwitchCount += $item['invalidSwitchCount'];
             $triggerCount += $item['triggerCount'];
             $semanticItemCount += $item['semanticCount'];
             if ($item['semanticCount'] > 0) {
@@ -9828,6 +9845,11 @@ final class EpubReader
             'svgAssetCount' => $svgAssetCount,
             'scriptedAssetCount' => $scriptedAssetCount,
             'switchAssetCount' => $switchAssetCount,
+            'switchCount' => $switchCount,
+            'switchCaseCount' => $switchCaseCount,
+            'switchDefaultCount' => $switchDefaultCount,
+            'validSwitchCount' => $validSwitchCount,
+            'invalidSwitchCount' => $invalidSwitchCount,
             'triggerAssetCount' => $triggerAssetCount,
             'triggerCount' => $triggerCount,
             'semanticAssetCount' => $semanticAssetCount,
@@ -9860,6 +9882,7 @@ final class EpubReader
     ): array {
         $flags = self::emptyXhtmlContentResourceFlags();
         $references = [];
+        $switches = [];
         $triggers = [];
         $semantics = [];
         $elementIds = [];
@@ -9873,6 +9896,11 @@ final class EpubReader
                 'flags' => $flags,
                 'reviewFlags' => [],
                 'references' => [],
+                'switches' => [],
+                'switchCaseCount' => 0,
+                'switchDefaultCount' => 0,
+                'validSwitchCount' => 0,
+                'invalidSwitchCount' => 0,
                 'triggers' => [],
                 'semantics' => [],
                 'semanticTypes' => [],
@@ -9897,6 +9925,7 @@ final class EpubReader
                 $manifestByPart,
                 $flags,
                 $references,
+                $switches,
                 $triggers,
                 $semantics,
                 $elementIds
@@ -9913,6 +9942,14 @@ final class EpubReader
                     'element' => $reference['element'],
                     'attribute' => $reference['attribute'],
                     'href' => $reference['href'],
+                ] + $diagnostic;
+            }
+        }
+        foreach ($switches as $switch) {
+            foreach ($switch['diagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'switchIndex' => $switch['index'],
+                    'switchId' => $switch['id'],
                 ] + $diagnostic;
             }
         }
@@ -9941,6 +9978,23 @@ final class EpubReader
             'flags' => $flags,
             'reviewFlags' => self::xhtmlContentReviewFlags($flags),
             'references' => $references,
+            'switches' => $switches,
+            'switchCaseCount' => array_sum(array_map(
+                static fn (array $switch): int => is_int($switch['caseCount'] ?? null) ? $switch['caseCount'] : 0,
+                $switches,
+            )),
+            'switchDefaultCount' => array_sum(array_map(
+                static fn (array $switch): int => is_int($switch['defaultCount'] ?? null) ? $switch['defaultCount'] : 0,
+                $switches,
+            )),
+            'validSwitchCount' => count(array_filter(
+                $switches,
+                static fn (array $switch): bool => ($switch['valid'] ?? false) === true,
+            )),
+            'invalidSwitchCount' => count(array_filter(
+                $switches,
+                static fn (array $switch): bool => ($switch['valid'] ?? true) !== true,
+            )),
             'triggers' => $triggers,
             'semantics' => $semantics,
             'semanticTypes' => self::xhtmlSemanticTypes($semantics),
@@ -9962,6 +10016,7 @@ final class EpubReader
      * @param array<string, array<string, mixed>> $manifestByPart
      * @param array<string, bool> $flags
      * @param list<array<string, mixed>> $references
+     * @param list<array<string, mixed>> $switches
      * @param list<array<string, mixed>> $triggers
      * @param list<array<string, mixed>> $semantics
      * @param array<string, array<string, mixed>> $elementIds
@@ -9973,6 +10028,7 @@ final class EpubReader
         array $manifestByPart,
         array &$flags,
         array &$references,
+        array &$switches,
         array &$triggers,
         array &$semantics,
         array &$elementIds
@@ -9991,6 +10047,7 @@ final class EpubReader
         }
         if ($namespace === self::EPUB_OPS_NS && $localName === 'switch') {
             $flags['switch'] = true;
+            $switches[] = self::xhtmlSwitchReport($element, count($switches));
         }
         if ($namespace === self::EPUB_OPS_NS && $localName === 'trigger') {
             $flags['trigger'] = true;
@@ -10076,6 +10133,7 @@ final class EpubReader
                 $manifestByPart,
                 $flags,
                 $references,
+                $switches,
                 $triggers,
                 $semantics,
                 $elementIds
@@ -10097,6 +10155,113 @@ final class EpubReader
             'id' => $id,
             'element' => $element->localName,
             'namespace' => $element->namespaceURI,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlSwitchReport(\DOMElement $element, int $index): array
+    {
+        $cases = [];
+        $defaults = [];
+        $diagnostics = [];
+        $caseDiagnostics = [];
+
+        foreach (self::childElements($element) as $child) {
+            if ($child->namespaceURI !== self::EPUB_OPS_NS) {
+                continue;
+            }
+
+            $localName = strtolower($child->localName);
+            if ($localName === 'case') {
+                $case = self::xhtmlSwitchCaseReport($child, count($cases));
+                foreach ($case['diagnostics'] as $diagnostic) {
+                    $caseDiagnostics[] = [
+                        'caseIndex' => $case['index'],
+                        'caseId' => $case['id'],
+                    ] + $diagnostic;
+                }
+                $cases[] = $case;
+                continue;
+            }
+
+            if ($localName === 'default') {
+                $defaults[] = self::xhtmlSwitchDefaultReport($child, count($defaults));
+            }
+        }
+
+        if ($defaults === []) {
+            $diagnostics[] = [
+                'type' => 'missing-epub-switch-default',
+                'message' => 'EPUB switch content has no default branch for static package review',
+            ];
+        } elseif (count($defaults) > 1) {
+            $diagnostics[] = [
+                'type' => 'multiple-epub-switch-defaults',
+                'defaultCount' => count($defaults),
+                'message' => 'EPUB switch content has more than one default branch; the bounded review parser preserves all defaults',
+            ];
+        }
+        array_push($diagnostics, ...$caseDiagnostics);
+
+        return [
+            'index' => $index,
+            'id' => self::nullableAttribute($element, 'id'),
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'caseCount' => count($cases),
+            'cases' => $cases,
+            'defaultCount' => count($defaults),
+            'defaults' => $defaults,
+            'attributes' => self::elementAttributes($element),
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlSwitchCaseReport(\DOMElement $element, int $index): array
+    {
+        $requiredNamespace = self::nullableAttribute($element, 'required-namespace');
+        $requiredModules = self::spaceDelimited($element->getAttribute('required-modules'));
+        $diagnostics = [];
+
+        if ($requiredNamespace === null && $requiredModules === []) {
+            $diagnostics[] = [
+                'type' => 'epub-switch-case-missing-requirement',
+                'message' => 'EPUB switch case has no required-namespace or required-modules gate',
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'id' => self::nullableAttribute($element, 'id'),
+            'requiredNamespace' => $requiredNamespace,
+            'requiredModules' => $requiredModules,
+            'text' => self::normalizedText($element),
+            'childElementCount' => count(self::childElements($element)),
+            'attributes' => self::elementAttributes($element),
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlSwitchDefaultReport(\DOMElement $element, int $index): array
+    {
+        return [
+            'index' => $index,
+            'id' => self::nullableAttribute($element, 'id'),
+            'text' => self::normalizedText($element),
+            'childElementCount' => count(self::childElements($element)),
+            'attributes' => self::elementAttributes($element),
         ];
     }
 
@@ -11484,6 +11649,7 @@ final class EpubReader
                 'contentResourceFlags' => $asset['contentResourceFlags'] ?? [],
                 'contentResourceReviewFlags' => $asset['contentResourceReviewFlags'] ?? [],
                 'contentReferences' => $asset['contentReferences'] ?? [],
+                'contentSwitches' => $asset['contentSwitches'] ?? [],
                 'contentTriggers' => $asset['contentTriggers'] ?? [],
                 'contentSemantics' => $asset['contentSemantics'] ?? [],
                 'contentSemanticTypes' => $asset['contentSemanticTypes'] ?? [],

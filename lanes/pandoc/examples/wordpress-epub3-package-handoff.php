@@ -707,6 +707,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!in_array('title', $result['document']->children[0]->attr('contentSemanticTypes') ?? [], true)) {
         throw new RuntimeException('Expected WordPress spine block to expose EPUB XHTML semantic metadata');
     }
+    if (($result['xhtmlResourceReport']['switchCount'] ?? null) !== 1 || ($chapterSemantics['switches'][0]['cases'][0]['requiredNamespace'] ?? null) !== 'http://www.w3.org/2000/svg') {
+        throw new RuntimeException('Expected EPUB switch branches to preserve required namespace metadata for review');
+    }
+    if (($result['document']->children[0]->attr('contentSwitches')[0]['defaults'][0]['text'] ?? null) !== 'Fallback text preserved for WordPress review.') {
+        throw new RuntimeException('Expected WordPress spine block to expose EPUB switch fallback text metadata');
+    }
     $navWithoutPageList = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
   <body>
@@ -1330,6 +1336,9 @@ echo 'boundTourMediaCoverage=' . ($result['mediaTypes']['itemsById']['bound-tour
 echo 'xhtmlContentRemoteReferences=' . ($result['xhtmlResourceReport']['externalReferenceCount'] ?? 0) . "\n";
 echo 'xhtmlContentMathmlAssets=' . ($result['xhtmlResourceReport']['mathmlAssetCount'] ?? 0) . "\n";
 echo 'xhtmlContentSwitchAssets=' . ($result['xhtmlResourceReport']['switchAssetCount'] ?? 0) . "\n";
+echo 'xhtmlContentSwitches=' . ($result['xhtmlResourceReport']['switchCount'] ?? 0) . "\n";
+echo 'chapterSwitchCaseNamespace=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['switches'][0]['cases'][0]['requiredNamespace'] ?? '') . "\n";
+echo 'chapterSwitchDefault=' . ($result['document']->children[0]->attr('contentSwitches')[0]['defaults'][0]['text'] ?? '') . "\n";
 echo 'xhtmlContentTriggerAssets=' . ($result['xhtmlResourceReport']['triggerAssetCount'] ?? 0) . "\n";
 echo 'xhtmlContentTriggers=' . ($result['xhtmlResourceReport']['triggerCount'] ?? 0) . "\n";
 echo 'chapterContentReviewFlags=' . implode(',', $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) . "\n";

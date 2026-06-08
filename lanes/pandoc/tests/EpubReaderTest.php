@@ -3665,9 +3665,13 @@ CSS;
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
   <body>
     <h1>Layout alternate</h1>
-    <epub:switch id="layout-choice">
-      <epub:case required-namespace="http://www.w3.org/2000/svg"><p>Reading-system SVG path.</p></epub:case>
-      <epub:default><p>Fallback text preserved for WordPress review.</p></epub:default>
+    <epub:switch id="layout-choice" class="layout-review">
+      <epub:case id="svg-case" required-namespace="http://www.w3.org/2000/svg"><p>Reading-system SVG path.</p></epub:case>
+      <epub:case id="math-case" required-modules="mathml"><p>MathML reading-system path.</p></epub:case>
+      <epub:default id="fallback-case"><p>Fallback text preserved for WordPress review.</p></epub:default>
+    </epub:switch>
+    <epub:switch id="invalid-choice">
+      <epub:case id="unqualified-case"><p>Unqualified branch needs review.</p></epub:case>
     </epub:switch>
   </body>
 </html>
@@ -3696,14 +3700,54 @@ XML;
         $switchBlock = $result['document']->children[2];
 
         $t->same(1, $report['switchAssetCount'] ?? null);
+        $t->same(2, $report['switchCount'] ?? null);
+        $t->same(3, $report['switchCaseCount'] ?? null);
+        $t->same(1, $report['switchDefaultCount'] ?? null);
+        $t->same(1, $report['validSwitchCount'] ?? null);
+        $t->same(1, $report['invalidSwitchCount'] ?? null);
         $t->same(['switch'], $asset['reviewFlags']);
         $t->same(true, $asset['flags']['switch'] ?? null);
         $t->same(0, $asset['referenceCount']);
         $t->same([], $asset['references']);
+        $t->same(2, $asset['switchCount']);
+        $t->same(3, $asset['switchCaseCount']);
+        $t->same(1, $asset['switchDefaultCount']);
+        $t->same(1, $asset['validSwitchCount']);
+        $t->same(1, $asset['invalidSwitchCount']);
+
+        $layout = $asset['switches'][0];
+        $t->same('layout-choice', $layout['id']);
+        $t->same('switch', $layout['element']);
+        $t->same(['layout-review'], $layout['classes']);
+        $t->same(2, $layout['caseCount']);
+        $t->same(1, $layout['defaultCount']);
+        $t->same(true, $layout['valid']);
+        $t->same([], $layout['diagnostics']);
+        $t->same('svg-case', $layout['cases'][0]['id']);
+        $t->same('http://www.w3.org/2000/svg', $layout['cases'][0]['requiredNamespace']);
+        $t->same([], $layout['cases'][0]['requiredModules']);
+        $t->same('Reading-system SVG path.', $layout['cases'][0]['text']);
+        $t->same(true, $layout['cases'][0]['valid']);
+        $t->same('math-case', $layout['cases'][1]['id']);
+        $t->same(null, $layout['cases'][1]['requiredNamespace']);
+        $t->same(['mathml'], $layout['cases'][1]['requiredModules']);
+        $t->same('MathML reading-system path.', $layout['cases'][1]['text']);
+        $t->same('fallback-case', $layout['defaults'][0]['id']);
+        $t->same('Fallback text preserved for WordPress review.', $layout['defaults'][0]['text']);
+
+        $invalid = $asset['switches'][1];
+        $t->same('invalid-choice', $invalid['id']);
+        $t->same(false, $invalid['valid']);
+        $t->same(['missing-epub-switch-default', 'epub-switch-case-missing-requirement'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $invalid['diagnostics']));
+        $t->same(false, $invalid['cases'][0]['valid']);
+        $t->same('epub-switch-case-missing-requirement', $invalid['cases'][0]['diagnostics'][0]['type']);
+        $t->same(2, count($asset['diagnostics']));
+        $t->same(['missing-epub-switch-default', 'epub-switch-case-missing-requirement'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $asset['diagnostics']));
         $t->same('/OEBPS/text/switch-content.xhtml', $switchBlock->attr('part'));
         $t->same(['switch'], $switchBlock->attr('contentResourceReviewFlags'));
         $t->same($asset['flags'], $switchBlock->attr('contentResourceFlags'));
         $t->same($asset['references'], $switchBlock->attr('contentReferences'));
+        $t->same($asset['switches'], $switchBlock->attr('contentSwitches'));
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
