@@ -31498,7 +31498,7 @@ final class PdfTextExtractor
             return false;
         }
 
-        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $streamObjects);
+        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $streamObjects, false, true, true);
         if ($decoded === null) {
             return true;
         }
@@ -31633,7 +31633,7 @@ final class PdfTextExtractor
                 'review_only' => true,
             ];
         } else {
-            $decoded = $this->decodeStreamObject($streamSection['definition']['body'], $streamObjects);
+            $decoded = $this->decodeXrefStreamObject($streamSection['definition']['body'], $streamObjects);
             $overflowProblem = $decoded === null || $this->xrefStreamRowsAreUnaligned($dictionary, $streamObjects, $decoded)
                 ? null
                 : $this->xrefStreamRowValueOverflowProblem($dictionary, $streamObjects, $decoded);
@@ -31837,7 +31837,7 @@ final class PdfTextExtractor
             $streamSection['definition']['offset']
         );
         $dictionary = $this->dictionaryObjectBody($streamSection['body']) ?? $streamSection['body'];
-        $decoded = $this->decodeStreamObject($streamSection['definition']['body'], $streamObjects);
+        $decoded = $this->decodeXrefStreamObject($streamSection['definition']['body'], $streamObjects);
         $problem = $decoded === null
             ? null
             : $this->xrefStreamRowAlignmentProblem($dictionary, $streamObjects, $decoded);
@@ -33222,7 +33222,7 @@ final class PdfTextExtractor
             $streamSection['definition']['offset']
         );
         $dictionary = $this->dictionaryObjectBody($streamSection['body']) ?? $streamSection['body'];
-        $decoded = $this->decodeStreamObject($streamSection['definition']['body'], $streamObjects);
+        $decoded = $this->decodeXrefStreamObject($streamSection['definition']['body'], $streamObjects);
         if (
             $decoded !== null
             && !$this->xrefStreamRowsAreUnaligned($dictionary, $streamObjects, $decoded)
@@ -36793,6 +36793,18 @@ final class PdfTextExtractor
     }
 
     /**
+     * XRef streams own object-selection state. Require native filters to prove
+     * a bounded end-of-data before row decoding so a concatenated compressed
+     * member cannot silently disappear.
+     *
+     * @param array<int, string> $objects
+     */
+    private function decodeXrefStreamObject(string $body, array $objects): ?string
+    {
+        return $this->decodeStreamObject($body, $objects, true, true);
+    }
+
+    /**
      * @param array{generation: int, offset: int, body: string} $definition
      * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>>|null $definitions
@@ -36821,7 +36833,7 @@ final class PdfTextExtractor
             return $entries;
         }
 
-        $decoded = $this->decodeStreamObject($body, $streamObjects);
+        $decoded = $this->decodeXrefStreamObject($body, $streamObjects);
         if ($decoded === null) {
             return $entries;
         }
