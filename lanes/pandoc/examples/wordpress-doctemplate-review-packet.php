@@ -115,7 +115,7 @@ $context = [
     'summaryNote' => "Review imported title blocks\nConfirm reviewer packet spacing",
     'dedentedNote' => 'Dedented review packet close',
     'reviewStatus' => 'Ready for import',
-    'reviewOwner' => 'Migration desk',
+    'reviewOwner' => "Migration desk\nReview desk",
     'suppressed' => false,
     'révision' => [
         'état' => 'prêt',
@@ -173,7 +173,7 @@ if (in_array('--self-test', $argv, true)) {
             . str_repeat(' ', UnicodeText::displayWidth($labeledNotePrefix))
             . 'Confirm reviewer packet spacing</p>',
         "<p class=\"dedented-note\">Dedented review packet close\n</p>",
-        "<p>Ready for import\n   Owner: Migration desk</p>",
+        "<p>Ready for import\n   Owner: Migration desk\n   Review desk</p>",
         "<p class=\"comment-spacing\">Before preserved comment whitespace</p>\n  \n<p class=\"comment-spacing\">After preserved comment whitespace</p>",
         '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
         "<p class=\"crlf-note\">CRLF partial final line ending stripped</p>\n<p class=\"partial-spacing\">Partial spacing survives reviewer packet boundaries</p>",

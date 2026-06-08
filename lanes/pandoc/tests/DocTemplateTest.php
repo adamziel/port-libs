@@ -377,6 +377,35 @@ TPL, [
         ]), $output);
     },
 
+    'keeps pandoc doctemplate explicit nesting across source-aligned variables until dedent' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+<article>
+<p>$^$Summary: $summary$
+   Status: $status$
+   Note: $note$</p>
+<footer>$owner$</footer>
+</article>
+TPL, [
+            'summary' => "Imported paragraph\nNeeds review",
+            'status' => "queued\nmanual",
+            'note' => "Check alt text\nbefore publish",
+            'owner' => "Migration desk\nDone",
+        ]);
+
+        $t->same(implode("\n", [
+            '<article>',
+            '<p>Summary: Imported paragraph',
+            '   Needs review',
+            '   Status: queued',
+            '   manual',
+            '   Note: Check alt text',
+            '   before publish</p>',
+            '<footer>Migration desk',
+            'Done</footer>',
+            '</article>',
+        ]), $output);
+    },
+
     'dedents pandoc doctemplate source-aligned literal lines inside explicit nesting' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->render(<<<'TPL'
 <ul>

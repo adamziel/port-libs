@@ -3366,7 +3366,7 @@ CSS;
     private function renderRange(array $tokens, int $start, int $end, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces): string
     {
         $output = '';
-        $pendingNestColumn = null;
+        $explicitNestColumn = null;
 
         for ($index = $start; $index < $end; $index++) {
             $token = $tokens[$index];
@@ -3379,7 +3379,7 @@ CSS;
                     );
                 }
 
-                $this->appendRenderedChunk($output, $text, $pendingNestColumn, true);
+                $this->appendRenderedChunk($output, $text, $explicitNestColumn, true);
                 continue;
             }
 
@@ -3389,7 +3389,7 @@ CSS;
             }
 
             if ($directive === '^') {
-                $pendingNestColumn = $this->currentColumn($output);
+                $explicitNestColumn = $this->currentColumn($output);
                 continue;
             }
 
@@ -3400,7 +3400,7 @@ CSS;
                 } catch (\UnexpectedValueException $exception) {
                     throw $this->withTokenLocation($exception, $token);
                 }
-                $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
+                $this->appendRenderedChunk($output, $rendered, $explicitNestColumn);
                 if ($skipFollowingLineEnding) {
                     $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
                 }
@@ -3415,7 +3415,7 @@ CSS;
                 } catch (\UnexpectedValueException $exception) {
                     throw $this->withTokenLocation($exception, $token);
                 }
-                $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
+                $this->appendRenderedChunk($output, $rendered, $explicitNestColumn);
                 if ($skipFollowingLineEnding) {
                     $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
                 }
@@ -3436,7 +3436,7 @@ CSS;
             } catch (\UnexpectedValueException $exception) {
                 throw $this->withTokenLocation($exception, $token);
             }
-            if ($pendingNestColumn === null) {
+            if ($explicitNestColumn === null) {
                 $autoNestPrefix = $this->automaticNestPrefix($tokens, $index, $end, $output);
                 if ($autoNestPrefix !== null) {
                     if ($isBarePartial && $rendered === '') {
@@ -3448,7 +3448,7 @@ CSS;
                 }
             }
 
-            $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
+            $this->appendRenderedChunk($output, $rendered, $explicitNestColumn);
         }
 
         return $output;
@@ -4946,14 +4946,18 @@ CSS;
         return $prefix;
     }
 
-    private function appendRenderedChunk(string &$output, string $chunk, ?int &$pendingNestColumn, bool $templateText = false): void
+    private function appendRenderedChunk(string &$output, string $chunk, ?int &$explicitNestColumn, bool $templateText = false): void
     {
-        if ($pendingNestColumn !== null) {
+        if ($explicitNestColumn !== null) {
             if (strpbrk($chunk, "\r\n") !== false) {
-                $chunk = $templateText
-                    ? $this->nestTemplateTextChunk($chunk, $pendingNestColumn)
-                    : $this->nestMultiline($chunk, str_repeat(' ', $pendingNestColumn));
-                $pendingNestColumn = null;
+                if ($templateText) {
+                    [$chunk, $stillNested] = $this->nestTemplateTextChunk($chunk, $explicitNestColumn);
+                    if (!$stillNested) {
+                        $explicitNestColumn = null;
+                    }
+                } else {
+                    $chunk = $this->nestMultiline($chunk, str_repeat(' ', $explicitNestColumn));
+                }
             }
 
             $output .= $chunk;
@@ -4972,7 +4976,10 @@ CSS;
         return preg_replace('/(\r\n|\n|\r)(?!$)/', '$1' . $indent, $value) ?? $value;
     }
 
-    private function nestTemplateTextChunk(string $value, int $column): string
+    /**
+     * @return array{0:string, 1:bool}
+     */
+    private function nestTemplateTextChunk(string $value, int $column): array
     {
         $indent = str_repeat(' ', $column);
         $output = '';
@@ -5007,14 +5014,14 @@ CSS;
 
             if (strlen($sourceIndent) < $column) {
                 $output .= substr($value, $afterLineEnding);
-                break;
+                return [$output, false];
             }
 
             $output .= $indent . $this->dropSourceIndentColumns($sourceIndent, $column);
             $offset = $indentEnd;
         }
 
-        return $output;
+        return [$output, true];
     }
 
     private function dropSourceIndentColumns(string $indent, int $columns): string
