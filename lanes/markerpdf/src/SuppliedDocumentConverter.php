@@ -60,7 +60,7 @@ final class SuppliedDocumentConverter
      *     bad_span_ids?: list<string>,
      *     ocr_stats?: array<string, mixed>|null,
      *     markdown_tables?: list<string>,
-     *     recognized_tables?: list<array<string, mixed>>,
+     *     recognized_tables?: list<array<string, mixed>>|array<string, list<array<string, mixed>>>,
      *     table_text_lines?: list<mixed>,
      *     table_rendered_image_sizes?: array<int, array{width?: int|float, height?: int|float}|list<int|float>>,
      *     table_dpi?: int|float,
@@ -84,6 +84,7 @@ final class SuppliedDocumentConverter
         $maxPages = $this->nullableIntOption($options, 'max_pages');
         $startPage = $this->nullableIntOption($options, 'start_page');
         $metadata = $this->arrayOption($options, 'metadata');
+        $options = $this->withSelectedRecognizedTablesOption($options, $filename);
         $langs = array_key_exists('langs', $options) && $options['langs'] !== null
             ? $this->stringListOption($options, 'langs')
             : null;
@@ -223,6 +224,11 @@ final class SuppliedDocumentConverter
             $pages = $this->withPageReviewMetadata($pages, $pageReviewMetadata);
             $metadata['page_review_metadata_count'] = count($pageReviewMetadata);
             $metadata['supplied_boundaries'][] = 'page-review-metadata';
+        }
+
+        if (isset($options['_table_result_envelope_review']) && is_array($options['_table_result_envelope_review'])) {
+            $metadata['table_result_envelope_review'] = $options['_table_result_envelope_review'];
+            $metadata['supplied_boundaries'][] = 'table-result-envelope';
         }
 
         $markdownTables = $this->listOption($options, 'markdown_tables');
@@ -2347,6 +2353,117 @@ final class SuppliedDocumentConverter
         }
 
         return false;
+    }
+
+    /**
+     * Upstream tabled.extract.py saves results.json as a dictionary keyed by
+     * source filename without extension. Accept that envelope at the supplied
+     * boundary and select the current PDF's table list before normal table
+     * localization.
+     *
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function withSelectedRecognizedTablesOption(array $options, string $filename): array
+    {
+        if (!array_key_exists('recognized_tables', $options) || $options['recognized_tables'] === null) {
+            return $options;
+        }
+
+        $recognizedTables = $options['recognized_tables'];
+        if (!is_array($recognizedTables) || array_is_list($recognizedTables)) {
+            return $options;
+        }
+
+        $selection = $this->selectedRecognizedTablesFromResultEnvelope($recognizedTables, $filename);
+        if ($selection === null) {
+            throw new InvalidArgumentException(
+                'markerPDF supplied document option recognized_tables must be a list or a tabled result envelope keyed by source basename.'
+            );
+        }
+
+        $options['recognized_tables'] = $selection['tables'];
+        $options['_table_result_envelope_review'] = $selection['review'];
+
+        return $options;
+    }
+
+    /**
+     * @param array<string|int, mixed> $envelope
+     * @return array{tables: list<array<string, mixed>>, review: array<string, mixed>}|null
+     */
+    private function selectedRecognizedTablesFromResultEnvelope(array $envelope, string $filename): ?array
+    {
+        $normalizedFilename = str_replace('\\', '/', $filename);
+        $sourceBasename = basename($normalizedFilename);
+        $sourceStem = $this->filenameWithoutFinalExtension($sourceBasename);
+        $candidateKeys = $this->recognizedTableEnvelopeCandidateKeys($filename, $normalizedFilename, $sourceBasename, $sourceStem);
+        $availableKeys = array_map(static fn (mixed $key): string => (string) $key, array_keys($envelope));
+
+        foreach ($candidateKeys as $candidateKey) {
+            if (!array_key_exists($candidateKey, $envelope)) {
+                continue;
+            }
+
+            $tables = $envelope[$candidateKey];
+            if (!is_array($tables) || !array_is_list($tables)) {
+                throw new InvalidArgumentException(
+                    "markerPDF supplied document option recognized_tables envelope value for {$candidateKey} must be a list."
+                );
+            }
+
+            return [
+                'tables' => array_values($tables),
+                'review' => [
+                    'review_target' => 'table_saved_result_envelope_boundary',
+                    'upstream_boundary' => 'tabled.extract.py results.json basename-keyed table list',
+                    'selected_key' => $candidateKey,
+                    'source_filename' => $filename,
+                    'source_basename' => $sourceBasename,
+                    'source_basename_without_extension' => $sourceStem,
+                    'basename_without_extension_match' => $candidateKey === $sourceStem,
+                    'available_keys' => $availableKeys,
+                    'available_key_count' => count($availableKeys),
+                    'selected_table_count' => count($tables),
+                    'executes_python_or_models' => false,
+                    'executes_external_pdf_tools' => false,
+                ],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function recognizedTableEnvelopeCandidateKeys(
+        string $filename,
+        string $normalizedFilename,
+        string $sourceBasename,
+        string $sourceStem
+    ): array {
+        $candidates = [$sourceStem, $sourceBasename, $normalizedFilename, $filename];
+        $keys = [];
+        foreach ($candidates as $candidate) {
+            if ($candidate === '' || in_array($candidate, $keys, true)) {
+                continue;
+            }
+
+            $keys[] = $candidate;
+        }
+
+        return $keys;
+    }
+
+    private function filenameWithoutFinalExtension(string $filename): string
+    {
+        $extensionOffset = strrpos($filename, '.');
+        if ($extensionOffset === false) {
+            return $filename;
+        }
+
+        return substr($filename, 0, $extensionOffset);
     }
 
     /**

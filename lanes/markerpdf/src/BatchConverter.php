@@ -3878,8 +3878,15 @@ final class BatchConverter
      *     worker_exit_delete_statement: string,
      *     model_list_delete_reached: bool,
      *     model_list_delete_statement: string,
+     *     model_list_value_before_delete: string|null,
+     *     model_list_delete_deletes_none_reference: bool,
+     *     cleanup_after_context_exit: bool,
      *     parent_model_list_loaded: bool,
+     *     parent_share_memory_before_cleanup: bool,
+     *     parent_shared_models_deleted_after_context_exit: bool,
      *     worker_init_argument: string|null,
+     *     worker_model_load_branch_cleanup: bool,
+     *     worker_exit_required_for_worker_loaded_models: bool,
      *     executes_python_or_models: false,
      *     executes_multiprocessing: false,
      *     executes_external_pdf_tools: false
@@ -3888,6 +3895,13 @@ final class BatchConverter
     private function convertMainPoolCleanupPlan(int $totalProcesses, array $modelHandoff): array
     {
         $reached = $totalProcesses >= 1;
+        $parentModelListLoaded = $reached && (bool) ($modelHandoff['main_load_all_models'] ?? false);
+        $parentShareMemoryBeforeCleanup = $reached && (bool) ($modelHandoff['share_memory_before_pool'] ?? false);
+        $workerModelLoadBranch = $reached && (bool) ($modelHandoff['worker_loads_models_when_init_arg_null'] ?? false);
+        $modelListValueBeforeDelete = null;
+        if ($reached) {
+            $modelListValueBeforeDelete = $parentModelListLoaded ? 'model_lst' : 'None';
+        }
 
         return [
             'source' => 'convert.py pool worker_exit and model_lst cleanup boundary',
@@ -3903,10 +3917,17 @@ final class BatchConverter
             'worker_exit_delete_statement' => 'del model_refs',
             'model_list_delete_reached' => $reached,
             'model_list_delete_statement' => 'del model_lst',
-            'parent_model_list_loaded' => $reached && (bool) ($modelHandoff['main_load_all_models'] ?? false),
+            'model_list_value_before_delete' => $modelListValueBeforeDelete,
+            'model_list_delete_deletes_none_reference' => $workerModelLoadBranch,
+            'cleanup_after_context_exit' => $reached,
+            'parent_model_list_loaded' => $parentModelListLoaded,
+            'parent_share_memory_before_cleanup' => $parentShareMemoryBeforeCleanup,
+            'parent_shared_models_deleted_after_context_exit' => $parentModelListLoaded,
             'worker_init_argument' => $reached && is_string($modelHandoff['worker_init_argument'] ?? null)
                 ? $modelHandoff['worker_init_argument']
                 : null,
+            'worker_model_load_branch_cleanup' => $workerModelLoadBranch,
+            'worker_exit_required_for_worker_loaded_models' => $workerModelLoadBranch,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
             'executes_external_pdf_tools' => false,

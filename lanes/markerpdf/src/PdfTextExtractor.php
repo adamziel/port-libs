@@ -875,7 +875,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * Review xref-stream /Filter, /Length, and /Size operands before WordPress import.
+     * Review xref-stream /Filter, /Length, /Size, /W, and /Index operands before WordPress import.
      *
      * Upstream reaches this through pdftext/PDFium object loading. The native
      * fallback exposes whether indirect xref-stream operands are backed
@@ -890,6 +890,8 @@ final class PdfTextExtractor
      *     indirect_filter_count: int,
      *     indirect_length_count: int,
      *     indirect_size_count: int,
+     *     indirect_w_count: int,
+     *     indirect_index_count: int,
      *     xref_selected_operand_count: int,
      *     unresolved_operand_count: int,
      *     entries: list<array<string, mixed>>,
@@ -907,6 +909,8 @@ final class PdfTextExtractor
             'indirect_filter_count' => 0,
             'indirect_length_count' => 0,
             'indirect_size_count' => 0,
+            'indirect_w_count' => 0,
+            'indirect_index_count' => 0,
             'xref_selected_operand_count' => 0,
             'unresolved_operand_count' => 0,
             'entries' => [],
@@ -950,17 +954,23 @@ final class PdfTextExtractor
                     $filterOperands = $this->xrefStreamOperandReviews($dict, 'Filter', $objects, $xrefEntries, $definitions);
                     $lengthOperands = $this->xrefStreamOperandReviews($dict, 'Length', $objects, $xrefEntries, $definitions);
                     $sizeOperands = $this->xrefStreamOperandReviews($dict, 'Size', $objects, $xrefEntries, $definitions);
-                    $operands = array_merge($filterOperands, $lengthOperands, $sizeOperands);
+                    $wOperands = $this->xrefStreamOperandReviews($dict, 'W', $objects, $xrefEntries, $definitions);
+                    $indexOperands = $this->xrefStreamOperandReviews($dict, 'Index', $objects, $xrefEntries, $definitions);
+                    $operands = array_merge($filterOperands, $lengthOperands, $sizeOperands, $wOperands, $indexOperands);
 
                     $filterIndirectCount = $this->xrefStreamIndirectOperandCount($filterOperands);
                     $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($lengthOperands);
                     $sizeIndirectCount = $this->xrefStreamIndirectOperandCount($sizeOperands);
+                    $wIndirectCount = $this->xrefStreamIndirectOperandCount($wOperands);
+                    $indexIndirectCount = $this->xrefStreamIndirectOperandCount($indexOperands);
                     $selectedOperandCount = $this->xrefStreamSelectedOperandCount($operands);
                     $unresolvedOperandCount = $this->xrefStreamUnresolvedOperandCount($operands);
 
                     $review['indirect_filter_count'] += $filterIndirectCount;
                     $review['indirect_length_count'] += $lengthIndirectCount;
                     $review['indirect_size_count'] += $sizeIndirectCount;
+                    $review['indirect_w_count'] += $wIndirectCount;
+                    $review['indirect_index_count'] += $indexIndirectCount;
                     $review['xref_selected_operand_count'] += $selectedOperandCount;
                     $review['unresolved_operand_count'] += $unresolvedOperandCount;
 
@@ -989,9 +999,25 @@ final class PdfTextExtractor
                             'xref_selected' => false,
                             'owner_policy' => 'missing_operand',
                         ],
+                        'w_operand' => $wOperands[0] ?? [
+                            'name' => 'W',
+                            'kind' => 'absent',
+                            'resolved' => false,
+                            'xref_selected' => false,
+                            'owner_policy' => 'missing_operand',
+                        ],
+                        'index_operand' => $indexOperands[0] ?? [
+                            'name' => 'Index',
+                            'kind' => 'absent',
+                            'resolved' => false,
+                            'xref_selected' => false,
+                            'owner_policy' => 'missing_operand',
+                        ],
                         'indirect_filter_count' => $filterIndirectCount,
                         'indirect_length_count' => $lengthIndirectCount,
                         'indirect_size_count' => $sizeIndirectCount,
+                        'indirect_w_count' => $wIndirectCount,
+                        'indirect_index_count' => $indexIndirectCount,
                         'xref_selected_operand_count' => $selectedOperandCount,
                         'unresolved_operand_count' => $unresolvedOperandCount,
                         'decoded_entry_count' => count($decodedEntries),

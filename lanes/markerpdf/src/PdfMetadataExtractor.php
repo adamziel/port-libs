@@ -15180,6 +15180,11 @@ final class PdfMetadataExtractor
      */
     private function xmpMalformedFirstPacketReviewSummary(string $xml): array
     {
+        $noPacketUnboundedRoot = $this->xmpNoPacketUnboundedRootReviewSummary($xml);
+        if ($noPacketUnboundedRoot !== []) {
+            return $noPacketUnboundedRoot;
+        }
+
         foreach ($this->xmpPacketContentCandidates($xml) as $index => $packetXml) {
             if ($this->xmpHasUnboundedAdobeXmpmetaRoot($packetXml)) {
                 $declaredEncoding = $this->declaredXmlEncoding($packetXml);
@@ -15236,6 +15241,36 @@ final class PdfMetadataExtractor
         return [];
     }
 
+    /**
+     * A malformed unpacketed Adobe xmpmeta root is an active metadata boundary,
+     * not permission to promote an inner RDF root or a later appended packet.
+     *
+     * @return array<string, mixed>
+     */
+    private function xmpNoPacketUnboundedRootReviewSummary(string $xml): array
+    {
+        if ($this->xmpPacketContentCandidates($xml) !== [] || !$this->xmpHasUnboundedAdobeXmpmetaRoot($xml)) {
+            return [];
+        }
+
+        $declaredEncoding = $this->declaredXmlEncoding($xml);
+
+        return [
+            'source' => 'xmp_packet_review',
+            'status' => 'rejected_malformed_first_xmp_packet',
+            'malformed_packet_index' => 0,
+            'malformed_packet_reason' => 'unbounded_adobe_xmpmeta_root',
+            'field_names' => [],
+            'field_count' => 0,
+            'author_count' => 0,
+            'keyword_count' => 0,
+            'packet_encoding' => $this->canonicalXmlEncodingLabel($declaredEncoding ?? 'UTF-8'),
+            'payload_included' => false,
+            'text_values_redacted' => true,
+            'redacted_fields' => ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords'],
+        ];
+    }
+
     private function xmpHasUnboundedAdobeXmpmetaRoot(string $xml): bool
     {
         $root = $this->xmlRootStartForLocalName($xml, 'xmpmeta');
@@ -15273,7 +15308,7 @@ final class PdfMetadataExtractor
             return true;
         }
 
-        return strpos($xml, '</' . $root['tag_name'] . '>', $openEnd) !== false;
+        return $this->matchingXmlRootEndOffset($xml, $openEnd, $root['tag_name']) !== null;
     }
 
     private function xmpPacketInstructionInsideBoundedXmlRoot(
