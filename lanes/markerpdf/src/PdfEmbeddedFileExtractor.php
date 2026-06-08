@@ -31,7 +31,7 @@ final class PdfEmbeddedFileExtractor
 
     private const RELATED_FILE_DICTIONARY_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
-    private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Filter', 'DecodeParms', 'Params'];
+    private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Filter', 'DecodeParms', 'Params', 'DL'];
 
     private const EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS = ['Size', 'CheckSum', 'CreationDate', 'ModDate', 'Mac'];
 

@@ -16267,6 +16267,7 @@ final class PdfTextExtractor
             }
 
             $groupContributed = false;
+            $groupUsable = false;
             $claimedKidLimits = [];
             foreach ($kidNodes as $kidNode) {
                 $kidLimits = $kidNode['limits'];
@@ -16295,6 +16296,7 @@ final class PdfTextExtractor
                         }
                     }
 
+                    $groupUsable = true;
                     if (!array_key_exists($pageIndex, $entries)) {
                         $entries[$pageIndex] = $section;
                         $kidContributed = true;
@@ -16310,7 +16312,7 @@ final class PdfTextExtractor
                 }
             }
 
-            if ($groupContributed) {
+            if ($groupContributed || $groupUsable) {
                 break;
             }
         }

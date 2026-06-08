@@ -14625,8 +14625,7 @@ final class PdfMetadataExtractor
     private function xmpMediaManagementDerivedFrom(DOMElement $description): array
     {
         foreach ($this->xmpChildElements($description, self::NS_XMP_MM, 'DerivedFrom') as $derivedFrom) {
-            $seenResourceIds = [];
-            $resource = $this->xmpResourceReferenceTargetElement($derivedFrom, $seenResourceIds) ?? $derivedFrom;
+            $resource = $this->xmpMediaManagementDerivedFromResourceElement($derivedFrom);
             $row = [
                 'source' => 'xmpmm_derived_from',
                 'review_only' => true,
@@ -14650,6 +14649,47 @@ final class PdfMetadataExtractor
         }
 
         return [];
+    }
+
+    private function xmpMediaManagementDerivedFromResourceElement(DOMElement $derivedFrom): DOMElement
+    {
+        $seenResourceIds = [];
+        $resource = $this->xmpResourceReferenceTargetElement($derivedFrom, $seenResourceIds) ?? $derivedFrom;
+        $nested = $this->xmpMediaManagementNestedResourceReferenceElement($resource);
+
+        return $nested ?? $resource;
+    }
+
+    private function xmpMediaManagementNestedResourceReferenceElement(DOMElement $element): ?DOMElement
+    {
+        foreach ($this->xmpChildElements($element) as $child) {
+            if (
+                !(
+                    ($child->namespaceURI === self::NS_RDF && $child->localName === 'Description')
+                    || $child->namespaceURI === self::NS_ST_REF
+                )
+            ) {
+                continue;
+            }
+
+            if ($this->xmpMediaManagementResourceReferenceHasIdentifiers($child)) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function xmpMediaManagementResourceReferenceHasIdentifiers(DOMElement $element): bool
+    {
+        foreach (['documentID', 'instanceID', 'originalDocumentID'] as $localName) {
+            $value = $this->xmpElementValue($element, self::NS_ST_REF, $localName);
+            if ($value !== null && $value !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

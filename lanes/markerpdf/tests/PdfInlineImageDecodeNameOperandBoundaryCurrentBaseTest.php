@@ -68,7 +68,7 @@ return [
         $t->same(true, $scalarReview['inline_image_abbreviations_expanded']);
 
         $t->same(true, $review['image_decode_component_mismatch']);
-        $t->same('explicit', $review['image_decode']['source']);
+        $t->same('invalid', $review['image_decode']['source']);
         $t->same(0, $review['image_decode']['component_count']);
         $t->same(1, $review['image_decode']['expected_components']);
         $t->same(false, $review['image_decode']['valid_for_components']);

@@ -1990,6 +1990,7 @@ final class MarkerAppPreview
             }
 
             $groupContributed = false;
+            $groupUsable = false;
             $claimedKidLimits = [];
             foreach ($kidNodes as $kidNode) {
                 $kidLimits = $kidNode['limits'];
@@ -2024,6 +2025,7 @@ final class MarkerAppPreview
                         }
                     }
 
+                    $groupUsable = true;
                     if (isset($seenPageIndexes[$pageIndex])) {
                         continue;
                     }
@@ -2042,7 +2044,7 @@ final class MarkerAppPreview
                 }
             }
 
-            if ($groupContributed) {
+            if ($groupContributed || $groupUsable) {
                 break;
             }
         }

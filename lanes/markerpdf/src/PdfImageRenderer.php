@@ -6425,7 +6425,12 @@ final class PdfImageRenderer
             return $this->buildImageDecodeDetails([], $expectedComponents, 'invalid');
         }
 
-        return $this->buildImageDecodeDetails($this->numericArrayValue($resolved, $objects), $expectedComponents, 'explicit');
+        $numbers = $this->strictNumericArrayValue($resolved, $objects);
+        if ($numbers === null) {
+            return $this->buildImageDecodeDetails([], $expectedComponents, 'invalid');
+        }
+
+        return $this->buildImageDecodeDetails($numbers, $expectedComponents, 'explicit');
     }
 
     /**
@@ -6465,6 +6470,43 @@ final class PdfImageRenderer
             'inverted_components' => $inverted,
             'source' => $source,
         ];
+    }
+
+    /**
+     * @param array<int|string, mixed> $objects
+     * @return list<float>|null
+     */
+    private function strictNumericArrayValue(string $value, array $objects = []): ?array
+    {
+        $trimmed = trim($this->resolvePdfValue($value, $objects));
+        if (!str_starts_with($trimmed, '[') || !str_ends_with($trimmed, ']')) {
+            return null;
+        }
+
+        $numbers = [];
+        $offset = 1;
+        $end = strlen($trimmed) - 1;
+        while ($offset < $end) {
+            $offset = $this->skipPdfWhitespace($trimmed, $offset);
+            if ($offset >= $end) {
+                break;
+            }
+
+            $read = $this->readPdfValueWithOffset($trimmed, $offset);
+            if ($read === null || $read['next'] <= $offset || $read['next'] > $end) {
+                return null;
+            }
+
+            $resolved = trim($this->resolvePdfValue($read['value'], $objects));
+            if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/', $resolved) !== 1) {
+                return null;
+            }
+
+            $numbers[] = (float) $resolved;
+            $offset = $read['next'];
+        }
+
+        return $numbers;
     }
 
     /**
