@@ -43973,17 +43973,35 @@ final class PdfTextExtractor
     private function textShowingOperand(string $operator, array $operands): ?string
     {
         if ($operator === '"') {
-            for ($index = count($operands) - 1; $index >= 0; $index--) {
-                if ($this->isTextOperand($operands[$index])) {
-                    return $operands[$index];
-                }
-            }
-
-            return null;
+            return $this->quoteTextShowingOperand($operands);
         }
 
         $operand = end($operands);
         return is_string($operand) && $this->isTextOperand($operand) ? $operand : null;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function quoteTextShowingOperand(array $operands): ?string
+    {
+        if (count($operands) < 3) {
+            return null;
+        }
+
+        $operand = $operands[count($operands) - 1];
+        if (!is_string($operand) || !$this->isTextOperand($operand)) {
+            return null;
+        }
+
+        if (
+            $this->numericOperand($operands[count($operands) - 3]) === null
+            || $this->numericOperand($operands[count($operands) - 2]) === null
+        ) {
+            return null;
+        }
+
+        return $operand;
     }
 
     private function isTextShowingOperator(string $token): bool
@@ -44243,7 +44261,7 @@ final class PdfTextExtractor
      */
     private function quoteWordSpacingOperand(array $operands): ?float
     {
-        if (count($operands) < 3) {
+        if ($this->quoteTextShowingOperand($operands) === null) {
             return null;
         }
 
@@ -44255,7 +44273,7 @@ final class PdfTextExtractor
      */
     private function quoteCharacterSpacingOperand(array $operands): ?float
     {
-        if (count($operands) < 3) {
+        if ($this->quoteTextShowingOperand($operands) === null) {
             return null;
         }
 
