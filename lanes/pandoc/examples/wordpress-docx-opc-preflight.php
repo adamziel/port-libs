@@ -106,6 +106,8 @@ $signatureXml = <<<'XML'
         </ds:Transform>
         <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
       </ds:Transforms>
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>SGVsbG8=</ds:DigestValue>
     </ds:Reference>
   </ds:SignedInfo>
   <ds:KeyInfo>
@@ -1574,6 +1576,7 @@ foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOC
 $digitalSignatures = $graph->preflightDigitalSignatures();
 $digitalSignatureRelationshipRoles = $graph->preflightDigitalSignatureRelationshipRoles();
 $digitalSignatureMetadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig1.xml');
+$digitalSignatureSignedInfoReferences = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig1.xml');
 $embeddedPackages = $graph->preflightEmbeddedPackages($documentPart);
 $embeddedPackageGraphs = $graph->preflightEmbeddedPackageGraphs($documentPart);
 $embeddedPackageParts = [];
@@ -1785,6 +1788,7 @@ $summary = [
     'digitalSignatures' => $digitalSignatures,
     'digitalSignatureRelationshipRoles' => $digitalSignatureRelationshipRoles,
     'digitalSignatureMetadata' => $digitalSignatureMetadata,
+    'digitalSignatureSignedInfoReferences' => $digitalSignatureSignedInfoReferences,
     'embeddedPackages' => $embeddedPackages,
     'embeddedPackageGraphs' => $embeddedPackageGraphs,
     'packageConsistency' => [
@@ -1935,6 +1939,23 @@ $summary = [
                 'issues' => $reference['issues'],
             ],
             $digitalSignatureMetadata['objects'][0]['manifestReferences'] ?? []
+        )),
+        'digitalSignatureSignedInfoReferences' => array_values(array_map(
+            static fn (array $reference): array => [
+                'uri' => $reference['uri'],
+                'targetPart' => $reference['targetPart'],
+                'contentType' => $reference['contentType'],
+                'relationshipPart' => $reference['relationshipPart'],
+                'referenceContentType' => $reference['referenceContentType'],
+                'referenceContentTypeMatches' => $reference['referenceContentTypeMatches'],
+                'relationshipTransformCount' => $reference['relationshipTransformCount'],
+                'canonicalizationTransformCount' => $reference['canonicalizationTransformCount'],
+                'digestAlgorithm' => $reference['digestAlgorithm'],
+                'digestValueDecodedBytes' => $reference['digestValueDecodedBytes'],
+                'valid' => $reference['valid'],
+                'issues' => $reference['issues'],
+            ],
+            $digitalSignatureSignedInfoReferences
         )),
         'embeddedPackageParts' => $embeddedPackageParts,
         'embeddedObjectParts' => $embeddedObjectParts,
@@ -2133,6 +2154,22 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2000/09/xmldsig#sha1'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['digestValueDecodedBytes'] ?? null) !== 6
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['valid'] ?? null) !== true
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['uri'] ?? null) !== '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['targetPart'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['relationshipPart'] ?? null) !== true
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['referenceContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['referenceContentTypeMatches'] ?? null) !== true
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['transformAlgorithms'] ?? null) !== [
+            'http://schemas.openxmlformats.org/package/2006/RelationshipTransform',
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+        ]
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['relationshipTransformCount'] ?? null) !== 1
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformCount'] ?? null) !== 1
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2001/04/xmlenc#sha256'
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['valid'] ?? null) !== true
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['issues'] ?? null) !== []
         || ($summary['digitalSignatureMetadata']['certificates'][0]['decodedBytes'] ?? null) !== 17
         || ($summary['digitalSignatureMetadata']['certificates'][0]['sha256'] ?? null) !== '339af39211d5f1a9de3c16e229830accd22d7063980248a5ea57edf61cac6c6d'
         || ($summary['digitalSignatureMetadata']['certificates'][0]['valid'] ?? null) !== true
@@ -2143,6 +2180,15 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][1]['targetPart'] ?? null) !== '/docProps/core.xml'
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][1]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.core-properties+xml'
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['targetPart'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipPart'] ?? null) !== true
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipTransformCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2001/04/xmlenc#sha256'
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['valid'] ?? null) !== true
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['issues'] ?? null) !== []
         || ($summary['integrity']['emptySignatureOriginGuard']['id'] ?? null) !== 'rIdSignatureOrigin'
         || ($summary['integrity']['emptySignatureOriginGuard']['targetPart'] ?? null) !== '/_xmlsignatures/origin.sigs'
         || ($summary['integrity']['emptySignatureOriginGuard']['relationshipPartName'] ?? null) !== '/_xmlsignatures/_rels/origin.sigs.rels'

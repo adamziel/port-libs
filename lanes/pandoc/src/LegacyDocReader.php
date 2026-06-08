@@ -123,6 +123,9 @@ final class LegacyDocReader
         0x27 => 'fillin',
         0x32 => 'gotobutton',
         0x33 => 'macrobutton',
+        0x34 => 'autonumout',
+        0x35 => 'autonumlgl',
+        0x36 => 'autonum',
         0x39 => 'symbol',
         0x3b => 'mergefield',
         0x40 => 'docvariable',
@@ -2327,6 +2330,9 @@ final class LegacyDocReader
     {
         $fieldTypes = [
             'SEQ' => 'sequence',
+            'AUTONUM' => 'auto-number',
+            'AUTONUMOUT' => 'auto-number-outline',
+            'AUTONUMLGL' => 'auto-number-legal',
             'LISTNUM' => 'list-number',
         ];
         if (!isset($fieldTypes[$fieldName])) {

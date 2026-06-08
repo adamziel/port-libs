@@ -1959,6 +1959,53 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformCount:int, canonicalizationTransformCount:int, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>
+     */
+    public function preflightDigitalSignatureSignedInfoReferences(string $signaturePartName): array
+    {
+        $signaturePartName = OpcPackagePath::canonicalPartName($signaturePartName);
+        if (!$this->package->has($signaturePartName)) {
+            throw new \RuntimeException('OPC signature part not found: ' . $signaturePartName);
+        }
+
+        $dom = XmlHtmlDom::loadXmlDocument($this->package->read($signaturePartName), 'OPC digital signature XML');
+        $root = $dom->documentElement;
+        if (
+            !$root instanceof \DOMElement
+            || $root->namespaceURI !== self::XML_SIGNATURE_NAMESPACE_URI
+            || $root->localName !== 'Signature'
+        ) {
+            return [];
+        }
+
+        $signedInfo = self::firstChildElementByNamespace($root, self::XML_SIGNATURE_NAMESPACE_URI, 'SignedInfo');
+        if (!$signedInfo instanceof \DOMElement) {
+            return [];
+        }
+
+        $references = [];
+        foreach ($signedInfo->childNodes as $child) {
+            if (
+                !$child instanceof \DOMElement
+                || $child->namespaceURI !== self::XML_SIGNATURE_NAMESPACE_URI
+                || $child->localName !== 'Reference'
+            ) {
+                continue;
+            }
+
+            $references[] = self::digitalSignatureSignedInfoReferenceMetadata(
+                $child,
+                count($references),
+                $signaturePartName,
+                $this->package,
+                $this->contentTypes,
+            );
+        }
+
+        return $references;
+    }
+
+    /**
      * @return list<array{source:string, id:string, type:string, kind:string, target:string, targetPart:?string, contentType:?string, expectedContentType:string, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function preflightEmbeddedPackages(string $sourcePartName = '/'): array
@@ -2711,6 +2758,148 @@ final class OpcRelationshipGraph
             'targetPart' => $targetPart,
             'exists' => $exists,
             'contentType' => $contentType,
+            'digestAlgorithm' => $digestAlgorithm,
+            'digestValue' => $digestValue,
+            'digestValueBase64Length' => $digestValueBase64Length,
+            'digestValueDecodedBytes' => $digestValueDecodedBytes,
+            'valid' => $issues === [],
+            'issues' => $issues,
+            'parseError' => $parseError,
+        ];
+    }
+
+    /**
+     * @return array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformCount:int, canonicalizationTransformCount:int, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}
+     */
+    private static function digitalSignatureSignedInfoReferenceMetadata(
+        \DOMElement $reference,
+        int $referenceIndex,
+        string $signaturePartName,
+        ZipPackage $package,
+        OpcContentTypes $contentTypes,
+    ): array {
+        $issues = [];
+        $parseError = null;
+        $targetPart = null;
+        $exists = null;
+        $contentType = null;
+        $relationshipPart = false;
+        $referenceContentTypeMatches = null;
+        $uri = $reference->hasAttribute('URI') ? trim($reference->getAttribute('URI')) : null;
+
+        if ($uri === null || $uri === '') {
+            $issues[] = 'missing-signed-info-reference-uri';
+        } elseif (
+            preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $uri) === 1
+            || str_starts_with($uri, '//')
+        ) {
+            $issues[] = 'signed-info-reference-external-uri';
+        } elseif (str_starts_with($uri, '#')) {
+            $issues[] = 'signed-info-reference-fragment-uri';
+        } else {
+            try {
+                $targetPart = OpcPackagePath::stripQueryAndFragment(
+                    OpcPackagePath::resolveInternalTarget($signaturePartName, $uri),
+                );
+                $exists = $package->has($targetPart);
+                $contentType = $contentTypes->contentTypeForPart($targetPart);
+                $relationshipPart = OpcRelationships::isRelationshipPartName($targetPart);
+                if (!$exists) {
+                    $issues[] = 'signed-info-reference-target-missing';
+                }
+                if ($contentType === null) {
+                    $issues[] = 'signed-info-reference-content-type-missing';
+                }
+            } catch (\InvalidArgumentException $exception) {
+                $issues[] = 'invalid-signed-info-reference-uri';
+                $parseError = $exception->getMessage();
+            }
+        }
+
+        $referenceContentTypeQuery = self::referenceContentTypeQuery($uri ?? '');
+        $referenceContentType = $referenceContentTypeQuery['contentType'];
+        $issues = array_merge($issues, $referenceContentTypeQuery['issues']);
+        if ($parseError === null && $referenceContentTypeQuery['parseError'] !== null) {
+            $parseError = $referenceContentTypeQuery['parseError'];
+        }
+
+        if ($referenceContentType !== null) {
+            $referenceContentTypeMatches = self::contentTypeMatches($contentType, $referenceContentType);
+            if (!$referenceContentTypeMatches) {
+                $issues[] = 'signed-info-reference-content-type-mismatch';
+            }
+        }
+
+        $transformAlgorithms = [];
+        foreach (self::xmlSignatureReferenceTransforms($reference) as $transform) {
+            $transformAlgorithms[] = $transform->hasAttribute('Algorithm')
+                ? trim($transform->getAttribute('Algorithm'))
+                : '';
+        }
+
+        $relationshipTransformCount = 0;
+        $canonicalizationTransformCount = 0;
+        foreach ($transformAlgorithms as $algorithm) {
+            if ($algorithm === self::RELATIONSHIP_TRANSFORM_ALGORITHM) {
+                $relationshipTransformCount++;
+            }
+            if (self::isCanonicalizationTransformAlgorithm($algorithm)) {
+                $canonicalizationTransformCount++;
+            }
+        }
+
+        if ($relationshipPart && $relationshipTransformCount === 0) {
+            $issues[] = 'relationship-part-reference-missing-relationship-transform';
+        } elseif (!$relationshipPart && $relationshipTransformCount > 0) {
+            $issues[] = 'relationship-transform-reference-not-relationship-part';
+        }
+
+        $digestMethod = self::firstChildElementByNamespace($reference, self::XML_SIGNATURE_NAMESPACE_URI, 'DigestMethod');
+        $digestAlgorithm = $digestMethod instanceof \DOMElement
+            ? self::optionalElementAttribute($digestMethod, 'Algorithm')
+            : null;
+        if ($digestAlgorithm === null) {
+            $issues[] = 'missing-signed-info-reference-digest-method';
+        }
+
+        $digestValueElement = self::firstChildElementByNamespace($reference, self::XML_SIGNATURE_NAMESPACE_URI, 'DigestValue');
+        $digestValue = null;
+        $digestValueBase64Length = null;
+        $digestValueDecodedBytes = null;
+        if ($digestValueElement instanceof \DOMElement) {
+            $digestValue = preg_replace('/\s+/', '', trim($digestValueElement->textContent));
+            if (!is_string($digestValue)) {
+                $digestValue = trim($digestValueElement->textContent);
+            }
+        }
+
+        if ($digestValue === null || $digestValue === '') {
+            $issues[] = 'missing-signed-info-reference-digest-value';
+        } else {
+            $digestValueBase64Length = strlen($digestValue);
+            $decodedDigest = base64_decode($digestValue, true);
+            if ($decodedDigest === false) {
+                $issues[] = 'invalid-signed-info-reference-digest-value-base64';
+            } else {
+                $digestValueDecodedBytes = strlen($decodedDigest);
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'signaturePart' => $signaturePartName,
+            'referenceIndex' => $referenceIndex,
+            'uri' => $uri,
+            'targetPart' => $targetPart,
+            'exists' => $exists,
+            'contentType' => $contentType,
+            'relationshipPart' => $relationshipPart,
+            'referenceContentType' => $referenceContentType,
+            'referenceContentTypeMatches' => $referenceContentTypeMatches,
+            'transformAlgorithms' => $transformAlgorithms,
+            'relationshipTransformCount' => $relationshipTransformCount,
+            'canonicalizationTransformCount' => $canonicalizationTransformCount,
             'digestAlgorithm' => $digestAlgorithm,
             'digestValue' => $digestValue,
             'digestValueBase64Length' => $digestValueBase64Length,

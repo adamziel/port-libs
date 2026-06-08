@@ -1119,3 +1119,27 @@ let normalize_title ?(fallback="Untitled") packet =
 let blocks = [ "core/paragraph"; "core/html" ]
 let reviewed = Result.Ok true
 ```
+
+``` {.jl #julia-review .numberLines startFrom=900}
+# WordPress import review normalizer
+module ImportReview
+
+using JSON3
+
+Base.@kwdef struct ReviewPacket
+    source_id::Int
+    title::Union{String, Nothing} = nothing
+    blocks::Vector{String} = String[]
+end
+
+function normalize_title(packet::ReviewPacket)::String
+    title = something(packet.title, "Untitled")
+    if isempty(strip(title))
+        return "Import $(packet.source_id)"
+    end
+    return strip(title)
+end
+
+packet = JSON3.read(raw_json, ReviewPacket)
+@info "review packet" source=packet.source_id dry_run=true
+```

@@ -130,6 +130,10 @@ final class SyntaxHighlighter
         'json-with-comments' => 'jsonc',
         'json5' => 'jsonc',
         'jsonc' => 'jsonc',
+        'jl' => 'julia',
+        'julia' => 'julia',
+        'julia-repl' => 'julia',
+        'julia-source' => 'julia',
         'kcfgc' => 'ini',
         'kotlinscript' => 'kotlin',
         'kotlin' => 'kotlin',
@@ -706,6 +710,7 @@ final class SyntaxHighlighter
             'jsx' => $this->tokenizeJsx($code),
             'json' => $this->tokenizeJson($code),
             'jsonc' => $this->tokenizeJsonWithComments($code),
+            'julia' => $this->tokenizeJulia($code),
             'kotlin' => $this->tokenizeKotlin($code),
             'less' => $this->tokenizeLess($code),
             'liquid' => $this->tokenizeLiquid($code),
@@ -1236,6 +1241,33 @@ final class SyntaxHighlighter
             ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[({*\\[]|\\b))/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:\\.\\.\\.|:=|<-|&\\^=?|<<=?|>>=?|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeJulia(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#=[\\s\\S]*?=#/'],
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^raw"""[\\s\\S]*?"""/'],
+            ['string', '/^"""[\\s\\S]*?"""/'],
+            ['string', '/^raw"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])+'/s"],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_.!]*/'],
+            ['keyword', '/^\\b(?:abstract|baremodule|begin|break|catch|const|continue|do|else|elseif|end|export|finally|for|function|global|if|import|let|local|macro|module|mutable|primitive|quote|return|struct|try|type|using|where|while)\\b/'],
+            ['constant', '/^\\b(?:false|missing|nothing|true)\\b/'],
+            ['datatype', '/^\\b(?:Any|Bool|Char|Dict|Float16|Float32|Float64|Int|Int8|Int16|Int32|Int64|Integer|Matrix|Missing|Nothing|Pair|Real|Set|String|Symbol|Tuple|UInt|UInt8|UInt16|UInt32|UInt64|Union|Vector)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eEfF][+-]?\\d(?:_?\\d)*)?)(?:im)?\\b/'],
+            ['attribute', '/^:[A-Za-z_][A-Za-z0-9_!?]*/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[({\\[.]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_!]*(?=\\s*\\()/'],
+            ['attribute', '/^\\b[A-Za-z_][A-Za-z0-9_!]*(?==)/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_!]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|::|=>|->|\\|>|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:&|^~$@-])/'],
         ]);
     }
 

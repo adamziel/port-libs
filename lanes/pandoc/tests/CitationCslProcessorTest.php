@@ -459,12 +459,12 @@ BIB;
         $t->same('attachments/source-audit.pdf', $item['sourceFiles'][0]['path'] ?? null);
         $t->same([2026, 6, 5], $item['issuedDate']['parts'] ?? null);
         $t->same('(Ng 2026)', $processor->renderCitationCluster([$citation('source-glossary', '[@source-glossary]')]));
-        $t->same('Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. https://example.test/glossary.', $processor->renderBibliographyEntry('source-glossary'));
+        $t->same('Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. Keywords: wordpress; import; reviewer. https://example.test/glossary.', $processor->renderBibliographyEntry('source-glossary'));
 
         $document = (new MarkdownReader())->read('Glossary entry @source-glossary keeps inherited source packet metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Glossary entry Ng (2026) keeps inherited source packet metadata.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. https://example.test/glossary.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. Keywords: wordpress; import; reviewer. https://example.test/glossary.</dd>', $blocks);
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@xdata{a,xdata={b}} @xdata{b,xdata={a}} @online{site,title={Site},xdata={a}}'));
     },
@@ -13852,6 +13852,95 @@ XML);
         $t->contains('<p>Reference-context source Smith (2026) and segment (Archive Desk 2025) keep review partitions visible.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Sectioned Review Manual. Review Press, 2026. BibLaTeX reference context: refsection 2; refsegment migration-import.</dd>', $blocks);
         $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Segment Snapshot. 2025. BibLaTeX reference context: refsegment media-audit. https://example.test/segment-snapshot.</dd>', $blocks);
+    },
+    'maps bounded biblatex keyword lists into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{keyword-manual,
+  author    = {Smith, Ada},
+  title     = {Keyword Review Manual},
+  date      = {2026},
+  publisher = {Review Press},
+  keywords  = {wordpress, data liberation, source audit}
+}
+
+@online{keyword-snapshot,
+  author   = {{Archive Desk}},
+  title    = {Keyword Snapshot},
+  date     = {2025},
+  keyword  = {media audit; block imports; needs review},
+  url      = {https://example.test/keyword-snapshot}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same(['wordpress', 'data liberation', 'source audit'], $items[0]['keyword'] ?? null);
+        $t->same(['media audit', 'block imports', 'needs review'], $items[1]['keyword'] ?? null);
+        $t->same('wordpress, data liberation, source audit', $items[0]['rawBibtex']['fields']['keywords'] ?? null);
+        $t->same('media audit; block imports; needs review', $items[1]['rawBibtex']['fields']['keyword'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('keyword-manual');
+        $snapshot = $processor->item('keyword-snapshot');
+        $t->same(['wordpress', 'data liberation', 'source audit'], $manual['keywords'] ?? null);
+        $t->same('wordpress; data liberation; source audit', $manual['keywordSummary'] ?? null);
+        $t->same(['media audit', 'block imports', 'needs review'], $snapshot['keywords'] ?? null);
+        $t->same('media audit; block imports; needs review', $snapshot['keywordSummary'] ?? null);
+        $t->same(
+            'Smith, Ada. Keyword Review Manual. Review Press, 2026. Keywords: wordpress; data liberation; source audit.',
+            $processor->renderBibliographyEntry('keyword-manual')
+        );
+        $t->same(
+            'Archive Desk. Keyword Snapshot. 2025. Keywords: media audit; block imports; needs review. https://example.test/keyword-snapshot.',
+            $processor->renderBibliographyEntry('keyword-snapshot')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Keyword Review</title>
+    <id>https://example.test/styles/bounded-biblatex-keyword-review</id>
+    <updated>2026-06-08T17:06:50+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="keyword"/>
+        <text variable="keywords"/>
+        <text variable="keyword-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="keywords"/>
+      <text variable="keywords-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | wordpress, data liberation, source audit | wordpress, data liberation, source audit | wordpress; data liberation; source audit; Archive Desk | media audit, block imports, needs review | media audit, block imports, needs review | media audit; block imports; needs review]', $styled->renderCitationCluster([
+            $citation('keyword-manual', '[@keyword-manual]'),
+            $citation('keyword-snapshot', '[@keyword-snapshot]'),
+        ]));
+        $t->same('Keyword Review Manual :: wordpress, data liberation, source audit :: wordpress; data liberation; source audit', $styled->renderBibliographyEntry('keyword-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-keywords',
+            'title' => 'Direct Keyword Packet',
+            'keywords' => 'manual review, source archive',
+        ]])->item('direct-keywords');
+        $t->same(['manual review', 'source archive'], $direct['keywords'] ?? null);
+        $t->same('manual review; source archive', $direct['keywordSummary'] ?? null);
+
+        $document = (new MarkdownReader())->read('Keyword source @keyword-manual and snapshot [@keyword-snapshot] keep review tags visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Keyword source Smith (2026) and snapshot (Archive Desk 2025) keep review tags visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Keyword Review Manual. Review Press, 2026. Keywords: wordpress; data liberation; source audit.</dd>', $blocks);
+        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Keyword Snapshot. 2025. Keywords: media audit; block imports; needs review. https://example.test/keyword-snapshot.</dd>', $blocks);
     },
     'applies bounded csl choose match semantics across multiple condition values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([

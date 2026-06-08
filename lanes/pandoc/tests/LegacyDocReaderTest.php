@@ -4960,6 +4960,102 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC numbering field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC automatic numbering field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Auto numbers '
+            . $fieldBegin . ' AUTONUM \* Arabic ' . $fieldSeparator . '1' . $fieldEnd
+            . ', '
+            . $fieldBegin . ' AUTONUMOUT \s 2 ' . $fieldSeparator . 'II.' . $fieldEnd
+            . ', and '
+            . $fieldBegin . ' AUTONUMLGL ' . $fieldSeparator . '2.1' . $fieldEnd
+            . ".\r";
+
+        $autoBegin = strpos($text, $fieldBegin);
+        $autoSeparator = strpos($text, $fieldSeparator, (int) $autoBegin);
+        $autoEnd = strpos($text, $fieldEnd, (int) $autoSeparator);
+        $outlineBegin = strpos($text, $fieldBegin, (int) $autoEnd + 1);
+        $outlineSeparator = strpos($text, $fieldSeparator, (int) $outlineBegin);
+        $outlineEnd = strpos($text, $fieldEnd, (int) $outlineSeparator);
+        $legalBegin = strpos($text, $fieldBegin, (int) $outlineEnd + 1);
+        $legalSeparator = strpos($text, $fieldSeparator, (int) $legalBegin);
+        $legalEnd = strpos($text, $fieldEnd, (int) $legalSeparator);
+        foreach ([$autoBegin, $autoSeparator, $autoEnd, $outlineBegin, $outlineSeparator, $outlineEnd, $legalBegin, $legalSeparator, $legalEnd] as $cp) {
+            if (!is_int($cp)) {
+                throw new RuntimeException('Unable to locate legacy DOC automatic-numbering field fixture');
+            }
+        }
+
+        $fieldTable = $plcfldMom([
+            ['cp' => $autoBegin, 'character' => 0x13, 'typeCode' => 0x36],
+            ['cp' => $autoSeparator, 'character' => 0x14],
+            ['cp' => $autoEnd, 'character' => 0x15, 'endFlags' => 0x80],
+            ['cp' => $outlineBegin, 'character' => 0x13, 'typeCode' => 0x34],
+            ['cp' => $outlineSeparator, 'character' => 0x14],
+            ['cp' => $outlineEnd, 'character' => 0x15, 'endFlags' => 0x80],
+            ['cp' => $legalBegin, 'character' => 0x13, 'typeCode' => 0x35],
+            ['cp' => $legalSeparator, 'character' => 0x14],
+            ['cp' => $legalEnd, 'character' => 0x15, 'endFlags' => 0x80],
+        ], strlen($text));
+        $wordDocument = $buildSimpleWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $fieldTable,
+        ]));
+        $document = $result['document'];
+        $fields = $result['fields'];
+        $paragraph = $document->children[0];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(9, $result['metadata']['fieldCharacterCount']);
+        $t->same(3, $result['metadata']['fieldCount']);
+        $t->same('autonum', $fields[0]['type']);
+        $t->same(0x36, $fields[0]['typeCode']);
+        $t->same('autonumout', $fields[1]['type']);
+        $t->same(0x34, $fields[1]['typeCode']);
+        $t->same('autonumlgl', $fields[2]['type']);
+        $t->same(0x35, $fields[2]['typeCode']);
+
+        $auto = $paragraph->children[1];
+        $t->same('span', $auto->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-numbering-field', 'legacy-doc-field-autonum'], $auto->attr('classes'));
+        $t->same('autonum', $auto->attr('attributes')['data-legacy-doc-field']);
+        $t->same('AUTONUM \* Arabic', $auto->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('auto-number', $auto->attr('attributes')['data-legacy-doc-numbering-field-type']);
+        $t->same('Arabic', $auto->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('1', $auto->children[0]->attr('text'));
+
+        $outline = $paragraph->children[3];
+        $t->same(['legacy-doc-field', 'legacy-doc-numbering-field', 'legacy-doc-field-autonumout'], $outline->attr('classes'));
+        $t->same('autonumout', $outline->attr('attributes')['data-legacy-doc-field']);
+        $t->same('AUTONUMOUT \s 2', $outline->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('auto-number-outline', $outline->attr('attributes')['data-legacy-doc-numbering-field-type']);
+        $t->same('s', $outline->attr('attributes')['data-legacy-doc-numbering-field-switches']);
+        $t->same('2', $outline->attr('attributes')['data-legacy-doc-numbering-field-switch-s']);
+        $t->same('II.', $outline->children[0]->attr('text'));
+
+        $legal = $paragraph->children[5];
+        $t->same(['legacy-doc-field', 'legacy-doc-numbering-field', 'legacy-doc-field-autonumlgl'], $legal->attr('classes'));
+        $t->same('autonumlgl', $legal->attr('attributes')['data-legacy-doc-field']);
+        $t->same('AUTONUMLGL', $legal->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('auto-number-legal', $legal->attr('attributes')['data-legacy-doc-numbering-field-type']);
+        $t->same('2.1', $legal->children[0]->attr('text'));
+
+        $t->contains('[1]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonum data-legacy-doc-field="autonum"', $markdown);
+        $t->contains('[II.]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonumout data-legacy-doc-field="autonumout"', $markdown);
+        $t->contains('[2.1]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonumlgl data-legacy-doc-field="autonumlgl"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonum" data-legacy-doc-field="autonum" data-legacy-doc-field-instruction="AUTONUM \* Arabic" data-legacy-doc-numbering-field-type="auto-number" data-legacy-doc-field-format="Arabic">1</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonumout" data-legacy-doc-field="autonumout" data-legacy-doc-field-instruction="AUTONUMOUT \s 2" data-legacy-doc-numbering-field-type="auto-number-outline" data-legacy-doc-numbering-field-switches="s" data-legacy-doc-numbering-field-switch-s="2">II.</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonumlgl" data-legacy-doc-field="autonumlgl" data-legacy-doc-field-instruction="AUTONUMLGL" data-legacy-doc-numbering-field-type="auto-number-legal">2.1</span>', $blocks);
+        foreach (['AUTONUM', 'AUTONUMOUT', 'AUTONUMLGL'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC automatic numbering field instructions should not render as visible text');
+        }
+    },
     'preserves legacy DOC include field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";

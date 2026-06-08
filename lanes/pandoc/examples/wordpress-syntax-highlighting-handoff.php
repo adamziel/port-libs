@@ -394,6 +394,12 @@ if (!$ocamlCodeBlock instanceof PortLibs\Pandoc\AstNode || $ocamlCodeBlock->type
 }
 $ocaml = $highlighter->highlightCodeBlock($ocamlCodeBlock, 'monochrome');
 $ocamlWordpressBlock = $highlighter->wordpressHtmlBlock($ocamlCodeBlock, 'monochrome');
+$juliaCodeBlock = $document->children[62] ?? null;
+if (!$juliaCodeBlock instanceof PortLibs\Pandoc\AstNode || $juliaCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Julia code block');
+}
+$julia = $highlighter->highlightCodeBlock($juliaCodeBlock, 'kate');
+$juliaWordpressBlock = $highlighter->wordpressHtmlBlock($juliaCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1691,6 +1697,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($ocamlWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
         throw new RuntimeException('Expected OCaml WordPress style metadata');
     }
+    if (($julia['language'] ?? '') !== 'julia') {
+        throw new RuntimeException('Expected Julia language handoff');
+    }
+    if (($julia['requestedLanguage'] ?? '') !== 'jl') {
+        throw new RuntimeException('Expected JL requested-language wrapper handoff');
+    }
+    if (($julia['lineNumbering']['start'] ?? null) !== 900) {
+        throw new RuntimeException('Expected Julia source startFrom line-number handoff');
+    }
+    if (!str_contains($julia['html'], '<span class="dt">Base</span><span class="op">.</span><span class="ot">@kwdef</span> <span class="kw">struct</span> <span class="dt">ReviewPacket</span>')) {
+        throw new RuntimeException('Expected Julia macro and struct token handoff');
+    }
+    if (!str_contains($julia['html'], '<span class="dt">JSON3</span><span class="op">.</span><span class="fu">read</span>')) {
+        throw new RuntimeException('Expected Julia module function token handoff');
+    }
+    if (!str_contains($julia['html'], '<span class="ot">@info</span> <span class="st">&quot;review packet&quot;</span> <span class="ot">source</span>')) {
+        throw new RuntimeException('Expected Julia macro keyword-argument token handoff');
+    }
+    if (!str_contains($juliaWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected Julia WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1773,6 +1800,7 @@ echo "scalaHighlightedHtml:\n" . $scala['html'] . "\n";
 echo "elixirHighlightedHtml:\n" . $elixir['html'] . "\n";
 echo "vueHighlightedHtml:\n" . $vue['html'] . "\n";
 echo "ocamlHighlightedHtml:\n" . $ocaml['html'] . "\n";
+echo "juliaHighlightedHtml:\n" . $julia['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1825,4 +1853,5 @@ echo "scalaWordpressBlock:\n" . $scalaWordpressBlock . "\n";
 echo "elixirWordpressBlock:\n" . $elixirWordpressBlock . "\n";
 echo "vueWordpressBlock:\n" . $vueWordpressBlock . "\n";
 echo "ocamlWordpressBlock:\n" . $ocamlWordpressBlock . "\n";
+echo "juliaWordpressBlock:\n" . $juliaWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

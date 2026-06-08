@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review', 'shadowroot-template-review', 'slot-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -457,6 +457,10 @@ final class Html5DomFragment
                 return $iframeSource === null ? [] : [$iframeSource];
             }
 
+            if ($name === 'template') {
+                return self::withHtmlTemplateShadowRootMetadata($node, $children, $diagnostics);
+            }
+
             return self::withVisibleFormChoiceLabel($node, $name, $children);
         }
 
@@ -520,6 +524,10 @@ final class Html5DomFragment
         if ($mode === 'html' && $name === 'ruby') {
             self::markHtmlRubyReviewMetadata($node, $attrs, $children, $diagnostics);
         }
+        if ($mode === 'html' && $elementForeignContext === null && $name === 'slot') {
+            self::markHtmlSlotFallbackReviewMetadata($node, $attrs, $diagnostics);
+            $name = 'span';
+        }
         if ($mode === 'html') {
             self::markHtmlHiddenInertReviewMetadata($node, $name, $attrs, $diagnostics);
         }
@@ -551,6 +559,136 @@ final class Html5DomFragment
         }
 
         return [$element];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function withHtmlTemplateShadowRootMetadata(
+        \DOMElement $element,
+        array $children,
+        array &$diagnostics
+    ): array {
+        if (!$element->hasAttribute('shadowrootmode')) {
+            return $children;
+        }
+
+        $mode = strtolower(self::cleanHtmlMetadataAttribute($element->getAttribute('shadowrootmode')));
+        if (!in_array($mode, ['open', 'closed'], true)) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'template',
+                'attribute' => 'shadowrootmode',
+                'value' => $mode,
+                'reason' => 'invalid-declarative-shadow-root-mode',
+            ], $element);
+
+            return $children;
+        }
+
+        $attrs = [
+            'data-pandoc-shadowroot-mode' => $mode,
+        ];
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'shadowroot-template-review',
+            'tag' => 'template',
+            'attribute' => 'shadowrootmode',
+            'mode' => $mode,
+            'reason' => 'declarative-shadow-root-template-unwrapped',
+        ], $element);
+
+        foreach ([
+            'shadowrootdelegatesfocus' => 'data-pandoc-shadowroot-delegatesfocus',
+            'shadowrootclonable' => 'data-pandoc-shadowroot-clonable',
+            'shadowrootserializable' => 'data-pandoc-shadowroot-serializable',
+        ] as $sourceAttribute => $metadataAttribute) {
+            if (!$element->hasAttribute($sourceAttribute)) {
+                continue;
+            }
+
+            $attrs[$metadataAttribute] = 'true';
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'shadowroot-template-review',
+                'tag' => 'template',
+                'attribute' => $sourceAttribute,
+                'mode' => $mode,
+                'reason' => 'declarative-shadow-root-template-flag-preserved',
+            ], $element);
+        }
+
+        $metadataNode = self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => 'Shadow root: ' . $mode,
+            ]],
+        ], $element);
+
+        return [$metadataNode, ...$children];
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlSlotFallbackReviewMetadata(
+        \DOMElement $element,
+        array &$attrs,
+        array &$diagnostics
+    ): void {
+        unset($attrs['name']);
+        $attrs['data-pandoc-slot-fallback'] = 'true';
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'slot-review',
+            'tag' => 'slot',
+            'replacement' => 'span',
+            'reason' => 'slot-fallback-preserved',
+        ], $element);
+
+        if (!$element->hasAttribute('name')) {
+            return;
+        }
+
+        $slotName = self::normalizeHtmlSlotName($element->getAttribute('name'));
+        if ($slotName === null) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'slot',
+                'attribute' => 'name',
+                'reason' => 'invalid-slot-name-metadata',
+            ], $element);
+
+            return;
+        }
+
+        $attrs['data-pandoc-slot-name'] = $slotName;
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'slot-review',
+            'tag' => 'slot',
+            'attribute' => 'name',
+            'name' => $slotName,
+            'replacement' => 'span',
+            'reason' => 'slot-name-preserved-as-metadata',
+        ], $element);
+    }
+
+    private static function normalizeHtmlSlotName(string $name): ?string
+    {
+        $name = self::cleanHtmlMetadataAttribute($name);
+        if ($name === '' || strlen($name) > 128) {
+            return null;
+        }
+        if (preg_match('/[<>"\'`{}]/u', $name) === 1) {
+            return null;
+        }
+
+        return $name;
     }
 
     /**

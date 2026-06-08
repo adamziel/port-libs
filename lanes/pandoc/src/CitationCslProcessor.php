@@ -731,6 +731,7 @@ final class CitationCslProcessor
             'original-date' => $originalDate,
             'event-date' => $eventDate,
         ]);
+        $keywords = self::stringListFromFirstField($item, ['keyword', 'keywords']);
         $biblatexOptions = self::stringListFromFirstField($item, ['biblatexOptions', 'biblatex-options', 'biblatexoptions']);
         $biblatexLanguageOptions = self::stringListFromFirstField($item, [
             'biblatexLanguageOptions',
@@ -839,7 +840,8 @@ final class CitationCslProcessor
             'addendum' => self::stringField($item, 'addendum'),
             'nameAddon' => self::firstStringField($item, ['name-addon', 'nameAddon']),
             'dateAddon' => self::firstStringField($item, ['date-addon', 'dateAddon', 'dateaddendum', 'date-addendum']),
-            'keywords' => self::stringListField($item, 'keyword'),
+            'keywords' => $keywords,
+            'keywordSummary' => implode('; ', $keywords),
             'sourceFiles' => $sourceFilePolicy['files'],
             'sourceFileDiagnostics' => $sourceFileDiagnostics,
             'relatedKeys' => self::stringListFromFirstField($item, ['relatedKeys', 'related-keys', 'related']),
@@ -5512,6 +5514,11 @@ final class CitationCslProcessor
             $parts[] = 'BibLaTeX reference context: ' . $this->withTerminalPunctuation($referenceContextSummary);
         }
 
+        $keywordSummary = trim((string) ($item['keywordSummary'] ?? ''));
+        if ($keywordSummary !== '') {
+            $parts[] = 'Keywords: ' . $this->withTerminalPunctuation($keywordSummary);
+        }
+
         $customFieldSummary = trim((string) ($item['biblatexCustomFieldSummary'] ?? ''));
         if ($customFieldSummary !== '') {
             $parts[] = 'BibLaTeX custom fields: ' . $this->withTerminalPunctuation($customFieldSummary);
@@ -7247,7 +7254,8 @@ final class CitationCslProcessor
             'original-publisher-place-list' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
             'original-language', 'origlanguage' => (string) ($item['originalLanguage'] ?? ''),
             'original-language-list' => implode('; ', is_array($item['originalLanguageList'] ?? null) ? $item['originalLanguageList'] : []),
-            'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
+            'keyword', 'keywords' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
+            'keyword-summary', 'keywords-summary' => (string) ($item['keywordSummary'] ?? ''),
             'issued', 'date' => $this->renderDateVariable($item['issuedDate'] ?? null, $scope, 'issued'),
             'year-suffix' => (string) ($item['yearSuffix'] ?? ($citation instanceof AstNode ? $citation->attr('cslYearSuffix', '') : '')),
             'event-date' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),

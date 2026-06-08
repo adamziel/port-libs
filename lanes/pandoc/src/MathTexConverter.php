@@ -2292,13 +2292,15 @@ final class MathTexConverter
 
         $positionAttributes = $this->readOptionalAmsEnvironmentPositionAttributes($source, $offset, $environment);
         $content = $this->readEnvironmentContent($source, $offset, $environment);
-        $rows = $this->splitAlignmentRows($content, $environment);
+        $splitRows = $this->splitAlignmentRowsWithSpacing($content, $environment);
+        $rows = $splitRows['rows'];
         $spec = self::MATRIX_ENVIRONMENTS[$environment];
         $attributes = '';
         if (isset($spec['columnalign'])) {
             $attributes = ' columnalign="' . $this->esc($spec['columnalign']) . '"';
         }
         $attributes .= $positionAttributes;
+        $attributes .= $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
         $table = $this->environmentTable($rows, $attributes);
 
@@ -2536,10 +2538,11 @@ final class MathTexConverter
     {
         $columnSpec = $this->arrayColumnSpec($this->readRequiredGroupText($source, $offset));
         $columnAttributes = $this->arrayColumnAttributesFromSpec($columnSpec);
-        $rows = $this->splitAlignmentRows($this->readEnvironmentContent($source, $offset, 'array'), 'array');
-        $rowRules = $this->stripArrayRowRules($rows, $columnSpec['columns']);
+        $splitRows = $this->splitAlignmentRowsWithSpacing($this->readEnvironmentContent($source, $offset, 'array'), 'array');
+        $rowRules = $this->stripArrayRowRules($splitRows['rows'], $columnSpec['columns']);
+        $rowSpacingAttributes = $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rowRules['rows']));
 
-        return $this->environmentTable($rowRules['rows'], $columnAttributes . $rowRules['attributes'], false, 'array', $columnSpec['columns']);
+        return $this->environmentTable($rowRules['rows'], $columnAttributes . $rowRules['attributes'] . $rowSpacingAttributes, false, 'array', $columnSpec['columns']);
     }
 
     private function parseSmallMatrixEnvironment(string $source, int &$offset): string
@@ -2578,11 +2581,13 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
         }
 
-        $rows = $this->splitAlignmentRows($content, $environment);
+        $splitRows = $this->splitAlignmentRowsWithSpacing($content, $environment);
+        $rows = $splitRows['rows'];
         $spec = self::AMS_ROW_ENVIRONMENTS[$environment];
         $this->validateAmsRowEnvironmentRows($rows, $environment, $spec['columns']);
+        $rowSpacingAttributes = $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc($spec['columnalign']) . '"' . $positionAttributes, true, $environment);
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($spec['columnalign']) . '"' . $positionAttributes . $rowSpacingAttributes, true, $environment);
     }
 
     private function parseAmsAlignedAtEnvironment(string $source, int &$offset, string $environment): string
@@ -2594,10 +2599,12 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
         }
 
-        $rows = $this->splitAlignmentRows($content, $environment);
+        $splitRows = $this->splitAlignmentRowsWithSpacing($content, $environment);
+        $rows = $splitRows['rows'];
         $this->validateAmsRowEnvironmentRows($rows, $environment, $pairs * 2);
+        $rowSpacingAttributes = $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc(implode(' ', array_fill(0, $pairs, 'right left'))) . '"' . $positionAttributes, true, $environment);
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc(implode(' ', array_fill(0, $pairs, 'right left'))) . '"' . $positionAttributes . $rowSpacingAttributes, true, $environment);
     }
 
     private function parseAmsFlushAlignedEnvironment(string $source, int &$offset, string $environment): string
@@ -2608,10 +2615,12 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
         }
 
-        $rows = $this->splitAlignmentRows($content, $environment);
+        $splitRows = $this->splitAlignmentRowsWithSpacing($content, $environment);
+        $rows = $splitRows['rows'];
         $columns = $this->validateAmsFlushAlignedRows($rows, $environment);
+        $rowSpacingAttributes = $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc($this->flushAlignedColumnAlign($columns)) . '"' . $positionAttributes, true, $environment);
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($this->flushAlignedColumnAlign($columns)) . '"' . $positionAttributes . $rowSpacingAttributes, true, $environment);
     }
 
     private function parseEqnarrayEnvironment(string $source, int &$offset, string $environment): string
@@ -2621,10 +2630,12 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
         }
 
-        $rows = $this->splitAlignmentRows($content, $environment);
+        $splitRows = $this->splitAlignmentRowsWithSpacing($content, $environment);
+        $rows = $splitRows['rows'];
         $this->validateAmsRowEnvironmentRows($rows, $environment, 3);
+        $rowSpacingAttributes = $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
-        return $this->environmentTable($rows, ' columnalign="right center left"', true, $environment);
+        return $this->environmentTable($rows, ' columnalign="right center left"' . $rowSpacingAttributes, true, $environment);
     }
 
     private function parseTextModeCommand(string $source, int &$offset, string $command): string
@@ -4824,7 +4835,16 @@ final class MathTexConverter
      */
     private function splitAlignmentRows(string $content, string $environment): array
     {
+        return $this->splitAlignmentRowsWithSpacing($content, $environment)['rows'];
+    }
+
+    /**
+     * @return array{rows:list<list<string>>, rowSpacing:array<int, string>}
+     */
+    private function splitAlignmentRowsWithSpacing(string $content, string $environment): array
+    {
         $rows = [];
+        $rowSpacing = [];
         $row = [];
         $cell = '';
         $depth = 0;
@@ -4841,7 +4861,10 @@ final class MathTexConverter
                     $rows[] = $row;
                     $row = [];
                     $offset += 2;
-                    $this->skipOptionalAlignmentRowSpacingArgument($content, $offset);
+                    $spacing = $this->readOptionalAlignmentRowSpacingArgument($content, $offset);
+                    if ($spacing !== null) {
+                        $rowSpacing[count($rows)] = $spacing;
+                    }
                     continue;
                 }
 
@@ -4903,13 +4926,21 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Empty TeX environment ' . $environment);
         }
 
-        return $rows;
+        return [
+            'rows' => $rows,
+            'rowSpacing' => $rowSpacing,
+        ];
     }
 
     private function skipOptionalAlignmentRowSpacingArgument(string $content, int &$offset): void
     {
+        $this->readOptionalAlignmentRowSpacingArgument($content, $offset);
+    }
+
+    private function readOptionalAlignmentRowSpacingArgument(string $content, int &$offset): ?string
+    {
         if (($content[$offset] ?? '') !== '[') {
-            return;
+            return null;
         }
 
         $argument = $this->readTexBracketArgument($content, $offset);
@@ -4918,6 +4949,37 @@ final class MathTexConverter
         }
 
         $offset = $argument['next'];
+
+        return $this->normalizeMathSpaceDimension($argument['value'], 'rowspacing');
+    }
+
+    /**
+     * @param array<int, string> $rowSpacing
+     */
+    private function environmentRowSpacingAttributes(array $rowSpacing, int $rowCount): string
+    {
+        if ($rowSpacing === [] || $rowCount < 2) {
+            return '';
+        }
+
+        ksort($rowSpacing);
+        $spacing = [];
+        for ($rowNumber = 1; $rowNumber < $rowCount; $rowNumber++) {
+            $spacing[] = $rowSpacing[$rowNumber] ?? 'normal';
+        }
+
+        $metadata = [];
+        foreach ($rowSpacing as $rowNumber => $dimension) {
+            if ($rowNumber >= 1 && $rowNumber < $rowCount) {
+                $metadata[] = 'after-row-' . $rowNumber . ':' . $dimension;
+            }
+        }
+
+        if ($metadata === []) {
+            return '';
+        }
+
+        return ' rowspacing="' . $this->esc(implode(' ', $spacing)) . '" data-tex-rowspacing="' . $this->esc(implode(' ', $metadata)) . '"';
     }
 
     private function parseEnvironmentCell(string $cell): string

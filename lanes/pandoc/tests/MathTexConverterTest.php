@@ -762,7 +762,7 @@ return [
         ]);
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $multlineMathml);
-        $t->contains('<mtable columnalign="center"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mo>=</mo><msub><mi>a</mi><mi>i</mi></msub><mo>+</mo><msub><mi>b</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mo>+</mo><mfrac><mi>x</mi><mi>y</mi></mfrac></mtd></mtr></mtable>', $multlineMathml);
+        $t->contains('<mtable columnalign="center" rowspacing=".5em normal" data-tex-rowspacing="after-row-1:.5em"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mo>=</mo><msub><mi>a</mi><mi>i</mi></msub><mo>+</mo><msub><mi>b</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mo>+</mo><mfrac><mi>x</mi><mi>y</mi></mfrac></mtd></mtr></mtable>', $multlineMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline}</annotation>', $multlineMathml);
         $t->contains('<mo fence="true" stretchy="true">(</mo><mtable columnalign="center"><mtr><mtd><mi>x</mi><mo>+</mo><mi>y</mi></mtd></mtr><mtr><mtd><mi>z</mi></mtd></mtr></mtable><mo fence="true" stretchy="true">)</mo>', $multlinedMathml);
         $t->contains('<mtable columnalign="center"><mtr id="eq:multi-review"><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mlabeledtr><mtd><mtext>(ML)</mtext></mtd><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd></mlabeledtr></mtable>', $taggedMultlineMathml);
@@ -1203,6 +1203,25 @@ return [
         $t->contains('<mo fence="true" stretchy="true">[</mo><mtable><mtr><mtd><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd><mtd><msqrt><mi>x</mi></msqrt></mtd></mtr><mtr><mtd><mi>α</mi></mtd><mtd><mi>ω</mi></mtd></mtr></mtable><mo fence="true" stretchy="true">]</mo>', $bracketMathml);
         $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><mi>score</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo></mtd></mtr>', $alignedMathml);
         $t->contains('<mtr><mtd><msub><mi>y</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><mfrac><msub><mi>a</mi><mi>i</mi></msub><msub><mi>b</mi><mi>i</mi></msub></mfrac></mtd></mtr></mtable>', $alignedMathml);
+    },
+    'preserves bounded tex optional row spacing as mathml review metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $alignedMathml = $converter->texToMathMl('\\begin{aligned}a &= b \\\\[.5em] c &= d\\end{aligned}', true);
+        $arrayMathml = $converter->texToMathMl('\\begin{array}{l|cr}p_i & m_i & 1 \\\\[1ex] q_i & n_i & 2 \\\\ r_i & s_i & 3\\end{array}');
+        $matrixMathml = $converter->texToMathMl('\\begin{matrix}a \\\\[2pt] b\\end{matrix}');
+        $alignedAtMathml = $converter->texToMathMl('\\begin{alignedat}{2}a &= b & c &= d \\\\[3mm] e &= f & g &= h\\end{alignedat}');
+        $eqnarrayMathml = $converter->texToMathMl('\\begin{eqnarray}a &=& b \\\\[4px] c &=& d\\end{eqnarray}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $alignedMathml);
+        $t->contains('<mtable columnalign="right left" rowspacing=".5em" data-tex-rowspacing="after-row-1:.5em"><mtr><mtd><mi>a</mi></mtd><mtd><mo>=</mo><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mo>=</mo><mi>d</mi></mtd></mtr></mtable>', $alignedMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{aligned}a &amp;= b \\\\[.5em] c &amp;= d\\end{aligned}</annotation>', $alignedMathml);
+        $t->contains('<mtable columnalign="left center right" columnlines="solid none" rowspacing="1ex normal" data-tex-rowspacing="after-row-1:1ex"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd><mtd><mn>1</mn></mtd></mtr>', $arrayMathml);
+        $t->contains('<mtr><mtd><msub><mi>r</mi><mi>i</mi></msub></mtd><mtd><msub><mi>s</mi><mi>i</mi></msub></mtd><mtd><mn>3</mn></mtd></mtr></mtable>', $arrayMathml);
+        $t->contains('<mtable rowspacing="2pt" data-tex-rowspacing="after-row-1:2pt"><mtr><mtd><mi>a</mi></mtd></mtr><mtr><mtd><mi>b</mi></mtd></mtr></mtable>', $matrixMathml);
+        $t->contains('<mtable columnalign="right left right left" rowspacing="3mm" data-tex-rowspacing="after-row-1:3mm">', $alignedAtMathml);
+        $t->contains('<mtable columnalign="right center left" rowspacing="4px" data-tex-rowspacing="after-row-1:4px">', $eqnarrayMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{aligned}a &= b \\\\[bad] c &= d\\end{aligned}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}a \\\\[] b\\end{matrix}'));
     },
     'converts bounded tex cases environments to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

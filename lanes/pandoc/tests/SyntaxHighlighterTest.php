@@ -82,6 +82,9 @@ return [
         $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('json5'));
         $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('json-with-comments'));
         $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('language-json.comments'));
+        $t->same('julia', SyntaxHighlighter::normalizeLanguage('julia'));
+        $t->same('julia', SyntaxHighlighter::normalizeLanguage('jl'));
+        $t->same('julia', SyntaxHighlighter::normalizeLanguage('language-julia-source'));
         $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('kotlin'));
         $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('kt'));
         $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('kts'));
@@ -1940,6 +1943,52 @@ return [
         $t->same('ocaml', $directReason['language']);
         $t->same('reasonml', $directReason['requestedLanguage']);
         $t->contains('<span class="kw">let</span> <span class="va">normalizeTitle</span> <span class="op">=</span> <span class="st">&quot;Untitled&quot;</span><span class="op">;</span>', $directReason['html']);
+    },
+    'highlights julia review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[62] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Julia code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'kate');
+        $directJulia = $highlighter->highlight('function publish!(packet::ReviewPacket); @info "ok" dry_run=false; end', 'julia-source');
+
+        $t->same('jl', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('julia', SyntaxHighlighter::normalizeLanguage('julia'));
+        $t->same('julia', SyntaxHighlighter::normalizeLanguage('jl'));
+        $t->same('julia', SyntaxHighlighter::normalizeLanguage('julia-source'));
+        $t->same('julia', $highlighted['language']);
+        $t->same('jl', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(900, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource jl numberLines"><code class="sourceCode julia" style="counter-reset: source-line 899;">', $highlighted['html']);
+        $t->contains('<span id="julia-review-900"><a href="#julia-review-900"></a><span class="co"># WordPress import review normalizer</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="dt">ImportReview</span>', $highlighted['html']);
+        $t->contains('<span class="kw">using</span> <span class="dt">JSON3</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Base</span><span class="op">.</span><span class="ot">@kwdef</span> <span class="kw">struct</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="va">source_id</span><span class="op">::</span><span class="dt">Int</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span><span class="op">::</span><span class="dt">Union</span><span class="op">{</span><span class="dt">String</span><span class="op">,</span> <span class="dt">Nothing</span><span class="op">}</span> <span class="op">=</span> <span class="cn">nothing</span>', $highlighted['html']);
+        $t->contains('<span class="kw">function</span> <span class="fu">normalize_title</span><span class="op">(</span><span class="va">packet</span><span class="op">::</span><span class="dt">ReviewPacket</span><span class="op">)::</span><span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="fu">something</span><span class="op">(</span><span class="va">packet</span><span class="op">.</span><span class="va">title</span><span class="op">,</span> <span class="st">&quot;Untitled&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="fu">isempty</span><span class="op">(</span><span class="fu">strip</span><span class="op">(</span><span class="va">title</span><span class="op">))</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="st">&quot;Import $(packet.source_id)&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">JSON3</span><span class="op">.</span><span class="fu">read</span><span class="op">(</span><span class="va">raw_json</span><span class="op">,</span> <span class="dt">ReviewPacket</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@info</span> <span class="st">&quot;review packet&quot;</span> <span class="ot">source</span><span class="op">=</span><span class="va">packet</span><span class="op">.</span><span class="va">source_id</span> <span class="ot">dry_run</span><span class="op">=</span><span class="cn">true</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="dt">JSON3</span><span class="op">.</span><span class="fu">read</span>', $wordpressBlock);
+        $t->same('julia', $directJulia['language']);
+        $t->same('julia-source', $directJulia['requestedLanguage']);
+        $t->contains('<span class="kw">function</span> <span class="fu">publish!</span><span class="op">(</span><span class="va">packet</span><span class="op">::</span><span class="dt">ReviewPacket</span><span class="op">);</span>', $directJulia['html']);
+        $t->contains('<span class="ot">@info</span> <span class="st">&quot;ok&quot;</span> <span class="ot">dry_run</span><span class="op">=</span><span class="cn">false</span>', $directJulia['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

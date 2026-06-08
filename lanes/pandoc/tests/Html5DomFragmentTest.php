@@ -732,6 +732,57 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe template fallback URL to be stripped');
         $t->true(!str_contains($blocks, '<template'), 'Expected WordPress blocks to omit template wrapper');
     },
+    'converts declarative shadow templates and slot fallback metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article><template shadowrootmode="open" shadowrootdelegatesfocus shadowrootclonable shadowrootserializable data-pandoc-shadowroot-mode="source-spoof">'
+            . '<style>drop</style><p>Shadow <slot name="headline" data-pandoc-slot-name="source-spoof">fallback <a href="./shadow.html">link</a><a href="javascript:alert(1)">bad</a></slot></p></template>'
+            . '<template shadowrootmode="closed"><slot>Default fallback</slot></template>'
+            . '<template shadowrootmode="bad state"><p>Invalid shadow metadata <slot name="bad&lt;slot">bad slot</slot></p></template></article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/template-shadow-slot-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><span data-pandoc-shadowroot-mode="open" data-pandoc-shadowroot-delegatesfocus="true" data-pandoc-shadowroot-clonable="true" data-pandoc-shadowroot-serializable="true">Shadow root: open</span>'
+            . '<p>Shadow <span data-pandoc-slot-fallback="true" data-pandoc-slot-name="headline">fallback <a href="https://source.example.test/import/posts/shadow.html">link</a><a>bad</a></span></p>'
+            . '<span data-pandoc-shadowroot-mode="closed">Shadow root: closed</span><span data-pandoc-slot-fallback="true">Default fallback</span>'
+            . '<p>Invalid shadow metadata <span data-pandoc-slot-fallback="true">bad slot</span></p></article>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Shadow root: openShadow fallback linkbadShadow root: closedDefault fallbackInvalid shadow metadata bad slot', $fragment->textContent());
+        $t->same(['a', 'article', 'p', 'span'], $summary['elementNames']);
+        $t->same(['style', 'template'], $summary['blockedTags']);
+        $t->same(['data-pandoc-slot-name', 'href', 'name', 'shadowrootclonable', 'shadowrootdelegatesfocus', 'shadowrootmode', 'shadowrootserializable'], $summary['filteredAttributes']);
+
+        $policyDiagnostics = array_count_values(array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        )));
+        $t->same(17, array_sum($policyDiagnostics));
+        $t->same(4, $policyDiagnostics['blocked-tag'] ?? 0);
+        $t->same(5, $policyDiagnostics['shadowroot-template-review'] ?? 0);
+        $t->same(4, $policyDiagnostics['slot-review'] ?? 0);
+        $t->same(3, $policyDiagnostics['unsafe-attribute'] ?? 0);
+        $t->same(1, $policyDiagnostics['unsafe-url'] ?? 0);
+        $t->same('article', $nodes[0]['name']);
+        $t->same('span', $nodes[0]['children'][0]['name']);
+        $t->same('open', $nodes[0]['children'][0]['attrs']['data-pandoc-shadowroot-mode']);
+        $t->same('true', $nodes[0]['children'][0]['attrs']['data-pandoc-shadowroot-delegatesfocus']);
+        $t->same('true', $nodes[0]['children'][0]['attrs']['data-pandoc-shadowroot-clonable']);
+        $t->same('true', $nodes[0]['children'][0]['attrs']['data-pandoc-shadowroot-serializable']);
+        $t->same('span', $nodes[0]['children'][1]['children'][1]['name']);
+        $t->same('headline', $nodes[0]['children'][1]['children'][1]['attrs']['data-pandoc-slot-name']);
+        $t->same('/migration/template-shadow-slot-review.html', $document->children[0]->attr('part'));
+        foreach (['<template', '<slot', '<style', 'source-spoof', 'javascript:', ' shadowrootmode=', ' shadowrootdelegatesfocus', ' shadowrootclonable', ' shadowrootserializable', 'name="bad&lt;slot"', 'data-pandoc-slot-name="source-spoof"'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected shadow template sanitizer to remove blocked source content: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to remove blocked source content: ' . $blocked);
+        }
+    },
     'filters mixed unsafe srcset candidates before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<p>'
