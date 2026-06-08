@@ -1518,6 +1518,64 @@ HTML,
         ], null, 'plain'));
     },
 
+    'renders bounded pandoc default muse template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $muse = $renderer->renderResource('templates/default', [], [
+            'author' => ['Migration bot', 'Content editor'],
+            'title' => 'Muse Review Packet',
+            'lang' => 'en-US',
+            'LISTtitle' => 'Review Queue',
+            'subtitle' => 'Native template handoff',
+            'SORTauthors' => 'Migration bot',
+            'SORTtopics' => 'migration wordpress',
+            'date' => '2026-06-08',
+            'notes' => 'Reviewer packet metadata survives.',
+            'source' => 'https://example.test/wp-admin/import',
+            'header-includes' => ['#custom reviewer-metadata'],
+            'include-before' => ['** Before import'],
+            'body' => "Imported Muse body\nSecond review line.",
+            'include-after' => ['** After import'],
+        ], null, 'muse');
+
+        foreach ([
+            '#author Migration bot; Content editor',
+            '#title Muse Review Packet',
+            '#lang en-US',
+            '#LISTtitle Review Queue',
+            '#subtitle Native template handoff',
+            '#SORTauthors Migration bot',
+            '#SORTtopics migration wordpress',
+            '#date 2026-06-08',
+            '#notes Reviewer packet metadata survives.',
+            '#source https://example.test/wp-admin/import',
+            '#custom reviewer-metadata',
+            '** Before import',
+            "Imported Muse body\nSecond review line.",
+            '** After import',
+        ] as $needle) {
+            $t->contains($needle, $muse);
+        }
+
+        $direct = $renderer->renderResource('templates/default.muse', [], [
+            'body' => 'Direct Muse body',
+        ]);
+        $t->contains('Direct Muse body', $direct);
+
+        $extensionQualified = $renderer->renderResource('templates/default', [], [
+            'title' => 'Muse Extension Packet',
+            'body' => 'Muse extension body',
+        ], null, 'muse+smart');
+        $t->contains('#title Muse Extension Packet', $extensionQualified);
+        $t->contains('Muse extension body', $extensionQualified);
+
+        $t->same('custom muse', $renderer->renderResource('templates/default', [
+            'templates/default.muse' => 'custom $body$',
+        ], [
+            'body' => 'muse',
+        ], null, 'muse'));
+    },
+
     'renders bounded pandoc default rst template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

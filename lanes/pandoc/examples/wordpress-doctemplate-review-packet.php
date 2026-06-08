@@ -268,6 +268,44 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $museDefault = (new DocTemplate())->renderResource('templates/default', [], [
+        'author' => ['Migration bot', 'Content editor'],
+        'title' => 'Muse Default Review',
+        'lang' => 'en-US',
+        'LISTtitle' => 'Reviewer Queue',
+        'subtitle' => 'Native template fallback',
+        'SORTauthors' => 'Migration bot',
+        'SORTtopics' => 'migration wordpress',
+        'date' => '2026-06-08',
+        'notes' => 'Review imported Muse packet metadata.',
+        'source' => 'https://example.test/wp-admin/import',
+        'header-includes' => ['#custom wp-review-metadata'],
+        'include-before' => ['** Before Muse import'],
+        'body' => 'Muse body handoff',
+        'include-after' => ['** After Muse import'],
+    ], null, 'muse+smart');
+    foreach ([
+        '#author Migration bot; Content editor',
+        '#title Muse Default Review',
+        '#lang en-US',
+        '#LISTtitle Reviewer Queue',
+        '#subtitle Native template fallback',
+        '#SORTauthors Migration bot',
+        '#SORTtopics migration wordpress',
+        '#date 2026-06-08',
+        '#notes Review imported Muse packet metadata.',
+        '#source https://example.test/wp-admin/import',
+        '#custom wp-review-metadata',
+        '** Before Muse import',
+        'Muse body handoff',
+        '** After Muse import',
+    ] as $needle) {
+        if (!str_contains($museDefault, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate Muse default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $html4DefaultAlias = (new DocTemplate())->renderResource('templates/default', [], [
         'pandoc-version' => '3.7.0',
         'pagetitle' => 'HTML4 Alias Review',
