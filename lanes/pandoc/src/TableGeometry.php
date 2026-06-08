@@ -1631,6 +1631,7 @@ final class TableGeometry
      *     directionality:array<string, mixed>,
      *     tableLayout?:array<string, mixed>,
      *     tableSpacing?:array<string, mixed>,
+     *     tableBorderCollapse?:array<string, mixed>,
      *     rowGroups:list<array<string, mixed>>,
      *     captions:array<string, array<string, mixed>>,
      *     sections:list<array<string, mixed>>,
@@ -1665,6 +1666,7 @@ final class TableGeometry
         $tableFrame = self::tableFrameMetadata($table);
         $tableSpacing = self::tableSpacingMetadata($table);
         $tableBackground = self::tableBackgroundMetadata($table);
+        $tableBorderCollapse = self::tableBorderCollapseMetadata($table);
         $directionality = self::directionalityMetadata($table, $sections, $coverageRecords);
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $idPrefix = self::reviewPacketIdPrefix($table, $options);
@@ -1729,6 +1731,7 @@ final class TableGeometry
                 $tableFrame,
                 $tableSpacing,
                 $tableBackground,
+                $tableBorderCollapse,
                 $directionality,
                 (string) ($sourceSummary['text'] ?? '')
             ),
@@ -1752,6 +1755,10 @@ final class TableGeometry
 
         if ($tableBackground !== []) {
             $packet['tableBackground'] = $tableBackground;
+        }
+
+        if ($tableBorderCollapse !== []) {
+            $packet['tableBorderCollapse'] = $tableBorderCollapse;
         }
 
         if ($sourceSummary !== []) {
@@ -4654,8 +4661,11 @@ final class TableGeometry
      * @param array<string, mixed> $flatGrid
      * @param list<array<string, mixed>> $flatGridFallbacks
      * @param array<string, mixed> $tableLayout
+     * @param array<string, mixed> $tableAlignment
      * @param array<string, mixed> $tableFrame
      * @param array<string, mixed> $tableSpacing
+     * @param array<string, mixed> $tableBackground
+     * @param array<string, mixed> $tableBorderCollapse
      * @param array<string, mixed> $directionality
      * @return array<string, mixed>
      */
@@ -4680,6 +4690,7 @@ final class TableGeometry
         array $tableFrame,
         array $tableSpacing,
         array $tableBackground,
+        array $tableBorderCollapse,
         array $directionality,
         string $sourceSummary
     ): array
@@ -4946,6 +4957,10 @@ final class TableGeometry
             'tableBackgroundColor' => (string) ($tableBackground['backgroundColor'] ?? ''),
             'tableBackgroundColorSource' => (string) ($tableBackground['backgroundColorSource'] ?? ''),
             'tableBackgroundAttributeCount' => count(is_array($tableBackground['attributes'] ?? null) ? $tableBackground['attributes'] : []),
+            'hasTableBorderCollapse' => $tableBorderCollapse !== [],
+            'tableBorderCollapse' => (string) ($tableBorderCollapse['borderCollapse'] ?? ''),
+            'tableBorderCollapseSource' => (string) ($tableBorderCollapse['borderCollapseSource'] ?? ''),
+            'tableBorderCollapseAttributeCount' => count(is_array($tableBorderCollapse['attributes'] ?? null) ? $tableBorderCollapse['attributes'] : []),
             'hasTableDirectionality' => (bool) ($directionalitySummary['hasDirectionality'] ?? false),
             'directionRecordCount' => (int) ($directionalitySummary['directionRecordCount'] ?? 0),
             'directionalCellCount' => (int) ($directionalitySummary['directionalCellCount'] ?? 0),
@@ -5368,6 +5383,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableBackgroundWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableBorderCollapseWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -5448,6 +5464,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableBackgroundWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableBorderCollapseWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -5540,6 +5557,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableBackgroundWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::tableBorderCollapseWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -6625,6 +6643,43 @@ final class TableGeometry
             'attributeCount' => count(is_array($tableBackground['attributes'] ?? null) ? $tableBackground['attributes'] : []),
             'attributes' => $tableBackground['attributes'] ?? [],
             'sourceAttributes' => $tableBackground['sourceAttributes'] ?? [],
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableBorderCollapseWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $tableBorderCollapse = self::tableBorderCollapseMetadata($table);
+        if ($tableBorderCollapse === []) {
+            return [];
+        }
+
+        $requirements = [
+            'markdown' => ['markdown-table-border-collapse-requires-raw-html', 'raw-html-table-border-collapse'],
+            'asciidoc' => ['asciidoc-table-border-collapse-review-required', 'table-border-collapse-review'],
+            'latex' => ['latex-table-border-collapse-review-required', 'table-border-collapse-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-border-collapse',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-border-collapse',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'borderCollapse' => (string) ($tableBorderCollapse['borderCollapse'] ?? ''),
+            'borderCollapseSource' => (string) ($tableBorderCollapse['borderCollapseSource'] ?? ''),
+            'attributeCount' => count(is_array($tableBorderCollapse['attributes'] ?? null) ? $tableBorderCollapse['attributes'] : []),
+            'attributes' => $tableBorderCollapse['attributes'] ?? [],
+            'sourceAttributes' => $tableBorderCollapse['sourceAttributes'] ?? [],
         ]];
     }
 
@@ -8317,6 +8372,45 @@ final class TableGeometry
         return $record;
     }
 
+    /**
+     * @return array{source:string,attributes:array<string, string>,borderCollapse:string,borderCollapseSource:string,sourceAttributes?:array<string, mixed>}
+     */
+    private static function tableBorderCollapseMetadata(AstNode $table): array
+    {
+        $attributes = self::stringAttributeMap($table->attr('htmlAttributes', []), true);
+        foreach (self::stringAttributeMap($table->attr('attributes', []), false) as $name => $value) {
+            $key = strtolower(trim($name));
+            if ($key !== '' && !array_key_exists($key, $attributes)) {
+                $attributes[$key] = $value;
+            }
+        }
+
+        if (!array_key_exists('style', $attributes)) {
+            return [];
+        }
+
+        $borderCollapse = self::normalizeTableBorderCollapseStyleAttribute((string) $attributes['style']);
+        if ($borderCollapse === '') {
+            return [];
+        }
+
+        $record = [
+            'source' => 'html-table-border-collapse',
+            'attributes' => [
+                'border-collapse' => $borderCollapse,
+            ],
+            'borderCollapse' => $borderCollapse,
+            'borderCollapseSource' => 'style',
+        ];
+
+        $sourceAttributes = self::sourceAttributeSummary($table);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
     private static function normalizeTableFrameAttribute(string $value): string
     {
         $value = strtolower(trim($value));
@@ -8366,6 +8460,23 @@ final class TableGeometry
             $color = self::normalizeTableBackgroundColorAttribute($value);
             if ($color !== '') {
                 return $color;
+            }
+        }
+
+        return '';
+    }
+
+    private static function normalizeTableBorderCollapseStyleAttribute(string $style): string
+    {
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (strtolower(trim($name)) !== 'border-collapse') {
+                continue;
+            }
+
+            $borderCollapse = strtolower(trim($value));
+            if (in_array($borderCollapse, ['collapse', 'separate'], true)) {
+                return $borderCollapse;
             }
         }
 

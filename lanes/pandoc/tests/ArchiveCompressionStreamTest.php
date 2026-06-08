@@ -949,6 +949,107 @@ return [
         $t->same('global-review', $roundTrip->entry('/packet/filesystem/inherited.md')->paxHeaders['SCHILY.xattr.user.review'] ?? null);
     },
 
+    'preflights tar filesystem attributes without applying modes or owners' => static function (TestRunner $t): void {
+        $scriptBytes = "#!/bin/sh\nprintf 'Pandoc archive review\\n'\n";
+        $contentBytes = "# Filesystem attribute policy\n\nReady for WordPress import review.\n";
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/',
+                'type' => TarArchiveEntry::TYPE_DIRECTORY,
+                'mode' => 01777,
+                'modifiedAt' => 1780479088,
+            ],
+            [
+                'name' => 'packet/bin/import.sh',
+                'data' => $scriptBytes,
+                'mode' => 04755,
+                'uid' => 1001,
+                'gid' => 1002,
+                'userName' => 'author',
+                'groupName' => 'docs',
+                'modifiedAt' => 1780479089,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $contentBytes,
+                'mode' => 0644,
+                'modifiedAt' => 1780479090,
+            ],
+        ]);
+        $gzip = GzipStream::build($archive->bytes(), [
+            'filename' => 'wordpress-tar-filesystem-attributes.tar',
+            'comment' => 'mode and owner metadata stay review-only',
+        ]);
+
+        $policy = TarArchive::filesystemAttributePolicyPreflight($archive->bytes());
+        $inspection = ArchiveCompressionStream::inspectTarFilesystemAttributePolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archive->bytes())
+        );
+        $roundTrip = ArchiveCompressionStream::openTar(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archive->bytes())
+        );
+
+        $t->same('tar-filesystem-attribute-policy', $policy['type']);
+        $t->same(3, $policy['entryCount']);
+        $t->same(2, $policy['attributeEntryCount']);
+        $t->same(2, $policy['modeFlagEntryCount']);
+        $t->same(1, $policy['ownerMetadataEntryCount']);
+        $t->same(1, $policy['nonRootOwnerEntryCount']);
+        $t->same(1, $policy['regularExecutableEntryCount']);
+        $t->same(1, $policy['worldWritableEntryCount']);
+        $t->same(1, $policy['setuidEntryCount']);
+        $t->same(0, $policy['setgidEntryCount']);
+        $t->same(1, $policy['stickyEntryCount']);
+        $t->same('filesystem-attributes-metadata-only', $policy['extractionPolicy']);
+        $t->same(['tar-filesystem-attributes-not-applied'], $policy['diagnostics']);
+        $t->same(['packet/', 'packet/bin/import.sh'], array_column($policy['entries'], 'name'));
+        $t->same(['1777', '4755'], array_column($policy['entries'], 'modeOctal'));
+        $t->same([0777, 0755], array_column($policy['entries'], 'permissionBits'));
+        $t->same([01000, 04000], array_column($policy['entries'], 'specialBits'));
+        $t->same([0, 1001], array_column($policy['entries'], 'uid'));
+        $t->same([0, 1002], array_column($policy['entries'], 'gid'));
+        $t->same([
+            ['sticky', 'world-writable'],
+            ['setuid', 'regular-executable'],
+        ], array_column($policy['entries'], 'modeFlags'));
+        $t->same([
+            [],
+            ['non-root-uid', 'non-root-gid', 'user-name', 'group-name'],
+        ], array_column($policy['entries'], 'ownerFlags'));
+        $t->same('metadata-only-not-applied', $policy['entries'][0]['modePolicy']);
+        $t->same('default-owner', $policy['entries'][0]['ownerPolicy']);
+        $t->same('metadata-only-not-applied', $policy['entries'][1]['modePolicy']);
+        $t->same('metadata-only-not-applied', $policy['entries'][1]['ownerPolicy']);
+        $t->same([
+            'tar-filesystem-attributes-not-applied',
+            'tar-mode-sticky-not-applied',
+            'tar-mode-world-writable-not-applied',
+        ], $policy['entries'][0]['diagnostics']);
+        $t->same([
+            'tar-filesystem-attributes-not-applied',
+            'tar-mode-setuid-not-applied',
+            'tar-mode-executable-not-applied',
+            'tar-owner-metadata-not-applied',
+        ], $policy['entries'][1]['diagnostics']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same('tar-filesystem-attribute-policy', $inspection['type']);
+        $t->same('filesystem-attributes-metadata-only', $inspection['extractionPolicy']);
+        $t->same(2, $inspection['attributeEntryCount']);
+        $t->same('gzip', $inspection['stream']['type']);
+        $t->same('wordpress-tar-filesystem-attributes.tar', $inspection['stream']['members'][0]['filename']);
+        $t->same(false, isset($inspection['archive']));
+        $t->same(false, isset($inspection['entries'][0]['data']));
+        $t->same($scriptBytes, $roundTrip->read('/packet/bin/import.sh'));
+        $t->same($contentBytes, $roundTrip->read('/packet/content.md'));
+        $t->same(04755, $roundTrip->entry('/packet/bin/import.sh')->mode);
+        $t->same(1001, $roundTrip->entry('/packet/bin/import.sh')->uid);
+        $t->same(1002, $roundTrip->entry('/packet/bin/import.sh')->gid);
+    },
+
     'enforces pax header charset policy before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $documentBytes = "# PAX header charset packet\n\nReady for WordPress archive review.\n";
         $archive = $rawTarHeader('GlobalHead/charset', 'g', $paxPayload([

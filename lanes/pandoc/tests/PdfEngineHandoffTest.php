@@ -5358,6 +5358,114 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfStreamFilterPolicy'] ?? null);
     },
 
+    'fake runner normalizes abbreviated pdf stream filter names from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/abbreviated-filters.pdf']);
+        $contentBytes = "abbreviated filtered page bytes\n";
+        $dctBytes = "jpeg reviewer image bytes\n";
+        $ccittBytes = "ccitt reviewer mask bytes\n";
+        $objectStreamHeader = "20 0\n";
+        $objectStreamBytes = $objectStreamHeader . "<< /Title (Abbreviated filter member) >>\n";
+        $xrefBytes = "abbreviated xref stream bytes\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /XObject << /ImDct 8 0 R /ImCcf 9 0 R >> >> /Contents 6 0 R >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Filter [/AHx /A85 /Fl /RL] /DP [null null << /Predictor 12 /Columns 8 >> null] /Length ' . strlen($contentBytes) . ' >>',
+            'stream',
+            $contentBytes,
+            'endstream',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 16 /Height 16 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /DCT /Length ' . strlen($dctBytes) . ' >>',
+            'stream',
+            $dctBytes,
+            'endstream',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 16 /Height 16 /BitsPerComponent 1 /ColorSpace /DeviceGray /Filter /CCF /Length ' . strlen($ccittBytes) . ' >>',
+            'stream',
+            $ccittBytes,
+            'endstream',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /ObjStm /N 1 /First ' . strlen($objectStreamHeader) . ' /Filter /LZW /Length ' . strlen($objectStreamBytes) . ' >>',
+            'stream',
+            $objectStreamBytes,
+            'endstream',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /XRef /Size 12 /Root 1 0 R /Index [0 12] /W [1 2 1] /Filter /Fl /DecodeParms << /Predictor 12 /Columns 5 >> /Length ' . strlen($xrefBytes) . ' >>',
+            'stream',
+            $xrefBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            'startxref',
+            '384',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/abbreviated-filters.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/abbreviated-filters.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same(['FlateDecode' => 1], $result['pdfXrefStreamFilters']);
+        $t->same(['LZWDecode' => 1], $result['pdfObjectStreamFilters']);
+        $t->same(['CCITTFaxDecode' => 1, 'DCTDecode' => 1], $result['pdfImageFilters']);
+        $t->same(['ASCII85Decode', 'ASCIIHexDecode', 'FlateDecode', 'RunLengthDecode'], $result['pdfPageContentStreams'][0]['filters']);
+        $t->same([
+            ['CCITTFaxDecode'],
+            ['DCTDecode'],
+        ], array_column($result['pdfImages'], 'filters'));
+        $t->same([
+            'ASCII85Decode' => 1,
+            'ASCIIHexDecode' => 1,
+            'CCITTFaxDecode' => 1,
+            'DCTDecode' => 1,
+            'FlateDecode' => 2,
+            'LZWDecode' => 1,
+            'RunLengthDecode' => 1,
+        ], $result['pdfStreamFilterPolicy']['filters'] ?? null);
+        $t->same([
+            'deferred-decode' => 3,
+            'image-codec-review' => 2,
+        ], $result['pdfStreamFilterPolicy']['actions'] ?? null);
+        $t->same([
+            'FlateDecode' => 2,
+        ], $result['pdfStreamDecodeParameters']['filters'] ?? null);
+        $t->same([
+            'png-up' => 2,
+        ], $result['pdfStreamDecodeParameters']['predictors'] ?? null);
+        $t->contains('pdf-byte-stream-filter:ASCII85Decode:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter:CCITTFaxDecode:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xref-stream-filter:FlateDecode:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-object-stream-filter:LZWDecode:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($result['pdfStreamFilterPolicy'], $sequence['finalPdfStreamFilterPolicy'] ?? null);
+        $t->same($result['pdfStreamDecodeParameters'], $sequence['finalPdfStreamDecodeParameters'] ?? null);
+    },
+
     'fake runner extracts bounded pdf stream decode parameter metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/decode-parms.pdf']);

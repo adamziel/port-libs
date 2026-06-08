@@ -450,6 +450,29 @@ return [
         $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
         $t->contains('<p>Редактор привет; Ёлка № 7; │─┌.</p>', $blocks);
     },
+    'decodes ibm855 dos cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# DOS 855\n\n\xE2\xA8\xA6\xA0\xC6\xE5\xD6\xE1 \xD8\xE1\xB7\xEB\xA8\xE5; \x85\xD0\xC6\xA0; \x91\x90 \x93\x92; box \xB3\xC4\xDA; \xEF\xFD.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp855');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm855');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x80\x81\x84\x85\x90\x91\x92\x93\x9A\x9B\x9C\x9D\x9E\x9F\xEF\xF0\xFD\xFE\xFF", 'ibm855');
+        $ibm866Comparison = UnicodeText::decodeBytes("\x80\x84\x85\x90\x91\xA0\xE2\xE5\xEF\xF0", 'ibm866');
+
+        $t->same('ibm855', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# DOS 855\n\nРедактор привет; Ёлка; Љљ Њњ; box │─┌; №§.", $decoded['text']);
+        $t->same("ђЂёЁљЉњЊџЏюЮъЪ№\u{00AD}§■\u{00A0}", $specials['text']);
+        $t->same('АДЕРСатхяЁ', $ibm866Comparison['text']);
+        $t->same(0, UnicodeText::displayWidth("\u{00AD}"));
+        $t->same(1, UnicodeText::displayWidth("\u{00A0}"));
+        $t->same(['encoding' => 'ibm855', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('DOS 855', $document->children[0]->attr('text'));
+        $t->same('Редактор привет; Ёлка; Љљ Њњ; box │─┌; №§.', $document->children[1]->attr('text'));
+        $t->same(42, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(65, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="dos-855">DOS 855</h1>', $blocks);
+        $t->contains('<p>Редактор привет; Ёлка; Љљ Њњ; box │─┌; №§.</p>', $blocks);
+    },
     'decodes ibm869 dos greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xA8\xE5\xE5\xE1\xE7\xE3\xE4\x9B\n\n\xCF\xF2\xE7\xEE\x9B\xE4\xEE\xE1\xED \xAB\xEA\xE1\xD8\x9E\xAF; \x86\x88\x8D\x8F\x90\x92\x95\x98; \xDA\xC4\xBF.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp869');

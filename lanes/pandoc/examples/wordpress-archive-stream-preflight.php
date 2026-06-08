@@ -730,6 +730,40 @@ try {
 } catch (RuntimeException) {
     $duplicatePaxExtractionBlocked = true;
 }
+$filesystemAttributeContentBytes = "# TAR filesystem attribute policy\n\nReady for WordPress archive review.\n";
+$filesystemAttributeArchive = TarArchive::fromEntries([
+    [
+        'name' => 'packet/',
+        'type' => TarArchiveEntry::TYPE_DIRECTORY,
+        'mode' => 01777,
+        'modifiedAt' => 1780479088,
+    ],
+    [
+        'name' => 'packet/bin/import.sh',
+        'data' => "#!/bin/sh\nprintf 'Pandoc archive review\\n'\n",
+        'mode' => 04755,
+        'uid' => 1001,
+        'gid' => 1002,
+        'userName' => 'author',
+        'groupName' => 'docs',
+        'modifiedAt' => 1780479089,
+    ],
+    [
+        'name' => 'packet/content.md',
+        'data' => $filesystemAttributeContentBytes,
+        'mode' => 0644,
+        'modifiedAt' => 1780479090,
+    ],
+]);
+$filesystemAttributeGzip = GzipStream::build($filesystemAttributeArchive->bytes(), [
+    'filename' => 'wordpress-tar-filesystem-attributes.tar',
+    'comment' => 'TAR mode and owner metadata stay review-only',
+]);
+$filesystemAttributeInspection = ArchiveCompressionStream::inspectTarFilesystemAttributePolicy(
+    $filesystemAttributeGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($filesystemAttributeArchive->bytes())
+);
 $descriptorZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -1510,6 +1544,29 @@ if (in_array('--self-test', $argv, true)) {
         'duplicatePaxEntryCount' => 1,
         'duplicatePaxKeyword' => 'org.wordpress.import.review',
         'duplicatePaxValues' => ['first review state', 'second review state'],
+        'filesystemAttributeFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'filesystemAttributeType' => 'tar-filesystem-attribute-policy',
+        'filesystemAttributeExtractionPolicy' => 'filesystem-attributes-metadata-only',
+        'filesystemAttributeEntryCount' => 3,
+        'filesystemAttributeAttributeEntryCount' => 2,
+        'filesystemAttributeModeFlagEntryCount' => 2,
+        'filesystemAttributeOwnerMetadataEntryCount' => 1,
+        'filesystemAttributeNonRootOwnerEntryCount' => 1,
+        'filesystemAttributeExecutableEntryCount' => 1,
+        'filesystemAttributeWorldWritableEntryCount' => 1,
+        'filesystemAttributeSetuidEntryCount' => 1,
+        'filesystemAttributeStickyEntryCount' => 1,
+        'filesystemAttributeNames' => ['packet/', 'packet/bin/import.sh'],
+        'filesystemAttributeModes' => ['1777', '4755'],
+        'filesystemAttributeModeFlags' => [
+            ['sticky', 'world-writable'],
+            ['setuid', 'regular-executable'],
+        ],
+        'filesystemAttributeOwnerFlags' => [
+            [],
+            ['non-root-uid', 'non-root-gid', 'user-name', 'group-name'],
+        ],
+        'filesystemAttributeDiagnostics' => ['tar-filesystem-attributes-not-applied'],
         'zipDescriptorFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipDescriptorEntryCount' => 3,
         'zipDescriptorDescriptorCount' => 2,
@@ -1935,6 +1992,32 @@ if (in_array('--self-test', $argv, true)) {
         || ($duplicatePaxInspection['entries'][0]['duplicateKeywords'][0] ?? null) !== $expected['duplicatePaxKeyword']
         || ($duplicatePaxInspection['entries'][0]['duplicateRecords'][0]['values'] ?? []) !== $expected['duplicatePaxValues']
         || ($duplicatePaxInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-duplicate-pax.tar'
+        || $filesystemAttributeInspection['format'] !== $expected['filesystemAttributeFormat']
+        || $filesystemAttributeInspection['type'] !== $expected['filesystemAttributeType']
+        || $filesystemAttributeInspection['extractionPolicy'] !== $expected['filesystemAttributeExtractionPolicy']
+        || $filesystemAttributeInspection['entryCount'] !== $expected['filesystemAttributeEntryCount']
+        || $filesystemAttributeInspection['attributeEntryCount'] !== $expected['filesystemAttributeAttributeEntryCount']
+        || $filesystemAttributeInspection['modeFlagEntryCount'] !== $expected['filesystemAttributeModeFlagEntryCount']
+        || $filesystemAttributeInspection['ownerMetadataEntryCount'] !== $expected['filesystemAttributeOwnerMetadataEntryCount']
+        || $filesystemAttributeInspection['nonRootOwnerEntryCount'] !== $expected['filesystemAttributeNonRootOwnerEntryCount']
+        || $filesystemAttributeInspection['regularExecutableEntryCount'] !== $expected['filesystemAttributeExecutableEntryCount']
+        || $filesystemAttributeInspection['worldWritableEntryCount'] !== $expected['filesystemAttributeWorldWritableEntryCount']
+        || $filesystemAttributeInspection['setuidEntryCount'] !== $expected['filesystemAttributeSetuidEntryCount']
+        || $filesystemAttributeInspection['stickyEntryCount'] !== $expected['filesystemAttributeStickyEntryCount']
+        || $filesystemAttributeInspection['diagnostics'] !== $expected['filesystemAttributeDiagnostics']
+        || array_column($filesystemAttributeInspection['entries'], 'name') !== $expected['filesystemAttributeNames']
+        || array_column($filesystemAttributeInspection['entries'], 'modeOctal') !== $expected['filesystemAttributeModes']
+        || array_column($filesystemAttributeInspection['entries'], 'modeFlags') !== $expected['filesystemAttributeModeFlags']
+        || array_column($filesystemAttributeInspection['entries'], 'ownerFlags') !== $expected['filesystemAttributeOwnerFlags']
+        || ($filesystemAttributeInspection['entries'][1]['uid'] ?? null) !== 1001
+        || ($filesystemAttributeInspection['entries'][1]['gid'] ?? null) !== 1002
+        || ($filesystemAttributeInspection['entries'][1]['userName'] ?? null) !== 'author'
+        || ($filesystemAttributeInspection['entries'][1]['groupName'] ?? null) !== 'docs'
+        || ($filesystemAttributeInspection['entries'][1]['modePolicy'] ?? null) !== 'metadata-only-not-applied'
+        || ($filesystemAttributeInspection['entries'][1]['ownerPolicy'] ?? null) !== 'metadata-only-not-applied'
+        || ($filesystemAttributeInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-tar-filesystem-attributes.tar'
+        || isset($filesystemAttributeInspection['archive'])
+        || isset($filesystemAttributeInspection['entries'][0]['data'])
         || $descriptorZipInspection['format'] !== $expected['zipDescriptorFormat']
         || $descriptorZipInspection['entryCount'] !== $expected['zipDescriptorEntryCount']
         || $descriptorZipInspection['descriptorEntryCount'] !== $expected['zipDescriptorDescriptorCount']
@@ -2392,6 +2475,16 @@ echo 'duplicatePax.duplicateEntryCount=' . $duplicatePaxInspection['duplicatePax
 echo 'duplicatePax.keyword=' . $duplicatePaxInspection['entries'][0]['duplicateKeywords'][0] . "\n";
 echo 'duplicatePax.values=' . implode('|', $duplicatePaxInspection['entries'][0]['duplicateRecords'][0]['values']) . "\n";
 echo 'duplicatePax.extractionBlocked=' . ($duplicatePaxExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'filesystemAttribute.format=' . $filesystemAttributeInspection['format'] . "\n";
+echo 'filesystemAttribute.extractionPolicy=' . $filesystemAttributeInspection['extractionPolicy'] . "\n";
+echo 'filesystemAttribute.attributeEntryCount=' . $filesystemAttributeInspection['attributeEntryCount'] . "\n";
+echo 'filesystemAttribute.modeFlagEntryCount=' . $filesystemAttributeInspection['modeFlagEntryCount'] . "\n";
+echo 'filesystemAttribute.ownerMetadataEntryCount=' . $filesystemAttributeInspection['ownerMetadataEntryCount'] . "\n";
+echo 'filesystemAttribute.names=' . implode(',', array_column($filesystemAttributeInspection['entries'], 'name')) . "\n";
+echo 'filesystemAttribute.modeFlags=' . implode('|', array_map(
+    static fn (array $flags): string => implode('+', $flags),
+    array_column($filesystemAttributeInspection['entries'], 'modeFlags')
+)) . "\n";
 echo 'zipDescriptor.format=' . $descriptorZipInspection['format'] . "\n";
 echo 'zipDescriptor.entryCount=' . $descriptorZipInspection['entryCount'] . "\n";
 echo 'zipDescriptor.descriptorEntryCount=' . $descriptorZipInspection['descriptorEntryCount'] . "\n";

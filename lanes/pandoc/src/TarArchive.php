@@ -1981,6 +1981,279 @@ final class TarArchive
     }
 
     /**
+     * @return array{
+     *     type:string,
+     *     entryCount:int,
+     *     attributeEntryCount:int,
+     *     modeFlagEntryCount:int,
+     *     ownerMetadataEntryCount:int,
+     *     nonRootOwnerEntryCount:int,
+     *     regularExecutableEntryCount:int,
+     *     worldWritableEntryCount:int,
+     *     setuidEntryCount:int,
+     *     setgidEntryCount:int,
+     *     stickyEntryCount:int,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     entries:list<array{
+     *         name:string,
+     *         role:string,
+     *         typeFlag:string,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         payloadSize:int,
+     *         mode:int,
+     *         modeOctal:string,
+     *         permissionBits:int,
+     *         specialBits:int,
+     *         uid:int,
+     *         gid:int,
+     *         userName:string,
+     *         groupName:string,
+     *         uidSource:string,
+     *         gidSource:string,
+     *         userNameSource:string,
+     *         groupNameSource:string,
+     *         modeFlags:list<string>,
+     *         ownerFlags:list<string>,
+     *         attributeFlags:list<string>,
+     *         modePolicy:string,
+     *         ownerPolicy:string,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>
+     * }
+     */
+    public static function filesystemAttributePolicyPreflight(string $bytes): array
+    {
+        if ($bytes === '') {
+            throw new \RuntimeException('TAR archive is empty');
+        }
+
+        if (strlen($bytes) % self::BLOCK_SIZE !== 0) {
+            throw new \RuntimeException('TAR archive length must be aligned to 512-byte records');
+        }
+
+        $cursor = 0;
+        $length = strlen($bytes);
+        $pendingPaxHeaders = [];
+        $globalPaxHeaders = [];
+        $pendingGnuLongName = null;
+        $pendingGnuLongLink = null;
+        $entryCount = 0;
+        $attributeEntries = [];
+        $modeFlagEntryCount = 0;
+        $ownerMetadataEntryCount = 0;
+        $nonRootOwnerEntryCount = 0;
+        $regularExecutableEntryCount = 0;
+        $worldWritableEntryCount = 0;
+        $setuidEntryCount = 0;
+        $setgidEntryCount = 0;
+        $stickyEntryCount = 0;
+        $sawEndMarker = false;
+
+        while ($cursor < $length) {
+            $headerOffset = $cursor;
+            $header = substr($bytes, $cursor, self::BLOCK_SIZE);
+            if (self::isZeroBlock($header)) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                self::assertTrailingZeroBlocks($bytes, $cursor);
+                $sawEndMarker = true;
+                break;
+            }
+
+            self::validateHeaderChecksum($header);
+
+            $typeFlag = substr($header, 156, 1);
+            if ($typeFlag === "\0" || $typeFlag === '') {
+                $typeFlag = self::TYPE_REGULAR;
+            }
+
+            $headerSize = self::readNumericField(substr($header, 124, 12), 'TAR entry size');
+            $dataOffset = $cursor + self::BLOCK_SIZE;
+            self::assertRange($bytes, $dataOffset, $headerSize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($headerSize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_NAME) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_LINK) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongLink = self::parseGnuLongLink(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
+                $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $headerSize));
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($typeFlag === self::TYPE_PAX_EXTENDED) {
+                    self::assertLinkPolicyLocalPaxHeaders($headers);
+                    $pendingPaxHeaders = $headers;
+                } else {
+                    self::assertGlobalPaxHeaders($headers);
+                    $globalPaxHeaders = self::applyPaxHeaderRecords($globalPaxHeaders, $headers);
+                }
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            $metadataHeaders = self::mergePaxHeaderRecords($globalPaxHeaders, $pendingPaxHeaders);
+            $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            $nameSource = self::resolvedNameSourceFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            self::assertSafePath($name, 'TAR entry name');
+            $entrySize = self::resolvedSizeFromHeader($header, $metadataHeaders);
+            self::assertRange($bytes, $dataOffset, $entrySize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($entrySize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+            $entryCount++;
+
+            if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
+                self::assertSafePath(
+                    self::resolvedLinkTargetFromHeader($header, $metadataHeaders, $pendingGnuLongLink),
+                    'TAR link target'
+                );
+            } elseif ($pendingGnuLongLink !== null) {
+                throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+            }
+
+            $mode = self::readNumericField(substr($header, 100, 8), "TAR mode for {$name}");
+            $uid = self::resolvedUidFromHeader($header, $metadataHeaders, $name);
+            $gid = self::resolvedGidFromHeader($header, $metadataHeaders, $name);
+            $userName = self::resolvedUserNameFromHeader($header, $metadataHeaders);
+            $groupName = self::resolvedGroupNameFromHeader($header, $metadataHeaders);
+            $modeFlags = self::filesystemAttributeModeFlags($mode, $typeFlag);
+            $ownerFlags = self::filesystemAttributeOwnerFlags($uid, $gid, $userName, $groupName);
+
+            if ($modeFlags !== []) {
+                $modeFlagEntryCount++;
+            }
+            if ($ownerFlags !== []) {
+                $ownerMetadataEntryCount++;
+            }
+            if (in_array('non-root-uid', $ownerFlags, true) || in_array('non-root-gid', $ownerFlags, true)) {
+                $nonRootOwnerEntryCount++;
+            }
+            if (in_array('regular-executable', $modeFlags, true)) {
+                $regularExecutableEntryCount++;
+            }
+            if (in_array('world-writable', $modeFlags, true)) {
+                $worldWritableEntryCount++;
+            }
+            if (in_array('setuid', $modeFlags, true)) {
+                $setuidEntryCount++;
+            }
+            if (in_array('setgid', $modeFlags, true)) {
+                $setgidEntryCount++;
+            }
+            if (in_array('sticky', $modeFlags, true)) {
+                $stickyEntryCount++;
+            }
+
+            if ($modeFlags !== [] || $ownerFlags !== []) {
+                $attributeEntries[] = [
+                    'name' => $name,
+                    'role' => self::checksumPolicyTypeName($typeFlag),
+                    'typeFlag' => $typeFlag,
+                    'nameSource' => $nameSource,
+                    'headerOffset' => $headerOffset,
+                    'dataOffset' => $dataOffset,
+                    'payloadSize' => $entrySize,
+                    'mode' => $mode,
+                    'modeOctal' => self::filesystemAttributeModeOctal($mode),
+                    'permissionBits' => $mode & 0777,
+                    'specialBits' => $mode & 07000,
+                    'uid' => $uid,
+                    'gid' => $gid,
+                    'userName' => $userName,
+                    'groupName' => $groupName,
+                    'uidSource' => isset($metadataHeaders['uid']) ? 'pax-uid' : 'header-uid',
+                    'gidSource' => isset($metadataHeaders['gid']) ? 'pax-gid' : 'header-gid',
+                    'userNameSource' => isset($metadataHeaders['uname']) ? 'pax-uname' : 'header-uname',
+                    'groupNameSource' => isset($metadataHeaders['gname']) ? 'pax-gname' : 'header-gname',
+                    'modeFlags' => $modeFlags,
+                    'ownerFlags' => $ownerFlags,
+                    'attributeFlags' => array_merge($modeFlags, $ownerFlags),
+                    'modePolicy' => $modeFlags === [] ? 'default-mode' : 'metadata-only-not-applied',
+                    'ownerPolicy' => $ownerFlags === [] ? 'default-owner' : 'metadata-only-not-applied',
+                    'policy' => 'metadata-only-not-applied',
+                    'diagnostics' => self::filesystemAttributeDiagnostics($modeFlags, $ownerFlags),
+                ];
+            }
+
+            $pendingPaxHeaders = [];
+            $pendingGnuLongName = null;
+            $pendingGnuLongLink = null;
+            $cursor = $nextCursor;
+        }
+
+        if (!$sawEndMarker) {
+            throw new \RuntimeException('TAR archive is missing the required two-block end marker');
+        }
+
+        return [
+            'type' => 'tar-filesystem-attribute-policy',
+            'entryCount' => $entryCount,
+            'attributeEntryCount' => count($attributeEntries),
+            'modeFlagEntryCount' => $modeFlagEntryCount,
+            'ownerMetadataEntryCount' => $ownerMetadataEntryCount,
+            'nonRootOwnerEntryCount' => $nonRootOwnerEntryCount,
+            'regularExecutableEntryCount' => $regularExecutableEntryCount,
+            'worldWritableEntryCount' => $worldWritableEntryCount,
+            'setuidEntryCount' => $setuidEntryCount,
+            'setgidEntryCount' => $setgidEntryCount,
+            'stickyEntryCount' => $stickyEntryCount,
+            'extractionPolicy' => $attributeEntries === [] ? 'no-filesystem-attributes' : 'filesystem-attributes-metadata-only',
+            'diagnostics' => $attributeEntries === [] ? [] : ['tar-filesystem-attributes-not-applied'],
+            'entries' => $attributeEntries,
+        ];
+    }
+
+    /**
      * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, accessedAt?:int, changedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
      * @param array{globalPaxHeaders?:array<string, string>} $options
      */
@@ -3331,6 +3604,91 @@ final class TarArchive
         }
 
         return $key;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function filesystemAttributeModeFlags(int $mode, string $typeFlag): array
+    {
+        $flags = [];
+        if (($mode & 04000) !== 0) {
+            $flags[] = 'setuid';
+        }
+
+        if (($mode & 02000) !== 0) {
+            $flags[] = 'setgid';
+        }
+
+        if (($mode & 01000) !== 0) {
+            $flags[] = 'sticky';
+        }
+
+        if (($mode & 0002) !== 0) {
+            $flags[] = 'world-writable';
+        }
+
+        if (($mode & 0111) !== 0 && ($typeFlag === self::TYPE_REGULAR || $typeFlag === self::TYPE_CONTIGUOUS_FILE)) {
+            $flags[] = 'regular-executable';
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function filesystemAttributeOwnerFlags(int $uid, int $gid, string $userName, string $groupName): array
+    {
+        $flags = [];
+        if ($uid !== 0) {
+            $flags[] = 'non-root-uid';
+        }
+
+        if ($gid !== 0) {
+            $flags[] = 'non-root-gid';
+        }
+
+        if ($userName !== '' && $userName !== 'root') {
+            $flags[] = 'user-name';
+        }
+
+        if ($groupName !== '' && $groupName !== 'root') {
+            $flags[] = 'group-name';
+        }
+
+        return $flags;
+    }
+
+    private static function filesystemAttributeModeOctal(int $mode): string
+    {
+        return str_pad(decoct($mode), 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * @param list<string> $modeFlags
+     * @param list<string> $ownerFlags
+     * @return list<string>
+     */
+    private static function filesystemAttributeDiagnostics(array $modeFlags, array $ownerFlags): array
+    {
+        $diagnostics = ['tar-filesystem-attributes-not-applied'];
+        foreach ($modeFlags as $flag) {
+            $diagnostics[] = match ($flag) {
+                'setuid' => 'tar-mode-setuid-not-applied',
+                'setgid' => 'tar-mode-setgid-not-applied',
+                'sticky' => 'tar-mode-sticky-not-applied',
+                'world-writable' => 'tar-mode-world-writable-not-applied',
+                'regular-executable' => 'tar-mode-executable-not-applied',
+                default => 'tar-mode-metadata-not-applied',
+            };
+        }
+
+        if ($ownerFlags !== []) {
+            $diagnostics[] = 'tar-owner-metadata-not-applied';
+        }
+
+        return $diagnostics;
     }
 
     /**

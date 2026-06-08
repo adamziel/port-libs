@@ -2276,6 +2276,47 @@ final class ArchiveCompressionStream
     /**
      * @return array{
      *     format:string,
+     *     tarBytes:string,
+     *     uncompressedSize:int,
+     *     type:string,
+     *     entryCount:int,
+     *     attributeEntryCount:int,
+     *     modeFlagEntryCount:int,
+     *     ownerMetadataEntryCount:int,
+     *     nonRootOwnerEntryCount:int,
+     *     regularExecutableEntryCount:int,
+     *     worldWritableEntryCount:int,
+     *     setuidEntryCount:int,
+     *     setgidEntryCount:int,
+     *     stickyEntryCount:int,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     entries:list<array<string, mixed>>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectTarFilesystemAttributePolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $tarBytes = self::decodeTarBytes($bytes, $format, $maxUncompressedBytes);
+        $policy = TarArchive::filesystemAttributePolicyPreflight($tarBytes);
+
+        return [
+            'format' => $format,
+            'tarBytes' => $tarBytes,
+            'uncompressedSize' => strlen($tarBytes),
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
      *     zipBytes:string,
      *     package:ZipPackage,
      *     entryNames:list<string>,

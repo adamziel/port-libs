@@ -250,6 +250,21 @@ $layoutModeTables = array_values(array_filter(
     $layoutModeDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$borderCollapseDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="border-collapse-grid" data-source="html-reader" style="border-collapse: collapse; background-image:url(javascript:alert(1))">
+<caption>Border collapse review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$borderCollapseTables = array_values(array_filter(
+    $borderCollapseDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $placementAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="placement-align-grid" data-source="html-reader" align="center">
 <caption>Placement alignment review</caption>
@@ -1253,6 +1268,7 @@ $document = new AstNode('document', [], [
     ...$layoutWidthTables,
     ...$layoutHeightTables,
     ...$layoutModeTables,
+    ...$borderCollapseTables,
     ...$placementAlignmentTables,
     ...$directionalityTables,
     ...$readerHandoffTables,
@@ -2709,6 +2725,53 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($layoutModePacket, JSON_THROW_ON_ERROR);
     json_encode($layoutModeDowngrades, JSON_THROW_ON_ERROR);
+
+    $borderCollapseTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'border-collapse-grid') {
+            $borderCollapseTable = $node;
+            break;
+        }
+    }
+    $borderCollapsePacket = $borderCollapseTable instanceof AstNode ? $borderCollapseTable->attr('tableGeometry') : null;
+    $borderCollapseDowngrades = $borderCollapseTable instanceof AstNode ? TableGeometry::reviewPacket($borderCollapseTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $borderCollapseDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $borderCollapseDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-border-collapse'
+        ));
+        $borderCollapseDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$borderCollapseTable instanceof AstNode
+        || !is_array($borderCollapsePacket)
+        || ($borderCollapsePacket['tableBorderCollapse']['attributes'] ?? null) !== [
+            'border-collapse' => 'collapse',
+        ]
+        || ($borderCollapsePacket['tableBorderCollapse']['borderCollapse'] ?? null) !== 'collapse'
+        || ($borderCollapsePacket['tableBorderCollapse']['borderCollapseSource'] ?? null) !== 'style'
+        || ($borderCollapsePacket['summary']['hasTableBorderCollapse'] ?? null) !== true
+        || ($borderCollapsePacket['summary']['tableBorderCollapse'] ?? null) !== 'collapse'
+        || ($borderCollapsePacket['summary']['tableBorderCollapseSource'] ?? null) !== 'style'
+        || ($borderCollapseDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-border-collapse-requires-raw-html'
+        || ($borderCollapseDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-border-collapse-review-required'
+        || ($borderCollapseDiagnostics['latex']['code'] ?? null) !== 'latex-table-border-collapse-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML table border-collapse metadata');
+    }
+    if (
+        !str_contains($blocks, '<table id="border-collapse-grid" data-source="html-reader" style="border-collapse:collapse">')
+        || str_contains($blocks, 'background-image:url')
+        || str_contains($blocks, 'javascript:alert')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing sanitized WordPress table border-collapse output');
+    }
+    json_encode($borderCollapsePacket, JSON_THROW_ON_ERROR);
+    json_encode($borderCollapseDowngrades, JSON_THROW_ON_ERROR);
 
     $placementAlignmentTable = null;
     $invalidPlacementAlignmentTable = null;

@@ -81,6 +81,9 @@ $macCyrillicText = (string) $macCyrillicSource->children[1]->attr('text');
 $macGreekBytes = "# \xB6\xEC\xEC\xC0\xE4\xE1\n\n\xAA\xF9\xEE\xF4\xC0\xEB\xF4\xE8\xF7 \xD2\xF0\xE8\xE7\xDC\xD3 \xD1 \xA9 20; \xD9\xDF \xFD\xFE; \xFF.";
 $macGreekSource = (new MarkdownReader())->readBytes($macGreekBytes, 'x-mac-greek');
 $macGreekText = (string) $macGreekSource->children[1]->attr('text');
+$ibm855Bytes = "# DOS 855\n\n\xE2\xA8\xA6\xA0\xC6\xE5\xD6\xE1 \xD8\xE1\xB7\xEB\xA8\xE5; \x85\xD0\xC6\xA0; \x91\x90 \x93\x92; box \xB3\xC4\xDA; \xEF\xFD.";
+$ibm855Source = (new MarkdownReader())->readBytes($ibm855Bytes, 'cp855');
+$ibm855Text = (string) $ibm855Source->children[1]->attr('text');
 $ibm869Bytes = "# \xA8\xE5\xE5\xE1\xE7\xE3\xE4\x9B\n\n\xCF\xF2\xE7\xEE\x9B\xE4\xEE\xE1\xED \xAB\xEA\xE1\xD8\x9E\xAF; \x86\x88\x8D\x8F\x90\x92\x95\x98; \xDA\xC4\xBF.";
 $ibm869Source = (new MarkdownReader())->readBytes($ibm869Bytes, 'cp869');
 $ibm869Text = (string) $ibm869Source->children[1]->attr('text');
@@ -598,6 +601,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macGreekSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macGreekText) . '/' . UnicodeText::displayWidth($macGreekText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'IBM855 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $ibm855Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm855Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm855Text) . '/' . UnicodeText::displayWidth($ibm855Text, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'IBM869 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $ibm869Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm869Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm869Text) . '/' . UnicodeText::displayWidth($ibm869Text, 'wide')])]),
@@ -1025,6 +1033,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Mac Greek source</td><td>Συντάκτης “πηγή” ― © 20; ΌΏ ΐΰ; \u{F8A0}.</td><td>mac-greek:34/48</td>")) {
         throw new RuntimeException('charset handoff self-test missing Mac Greek decode audit row');
+    }
+    if (($ibm855Source->attr('sourceEncoding')['encoding'] ?? '') !== 'ibm855') {
+        throw new RuntimeException('charset handoff self-test missing IBM855 source encoding');
+    }
+    if (!str_contains($blocks, '<td>IBM855 source</td><td>Редактор привет; Ёлка; Љљ Њњ; box │─┌; №§.</td><td>ibm855:42/65</td>')) {
+        throw new RuntimeException('charset handoff self-test missing IBM855 DOS Cyrillic decode audit row');
     }
     if (($ibm869Source->attr('sourceEncoding')['encoding'] ?? '') !== 'ibm869') {
         throw new RuntimeException('charset handoff self-test missing IBM869 source encoding');

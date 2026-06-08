@@ -1867,6 +1867,111 @@ HTML;
         json_encode($invalidPacket, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table border collapse metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="border-collapse-grid" data-source="html-reader" style="border-collapse: collapse; background-image:url(javascript:alert(1))">
+<caption>Border collapse review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+<table id="border-collapse-separate" style="border-collapse: separate">
+<tbody>
+<tr><td>Separate borders</td><td>Preserved</td></tr>
+</tbody>
+</table>
+<table id="border-collapse-invalid" style="border-collapse: inherit; background-image:url(javascript:alert(1))">
+<tbody>
+<tr><td>Invalid</td><td>Dropped</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $tables = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $table = $tables[0] ?? null;
+        $separateTable = $tables[1] ?? null;
+        $invalidTable = $tables[2] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->true($separateTable instanceof AstNode);
+        $t->true($invalidTable instanceof AstNode);
+        if (!$table instanceof AstNode || !$separateTable instanceof AstNode || !$invalidTable instanceof AstNode) {
+            return;
+        }
+
+        $packet = $table->attr('tableGeometry');
+        $separatePacket = $separateTable->attr('tableGeometry');
+        $invalidPacket = $invalidTable->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $collapseDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-border-collapse'
+            ));
+            $collapseDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same([
+            'border-collapse' => 'collapse',
+        ], $packet['tableBorderCollapse']['attributes'] ?? null);
+        $t->same('collapse', $packet['tableBorderCollapse']['borderCollapse'] ?? null);
+        $t->same('style', $packet['tableBorderCollapse']['borderCollapseSource'] ?? null);
+        $t->same('border-collapse: collapse; background-image:url(javascript:alert(1))', $packet['tableBorderCollapse']['sourceAttributes']['htmlAttributes']['style'] ?? null);
+        $t->same(true, $packet['summary']['hasTableBorderCollapse'] ?? null);
+        $t->same('collapse', $packet['summary']['tableBorderCollapse'] ?? null);
+        $t->same('style', $packet['summary']['tableBorderCollapseSource'] ?? null);
+        $t->same(1, $packet['summary']['tableBorderCollapseAttributeCount'] ?? null);
+
+        $t->same(true, is_array($separatePacket));
+        $separatePacket = is_array($separatePacket) ? $separatePacket : [];
+        $t->same('separate', $separatePacket['tableBorderCollapse']['borderCollapse'] ?? null);
+        $t->same('style', $separatePacket['tableBorderCollapse']['borderCollapseSource'] ?? null);
+
+        $t->same(true, is_array($invalidPacket));
+        $invalidPacket = is_array($invalidPacket) ? $invalidPacket : [];
+        $t->true(!array_key_exists('tableBorderCollapse', $invalidPacket));
+        $t->same(false, $invalidPacket['summary']['hasTableBorderCollapse'] ?? null);
+
+        $t->same([
+            'markdown-table-border-collapse-requires-raw-html',
+            'asciidoc-table-border-collapse-review-required',
+            'latex-table-border-collapse-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $collapseDiagnostics['markdown'],
+            $collapseDiagnostics['asciidoc'],
+            $collapseDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-border-collapse', $collapseDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-border-collapse', $collapseDiagnostics['markdown']['source'] ?? null);
+        $t->same([
+            'border-collapse' => 'collapse',
+        ], $collapseDiagnostics['markdown']['attributes'] ?? null);
+        $t->same('collapse', $collapseDiagnostics['markdown']['borderCollapse'] ?? null);
+        $t->same('style', $collapseDiagnostics['markdown']['borderCollapseSource'] ?? null);
+        $t->same(1, $collapseDiagnostics['markdown']['attributeCount'] ?? null);
+
+        $t->contains('<table id="border-collapse-grid" data-source="html-reader" style="border-collapse:collapse">', $blocks);
+        $t->contains('<table id="border-collapse-separate" style="border-collapse:separate">', $blocks);
+        $t->true(!str_contains($blocks, 'border-collapse:inherit'));
+        $t->true(!str_contains($blocks, 'background-image'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($separatePacket, JSON_THROW_ON_ERROR);
+        json_encode($invalidPacket, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
     'normalizes legacy html table placement alignment for geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="placement-align-grid" data-source="html-reader" align="center">

@@ -15805,14 +15805,14 @@ final class PdfEngineHandoff
         if ($value['kind'] === 'name' || $value['kind'] === 'literal' || $value['kind'] === 'hex') {
             $filter = trim($value['value']);
 
-            return $filter === '' ? [] : [$filter];
+            return $filter === '' ? [] : [$this->canonicalPdfFilterName($filter)];
         }
 
         if ($value['kind'] === 'array') {
             $filters = [];
             if (preg_match_all('/\/([A-Za-z0-9_.#+-]+)/s', $value['value'], $matches) >= 1) {
                 foreach ($matches[1] as $filter) {
-                    $filters[] = $this->decodePdfNameToken($filter);
+                    $filters[] = $this->canonicalPdfFilterName($this->decodePdfNameToken($filter));
                 }
             }
 
@@ -15833,6 +15833,20 @@ final class PdfEngineHandoff
         }
 
         return [];
+    }
+
+    private function canonicalPdfFilterName(string $filter): string
+    {
+        return match ($filter) {
+            'AHx' => 'ASCIIHexDecode',
+            'A85' => 'ASCII85Decode',
+            'LZW' => 'LZWDecode',
+            'Fl' => 'FlateDecode',
+            'RL' => 'RunLengthDecode',
+            'CCF' => 'CCITTFaxDecode',
+            'DCT' => 'DCTDecode',
+            default => $filter,
+        };
     }
 
     /**
