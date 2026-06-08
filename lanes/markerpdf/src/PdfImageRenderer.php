@@ -4627,8 +4627,15 @@ final class PdfImageRenderer
                     continue;
                 }
 
-                $name = $this->pdfNameValue($entry);
-                if ($name !== null) {
+                if (str_starts_with($entry, '/')) {
+                    $end = $this->pdfNameTokenEndOffset($entry, 0);
+                    $name = $this->decodePdfName(substr($entry, 1, $end - 1));
+                    if (
+                        $this->skipPdfWhitespace($entry, $end) !== strlen($entry)
+                        && !in_array(self::MALFORMED_IMAGE_FILTER_OPERAND, $filters, true)
+                    ) {
+                        $filters[] = self::MALFORMED_IMAGE_FILTER_OPERAND;
+                    }
                     $filters[] = $name;
                     continue;
                 }
