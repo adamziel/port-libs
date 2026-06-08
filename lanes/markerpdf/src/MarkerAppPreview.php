@@ -1867,17 +1867,18 @@ final class MarkerAppPreview
                     if ($claimableLimits !== null) {
                         foreach ($claimedKidLimits as $claimedLimits) {
                             // Keep accepted singleton endpoint kids, but block ranges that cross a claimed endpoint.
-                            $sameLowerBound = $claimableLimits[0] === $claimedLimits[0];
-                            $startsInsideClaim = $claimableLimits[0] > $claimedLimits[0]
-                                && $claimableLimits[0] < $claimedLimits[1];
-                            $crossesUpperEndpoint = $claimableLimits[0] === $claimedLimits[1]
-                                && $claimableLimits[1] > $claimedLimits[1];
+                            $sameLowerBound = $kidNode['local_limits'][0] === $claimedLimits['local_limits'][0];
+                            $claimedRange = $claimedLimits['limits'];
+                            $startsInsideClaim = $claimableLimits[0] > $claimedRange[0]
+                                && $claimableLimits[0] < $claimedRange[1];
+                            $crossesUpperEndpoint = $claimableLimits[0] === $claimedRange[1]
+                                && $claimableLimits[1] > $claimedRange[1];
                             if (
                                 $sameLowerBound
                                 || (
                                     ($startsInsideClaim || $crossesUpperEndpoint)
-                                    && $pageIndex >= $claimedLimits[0]
-                                    && $pageIndex <= $claimedLimits[1]
+                                    && $pageIndex >= $claimedRange[0]
+                                    && $pageIndex <= $claimedRange[1]
                                 )
                             ) {
                                 continue 2;
@@ -1896,7 +1897,10 @@ final class MarkerAppPreview
                 }
 
                 if ($claimableLimits !== null && $kidContributed) {
-                    $claimedKidLimits[] = $claimableLimits;
+                    $claimedKidLimits[] = [
+                        'limits' => $claimableLimits,
+                        'local_limits' => $kidNode['local_limits'],
+                    ];
                 }
             }
 
