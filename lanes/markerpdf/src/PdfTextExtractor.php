@@ -36439,9 +36439,14 @@ final class PdfTextExtractor
             return null;
         }
 
+        $integer = $this->pdfBoundedIntegerToken($match[0]);
+        if ($integer === null) {
+            return null;
+        }
+
         $offset = $end;
 
-        return (int) $match[1];
+        return $integer;
     }
 
     /**
@@ -36890,7 +36895,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return (int) $match[1];
+        return $this->pdfBoundedIntegerToken($match[1]);
     }
 
     /**

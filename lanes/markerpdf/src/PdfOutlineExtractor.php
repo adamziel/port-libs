@@ -3669,7 +3669,10 @@ final class PdfOutlineExtractor
      */
     private function catalogOutlineRootDictionary(array $catalog, array $objects): ?array
     {
-        if ($this->catalogHasMalformedOutlinesOperand($objects)) {
+        if (
+            $this->catalogHasMalformedOutlinesOperand($objects)
+            || $this->catalogDirectOutlineRootHasMalformedTraversalOperand($objects)
+        ) {
             return null;
         }
 
@@ -3692,6 +3695,93 @@ final class PdfOutlineExtractor
         }
 
         return $this->dictionaryNameHasTrailingTopLevelOperand($body, 'Outlines');
+    }
+
+    /**
+     * Direct catalog /Outlines dictionaries have no root object body to inspect.
+     * Keep their traversal operands under the same single-value boundary as
+     * referenced outline root objects.
+     *
+     * @param array<int, mixed> $objects
+     */
+    private function catalogDirectOutlineRootHasMalformedTraversalOperand(array $objects): bool
+    {
+        $objectNumber = $this->catalogObjectNumber($objects);
+        if ($objectNumber === null) {
+            return false;
+        }
+
+        $body = $this->objectBodies[$objectNumber] ?? null;
+        if ($body === null) {
+            return false;
+        }
+
+        $tokens = $this->tokens($body);
+        if (($tokens[0] ?? null) !== '<<') {
+            return false;
+        }
+
+        $selectedValueStart = null;
+        $index = 1;
+        $count = count($tokens);
+        while ($index < $count && ($tokens[$index] ?? null) !== '>>') {
+            $key = $tokens[$index] ?? null;
+            $index++;
+            if (!is_string($key) || !str_starts_with($key, '/')) {
+                continue;
+            }
+
+            $valueStart = $index;
+            $valueEnd = $this->pdfTokenValueEndOffset($tokens, $valueStart);
+            if ($this->decodePdfName(substr($key, 1)) === 'Outlines') {
+                $selectedValueStart = $valueStart;
+            }
+            $index = $valueEnd;
+        }
+
+        if ($selectedValueStart === null || ($tokens[$selectedValueStart] ?? null) !== '<<') {
+            return false;
+        }
+
+        return $this->directDictionaryHasTrailingOperandsForKeys(
+            $tokens,
+            $selectedValueStart,
+            ['First', 'Last', 'Count']
+        );
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param list<string> $keys
+     */
+    private function directDictionaryHasTrailingOperandsForKeys(array $tokens, int $dictionaryStart, array $keys): bool
+    {
+        if (($tokens[$dictionaryStart] ?? null) !== '<<') {
+            return false;
+        }
+
+        $keySet = array_fill_keys($keys, true);
+        $index = $dictionaryStart + 1;
+        $dictionaryEnd = $this->pdfTokenValueEndOffset($tokens, $dictionaryStart);
+        while ($index < $dictionaryEnd && ($tokens[$index] ?? null) !== '>>') {
+            $key = $tokens[$index] ?? null;
+            $index++;
+            if (!is_string($key) || !str_starts_with($key, '/')) {
+                continue;
+            }
+
+            $valueEnd = $this->pdfTokenValueEndOffset($tokens, $index);
+            if (
+                isset($keySet[$this->decodePdfName(substr($key, 1))])
+                && $this->dictionaryTokensHaveTrailingOperandsBeforeNextKey($tokens, $valueEnd)
+            ) {
+                return true;
+            }
+
+            $index = $valueEnd;
+        }
+
+        return false;
     }
 
     private function dictionaryNameHasTrailingTopLevelOperand(string $body, string $name): bool
