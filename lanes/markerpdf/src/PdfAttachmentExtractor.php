@@ -787,20 +787,38 @@ final class PdfAttachmentExtractor
             return [];
         }
 
+        $rawKidsValue = null;
+        $rawKidItems = [];
+        if ($nodeDictionaryBody !== null) {
+            $rawKidsValue = $this->rawDictionaryEntryValue($nodeDictionaryBody, 'Kids');
+            if ($rawKidsValue !== null) {
+                $rawKidItems = $this->rawTopLevelArrayItemsFromValue($rawKidsValue, $objects);
+                if ($rawKidItems === null) {
+                    return [];
+                }
+            }
+        }
+
         $entries = [];
         $limits = $this->nameTreeEffectiveLimits($dict, $objects, $inheritedLimits);
         $childLimits = $limits;
         $kids = $this->arrayValue($this->resolveValue($dict['Kids'] ?? null, $objects));
-        $names = $kids === null ? $this->arrayValue($this->resolveValue($dict['Names'] ?? null, $objects)) : null;
-        if ($names !== null) {
-            $rawNameItems = [];
+        $names = null;
+        $rawNameItems = [];
+        if ($kids === null) {
             if ($nodeDictionaryBody !== null) {
                 $rawNames = $this->rawDictionaryEntryValue($nodeDictionaryBody, 'Names');
                 if ($rawNames !== null) {
-                    $rawNameItems = $this->rawArrayItemsFromValue($rawNames, $objects);
+                    $rawNameItems = $this->rawTopLevelArrayItemsFromValue($rawNames, $objects);
+                    if ($rawNameItems !== null) {
+                        $names = $this->arrayValue($this->resolveValue($dict['Names'] ?? null, $objects));
+                    }
                 }
+            } else {
+                $names = $this->arrayValue($this->resolveValue($dict['Names'] ?? null, $objects));
             }
-
+        }
+        if ($names !== null) {
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
                 ? $limits
                 : $inheritedLimits;
@@ -828,13 +846,6 @@ final class PdfAttachmentExtractor
         }
 
         if ($kids !== null) {
-            $rawKidItems = [];
-            if ($nodeDictionaryBody !== null) {
-                $rawKidsValue = $this->rawDictionaryEntryValue($nodeDictionaryBody, 'Kids');
-                if ($rawKidsValue !== null) {
-                    $rawKidItems = $this->rawArrayItemsFromValue($rawKidsValue, $objects);
-                }
-            }
             $kidPairs = [];
             foreach ($kids as $kidIndex => $kid) {
                 if ($this->refObjectReference($kid) === null) {
@@ -8307,6 +8318,15 @@ final class PdfAttachmentExtractor
      * @return list<string>|null
      */
     private function rawAssociatedFileArrayItemsFromValue(string $value, array $objects): ?array
+    {
+        return $this->rawTopLevelArrayItemsFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<string>|null
+     */
+    private function rawTopLevelArrayItemsFromValue(string $value, array $objects): ?array
     {
         if (!$this->rawValueIsOnlyTopLevelArray($value, $objects)) {
             return null;

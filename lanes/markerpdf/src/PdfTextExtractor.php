@@ -35683,6 +35683,14 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($char === '{') {
+                $procedureEnd = $this->cMapProcedureEndOffset($cmap, $index);
+                if ($procedureEnd !== null) {
+                    $index = $procedureEnd + 1;
+                    continue;
+                }
+            }
+
             if ($this->pdfKeywordAt($cmap, $index, 'CMapName')) {
                 $operatorOffset = $this->skipPdfWhitespace($cmap, $index + strlen('CMapName'));
                 if ($this->pdfKeywordAt($cmap, $operatorOffset, 'currentdict')) {
@@ -36929,6 +36937,14 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($char === '{') {
+                $procedureEnd = $this->cMapProcedureEndOffset($cmap, $index);
+                if ($procedureEnd !== null) {
+                    $index = $procedureEnd + 1;
+                    continue;
+                }
+            }
+
             if ($char !== '/') {
                 $index++;
                 continue;
@@ -36991,6 +37007,14 @@ final class PdfTextExtractor
                 $arrayBody = $this->readPdfArrayAt($cmap, $index);
                 $index = $arrayBody === null ? $index + 1 : $index + strlen($arrayBody) + 2;
                 continue;
+            }
+
+            if ($char === '{') {
+                $procedureEnd = $this->cMapProcedureEndOffset($cmap, $index);
+                if ($procedureEnd !== null) {
+                    $index = $procedureEnd + 1;
+                    continue;
+                }
             }
 
             if ($char !== '/') {

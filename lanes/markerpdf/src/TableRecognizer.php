@@ -1729,6 +1729,7 @@ final class TableRecognizer
         $needsTranslation = false;
         $needsNormalization = false;
         $hasNormalizedPageImage = false;
+        $hasPdfPageBottomLeft = false;
         foreach ($spaces as $field => $space) {
             if ($this->isNormalizedPageImageCoordinateSpace($space)) {
                 $needsTranslation = true;
@@ -1737,6 +1738,10 @@ final class TableRecognizer
             }
             if ($this->isPageImageCoordinateSpace($space)) {
                 $needsTranslation = true;
+            }
+            if ($this->isPdfPageBottomLeftCoordinateSpace($space)) {
+                $needsTranslation = true;
+                $hasPdfPageBottomLeft = true;
             }
             if ($this->isNormalizedTableCoordinateSpace($space)) {
                 $needsNormalization = true;
@@ -1749,6 +1754,10 @@ final class TableRecognizer
                 }
                 if ($this->isPageImageCoordinateSpace($recordSpace)) {
                     $needsTranslation = true;
+                }
+                if ($this->isPdfPageBottomLeftCoordinateSpace($recordSpace)) {
+                    $needsTranslation = true;
+                    $hasPdfPageBottomLeft = true;
                 }
                 if ($this->isNormalizedTableCoordinateSpace($recordSpace)) {
                     $needsNormalization = true;
@@ -1779,7 +1788,7 @@ final class TableRecognizer
         }
 
         $size = $this->imageSize($imageSize);
-        $pageImageNormalizationSize = $hasNormalizedPageImage
+        $pageImageNormalizationSize = ($hasNormalizedPageImage || $hasPdfPageBottomLeft)
             ? $this->pageImageNormalizationSize($table, $imageSize, $size)
             : $size;
         $dx = $cropBbox === null ? 0.0 : -$cropBbox[0];
@@ -1826,6 +1835,18 @@ final class TableRecognizer
                         $recordSpace
                     );
                     $normalizedCounts[$field]++;
+                    $translatedCounts[$field]++;
+                    $changed = true;
+                    continue;
+                }
+                if ($this->isPdfPageBottomLeftCoordinateSpace($recordSpace)) {
+                    $localizedRecords[] = $this->localizedPdfPageGeometryRecord(
+                        $record,
+                        $pageImageNormalizationSize,
+                        $dx,
+                        $dy,
+                        $recordSpace
+                    );
                     $translatedCounts[$field]++;
                     $changed = true;
                     continue;
@@ -1906,6 +1927,12 @@ final class TableRecognizer
             }
             if (isset($cropCandidate['page_image_normalization_size']) && is_array($cropCandidate['page_image_normalization_size'])) {
                 $review['table_bbox_page_image_normalization_size'] = $cropCandidate['page_image_normalization_size'];
+            }
+            if (isset($cropCandidate['pdf_page_image_size']) && is_array($cropCandidate['pdf_page_image_size'])) {
+                $review['pdf_page_image_size'] = $cropCandidate['pdf_page_image_size'];
+            }
+            if ($hasPdfPageBottomLeft && !isset($review['pdf_page_image_size'])) {
+                $review['pdf_page_image_size'] = $pageImageNormalizationSize;
             }
             $review['translation'] = ['x' => $dx, 'y' => $dy];
         }
@@ -2556,6 +2583,24 @@ final class TableRecognizer
         ], true);
     }
 
+    private function isPdfPageBottomLeftCoordinateSpace(string $space): bool
+    {
+        return in_array($this->normalizeCoordinateSpace($space), [
+            'pdf_page_bottom_left',
+            'pdf_page_y_up',
+            'pdf_user_space',
+            'pdf_user_space_bottom_left',
+            'pdf_user_space_y_up',
+            'page_bottom_left',
+            'page_y_up',
+            'page_user_space',
+            'user_space_bottom_left',
+            'user_space_y_up',
+            'bottom_left_page',
+            'bottom_left_pdf_page',
+        ], true);
+    }
+
     private function isNormalizedPageImageCoordinateSpace(string $space): bool
     {
         return in_array($this->normalizeCoordinateSpace($space), [
@@ -2793,7 +2838,7 @@ final class TableRecognizer
      * @param list<float> $bbox
      * @param array<string, mixed> $table
      * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
-     * @return array{bbox: list<float>, source: string, source_bbox?: list<float>, source_coordinate_space?: string, page_image_normalization_size?: array{width: int, height: int}}
+     * @return array{bbox: list<float>, source: string, source_bbox?: list<float>, source_coordinate_space?: string, page_image_normalization_size?: array{width: int, height: int}, pdf_page_image_size?: array{width: int, height: int}}
      */
     private function tableCropBboxCandidateWithCoordinateSpace(
         array $bbox,
@@ -2813,6 +2858,19 @@ final class TableRecognizer
         $coordinateSpace = $this->normalizeCoordinateSpace($coordinateSpace);
         $candidate['source_coordinate_space'] = $coordinateSpace;
         if (!$this->isNormalizedPageImageCoordinateSpace($coordinateSpace)) {
+            if (!$this->isPdfPageBottomLeftCoordinateSpace($coordinateSpace)) {
+                return $candidate;
+            }
+
+            $pageImageSize = $this->tableCropBboxPageImageNormalizationSize($table, $imageSize);
+            if ($pageImageSize === null) {
+                return $candidate;
+            }
+
+            $candidate['source_bbox'] = $bbox;
+            $candidate['bbox'] = $this->pdfPageBboxToPageImageBbox($bbox, $pageImageSize);
+            $candidate['pdf_page_image_size'] = $pageImageSize;
+
             return $candidate;
         }
 
@@ -3143,6 +3201,33 @@ final class TableRecognizer
      * @param array{width: int, height: int} $pageImageSize
      * @return array<string, mixed>
      */
+    private function localizedPdfPageGeometryRecord(
+        array $record,
+        array $pageImageSize,
+        float $dx,
+        float $dy,
+        string $sourceCoordinateSpace
+    ): array {
+        $sourceBbox = $this->bboxFromRecord($record);
+        $sourceCoordinateSource = $this->bboxCoordinateSourceFromRecord($record);
+        $sourceEndpointOrderNormalized = $this->bboxEndpointOrderNormalizedFromRecord($record);
+        $pageImageBbox = $this->pdfPageBboxToPageImageBbox($sourceBbox, $pageImageSize);
+        $record['source_bbox'] = $sourceBbox;
+        $record['source_page_image_bbox'] = $pageImageBbox;
+        $record['source_coordinate_space'] = $sourceCoordinateSpace;
+        $record['source_coordinate_source'] = $sourceCoordinateSource;
+        $record['source_endpoint_order_normalized'] = $sourceEndpointOrderNormalized;
+        $record['bbox'] = $this->translatedBbox($pageImageBbox, $dx, $dy);
+        $record = $this->withGeometryRecordCoordinateSpace($record, 'table_crop');
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param array{width: int, height: int} $pageImageSize
+     * @return array<string, mixed>
+     */
     private function localizedNormalizedPageImageGeometryRecord(
         array $record,
         array $pageImageSize,
@@ -3247,6 +3332,21 @@ final class TableRecognizer
                 $conflict = $this->withGeometryRecordCoordinateSpace($conflict, 'table_crop');
                 $recordTranslated = true;
                 $recordNormalized = true;
+            } elseif ($this->isPdfPageBottomLeftCoordinateSpace($recordSpace)) {
+                $bbox = $this->nullableBboxFromRecord($conflict);
+                if ($bbox !== null) {
+                    $sourceCoordinateSource = $this->bboxCoordinateSourceFromRecord($conflict);
+                    $sourceEndpointOrderNormalized = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
+                    $pageImageBbox = $this->pdfPageBboxToPageImageBbox($bbox, $pageImageSize);
+                    $conflict['source_bbox'] = $bbox;
+                    $conflict['source_page_image_bbox'] = $pageImageBbox;
+                    $conflict['source_coordinate_source'] = $sourceCoordinateSource;
+                    $conflict['source_endpoint_order_normalized'] = $sourceEndpointOrderNormalized;
+                    $conflict['bbox'] = $this->translatedBbox($pageImageBbox, $dx, $dy);
+                }
+                $conflict['source_coordinate_space'] = $recordSpace;
+                $conflict = $this->withGeometryRecordCoordinateSpace($conflict, 'table_crop');
+                $recordTranslated = true;
             } elseif ($this->isNormalizedTableCoordinateSpace($recordSpace)) {
                 $bbox = $this->nullableBboxFromRecord($conflict);
                 if ($bbox !== null) {
@@ -3356,6 +3456,11 @@ final class TableRecognizer
                 $sourcePageImageBboxes[] = $pageImageBbox;
                 $translated = true;
                 $normalized = true;
+            } elseif ($this->isPdfPageBottomLeftCoordinateSpace($candidateSpace)) {
+                $pageImageBbox = $this->pdfPageBboxToPageImageBbox($sourceBbox, $pageImageSize);
+                $localizedBboxes[] = $this->translatedBbox($pageImageBbox, $dx, $dy);
+                $sourcePageImageBboxes[] = $pageImageBbox;
+                $translated = true;
             } elseif ($this->isNormalizedTableCoordinateSpace($candidateSpace)) {
                 $localizedBboxes[] = $this->unnormalizedTableBbox($sourceBbox, $imageSize);
                 $normalized = true;
@@ -3409,6 +3514,27 @@ final class TableRecognizer
             $bbox[2] + $dx,
             $bbox[3] + $dy,
         ];
+    }
+
+    /**
+     * PDF user-space rectangles are bottom-left origin with y increasing up.
+     * Tabled receives rendered page images with y increasing down, so flip
+     * through the rendered page height before translating to the table crop.
+     *
+     * @param list<float> $bbox
+     * @param array{width: int, height: int} $pageImageSize
+     * @return list<float>
+     */
+    private function pdfPageBboxToPageImageBbox(array $bbox, array $pageImageSize): array
+    {
+        $height = (float) $pageImageSize['height'];
+
+        return $this->canonicalBbox([
+            $bbox[0],
+            $height - $bbox[3],
+            $bbox[2],
+            $height - $bbox[1],
+        ]);
     }
 
     /**

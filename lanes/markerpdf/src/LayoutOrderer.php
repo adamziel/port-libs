@@ -265,7 +265,7 @@ final class LayoutOrderer
      */
     private function orderResultPayloadMatchesPage(array $orderResult, ?array $page, int $selectedIndex, ?int $sourceIndex): bool
     {
-        $payload = $this->orderResultPayloadSource($orderResult);
+        $payload = $this->orderResultPayloadSource($orderResult, $page, $selectedIndex, $sourceIndex);
         $sources = $this->orderResultPageMarkerSources($payload);
         $envelopePageKeys = $this->integerFieldsFromSources($sources, [self::ENVELOPE_PAGE_KEY_MARKER]);
         if ($envelopePageKeys === []) {
@@ -303,7 +303,7 @@ final class LayoutOrderer
     ): array
     {
         $sanitized = [];
-        $payload = $this->orderResultPayloadSource($orderResult);
+        $payload = $this->orderResultPayloadSource($orderResult, $page, $selectedIndex, $sourceIndex);
 
         $hasImageBbox = array_key_exists('image_bbox', $payload);
         $imageBbox = $this->bboxValue($payload['image_bbox'] ?? null);
@@ -345,7 +345,12 @@ final class LayoutOrderer
      * @param array<string, mixed> $orderResult
      * @return array<string, mixed>
      */
-    private function orderResultPayloadSource(array $orderResult): array
+    private function orderResultPayloadSource(
+        array $orderResult,
+        ?array $page = null,
+        int $selectedIndex = 0,
+        ?int $sourceIndex = null
+    ): array
     {
         $sources = [];
         $this->collectOrderResultPayloadSources($orderResult, $sources);
@@ -354,13 +359,13 @@ final class LayoutOrderer
             if ($this->hasOrderPayload($source)) {
                 return $source;
             }
-            $directEnvelopePayload = $this->directOrderResultPayloadEnvelopeSource($source);
+            $directEnvelopePayload = $this->directOrderResultPayloadEnvelopeSource($source, $page, $selectedIndex, $sourceIndex);
             if ($directEnvelopePayload !== null) {
                 return $directEnvelopePayload;
             }
         }
 
-        $directEnvelopePayload = $this->directOrderResultPayloadEnvelopeSource($orderResult);
+        $directEnvelopePayload = $this->directOrderResultPayloadEnvelopeSource($orderResult, $page, $selectedIndex, $sourceIndex);
         if ($directEnvelopePayload !== null) {
             return $directEnvelopePayload;
         }
@@ -370,33 +375,114 @@ final class LayoutOrderer
 
     /**
      * Cached supplied artifacts sometimes keep selected page identity at the
-     * top level and store the single order-result payload inside a pdftext-like
-     * pages/dictionary_output/pdftext envelope. Only accept a single direct payload;
-     * multi-dictionary envelopes stay fail-closed through the empty payload path.
+     * top level and store order-result payloads inside a pdftext-like
+     * pages/dictionary_output/pdftext envelope. Singleton payloads are accepted
+     * directly. Source-page keyed maps are accepted only when exactly one
+     * candidate matches the selected page identity.
      *
      * @param array<string, mixed> $orderResult
      * @return array<string, mixed>|null
      */
-    private function directOrderResultPayloadEnvelopeSource(array $orderResult): ?array
+    private function directOrderResultPayloadEnvelopeSource(
+        array $orderResult,
+        ?array $page = null,
+        int $selectedIndex = 0,
+        ?int $sourceIndex = null
+    ): ?array
     {
         foreach (self::ORDER_RESULT_DIRECT_PAYLOAD_ENVELOPES as $key) {
-            $value = $orderResult[$key] ?? null;
+            $value = $this->normalizeDirectOrderResultPayloadEnvelopeValue($orderResult[$key] ?? null);
             if (!is_array($value)) {
                 continue;
             }
 
             $candidates = $this->directOrderResultPayloadEnvelopeCandidates($value);
-            if (count($candidates) !== 1) {
+            if (count($candidates) === 1) {
+                $candidate = $candidates[0];
+                if ($this->hasOrderPayload($candidate)) {
+                    return $candidate;
+                }
+
                 continue;
             }
 
-            $candidate = $candidates[0];
-            if ($this->hasOrderPayload($candidate)) {
-                return $candidate;
+            $matched = $this->matchingDirectOrderResultPayloadEnvelopeCandidates(
+                $candidates,
+                $page,
+                $selectedIndex,
+                $sourceIndex
+            );
+            if (count($matched) === 1) {
+                return $matched[0];
             }
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $candidates
+     * @return list<array<string, mixed>>
+     */
+    private function matchingDirectOrderResultPayloadEnvelopeCandidates(
+        array $candidates,
+        ?array $page,
+        int $selectedIndex,
+        ?int $sourceIndex
+    ): array {
+        if ($candidates === []) {
+            return [];
+        }
+
+        $matched = [];
+        foreach ($candidates as $candidate) {
+            if (!$this->hasOrderPayload($candidate)) {
+                continue;
+            }
+            if ($this->pageMarkerSourcesMatchPage(
+                $this->orderResultPageMarkerSources($candidate),
+                $page,
+                $selectedIndex,
+                $sourceIndex
+            )) {
+                $matched[] = $candidate;
+            }
+        }
+
+        return $matched;
+    }
+
+    /**
+     * Typed supplied-order wrappers may preserve pdftext-style envelopes as raw
+     * JSON strings. Decode only at explicit payload-envelope keys so arbitrary
+     * scalar payload text remains review-only data.
+     */
+    private function normalizeDirectOrderResultPayloadEnvelopeValue(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            $decoded = $this->decodeDirectOrderResultPayloadJsonEnvelope($value);
+            if ($decoded !== null) {
+                return PdfPageArtifactSelector::normalizeSuppliedArtifactValue($decoded);
+            }
+        }
+
+        return PdfPageArtifactSelector::normalizeSuppliedArtifactValue($value);
+    }
+
+    private function decodeDirectOrderResultPayloadJsonEnvelope(string $value): mixed
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '' || !in_array($trimmed[0], ['[', '{'], true)) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($trimmed, false, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        return is_array($decoded) || $decoded instanceof \stdClass ? $decoded : null;
     }
 
     /**

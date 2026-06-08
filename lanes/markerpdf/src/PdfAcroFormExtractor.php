@@ -234,6 +234,7 @@ final class PdfAcroFormExtractor
     {
         $unique = [];
         $seenObjects = [];
+        $fieldNameIndexes = [];
         foreach ($fields as $field) {
             $objectNumber = $field['object'] ?? null;
             if (is_int($objectNumber)) {
@@ -242,6 +243,16 @@ final class PdfAcroFormExtractor
                 }
 
                 $seenObjects[$objectNumber] = true;
+            }
+
+            $fieldName = $field['name'] ?? null;
+            if (is_string($fieldName) && $fieldName !== '' && array_key_exists($fieldName, $fieldNameIndexes)) {
+                $unique[$fieldNameIndexes[$fieldName]] = $field;
+                continue;
+            }
+
+            if (is_string($fieldName) && $fieldName !== '') {
+                $fieldNameIndexes[$fieldName] = count($unique);
             }
 
             $unique[] = $field;

@@ -13,12 +13,12 @@ final class OutputWriter
 {
     public function getSubfolderPath(string $outputFolder, string $filename): string
     {
-        return $this->joinPath($outputFolder, $this->stripFinalExtension($filename));
+        return $this->joinPath($outputFolder, $this->stripFinalExtension($this->outputDocumentBasename($filename)));
     }
 
     public function getMarkdownFilepath(string $outputFolder, string $filename): string
     {
-        $markdownFilename = $this->stripFinalExtension($filename) . '.md';
+        $markdownFilename = $this->stripFinalExtension($this->outputDocumentBasename($filename)) . '.md';
 
         return $this->joinPath($this->getSubfolderPath($outputFolder, $filename), $markdownFilename);
     }
@@ -110,6 +110,14 @@ final class OutputWriter
             'filename' => $filename,
             'output_folder' => $outputFolder,
             'subfolder' => $saved['subfolder'],
+            'document_filename_boundary' => $this->documentFilenameBoundary(
+                $filename,
+                $outputFolder,
+                $saved['document_basename'],
+                $saved['document_stem'],
+                $saved['subfolder'],
+                $saved['markdown_path']
+            ),
             'markdown_artifact' => [
                 ...$this->fileArtifact($saved['markdown_path'], basename($saved['markdown_path']), 'markdown'),
                 'visible_text_artifact' => true,
@@ -159,7 +167,7 @@ final class OutputWriter
     /**
      * @param array<string, mixed> $images
      * @param array<string, mixed> $metadata
-     * @return array{subfolder: string, markdown_path: string, metadata_path: string, image_artifacts: list<array{source_filename: string, filename: string, image: mixed}>, image_name_map: array<string, string>}
+     * @return array{document_basename: string, document_stem: string, subfolder: string, markdown_path: string, metadata_path: string, image_artifacts: list<array{source_filename: string, filename: string, image: mixed}>, image_name_map: array<string, string>}
      */
     private function saveMarkdownArtifacts(
         string $outputFolder,
@@ -168,6 +176,8 @@ final class OutputWriter
         array $images,
         array $metadata
     ): array {
+        $documentBasename = $this->outputDocumentBasename($filename);
+        $documentStem = $this->stripFinalExtension($documentBasename);
         $subfolderPath = $this->getSubfolderPath($outputFolder, $filename);
         if (!is_dir($subfolderPath) && !@mkdir($subfolderPath, 0777, true) && !is_dir($subfolderPath)) {
             throw new RuntimeException('Unable to create markerPDF output folder: ' . $subfolderPath);
@@ -202,11 +212,53 @@ final class OutputWriter
         }
 
         return [
+            'document_basename' => $documentBasename,
+            'document_stem' => $documentStem,
             'subfolder' => $subfolderPath,
             'markdown_path' => $markdownPath,
             'metadata_path' => $metadataPath,
             'image_artifacts' => $imageArtifacts,
             'image_name_map' => $imageNameMap,
+        ];
+    }
+
+    private function outputDocumentBasename(string $filename): string
+    {
+        return basename(str_replace('\\', '/', $filename));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function documentFilenameBoundary(
+        string $filename,
+        string $outputFolder,
+        string $documentBasename,
+        string $documentStem,
+        string $subfolderPath,
+        string $markdownPath
+    ): array {
+        $normalizedOutputFolder = rtrim($outputFolder, '/\\') . DIRECTORY_SEPARATOR;
+        $normalizedSubfolder = rtrim($subfolderPath, '/\\') . DIRECTORY_SEPARATOR;
+
+        return [
+            'source' => 'marker_output_document_filename_basename_boundary',
+            'upstream_boundary' => 'convert.py process_single_pdf os.path.basename(filepath) + convert_single.py os.path.basename(fname) before marker.output.save_markdown',
+            'raw_filename' => $filename,
+            'native_safe_basename' => $documentBasename,
+            'native_safe_stem' => $documentStem,
+            'raw_has_path_segments' => preg_match('/[\/\\\\]/', $filename) === 1,
+            'path_segments_removed_for_native_output_paths' => $documentBasename !== $filename,
+            'uses_basename_for_subfolder' => true,
+            'uses_basename_for_markdown_filename' => true,
+            'subfolder' => $subfolderPath,
+            'markdown_path' => $markdownPath,
+            'subfolder_prefixed_by_output_folder' => str_starts_with($normalizedSubfolder, $normalizedOutputFolder),
+            'review_only' => true,
+            'executes_streamlit' => false,
+            'executes_pdfium' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
         ];
     }
 

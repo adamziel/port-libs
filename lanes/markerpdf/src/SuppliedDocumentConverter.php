@@ -2451,7 +2451,7 @@ final class SuppliedDocumentConverter
             return true;
         }
 
-        return preg_match('/^[+-]?\d+$/', trim($key)) === 1;
+        return preg_match('/^[+-]?\d+(?:\.0+)?$/', trim($key)) === 1;
     }
 
     /**

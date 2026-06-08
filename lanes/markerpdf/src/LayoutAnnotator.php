@@ -258,7 +258,7 @@ final class LayoutAnnotator
      */
     private function layoutResultPayloadMatchesPage(array $layoutResult, ?array $page, int $selectedIndex, ?int $sourceIndex): bool
     {
-        $payload = $this->layoutResultPayloadSource($layoutResult);
+        $payload = $this->layoutResultPayloadSource($layoutResult, $page, $selectedIndex, $sourceIndex);
         $sources = $this->layoutResultPageMarkerSources($payload);
         $envelopePageKeys = $this->integerFieldsFromSources($sources, [self::ENVELOPE_PAGE_KEY_MARKER]);
         if ($envelopePageKeys === []) {
@@ -296,7 +296,7 @@ final class LayoutAnnotator
     ): array
     {
         $sanitized = [];
-        $payload = $this->layoutResultPayloadSource($layoutResult);
+        $payload = $this->layoutResultPayloadSource($layoutResult, $page, $selectedIndex, $sourceIndex);
 
         $hasImageBbox = array_key_exists('image_bbox', $payload);
         $imageBbox = $this->bbox($payload['image_bbox'] ?? null);
@@ -471,7 +471,12 @@ final class LayoutAnnotator
      * @param array<string, mixed> $layoutResult
      * @return array<string, mixed>
      */
-    private function layoutResultPayloadSource(array $layoutResult): array
+    private function layoutResultPayloadSource(
+        array $layoutResult,
+        ?array $page = null,
+        int $selectedIndex = 0,
+        ?int $sourceIndex = null
+    ): array
     {
         $sources = [];
         $this->collectLayoutResultPayloadSources($layoutResult, $sources);
@@ -480,13 +485,13 @@ final class LayoutAnnotator
             if ($this->hasLayoutPayload($source)) {
                 return $source;
             }
-            $directEnvelopePayload = $this->directLayoutResultPayloadEnvelopeSource($source);
+            $directEnvelopePayload = $this->directLayoutResultPayloadEnvelopeSource($source, $page, $selectedIndex, $sourceIndex);
             if ($directEnvelopePayload !== null) {
                 return $directEnvelopePayload;
             }
         }
 
-        $directEnvelopePayload = $this->directLayoutResultPayloadEnvelopeSource($layoutResult);
+        $directEnvelopePayload = $this->directLayoutResultPayloadEnvelopeSource($layoutResult, $page, $selectedIndex, $sourceIndex);
         if ($directEnvelopePayload !== null) {
             return $directEnvelopePayload;
         }
@@ -496,33 +501,114 @@ final class LayoutAnnotator
 
     /**
      * Cached supplied artifacts sometimes keep selected page identity at the
-     * top level and store the single layout-result payload inside a pdftext-like
-     * pages/dictionary_output/pdftext envelope. Only accept a single direct payload;
-     * multi-dictionary envelopes stay fail-closed through the empty payload path.
+     * top level and store layout-result payloads inside a pdftext-like
+     * pages/dictionary_output/pdftext envelope. Singleton payloads are accepted
+     * directly. Source-page keyed maps are accepted only when exactly one
+     * candidate matches the selected page identity.
      *
      * @param array<string, mixed> $layoutResult
      * @return array<string, mixed>|null
      */
-    private function directLayoutResultPayloadEnvelopeSource(array $layoutResult): ?array
+    private function directLayoutResultPayloadEnvelopeSource(
+        array $layoutResult,
+        ?array $page = null,
+        int $selectedIndex = 0,
+        ?int $sourceIndex = null
+    ): ?array
     {
         foreach (self::LAYOUT_RESULT_DIRECT_PAYLOAD_ENVELOPES as $key) {
-            $value = $layoutResult[$key] ?? null;
+            $value = $this->normalizeDirectLayoutResultPayloadEnvelopeValue($layoutResult[$key] ?? null);
             if (!is_array($value)) {
                 continue;
             }
 
             $candidates = $this->directLayoutResultPayloadEnvelopeCandidates($value);
-            if (count($candidates) !== 1) {
+            if (count($candidates) === 1) {
+                $candidate = $candidates[0];
+                if ($this->hasLayoutPayload($candidate)) {
+                    return $candidate;
+                }
+
                 continue;
             }
 
-            $candidate = $candidates[0];
-            if ($this->hasLayoutPayload($candidate)) {
-                return $candidate;
+            $matched = $this->matchingDirectLayoutResultPayloadEnvelopeCandidates(
+                $candidates,
+                $page,
+                $selectedIndex,
+                $sourceIndex
+            );
+            if (count($matched) === 1) {
+                return $matched[0];
             }
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $candidates
+     * @return list<array<string, mixed>>
+     */
+    private function matchingDirectLayoutResultPayloadEnvelopeCandidates(
+        array $candidates,
+        ?array $page,
+        int $selectedIndex,
+        ?int $sourceIndex
+    ): array {
+        if ($candidates === []) {
+            return [];
+        }
+
+        $matched = [];
+        foreach ($candidates as $candidate) {
+            if (!$this->hasLayoutPayload($candidate)) {
+                continue;
+            }
+            if ($this->pageMarkerSourcesMatchPage(
+                $this->layoutResultPageMarkerSources($candidate),
+                $page,
+                $selectedIndex,
+                $sourceIndex
+            )) {
+                $matched[] = $candidate;
+            }
+        }
+
+        return $matched;
+    }
+
+    /**
+     * Typed supplied-layout wrappers may preserve pdftext-style envelopes as raw
+     * JSON strings. Decode only at explicit payload-envelope keys so arbitrary
+     * scalar payload text remains review-only data.
+     */
+    private function normalizeDirectLayoutResultPayloadEnvelopeValue(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            $decoded = $this->decodeDirectLayoutResultPayloadJsonEnvelope($value);
+            if ($decoded !== null) {
+                return PdfPageArtifactSelector::normalizeSuppliedArtifactValue($decoded);
+            }
+        }
+
+        return PdfPageArtifactSelector::normalizeSuppliedArtifactValue($value);
+    }
+
+    private function decodeDirectLayoutResultPayloadJsonEnvelope(string $value): mixed
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '' || !in_array($trimmed[0], ['[', '{'], true)) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($trimmed, false, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        return is_array($decoded) || $decoded instanceof \stdClass ? $decoded : null;
     }
 
     /**

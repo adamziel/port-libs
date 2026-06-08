@@ -177,9 +177,20 @@ final class PdfEmbeddedFileExtractor
         $limits = $this->nameTreeEffectiveLimits($nodeBody, $objects, $inheritedLimits);
         $childLimits = $limits;
         $kidsValue = $this->dictionaryRawValue($nodeBody, 'Kids');
+        $kids = [];
+        if ($kidsValue !== null) {
+            $kids = $this->exactArrayItemsFromValue($kidsValue, $objects);
+            if ($kids === null) {
+                return;
+            }
+        }
+
         $namesValue = $kidsValue === null ? $this->dictionaryRawValue($nodeBody, 'Names') : null;
         if ($namesValue !== null) {
-            $names = $this->arrayItemsFromValue($namesValue, $objects);
+            $names = $this->exactArrayItemsFromValue($namesValue, $objects);
+            if ($names === null) {
+                return;
+            }
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
                 ? $limits
                 : $inheritedLimits;
@@ -214,7 +225,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $kidValues = [];
-        foreach ($this->arrayItemsFromValue($kidsValue, $objects) as $kidValue) {
+        foreach ($kids as $kidValue) {
             if ($this->objectReferenceFromValue($kidValue) === null) {
                 continue;
             }
@@ -6989,15 +7000,24 @@ final class PdfEmbeddedFileExtractor
      */
     private function associatedFileArrayItemsFromValue(string $value, array $objects): array
     {
+        return $this->exactArrayItemsFromValue($value, $objects) ?? [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>|null
+     */
+    private function exactArrayItemsFromValue(string $value, array $objects): ?array
+    {
         $resolved = $this->resolveRawValue($value, $objects);
         if ($resolved === null) {
-            return [];
+            return null;
         }
 
         $resolved = trim($resolved);
         $array = $this->readPdfArrayAt($resolved, 0);
         if ($array === null || $this->skipWhitespace($resolved, $array['end']) !== strlen($resolved)) {
-            return [];
+            return null;
         }
 
         return $this->arrayItemsFromValue($array['raw'], $objects);

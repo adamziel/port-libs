@@ -71,7 +71,7 @@ final class PdfNamedDestinationExtractor
     /**
      * Native boundary for catalog-level PDF named destinations.
      *
-     * @return list<array{name: string, page: int|null, page_object_id: int|null, fit: string, coordinates: array<string, float|null>, source: string}>
+     * @return list<array{name: string, page: int|null, page_object_id: int|null, fit: string, coordinates: array<string, float|null>, source: string, name_bytes_hex?: string}>
      */
     public function extractNamedDestinations(string $pdfBytes): array
     {
@@ -146,6 +146,7 @@ final class PdfNamedDestinationExtractor
         }
 
         if ($nameTreeEntries !== []) {
+            $decodedCollisionNames = $this->decodedCollisionDestinationNames($nameTreeEntries);
             $nameTreeDestinations = [];
             foreach ($nameTreeEntries as $entry) {
                 $destination = $this->normalizeDestination(
@@ -161,7 +162,10 @@ final class PdfNamedDestinationExtractor
                     continue;
                 }
 
-                $nameTreeDestinations[$destination['name']] = $destination;
+                if (isset($decodedCollisionNames[$entry['name']])) {
+                    $destination['name_bytes_hex'] = bin2hex($entry['name_bytes']);
+                }
+                $nameTreeDestinations[$entry['name_key']] = $destination;
             }
 
             foreach ($nameTreeDestinations as $destination) {
@@ -1156,7 +1160,7 @@ final class PdfNamedDestinationExtractor
      * @param array<int, mixed> $cache
      * @param list<string> $seenObjects
      * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
-     * @return list<array{name: string, value: mixed}>
+     * @return list<array{name: string, name_bytes: string, name_key: string, value: mixed}>
      */
     private function collectNameTreeEntries(
         mixed $node,
@@ -1247,6 +1251,7 @@ final class PdfNamedDestinationExtractor
                 $leafEntries[] = [
                     'name' => $name['text'],
                     'name_bytes' => $name['bytes'],
+                    'name_key' => $this->destinationNameEntryKey($name['text'], $name['bytes']),
                     'value' => $names[$index + 1],
                     'order' => count($leafEntries),
                 ];
@@ -1256,6 +1261,8 @@ final class PdfNamedDestinationExtractor
             foreach ($this->nameTreeLeafEntriesSortedByNameBytes($leafEntries) as $entry) {
                 $entries[] = [
                     'name' => $entry['name'],
+                    'name_bytes' => $entry['name_bytes'],
+                    'name_key' => $entry['name_key'],
                     'value' => $entry['value'],
                 ];
             }
@@ -1276,8 +1283,8 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
-     * @param list<array{name: string, name_bytes: string, value: mixed, order: int}> $entries
-     * @return list<array{name: string, name_bytes: string, value: mixed, order: int}>
+     * @param list<array{name: string, name_bytes: string, name_key: string, value: mixed, order: int}> $entries
+     * @return list<array{name: string, name_bytes: string, name_key: string, value: mixed, order: int}>
      */
     private function nameTreeLeafEntriesSortedByNameBytes(array $entries): array
     {
@@ -1297,19 +1304,45 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
-     * @param list<array{name: string, name_bytes: string, value: mixed, order: int}> $entries
+     * @param list<array{name: string, name_bytes: string, name_key: string, value: mixed, order: int}> $entries
      */
     private function nameTreeLeafEntriesContainDuplicateName(array $entries): bool
     {
         $seen = [];
         foreach ($entries as $entry) {
-            if (isset($seen[$entry['name']])) {
+            if (isset($seen[$entry['name_key']])) {
                 return true;
             }
-            $seen[$entry['name']] = true;
+            $seen[$entry['name_key']] = true;
         }
 
         return false;
+    }
+
+    private function destinationNameEntryKey(string $name, string $bytes): string
+    {
+        return $name . "\0" . bin2hex($bytes);
+    }
+
+    /**
+     * @param list<array{name: string, name_bytes: string, name_key: string, value: mixed}> $entries
+     * @return array<string, true>
+     */
+    private function decodedCollisionDestinationNames(array $entries): array
+    {
+        $bytesByName = [];
+        foreach ($entries as $entry) {
+            $bytesByName[$entry['name']][$entry['name_bytes']] = true;
+        }
+
+        $collisions = [];
+        foreach ($bytesByName as $name => $bytes) {
+            if (count($bytes) > 1) {
+                $collisions[$name] = true;
+            }
+        }
+
+        return $collisions;
     }
 
     /**

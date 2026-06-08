@@ -4784,8 +4784,10 @@ final class PdfMetadataExtractor
         }
 
         $rawDestinationsByName = $this->documentDestinationEntryValueMap($entries, $objects, $pageIndexes);
+        $decodedCollisionNames = $this->documentDestinationDecodedCollisionNames($entries);
 
-        $destinationsByName = [];
+        $destinationsByKey = [];
+        $nameTreeNames = [];
         $unresolved = 0;
         foreach ($entries as $entry) {
             $details = $this->documentDestinationDetails(
@@ -4803,12 +4805,26 @@ final class PdfMetadataExtractor
             $details['name'] = $entry['name'];
             $details['destination'] = $entry['name'];
             $details['source'] = $entry['source'];
-            if ($entry['source'] === 'names_dests' || !isset($destinationsByName[$entry['name']])) {
-                $destinationsByName[$entry['name']] = $details;
+            if (
+                $entry['source'] === 'names_dests'
+                && isset($decodedCollisionNames[$entry['name']])
+                && is_string($entry['name_bytes'] ?? null)
+            ) {
+                $details['name_bytes_hex'] = bin2hex($entry['name_bytes']);
+            }
+            if ($entry['source'] === 'names_dests') {
+                $destinationKey = (string) ($entry['name_key'] ?? $entry['name']);
+                $destinationsByKey[$destinationKey] = $details;
+                $nameTreeNames[$entry['name']] = true;
+                continue;
+            }
+
+            if (!isset($nameTreeNames[$entry['name']]) && !isset($destinationsByKey['legacy:' . $entry['name']])) {
+                $destinationsByKey['legacy:' . $entry['name']] = $details;
             }
         }
 
-        $destinations = array_values($destinationsByName);
+        $destinations = array_values($destinationsByKey);
 
         if ($destinations === []) {
             return $unresolved > 0
@@ -7571,6 +7587,7 @@ final class PdfMetadataExtractor
                 $leafEntries[] = [
                     'name' => $name['text'],
                     'name_bytes' => $name['bytes'],
+                    'name_key' => $this->documentDestinationNameEntryKey($name['text'], $name['bytes']),
                     'value' => $names[$index + 1],
                     'source' => 'names_dests',
                     'order' => count($leafEntries),
@@ -7581,6 +7598,8 @@ final class PdfMetadataExtractor
             foreach ($this->destinationNameTreeLeafEntriesSortedByNameBytes($leafEntries) as $entry) {
                 $entries[] = [
                     'name' => $entry['name'],
+                    'name_key' => $entry['name_key'],
+                    'name_bytes' => $entry['name_bytes'],
                     'value' => $entry['value'],
                     'source' => $entry['source'],
                 ];
@@ -7633,8 +7652,8 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * @param list<array{name: string, name_bytes: string, value: string, source: string, order: int}> $entries
-     * @return list<array{name: string, name_bytes: string, value: string, source: string, order: int}>
+     * @param list<array{name: string, name_bytes: string, name_key: string, value: string, source: string, order: int}> $entries
+     * @return list<array{name: string, name_bytes: string, name_key: string, value: string, source: string, order: int}>
      */
     private function destinationNameTreeLeafEntriesSortedByNameBytes(array $entries): array
     {
@@ -7654,19 +7673,49 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * @param list<array{name: string, name_bytes: string, value: string, source: string, order: int}> $entries
+     * @param list<array{name: string, name_bytes: string, name_key: string, value: string, source: string, order: int}> $entries
      */
     private function destinationNameTreeLeafEntriesContainDuplicateName(array $entries): bool
     {
         $seen = [];
         foreach ($entries as $entry) {
-            if (isset($seen[$entry['name']])) {
+            if (isset($seen[$entry['name_key']])) {
                 return true;
             }
-            $seen[$entry['name']] = true;
+            $seen[$entry['name_key']] = true;
         }
 
         return false;
+    }
+
+    private function documentDestinationNameEntryKey(string $name, string $bytes): string
+    {
+        return $name . "\0" . bin2hex($bytes);
+    }
+
+    /**
+     * @param list<array{name: string, value: string, source: string, name_bytes?: string}> $entries
+     * @return array<string, true>
+     */
+    private function documentDestinationDecodedCollisionNames(array $entries): array
+    {
+        $bytesByName = [];
+        foreach ($entries as $entry) {
+            if (($entry['source'] ?? null) !== 'names_dests' || !is_string($entry['name_bytes'] ?? null)) {
+                continue;
+            }
+
+            $bytesByName[$entry['name']][$entry['name_bytes']] = true;
+        }
+
+        $collisions = [];
+        foreach ($bytesByName as $name => $bytes) {
+            if (count($bytes) > 1) {
+                $collisions[$name] = true;
+            }
+        }
+
+        return $collisions;
     }
 
     /**
