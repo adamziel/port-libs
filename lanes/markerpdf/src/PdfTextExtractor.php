@@ -36004,11 +36004,31 @@ final class PdfTextExtractor
             ];
         }
 
-        if ($this->skipPdfWhitespace($header, $offset) !== strlen($header)) {
+        if (!$this->objectStreamHeaderTailCanBeIgnored($header, $offset)) {
             return [];
         }
 
         return $members;
+    }
+
+    private function objectStreamHeaderTailCanBeIgnored(string $header, int $offset): bool
+    {
+        $offset = $this->skipPdfWhitespace($header, $offset);
+        if ($offset === strlen($header)) {
+            return true;
+        }
+
+        $extraTokenCount = 0;
+        while ($offset < strlen($header)) {
+            if ($this->readPdfUnsignedIntegerToken($header, $offset) === null) {
+                return false;
+            }
+
+            $extraTokenCount++;
+            $offset = $this->skipPdfWhitespace($header, $offset);
+        }
+
+        return ($extraTokenCount % 2) === 0;
     }
 
     private function readPdfUnsignedIntegerToken(string $value, int &$offset): ?int
