@@ -7317,17 +7317,38 @@ final class PdfEngineHandoff
      * @param array<string, string> $objects
      * @param array{kind:string, value:string} $value
      */
-    private function addPdfActiveActionFromValue(array &$actions, string $source, array $value, array $objects, ?string $nameHint = null): void
+    private function addPdfActiveActionFromValue(
+        array &$actions,
+        string $source,
+        array $value,
+        array $objects,
+        ?string $nameHint = null,
+        int $depth = 0,
+        array $visited = []
+    ): void
     {
+        if ($depth > 16) {
+            return;
+        }
+
+        $actionDictionary = null;
         if ($value['kind'] === 'reference') {
-            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            $referenceKey = $this->pdfReferenceKey($value['value']);
+            if (isset($visited[$referenceKey])) {
+                return;
+            }
+
+            $visited[$referenceKey] = true;
+            $body = $objects[$referenceKey] ?? null;
             if ($body === null) {
                 return;
             }
 
+            $actionDictionary = $body;
             $summary = $this->summarizePdfActiveActionDictionary($body, $source, $objects, $nameHint);
         } elseif ($value['kind'] === 'dictionary') {
-            $summary = $this->summarizePdfActiveActionDictionary($value['value'], $source, $objects, $nameHint);
+            $actionDictionary = $value['value'];
+            $summary = $this->summarizePdfActiveActionDictionary($actionDictionary, $source, $objects, $nameHint);
         } elseif ($value['kind'] === 'name' || $value['kind'] === 'literal' || $value['kind'] === 'hex') {
             $target = trim($value['value']);
             $summary = $target === ''
@@ -7355,6 +7376,83 @@ final class PdfEngineHandoff
             $summary['scriptSha256'] ?? '',
         ]);
         $actions[$key] = $summary;
+
+        if ($actionDictionary !== null) {
+            $this->collectPdfNextActions($actions, $source, $actionDictionary, $objects, $depth + 1, $visited);
+        }
+    }
+
+    /**
+     * @param array<string, array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @param array<string, string> $objects
+     */
+    private function collectPdfNextActions(array &$actions, string $source, string $dictionary, array $objects, int $depth, array $visited): void
+    {
+        if ($depth > 16) {
+            return;
+        }
+
+        $next = $this->extractPdfValueForName($dictionary, 'Next');
+        if ($next === null) {
+            return;
+        }
+
+        $this->addPdfActiveNextActionValue($actions, $source . '.Next', $next, $objects, $depth, $visited);
+    }
+
+    /**
+     * @param array<string, array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @param array<string, string> $objects
+     * @param array{kind:string, value:string, next?:int} $value
+     */
+    private function addPdfActiveNextActionValue(array &$actions, string $source, array $value, array $objects, int $depth, array $visited): void
+    {
+        if ($depth > 16) {
+            return;
+        }
+
+        if ($value['kind'] === 'array') {
+            $cursor = str_starts_with($value['value'], '[') ? 1 : 0;
+            $length = strlen($value['value']);
+            if (str_ends_with($value['value'], ']')) {
+                $length--;
+            }
+            $index = 0;
+            while ($cursor < $length) {
+                $item = $this->parsePdfValueAt($value['value'], $cursor);
+                if ($item === null) {
+                    $cursor++;
+                    continue;
+                }
+
+                $this->addPdfActiveNextActionValue($actions, $source . '[' . $index . ']', $item, $objects, $depth + 1, $visited);
+                $index++;
+                $cursor = max($cursor + 1, min($length, $item['next']));
+            }
+
+            return;
+        }
+
+        if ($value['kind'] === 'reference') {
+            $referenceKey = $this->pdfReferenceKey($value['value']);
+            if (isset($visited[$referenceKey])) {
+                return;
+            }
+
+            $body = $objects[$referenceKey] ?? null;
+            if ($body === null) {
+                return;
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved !== null && $resolved['kind'] === 'array') {
+                $visited[$referenceKey] = true;
+                $this->addPdfActiveNextActionValue($actions, $source, $resolved, $objects, $depth + 1, $visited);
+                return;
+            }
+        }
+
+        $this->addPdfActiveActionFromValue($actions, $source, $value, $objects, null, $depth + 1, $visited);
     }
 
     /**

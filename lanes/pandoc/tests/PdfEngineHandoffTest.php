@@ -5939,6 +5939,146 @@ MARKDOWN);
         $t->same($result['pdfOpenAction'], $sequence['finalPdfOpenAction']);
     },
 
+    'fake runner expands bounded pdf chained next actions from active dictionaries' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/action-chain.pdf']);
+        $catalogScript = 'app.alert("review open")';
+        $nextScript = 'app.alert("follow-up review")';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OpenAction 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /AA << /O 12 0 R >> /Annots [14 0 R] >>',
+            'endobj',
+            '8 0 obj',
+            '<< /S /JavaScript /JS (' . str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $catalogScript) . ') /Next [9 0 R << /S /Named /N /NextPage >>] >>',
+            'endobj',
+            '9 0 obj',
+            '<< /S /Launch /F (tools/review-helper.exe) /Next 10 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /S /SubmitForm /F (https://example.test/review/submit) /Next [11 0 R 9 0 R] >>',
+            'endobj',
+            '11 0 obj',
+            '<< /S /Hide /T (review-overlay) >>',
+            'endobj',
+            '12 0 obj',
+            '<< /S /Named /N /Print /Next 13 0 R >>',
+            'endobj',
+            '13 0 obj',
+            '<< /S /JavaScript /JS <' . strtoupper(bin2hex($nextScript)) . '> >>',
+            'endobj',
+            '14 0 obj',
+            '<< /Type /Annot /Subtype /Screen /A << /S /Rendition /OP 4 /Next << /S /ResetForm /T (review-form) >> >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/action-chain.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/action-chain.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'source' => 'annotation:14 0 R.A',
+                'type' => 'Rendition',
+                'target' => null,
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'annotation:14 0 R.A.Next',
+                'type' => 'ResetForm',
+                'target' => null,
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.OpenAction',
+                'type' => 'JavaScript',
+                'target' => null,
+                'scriptBytes' => strlen($catalogScript),
+                'scriptSha256' => hash('sha256', $catalogScript),
+            ],
+            [
+                'source' => 'catalog.OpenAction.Next[0]',
+                'type' => 'Launch',
+                'target' => 'tools/review-helper.exe',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.OpenAction.Next[0].Next',
+                'type' => 'SubmitForm',
+                'target' => 'https://example.test/review/submit',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.OpenAction.Next[0].Next.Next[0]',
+                'type' => 'Hide',
+                'target' => 'review-overlay',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.OpenAction.Next[1]',
+                'type' => 'Named',
+                'target' => 'NextPage',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'page:3 0 R.AA.O',
+                'type' => 'Named',
+                'target' => 'Print',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'page:3 0 R.AA.O.Next',
+                'type' => 'JavaScript',
+                'target' => null,
+                'scriptBytes' => strlen($nextScript),
+                'scriptSha256' => hash('sha256', $nextScript),
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfActiveActions']);
+        $t->same([
+            'Hide' => 1,
+            'JavaScript' => 2,
+            'Launch' => 1,
+            'Named' => 2,
+            'Rendition' => 1,
+            'ResetForm' => 1,
+            'SubmitForm' => 1,
+        ], $result['pdfActiveActionTypes']);
+        $t->contains('pdf-byte-active-actions:9', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-type:Hide:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-type:ResetForm:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfActiveActions']);
+        $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
+    },
+
     'fake runner extracts bounded pdf optional content layer metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layers.pdf']);
