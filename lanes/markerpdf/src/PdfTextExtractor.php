@@ -36588,9 +36588,15 @@ final class PdfTextExtractor
                 continue;
             }
 
+            $declaredCount = $this->cMapDeclaredOperatorCountBefore($cmap, $nextBegin);
+            if ($declaredCount === null) {
+                $offset = $endOffset + strlen($endOperator);
+                continue;
+            }
+
             $blocks[] = [
                 'body' => substr($cmap, $bodyStart, $endOffset - $bodyStart),
-                'declaredCount' => $this->cMapDeclaredOperatorCountBefore($cmap, $nextBegin),
+                'declaredCount' => $declaredCount,
                 'kind' => $definition['kind'],
             ];
             $offset = $endOffset + strlen($endOperator);
