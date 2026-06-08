@@ -311,7 +311,7 @@ final class PdfTextDocumentExtractor
      */
     private function pageListFromExplicitDictionaryEnvelope(mixed $value): ?array
     {
-        $value = $this->normalizeSuppliedDictionaryValue($value);
+        $value = $this->normalizeSuppliedDictionaryEnvelopeValue($value);
         if (!is_array($value)) {
             return null;
         }
@@ -339,6 +339,40 @@ final class PdfTextDocumentExtractor
         $pageList = $this->orderedSuppliedDictionaryPageList($value);
 
         return $this->allSuppliedDictionaryPages($pageList) ? $pageList : null;
+    }
+
+    /**
+     * pdftext's CLI `--json` path emits the same page-list structure as
+     * dictionary_output. Native import adapters may cache that payload as a raw
+     * JSON string under an explicit pdftext/dictionary_output envelope, but
+     * arbitrary span text must remain string data.
+     */
+    private function normalizeSuppliedDictionaryEnvelopeValue(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            $decoded = $this->decodeSuppliedDictionaryJsonEnvelope($value);
+            if ($decoded !== null) {
+                return $this->normalizeSuppliedDictionaryValue($decoded);
+            }
+        }
+
+        return $this->normalizeSuppliedDictionaryValue($value);
+    }
+
+    private function decodeSuppliedDictionaryJsonEnvelope(string $value): mixed
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '' || !in_array($trimmed[0], ['[', '{'], true)) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($trimmed, false, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        return is_array($decoded) || $decoded instanceof \stdClass ? $decoded : null;
     }
 
     /**
