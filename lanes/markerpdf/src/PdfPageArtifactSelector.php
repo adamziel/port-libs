@@ -1172,16 +1172,25 @@ final class PdfPageArtifactSelector
             $score += 30;
         }
 
+        $envelopePageKeyScore = 0;
         foreach ($markers['envelope_page_keys'] ?? [] as $marker) {
             if (
-                $marker !== $sourceIndex
-                && ($pageNumber === null || $marker !== $pageNumber)
+                $pageNumber !== null
+                && $marker === $pageNumber
             ) {
-                return null;
+                $envelopePageKeyScore = max($envelopePageKeyScore, 95);
+                continue;
             }
+
+            if ($marker === $sourceIndex) {
+                $envelopePageKeyScore = max($envelopePageKeyScore, 90);
+                continue;
+            }
+
+            return null;
         }
         if (($markers['envelope_page_keys'] ?? []) !== []) {
-            $score += 90;
+            $score += $envelopePageKeyScore;
         }
 
         return $markers !== [] ? $score : null;

@@ -15241,6 +15241,20 @@ final class PdfTextExtractor
 
             $this->collectType3PrivateMetadataStreamGenerations($body, $objects, $references);
             $this->collectType3PrivateResourceStreamGenerations($body, $objects, $references);
+            foreach ($this->type3CharProcsDictionaryReferencesForFallbackExclusion($body, $objects) as $reference) {
+                $charProcsBody = $this->objectBodyForExactReference(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+                if ($charProcsBody === null) {
+                    continue;
+                }
+
+                $this->collectType3PrivateMetadataStreamGenerations($charProcsBody, $objects, $references);
+                $this->collectType3PrivateResourceStreamGenerations($charProcsBody, $objects, $references);
+            }
+
             foreach ($this->charProcObjectReferencesForFallbackExclusion($body, $objects) as $reference) {
                 $charProcBody = $this->objectBodyForExactReference(
                     $objects,
