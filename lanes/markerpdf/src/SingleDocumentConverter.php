@@ -177,6 +177,7 @@ final class SingleDocumentConverter
             static fn (int $count): bool => $count > 1
         );
         $repeatedOptions = array_keys($repeatedOptionCounts);
+        $endOfOptionsBoundary = $this->runtimeArgumentEndOfOptionsBoundary($tokens);
 
         return [
             'schema' => 'markerpdf.convert_single_argparse_preflight.v1',
@@ -195,6 +196,9 @@ final class SingleDocumentConverter
                 'error_argument' => null,
                 'error_message' => null,
                 'missing_required_arguments' => [],
+                'end_of_options_terminator_seen' => $endOfOptionsBoundary['terminator_seen'],
+                'end_of_options_terminator_index' => $endOfOptionsBoundary['terminator_index'],
+                'option_like_tokens_after_terminator_are_positionals' => $endOfOptionsBoundary['option_like_tokens_after_terminator_are_positionals'],
                 'filesystem_touched_before_error' => false,
                 'blocks_runtime_preflight' => false,
             ],
@@ -213,6 +217,7 @@ final class SingleDocumentConverter
                 'repeated_option_counts' => $repeatedOptionCounts,
                 'last_occurrence_wins' => $repeatedOptions !== [],
                 'argfile_boundary' => $this->runtimeArgumentAtFileBoundary($tokens),
+                'end_of_options_boundary' => $endOfOptionsBoundary,
             ],
             'language_parse' => [
                 'source' => 'args.langs.split(",") if args.langs else None',
@@ -238,6 +243,9 @@ final class SingleDocumentConverter
                 'at_file_tokens_expand_before_parse' => false,
                 'at_prefixed_tokens_seen' => $this->runtimeArgumentAtFileTokens($tokens) !== [],
                 'at_prefixed_tokens_are_literal_cli_values' => $this->runtimeArgumentAtFileTokens($tokens) !== [],
+                'end_of_options_terminator_supported' => true,
+                'end_of_options_separator_touches_filesystem' => false,
+                'option_like_positionals_allowed_after_terminator' => $endOfOptionsBoundary['option_like_tokens_after_terminator_are_positionals'],
             ],
             'blocked_by' => null,
             'blocked_stages' => [],
@@ -467,6 +475,8 @@ final class SingleDocumentConverter
         ?string $errorArgument = null,
         array $missingRequiredArguments = []
     ): array {
+        $endOfOptionsBoundary = $this->runtimeArgumentEndOfOptionsBoundary($argv);
+
         return [
             'schema' => 'markerpdf.convert_single_argparse_preflight.v1',
             'source' => 'sddai/markerPDF convert_single.py::main argparse.ArgumentParser.parse_args',
@@ -484,6 +494,9 @@ final class SingleDocumentConverter
                 'error_argument' => $errorArgument,
                 'error_message' => $message,
                 'missing_required_arguments' => $missingRequiredArguments,
+                'end_of_options_terminator_seen' => $endOfOptionsBoundary['terminator_seen'],
+                'end_of_options_terminator_index' => $endOfOptionsBoundary['terminator_index'],
+                'option_like_tokens_after_terminator_are_positionals' => $endOfOptionsBoundary['option_like_tokens_after_terminator_are_positionals'],
                 'filesystem_touched_before_error' => false,
                 'blocks_runtime_preflight' => true,
             ],
@@ -509,6 +522,9 @@ final class SingleDocumentConverter
                 'at_prefixed_tokens_seen' => $this->runtimeArgumentAtFileTokens($argv) !== [],
                 'at_prefixed_tokens_are_literal_cli_values' => $this->runtimeArgumentAtFileTokens($argv) !== [],
                 'argfile_boundary' => $this->runtimeArgumentAtFileBoundary($argv),
+                'end_of_options_boundary' => $endOfOptionsBoundary,
+                'end_of_options_terminator_supported' => true,
+                'end_of_options_separator_touches_filesystem' => false,
             ],
             'blocked_by' => 'parse_args',
             'blocked_stages' => $this->runtimeArgumentBlockedStages(),
@@ -583,6 +599,8 @@ final class SingleDocumentConverter
                 '--batch_multiplier' => ['type' => 'int', 'default' => 2, 'dest' => 'batch_multiplier'],
             ],
             'allow_abbrev' => true,
+            'end_of_options_terminator' => '--',
+            'supports_end_of_options_terminator' => true,
             'fromfile_prefix_chars' => null,
             'expands_response_files' => false,
             'at_file_tokens_are_literals' => true,
@@ -657,6 +675,42 @@ final class SingleDocumentConverter
             'tokens_remain_in_argv' => true,
             'reads_at_files_before_parse_args' => false,
             'filesystem_touched_before_error' => false,
+            'blocks_model_load' => false,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_streamlit' => false,
+            'executes_fastapi' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array<string, mixed>
+     */
+    private function runtimeArgumentEndOfOptionsBoundary(array $tokens): array
+    {
+        $terminatorIndex = array_search('--', $tokens, true);
+        $terminatorSeen = is_int($terminatorIndex);
+        $tokensAfterTerminator = $terminatorSeen ? array_slice($tokens, $terminatorIndex + 1) : [];
+        $optionLikeTokens = array_values(array_filter(
+            $tokensAfterTerminator,
+            static fn (string $token): bool => str_starts_with($token, '-')
+        ));
+
+        return [
+            'source' => 'convert_single.py argparse -- end-of-options boundary',
+            'argument_parser_call' => 'parser.parse_args()',
+            'terminator' => '--',
+            'terminator_seen' => $terminatorSeen,
+            'terminator_index' => $terminatorSeen ? $terminatorIndex : null,
+            'tokens_after_terminator' => $tokensAfterTerminator,
+            'token_count_after_terminator' => count($tokensAfterTerminator),
+            'option_like_tokens_after_terminator' => $optionLikeTokens,
+            'option_like_token_count_after_terminator' => count($optionLikeTokens),
+            'option_like_tokens_after_terminator_are_positionals' => $optionLikeTokens !== [],
+            'terminator_consumed_by_argparse' => $terminatorSeen,
+            'filesystem_touched_before_terminator_handling' => false,
             'blocks_model_load' => false,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,

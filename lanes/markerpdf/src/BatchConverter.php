@@ -411,6 +411,7 @@ final class BatchConverter
             static fn (int $count): bool => $count > 1
         );
         $repeatedOptions = array_keys($repeatedOptionCounts);
+        $endOfOptionsBoundary = $this->runtimeMainArgparseEndOfOptionsBoundary($tokens);
 
         return [
             'schema' => 'markerpdf.convert_main_argparse_preflight.v1',
@@ -442,6 +443,9 @@ final class BatchConverter
                 'error_argument' => null,
                 'error_message' => null,
                 'missing_required_arguments' => [],
+                'end_of_options_terminator_seen' => $endOfOptionsBoundary['terminator_seen'],
+                'end_of_options_terminator_index' => $endOfOptionsBoundary['terminator_index'],
+                'option_like_tokens_after_terminator_are_positionals' => $endOfOptionsBoundary['option_like_tokens_after_terminator_are_positionals'],
                 'filesystem_touched_before_error' => false,
                 'blocks_runtime_preflight' => false,
             ],
@@ -460,6 +464,7 @@ final class BatchConverter
                 'repeated_option_counts' => $repeatedOptionCounts,
                 'last_occurrence_wins' => $repeatedOptions !== [],
                 'argfile_boundary' => $this->runtimeMainArgparseAtFileBoundary($tokens),
+                'end_of_options_boundary' => $endOfOptionsBoundary,
             ],
             'semantic_boundaries' => [
                 'input_folder_exists_checked_by_argparse' => false,
@@ -477,6 +482,9 @@ final class BatchConverter
                 'at_file_tokens_expand_before_parse' => false,
                 'at_prefixed_tokens_seen' => $this->runtimeMainArgparseAtFileTokens($tokens) !== [],
                 'at_prefixed_tokens_are_literal_cli_values' => $this->runtimeMainArgparseAtFileTokens($tokens) !== [],
+                'end_of_options_terminator_supported' => true,
+                'end_of_options_separator_touches_filesystem' => false,
+                'option_like_positionals_allowed_after_terminator' => $endOfOptionsBoundary['option_like_tokens_after_terminator_are_positionals'],
             ],
             'blocked_by' => null,
             'blocked_stages' => [],
@@ -4300,6 +4308,8 @@ final class BatchConverter
         ?string $errorArgument = null,
         array $missingRequiredArguments = []
     ): array {
+        $endOfOptionsBoundary = $this->runtimeMainArgparseEndOfOptionsBoundary($argv);
+
         return [
             'schema' => 'markerpdf.convert_main_argparse_preflight.v1',
             'source' => 'sddai/markerPDF convert.py::main argparse.ArgumentParser.parse_args',
@@ -4330,6 +4340,9 @@ final class BatchConverter
                 'error_argument' => $errorArgument,
                 'error_message' => $message,
                 'missing_required_arguments' => $missingRequiredArguments,
+                'end_of_options_terminator_seen' => $endOfOptionsBoundary['terminator_seen'],
+                'end_of_options_terminator_index' => $endOfOptionsBoundary['terminator_index'],
+                'option_like_tokens_after_terminator_are_positionals' => $endOfOptionsBoundary['option_like_tokens_after_terminator_are_positionals'],
                 'filesystem_touched_before_error' => false,
                 'blocks_runtime_preflight' => true,
             ],
@@ -4345,6 +4358,9 @@ final class BatchConverter
                 'at_prefixed_tokens_seen' => $this->runtimeMainArgparseAtFileTokens($argv) !== [],
                 'at_prefixed_tokens_are_literal_cli_values' => $this->runtimeMainArgparseAtFileTokens($argv) !== [],
                 'argfile_boundary' => $this->runtimeMainArgparseAtFileBoundary($argv),
+                'end_of_options_boundary' => $endOfOptionsBoundary,
+                'end_of_options_terminator_supported' => true,
+                'end_of_options_separator_touches_filesystem' => false,
             ],
             'blocked_by' => 'parse_args',
             'blocked_stages' => $this->runtimeMainArgparseBlockedStages(),
@@ -4421,6 +4437,8 @@ final class BatchConverter
                 '--min_length' => ['type' => 'int', 'default' => null, 'dest' => 'min_length'],
             ],
             'allow_abbrev' => true,
+            'end_of_options_terminator' => '--',
+            'supports_end_of_options_terminator' => true,
             'fromfile_prefix_chars' => null,
             'expands_response_files' => false,
             'at_file_tokens_are_literals' => true,
@@ -4499,6 +4517,40 @@ final class BatchConverter
             'tokens_remain_in_argv' => true,
             'reads_at_files_before_parse_args' => false,
             'filesystem_touched_before_error' => false,
+            'blocks_runtime_preflight' => false,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array<string, mixed>
+     */
+    private function runtimeMainArgparseEndOfOptionsBoundary(array $tokens): array
+    {
+        $terminatorIndex = array_search('--', $tokens, true);
+        $terminatorSeen = is_int($terminatorIndex);
+        $tokensAfterTerminator = $terminatorSeen ? array_slice($tokens, $terminatorIndex + 1) : [];
+        $optionLikeTokens = array_values(array_filter(
+            $tokensAfterTerminator,
+            static fn (string $token): bool => str_starts_with($token, '-')
+        ));
+
+        return [
+            'source' => 'convert.py argparse -- end-of-options boundary',
+            'argument_parser_call' => 'parser.parse_args()',
+            'terminator' => '--',
+            'terminator_seen' => $terminatorSeen,
+            'terminator_index' => $terminatorSeen ? $terminatorIndex : null,
+            'tokens_after_terminator' => $tokensAfterTerminator,
+            'token_count_after_terminator' => count($tokensAfterTerminator),
+            'option_like_tokens_after_terminator' => $optionLikeTokens,
+            'option_like_token_count_after_terminator' => count($optionLikeTokens),
+            'option_like_tokens_after_terminator_are_positionals' => $optionLikeTokens !== [],
+            'terminator_consumed_by_argparse' => $terminatorSeen,
+            'filesystem_touched_before_terminator_handling' => false,
             'blocks_runtime_preflight' => false,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
