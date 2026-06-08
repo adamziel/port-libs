@@ -30386,14 +30386,16 @@ final class PdfTextExtractor
         }
 
         if (($xrefEntry['type'] ?? 1) === 2) {
-            $objectStreamDefinition = $this->latestDirectObjectStreamDefinition($definitions);
-            if ($objectStreamDefinition !== null) {
-                return $objectStreamDefinition;
+            $latestDefinition = $this->latestDirectObjectDefinition($definitions);
+            if ($latestDefinition === null) {
+                return null;
             }
 
-            $xrefStreamDefinition = $this->latestDirectXrefStreamDefinition($definitions);
-            if ($xrefStreamDefinition !== null) {
-                return $xrefStreamDefinition;
+            if (
+                $this->objectBodyHasTypeName($latestDefinition['body'], 'ObjStm')
+                || $this->objectBodyHasTypeName($latestDefinition['body'], 'XRef')
+            ) {
+                return $latestDefinition;
             }
 
             return null;
