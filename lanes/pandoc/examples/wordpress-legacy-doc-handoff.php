@@ -2707,6 +2707,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'out-of-range CFB FAT pointer on physical sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32($unusedPhysicalSectorId + 16), $unownedFatMarkerEntryOffset, 4),
         'unowned CFB FATSECT marker on physical sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32(0xfffffffd), $unownedFatMarkerEntryOffset, 4),
         'unowned CFB DIFSECT marker on physical sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32(0xfffffffc), $unownedFatMarkerEntryOffset, 4),
+        'unreferenced CFB allocated sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32($end), $unownedFatMarkerEntryOffset, 4),
         'CFB root sibling directory reference' => substr_replace($docBytes, $u32($wordDocumentDirectoryId), $directoryFieldOffset(0, 68), 4),
         'CFB stream child directory reference' => substr_replace($docBytes, $u32($objectPoolDirectoryId), $directoryFieldOffset($wordDocumentDirectoryId, 76), 4),
         'CFB stream storage CLSID metadata' => substr_replace($docBytes, "\x01", $directoryFieldOffset($wordDocumentDirectoryId, 80), 1),

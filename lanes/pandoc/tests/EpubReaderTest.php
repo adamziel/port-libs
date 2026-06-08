@@ -4190,6 +4190,139 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB XHTML link resource policy for static review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $linkedXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>Linked review chapter</title>
+    <link id="local-style" class="review-css" rel="stylesheet" href="../styles/linked.css" type="text/css" media="screen"/>
+    <link id="remote-preload" rel="preload" as="image" href="https://cdn.example.test/epub/hero.png" type="image/png" crossorigin="anonymous"/>
+    <link id="canonical-chapter" rel="canonical" href="chapter1.xhtml#intro" hreflang="en"/>
+    <link id="alternate-record" rel="alternate" href="../meta/feed.json" type="application/json" title="Review feed"/>
+    <link id="missing-icon" rel="icon" href="../images/missing-icon.png" sizes="any"/>
+    <link id="bad-preload" rel="preload" href="../images/cover.png"/>
+    <link id="untyped-link" href="../styles/linked.css"/>
+    <link id="empty-style" rel="stylesheet"/>
+  </head>
+  <body><p>XHTML link resource policy stays inert for WordPress import review.</p></body>
+</html>
+XML;
+        $opfWithLinkedContent = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="linked-content" href="text/linked.xhtml" media-type="application/xhtml+xml"/>'
+                . '<item id="linked-style" href="styles/linked.css" media-type="text/css"/>'
+                . '<item id="alternate-feed" href="meta/feed.json" media-type="application/json"/>'
+                . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithLinkedContent = str_replace(
+            '</spine>',
+            '<itemref idref="linked-content"/></spine>',
+            $opfWithLinkedContent
+        );
+
+        $linkedCss = 'body { color: #222; }';
+        $feedJson = '{"source":"epub-xhtml-link"}';
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithLinkedContent,
+            null,
+            [
+                ['name' => 'OEBPS/text/linked.xhtml', 'data' => $linkedXhtml],
+                ['name' => 'OEBPS/styles/linked.css', 'data' => $linkedCss],
+                ['name' => 'OEBPS/meta/feed.json', 'data' => $feedJson],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/linked.xhtml'];
+
+        $t->same(1, $report['linkAssetCount']);
+        $t->same(8, $report['linkCount']);
+        $t->same(4, $report['activeLinkCount']);
+        $t->same(4, $report['passiveLinkCount']);
+        $t->same(6, $report['linkReviewRequiredCount']);
+        $t->same(1, $report['externalReferenceCount']);
+        $t->same(1, $report['missingReferenceCount']);
+        $t->same(['linked-resources', 'remote-resources', 'missing-references'], $asset['reviewFlags']);
+        $t->same(true, $asset['flags']['linkedResources']);
+        $t->same(8, $asset['linkCount']);
+        $t->same(4, $asset['activeLinkCount']);
+        $t->same(4, $asset['passiveLinkCount']);
+        $t->same(6, $asset['linkReviewRequiredCount']);
+
+        $localStyle = $asset['links'][0];
+        $t->same('local-style', $localStyle['id']);
+        $t->same(['stylesheet'], $localStyle['rel']);
+        $t->same('stylesheet', $localStyle['policy']);
+        $t->same(true, $localStyle['active']);
+        $t->same('../styles/linked.css', $localStyle['href']);
+        $t->same('/OEBPS/styles/linked.css', $localStyle['part']);
+        $t->same('linked-style', $localStyle['manifestId']);
+        $t->same('text/css', $localStyle['declaredType']);
+        $t->same('screen', $localStyle['media']);
+        $t->same(strlen($linkedCss), $localStyle['byteLength']);
+        $t->same(hash('sha256', $linkedCss), $localStyle['byteSha256']);
+        $t->same('active-xhtml-link-resource', $localStyle['diagnostics'][0]['type']);
+
+        $remotePreload = $asset['links'][1];
+        $t->same('remote-preload', $remotePreload['id']);
+        $t->same('preload', $remotePreload['policy']);
+        $t->same('image', $remotePreload['as']);
+        $t->same(true, $remotePreload['external']);
+        $t->same('https://cdn.example.test/epub/hero.png', $remotePreload['target']);
+        $t->same('external-xhtml-link-resource-reference', $remotePreload['diagnostics'][1]['type']);
+
+        $canonical = $asset['links'][2];
+        $t->same('canonical', $canonical['policy']);
+        $t->same(false, $canonical['active']);
+        $t->same('en', $canonical['hreflang']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $canonical['target']);
+        $t->same('chapter-1', $canonical['manifestId']);
+        $t->same([], $canonical['diagnostics']);
+
+        $alternate = $asset['links'][3];
+        $t->same('alternate', $alternate['policy']);
+        $t->same('/OEBPS/meta/feed.json', $alternate['part']);
+        $t->same('alternate-feed', $alternate['manifestId']);
+        $t->same(hash('sha256', $feedJson), $alternate['byteSha256']);
+        $t->same('Review feed', $alternate['title']);
+
+        $missingIcon = $asset['links'][4];
+        $t->same('icon', $missingIcon['policy']);
+        $t->same(false, $missingIcon['exists']);
+        $t->same('/OEBPS/images/missing-icon.png', $missingIcon['part']);
+        $t->same('missing-xhtml-link-resource-reference', $missingIcon['diagnostics'][0]['type']);
+
+        $badPreload = $asset['links'][5];
+        $t->same('preload', $badPreload['policy']);
+        $t->same(null, $badPreload['as']);
+        $t->same('xhtml-link-preload-missing-as', $badPreload['diagnostics'][1]['type']);
+
+        $untyped = $asset['links'][6];
+        $t->same('untyped', $untyped['policy']);
+        $t->same(['missing-xhtml-link-rel'], array_column($untyped['diagnostics'], 'type'));
+
+        $empty = $asset['links'][7];
+        $t->same('stylesheet', $empty['policy']);
+        $t->same(null, $empty['href']);
+        $t->same(['missing-xhtml-link-href', 'active-xhtml-link-resource'], array_column($empty['diagnostics'], 'type'));
+
+        $t->same(8, count($report['linkItems']));
+        $t->same(9, count($report['linkDiagnostics']));
+        $t->same('active-xhtml-link-resource', $report['linkDiagnostics'][0]['type']);
+        $t->same('external-xhtml-link-resource-reference', $report['linkDiagnostics'][2]['type']);
+        $t->same('missing-xhtml-link-resource-reference', $report['linkDiagnostics'][3]['type']);
+        $t->same('missing-xhtml-link-rel', $report['linkDiagnostics'][6]['type']);
+        $t->same('missing-xhtml-link-href', $report['linkDiagnostics'][7]['type']);
+
+        $scanBlock = $result['document']->children[2];
+        $t->same('/OEBPS/text/linked.xhtml', $scanBlock->attr('part'));
+        $t->same($asset['links'], $scanBlock->attr('contentLinks'));
+        $t->same($asset['linkDiagnostics'], $scanBlock->attr('contentLinkDiagnostics'));
+        $t->same($asset['reviewFlags'], $scanBlock->attr('contentResourceReviewFlags'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reports EPUB stylesheet resource references for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithCssAssets = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

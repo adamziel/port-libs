@@ -3652,6 +3652,93 @@ XML);
         $t->contains('<p>Short journal source Doe (2026) keeps abbreviation metadata for review.</p>', $blocks);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Abbreviated Field Notes. Journal of Imported Sources. Journal abbreviation: J. Import. Sources. 2026. 12-18. https://example.test/short-journal. ISSN 2468-1357.</dd>', $blocks);
     },
+    'maps bounded biblatex short series into csl collection title short metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{series-short-detail,
+  author       = {Curator, Eli},
+  title        = {Source Series Handbook},
+  date         = {2026},
+  series       = {Migration Review Studies},
+  shortseries  = {Migr. Rev. Stud.},
+  seriesnumber = {5},
+  publisher    = {Review Press}
+}
+
+@incollection{series-short-alias,
+  author       = {Ng, Nia},
+  title        = {Attachment Series Notes},
+  booktitle    = {Import Handbook},
+  date         = {2025},
+  series       = {Source Notes Series},
+  series-short = {Src. Notes Ser.},
+  seriesnumber = {12}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Migration Review Studies', $items[0]['collection-title'] ?? null);
+        $t->same('Migr. Rev. Stud.', $items[0]['collection-title-short'] ?? null);
+        $t->same('Source Notes Series', $items[1]['collection-title'] ?? null);
+        $t->same('Src. Notes Ser.', $items[1]['collection-title-short'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $series = $processor->item('series-short-detail');
+        $alias = $processor->item('series-short-alias');
+        $t->same('Migr. Rev. Stud.', $series['collectionTitleShort'] ?? null);
+        $t->same('Src. Notes Ser.', $alias['collectionTitleShort'] ?? null);
+        $t->same('(Curator 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('series-short-detail', '[@series-short-detail]'),
+            $citation('series-short-alias', '[@series-short-alias]'),
+        ]));
+        $t->same(
+            'Curator, Eli. Source Series Handbook. Migration Review Studies, no. 5. Series abbreviation: Migr. Rev. Stud. Review Press, 2026.',
+            $processor->renderBibliographyEntry('series-short-detail')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="collection-title"/>
+        <text variable="collection-title" form="short"/>
+        <text variable="collection-title-short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="collection-title"/>
+      <text variable="collection-title" form="short"/>
+      <text variable="collection-title-short"/>
+      <text variable="collection-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Curator | Migration Review Studies | Migr. Rev. Stud. | Migr. Rev. Stud.; Ng | Source Notes Series | Src. Notes Ser. | Src. Notes Ser.]', $styled->renderCitationCluster([
+            $citation('series-short-detail', '[@series-short-detail]'),
+            $citation('series-short-alias', '[@series-short-alias]'),
+        ]));
+        $t->same('Source Series Handbook :: Migration Review Studies :: Migr. Rev. Stud. :: Migr. Rev. Stud. :: 5', $styled->renderBibliographyEntry('series-short-detail'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-short-series',
+            'title' => 'Manual Short Series',
+            'collection-title' => 'Manual Series',
+            'collection-title-short' => 'Man. Ser.',
+        ]])->item('manual-short-series');
+        $t->same('Man. Ser.', $manual['collectionTitleShort'] ?? null);
+
+        $document = (new MarkdownReader())->read('Series source @series-short-detail and packet [@series-short-alias] keep collection abbreviations.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Series source Curator (2026) and packet (Ng 2025) keep collection abbreviations.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Source Series Handbook. Migration Review Studies, no. 5. Series abbreviation: Migr. Rev. Stud. Review Press, 2026.</dd>', $blocks);
+    },
     'maps bounded biblatex page first metadata for page ranges' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{range-detail,

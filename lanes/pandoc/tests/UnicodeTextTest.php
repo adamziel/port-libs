@@ -510,6 +510,27 @@ return [
         $t->contains('<h1 id="importação">Importação</h1>', $blocks);
         $t->contains('<p>Português: Conteúdo, Ônibus, São Tomé, açúcar; «citação»; £/₧.</p>', $blocks);
     },
+    'decodes ibm865 dos nordic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# DOS 865\n\nDansk: K\x9Bbenhavn, sm\x9Brrebr\x9Bd, bl\x86b\x91r; Norsk: \x92\x9D\x8F; Islandsk: \xD1\xD0 \xE8\xE7; \xAF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp865');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm865');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x86\x8F\x91\x92\x9B\x9D\xD0\xD1\xE7\xE8\xAF", 'ibm865');
+        $ibm850Comparison = UnicodeText::decodeBytes("\xAF", 'ibm850');
+
+        $t->same('ibm865', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# DOS 865\n\nDansk: København, smørrebrød, blåbær; Norsk: ÆØÅ; Islandsk: Ðð Þþ; ¤.", $decoded['text']);
+        $t->same('åÅæÆøØðÐþÞ¤', $specials['text']);
+        $t->same('»', $ibm850Comparison['text']);
+        $t->same(['encoding' => 'ibm865', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('DOS 865', $document->children[0]->attr('text'));
+        $t->same('Dansk: København, smørrebrød, blåbær; Norsk: ÆØÅ; Islandsk: Ðð Þþ; ¤.', $document->children[1]->attr('text'));
+        $t->same(69, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(80, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="dos-865">DOS 865</h1>', $blocks);
+        $t->contains('<p>Dansk: København, smørrebrød, blåbær; Norsk: ÆØÅ; Islandsk: Ðð Þþ; ¤.</p>', $blocks);
+    },
     'decodes ibm863 dos canadian french source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# DOS 863\n\nQu\x82bec H\x93tel; co\x96t; \x90t\x82; fractions \xAB\xAC\xAD; monnaie \x9B\x9C\x98; box \xC9\xCD\xBB; \x8D.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp863');

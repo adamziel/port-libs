@@ -669,6 +669,7 @@ final class BibtexCslParser
             'issue-title-addon' => self::firstField($fields, ['issuetitleaddon']),
             'edition' => self::firstField($fields, ['edition']),
             'collection-title' => self::firstField($fields, ['series']),
+            'collection-title-short' => self::firstField($fields, ['shortseries', 'short-series', 'series-short', 'shortcollection', 'collection-title-short', 'collectiontitleshort']),
             'collection-number' => self::firstField($fields, ['seriesnumber', 'series-number', 'collectionnumber', 'collection-number']),
             'number-of-volumes' => self::firstField($fields, ['volumes']),
             'number-of-pages' => self::firstField($fields, ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages']),

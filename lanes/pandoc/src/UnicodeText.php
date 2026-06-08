@@ -1406,6 +1406,11 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const IBM865_REPLACEMENTS = [
+        0xaf => 0x00a4,
+    ];
+
+    /** @var array<int, int> */
     private const IBM866_REPLACEMENTS = [
         0x80 => 0x0410,
         0x81 => 0x0411,
@@ -2969,6 +2974,7 @@ final class UnicodeText
             || $normalized === 'ibm852'
             || $normalized === 'ibm860'
             || $normalized === 'ibm863'
+            || $normalized === 'ibm865'
             || $normalized === 'ibm866'
             || $normalized === 'iso-8859-1'
             || $normalized === 'iso-8859-2'
@@ -3603,6 +3609,7 @@ final class UnicodeText
             '852', 'cp852', 'ibm852', 'dos852', 'xcp852', 'oem852', 'cspc852', 'cspcp852', 'csibm852' => 'ibm852',
             '860', 'cp860', 'ibm860', 'dos860', 'xcp860', 'oem860', 'csibm860' => 'ibm860',
             '863', 'cp863', 'ibm863', 'dos863', 'xcp863', 'oem863', 'csibm863' => 'ibm863',
+            '865', 'cp865', 'ibm865', 'dos865', 'xcp865', 'oem865', 'csibm865' => 'ibm865',
             '866', 'cp866', 'csibm866', 'dos866', 'ibm866', 'xcp866' => 'ibm866',
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
             'iso88592', 'iso88592:1987', 'latin2', 'latin-2', 'l2', 'isoir101', 'csisolatin2' => 'iso-8859-2',
@@ -4267,6 +4274,10 @@ final class UnicodeText
             }
             if ($encoding === 'ibm863' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::IBM863_REPLACEMENTS[$byte] ?? self::IBM437_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'ibm865' && $byte >= 0x80) {
+                $out .= self::fromCodepoint(self::IBM865_REPLACEMENTS[$byte] ?? self::IBM850_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'iso-8859-2' && isset(self::ISO_8859_2_REPLACEMENTS[$byte])) {

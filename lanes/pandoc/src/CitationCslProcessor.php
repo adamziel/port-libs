@@ -883,6 +883,7 @@ final class CitationCslProcessor
             'issueTitleAddon' => self::firstStringField($item, ['issue-title-addon', 'issueTitleAddon', 'issuetitleaddon']),
             'edition' => self::stringField($item, 'edition'),
             'collectionTitle' => self::firstStringField($item, ['collection-title', 'collectionTitle']),
+            'collectionTitleShort' => self::firstStringField($item, ['collection-title-short', 'collectionTitleShort', 'shortseries', 'short-series', 'series-short']),
             'collectionNumber' => self::firstStringField($item, ['collection-number', 'collectionNumber']),
             'numberOfVolumes' => self::firstStringField($item, ['number-of-volumes', 'numberOfVolumes']),
             'numberOfPages' => self::firstStringField($item, ['number-of-pages', 'numberOfPages']),
@@ -5643,6 +5644,7 @@ final class CitationCslProcessor
         }
 
         $collectionTitle = (string) ($item['collectionTitle'] ?? '');
+        $collectionTitleShort = (string) ($item['collectionTitleShort'] ?? '');
         $collectionNumber = (string) ($item['collectionNumber'] ?? '');
         if ($collectionTitle !== '' && $collectionNumber !== '') {
             $parts[] = $collectionTitle . ', ' . $this->style->term('number', 'short') . ' ' . $collectionNumber . '.';
@@ -5650,6 +5652,9 @@ final class CitationCslProcessor
             $parts[] = 'Series: ' . rtrim($collectionTitle, '.') . '.';
         } elseif ($collectionNumber !== '') {
             $parts[] = 'Series ' . $this->style->term('number', 'short') . ' ' . $collectionNumber . '.';
+        }
+        if ($collectionTitleShort !== '') {
+            $parts[] = 'Series abbreviation: ' . rtrim($collectionTitleShort, '.') . '.';
         }
 
         $part = (string) ($item['part'] ?? '');
@@ -7623,6 +7628,7 @@ final class CitationCslProcessor
             'issue-title-addon', 'issuetitleaddon' => (string) ($item['issueTitleAddon'] ?? ''),
             'edition' => (string) $item['edition'],
             'collection-title' => (string) $item['collectionTitle'],
+            'collection-title-short' => (string) ($item['collectionTitleShort'] ?? ''),
             'collection-number' => (string) $item['collectionNumber'],
             'number-of-volumes' => (string) $item['numberOfVolumes'],
             'number-of-pages' => (string) $item['numberOfPages'],
@@ -7898,6 +7904,7 @@ final class CitationCslProcessor
         return match ($normalizedVariable) {
             'title' => (string) ($item['shortTitle'] !== '' ? $item['shortTitle'] : $item['title']),
             'container-title' => (string) ($item['containerTitleShort'] !== '' ? $item['containerTitleShort'] : $item['containerTitle']),
+            'collection-title' => (string) (($item['collectionTitleShort'] ?? '') !== '' ? $item['collectionTitleShort'] : $item['collectionTitle']),
             default => $this->renderVariableValue($item, $variable, $scope, $citation),
         };
     }

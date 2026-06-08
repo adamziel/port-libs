@@ -448,6 +448,7 @@ final class OdfReader
         $metadata = [
             'keywords' => [],
             'userDefined' => [],
+            'userDefinedDetails' => [],
         ];
         foreach (self::childElements($metaElement) as $child) {
             if ($child->namespaceURI === self::DC_NS) {
@@ -514,9 +515,14 @@ final class OdfReader
                 continue;
             }
             if ($child->localName === 'user-defined') {
-                $name = self::attr($child, self::META_NS, 'name');
+                $userDefined = $this->metaUserDefinedMetadata($child);
+                $name = (string) ($userDefined['name'] ?? '');
                 if ($name !== '') {
-                    $metadata['userDefined'][$name] = self::normalizedText($child);
+                    $metadata['userDefined'][$name] = (string) ($userDefined['displayValue'] ?? '');
+                    if ($this->hasTypedUserDefinedMetadata($userDefined)) {
+                        unset($userDefined['name']);
+                        $metadata['userDefinedDetails'][$name] = $userDefined;
+                    }
                 }
             }
         }
@@ -527,8 +533,84 @@ final class OdfReader
         if ($metadata['userDefined'] === []) {
             unset($metadata['userDefined']);
         }
+        if ($metadata['userDefinedDetails'] === []) {
+            unset($metadata['userDefinedDetails']);
+        }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaUserDefinedMetadata(\DOMElement $element): array
+    {
+        $stringValue = $this->odfMetaTypedAttribute($element, 'string-value');
+        $value = $this->odfMetaTypedAttribute($element, 'value');
+        $dateValue = $this->odfMetaTypedAttribute($element, 'date-value');
+        $timeValue = $this->odfMetaTypedAttribute($element, 'time-value');
+        $booleanValue = self::nullableBool($this->odfMetaTypedAttribute($element, 'boolean-value'));
+        $visibleText = self::normalizedText($element);
+
+        $metadata = self::withoutEmpty([
+            'name' => self::nullable(self::attr($element, self::META_NS, 'name')),
+            'valueType' => self::nullable($this->odfMetaTypedAttribute($element, 'value-type')),
+            'value' => self::nullable($value),
+            'currency' => self::nullable($this->odfMetaTypedAttribute($element, 'currency')),
+            'booleanValue' => $booleanValue,
+            'stringValue' => self::nullable($stringValue),
+            'dateValue' => self::nullable($dateValue),
+            'timeValue' => self::nullable($timeValue),
+        ]);
+        $metadata['displayValue'] = $this->metaUserDefinedDisplayValue($visibleText, $metadata);
+
+        return $metadata;
+    }
+
+    private function odfMetaTypedAttribute(\DOMElement $element, string $localName): string
+    {
+        $value = self::attr($element, self::META_NS, $localName);
+        if ($value !== '') {
+            return $value;
+        }
+
+        return self::attr($element, self::OFFICE_NS, $localName);
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function metaUserDefinedDisplayValue(string $visibleText, array $metadata): string
+    {
+        if ($visibleText !== '') {
+            return $visibleText;
+        }
+
+        foreach (['stringValue', 'value', 'dateValue', 'timeValue', 'booleanValue'] as $name) {
+            $value = $metadata[$name] ?? null;
+            if (is_bool($value)) {
+                return $value ? 'true' : 'false';
+            }
+            if (is_scalar($value) && (string) $value !== '') {
+                return (string) $value;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function hasTypedUserDefinedMetadata(array $metadata): bool
+    {
+        foreach (['valueType', 'value', 'currency', 'booleanValue', 'stringValue', 'dateValue', 'timeValue'] as $name) {
+            if (array_key_exists($name, $metadata)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

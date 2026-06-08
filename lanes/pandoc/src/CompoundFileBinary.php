@@ -454,12 +454,14 @@ final class CompoundFileBinary
     private function validateSectorAllocation(array $fatSectorIds, array $difatSectorIds): void
     {
         $reserved = [];
-        $markReserved = static function (array $sectorIds, string $role) use (&$reserved): void {
+        $ownedSectors = [];
+        $markReserved = static function (array $sectorIds, string $role) use (&$reserved, &$ownedSectors): void {
             foreach ($sectorIds as $sectorId) {
                 if (isset($reserved[$sectorId])) {
                     throw new \RuntimeException('CFB sector is assigned to multiple metadata chains: ' . $role);
                 }
                 $reserved[$sectorId] = $role;
+                $ownedSectors[$sectorId] = $role;
             }
         };
 
@@ -536,6 +538,14 @@ final class CompoundFileBinary
                     throw new \RuntimeException('CFB stream sector is shared by multiple streams: ' . $name);
                 }
                 $regularStreamSectors[$sectorId] = $name;
+                $ownedSectors[$sectorId] = $name;
+            }
+        }
+
+        for ($sectorId = 0; $sectorId < $sectorCount; $sectorId++) {
+            $fatEntry = $this->fat[$sectorId] ?? self::FREESECT;
+            if ($fatEntry !== self::FREESECT && !isset($ownedSectors[$sectorId])) {
+                throw new \RuntimeException('CFB FAT marks an unreferenced sector as allocated');
             }
         }
     }

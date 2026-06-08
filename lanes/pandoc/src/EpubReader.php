@@ -10200,6 +10200,8 @@ final class EpubReader
                 'contentViewport' => $contentReport['metadata']['viewport'],
                 'contentViewports' => $contentReport['metadata']['viewports'],
                 'contentReferences' => $contentReport['references'],
+                'contentLinks' => $contentReport['links'],
+                'contentLinkDiagnostics' => $contentReport['linkDiagnostics'],
                 'contentScripts' => $contentReport['scripts'],
                 'contentScriptEventHandlers' => $contentReport['scriptEventHandlers'],
                 'contentJavascriptReferences' => $contentReport['javascriptReferences'],
@@ -12165,6 +12167,13 @@ final class EpubReader
         $viewportItems = [];
         $viewportDiagnostics = [];
         $scriptCount = 0;
+        $linkAssetCount = 0;
+        $linkCount = 0;
+        $activeLinkCount = 0;
+        $passiveLinkCount = 0;
+        $linkReviewRequiredCount = 0;
+        $linkItems = [];
+        $linkDiagnostics = [];
         $scriptEventHandlerCount = 0;
         $javascriptReferenceCount = 0;
         $scriptItems = [];
@@ -12208,6 +12217,22 @@ final class EpubReader
                 'metadataDiagnostics' => is_array($metadata['diagnostics'] ?? null) ? array_values($metadata['diagnostics']) : [],
                 'referenceCount' => count(is_array($report['references'] ?? null) ? $report['references'] : []),
                 'references' => is_array($report['references'] ?? null) ? array_values($report['references']) : [],
+                'linkCount' => count(is_array($report['links'] ?? null) ? $report['links'] : []),
+                'links' => is_array($report['links'] ?? null) ? array_values($report['links']) : [],
+                'activeLinkCount' => count(array_filter(
+                    is_array($report['links'] ?? null) ? $report['links'] : [],
+                    static fn (array $link): bool => ($link['active'] ?? false) === true,
+                )),
+                'passiveLinkCount' => count(array_filter(
+                    is_array($report['links'] ?? null) ? $report['links'] : [],
+                    static fn (array $link): bool => ($link['active'] ?? false) !== true,
+                )),
+                'linkReviewRequiredCount' => count(array_filter(
+                    is_array($report['links'] ?? null) ? $report['links'] : [],
+                    static fn (array $link): bool => ($link['requiresReview'] ?? false) === true,
+                )),
+                'linkDiagnosticCount' => count(is_array($report['linkDiagnostics'] ?? null) ? $report['linkDiagnostics'] : []),
+                'linkDiagnostics' => is_array($report['linkDiagnostics'] ?? null) ? array_values($report['linkDiagnostics']) : [],
                 'scriptCount' => count(is_array($report['scripts'] ?? null) ? $report['scripts'] : []),
                 'scripts' => is_array($report['scripts'] ?? null) ? array_values($report['scripts']) : [],
                 'scriptEventHandlerCount' => count(is_array($report['scriptEventHandlers'] ?? null) ? $report['scriptEventHandlers'] : []),
@@ -12236,6 +12261,14 @@ final class EpubReader
             ];
 
             $referenceCount += $item['referenceCount'];
+            $linkCount += $item['linkCount'];
+            $activeLinkCount += $item['activeLinkCount'];
+            $passiveLinkCount += $item['passiveLinkCount'];
+            $linkReviewRequiredCount += $item['linkReviewRequiredCount'];
+            if ($item['linkCount'] > 0) {
+                ++$linkAssetCount;
+                array_push($linkItems, ...$item['links']);
+            }
             $scriptCount += $item['scriptCount'];
             $scriptEventHandlerCount += $item['scriptEventHandlerCount'];
             $javascriptReferenceCount += $item['javascriptReferenceCount'];
@@ -12312,6 +12345,11 @@ final class EpubReader
                     'part' => $part,
                 ] + $diagnostic;
             }
+            foreach ($item['linkDiagnostics'] as $diagnostic) {
+                $linkDiagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
             foreach ($item['metadataDiagnostics'] as $diagnostic) {
                 $viewportDiagnostics[] = [
                     'part' => $part,
@@ -12336,6 +12374,13 @@ final class EpubReader
             'mathmlAssetCount' => $mathmlAssetCount,
             'svgAssetCount' => $svgAssetCount,
             'scriptedAssetCount' => $scriptedAssetCount,
+            'linkAssetCount' => $linkAssetCount,
+            'linkCount' => $linkCount,
+            'activeLinkCount' => $activeLinkCount,
+            'passiveLinkCount' => $passiveLinkCount,
+            'linkReviewRequiredCount' => $linkReviewRequiredCount,
+            'linkItems' => $linkItems,
+            'linkDiagnostics' => $linkDiagnostics,
             'scriptCount' => $scriptCount,
             'scriptEventHandlerCount' => $scriptEventHandlerCount,
             'javascriptReferenceCount' => $javascriptReferenceCount,
@@ -12389,6 +12434,7 @@ final class EpubReader
         $flags = self::emptyXhtmlContentResourceFlags();
         $references = [];
         $scripts = [];
+        $links = [];
         $scriptEventHandlers = [];
         $javascriptReferences = [];
         $switches = [];
@@ -12406,6 +12452,8 @@ final class EpubReader
                 'reviewFlags' => [],
                 'metadata' => self::emptyXhtmlContentMetadataReport($part),
                 'references' => [],
+                'links' => [],
+                'linkDiagnostics' => [],
                 'scripts' => [],
                 'scriptEventHandlers' => [],
                 'javascriptReferences' => [],
@@ -12440,6 +12488,7 @@ final class EpubReader
                 $manifestByPart,
                 $flags,
                 $references,
+                $links,
                 $scripts,
                 $scriptEventHandlers,
                 $javascriptReferences,
@@ -12464,6 +12513,16 @@ final class EpubReader
             }
         }
         $scriptDiagnostics = [];
+        $linkDiagnostics = [];
+        foreach ($links as $link) {
+            foreach ($link['diagnostics'] as $diagnostic) {
+                $linkDiagnostics[] = [
+                    'linkIndex' => $link['index'],
+                    'linkId' => $link['id'],
+                ] + $diagnostic;
+            }
+        }
+        array_push($diagnostics, ...$linkDiagnostics);
         foreach ($scripts as $script) {
             foreach ($script['diagnostics'] as $diagnostic) {
                 $scriptDiagnostics[] = [
@@ -12530,6 +12589,8 @@ final class EpubReader
             'reviewFlags' => self::xhtmlContentReviewFlags($flags),
             'metadata' => $metadata,
             'references' => $references,
+            'links' => $links,
+            'linkDiagnostics' => $linkDiagnostics,
             'scripts' => $scripts,
             'scriptEventHandlers' => $scriptEventHandlers,
             'javascriptReferences' => $javascriptReferences,
@@ -12853,6 +12914,7 @@ final class EpubReader
      * @param array<string, array<string, mixed>> $manifestByPart
      * @param array<string, bool> $flags
      * @param list<array<string, mixed>> $references
+     * @param list<array<string, mixed>> $links
      * @param list<array<string, mixed>> $scripts
      * @param list<array<string, mixed>> $scriptEventHandlers
      * @param list<array<string, mixed>> $javascriptReferences
@@ -12868,6 +12930,7 @@ final class EpubReader
         array $manifestByPart,
         array &$flags,
         array &$references,
+        array &$links,
         array &$scripts,
         array &$scriptEventHandlers,
         array &$javascriptReferences,
@@ -12894,6 +12957,28 @@ final class EpubReader
                 $manifestByPart,
                 count($scripts)
             );
+        }
+        if ($namespace === self::XHTML_NS && $localName === 'link') {
+            $link = $this->xhtmlLinkReport(
+                $package,
+                $part,
+                $element,
+                $manifestByPart,
+                count($links)
+            );
+            if ($link['active'] || ($link['requiresReview'] ?? false) === true) {
+                $flags['linkedResources'] = true;
+            }
+            if (($link['external'] ?? false) === true) {
+                $flags['remoteResources'] = true;
+            }
+            if (($link['exists'] ?? true) !== true && ($link['external'] ?? false) !== true) {
+                $flags['missingReferences'] = true;
+            }
+            if (($link['encrypted'] ?? false) === true) {
+                $flags['encryptedReferences'] = true;
+            }
+            $links[] = $link;
         }
         if ($namespace === self::EPUB_OPS_NS && $localName === 'switch') {
             $flags['switch'] = true;
@@ -13003,6 +13088,7 @@ final class EpubReader
                 $manifestByPart,
                 $flags,
                 $references,
+                $links,
                 $scripts,
                 $scriptEventHandlers,
                 $javascriptReferences,
@@ -13012,6 +13098,170 @@ final class EpubReader
                 $elementIds
             );
         }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function xhtmlLinkReport(
+        ZipPackage $package,
+        string $part,
+        \DOMElement $element,
+        array $manifestByPart,
+        int $index
+    ): array {
+        $href = self::nullableAttribute($element, 'href');
+        $rel = self::spaceDelimited($element->getAttribute('rel'));
+        $relLower = array_values(array_map(
+            static fn (string $token): string => strtolower($token),
+            $rel,
+        ));
+        $policy = self::xhtmlLinkPolicy($relLower);
+        $active = in_array($policy, ['stylesheet', 'preload', 'modulepreload', 'prefetch'], true);
+        $reference = $href === null ? null : $this->packageReference(
+            $package,
+            $part,
+            $href,
+            $manifestByPart,
+            'xhtml-link-resource'
+        );
+        $diagnostics = [];
+        if ($href === null) {
+            $diagnostics[] = [
+                'type' => 'missing-xhtml-link-href',
+                'message' => 'EPUB XHTML link element is missing href',
+            ];
+        }
+        if ($rel === []) {
+            $diagnostics[] = [
+                'type' => 'missing-xhtml-link-rel',
+                'message' => 'EPUB XHTML link element is missing rel tokens',
+            ];
+        }
+        if ($active) {
+            $diagnostics[] = [
+                'type' => 'active-xhtml-link-resource',
+                'policy' => $policy,
+                'message' => 'EPUB XHTML link element declares an active resource that remains inert and requires review',
+            ];
+        }
+
+        array_push($diagnostics, ...(is_array($reference) ? $reference['diagnostics'] : []));
+
+        $as = self::nullableAttribute($element, 'as');
+        if (in_array($policy, ['preload', 'modulepreload'], true) && $as === null) {
+            $diagnostics[] = [
+                'type' => 'xhtml-link-preload-missing-as',
+                'policy' => $policy,
+                'message' => 'EPUB XHTML preload link is missing an as attribute for static package review',
+            ];
+        }
+
+        $declaredType = self::nullableAttribute($element, 'type');
+        if ($policy === 'stylesheet' && $declaredType !== null && strtolower($declaredType) !== 'text/css') {
+            $diagnostics[] = [
+                'type' => 'xhtml-stylesheet-link-non-css-type',
+                'typeAttribute' => $declaredType,
+                'message' => 'EPUB XHTML stylesheet links should declare text/css when a type attribute is present',
+            ];
+        }
+        if (is_array($reference) && ($reference['encrypted'] ?? false) === true) {
+            $diagnostics[] = [
+                'type' => 'encrypted-xhtml-link-resource',
+                'part' => $reference['part'],
+                'message' => 'EPUB XHTML link resource references an encrypted package part that cannot be exposed directly',
+            ];
+        }
+
+        $byteSha256 = null;
+        if (
+            is_array($reference)
+            && ($reference['external'] ?? false) !== true
+            && ($reference['exists'] ?? false) === true
+            && ($reference['canExposeBytes'] ?? false) === true
+            && is_string($reference['part'] ?? null)
+        ) {
+            try {
+                $byteSha256 = hash('sha256', $package->read((string) $reference['part']));
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => 'xhtml-link-resource-bytes-unavailable',
+                    'part' => $reference['part'],
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'index' => $index,
+            'sourcePart' => $part,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'relRaw' => self::nullableAttribute($element, 'rel'),
+            'rel' => $relLower,
+            'primaryRel' => $relLower[0] ?? null,
+            'policy' => $policy,
+            'active' => $active,
+            'passive' => !$active,
+            'requiresReview' => $active || $diagnostics !== [],
+            'href' => $href,
+            'target' => is_array($reference) ? $reference['target'] : null,
+            'part' => is_array($reference) ? $reference['part'] : null,
+            'fragment' => is_array($reference) ? $reference['fragment'] : null,
+            'fragmentKind' => is_array($reference) ? $reference['fragmentKind'] : null,
+            'epubCfi' => is_array($reference) ? $reference['epubCfi'] : null,
+            'mediaFragment' => is_array($reference) ? $reference['mediaFragment'] : null,
+            'external' => is_array($reference) ? $reference['external'] : false,
+            'exists' => is_array($reference) ? $reference['exists'] : null,
+            'byteLength' => is_array($reference) ? $reference['byteLength'] : null,
+            'crc32' => is_array($reference) ? $reference['crc32'] : null,
+            'byteSha256' => $byteSha256,
+            'manifestId' => is_array($reference) ? $reference['manifestId'] : null,
+            'mediaType' => is_array($reference) ? $reference['mediaType'] : null,
+            'encrypted' => is_array($reference) ? $reference['encrypted'] : false,
+            'canExposeBytes' => is_array($reference) ? $reference['canExposeBytes'] : null,
+            'declaredType' => $declaredType,
+            'media' => self::nullableAttribute($element, 'media'),
+            'hreflang' => self::nullableAttribute($element, 'hreflang'),
+            'title' => self::nullableAttribute($element, 'title'),
+            'as' => $as,
+            'sizes' => self::nullableAttribute($element, 'sizes'),
+            'color' => self::nullableAttribute($element, 'color'),
+            'crossorigin' => self::nullableAttribute($element, 'crossorigin'),
+            'integrity' => self::nullableAttribute($element, 'integrity'),
+            'referrerpolicy' => self::nullableAttribute($element, 'referrerpolicy'),
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<string> $rel
+     */
+    private static function xhtmlLinkPolicy(array $rel): string
+    {
+        foreach ([
+            'stylesheet',
+            'modulepreload',
+            'preload',
+            'prefetch',
+            'icon',
+            'canonical',
+            'alternate',
+        ] as $policy) {
+            if (in_array($policy, $rel, true)) {
+                return $policy;
+            }
+        }
+
+        return $rel === [] ? 'untyped' : 'metadata';
     }
 
     /**
@@ -13601,7 +13851,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{mathml:bool, svg:bool, scripted:bool, switch:bool, trigger:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
+     * @return array{mathml:bool, svg:bool, scripted:bool, linkedResources:bool, switch:bool, trigger:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
      */
     private static function emptyXhtmlContentResourceFlags(): array
     {
@@ -13609,6 +13859,7 @@ final class EpubReader
             'mathml' => false,
             'svg' => false,
             'scripted' => false,
+            'linkedResources' => false,
             'switch' => false,
             'trigger' => false,
             'remoteResources' => false,
@@ -13629,6 +13880,7 @@ final class EpubReader
             'mathml' => 'mathml',
             'svg' => 'svg',
             'scripted' => 'scripted',
+            'linkedResources' => 'linked-resources',
             'switch' => 'switch',
             'trigger' => 'trigger',
             'remoteResources' => 'remote-resources',
@@ -14682,6 +14934,8 @@ final class EpubReader
                 'contentViewport' => $asset['contentViewport'] ?? [],
                 'contentViewports' => $asset['contentViewports'] ?? [],
                 'contentReferences' => $asset['contentReferences'] ?? [],
+                'contentLinks' => $asset['contentLinks'] ?? [],
+                'contentLinkDiagnostics' => $asset['contentLinkDiagnostics'] ?? [],
                 'contentScripts' => $asset['contentScripts'] ?? [],
                 'contentScriptEventHandlers' => $asset['contentScriptEventHandlers'] ?? [],
                 'contentJavascriptReferences' => $asset['contentJavascriptReferences'] ?? [],

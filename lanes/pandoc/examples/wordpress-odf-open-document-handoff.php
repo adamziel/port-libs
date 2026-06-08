@@ -301,6 +301,8 @@ $metaXml = <<<'XML'
     <meta:template xlink:href="Templates/import-review.ott" xlink:type="simple" xlink:title="Import Review Template" xlink:show="replace" xlink:actuate="onRequest" meta:date="2026-06-01T10:00:00Z"/>
     <meta:auto-reload xlink:href="https://example.test/source.odt" xlink:type="simple" xlink:show="replace" xlink:actuate="onLoad" meta:delay="PT15M"/>
     <meta:hyperlink-behaviour xlink:show="new" office:target-frame-name="_blank"/>
+    <meta:user-defined meta:name="requires-legal-review" meta:value-type="boolean" office:boolean-value="true"/>
+    <meta:user-defined meta:name="source-score" meta:value-type="float" office:value="97.5"/>
     <meta:keyword>odt</meta:keyword>
     <meta:document-statistic meta:page-count="1" meta:word-count="64" meta:image-count="1"/>
   </office:meta>
@@ -386,6 +388,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['metadata']['hyperlinkBehaviour']['show'] ?? '') !== 'new'
         || ($result['metadata']['hyperlinkBehaviour']['targetFrameName'] ?? '') !== '_blank') {
         throw new RuntimeException('Expected ODT default hyperlink behaviour metadata');
+    }
+    if (($result['metadata']['userDefined']['requires-legal-review'] ?? '') !== 'true'
+        || (($result['metadata']['userDefinedDetails']['requires-legal-review']['booleanValue'] ?? null) !== true)) {
+        throw new RuntimeException('Expected typed ODT boolean user-defined metadata');
+    }
+    if (($result['metadata']['userDefined']['source-score'] ?? '') !== '97.5'
+        || (($result['metadata']['userDefinedDetails']['source-score']['valueType'] ?? '') !== 'float')) {
+        throw new RuntimeException('Expected typed ODT numeric user-defined metadata');
     }
     if (($result['media'][0]['part'] ?? '') !== 'Pictures/source hero.png') {
         throw new RuntimeException('Expected ODT image manifest media to be reported');

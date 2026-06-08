@@ -93,6 +93,9 @@ $ibm852Text = (string) $ibm852Source->children[1]->attr('text');
 $ibm860Bytes = "# Importa\x87\x84o\n\nPortugu\x88s: Conte\xA3do, \x8Cnibus, S\x84o Tom\x82, a\x87\xA3car; \xAEcita\x87\x84o\xAF; \x9C/\x9E.";
 $ibm860Source = (new MarkdownReader())->readBytes($ibm860Bytes, 'cp860');
 $ibm860Text = (string) $ibm860Source->children[1]->attr('text');
+$ibm865Bytes = "# DOS 865\n\nDansk: K\x9Bbenhavn, sm\x9Brrebr\x9Bd, bl\x86b\x91r; Norsk: \x92\x9D\x8F; Islandsk: \xD1\xD0 \xE8\xE7; \xAF.";
+$ibm865Source = (new MarkdownReader())->readBytes($ibm865Bytes, 'cp865');
+$ibm865Text = (string) $ibm865Source->children[1]->attr('text');
 $ibm863Bytes = "# DOS 863\n\nQu\x82bec H\x93tel; co\x96t; \x90t\x82; fractions \xAB\xAC\xAD; monnaie \x9B\x9C\x98; box \xC9\xCD\xBB; \x8D.";
 $ibm863Source = (new MarkdownReader())->readBytes($ibm863Bytes, 'cp863');
 $ibm863Text = (string) $ibm863Source->children[1]->attr('text');
@@ -594,6 +597,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm860Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm860Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'IBM865 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $ibm865Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm865Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm865Text) . '/' . UnicodeText::displayWidth($ibm865Text, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'IBM863 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $ibm863Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm863Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm863Text) . '/' . UnicodeText::displayWidth($ibm863Text, 'wide')])]),
@@ -985,6 +993,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>IBM860 source</td><td>Português: Conteúdo, Ônibus, São Tomé, açúcar; «citação»; £/₧.</td><td>ibm860:62</td>')) {
         throw new RuntimeException('charset handoff self-test missing IBM860 DOS Portuguese decode audit row');
+    }
+    if (($ibm865Source->attr('sourceEncoding')['encoding'] ?? '') !== 'ibm865') {
+        throw new RuntimeException('charset handoff self-test missing IBM865 source encoding');
+    }
+    if (!str_contains($blocks, '<td>IBM865 source</td><td>Dansk: København, smørrebrød, blåbær; Norsk: ÆØÅ; Islandsk: Ðð Þþ; ¤.</td><td>ibm865:69/80</td>')) {
+        throw new RuntimeException('charset handoff self-test missing IBM865 DOS Nordic decode audit row');
     }
     if (($ibm863Source->attr('sourceEncoding')['encoding'] ?? '') !== 'ibm863') {
         throw new RuntimeException('charset handoff self-test missing IBM863 source encoding');

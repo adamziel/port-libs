@@ -2240,6 +2240,40 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corrupt));
         }
     },
+    'rejects unreferenced CFB allocated sectors before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Unreferenced allocation guard packet\r"),
+        ]);
+        $sectorSize = 512;
+        $firstUnreferencedSector = intdiv(strlen($bytes) - $sectorSize, $sectorSize);
+        if ($firstUnreferencedSector + 1 >= 128) {
+            throw new RuntimeException('CFB unreferenced-allocation fixture requires the appended sectors to be covered by the first FAT sector');
+        }
+
+        $singleUnreferencedSector = $bytes . str_repeat('X', $sectorSize);
+        $singleUnreferencedSector = substr_replace(
+            $singleUnreferencedSector,
+            $u32(0xfffffffe),
+            $sectorSize + ($firstUnreferencedSector * 4),
+            4
+        );
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($singleUnreferencedSector));
+
+        $unreferencedChain = $bytes . str_repeat('X', $sectorSize) . str_repeat('Y', $sectorSize);
+        $unreferencedChain = substr_replace(
+            $unreferencedChain,
+            $u32($firstUnreferencedSector + 1),
+            $sectorSize + ($firstUnreferencedSector * 4),
+            4
+        );
+        $unreferencedChain = substr_replace(
+            $unreferencedChain,
+            $u32(0xfffffffe),
+            $sectorSize + (($firstUnreferencedSector + 1) * 4),
+            4
+        );
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($unreferencedChain));
+    },
     'rejects CFB regular stream chains that reuse directory sectors before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Overlapping sector payload should stay opaque\r"),

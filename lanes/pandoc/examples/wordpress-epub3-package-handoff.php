@@ -191,6 +191,7 @@ $chapterXhtml = <<<'XML'
   <head>
     <title>Source chapter</title>
     <meta name="viewport" content="width=1024,height=768"/>
+    <link id="chapter-style-link" rel="stylesheet" href="../styles/review.css" type="text/css" media="screen"/>
   </head>
   <body epub:type="bodymatter chapter" xml:lang="en" dir="ltr">
     <h1 id="source" epub:type="title">Source chapter</h1>
@@ -1063,11 +1064,24 @@ XML;
     if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['width'] ?? null) !== 1024 || ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['height'] ?? null) !== 768) {
         throw new RuntimeException('Expected EPUB XHTML viewport dimensions to remain available for review');
     }
-    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'switch', 'trigger', 'remote-resources']) {
+    if (($result['xhtmlResourceReport']['linkAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['linkCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['activeLinkCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB XHTML content scan to identify inert link resource policy metadata');
+    }
+    $chapterLinks = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['links'] ?? [];
+    if (($chapterLinks[0]['id'] ?? null) !== 'chapter-style-link' || ($chapterLinks[0]['policy'] ?? null) !== 'stylesheet' || ($chapterLinks[0]['part'] ?? null) !== '/EPUB/styles/review.css') {
+        throw new RuntimeException('Expected EPUB XHTML stylesheet link policy to preserve local target metadata');
+    }
+    if (($chapterLinks[0]['byteSha256'] ?? null) !== hash('sha256', $reviewCss) || ($chapterLinks[0]['diagnostics'][0]['type'] ?? null) !== 'active-xhtml-link-resource') {
+        throw new RuntimeException('Expected EPUB XHTML stylesheet link bytes and inert active-resource diagnostic');
+    }
+    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'linked-resources', 'switch', 'trigger', 'remote-resources']) {
         throw new RuntimeException('Expected EPUB XHTML content review flags for the source chapter');
     }
-    if (($result['document']->children[0]->attr('contentResourceReviewFlags') ?? []) !== ['mathml', 'svg', 'switch', 'trigger', 'remote-resources']) {
+    if (($result['document']->children[0]->attr('contentResourceReviewFlags') ?? []) !== ['mathml', 'svg', 'linked-resources', 'switch', 'trigger', 'remote-resources']) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML content review flags');
+    }
+    if (($result['document']->children[0]->attr('contentLinks')[0]['id'] ?? null) !== 'chapter-style-link') {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML link metadata');
     }
     if (($result['document']->children[0]->attr('contentResourceFlags')['switch'] ?? null) !== true) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB switch content metadata');
@@ -1179,7 +1193,12 @@ XML;
     if (($result['document']->attr('cssResourceReport') ?? null) !== $result['cssResourceReport']) {
         throw new RuntimeException('Expected WordPress document handoff to expose EPUB CSS resource report');
     }
-    if (($result['document']->children[0]->attr('contentReferences')[0]['target'] ?? null) !== 'https://cdn.example.test/images/source.png') {
+    $chapterBlockReferences = $result['document']->children[0]->attr('contentReferences') ?? [];
+    $remoteChapterReferences = array_values(array_filter(
+        is_array($chapterBlockReferences) ? $chapterBlockReferences : [],
+        static fn (array $reference): bool => ($reference['target'] ?? null) === 'https://cdn.example.test/images/source.png'
+    ));
+    if ($remoteChapterReferences === [] || ($remoteChapterReferences[0]['diagnostics'][0]['type'] ?? null) !== 'external-xhtml-content-reference') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose remote XHTML content reference diagnostics');
     }
     $chapterReferences = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['references'] ?? [];
@@ -1567,6 +1586,9 @@ echo 'xhtmlContentTriggers=' . ($result['xhtmlResourceReport']['triggerCount'] ?
 echo 'xhtmlScriptedAssets=' . ($result['xhtmlResourceReport']['scriptedAssetCount'] ?? 0) . "\n";
 echo 'xhtmlScripts=' . ($result['xhtmlResourceReport']['scriptCount'] ?? 0) . "\n";
 echo 'xhtmlScriptEventHandlers=' . ($result['xhtmlResourceReport']['scriptEventHandlerCount'] ?? 0) . "\n";
+echo 'xhtmlLinkAssets=' . ($result['xhtmlResourceReport']['linkAssetCount'] ?? 0) . "\n";
+echo 'xhtmlLinks=' . ($result['xhtmlResourceReport']['linkCount'] ?? 0) . "\n";
+echo 'chapterLinkPolicy=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['links'][0]['policy'] ?? '') . "\n";
 echo 'xhtmlViewportAssets=' . ($result['xhtmlResourceReport']['viewportAssetCount'] ?? 0) . "\n";
 echo 'chapterViewport=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['raw'] ?? '') . "\n";
 echo 'chapterLanguage=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['language'] ?? '') . "\n";

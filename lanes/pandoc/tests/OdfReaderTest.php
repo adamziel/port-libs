@@ -258,6 +258,51 @@ return [
         $t->same(5, $result['importReport']['manifest']['count']);
         $t->same(0, count($result['importReport']['manifest']['missingItems']));
     },
+    'preserves typed ODT meta user-defined fields for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $metaWithTypedUserDefined = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+  <office:meta>
+    <dc:title>Typed ODT Metadata Packet</dc:title>
+    <meta:user-defined meta:name="wp-source-id" meta:value-type="string" office:string-value="packet-42">packet-42</meta:user-defined>
+    <meta:user-defined meta:name="requires-legal-review" meta:value-type="boolean" office:boolean-value="true"/>
+    <meta:user-defined meta:name="source-score" meta:value-type="float" office:value="97.5"/>
+    <meta:user-defined meta:name="publish-date" meta:value-type="date" office:date-value="2026-06-10"/>
+    <meta:user-defined meta:name="review-duration" meta:value-type="time" office:time-value="PT1H30M"/>
+  </office:meta>
+</office:document-meta>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, $metaWithTypedUserDefined));
+        $metadata = $result['metadata'];
+        $details = $metadata['userDefinedDetails'];
+
+        $t->same('Typed ODT Metadata Packet', $metadata['title']);
+        $t->same('packet-42', $metadata['userDefined']['wp-source-id']);
+        $t->same('true', $metadata['userDefined']['requires-legal-review']);
+        $t->same('97.5', $metadata['userDefined']['source-score']);
+        $t->same('2026-06-10', $metadata['userDefined']['publish-date']);
+        $t->same('PT1H30M', $metadata['userDefined']['review-duration']);
+
+        $t->same('string', $details['wp-source-id']['valueType']);
+        $t->same('packet-42', $details['wp-source-id']['stringValue']);
+        $t->same('packet-42', $details['wp-source-id']['displayValue']);
+        $t->same('boolean', $details['requires-legal-review']['valueType']);
+        $t->same(true, $details['requires-legal-review']['booleanValue']);
+        $t->same('true', $details['requires-legal-review']['displayValue']);
+        $t->same('float', $details['source-score']['valueType']);
+        $t->same('97.5', $details['source-score']['value']);
+        $t->same('97.5', $details['source-score']['displayValue']);
+        $t->same('date', $details['publish-date']['valueType']);
+        $t->same('2026-06-10', $details['publish-date']['dateValue']);
+        $t->same('time', $details['review-duration']['valueType']);
+        $t->same('PT1H30M', $details['review-duration']['timeValue']);
+        $t->same($details, $result['document']->attr('metadata')['userDefinedDetails']);
+        $t->same(true, $result['importReport']['metadata']['userDefinedDetails']['requires-legal-review']['booleanValue']);
+        $t->same('PT1H30M', $result['importReport']['metadata']['userDefinedDetails']['review-duration']['timeValue']);
+    },
     'maps ODT package policy metadata from meta XML' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $metaWithPackagePolicy = <<<'XML'
 <office:document-meta
