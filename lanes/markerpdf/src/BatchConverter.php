@@ -1903,6 +1903,7 @@ final class BatchConverter
         $filepathIsReadableAtWorkerPreflightByFilename = [];
         $filepathPathTypeAtWorkerPreflightByFilename = [];
         $workerFileAvailabilityBoundaryByFilename = [];
+        $workerFileAvailabilityRuntimeBoundaryByFilename = [];
         $upstreamReturnValueByFilename = [];
         $upstreamReturnBoundaryByFilename = [];
         $existingMarkdownFilenames = [];
@@ -1915,6 +1916,10 @@ final class BatchConverter
         $selectedInputNotFileFilenames = [];
         $selectedInputDirectoryFilenames = [];
         $selectedInputUnreadableFilenames = [];
+        $unavailableInputHandledBeforeConverterFilenames = [];
+        $unavailableInputReachesConverterFilenames = [];
+        $unavailableInputHandlingStageByFilename = [];
+        $unavailableInputReturnBoundaryByFilename = [];
         $unsupportedFiletypeFilenames = [];
         $filetypeStdoutFilenames = [];
         $shortTextFilenames = [];
@@ -1966,6 +1971,10 @@ final class BatchConverter
                 $filepathIsReadableAtWorkerPreflightByFilename[$filename] = $preflight['filepath_is_readable_at_worker_preflight'];
                 $filepathPathTypeAtWorkerPreflightByFilename[$filename] = $preflight['filepath_path_type_at_worker_preflight'];
                 $workerFileAvailabilityBoundaryByFilename[$filename] = $preflight['worker_file_availability_boundary'];
+                $workerRuntimeBoundary = is_array($preflight['worker_file_availability_runtime_boundary'] ?? null)
+                    ? $preflight['worker_file_availability_runtime_boundary']
+                    : [];
+                $workerFileAvailabilityRuntimeBoundaryByFilename[$filename] = $workerRuntimeBoundary;
                 $upstreamReturnValueByFilename[$filename] = $preflight['upstream_return_value'];
                 $upstreamReturnBoundaryByFilename[$filename] = $preflight['upstream_return_boundary'];
 
@@ -1998,6 +2007,16 @@ final class BatchConverter
                 }
                 if ((bool) $preflight['selected_input_unreadable_at_worker_preflight']) {
                     $selectedInputUnreadableFilenames[] = $filename;
+                }
+                if (($workerRuntimeBoundary['unavailable_at_worker_preflight'] ?? false) === true) {
+                    $unavailableInputHandlingStageByFilename[$filename] = $workerRuntimeBoundary['handling_stage'] ?? null;
+                    $unavailableInputReturnBoundaryByFilename[$filename] = $workerRuntimeBoundary['upstream_return_boundary_if_unavailable'] ?? null;
+                }
+                if (($workerRuntimeBoundary['handled_before_converter'] ?? false) === true) {
+                    $unavailableInputHandledBeforeConverterFilenames[] = $filename;
+                }
+                if (($workerRuntimeBoundary['unavailable_input_reaches_converter'] ?? false) === true) {
+                    $unavailableInputReachesConverterFilenames[] = $filename;
                 }
                 if ((bool) $preflight['filetype_checked']) {
                     $filetypeCheckedFilenames[] = $filename;
@@ -2054,6 +2073,7 @@ final class BatchConverter
                     'filepath_is_readable_at_worker_preflight' => $preflight['filepath_is_readable_at_worker_preflight'],
                     'filepath_path_type_at_worker_preflight' => $preflight['filepath_path_type_at_worker_preflight'],
                     'worker_file_availability_boundary' => $preflight['worker_file_availability_boundary'],
+                    'worker_file_availability_runtime_boundary' => $preflight['worker_file_availability_runtime_boundary'],
                     'selected_input_missing_at_worker_preflight' => $preflight['selected_input_missing_at_worker_preflight'],
                     'selected_input_broken_symlink_at_worker_preflight' => $preflight['selected_input_broken_symlink_at_worker_preflight'],
                     'selected_input_not_file_at_worker_preflight' => $preflight['selected_input_not_file_at_worker_preflight'],
@@ -2121,6 +2141,7 @@ final class BatchConverter
             'filepath_is_readable_at_worker_preflight_by_filename' => $filepathIsReadableAtWorkerPreflightByFilename,
             'filepath_path_type_at_worker_preflight_by_filename' => $filepathPathTypeAtWorkerPreflightByFilename,
             'worker_file_availability_boundary_by_filename' => $workerFileAvailabilityBoundaryByFilename,
+            'worker_file_availability_runtime_boundary_by_filename' => $workerFileAvailabilityRuntimeBoundaryByFilename,
             'upstream_return_value_by_filename' => $upstreamReturnValueByFilename,
             'upstream_return_boundary_by_filename' => $upstreamReturnBoundaryByFilename,
             'existing_markdown_filenames' => $existingMarkdownFilenames,
@@ -2133,6 +2154,10 @@ final class BatchConverter
             'selected_input_not_file_filenames' => $selectedInputNotFileFilenames,
             'selected_input_directory_filenames' => $selectedInputDirectoryFilenames,
             'selected_input_unreadable_filenames' => $selectedInputUnreadableFilenames,
+            'unavailable_input_handled_before_converter_filenames' => $unavailableInputHandledBeforeConverterFilenames,
+            'unavailable_input_reaches_converter_filenames' => $unavailableInputReachesConverterFilenames,
+            'unavailable_input_handling_stage_by_filename' => $unavailableInputHandlingStageByFilename,
+            'unavailable_input_return_boundary_by_filename' => $unavailableInputReturnBoundaryByFilename,
             'unsupported_filetype_filenames' => $unsupportedFiletypeFilenames,
             'short_text_filenames' => $shortTextFilenames,
             'ready_filenames' => $readyFilenames,
@@ -2834,6 +2859,13 @@ final class BatchConverter
         $metadataKeys = is_array($metadata) ? array_values(array_filter(array_keys($metadata), 'is_string')) : [];
         sort($metadataKeys, SORT_STRING);
         $workerFileAvailability = $this->workerFileAvailabilityReview($filepath);
+        $minLengthGateActive = $this->pythonTruthyInteger($minLength);
+        $workerFileAvailabilityRuntimeBoundary = $this->workerFileAvailabilityRuntimeBoundary(
+            $filepath,
+            $workerFileAvailability,
+            $markdownPathExists,
+            $minLengthGateActive
+        );
         $metadataValueType = $metadataValueType ?? $this->phpMetadataValueType($metadata);
         $metadataIsMapping = $metadataValueType === 'dict';
         $metadataIsList = $metadataValueType === 'list';
@@ -2867,10 +2899,11 @@ final class BatchConverter
             'markdown_exists_directory_counts_as_existing' => $markdownPathType === 'directory',
             ...$markdownPathReview,
             ...$workerFileAvailability,
+            'worker_file_availability_runtime_boundary' => $workerFileAvailabilityRuntimeBoundary,
             'filetype_checked' => false,
             'filetype' => null,
             'filetype_review' => null,
-            'min_length_gate_active' => $this->pythonTruthyInteger($minLength),
+            'min_length_gate_active' => $minLengthGateActive,
             'text_length_checked' => false,
             'text_length' => null,
             'skip_reason' => null,
@@ -2909,7 +2942,7 @@ final class BatchConverter
             ];
         }
 
-        if ($this->pythonTruthyInteger($minLength)) {
+        if ($minLengthGateActive) {
             $filetypeReview = $this->filetypeDetector->findFiletypeReview($filepath);
             $filetype = (string) $filetypeReview['filetype'];
             $base['filetype_checked'] = true;
@@ -3017,6 +3050,65 @@ final class BatchConverter
             'selected_input_not_file_at_worker_preflight' => $isNotFile,
             'selected_input_directory_at_worker_preflight' => $isDirectory,
             'selected_input_unreadable_at_worker_preflight' => $isUnreadable,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $availability
+     * @return array<string, mixed>
+     */
+    private function workerFileAvailabilityRuntimeBoundary(
+        string $filepath,
+        array $availability,
+        bool $existingMarkdown,
+        bool $minLengthGateActive
+    ): array {
+        $availabilityBoundary = $availability['worker_file_availability_boundary'] ?? null;
+        $unavailable = is_string($availabilityBoundary);
+        $handlingStage = null;
+        $handledBeforeConverter = false;
+        $unavailableInputReachesConverter = false;
+        $returnBoundary = null;
+        $conversionExceptionCaught = false;
+
+        if ($unavailable && $existingMarkdown) {
+            $handlingStage = 'markdown_exists';
+            $handledBeforeConverter = true;
+            $returnBoundary = 'markdown_exists-return-none';
+        } elseif ($unavailable && $minLengthGateActive) {
+            $handlingStage = 'find_filetype';
+            $handledBeforeConverter = true;
+            $returnBoundary = 'unsupported-filetype-return-zero';
+        } elseif ($unavailable) {
+            $handlingStage = 'convert_single_pdf';
+            $unavailableInputReachesConverter = true;
+            $returnBoundary = 'conversion-exception-print-return-none';
+            $conversionExceptionCaught = true;
+        }
+
+        return [
+            'source' => 'convert.py process_single_pdf worker file availability boundary',
+            'order' => 'after_markdown_exists_before_optional_find_filetype_or_convert_single_pdf',
+            'filepath' => $filepath,
+            'path_type' => $availability['filepath_path_type_at_worker_preflight'] ?? 'unknown',
+            'path_exists' => (bool) ($availability['filepath_exists_at_worker_preflight'] ?? false),
+            'path_is_file' => (bool) ($availability['filepath_is_file_at_worker_preflight'] ?? false),
+            'path_is_readable' => (bool) ($availability['filepath_is_readable_at_worker_preflight'] ?? false),
+            'availability_boundary' => $availabilityBoundary,
+            'unavailable_at_worker_preflight' => $unavailable,
+            'explicit_worker_isfile_gate' => false,
+            'main_isfile_gate_already_passed' => true,
+            'markdown_exists_checked_before_file_access' => true,
+            'existing_markdown_short_circuits_before_filetype' => $unavailable && $existingMarkdown,
+            'min_length_gate_active' => $minLengthGateActive,
+            'handled_before_converter' => $handledBeforeConverter,
+            'handling_stage' => $handlingStage,
+            'unavailable_input_reaches_converter' => $unavailableInputReachesConverter,
+            'conversion_exception_caught_by_process_single_pdf' => $conversionExceptionCaught,
+            'upstream_return_boundary_if_unavailable' => $returnBoundary,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
         ];
     }
 

@@ -25046,47 +25046,35 @@ final class PdfTextExtractor
         }
 
         if ($reference !== null) {
-            $objectBody = $this->objectBodyForExactReference(
-                $objects,
-                $reference['objectNumber'],
-                $reference['generation']
+            $references = $this->charProcObjectReferencesFromReferencedCharProcsObjectForFallbackExclusion(
+                $reference,
+                $objects
             );
-            if ($objectBody === null) {
-                return [];
+
+            foreach ($this->currentDirectObjectBodiesByGeneration[$reference['objectNumber']] ?? [] as $generation => $_body) {
+                $generation = (int) $generation;
+                if ($generation === $reference['generation']) {
+                    continue;
+                }
+
+                $siblingReference = [
+                    'objectNumber' => $reference['objectNumber'],
+                    'generation' => $generation,
+                ];
+                $siblingKey = $siblingReference['objectNumber'] . ':' . $siblingReference['generation'];
+                if (isset($seen[$siblingKey])) {
+                    continue;
+                }
+
+                foreach ($this->charProcObjectReferencesFromReferencedCharProcsObjectForFallbackExclusion(
+                    $siblingReference,
+                    $objects
+                ) as $siblingCharProcReference) {
+                    $references[] = $siblingCharProcReference;
+                }
             }
 
-            if (!$this->objectBodyIsStreamObject($objectBody)) {
-                $dictionary = $this->singleDictionaryObjectBody($objectBody);
-                return $dictionary === null
-                    ? []
-                    : array_values($this->charProcObjectReferencesFromDictionary($dictionary, [], false));
-            }
-
-            $streamDictionary = $this->dictionaryObjectBody($objectBody);
-            if ($streamDictionary === null) {
-                return [];
-            }
-
-            $streamDictionaryNames = array_fill_keys([
-                'Type',
-                'Subtype',
-                'Length',
-                'Filter',
-                'DecodeParms',
-                'F',
-                'FFilter',
-                'FDecodeParms',
-                'DL',
-                'Resources',
-                'BBox',
-                'Matrix',
-            ], true);
-
-            return array_values($this->charProcObjectReferencesFromDictionary(
-                $streamDictionary,
-                $streamDictionaryNames,
-                false
-            ));
+            return $this->uniquePdfReferenceList($references);
         }
 
         if (!str_starts_with($value, '<<')) {
@@ -25097,6 +25085,58 @@ final class PdfTextExtractor
         return $dictionary === null
             ? []
             : array_values($this->charProcObjectReferencesFromDictionary($dictionary, [], false));
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     * @param array{objectNumber: int, generation: int} $reference
+     * @param array<int, string> $objects
+     */
+    private function charProcObjectReferencesFromReferencedCharProcsObjectForFallbackExclusion(
+        array $reference,
+        array $objects
+    ): array {
+        $objectBody = $this->objectBodyForExactReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+        if ($objectBody === null) {
+            return [];
+        }
+
+        if (!$this->objectBodyIsStreamObject($objectBody)) {
+            $dictionary = $this->singleDictionaryObjectBody($objectBody);
+            return $dictionary === null
+                ? []
+                : array_values($this->charProcObjectReferencesFromDictionary($dictionary, [], false));
+        }
+
+        $streamDictionary = $this->dictionaryObjectBody($objectBody);
+        if ($streamDictionary === null) {
+            return [];
+        }
+
+        $streamDictionaryNames = array_fill_keys([
+            'Type',
+            'Subtype',
+            'Length',
+            'Filter',
+            'DecodeParms',
+            'F',
+            'FFilter',
+            'FDecodeParms',
+            'DL',
+            'Resources',
+            'BBox',
+            'Matrix',
+        ], true);
+
+        return array_values($this->charProcObjectReferencesFromDictionary(
+            $streamDictionary,
+            $streamDictionaryNames,
+            false
+        ));
     }
 
     /**

@@ -494,22 +494,26 @@ final class LayoutOrderer
             return [];
         }
 
-        $matched = [];
+        $markedMatches = [];
+        $unmarkedMatches = [];
         foreach ($candidates as $candidate) {
             if (!$this->hasOrderPayload($candidate)) {
                 continue;
             }
-            if ($this->pageMarkerSourcesMatchPage(
-                $this->orderResultPageMarkerSources($candidate),
-                $page,
-                $selectedIndex,
-                $sourceIndex
-            )) {
-                $matched[] = $candidate;
+            $sources = $this->orderResultPageMarkerSources($candidate);
+            if (!$this->pageMarkerSourcesMatchPage($sources, $page, $selectedIndex, $sourceIndex)) {
+                continue;
             }
+
+            if ($this->orderResultPageMarkerSourcesHaveMarkers($sources)) {
+                $markedMatches[] = $candidate;
+                continue;
+            }
+
+            $unmarkedMatches[] = $candidate;
         }
 
-        return $matched;
+        return $markedMatches !== [] ? $markedMatches : $unmarkedMatches;
     }
 
     /**

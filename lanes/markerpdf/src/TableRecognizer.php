@@ -7688,7 +7688,9 @@ final class TableRecognizer
             }
         }
 
-        return null;
+        $prefixed = $this->prefixedSourceBboxFromRecord($record);
+
+        return $prefixed['bbox'] ?? null;
     }
 
     /**
@@ -7974,7 +7976,9 @@ final class TableRecognizer
             }
         }
 
-        return null;
+        $prefixed = $this->prefixedSourceBboxFromRecord($record);
+
+        return $prefixed['source'] ?? null;
     }
 
     /**
@@ -7994,6 +7998,19 @@ final class TableRecognizer
                     $target['source_bbox'] = $bbox;
                     $sourceBboxCopied = true;
                 }
+            }
+        }
+
+        $prefixed = $this->prefixedSourceBboxFromRecord($source);
+        if ($prefixed !== null) {
+            if ($prefixed['target'] === 'source_page_image_bbox') {
+                $target['source_page_image_bbox'] = $prefixed['bbox'];
+            } elseif (!$sourceBboxCopied) {
+                $target['source_bbox'] = $prefixed['bbox'];
+                $sourceBboxCopied = true;
+            }
+            if (!isset($target['source_coordinate_source'])) {
+                $target['source_coordinate_source'] = $prefixed['source'];
             }
         }
 
@@ -8042,7 +8059,85 @@ final class TableRecognizer
             }
         }
 
+        $prefixed = $this->prefixedSourceBboxFromRecord($record);
+
+        return $prefixed['raw'] ?? null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @return array{bbox: list<float>, raw: list<float>, source: string, target: string}|null
+     */
+    private function prefixedSourceBboxFromRecord(array $record): ?array
+    {
+        foreach ($this->sourceGeometryFallbackPrefixes() as $prefix => $target) {
+            foreach ($this->sourceGeometryFallbackKeys() as $fallbackKey) {
+                if (
+                    str_starts_with($fallbackKey, $prefix . '_')
+                    && $this->bboxFromValue($record[$fallbackKey] ?? null) !== null
+                ) {
+                    continue 2;
+                }
+            }
+
+            $stripped = $this->stripSourceGeometryPrefix($record, $prefix);
+            if ($stripped === []) {
+                continue;
+            }
+
+            $bbox = $this->bboxFromGeometryValue($stripped);
+            $raw = $this->rawBboxCoordinatesFromValue($stripped);
+            if ($bbox === null || $raw === null) {
+                continue;
+            }
+
+            $source = $this->bboxNamedFieldSource($stripped)
+                ?? $this->bboxWrappedFieldSource($stripped)
+                ?? $this->polygonCoordinateSourceFromRecord($stripped)
+                ?? $this->bboxPolygonValueSource($stripped)
+                ?? 'bbox_array';
+
+            return [
+                'bbox' => $bbox,
+                'raw' => $raw,
+                'source' => $prefix . '_' . $source,
+                'target' => $target,
+            ];
+        }
+
         return null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function sourceGeometryFallbackPrefixes(): array
+    {
+        return [
+            'source_page_image' => 'source_page_image_bbox',
+            'original_page_image' => 'source_page_image_bbox',
+            'source' => 'source_bbox',
+            'original' => 'source_bbox',
+        ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @return array<string, mixed>
+     */
+    private function stripSourceGeometryPrefix(array $record, string $prefix): array
+    {
+        $stripped = [];
+        $needle = $prefix . '_';
+        foreach ($record as $key => $value) {
+            if (!is_string($key) || !str_starts_with($key, $needle)) {
+                continue;
+            }
+
+            $stripped[substr($key, strlen($needle))] = $value;
+        }
+
+        return $stripped;
     }
 
     /**

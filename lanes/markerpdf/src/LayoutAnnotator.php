@@ -669,22 +669,26 @@ final class LayoutAnnotator
             return [];
         }
 
-        $matched = [];
+        $markedMatches = [];
+        $unmarkedMatches = [];
         foreach ($candidates as $candidate) {
             if (!$this->hasLayoutPayload($candidate)) {
                 continue;
             }
-            if ($this->pageMarkerSourcesMatchPage(
-                $this->layoutResultPageMarkerSources($candidate),
-                $page,
-                $selectedIndex,
-                $sourceIndex
-            )) {
-                $matched[] = $candidate;
+            $sources = $this->layoutResultPageMarkerSources($candidate);
+            if (!$this->pageMarkerSourcesMatchPage($sources, $page, $selectedIndex, $sourceIndex)) {
+                continue;
             }
+
+            if ($this->layoutResultPageMarkerSourcesHaveMarkers($sources)) {
+                $markedMatches[] = $candidate;
+                continue;
+            }
+
+            $unmarkedMatches[] = $candidate;
         }
 
-        return $matched;
+        return $markedMatches !== [] ? $markedMatches : $unmarkedMatches;
     }
 
     /**
