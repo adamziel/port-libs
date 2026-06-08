@@ -297,8 +297,9 @@ final class PdfTextDocumentExtractor
             if ($pageList !== null) {
                 return $pageList;
             }
-            if ($pageListKey === 'dictionary_output' && !array_key_exists('blocks', $entry)) {
-                throw new InvalidArgumentException('Supplied pdftext dictionary_output envelope must contain a page dictionary or page list.');
+            if (!array_key_exists('blocks', $entry)) {
+                $envelopeName = $pageListKey === 'dictionary_output' ? 'dictionary_output' : 'cache';
+                throw new InvalidArgumentException("Supplied pdftext {$envelopeName} envelope must contain a page dictionary or page list.");
             }
         }
 
