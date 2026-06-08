@@ -12,6 +12,7 @@ final class PdfTextExtractor
     private const MAX_CMAP_RANGE_ENTRIES = 4096;
     private const MAX_GRAPHICS_COLOR_OPERANDS = 32;
     private const MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES = 4096;
+    private const MAX_PAGE_LABEL_TREE_DEPTH = 100;
     private const INLINE_IMAGE_KEY_ABBREVIATIONS = [
         'BPC' => 'BitsPerComponent',
         'CS' => 'ColorSpace',
@@ -15740,9 +15741,14 @@ final class PdfTextExtractor
         array $objects,
         int $pageCount,
         array $seen = [],
-        ?array $inheritedLimits = null
+        ?array $inheritedLimits = null,
+        int $depth = 0
     ): array
     {
+        if ($depth >= self::MAX_PAGE_LABEL_TREE_DEPTH) {
+            return [];
+        }
+
         if ($this->pageLabelLimitsInvalidRange($dictionary, $objects)) {
             return [];
         }
@@ -15807,7 +15813,8 @@ final class PdfTextExtractor
                     $objects,
                     $pageCount,
                     $kidNode['seen'],
-                    $limits
+                    $limits,
+                    $depth + 1
                 );
             }
 

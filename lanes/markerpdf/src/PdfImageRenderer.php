@@ -7628,11 +7628,18 @@ final class PdfImageRenderer
             $boundary['decoded_with_current_filters'] = false;
             $boundary['decoded_bytes'] = null;
         }
+        $dctMetadataStream = $this->directDctDeclaredStreamPayloadForBoundaryMetadata(
+            $dictionary,
+            $imageObject,
+            $stream,
+            $objects
+        ) ?? $stream;
         $dctBoundary = $this->dctPreviewStreamBoundaryReviewForFilters(
             $dictionary,
-            $stream,
+            $dctMetadataStream,
             $objects,
-            $boundary['filters']
+            $boundary['filters'],
+            $stream
         );
         if ($dctBoundary !== null) {
             $boundary['dctdecode_stream_boundary'] = $dctBoundary;
@@ -9471,6 +9478,70 @@ final class PdfImageRenderer
     }
 
     /**
+     * @param array<int, string> $objects
+     */
+    private function directDctDeclaredStreamPayloadForBoundaryMetadata(
+        string $dictionary,
+        string $imageObject,
+        string $reviewStream,
+        array $objects
+    ): ?string {
+        $filters = $this->imageFilterValues($dictionary, $objects);
+        $firstFilter = null;
+        foreach ($filters as $filter) {
+            if (is_string($filter)) {
+                $firstFilter = $filter;
+                break;
+            }
+        }
+        if ($firstFilter !== 'DCTDecode' && $firstFilter !== 'DCT') {
+            return null;
+        }
+
+        $dictionaryOffset = $this->skipPdfWhitespace($imageObject, 0);
+        $parsedDictionary = $this->readBalancedDictionary($imageObject, $dictionaryOffset);
+        if ($parsedDictionary === null) {
+            return null;
+        }
+
+        $streamKeywordOffset = $this->skipPdfWhitespace($imageObject, $parsedDictionary['next']);
+        if (substr($imageObject, $streamKeywordOffset, 6) !== 'stream') {
+            return null;
+        }
+
+        $streamStart = $streamKeywordOffset + 6;
+        if (substr($imageObject, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($imageObject[$streamStart] ?? '') === "\n" || ($imageObject[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
+        $payload = null;
+        $offset = $streamStart;
+        while (($terminator = strpos($imageObject, 'endstream', $offset)) !== false) {
+            $offset = $terminator + strlen('endstream');
+            if (!$this->streamEndTerminatorAt($imageObject, $terminator, $streamStart)) {
+                continue;
+            }
+
+            $candidate = $this->stripStreamTerminatingLineEnding(
+                substr($imageObject, $streamStart, $terminator - $streamStart)
+            );
+            if (
+                strlen($candidate) <= strlen($reviewStream)
+                || !str_starts_with($candidate, $reviewStream)
+                || $this->rawJpegPreviewPayloadBytesForReview($candidate) !== $reviewStream
+            ) {
+                continue;
+            }
+
+            $payload = $candidate;
+        }
+
+        return $payload;
+    }
+
+    /**
      * @param list<string|null> $filters
      */
     private function rawDctPreviewPayloadBytesForReview(array $filters, string $stream): ?string
@@ -9520,9 +9591,11 @@ final class PdfImageRenderer
         string $dictionary,
         string $stream,
         array $objects,
-        array $resolvedFilters
+        array $resolvedFilters,
+        ?string $reviewStreamOverride = null
     ): ?array {
-        $direct = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream, $stream);
+        $reviewStream = $reviewStreamOverride ?? $stream;
+        $direct = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream, $reviewStream);
         if ($direct !== null) {
             return $direct;
         }
@@ -9548,7 +9621,7 @@ final class PdfImageRenderer
             return null;
         }
         if ($dctFilterIndex === 0 || $nativePrefixFilters === []) {
-            return $this->dctPreviewUnverifiedStreamBoundaryReview($resolvedFilters, $stream, $stream);
+            return $this->dctPreviewUnverifiedStreamBoundaryReview($resolvedFilters, $stream, $reviewStream);
         }
 
         $decodedPrefix = $this->decodeImageStreamBeforeFilter(
@@ -9641,6 +9714,17 @@ final class PdfImageRenderer
 
         $jpegBytes = substr($reviewStream, $start, $eoiEnd - $start);
         $paddingEnd = $this->skipDctPreviewPadding($reviewStream, $eoiEnd);
+        $postEoiSurplusMetadata = [];
+        if (strlen($reviewStream) < strlen($stream) && str_starts_with($stream, $reviewStream)) {
+            $postEoiSurplusBytes = substr($stream, strlen($reviewStream));
+            if ($postEoiSurplusBytes !== '') {
+                $postEoiSurplusMetadata = [
+                    'post_jpeg_eoi_surplus_byte_count' => strlen($postEoiSurplusBytes),
+                    'post_jpeg_eoi_surplus_sha256' => hash('sha256', $postEoiSurplusBytes),
+                    'post_jpeg_eoi_surplus_preview_hex' => bin2hex(substr($postEoiSurplusBytes, 0, 32)),
+                ];
+            }
+        }
 
         return [
             'source' => 'dctdecode_jpeg_marker_boundary',
@@ -9651,6 +9735,7 @@ final class PdfImageRenderer
             'review_stream_length' => strlen($reviewStream),
             'padding_byte_count' => max(0, $paddingEnd - $eoiEnd),
             'stream_trimmed_to_jpeg_eoi' => strlen($reviewStream) < strlen($stream),
+            ...$postEoiSurplusMetadata,
             ...$extraMetadata,
             ...($decodedFromNativePrefix ? [
                 'review_stream_decoded_from_native_prefix' => true,

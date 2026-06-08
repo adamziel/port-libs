@@ -10,6 +10,7 @@ final class MarkerAppPreview
 {
     private const DEFAULT_PAGE_BBOX = [0.0, 0.0, 612.0, 792.0];
     private const MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES = 4096;
+    private const MAX_PAGE_LABEL_TREE_DEPTH = 100;
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -1798,9 +1799,14 @@ final class MarkerAppPreview
         string $value,
         array $objects,
         array $seen = [],
-        ?array $inheritedLimits = null
+        ?array $inheritedLimits = null,
+        int $depth = 0
     ): array
     {
+        if ($depth >= self::MAX_PAGE_LABEL_TREE_DEPTH) {
+            return [];
+        }
+
         $value = $this->pageLabelDictionaryToken($this->resolvePageLabelPdfValue($value, $objects, $seen));
         if ($value === null) {
             return [];
@@ -1952,7 +1958,8 @@ final class MarkerAppPreview
                     $kidNode['body'],
                     $objects,
                     $kidNode['seen'],
-                    $limits
+                    $limits,
+                    $depth + 1
                 );
             }
 
