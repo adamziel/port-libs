@@ -45669,8 +45669,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        $cidMap = $toUnicodeMap['cidMap'] ?? [];
-        if (is_array($cidMap) && $cidMap !== []) {
+        if ($this->sourceKeysHaveAnyCidMapping($sourceKeys, $toUnicodeMap)) {
             return [];
         }
 
@@ -46160,6 +46159,26 @@ final class PdfTextExtractor
         }
 
         return $sourceKeys !== [];
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     */
+    private function sourceKeysHaveAnyCidMapping(array $sourceKeys, array $toUnicodeMap): bool
+    {
+        $cidMap = $toUnicodeMap['cidMap'] ?? [];
+        $cidMap = is_array($cidMap) ? $cidMap : [];
+
+        foreach ($sourceKeys as $sourceKey) {
+            if (
+                (array_key_exists($sourceKey, $cidMap) && is_int($cidMap[$sourceKey]))
+                || $this->cidFromCidRangesForSourceKey($sourceKey, $toUnicodeMap) !== null
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
