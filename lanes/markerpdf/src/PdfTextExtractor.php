@@ -23125,6 +23125,8 @@ final class PdfTextExtractor
         $compatibilityDepth = 0;
         $graphicsStateDepth = 0;
         $markedContentDepth = 0;
+        $strokingColorSpace = null;
+        $nonstrokingColorSpace = null;
 
         $tokens = $this->contentTokens($charProc, true);
         $tokenCount = count($tokens);
@@ -23201,7 +23203,12 @@ final class PdfTextExtractor
             }
 
             if ($this->isOperator($token)) {
-                if (!$this->type3CharProcAllowsPreMetricSetupOperator($token, $operands)) {
+                if (!$this->type3CharProcAllowsPreMetricSetupOperator(
+                    $token,
+                    $operands,
+                    $strokingColorSpace,
+                    $nonstrokingColorSpace
+                )) {
                     return null;
                 }
 
@@ -23221,6 +23228,10 @@ final class PdfTextExtractor
                     }
 
                     $markedContentDepth--;
+                } elseif ($token === 'CS' && count($operands) === 1) {
+                    $strokingColorSpace = $operands[0];
+                } elseif ($token === 'cs' && count($operands) === 1) {
+                    $nonstrokingColorSpace = $operands[0];
                 }
 
                 $operands = [];
@@ -23345,8 +23356,12 @@ final class PdfTextExtractor
     /**
      * @param list<string> $operands
      */
-    private function type3CharProcAllowsPreMetricSetupOperator(string $token, array $operands): bool
-    {
+    private function type3CharProcAllowsPreMetricSetupOperator(
+        string $token,
+        array $operands,
+        ?string $strokingColorSpace = null,
+        ?string $nonstrokingColorSpace = null
+    ): bool {
         if (!in_array($token, [
             'q',
             'Q',
@@ -23432,20 +23447,27 @@ final class PdfTextExtractor
             return $this->type3CharProcHasNumericOperands($operands, 1);
         }
 
-        if ($token === 'RG' || $token === 'rg') {
+        if (in_array($token, ['RG', 'rg'], true)) {
             return $this->type3CharProcHasNumericOperands($operands, 3);
         }
 
-        if ($token === 'K' || $token === 'k') {
+        if (in_array($token, ['K', 'k'], true)) {
             return $this->type3CharProcHasNumericOperands($operands, 4);
         }
 
         if ($token === 'SC' || $token === 'sc') {
-            return $operands !== [] && $this->type3CharProcOperandsAreNumeric($operands);
+            return $operands !== [] && $this->type3CharProcColorOperandsAreSafe($operands, false);
         }
 
         if ($token === 'SCN' || $token === 'scn') {
-            return $operands !== [] && $this->type3CharProcColorOperandsAreSafe($operands);
+            return $operands !== [] && $this->type3CharProcColorOperandsAreSafe(
+                $operands,
+                $this->contentSegmentAllowsNameOnlyPatternColor(
+                    $token,
+                    $strokingColorSpace,
+                    $nonstrokingColorSpace
+                )
+            );
         }
 
         if ($token === 'MP') {
@@ -23565,7 +23587,7 @@ final class PdfTextExtractor
     /**
      * @param list<string> $operands
      */
-    private function type3CharProcColorOperandsAreSafe(array $operands): bool
+    private function type3CharProcColorOperandsAreSafe(array $operands, bool $allowPatternName): bool
     {
         $seenPatternName = false;
         foreach ($operands as $operand) {
@@ -23578,7 +23600,7 @@ final class PdfTextExtractor
             }
 
             if (str_starts_with($operand, '/')) {
-                if ($seenPatternName) {
+                if (!$allowPatternName || $seenPatternName) {
                     return false;
                 }
 
