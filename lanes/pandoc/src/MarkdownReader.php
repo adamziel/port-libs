@@ -2437,10 +2437,12 @@ final class MarkdownReader
         }
 
         $boolean = $this->parseYamlBooleanScalar($value);
+        $timestamp = $this->parseYamlPlainTimestampScalar($value);
         $numeric = $this->parseYamlPlainNumericScalar($value);
         $parsed = match (true) {
             $boolean !== null => $boolean,
             strtolower($value) === 'null' || $value === '~' => null,
+            $timestamp !== null => $timestamp,
             $numeric !== null => $numeric,
             default => $value,
         };
@@ -3743,13 +3745,23 @@ final class MarkdownReader
 
     private function parseYamlExplicitTimestampScalar(string $value): string
     {
+        return $this->parseYamlTimestampScalar($value) ?? $value;
+    }
+
+    private function parseYamlPlainTimestampScalar(string $value): ?string
+    {
+        return $this->parseYamlTimestampScalar($value);
+    }
+
+    private function parseYamlTimestampScalar(string $value): ?string
+    {
         $scalar = trim($value);
         if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $scalar, $m) === 1) {
             $year = (int) $m[1];
             $month = (int) $m[2];
             $day = (int) $m[3];
             if (!checkdate($month, $day, $year)) {
-                return $value;
+                return null;
             }
 
             return sprintf('%04d-%02d-%02d', $year, $month, $day);
@@ -3762,7 +3774,7 @@ final class MarkdownReader
                 $m
             ) !== 1
         ) {
-            return $value;
+            return null;
         }
 
         $year = (int) $m[1];
@@ -3772,12 +3784,12 @@ final class MarkdownReader
         $minute = (int) $m[5];
         $second = (int) $m[6];
         if (!checkdate($month, $day, $year) || $hour > 23 || $minute > 59 || $second > 59) {
-            return $value;
+            return null;
         }
 
         $offset = $this->normalizeYamlTimestampOffset($m[8] ?? '');
         if ($offset === null) {
-            return $value;
+            return null;
         }
 
         return sprintf('%04d-%02d-%02dT%02d:%02d:%02d', $year, $month, $day, $hour, $minute, $second)

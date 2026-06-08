@@ -3898,7 +3898,7 @@ final class PdfOutlineExtractor
     private function nameTreeLimits(array $node, array $objects): ?array
     {
         $limits = $this->resolveArray($node['Limits'] ?? null, $objects);
-        if ($limits === null || count($limits) < 2) {
+        if ($limits === null || count($limits) !== 2) {
             return null;
         }
 

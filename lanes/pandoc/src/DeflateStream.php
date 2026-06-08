@@ -147,8 +147,15 @@ final class DeflateStream
      *     compressionLevelHint:string,
      *     hasPresetDictionary:bool,
      *     adler32:int,
+     *     adler32Hex:string,
      *     uncompressedSize:int,
-     *     compressedSize:int
+     *     compressedSize:int,
+     *     compressedPayloadSize:int,
+     *     headerSize:int,
+     *     compressedPayloadOffset:int,
+     *     trailerOffset:int,
+     *     trailerSize:int,
+     *     consumedBytes:int
      * }
      */
     public static function inspectZlib(string $bytes, ?int $maxUncompressedBytes = null): array
@@ -188,6 +195,9 @@ final class DeflateStream
         }
 
         self::assertDecodedSize($data, $maxUncompressedBytes, 'ZLIB stream');
+        $headerSize = 2;
+        $trailerSize = 4;
+        $compressedPayloadSize = strlen($bytes) - $headerSize - $trailerSize;
 
         return [
             'format' => self::FORMAT_ZLIB,
@@ -197,8 +207,15 @@ final class DeflateStream
             'compressionLevelHint' => self::compressionLevelHint(($flg >> 6) & 0x03),
             'hasPresetDictionary' => false,
             'adler32' => $adler32,
+            'adler32Hex' => sprintf('%08x', $adler32),
             'uncompressedSize' => strlen($data),
-            'compressedSize' => strlen($bytes) - 6,
+            'compressedSize' => $compressedPayloadSize,
+            'compressedPayloadSize' => $compressedPayloadSize,
+            'headerSize' => $headerSize,
+            'compressedPayloadOffset' => $headerSize,
+            'trailerOffset' => strlen($bytes) - $trailerSize,
+            'trailerSize' => $trailerSize,
+            'consumedBytes' => $inflated['consumedBytes'],
         ];
     }
 
@@ -218,8 +235,15 @@ final class DeflateStream
      *     dictionaryAdler32:?int,
      *     dictionaryAdler32Hex:?string,
      *     adler32:int,
+     *     adler32Hex:string,
      *     uncompressedSize:int,
-     *     compressedSize:int
+     *     compressedSize:int,
+     *     compressedPayloadSize:int,
+     *     headerSize:int,
+     *     compressedPayloadOffset:int,
+     *     trailerOffset:int,
+     *     trailerSize:int,
+     *     consumedBytes:int
      * }
      */
     public static function inspectZlibWithDictionaries(
@@ -300,6 +324,9 @@ final class DeflateStream
         }
 
         self::assertDecodedSize($data, $maxUncompressedBytes, 'ZLIB stream');
+        $headerSize = 6;
+        $trailerSize = 4;
+        $compressedPayloadSize = strlen($bytes) - $headerSize - $trailerSize;
 
         return [
             'format' => self::FORMAT_ZLIB,
@@ -315,8 +342,15 @@ final class DeflateStream
             'dictionaryAdler32' => $dictionaryAdler32,
             'dictionaryAdler32Hex' => sprintf('%08x', $dictionaryAdler32),
             'adler32' => $adler32,
+            'adler32Hex' => sprintf('%08x', $adler32),
             'uncompressedSize' => strlen($data),
-            'compressedSize' => strlen($bytes) - 10,
+            'compressedSize' => $compressedPayloadSize,
+            'compressedPayloadSize' => $compressedPayloadSize,
+            'headerSize' => $headerSize,
+            'compressedPayloadOffset' => $headerSize,
+            'trailerOffset' => strlen($bytes) - $trailerSize,
+            'trailerSize' => $trailerSize,
+            'consumedBytes' => $inflated['consumedBytes'],
         ];
     }
 
@@ -325,7 +359,13 @@ final class DeflateStream
      *     format:string,
      *     data:string,
      *     uncompressedSize:int,
-     *     compressedSize:int
+     *     compressedSize:int,
+     *     compressedPayloadSize:int,
+     *     headerSize:int,
+     *     compressedPayloadOffset:int,
+     *     trailerOffset:?int,
+     *     trailerSize:int,
+     *     consumedBytes:int
      * }
      */
     public static function inspectRaw(string $bytes, ?int $maxUncompressedBytes = null): array
@@ -344,6 +384,12 @@ final class DeflateStream
             'data' => $data,
             'uncompressedSize' => strlen($data),
             'compressedSize' => strlen($bytes),
+            'compressedPayloadSize' => strlen($bytes),
+            'headerSize' => 0,
+            'compressedPayloadOffset' => 0,
+            'trailerOffset' => null,
+            'trailerSize' => 0,
+            'consumedBytes' => $inflated['consumedBytes'],
         ];
     }
 

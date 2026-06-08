@@ -510,7 +510,10 @@ final class PdfAttachmentExtractor
                     ? $this->rawDictionaryBodyFromValue($rawNamesValue, $objects)
                     : null;
                 if ($rawNamesBody !== null) {
-                    if ($this->dictionaryHasDuplicateKeys($rawNamesBody, self::CATALOG_NAMES_BOUNDARY_KEYS)) {
+                    if (
+                        $this->dictionaryHasDuplicateKeys($rawNamesBody, self::CATALOG_NAMES_BOUNDARY_KEYS)
+                        || $this->dictionaryHasTrailingOperandsAfterKeys($rawNamesBody, self::CATALOG_NAMES_BOUNDARY_KEYS)
+                    ) {
                         continue;
                     }
                     $rawEmbeddedFilesValue = $this->rawDictionaryEntryValue($rawNamesBody, 'EmbeddedFiles');
@@ -628,7 +631,10 @@ final class PdfAttachmentExtractor
         }
         if (
             $nodeDictionaryBody !== null
-            && $this->dictionaryHasDuplicateKeys($nodeDictionaryBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)
+            && (
+                $this->dictionaryHasDuplicateKeys($nodeDictionaryBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)
+                || $this->dictionaryHasTrailingOperandsAfterKeys($nodeDictionaryBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)
+            )
         ) {
             return [];
         }

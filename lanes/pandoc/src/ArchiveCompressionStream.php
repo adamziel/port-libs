@@ -1449,10 +1449,16 @@ final class ArchiveCompressionStream
      *     compressedSize:int,
      *     compressedPayloadSize:int,
      *     uncompressedSize:int,
+     *     headerSize:int,
+     *     compressedPayloadOffset:int,
+     *     trailerOffset:int,
+     *     trailerSize:int,
+     *     consumedBytes:int,
      *     compressionMethod:int,
      *     windowSize:int,
      *     compressionLevelHint:string,
-     *     adler32:int
+     *     adler32:int,
+     *     adler32Hex:string
      * }
      */
     private static function zlibStreamInspection(string $bytes, ?int $maxUncompressedBytes): array
@@ -1464,11 +1470,17 @@ final class ArchiveCompressionStream
             'memberCount' => 1,
             'compressedSize' => strlen($bytes),
             'compressedPayloadSize' => $metadata['compressedSize'],
+            'headerSize' => $metadata['headerSize'],
+            'compressedPayloadOffset' => $metadata['compressedPayloadOffset'],
+            'trailerOffset' => $metadata['trailerOffset'],
+            'trailerSize' => $metadata['trailerSize'],
+            'consumedBytes' => $metadata['consumedBytes'],
             'uncompressedSize' => $metadata['uncompressedSize'],
             'compressionMethod' => $metadata['compressionMethod'],
             'windowSize' => $metadata['windowSize'],
             'compressionLevelHint' => $metadata['compressionLevelHint'],
             'adler32' => $metadata['adler32'],
+            'adler32Hex' => $metadata['adler32Hex'],
         ];
     }
 
@@ -1478,7 +1490,12 @@ final class ArchiveCompressionStream
      *     memberCount:int,
      *     compressedSize:int,
      *     compressedPayloadSize:int,
-     *     uncompressedSize:int
+     *     uncompressedSize:int,
+     *     headerSize:int,
+     *     compressedPayloadOffset:int,
+     *     trailerOffset:?int,
+     *     trailerSize:int,
+     *     consumedBytes:int
      * }
      */
     private static function rawDeflateStreamInspection(string $bytes, ?int $maxUncompressedBytes): array
@@ -1491,6 +1508,11 @@ final class ArchiveCompressionStream
             'compressedSize' => strlen($bytes),
             'compressedPayloadSize' => $metadata['compressedSize'],
             'uncompressedSize' => $metadata['uncompressedSize'],
+            'headerSize' => $metadata['headerSize'],
+            'compressedPayloadOffset' => $metadata['compressedPayloadOffset'],
+            'trailerOffset' => $metadata['trailerOffset'],
+            'trailerSize' => $metadata['trailerSize'],
+            'consumedBytes' => $metadata['consumedBytes'],
         ];
     }
 

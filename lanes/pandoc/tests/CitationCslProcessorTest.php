@@ -8334,13 +8334,120 @@ XML
         $alpha = new AstNode('citation', ['id' => 'alpha-source', 'text' => '[@alpha-source]', 'locator' => 'appendix A']);
         $t->same('(de la Cruz, pp. 12–14; Archive Team, loc A)', $processor->renderCitationCluster([$numeric, $alpha]));
         $t->same('Numeric Packet. nos. 2nd-4th.', $processor->renderBibliographyEntry('numeric-source'));
-        $t->same('Alpha Packet. review number Appendix A.', $processor->renderBibliographyEntry('alpha-source'));
+        $t->same('Alpha Packet. p. A7.', $processor->renderBibliographyEntry('alpha-source'));
 
         $document = (new MarkdownReader())->read('Review cites [@numeric-source, p. 12-14; @alpha-source, appendix A] while preserving numeric source checks.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites (de la Cruz, pp. 12–14; Archive Team, loc A) while preserving numeric source checks.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2026</dt><dd>Numeric Packet. nos. 2nd-4th.</dd>', $blocks);
-        $t->contains('<dt>Archive Team 2025</dt><dd>Alpha Packet. review number Appendix A.</dd>', $blocks);
+        $t->contains('<dt>Archive Team 2025</dt><dd>Alpha Packet. p. A7.</dd>', $blocks);
+    },
+    'applies csl is numeric to affixed number tokens without stripping number output' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'prefixed-number',
+                'type' => 'report',
+                'title' => 'Prefixed Number Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'number' => 'D2',
+                'page' => 'A7',
+            ],
+            [
+                'id' => 'suffix-page',
+                'type' => 'report',
+                'title' => 'Suffix Page Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'number' => '2nd edition',
+                'page' => '2b',
+            ],
+            [
+                'id' => 'word-number',
+                'type' => 'report',
+                'title' => 'Word Number Packet',
+                'author' => [
+                    ['literal' => 'Archive Team'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'number' => '2nd edition',
+                'page' => 'second',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Affixed Numeric Conditional Review Style</title>
+    <id>https://example.test/styles/bounded-affixed-numeric-conditional-review</id>
+    <updated>2026-06-07T23:30:52+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <choose>
+          <if is-numeric="locator" match="all">
+            <text variable="locator" prefix="numeric-loc "/>
+          </if>
+          <else>
+            <text variable="locator" prefix="plain-loc "/>
+          </else>
+        </choose>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <group delimiter=". " suffix=".">
+        <text variable="title"/>
+        <choose>
+          <if is-numeric="number page" match="all">
+            <group delimiter=" ">
+              <text value="both-numeric"/>
+              <number variable="number" form="roman"/>
+              <number variable="page" form="ordinal" prefix="page "/>
+            </group>
+          </if>
+          <else-if is-numeric="page" match="any">
+            <text variable="page" prefix="numeric-page "/>
+          </else-if>
+          <else>
+            <text variable="number" prefix="plain-number "/>
+          </else>
+        </choose>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Affixed Numeric Conditional Review Style', $summary['title'] ?? null);
+        $t->same(['locator'], $summary['citationRendering'][0]['children'][1]['branches'][0]['isNumeric'] ?? null);
+        $t->same(['number', 'page'], $summary['bibliographyRendering'][0]['children'][1]['branches'][0]['isNumeric'] ?? null);
+        $t->same(['page'], $summary['bibliographyRendering'][0]['children'][1]['branches'][1]['isNumeric'] ?? null);
+
+        $t->same('(Ng, numeric-loc L2d; Roe, numeric-loc 2nd; Archive Team, plain-loc second)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'prefixed-number', 'text' => '[@prefixed-number]', 'locator' => 'L2d']),
+            new AstNode('citation', ['id' => 'suffix-page', 'text' => '[@suffix-page]', 'locator' => '2nd']),
+            new AstNode('citation', ['id' => 'word-number', 'text' => '[@word-number]', 'locator' => 'second']),
+        ]));
+        $t->same('Prefixed Number Packet. both-numeric D2 page A7.', $processor->renderBibliographyEntry('prefixed-number'));
+        $t->same('Suffix Page Packet. numeric-page 2b.', $processor->renderBibliographyEntry('suffix-page'));
+        $t->same('Word Number Packet. plain-number 2nd edition.', $processor->renderBibliographyEntry('word-number'));
+
+        $document = (new MarkdownReader())->read('Affixed numeric review [@prefixed-number, L2d; @suffix-page, 2nd; @word-number, second] remains source faithful.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Affixed numeric review (Ng, numeric-loc L2d; Roe, numeric-loc 2nd; Archive Team, plain-loc second) remains source faithful.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Prefixed Number Packet. both-numeric D2 page A7.</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Suffix Page Packet. numeric-page 2b.</dd>', $blocks);
+        $t->contains('<dt>Archive Team 2024</dt><dd>Word Number Packet. plain-number 2nd edition.</dd>', $blocks);
     },
     'applies bounded csl is uncertain date conditionals for date variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([

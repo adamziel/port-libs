@@ -329,6 +329,7 @@ final class PdfEngineHandoff
      *     pdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
      *     pdfRichMediaActivationModes: array<string, int>,
      *     pdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
+     *     pdfAnnotationReviewMetadata: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}>,
      *     pdfAnnotationAppearances: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
@@ -763,6 +764,7 @@ final class PdfEngineHandoff
         $pdfRichMediaAnnotations = [];
         $pdfRichMediaActivationModes = [];
         $pdfAnnotations = [];
+        $pdfAnnotationReviewMetadata = [];
         $pdfAnnotationAppearances = [];
         $pdfAnnotationTypes = [];
         $pdfLinkTargets = [];
@@ -855,6 +857,7 @@ final class PdfEngineHandoff
                 $pdfRichMediaAnnotations = $pdfInspection['richMediaAnnotations'];
                 $pdfRichMediaActivationModes = $pdfInspection['richMediaActivationModes'];
                 $pdfAnnotations = $pdfInspection['annotations'];
+                $pdfAnnotationReviewMetadata = $pdfInspection['annotationReviewMetadata'];
                 $pdfAnnotationAppearances = $pdfInspection['annotationAppearances'];
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
                 $pdfLinkTargets = $pdfInspection['linkTargets'];
@@ -1977,6 +1980,36 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-annotation-appearance-stream-skipped:' . $skipReason;
                     }
                 }
+                if ($pdfAnnotationReviewMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-annotation-review-metadata:' . count($pdfAnnotationReviewMetadata);
+                    $annotationBorderStyleCount = 0;
+                    $annotationPopupCount = 0;
+                    $annotationPopupOpenCount = 0;
+                    foreach ($pdfAnnotationReviewMetadata as $metadata) {
+                        if (
+                            ($metadata['borderStyle'] ?? null) !== null
+                            || ($metadata['borderWidth'] ?? null) !== null
+                            || ($metadata['borderDashPattern'] ?? null) !== null
+                        ) {
+                            $annotationBorderStyleCount++;
+                        }
+                        if (($metadata['popupObject'] ?? null) !== null) {
+                            $annotationPopupCount++;
+                        }
+                        if (($metadata['popupOpen'] ?? null) === true) {
+                            $annotationPopupOpenCount++;
+                        }
+                    }
+                    if ($annotationBorderStyleCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-border-styles:' . $annotationBorderStyleCount;
+                    }
+                    if ($annotationPopupCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-popup-links:' . $annotationPopupCount;
+                    }
+                    if ($annotationPopupOpenCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-popup-open:' . $annotationPopupOpenCount;
+                    }
+                }
                 if ($pdfAnnotationTypes !== []) {
                     $diagnostics[] = 'pdf-byte-annotations:' . array_sum($pdfAnnotationTypes);
                 }
@@ -2228,6 +2261,7 @@ final class PdfEngineHandoff
             'pdfRichMediaAnnotations' => $pdfRichMediaAnnotations,
             'pdfRichMediaActivationModes' => $pdfRichMediaActivationModes,
             'pdfAnnotations' => $pdfAnnotations,
+            'pdfAnnotationReviewMetadata' => $pdfAnnotationReviewMetadata,
             'pdfAnnotationAppearances' => $pdfAnnotationAppearances,
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
             'pdfLinkTargets' => $pdfLinkTargets,
@@ -2341,6 +2375,7 @@ final class PdfEngineHandoff
      *     finalPdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
      *     finalPdfRichMediaActivationModes: array<string, int>,
      *     finalPdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
+     *     finalPdfAnnotationReviewMetadata: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}>,
      *     finalPdfAnnotationAppearances: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
@@ -2568,6 +2603,7 @@ final class PdfEngineHandoff
             'finalPdfRichMediaAnnotations' => is_array($finalRun) && is_array($finalRun['pdfRichMediaAnnotations'] ?? null) ? $finalRun['pdfRichMediaAnnotations'] : [],
             'finalPdfRichMediaActivationModes' => is_array($finalRun) && is_array($finalRun['pdfRichMediaActivationModes'] ?? null) ? $finalRun['pdfRichMediaActivationModes'] : [],
             'finalPdfAnnotations' => is_array($finalRun) && is_array($finalRun['pdfAnnotations'] ?? null) ? $finalRun['pdfAnnotations'] : [],
+            'finalPdfAnnotationReviewMetadata' => is_array($finalRun) && is_array($finalRun['pdfAnnotationReviewMetadata'] ?? null) ? $finalRun['pdfAnnotationReviewMetadata'] : [],
             'finalPdfAnnotationAppearances' => is_array($finalRun) && is_array($finalRun['pdfAnnotationAppearances'] ?? null) ? $finalRun['pdfAnnotationAppearances'] : [],
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
             'finalPdfLinkTargets' => is_array($finalRun) && is_array($finalRun['pdfLinkTargets'] ?? null) ? $finalRun['pdfLinkTargets'] : [],
@@ -3670,6 +3706,7 @@ final class PdfEngineHandoff
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
      *     annotations:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
+     *     annotationReviewMetadata:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}>,
      *     annotationTypes:array<string, int>,
      *     linkTargets:list<string>,
      *     embeddedFileNames:list<string>,
@@ -3799,6 +3836,7 @@ final class PdfEngineHandoff
             'richMediaAnnotations' => $richMediaAnnotations,
             'richMediaActivationModes' => $this->summarizePdfRichMediaActivationModes($richMediaAnnotations),
             'annotations' => $this->extractPdfAnnotations($pdfBytes, $catalog),
+            'annotationReviewMetadata' => $this->extractPdfAnnotationReviewMetadata($pdfBytes, $catalog),
             'annotationAppearances' => $annotationAppearances,
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
             'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
@@ -13697,6 +13735,273 @@ final class PdfEngineHandoff
                 ? $destination['fit']
                 : (is_string($action['fit'] ?? null) ? $action['fit'] : null),
             'destTarget' => is_string($destination['target'] ?? null) ? $destination['target'] : null,
+        ];
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}>
+     */
+    private function extractPdfAnnotationReviewMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $metadata = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfAnnotationReviewMetadataFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $metadata,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($metadata !== []) {
+            return $metadata;
+        }
+
+        foreach ($objects as $reference => $body) {
+            $summary = $this->summarizePdfAnnotationReviewMetadata($body, $reference . ' R', null, null, $objects);
+            if ($summary !== null) {
+                $metadata[] = $summary;
+            }
+        }
+
+        usort(
+            $metadata,
+            fn (array $left, array $right): int => $this->pdfReferenceSortKey($left['annotationObject'] ?? '')
+                <=> $this->pdfReferenceSortKey($right['annotationObject'] ?? '')
+        );
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}> $metadata
+     */
+    private function collectPdfAnnotationReviewMetadataFromPageTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$metadata,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $this->collectPdfAnnotationReviewMetadataFromPage($body, $reference, $pageNumber, $objects, $metadata);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfAnnotationReviewMetadataFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($kidReference),
+                $visited,
+                $metadata,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}> $metadata
+     */
+    private function collectPdfAnnotationReviewMetadataFromPage(
+        string $pageDictionary,
+        string $pageReference,
+        int $pageNumber,
+        array $objects,
+        array &$metadata
+    ): void {
+        $array = $this->extractPdfArrayOrReferenceValue($pageDictionary, 'Annots', $objects);
+        if ($array === null) {
+            return;
+        }
+
+        $this->walkPdfArrayValues($array, function (array $value) use (&$metadata, $objects, $pageNumber, $pageReference): void {
+            if (!in_array($value['kind'], ['reference', 'dictionary'], true)) {
+                return;
+            }
+
+            $summary = $this->summarizePdfAnnotationReviewMetadataValue(
+                $value,
+                $objects,
+                $pageNumber,
+                $pageReference . ' R'
+            );
+            if ($summary !== null) {
+                $metadata[] = $summary;
+            }
+        });
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}|null
+     */
+    private function summarizePdfAnnotationReviewMetadataValue(array $value, array $objects, int $pageNumber, string $pageReference): ?array
+    {
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $dictionary = $objects[$reference] ?? null;
+
+            return $dictionary === null
+                ? null
+                : $this->summarizePdfAnnotationReviewMetadata($dictionary, $reference . ' R', $pageNumber, $pageReference, $objects);
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $this->summarizePdfAnnotationReviewMetadata($value['value'], 'inline', $pageNumber, $pageReference, $objects);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}|null
+     */
+    private function summarizePdfAnnotationReviewMetadata(
+        string $dictionary,
+        ?string $annotationObject,
+        ?int $pageNumber,
+        ?string $pageReference,
+        array $objects
+    ): ?array {
+        $subtype = $this->extractPdfNameToken($dictionary, 'Subtype');
+        if ($subtype === null || !$this->isPdfAnnotationSubtype($subtype)) {
+            return null;
+        }
+
+        $borderStyle = $this->extractPdfAnnotationBorderStyle($dictionary, $objects);
+        $popup = $this->extractPdfAnnotationPopup($dictionary, $objects);
+        $summary = [
+            'page' => $pageNumber ?? 0,
+            'pageObject' => $pageReference,
+            'annotationObject' => $annotationObject,
+            'subtype' => $subtype,
+            'borderStyle' => $borderStyle['style'],
+            'borderStyleLabel' => $borderStyle['styleLabel'],
+            'borderWidth' => $borderStyle['width'],
+            'borderDashPattern' => $borderStyle['dashPattern'],
+            'popupObject' => $popup['object'],
+            'popupRect' => $popup['rect'],
+            'popupOpen' => $popup['open'],
+            'popupParent' => $popup['parent'],
+        ];
+
+        return $this->pdfAnnotationReviewMetadataHasValues($summary) ? $summary : null;
+    }
+
+    /**
+     * @param array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null} $summary
+     */
+    private function pdfAnnotationReviewMetadataHasValues(array $summary): bool
+    {
+        return $summary['borderStyle'] !== null
+            || $summary['borderWidth'] !== null
+            || $summary['borderDashPattern'] !== null
+            || $summary['popupObject'] !== null
+            || $summary['popupRect'] !== null
+            || $summary['popupOpen'] !== null
+            || $summary['popupParent'] !== null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{style:string|null, styleLabel:string|null, width:float|null, dashPattern:list<float>|null}
+     */
+    private function extractPdfAnnotationBorderStyle(string $dictionary, array $objects): array
+    {
+        $styleDictionary = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'BS', $objects);
+        if ($styleDictionary === null) {
+            return [
+                'style' => null,
+                'styleLabel' => null,
+                'width' => null,
+                'dashPattern' => null,
+            ];
+        }
+
+        $style = $this->extractPdfNameToken($styleDictionary, 'S');
+
+        return [
+            'style' => $style,
+            'styleLabel' => $style === null ? null : $this->pdfAnnotationBorderStyleLabel($style),
+            'width' => $this->extractPdfNumberToken($styleDictionary, 'W'),
+            'dashPattern' => $this->extractPdfNumberArrayValues($styleDictionary, 'D'),
+        ];
+    }
+
+    private function pdfAnnotationBorderStyleLabel(string $style): ?string
+    {
+        return [
+            'S' => 'solid',
+            'D' => 'dashed',
+            'B' => 'beveled',
+            'I' => 'inset',
+            'U' => 'underline',
+        ][$style] ?? null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{object:string|null, rect:list<float>|null, open:bool|null, parent:string|null}
+     */
+    private function extractPdfAnnotationPopup(string $dictionary, array $objects): array
+    {
+        $value = $this->extractPdfValueForName($dictionary, 'Popup');
+        if ($value === null) {
+            return [
+                'object' => null,
+                'rect' => null,
+                'open' => null,
+                'parent' => null,
+            ];
+        }
+
+        $popupObject = null;
+        $popupDictionary = null;
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $popupObject = $reference . ' R';
+            $popupDictionary = $objects[$reference] ?? null;
+        } elseif ($value['kind'] === 'dictionary') {
+            $popupObject = 'inline';
+            $popupDictionary = $value['value'];
+        }
+
+        if ($popupDictionary === null) {
+            return [
+                'object' => $popupObject,
+                'rect' => null,
+                'open' => null,
+                'parent' => null,
+            ];
+        }
+
+        return [
+            'object' => $popupObject,
+            'rect' => $this->extractPdfNumberArrayToken($popupDictionary, 'Rect', 4),
+            'open' => $this->extractPdfBooleanToken($popupDictionary, 'Open'),
+            'parent' => $this->extractPdfReferenceToken($popupDictionary, 'Parent'),
         ];
     }
 

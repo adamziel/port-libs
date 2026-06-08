@@ -27,7 +27,7 @@ $packageRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
   <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
-  <Relationship Id="rIdExternalAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source packet.html?post=42#review" TargetMode="External"/>
+  <Relationship Id="rIdExternalAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source%20packet.html?post=42#review" TargetMode="External"/>
 </Relationships>
 XML;
 
@@ -967,7 +967,7 @@ XML;
         $t->same('word/document.xml', $relationships->byId('rIdDocument')?->target);
         $t->same('/word/document.xml', $relationships->resolveTarget('rIdDocument'));
         $t->same('/docProps/core.xml', $relationships->resolveTarget('rIdCore'));
-        $t->same('https://example.test/source packet.html?post=42#review', $relationships->resolveTarget('rIdExternalAudit'));
+        $t->same('https://example.test/source%20packet.html?post=42#review', $relationships->resolveTarget('rIdExternalAudit'));
         $t->true($relationships->byId('rIdExternalAudit')?->isExternal() ?? false);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument', $relationships->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument')?->type);
         $t->same(1, count($relationships->ofType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties')));
@@ -1359,7 +1359,8 @@ XML;
     'classifies and preflights external OPC relationship target policies' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rIdHttp" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source packet.html?post=42#review" TargetMode="External"/>
+  <Relationship Id="rIdHttp" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source%20packet.html?post=42#review" TargetMode="External"/>
+  <Relationship Id="rIdRawSpace" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source packet.html?post=42#review" TargetMode="External"/>
   <Relationship Id="rIdMailto" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="mailto:editor@example.test" TargetMode="External"/>
   <Relationship Id="rIdNetwork" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="//cdn.example.test/review.png" TargetMode="External"/>
   <Relationship Id="rIdRelative" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="review/source.html#packet" TargetMode="External"/>
@@ -1385,6 +1386,7 @@ XML;
 
         $t->same([
             'rIdHttp',
+            'rIdRawSpace',
             'rIdMailto',
             'rIdNetwork',
             'rIdRelative',
@@ -1397,6 +1399,11 @@ XML;
         $t->same('https', $preflight['rIdHttp']['externalTargetScheme']);
         $t->same(true, $preflight['rIdHttp']['externalTargetAllowed']);
         $t->same([], $preflight['rIdHttp']['issues']);
+        $t->same('absolute-uri', $preflight['rIdRawSpace']['externalTargetKind']);
+        $t->same('https', $preflight['rIdRawSpace']['externalTargetScheme']);
+        $t->same(false, $preflight['rIdRawSpace']['externalTargetAllowed']);
+        $t->same(false, $preflight['rIdRawSpace']['valid']);
+        $t->same(['external-target-invalid-uri-byte'], $preflight['rIdRawSpace']['issues']);
         $t->same('mailto', $preflight['rIdMailto']['externalTargetScheme']);
         $t->same(true, $preflight['rIdMailto']['valid']);
         $t->same('network-path-reference', $preflight['rIdNetwork']['externalTargetKind']);
@@ -1426,6 +1433,60 @@ XML;
         $t->same(false, $closureById['rIdJavascript']['valid']);
         $t->same(['external-target-unsafe-scheme'], $closureById['rIdJavascript']['issues']);
         $t->same(null, $closureById['rIdRelative']['targetPart']);
+    },
+    'preflights raw whitespace in external OPC relationship target URI references' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $rawSpace = new OpcRelationship(
+            'rIdRawSpaceExternal',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+            'https://example.test/source packet.html',
+            OpcRelationship::TARGET_MODE_EXTERNAL,
+        );
+        $encodedSpace = new OpcRelationship(
+            'rIdEncodedSpaceExternal',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+            'https://example.test/source%20packet.html',
+            OpcRelationship::TARGET_MODE_EXTERNAL,
+        );
+
+        $t->same([
+            'kind' => 'absolute-uri',
+            'scheme' => 'https',
+            'allowed' => false,
+            'issues' => ['external-target-invalid-uri-byte'],
+        ], $rawSpace->externalTargetPreflight());
+        $t->same([
+            'kind' => 'absolute-uri',
+            'scheme' => 'https',
+            'allowed' => true,
+            'issues' => [],
+        ], $encodedSpace->externalTargetPreflight());
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdRawSpaceExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source packet.html" TargetMode="External"/>
+  <Relationship Id="rIdEncodedSpaceExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source%20packet.html" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same(false, $preflight['rIdRawSpaceExternal']['externalTargetAllowed']);
+        $t->same(false, $preflight['rIdRawSpaceExternal']['valid']);
+        $t->same(['external-target-invalid-uri-byte'], $preflight['rIdRawSpaceExternal']['issues']);
+        $t->same(true, $preflight['rIdEncodedSpaceExternal']['externalTargetAllowed']);
+        $t->same(true, $preflight['rIdEncodedSpaceExternal']['valid']);
+        $t->same([], $preflight['rIdEncodedSpaceExternal']['issues']);
     },
     'surfaces OPC external relative target rewrite context' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'

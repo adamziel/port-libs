@@ -1022,6 +1022,7 @@ final class EpubReader
         $identifierDetails = self::metadataIdentifierDetails($dc['identifier'] ?? [], $uniqueIdentifierReport);
         $uniqueIdentifierReport = self::uniqueIdentifierReportWithIdentifierDetails($uniqueIdentifierReport, $identifierDetails);
         $dateDetails = self::metadataDateDetails($dc['date'] ?? []);
+        $sourceDetails = self::metadataSourceDetails($dc['source'] ?? []);
         $titleDetails = self::metadataTitleDetails($dc['title'] ?? []);
         $titlesByType = self::metadataTitlesByType($titleDetails);
         $mainTitle = self::firstMetadataTitleByType($titleDetails, 'main') ?? ($titleDetails[0] ?? null);
@@ -1059,6 +1060,11 @@ final class EpubReader
             'dateDetails' => $dateDetails,
             'datesByEvent' => self::metadataDateDetailsByEvent($dateDetails),
             'dateSummary' => self::metadataDateSummary($dateDetails),
+            'source' => $dc['source'][0]['text'] ?? null,
+            'sources' => array_map(static fn (array $entry): string => $entry['text'], $dc['source'] ?? []),
+            'sourceDetails' => $sourceDetails,
+            'sourcesBySourceOf' => self::metadataSourceDetailsBySourceOf($sourceDetails),
+            'sourceSummary' => self::metadataSourceSummary($sourceDetails),
             'modified' => $metaProperties['dcterms:modified'][0]['text'] ?? null,
             'coverItemId' => $metaNames['cover'][0]['content'] ?? null,
             'dc' => $dc,
@@ -1656,6 +1662,122 @@ final class EpubReader
             'count' => count($details),
             'eventCount' => count($events),
             'events' => array_values($events),
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataSourceDetails(array $entries): array
+    {
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $sourceOfEntries = self::metadataRefinementEntries($refinements, 'source-of');
+            $sourceOfValues = array_values(array_filter(
+                array_map(static fn (array $sourceOf): string => (string) ($sourceOf['value'] ?? ''), $sourceOfEntries),
+                static fn (string $value): bool => $value !== '',
+            ));
+            $identifierTypes = self::metadataRefinementEntries($refinements, 'identifier-type');
+            $identifierType = $identifierTypes[0] ?? null;
+
+            $details[] = [
+                'kind' => 'source',
+                'index' => (int) $index,
+                'text' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'sourceOf' => $sourceOfValues[0] ?? null,
+                'sourceOfValues' => $sourceOfValues,
+                'sourceOfEntries' => $sourceOfEntries,
+                'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                'identifierTypes' => $identifierTypes,
+                'identifierType' => is_array($identifierType) ? (string) $identifierType['value'] : null,
+                'identifierTypeScheme' => is_array($identifierType) && is_string($identifierType['scheme'] ?? null)
+                    ? $identifierType['scheme']
+                    : null,
+                'linkedResources' => [],
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataSourceDetailsBySourceOf(array $details): array
+    {
+        $bySourceOf = [];
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $values = is_array($detail['sourceOfValues'] ?? null) ? $detail['sourceOfValues'] : [];
+            foreach ($values as $value) {
+                if (!is_string($value) || $value === '') {
+                    continue;
+                }
+
+                $bySourceOf[$value][] = $detail;
+            }
+        }
+
+        return $bySourceOf;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array{present:bool, count:int, sourceOfCount:int, sourceOfValues:list<string>, identifierTypeCount:int, identifierTypes:list<string>, linkedResourceCount:int, diagnostics:list<array<string, mixed>>}
+     */
+    private static function metadataSourceSummary(array $details): array
+    {
+        $sourceOfValues = [];
+        $identifierTypes = [];
+        $linkedResourceCount = 0;
+
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            foreach ((is_array($detail['sourceOfValues'] ?? null) ? $detail['sourceOfValues'] : []) as $sourceOf) {
+                if (is_string($sourceOf) && $sourceOf !== '') {
+                    $sourceOfValues[$sourceOf] = $sourceOf;
+                }
+            }
+
+            $identifierType = is_string($detail['identifierType'] ?? null) ? trim($detail['identifierType']) : '';
+            if ($identifierType !== '') {
+                $identifierTypes[$identifierType] = $identifierType;
+            }
+
+            $linkedResources = is_array($detail['linkedResources'] ?? null) ? $detail['linkedResources'] : [];
+            $linkedResourceCount += count($linkedResources);
+        }
+
+        return [
+            'present' => $details !== [],
+            'count' => count($details),
+            'sourceOfCount' => count($sourceOfValues),
+            'sourceOfValues' => array_values($sourceOfValues),
+            'identifierTypeCount' => count($identifierTypes),
+            'identifierTypes' => array_values($identifierTypes),
+            'linkedResourceCount' => $linkedResourceCount,
             'diagnostics' => [],
         ];
     }
@@ -2365,6 +2487,12 @@ final class EpubReader
         );
         $metadata['datesByEvent'] = self::metadataDateDetailsByEvent($metadata['dateDetails']);
         $metadata['dateSummary'] = self::metadataDateSummary($metadata['dateDetails']);
+        $metadata['sourceDetails'] = self::metadataDetailsWithLinkedResources(
+            is_array($metadata['sourceDetails'] ?? null) ? $metadata['sourceDetails'] : [],
+            $linksByRefinedId
+        );
+        $metadata['sourcesBySourceOf'] = self::metadataSourceDetailsBySourceOf($metadata['sourceDetails']);
+        $metadata['sourceSummary'] = self::metadataSourceSummary($metadata['sourceDetails']);
 
         return $metadata;
     }

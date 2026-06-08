@@ -6359,6 +6359,7 @@ final class PdfAcroFormExtractor
     private function widgetReferencesForField(int $fieldObject, array $widgetRefs, array $objects, array $pageWidgets): array
     {
         $refs = $widgetRefs;
+        $fieldHasExplicitKids = $this->fieldHasResolvableKidsArray($fieldObject, $objects);
         foreach (array_keys($pageWidgets) as $widgetObject) {
             if (in_array($widgetObject, $refs, true) || !isset($objects[$widgetObject])) {
                 continue;
@@ -6366,6 +6367,9 @@ final class PdfAcroFormExtractor
 
             $body = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
             if (!$this->isWidget($body) || $this->lastValidObjectReferenceValueAfterName($body, 'Parent', $objects) !== $fieldObject) {
+                continue;
+            }
+            if ($fieldHasExplicitKids && !$this->fieldTreeContainsObject($fieldObject, $widgetObject, $objects)) {
                 continue;
             }
 
@@ -6379,6 +6383,21 @@ final class PdfAcroFormExtractor
         }
 
         return $this->orderedWidgetReferencesByPageAnnotations($refs, $pageWidgets);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function fieldHasResolvableKidsArray(int $objectNumber, array $objects): bool
+    {
+        if (!isset($objects[$objectNumber]) || $this->objectIsStreamObject($objectNumber, $objects)) {
+            return false;
+        }
+
+        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        $kids = $this->lastTopLevelValueAfterName($body, 'Kids');
+
+        return $kids !== null && $this->arrayBodyFromValueOrReference($kids, $objects) !== null;
     }
 
     /**

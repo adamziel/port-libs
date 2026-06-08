@@ -1421,7 +1421,7 @@ final class PdfNamedDestinationExtractor
     private function nameTreeNodeLimits(array $node, array $objects, array &$cache): ?array
     {
         $limits = $this->arrayValues($this->resolve($node['Limits'] ?? null, $objects, $cache));
-        if (count($limits) < 2) {
+        if (count($limits) !== 2) {
             return null;
         }
 

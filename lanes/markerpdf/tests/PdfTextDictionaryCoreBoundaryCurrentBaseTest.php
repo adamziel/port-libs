@@ -719,6 +719,102 @@ return [
         $t->true(!str_contains($encoded, 'explicit pdftext envelope payload'));
         $t->true(!str_contains($encoded, 'stale adapter pdftext pages payload'));
     },
+    'prefers explicit dictionary_output over stale direct page-shaped wrappers at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $staleDirect = $pdftextLinkedPage();
+        $staleDirect['page'] = 930;
+        $staleDirect['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Stale direct wrapper should not import';
+        $staleDirect['raw_direct_wrapper_payload'] = 'stale direct wrapper payload must not cross dictionary_output';
+
+        $current = $pdftextLinkedPage();
+        $current['page'] = 931;
+        $current['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Direct wrapper dictionary_output ';
+        $current['blocks'][0]['lines'][0]['spans'][1]['text'] = 'page link';
+        $current['blocks'][0]['lines'][0]['spans'][2]['text'] = ' wins over stale blocks';
+        unset($current['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+        $staleDirect['dictionary_output'] = [
+            'metadata' => [
+                'source' => 'pdftext.dictionary_output',
+                'raw_private_payload' => 'direct wrapper dictionary_output metadata must not cross',
+            ],
+            'pages' => [
+                931 => $current,
+            ],
+            'raw_pdftext_payload' => 'direct wrapper dictionary_output payload must not cross',
+        ];
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks($staleDirect, maxPages: 1);
+        $page = $document['pages'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $document['page_range']);
+        $t->same(1, $document['metadata']['source_pages']);
+        $t->same(931, $page['pnum']);
+        $t->same('Direct wrapper dictionary_output [page link](https://example.com/import\\)docs) wins over stale blocks', $blocks[0]['text']);
+        $t->same('https://example.com/import)docs', $page['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->same([[
+            'url' => '#page-3-xy',
+            'page' => 3,
+            'dest_pos' => [72.0, 96.0],
+        ]], $page['pdftext_source']['refs']);
+        $t->true(!str_contains($encoded, 'Stale direct wrapper should not import'));
+        $t->true(!str_contains($encoded, 'stale direct wrapper payload'));
+        $t->true(!str_contains($encoded, 'direct wrapper dictionary_output metadata'));
+        $t->true(!str_contains($encoded, 'direct wrapper dictionary_output payload'));
+    },
+    'prefers explicit pdftext envelopes inside list-entry page-shaped wrappers at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = static function (int $pageNumber, string $lead, string $linkUrl, string $tail) use ($pdftextLinkedPage): array {
+            $page = $pdftextLinkedPage();
+            $page['page'] = $pageNumber;
+            $page['blocks'][0]['lines'][0]['spans'][0]['text'] = $lead;
+            $page['blocks'][0]['lines'][0]['spans'][1]['text'] = 'list-wrapper link';
+            $page['blocks'][0]['lines'][0]['spans'][1]['url'] = $linkUrl;
+            $page['blocks'][0]['lines'][0]['spans'][2]['text'] = $tail;
+            unset($page['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+            return $page;
+        };
+
+        $cover = $page(940, 'Skipped page-shaped wrapper cover ', 'https://example.com/list-wrapper-cover', ' should not import');
+        $staleSelected = $page(941, 'Stale page-shaped wrapper ', 'https://example.com/list-wrapper-stale', ' should not import');
+        $currentSelected = $page(1941, 'Selected page-shaped wrapper pdftext ', 'https://example.com/list-wrapper-current', ' stays visible');
+        $appendix = $page(942, 'Skipped page-shaped wrapper appendix ', 'https://example.com/list-wrapper-appendix', ' should not import');
+
+        $staleSelected['raw_page_wrapper_payload'] = 'selected stale page-shaped wrapper payload must not cross';
+        $staleSelected['pdftext'] = [
+            'metadata' => [
+                'source' => 'pdftext.dictionary_output',
+                'raw_private_payload' => 'selected page-shaped wrapper pdftext metadata must not cross',
+            ],
+            'pages' => [
+                1941 => $currentSelected,
+            ],
+            'raw_pdftext_payload' => 'selected page-shaped wrapper pdftext payload must not cross',
+        ];
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks(
+            [$cover, $staleSelected, $appendix],
+            maxPages: 1,
+            startPage: 1
+        );
+        $page = $document['pages'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $document['page_range']);
+        $t->same(3, $document['metadata']['source_pages']);
+        $t->same(1941, $page['pnum']);
+        $t->same('Selected page-shaped wrapper pdftext [list-wrapper link](https://example.com/list-wrapper-current) stays visible', $blocks[0]['text']);
+        $t->same('https://example.com/list-wrapper-current', $page['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->same('#page-3-xy', $page['pdftext_source']['refs'][0]['url'] ?? null);
+        $t->true(!str_contains($encoded, 'Skipped page-shaped wrapper cover'));
+        $t->true(!str_contains($encoded, 'Stale page-shaped wrapper'));
+        $t->true(!str_contains($encoded, 'Skipped page-shaped wrapper appendix'));
+        $t->true(!str_contains($encoded, 'selected stale page-shaped wrapper payload'));
+        $t->true(!str_contains($encoded, 'selected page-shaped wrapper pdftext metadata'));
+        $t->true(!str_contains($encoded, 'selected page-shaped wrapper pdftext payload'));
+    },
     'unwraps json decoded pdftext page envelopes at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $selected = $pdftextLinkedPage();
         $selected['page'] = 920;

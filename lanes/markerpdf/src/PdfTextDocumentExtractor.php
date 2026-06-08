@@ -117,6 +117,11 @@ final class PdfTextDocumentExtractor
      */
     private function normalizeSuppliedDictionaryPageList(array $pdftextPages): array
     {
+        $explicitPageList = $this->explicitSuppliedDictionaryPageList($pdftextPages);
+        if ($explicitPageList !== null) {
+            return $explicitPageList;
+        }
+
         if (array_key_exists('blocks', $pdftextPages)) {
             return [$pdftextPages];
         }
@@ -202,7 +207,20 @@ final class PdfTextDocumentExtractor
     private function unwrapSuppliedDictionaryPageEntry(mixed $entry): mixed
     {
         $entry = $this->normalizeSuppliedDictionaryValue($entry);
-        if (!is_array($entry) || array_key_exists('blocks', $entry)) {
+        if (!is_array($entry)) {
+            return $entry;
+        }
+
+        $explicitPageList = $this->explicitSuppliedDictionaryPageList($entry);
+        if ($explicitPageList !== null) {
+            if (count($explicitPageList) === 1 && is_array($explicitPageList[0]) && array_key_exists('blocks', $explicitPageList[0])) {
+                return $explicitPageList[0];
+            }
+
+            throw new InvalidArgumentException('Supplied pdftext page entry envelopes must contain exactly one page dictionary.');
+        }
+
+        if (array_key_exists('blocks', $entry)) {
             return $entry;
         }
 
@@ -236,6 +254,76 @@ final class PdfTextDocumentExtractor
         }
 
         return $entry;
+    }
+
+    /**
+     * Explicit pdftext cache envelopes should win before stale adapter wrapper
+     * pages. Limit this precedence to page-shaped payloads so arbitrary wrapper
+     * metadata named `pdftext` does not mask a valid direct page dictionary.
+     *
+     * @param array<mixed> $entry
+     * @return list<mixed>|null
+     */
+    private function explicitSuppliedDictionaryPageList(array $entry): ?array
+    {
+        foreach (['dictionary_output', 'pdftext'] as $pageListKey) {
+            if (!array_key_exists($pageListKey, $entry)) {
+                continue;
+            }
+
+            $pageList = $this->pageListFromExplicitDictionaryEnvelope($entry[$pageListKey]);
+            if ($pageList !== null) {
+                return $pageList;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<mixed>|null
+     */
+    private function pageListFromExplicitDictionaryEnvelope(mixed $value): ?array
+    {
+        $value = $this->normalizeSuppliedDictionaryValue($value);
+        if (!is_array($value)) {
+            return null;
+        }
+
+        if (array_key_exists('blocks', $value)) {
+            return [$value];
+        }
+
+        if (array_key_exists('pages', $value)) {
+            $pages = $this->normalizeSuppliedDictionaryValue($value['pages']);
+            if (is_array($pages)) {
+                $pageList = $this->orderedSuppliedDictionaryPageList($pages);
+
+                return $this->allSuppliedDictionaryPages($pageList) ? $pageList : null;
+            }
+        }
+
+        $pageList = $this->orderedSuppliedDictionaryPageList($value);
+
+        return $this->allSuppliedDictionaryPages($pageList) ? $pageList : null;
+    }
+
+    /**
+     * @param list<mixed> $pageList
+     */
+    private function allSuppliedDictionaryPages(array $pageList): bool
+    {
+        if ($pageList === []) {
+            return false;
+        }
+
+        foreach ($pageList as $page) {
+            if (!is_array($page) || !array_key_exists('blocks', $page)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function integerArrayKey(int|string $key): ?int

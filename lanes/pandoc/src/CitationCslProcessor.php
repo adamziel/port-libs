@@ -5614,7 +5614,7 @@ final class CitationCslProcessor
     private function formatCslNumber(string $value, string $form): string
     {
         $value = trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
-        if ($value === '' || !$this->cslNumberValueIsNumeric($value)) {
+        if ($value === '' || !$this->cslNumberValueCanBeFormatted($value)) {
             return $value;
         }
 
@@ -5638,6 +5638,18 @@ final class CitationCslProcessor
     }
 
     private function cslNumberValueIsNumeric(string $value): bool
+    {
+        $value = trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
+        if ($value === '') {
+            return false;
+        }
+
+        $token = '[\p{L}\p{N}]*\d[\p{L}\p{N}]*';
+
+        return preg_match('/^' . $token . '\s*(?:(?:[-\x{2010}-\x{2015}]|,|&)\s*' . $token . '\s*)*$/u', $value) === 1;
+    }
+
+    private function cslNumberValueCanBeFormatted(string $value): bool
     {
         return preg_match('/^\d+\s*(?:(?:[-\x{2010}-\x{2015}]|,|&)\s*\d+\s*)*$/u', $value) === 1;
     }

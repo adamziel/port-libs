@@ -94,6 +94,10 @@ final class OpcRelationship
         }
 
         $issues = [];
+        if (preg_match('/[\x00-\x20\x7F]/', $this->target) === 1) {
+            $issues[] = 'external-target-invalid-uri-byte';
+        }
+
         if (preg_match('/[\x00-\x1F\x7F]/', $this->target) === 1) {
             $issues[] = 'external-target-control-character';
         }

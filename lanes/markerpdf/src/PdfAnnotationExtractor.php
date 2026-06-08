@@ -1828,6 +1828,10 @@ final class PdfAnnotationExtractor
     {
         $dictionary = $this->dictionaryObjectBody($pageBody);
         if ($dictionary !== null) {
+            if ($name === 'Annots' && $this->dictionaryValueHasTrailingOperand($dictionary, $name)) {
+                return null;
+            }
+
             return $this->lastDictionaryRawValue($dictionary, $name);
         }
 
@@ -1857,6 +1861,10 @@ final class PdfAnnotationExtractor
         }
 
         if (str_starts_with($value, '[')) {
+            if ($this->arrayValueHasTrailingOperand($value)) {
+                return [];
+            }
+
             $body = $this->arrayBodyFromValue($value);
             return $body === null ? [] : $this->annotationRecordsFromArrayBody($body, $objects, $pageObjectNumber, $pageGeneration, $depth, $seen);
         }
@@ -1886,6 +1894,10 @@ final class PdfAnnotationExtractor
 
         $trimmedObjectBody = trim($objectBody);
         if (str_starts_with($trimmedObjectBody, '[')) {
+            if ($this->arrayValueHasTrailingOperand($trimmedObjectBody)) {
+                return [];
+            }
+
             $body = $this->arrayBodyFromValue($trimmedObjectBody);
             return $body === null ? [] : $this->annotationRecordsFromArrayBody(
                 $body,
@@ -2869,6 +2881,26 @@ final class PdfAnnotationExtractor
         }
 
         return $selected;
+    }
+
+    private function arrayValueHasTrailingOperand(string $value): bool
+    {
+        $offset = 0;
+        $this->skipWhitespaceAndComments($value, $offset);
+        if (($value[$offset] ?? '') !== '[') {
+            return false;
+        }
+
+        $endOffset = null;
+        $this->readPdfArrayAt($value, $offset, $endOffset);
+        if ($endOffset === null) {
+            return false;
+        }
+
+        $tailOffset = $endOffset;
+        $this->skipWhitespaceAndComments($value, $tailOffset);
+
+        return $tailOffset < strlen($value);
     }
 
     private function dictionaryValueHasTrailingOperand(string $body, string $name): bool

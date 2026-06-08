@@ -2987,6 +2987,219 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     totalEntryCount:int,
+     *     descriptorEntryCount:int,
+     *     matchedDescriptorEntryCount:int,
+     *     mismatchedDescriptorEntryCount:int,
+     *     signedDescriptorEntryCount:int,
+     *     unsignedDescriptorEntryCount:int,
+     *     zip64SizedDescriptorEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     mismatchedDescriptorEntries:list<array<string, mixed>>,
+     *     descriptorEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function dataDescriptorIntegrityPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before data descriptors can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $centralEntries = [];
+        $cursor = $archive['centralDirectoryOffset'];
+        for ($index = 0; $index < $archive['totalEntryCount']; $index++) {
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $method = self::readUInt16($bytes, $cursor + 10);
+            $crc32 = self::readUInt32($bytes, $cursor + 16);
+            $compressedSize = self::readUInt32($bytes, $cursor + 20);
+            $uncompressedSize = self::readUInt32($bytes, $cursor + 24);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            self::assertSafePartName($rawName);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            self::assertSafePartName($decodedName['text']);
+
+            $centralEntries[] = [
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'generalPurposeFlags' => $flags,
+                'compressionMethod' => $method,
+                'crc32' => $crc32,
+                'compressedSize' => $compressedSize,
+                'uncompressedSize' => $uncompressedSize,
+                'localHeaderOffset' => $localHeaderOffset,
+            ];
+            $cursor += 46 + $variableLength;
+        }
+
+        if ($cursor !== $archive['centralDirectoryEnd']) {
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature === null || $signature['endOffset'] !== $archive['centralDirectoryEnd']) {
+                self::rejectUnexpectedCentralDirectoryTail($bytes, $cursor, 'inside the central directory');
+            }
+        }
+
+        $entries = [];
+        $descriptorEntries = [];
+        $mismatchedDescriptorEntries = [];
+        $packageIssues = [];
+        $matchedDescriptorEntryCount = 0;
+        $signedDescriptorEntryCount = 0;
+        $unsignedDescriptorEntryCount = 0;
+        $zip64SizedDescriptorEntryCount = 0;
+
+        foreach ($centralEntries as $centralEntry) {
+            $localHeader = self::readLocalHeaderNameMetadata(
+                $bytes,
+                $centralEntry['localHeaderOffset'],
+                $centralEntry['centralDirectoryIndex']
+            );
+            $usesDataDescriptor = ($centralEntry['generalPurposeFlags'] & 0x0008) !== 0;
+            $summary = [
+                'name' => $centralEntry['name'],
+                'rawName' => $centralEntry['rawName'],
+                'nameEncoding' => $centralEntry['nameEncoding'],
+                'centralDirectoryIndex' => $centralEntry['centralDirectoryIndex'],
+                'centralDirectoryOffset' => $centralEntry['centralDirectoryOffset'],
+                'localHeaderOffset' => $centralEntry['localHeaderOffset'],
+                'usesDataDescriptor' => $usesDataDescriptor,
+                'hasSignature' => null,
+                'descriptorOffset' => null,
+                'valueOffset' => null,
+                'descriptorLength' => null,
+                'crc32' => null,
+                'crc32Hex' => null,
+                'compressedSize' => null,
+                'uncompressedSize' => null,
+                'centralCrc32' => $centralEntry['crc32'],
+                'centralCrc32Hex' => sprintf('%08x', $centralEntry['crc32']),
+                'centralCompressedSize' => $centralEntry['compressedSize'],
+                'centralUncompressedSize' => $centralEntry['uncompressedSize'],
+                'usesZip64SizedDescriptor' => false,
+                'localHeaderCrc32' => $localHeader['crc32'],
+                'localHeaderCompressedSize' => $localHeader['compressedSize'],
+                'localHeaderUncompressedSize' => $localHeader['uncompressedSize'],
+                'hasZeroLocalHeaderPlaceholders' => null,
+                'descriptorValuesMatchCentral' => null,
+                'issues' => [],
+            ];
+
+            if ($usesDataDescriptor) {
+                $summary['hasZeroLocalHeaderPlaceholders'] = $localHeader['crc32'] === 0
+                    && $localHeader['compressedSize'] === 0
+                    && $localHeader['uncompressedSize'] === 0;
+                if (!$summary['hasZeroLocalHeaderPlaceholders']) {
+                    $summary['issues'][] = 'local-header-data-descriptor-placeholders-not-zero';
+                }
+
+                $dataStart = $centralEntry['localHeaderOffset'] + $localHeader['localHeaderLength'];
+                $descriptorOffset = $dataStart + $centralEntry['compressedSize'];
+                $nextOffset = self::nextEntryOrCentralDirectoryOffsetForScannedEntries(
+                    $centralEntries,
+                    $centralEntry['localHeaderOffset'],
+                    $archive['centralDirectoryOffset']
+                );
+                $descriptor = self::dataDescriptorIntegritySummaryFromBytes(
+                    $bytes,
+                    $centralEntry['name'],
+                    $descriptorOffset,
+                    $nextOffset,
+                    $archive['centralDirectoryOffset'],
+                    $centralEntry['crc32'],
+                    $centralEntry['compressedSize'],
+                    $centralEntry['uncompressedSize']
+                );
+
+                $localIssues = $summary['issues'];
+                $summary = array_merge($summary, $descriptor);
+                $summary['issues'] = array_values(array_unique(array_merge(
+                    $localIssues,
+                    $descriptor['issues']
+                )));
+                $descriptorEntries[] = $summary;
+
+                if ($summary['hasSignature'] === true) {
+                    $signedDescriptorEntryCount++;
+                } else {
+                    $unsignedDescriptorEntryCount++;
+                }
+
+                if ($summary['usesZip64SizedDescriptor']) {
+                    $zip64SizedDescriptorEntryCount++;
+                }
+
+                if ($summary['descriptorValuesMatchCentral'] === true && $summary['issues'] === []) {
+                    $matchedDescriptorEntryCount++;
+                } else {
+                    $mismatchedDescriptorEntries[] = $summary;
+                }
+            }
+
+            foreach ($summary['issues'] as $issue) {
+                if (!in_array($issue, $packageIssues, true)) {
+                    $packageIssues[] = $issue;
+                }
+            }
+
+            $entries[] = $summary;
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'totalEntryCount' => $archive['totalEntryCount'],
+            'descriptorEntryCount' => count($descriptorEntries),
+            'matchedDescriptorEntryCount' => $matchedDescriptorEntryCount,
+            'mismatchedDescriptorEntryCount' => count($mismatchedDescriptorEntries),
+            'signedDescriptorEntryCount' => $signedDescriptorEntryCount,
+            'unsignedDescriptorEntryCount' => $unsignedDescriptorEntryCount,
+            'zip64SizedDescriptorEntryCount' => $zip64SizedDescriptorEntryCount,
+            'isSupportedByBoundedReader' => $packageIssues === [],
+            'issues' => $packageIssues,
+            'mismatchedDescriptorEntries' => $mismatchedDescriptorEntries,
+            'descriptorEntries' => $descriptorEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     descriptorEntryCount:int,
      *     signedDescriptorEntryCount:int,
      *     unsignedDescriptorEntryCount:int,
@@ -4088,6 +4301,29 @@ final class ZipPackage
     }
 
     /**
+     * @param list<array<string, mixed>> $entries
+     */
+    private static function nextEntryOrCentralDirectoryOffsetForScannedEntries(
+        array $entries,
+        int $localHeaderOffset,
+        int $centralDirectoryOffset
+    ): int {
+        $nextOffset = $centralDirectoryOffset;
+        foreach ($entries as $candidate) {
+            $candidateOffset = $candidate['localHeaderOffset'];
+            if (!is_int($candidateOffset) || $candidateOffset <= $localHeaderOffset) {
+                continue;
+            }
+
+            if ($candidateOffset < $nextOffset) {
+                $nextOffset = $candidateOffset;
+            }
+        }
+
+        return $nextOffset;
+    }
+
+    /**
      * @return array{
      *     hasZip64EndOfCentralDirectoryLocator:bool,
      *     hasZip64EndOfCentralDirectory:bool,
@@ -4576,6 +4812,252 @@ final class ZipPackage
             'crc32Hex' => sprintf('%08x', $values['crc32']),
             'usesZip64SizedDescriptor' => false,
         ];
+    }
+
+    /**
+     * @return array{hasSignature:?bool, descriptorOffset:int, valueOffset:?int, descriptorLength:?int, crc32:?int, crc32Hex:?string, compressedSize:?int, uncompressedSize:?int, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:?bool, issues:list<string>}
+     */
+    private static function dataDescriptorIntegritySummaryFromBytes(
+        string $bytes,
+        string $entryName,
+        int $descriptorOffset,
+        int $nextOffset,
+        int $centralDirectoryOffset,
+        int $centralCrc32,
+        int $centralCompressedSize,
+        int $centralUncompressedSize
+    ): array {
+        $descriptorSpan = $nextOffset - $descriptorOffset;
+        $hasSignatureMarker = substr($bytes, $descriptorOffset, 4) === "PK\x07\x08";
+
+        if ($descriptorSpan === 20 && !$hasSignatureMarker) {
+            $values = self::zip64DataDescriptorValuesFromBytes($bytes, $descriptorOffset, $centralDirectoryOffset);
+
+            return self::dataDescriptorIntegrityResult(
+                $entryName,
+                $descriptorOffset,
+                $descriptorOffset,
+                20,
+                false,
+                $values,
+                true,
+                $centralCrc32,
+                $centralCompressedSize,
+                $centralUncompressedSize,
+                ['zip64-sized-data-descriptor']
+            );
+        }
+
+        if ($descriptorSpan === 24 && $hasSignatureMarker) {
+            $values = self::zip64DataDescriptorValuesFromBytes($bytes, $descriptorOffset + 4, $centralDirectoryOffset);
+
+            return self::dataDescriptorIntegrityResult(
+                $entryName,
+                $descriptorOffset,
+                $descriptorOffset + 4,
+                24,
+                true,
+                $values,
+                true,
+                $centralCrc32,
+                $centralCompressedSize,
+                $centralUncompressedSize,
+                ['zip64-sized-data-descriptor']
+            );
+        }
+
+        $signedValues = $hasSignatureMarker
+            ? self::standardDataDescriptorValuesFromBytes($bytes, $descriptorOffset + 4, $centralDirectoryOffset)
+            : null;
+        $unsignedValues = self::standardDataDescriptorValuesFromBytes($bytes, $descriptorOffset, $centralDirectoryOffset);
+        $signedMatches = self::dataDescriptorValuesMatchCentral(
+            $signedValues,
+            $centralCrc32,
+            $centralCompressedSize,
+            $centralUncompressedSize
+        );
+        $unsignedMatches = self::dataDescriptorValuesMatchCentral(
+            $unsignedValues,
+            $centralCrc32,
+            $centralCompressedSize,
+            $centralUncompressedSize
+        );
+
+        if ($signedMatches) {
+            $valueOffset = $descriptorOffset + 4;
+            $descriptorLength = 16;
+            $hasSignature = true;
+            $values = $signedValues;
+        } elseif ($unsignedMatches) {
+            $valueOffset = $descriptorOffset;
+            $descriptorLength = 12;
+            $hasSignature = false;
+            $values = $unsignedValues;
+        } elseif ($hasSignatureMarker && $signedValues !== null) {
+            $valueOffset = $descriptorOffset + 4;
+            $descriptorLength = 16;
+            $hasSignature = true;
+            $values = $signedValues;
+        } elseif ($unsignedValues !== null) {
+            $valueOffset = $descriptorOffset;
+            $descriptorLength = 12;
+            $hasSignature = false;
+            $values = $unsignedValues;
+        } else {
+            return [
+                'hasSignature' => $hasSignatureMarker,
+                'descriptorOffset' => $descriptorOffset,
+                'valueOffset' => $hasSignatureMarker ? $descriptorOffset + 4 : $descriptorOffset,
+                'descriptorLength' => null,
+                'crc32' => null,
+                'crc32Hex' => null,
+                'compressedSize' => null,
+                'uncompressedSize' => null,
+                'usesZip64SizedDescriptor' => false,
+                'descriptorValuesMatchCentral' => null,
+                'issues' => ['data-descriptor-truncated'],
+            ];
+        }
+
+        $extraIssues = [];
+        if ($descriptorSpan !== $descriptorLength) {
+            $extraIssues[] = 'data-descriptor-length-mismatch';
+        }
+
+        return self::dataDescriptorIntegrityResult(
+            $entryName,
+            $descriptorOffset,
+            $valueOffset,
+            $descriptorLength,
+            $hasSignature,
+            $values,
+            false,
+            $centralCrc32,
+            $centralCompressedSize,
+            $centralUncompressedSize,
+            $extraIssues
+        );
+    }
+
+    /**
+     * @param array{crc32:int, compressedSize:int, uncompressedSize:int}|null $values
+     * @param list<string> $extraIssues
+     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, crc32:?int, crc32Hex:?string, compressedSize:?int, uncompressedSize:?int, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:?bool, issues:list<string>}
+     */
+    private static function dataDescriptorIntegrityResult(
+        string $entryName,
+        int $descriptorOffset,
+        int $valueOffset,
+        int $descriptorLength,
+        bool $hasSignature,
+        ?array $values,
+        bool $usesZip64SizedDescriptor,
+        int $centralCrc32,
+        int $centralCompressedSize,
+        int $centralUncompressedSize,
+        array $extraIssues = []
+    ): array {
+        $issues = $extraIssues;
+        $descriptorValuesMatchCentral = null;
+        $crc32 = null;
+        $compressedSize = null;
+        $uncompressedSize = null;
+
+        if ($values === null) {
+            $issues[] = $usesZip64SizedDescriptor
+                ? 'zip64-sized-data-descriptor-truncated'
+                : 'data-descriptor-truncated';
+        } else {
+            $crc32 = $values['crc32'];
+            $compressedSize = $values['compressedSize'];
+            $uncompressedSize = $values['uncompressedSize'];
+            $descriptorValuesMatchCentral = self::dataDescriptorValuesMatchCentral(
+                $values,
+                $centralCrc32,
+                $centralCompressedSize,
+                $centralUncompressedSize
+            );
+
+            if ($crc32 !== $centralCrc32) {
+                $issues[] = 'data-descriptor-crc32-mismatch';
+            }
+            if ($compressedSize !== $centralCompressedSize || $uncompressedSize !== $centralUncompressedSize) {
+                $issues[] = 'data-descriptor-size-mismatch';
+            }
+        }
+
+        return [
+            'hasSignature' => $hasSignature,
+            'descriptorOffset' => $descriptorOffset,
+            'valueOffset' => $valueOffset,
+            'descriptorLength' => $descriptorLength,
+            'crc32' => $crc32,
+            'crc32Hex' => $crc32 === null ? null : sprintf('%08x', $crc32),
+            'compressedSize' => $compressedSize,
+            'uncompressedSize' => $uncompressedSize,
+            'usesZip64SizedDescriptor' => $usesZip64SizedDescriptor,
+            'descriptorValuesMatchCentral' => $descriptorValuesMatchCentral,
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @return array{crc32:int, compressedSize:int, uncompressedSize:int}|null
+     */
+    private static function standardDataDescriptorValuesFromBytes(
+        string $bytes,
+        int $valuesOffset,
+        int $centralDirectoryOffset
+    ): ?array {
+        if (
+            !self::isRangeAvailable($bytes, $valuesOffset, 12)
+            || $valuesOffset + 12 > $centralDirectoryOffset
+        ) {
+            return null;
+        }
+
+        return [
+            'crc32' => self::readUInt32($bytes, $valuesOffset),
+            'compressedSize' => self::readUInt32($bytes, $valuesOffset + 4),
+            'uncompressedSize' => self::readUInt32($bytes, $valuesOffset + 8),
+        ];
+    }
+
+    /**
+     * @return array{crc32:int, compressedSize:int, uncompressedSize:int}|null
+     */
+    private static function zip64DataDescriptorValuesFromBytes(
+        string $bytes,
+        int $valuesOffset,
+        int $centralDirectoryOffset
+    ): ?array {
+        if (
+            !self::isRangeAvailable($bytes, $valuesOffset, 20)
+            || $valuesOffset + 20 > $centralDirectoryOffset
+        ) {
+            return null;
+        }
+
+        return [
+            'crc32' => self::readUInt32($bytes, $valuesOffset),
+            'compressedSize' => self::readUInt64($bytes, $valuesOffset + 4),
+            'uncompressedSize' => self::readUInt64($bytes, $valuesOffset + 12),
+        ];
+    }
+
+    /**
+     * @param array{crc32:int, compressedSize:int, uncompressedSize:int}|null $values
+     */
+    private static function dataDescriptorValuesMatchCentral(
+        ?array $values,
+        int $centralCrc32,
+        int $centralCompressedSize,
+        int $centralUncompressedSize
+    ): bool {
+        return $values !== null
+            && $values['crc32'] === $centralCrc32
+            && $values['compressedSize'] === $centralCompressedSize
+            && $values['uncompressedSize'] === $centralUncompressedSize;
     }
 
     private function inflateEntry(ZipPackageEntry $entry, string $compressed, ?int $maxUncompressedBytes = null): string
@@ -5213,6 +5695,14 @@ final class ZipPackage
         if ($offset < 0 || $length < 0 || $offset > strlen($bytes) || $offset + $length > strlen($bytes)) {
             throw new \RuntimeException("ZIP package {$label} extends beyond available bytes");
         }
+    }
+
+    private static function isRangeAvailable(string $bytes, int $offset, int $length): bool
+    {
+        return $offset >= 0
+            && $length >= 0
+            && $offset <= strlen($bytes)
+            && $offset + $length <= strlen($bytes);
     }
 
     private static function assertUInt16Length(string $bytes, string $label): void

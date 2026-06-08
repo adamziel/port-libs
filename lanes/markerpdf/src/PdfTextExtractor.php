@@ -14092,13 +14092,18 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $values = $this->topLevelPdfValuesAfterName($body, 'PageLabels');
-            if ($values === []) {
+            $entries = $this->pageLabelTopLevelValueEntriesAfterName($body, 'PageLabels');
+            if ($entries === []) {
                 continue;
             }
 
             $dictionaries = [];
-            foreach ($values as $value) {
+            foreach ($entries as $entry) {
+                if ($entry['has_trailing_operand']) {
+                    continue;
+                }
+
+                $value = $entry['value'];
                 $dictionary = $this->pageLabelDictionaryFromValue($value, $objects);
                 if ($dictionary !== null) {
                     $dictionaries[] = $dictionary;
@@ -14534,7 +14539,13 @@ final class PdfTextExtractor
     private function pageLabelLimitCandidates(string $dictionary, array $objects): array
     {
         $candidates = [];
-        foreach ($this->pageLabelTopLevelValuesAfterName($dictionary, 'Limits') as $value) {
+        foreach ($this->pageLabelTopLevelValueEntriesAfterName($dictionary, 'Limits') as $entry) {
+            if ($entry['has_trailing_operand']) {
+                $candidates[] = ['status' => 'malformed'];
+                continue;
+            }
+
+            $value = $entry['value'];
             $arrayBody = $this->pageLabelArrayFromValue($value, $objects);
             if ($arrayBody === null) {
                 $candidates[] = ['status' => 'malformed'];
@@ -14821,8 +14832,12 @@ final class PdfTextExtractor
     private function pageLabelArrayValuesAfterNameResolved(string $body, string $name, array $objects): array
     {
         $arrays = [];
-        foreach ($this->pageLabelTopLevelValuesAfterName($body, $name) as $value) {
-            $array = $this->pageLabelArrayFromValue($value, $objects);
+        foreach ($this->pageLabelTopLevelValueEntriesAfterName($body, $name) as $entry) {
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $array = $this->pageLabelArrayFromValue($entry['value'], $objects);
             if ($array !== null) {
                 $arrays[] = $array;
             }
@@ -14834,6 +14849,76 @@ final class PdfTextExtractor
     private function pageLabelTopLevelValueAfterName(string $dictionary, string $name): ?string
     {
         return $this->pageLabelTopLevelValuesAfterName($dictionary, $name)[0] ?? null;
+    }
+
+    /**
+     * @return list<array{value: string, has_trailing_operand: bool}>
+     */
+    private function pageLabelTopLevelValueEntriesAfterName(string $dictionary, string $name): array
+    {
+        $dictionary = trim($dictionary);
+        if (str_starts_with($dictionary, '<<')) {
+            $body = $this->readPdfDictionaryAt($dictionary, 0);
+            if ($body === null) {
+                return [];
+            }
+
+            $dictionary = $body;
+        }
+
+        $offset = 0;
+        $length = strlen($dictionary);
+        $entries = [];
+
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $nextOffset = $this->skipPdfValueAt($dictionary, $offset);
+                $offset = $nextOffset > $offset ? $nextOffset : $offset + 1;
+                continue;
+            }
+
+            $keyStart = $offset + 1;
+            $keyEnd = $keyStart;
+            while ($keyEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $dictionary[$keyEnd])) {
+                $keyEnd++;
+            }
+
+            if ($keyEnd === $keyStart) {
+                $offset++;
+                continue;
+            }
+
+            $key = $this->decodePdfName(substr($dictionary, $keyStart, $keyEnd - $keyStart));
+            $valueOffset = $keyEnd;
+            $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            $value = $this->pdfValueAtOffset($dictionary, $valueOffset);
+            if ($value === null) {
+                break;
+            }
+
+            $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+            if ($key === $name) {
+                $afterValue = $nextOffset;
+                $this->skipContentWhitespaceAndComments($dictionary, $afterValue);
+                $entries[] = [
+                    'value' => $value,
+                    'has_trailing_operand' => $afterValue < $length && $dictionary[$afterValue] !== '/',
+                ];
+            }
+
+            $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+        }
+
+        return $entries;
     }
 
     /**
@@ -14934,8 +15019,12 @@ final class PdfTextExtractor
      */
     private function pageLabelPrefix(string $dictionary, array $objects): string
     {
-        foreach ($this->pageLabelTopLevelValuesAfterName($dictionary, 'P') as $value) {
-            $prefix = $this->pageLabelTextStringValue($value, $objects);
+        foreach ($this->pageLabelTopLevelValueEntriesAfterName($dictionary, 'P') as $entry) {
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $prefix = $this->pageLabelTextStringValue($entry['value'], $objects);
             if ($prefix !== null) {
                 return $prefix;
             }
@@ -14949,8 +15038,12 @@ final class PdfTextExtractor
      */
     private function pageLabelNameValueAfterName(string $dictionary, string $name, array $objects): ?string
     {
-        foreach ($this->pageLabelTopLevelValuesAfterName($dictionary, $name) as $value) {
-            $nameValue = $this->pageLabelNameValue($value, $objects);
+        foreach ($this->pageLabelTopLevelValueEntriesAfterName($dictionary, $name) as $entry) {
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $nameValue = $this->pageLabelNameValue($entry['value'], $objects);
             if ($nameValue !== null) {
                 return $nameValue;
             }
@@ -15011,8 +15104,12 @@ final class PdfTextExtractor
      */
     private function pageLabelIntegerValueAfterName(string $dictionary, string $name, array $objects): ?int
     {
-        foreach ($this->pageLabelTopLevelValuesAfterName($dictionary, $name) as $value) {
-            $integer = $this->pageLabelIntegerValue($value, $objects);
+        foreach ($this->pageLabelTopLevelValueEntriesAfterName($dictionary, $name) as $entry) {
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $integer = $this->pageLabelIntegerValue($entry['value'], $objects);
             if ($integer !== null) {
                 return $integer;
             }
@@ -17416,6 +17513,10 @@ final class PdfTextExtractor
             return true;
         }
 
+        if ($this->ccittFaxEncodedByteAlignIsInvalidForOwnership($decodeParms, $objects)) {
+            return true;
+        }
+
         if ($this->decodeParmsHasName($decodeParms, 'Rows')) {
             $rows = $this->decodeParmsInt($decodeParms, 'Rows', $objects);
             if (
@@ -17480,6 +17581,10 @@ final class PdfTextExtractor
             return null;
         }
 
+        if ($this->ccittFaxEncodedByteAlignIsInvalidForOwnership($decodeParms, $objects)) {
+            return null;
+        }
+
         if ($this->decodeParmsHasName($decodeParms, 'Rows')) {
             $rows = $this->decodeParmsInt($decodeParms, 'Rows', $objects);
             if ($rows !== null && $rows > 0) {
@@ -17517,6 +17622,18 @@ final class PdfTextExtractor
         $columns = $this->decodeParmsInt($decodeParms, 'Columns', $objects);
 
         return $columns === null || $columns < 1;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxEncodedByteAlignIsInvalidForOwnership(?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || !$this->decodeParmsHasName($decodeParms, 'EncodedByteAlign')) {
+            return false;
+        }
+
+        return $this->decodeParmsBool($decodeParms, 'EncodedByteAlign', $objects) === null;
     }
 
     private function firstFilterEndMarkerOffset(string $value, int $streamStart, string $marker): ?int
@@ -20093,6 +20210,11 @@ final class PdfTextExtractor
 
             $parentValues = $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, 'Parent');
             $parentValue = $parentValues === [] ? null : $parentValues[count($parentValues) - 1];
+            if ($this->topLevelLastValueAfterNameHasTrailingTopLevelOperand($dictionary, 'Parent')) {
+                $blocked = true;
+                break;
+            }
+
             if ($parentValue === null) {
                 $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
                 if ($this->pageObjectLineageIsPrefix($lineage, $catalogLineage)) {
@@ -31394,9 +31516,10 @@ final class PdfTextExtractor
 
         if ($name === 'Filter' && $body !== null) {
             $body = trim($body);
-            $review['token_type'] = $this->pdfOperandTokenType($body);
-            if ($this->indirectFilterScalarValueShouldBeExposed($body, $review['token_type'])) {
-                $review['value'] = $this->xrefStreamDirectOperandValue($body);
+            $primaryBody = $this->indirectFilterPrimaryOperandBody($body) ?? $body;
+            $review['token_type'] = $this->pdfOperandTokenType($primaryBody);
+            if ($this->indirectFilterScalarValueShouldBeExposed($primaryBody, $review['token_type'])) {
+                $review['value'] = $this->xrefStreamDirectOperandValue($primaryBody);
             }
             $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary(
                 $body,
@@ -31409,7 +31532,7 @@ final class PdfTextExtractor
                 [$objectNumber . ':' . $generation => true]
             );
             if ($review['token_type'] === 'name') {
-                $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($body);
+                $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($primaryBody);
             }
             $review['valid_filter_operand'] = $this->filterNamesFromSingleValue(
                 $body,
@@ -31441,6 +31564,16 @@ final class PdfTextExtractor
         }
 
         return $review;
+    }
+
+    private function indirectFilterPrimaryOperandBody(string $body): ?string
+    {
+        $value = $this->pdfValueAtOffset($body, 0);
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        return $value;
     }
 
     private function indirectFilterScalarValueShouldBeExposed(string $body, string $tokenType): bool
@@ -34122,7 +34255,7 @@ final class PdfTextExtractor
                     $sourceHex = $entry['source'] ?? '';
                     $targetHex = $entry['target'] ?? '';
                     $source = $this->normalizeHexKey($sourceHex);
-                    if ($source !== '') {
+                    if ($source !== '' && strlen($source) <= 8) {
                         $map[$source] = $this->decodeCMapUnicodeHex($targetHex);
                     }
                 }
@@ -34748,7 +34881,7 @@ final class PdfTextExtractor
             $source = hexdec($start);
             $last = hexdec($end);
             $sourceWidth = strlen($start);
-            if ($last < $source) {
+            if ($sourceWidth > 8 || $last < $source) {
                 continue;
             }
             $sameWidthCodeSpaceRanges = $this->codeSpaceRangesForHexWidth($codeSpaceRanges, $sourceWidth);

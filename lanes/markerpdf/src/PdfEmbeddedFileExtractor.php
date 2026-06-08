@@ -114,7 +114,11 @@ final class PdfEmbeddedFileExtractor
         $catalogPieceInfo = $this->pieceInfoMetadata($this->dictionaryRawValue($catalog, 'PieceInfo'), $objects);
         $files = [];
         $names = $this->resolveDictionaryFromValue($this->dictionaryRawValue($catalog, 'Names'), $objects);
-        if ($names !== null && !$this->dictionaryHasDuplicateKeys($names['body'], self::CATALOG_NAMES_BOUNDARY_KEYS)) {
+        if (
+            $names !== null
+            && !$this->dictionaryHasDuplicateKeys($names['body'], self::CATALOG_NAMES_BOUNDARY_KEYS)
+            && !$this->dictionaryHasTrailingOperandsAfterKeys($names['body'], self::CATALOG_NAMES_BOUNDARY_KEYS)
+        ) {
             $embeddedFiles = $this->resolveDictionaryFromValue($this->dictionaryRawValue($names['body'], 'EmbeddedFiles'), $objects);
             if ($embeddedFiles !== null) {
                 $this->collectNameTreeFiles($embeddedFiles['body'], $objects, $files, $portfolioMetadata, $catalogPieceInfo, $encryptionPolicy);
@@ -151,7 +155,10 @@ final class PdfEmbeddedFileExtractor
         if ($depth > 20) {
             return;
         }
-        if ($this->dictionaryHasDuplicateKeys($nodeBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
+        if (
+            $this->dictionaryHasDuplicateKeys($nodeBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)
+            || $this->dictionaryHasTrailingOperandsAfterKeys($nodeBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)
+        ) {
             return;
         }
 

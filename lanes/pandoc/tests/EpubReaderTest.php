@@ -824,6 +824,83 @@ XML;
         $t->same($summary, $result['document']->attr('metadata')['identifierSummary']);
         $t->same($dateDetails, $result['document']->attr('metadata')['dateDetails']);
     },
+    'summarizes OPF source metadata and source-of refinements for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $sourceRecord = '{"kind":"source-record","title":"Print source packet"}';
+        $opfWithSourceMetadata = str_replace(
+            '<dc:language>en</dc:language>',
+            '<dc:source id="print-source" scheme="ISBN" xml:lang="fr" dir="ltr">9781234567890</dc:source>'
+            . '<dc:source id="web-source">https://example.test/source-post</dc:source>'
+            . '<dc:language>en</dc:language>',
+            $opfXml
+        );
+        $opfWithSourceMetadata = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#print-source" property="source-of">pagination</meta>'
+            . '<meta refines="#print-source" property="identifier-type" scheme="onix:codelist5">15</meta>'
+            . '<meta refines="#print-source" property="display-seq">1</meta>'
+            . '<meta refines="#web-source" property="source-of">content</meta>',
+            $opfWithSourceMetadata
+        );
+        $opfWithSourceMetadata = str_replace(
+            '<meta name="cover" content="cover-image"/>',
+            '<meta name="cover" content="cover-image"/>'
+            . '<link id="source-record" rel="record" refines="#print-source" href="meta/source.json" media-type="application/ld+json" properties="schema-org"/>',
+            $opfWithSourceMetadata
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithSourceMetadata,
+            null,
+            [
+                ['name' => 'OEBPS/meta/source.json', 'data' => $sourceRecord],
+            ]
+        ));
+        $metadata = $result['metadata'];
+        $sourceDetails = $metadata['sourceDetails'];
+
+        $t->same(['9781234567890', 'https://example.test/source-post'], $metadata['sources']);
+        $t->same('9781234567890', $metadata['source']);
+        $t->same(2, count($sourceDetails));
+
+        $printSource = $sourceDetails[0];
+        $t->same('source', $printSource['kind']);
+        $t->same(0, $printSource['index']);
+        $t->same('print-source', $printSource['id']);
+        $t->same('9781234567890', $printSource['text']);
+        $t->same('ISBN', $printSource['scheme']);
+        $t->same('fr', $printSource['language']);
+        $t->same('ltr', $printSource['direction']);
+        $t->same('pagination', $printSource['sourceOf']);
+        $t->same(['pagination'], $printSource['sourceOfValues']);
+        $t->same('1', $printSource['displaySeq']);
+        $t->same('15', $printSource['identifierType']);
+        $t->same('onix:codelist5', $printSource['identifierTypeScheme']);
+        $t->same('source-record', $printSource['linkedResources'][0]['id']);
+        $t->same('/OEBPS/meta/source.json', $printSource['linkedResources'][0]['target']);
+        $t->same(hash('sha256', $sourceRecord), $printSource['linkedResources'][0]['byteSha256']);
+
+        $webSource = $sourceDetails[1];
+        $t->same('web-source', $webSource['id']);
+        $t->same('https://example.test/source-post', $webSource['text']);
+        $t->same('content', $webSource['sourceOf']);
+        $t->same(null, $webSource['identifierType']);
+        $t->same([], $webSource['linkedResources']);
+
+        $t->same('9781234567890', $metadata['sourcesBySourceOf']['pagination'][0]['text']);
+        $t->same('https://example.test/source-post', $metadata['sourcesBySourceOf']['content'][0]['text']);
+        $t->same(true, $metadata['sourceSummary']['present']);
+        $t->same(2, $metadata['sourceSummary']['count']);
+        $t->same(2, $metadata['sourceSummary']['sourceOfCount']);
+        $t->same(['pagination', 'content'], $metadata['sourceSummary']['sourceOfValues']);
+        $t->same(1, $metadata['sourceSummary']['identifierTypeCount']);
+        $t->same(['15'], $metadata['sourceSummary']['identifierTypes']);
+        $t->same(1, $metadata['sourceSummary']['linkedResourceCount']);
+        $t->same([], $metadata['sourceSummary']['diagnostics']);
+        $t->same($sourceDetails, $result['importReport']['metadata']['sourceDetails']);
+        $t->same($sourceDetails, $result['document']->attr('metadata')['sourceDetails']);
+        $t->same($metadata['sourceSummary'], $result['document']->attr('metadata')['sourceSummary']);
+    },
     'reports OPF spine page progression direction and itemref spread properties' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithReadingOrder = str_replace(
             '<spine toc="toc">',

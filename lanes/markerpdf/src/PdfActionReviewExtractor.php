@@ -2978,7 +2978,7 @@ final class PdfActionReviewExtractor
     private function nameTreeNodeLimits(array $node): ?array
     {
         $limits = $this->resolveArray($node['Limits'] ?? null);
-        if ($limits === null || count($limits) < 2) {
+        if ($limits === null || count($limits) !== 2) {
             return null;
         }
 

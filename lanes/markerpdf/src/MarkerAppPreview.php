@@ -1581,8 +1581,12 @@ final class MarkerAppPreview
         }
 
         $sections = [];
-        foreach ($this->valuesAfterName($catalogBody, 'PageLabels') as $value) {
-            $candidateSections = $this->pageLabelSections($value, $objects);
+        foreach ($this->valueEntriesAfterName($catalogBody, 'PageLabels') as $entry) {
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $candidateSections = $this->pageLabelSections($entry['value'], $objects);
             $candidateSections = array_filter(
                 $candidateSections,
                 static fn (array $section): bool => $section['page_index'] >= 0 && $section['page_index'] < $pageCount
@@ -1654,8 +1658,12 @@ final class MarkerAppPreview
             }
         }
 
-        foreach ($this->valuesAfterName($value, 'Nums') as $nums) {
-            $candidateSections = $this->pageLabelSectionsFromNums($nums, $objects, $seen, $limits);
+        foreach ($this->valueEntriesAfterName($value, 'Nums') as $entry) {
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $candidateSections = $this->pageLabelSectionsFromNums($entry['value'], $objects, $seen, $limits);
             if ($candidateSections === []) {
                 continue;
             }
@@ -1675,7 +1683,12 @@ final class MarkerAppPreview
         }
 
         $kidNodeGroups = [];
-        foreach ($this->valuesAfterName($value, 'Kids') as $kids) {
+        foreach ($this->valueEntriesAfterName($value, 'Kids') as $entry) {
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $kids = $entry['value'];
             $candidateKidNodes = [];
             $kidOrder = 0;
             foreach ($this->pageLabelArrayElements($this->resolvePageLabelPdfValue($kids, $objects, $seen)) as $kid) {
@@ -2054,8 +2067,13 @@ final class MarkerAppPreview
     private function pageLabelLimitCandidates(string $dict, array $objects, array $seen): array
     {
         $candidates = [];
-        foreach ($this->valuesAfterName($dict, 'Limits') as $limits) {
-            $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($limits, $objects, $seen));
+        foreach ($this->valueEntriesAfterName($dict, 'Limits') as $entry) {
+            if ($entry['has_trailing_operand']) {
+                $candidates[] = ['status' => 'malformed'];
+                continue;
+            }
+
+            $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($entry['value'], $objects, $seen));
             if (count($elements) !== 2) {
                 $candidates[] = ['status' => 'malformed'];
                 continue;
@@ -2289,8 +2307,12 @@ final class MarkerAppPreview
      */
     private function pageLabelStyleValueAfterName(string $dict, string $name, array $objects, array $seen): ?string
     {
-        foreach ($this->valuesAfterName($dict, $name) as $value) {
-            $styleValue = $this->pageLabelSinglePdfToken($this->resolvePageLabelPdfValue($value, $objects, $seen));
+        foreach ($this->valueEntriesAfterName($dict, $name) as $entry) {
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $styleValue = $this->pageLabelSinglePdfToken($this->resolvePageLabelPdfValue($entry['value'], $objects, $seen));
             if ($styleValue === null || !str_starts_with($styleValue, '/')) {
                 continue;
             }
@@ -2310,8 +2332,12 @@ final class MarkerAppPreview
      */
     private function pageLabelStartValueAfterName(string $dict, string $name, array $objects, array $seen): int
     {
-        foreach ($this->valuesAfterName($dict, $name) as $value) {
-            $startValue = $this->pageLabelSinglePdfToken($this->resolvePageLabelPdfValue($value, $objects, $seen));
+        foreach ($this->valueEntriesAfterName($dict, $name) as $entry) {
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $startValue = $this->pageLabelSinglePdfToken($this->resolvePageLabelPdfValue($entry['value'], $objects, $seen));
             $startInteger = $startValue === null ? null : $this->pageLabelIntegerTokenValue($startValue);
             if ($startInteger !== null) {
                 return max(1, $startInteger);
@@ -2327,8 +2353,12 @@ final class MarkerAppPreview
      */
     private function pageLabelPrefixValueAfterName(string $dict, string $name, array $objects, array $seen): string
     {
-        foreach ($this->valuesAfterName($dict, $name) as $value) {
-            $prefix = $this->decodePdfStringValue($this->resolvePageLabelPdfValue($value, $objects, $seen));
+        foreach ($this->valueEntriesAfterName($dict, $name) as $entry) {
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $prefix = $this->decodePdfStringValue($this->resolvePageLabelPdfValue($entry['value'], $objects, $seen));
             if ($prefix !== null) {
                 return $prefix;
             }
@@ -2649,6 +2679,17 @@ final class MarkerAppPreview
      */
     private function valuesAfterName(string $body, string $name): array
     {
+        return array_map(
+            static fn (array $entry): string => $entry['value'],
+            $this->valueEntriesAfterName($body, $name)
+        );
+    }
+
+    /**
+     * @return list<array{value: string, has_trailing_operand: bool}>
+     */
+    private function valueEntriesAfterName(string $body, string $name): array
+    {
         $body = trim($body);
         if (str_starts_with($body, '<<')) {
             $dictionary = $this->readBalancedDictionary($body, 0);
@@ -2658,11 +2699,11 @@ final class MarkerAppPreview
         }
 
         $length = strlen($body);
-        $values = [];
+        $entries = [];
         for ($offset = 0; $offset < $length;) {
             $offset = $this->skipPdfWhitespace($body, $offset);
             if ($offset >= $length) {
-                return $values;
+                return $entries;
             }
 
             $skipped = $this->skipCompositeValueBytes($body, $offset);
@@ -2689,14 +2730,18 @@ final class MarkerAppPreview
             }
 
             if ($value === null) {
-                return $values;
+                return $entries;
             }
 
-            $values[] = $value[0];
+            $afterValue = $this->skipPdfWhitespace($body, $value[1]);
+            $entries[] = [
+                'value' => $value[0],
+                'has_trailing_operand' => $afterValue < $length && $body[$afterValue] !== '/',
+            ];
             $offset = $value[1];
         }
 
-        return $values;
+        return $entries;
     }
 
     /**

@@ -3710,6 +3710,95 @@ return [
     },
 
     'rejects local header and data descriptor integrity mismatches' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $validDescriptorZip = $buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => '<w:comments><w:comment>descriptor metadata preflight</w:comment></w:comments>',
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>descriptor follower</w:p></w:document>',
+                'method' => 0,
+            ],
+        ]);
+        $validDescriptorSummary = ZipPackage::dataDescriptorIntegrityPreflight($validDescriptorZip);
+
+        $t->same(2, $validDescriptorSummary['entryCount']);
+        $t->same(1, $validDescriptorSummary['descriptorEntryCount']);
+        $t->same(1, $validDescriptorSummary['matchedDescriptorEntryCount']);
+        $t->same(0, $validDescriptorSummary['mismatchedDescriptorEntryCount']);
+        $t->same(0, $validDescriptorSummary['zip64SizedDescriptorEntryCount']);
+        $t->same(true, $validDescriptorSummary['isSupportedByBoundedReader']);
+        $t->same([], $validDescriptorSummary['issues']);
+        $t->same([], $validDescriptorSummary['mismatchedDescriptorEntries']);
+        $t->same('word/comments.xml', $validDescriptorSummary['descriptorEntries'][0]['name']);
+        $t->same(true, $validDescriptorSummary['descriptorEntries'][0]['usesDataDescriptor']);
+        $t->same(true, $validDescriptorSummary['descriptorEntries'][0]['hasSignature']);
+        $t->same(true, $validDescriptorSummary['descriptorEntries'][0]['hasZeroLocalHeaderPlaceholders']);
+        $t->same(true, $validDescriptorSummary['descriptorEntries'][0]['descriptorValuesMatchCentral']);
+        $t->same(false, $validDescriptorSummary['descriptorEntries'][0]['usesZip64SizedDescriptor']);
+        $t->same([], $validDescriptorSummary['descriptorEntries'][0]['issues']);
+        $t->same('word/document.xml', $validDescriptorSummary['entries'][1]['name']);
+        $t->same(false, $validDescriptorSummary['entries'][1]['usesDataDescriptor']);
+        $t->same(null, $validDescriptorSummary['entries'][1]['descriptorOffset']);
+
+        $descriptorCrcMismatchZip = $buildZipPackage([
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => '<w:footnotes/>',
+                'method' => 8,
+                'descriptor' => true,
+                'descriptorCrc' => 0,
+            ],
+        ]);
+        $descriptorCrcMismatchSummary = ZipPackage::dataDescriptorIntegrityPreflight($descriptorCrcMismatchZip);
+
+        $t->same(1, $descriptorCrcMismatchSummary['entryCount']);
+        $t->same(1, $descriptorCrcMismatchSummary['descriptorEntryCount']);
+        $t->same(0, $descriptorCrcMismatchSummary['matchedDescriptorEntryCount']);
+        $t->same(1, $descriptorCrcMismatchSummary['mismatchedDescriptorEntryCount']);
+        $t->same(false, $descriptorCrcMismatchSummary['isSupportedByBoundedReader']);
+        $t->same(['data-descriptor-crc32-mismatch'], $descriptorCrcMismatchSummary['issues']);
+        $t->same('word/footnotes.xml', $descriptorCrcMismatchSummary['mismatchedDescriptorEntries'][0]['name']);
+        $t->same(['data-descriptor-crc32-mismatch'], $descriptorCrcMismatchSummary['mismatchedDescriptorEntries'][0]['issues']);
+        $t->same(0, $descriptorCrcMismatchSummary['mismatchedDescriptorEntries'][0]['crc32']);
+        $t->same('00000000', $descriptorCrcMismatchSummary['mismatchedDescriptorEntries'][0]['crc32Hex']);
+        $t->same($descriptorCrcMismatchSummary['entries'][0], $descriptorCrcMismatchSummary['mismatchedDescriptorEntries'][0]);
+
+        $descriptorSizeMismatchZip = $buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => '<w:comments/>',
+                'method' => 8,
+                'descriptor' => true,
+                'descriptorUncompressedSize' => 999,
+            ],
+        ]);
+        $descriptorSizeMismatchSummary = ZipPackage::dataDescriptorIntegrityPreflight($descriptorSizeMismatchZip);
+
+        $t->same(1, $descriptorSizeMismatchSummary['mismatchedDescriptorEntryCount']);
+        $t->same(['data-descriptor-size-mismatch'], $descriptorSizeMismatchSummary['issues']);
+        $t->same(['data-descriptor-size-mismatch'], $descriptorSizeMismatchSummary['mismatchedDescriptorEntries'][0]['issues']);
+        $t->same(strlen(gzdeflate('<w:comments/>')), $descriptorSizeMismatchSummary['mismatchedDescriptorEntries'][0]['compressedSize']);
+        $t->same(999, $descriptorSizeMismatchSummary['mismatchedDescriptorEntries'][0]['uncompressedSize']);
+        $t->same(strlen(gzdeflate('<w:comments/>')), $descriptorSizeMismatchSummary['mismatchedDescriptorEntries'][0]['centralCompressedSize']);
+        $t->same(strlen('<w:comments/>'), $descriptorSizeMismatchSummary['mismatchedDescriptorEntries'][0]['centralUncompressedSize']);
+
+        $descriptorPlaceholderSummary = ZipPackage::dataDescriptorIntegrityPreflight($buildZipPackage([
+            [
+                'name' => 'word/endnotes.xml',
+                'data' => '<w:endnotes/>',
+                'method' => 8,
+                'descriptor' => true,
+                'localCrc' => 1,
+            ],
+        ]));
+        $t->same(['local-header-data-descriptor-placeholders-not-zero'], $descriptorPlaceholderSummary['issues']);
+        $t->same(false, $descriptorPlaceholderSummary['descriptorEntries'][0]['hasZeroLocalHeaderPlaceholders']);
+        $t->same(['local-header-data-descriptor-placeholders-not-zero'], $descriptorPlaceholderSummary['descriptorEntries'][0]['issues']);
+
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',

@@ -469,6 +469,10 @@ final class PdfLinkAnnotationExtractor
             return $this->valueAfterName($pageBody, $name);
         }
 
+        if ($name === 'Annots' && $this->dictionaryValueHasTrailingOperand($dictionary, $name)) {
+            return null;
+        }
+
         return $this->dictionaryValueAfterName($dictionary, $name);
     }
 
@@ -510,6 +514,10 @@ final class PdfLinkAnnotationExtractor
 
             $trimmedObjectBody = trim($objectBody);
             if (str_starts_with($trimmedObjectBody, '[')) {
+                if ($this->arrayValueHasTrailingOperand($trimmedObjectBody)) {
+                    return [];
+                }
+
                 return $this->annotationBodiesFromArray(
                     $this->arrayBodyFromValue($trimmedObjectBody),
                     $objects,
@@ -540,6 +548,10 @@ final class PdfLinkAnnotationExtractor
         }
 
         if (str_starts_with($value, '[')) {
+            if ($this->arrayValueHasTrailingOperand($value)) {
+                return [];
+            }
+
             return $this->annotationBodiesFromArray(
                 $this->arrayBodyFromValue($value),
                 $objects,

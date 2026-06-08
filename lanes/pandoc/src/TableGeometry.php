@@ -75,7 +75,7 @@ final class TableGeometry
 
     /**
      * @param list<AstNode> $rows
-     * @return list<array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int}>}>
+     * @return list<array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int,sourceRow:int,sourceRowspan:int,sourceRowEnd:int,sourceRowRange:array{0:int,1:int},sourceRows:list<int>}>}>
      */
     public static function layoutRows(array $rows, int $columnCount): array
     {
@@ -123,7 +123,9 @@ final class TableGeometry
 
                 $colspan = min($rawColspan, $columnCount - $column);
                 $rowspanToEnd = self::cellRowspanToEnd($cell);
-                $rowspan = min(self::cellRowspanForRows($cell, $rowIndex, $rowCount), max(1, $rowCount - $rowIndex));
+                $sourceRowspan = max(1, self::cellRowspanForRows($cell, $rowIndex, $rowCount));
+                $sourceRowEnd = $rowIndex + $sourceRowspan;
+                $rowspan = min($sourceRowspan, max(1, $rowCount - $rowIndex));
                 $layoutCells[] = [
                     'node' => $cell,
                     'column' => $column,
@@ -132,6 +134,11 @@ final class TableGeometry
                     'rowspanToEnd' => $rowspanToEnd,
                     'sourceCell' => $cellSourceCell,
                     'sourceColumn' => $cellSourceColumn,
+                    'sourceRow' => $rowIndex,
+                    'sourceRowspan' => $sourceRowspan,
+                    'sourceRowEnd' => $sourceRowEnd,
+                    'sourceRowRange' => [$rowIndex, $sourceRowEnd],
+                    'sourceRows' => self::integerRange($rowIndex, $sourceRowEnd),
                 ];
 
                 if ($rowspan > 1) {
@@ -262,6 +269,11 @@ final class TableGeometry
      *     sourceColumn:int,
      *     sourceEndColumn:int,
      *     sourceColumns:list<int>,
+     *     sourceRow:int,
+     *     sourceRowEnd:int,
+     *     sourceRowRange:array{0:int,1:int},
+     *     sourceRows:list<int>,
+     *     sourceRowspan:int,
      *     visualShift:int,
      *     colspan:int,
      *     rawColspan:int,
@@ -325,6 +337,9 @@ final class TableGeometry
                     $rawColspan = self::cellColspan($cell['node']);
                     $rawRowspan = self::cellRowspanForRows($cell['node'], $rowIndex, $sectionRowCount);
                     $sourceEndColumn = $cell['sourceColumn'] + $rawColspan;
+                    $sourceRow = (int) ($cell['sourceRow'] ?? $rowIndex);
+                    $sourceRowspan = max(1, (int) ($cell['sourceRowspan'] ?? $rawRowspan));
+                    $sourceRowEnd = $sourceRow + $sourceRowspan;
                     $record = [
                         'section' => $group['section'],
                         'row' => $rowIndex,
@@ -344,6 +359,11 @@ final class TableGeometry
                         'sourceColumn' => $cell['sourceColumn'],
                         'sourceEndColumn' => $sourceEndColumn,
                         'sourceColumns' => self::sourceColumns($cell['sourceColumn'], $rawColspan),
+                        'sourceRow' => $sourceRow,
+                        'sourceRowEnd' => $sourceRowEnd,
+                        'sourceRowRange' => [$sourceRow, $sourceRowEnd],
+                        'sourceRows' => self::integerRange($sourceRow, $sourceRowEnd),
+                        'sourceRowspan' => $sourceRowspan,
                         'visualShift' => $cell['column'] - $cell['sourceColumn'],
                         'colspan' => $cell['colspan'],
                         'rawColspan' => $rawColspan,
@@ -650,6 +670,10 @@ final class TableGeometry
                         'column' => $cell['column'],
                         'sourceCell' => $cell['sourceCell'],
                         'sourceColumn' => $cell['sourceColumn'],
+                        ...self::sourceRowCoordinateFields(
+                            (int) ($cell['sourceRow'] ?? $rowIndex),
+                            max(1, (int) ($cell['sourceRowspan'] ?? $rowspan))
+                        ),
                         'rowspan' => $rowspan,
                         'availableRows' => $availableRows,
                     ];
@@ -909,7 +933,7 @@ final class TableGeometry
     }
 
     /**
-     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int} $cell
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int,sourceRow:int,sourceRowspan:int,sourceRowEnd:int,sourceRowRange:array{0:int,1:int},sourceRows:list<int>} $cell
      * @return list<array<string, mixed>>
      */
     private static function cellSpanNormalizationDiagnostics(string $section, int $rowIndex, array $cell): array
@@ -970,7 +994,7 @@ final class TableGeometry
     }
 
     /**
-     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int} $cell
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int,sourceRow:int,sourceRowspan:int,sourceRowEnd:int,sourceRowRange:array{0:int,1:int},sourceRows:list<int>} $cell
      * @return array<string, mixed>
      */
     private static function spanNormalizationDiagnostic(
@@ -989,6 +1013,10 @@ final class TableGeometry
             'column' => $cell['column'],
             'sourceCell' => $cell['sourceCell'],
             'sourceColumn' => $cell['sourceColumn'],
+            ...self::sourceRowCoordinateFields(
+                (int) ($cell['sourceRow'] ?? $rowIndex),
+                max(1, (int) ($cell['sourceRowspan'] ?? 1))
+            ),
             'attribute' => $attribute,
             'rawType' => get_debug_type($rawValue),
             'normalizedValue' => $normalizedValue,
@@ -4843,6 +4871,10 @@ final class TableGeometry
             'endColumn' => (int) ($record['endColumn'] ?? 0),
             'sourceCell' => (int) ($record['sourceCell'] ?? 0),
             'sourceColumn' => (int) ($record['sourceColumn'] ?? 0),
+            ...self::sourceRowCoordinateFields(
+                (int) ($record['sourceRow'] ?? $record['row'] ?? 0),
+                max(1, (int) ($record['sourceRowspan'] ?? $record['rawRowspan'] ?? $record['rowspan'] ?? 1))
+            ),
             'columns' => self::intList($record['columns'] ?? []),
             'rawColspan' => max(1, (int) ($record['rawColspan'] ?? 1)),
             'colspan' => max(1, (int) ($record['colspan'] ?? 1)),
@@ -5097,6 +5129,42 @@ final class TableGeometry
         }
 
         return $values;
+    }
+
+    /**
+     * @return array{sourceRow:int,sourceRowEnd:int,sourceRowRange:array{0:int,1:int},sourceRows:list<int>,sourceRowspan:int}
+     */
+    private static function sourceRowCoordinateFields(int $sourceRow, int $sourceRowspan): array
+    {
+        $sourceRow = max(0, $sourceRow);
+        $sourceRowspan = max(1, $sourceRowspan);
+        $sourceRowEnd = $sourceRow + $sourceRowspan;
+
+        return [
+            'sourceRow' => $sourceRow,
+            'sourceRowEnd' => $sourceRowEnd,
+            'sourceRowRange' => [$sourceRow, $sourceRowEnd],
+            'sourceRows' => self::integerRange($sourceRow, $sourceRowEnd),
+            'sourceRowspan' => $sourceRowspan,
+        ];
+    }
+
+    /**
+     * @return array{anchorSourceRow:int,anchorSourceRowEnd:int,anchorSourceRowRange:array{0:int,1:int},anchorSourceRows:list<int>,anchorSourceRowspan:int}
+     */
+    private static function anchorSourceRowCoordinateFields(int $sourceRow, int $sourceRowspan): array
+    {
+        $sourceRow = max(0, $sourceRow);
+        $sourceRowspan = max(1, $sourceRowspan);
+        $sourceRowEnd = $sourceRow + $sourceRowspan;
+
+        return [
+            'anchorSourceRow' => $sourceRow,
+            'anchorSourceRowEnd' => $sourceRowEnd,
+            'anchorSourceRowRange' => [$sourceRow, $sourceRowEnd],
+            'anchorSourceRows' => self::integerRange($sourceRow, $sourceRowEnd),
+            'anchorSourceRowspan' => $sourceRowspan,
+        ];
     }
 
     /**
@@ -5581,6 +5649,8 @@ final class TableGeometry
      */
     private static function cellGridSlot(int $row, array $cell, int $rowCount, int $columnCount): array
     {
+        $sourceRow = (int) ($cell['sourceRow'] ?? $row);
+        $sourceRowspan = max(1, (int) ($cell['sourceRowspan'] ?? $cell['rowspan'] ?? 1));
         $slot = [
             'kind' => 'cell',
             'row' => $row,
@@ -5588,11 +5658,13 @@ final class TableGeometry
             'node' => $cell['node'],
             'sourceCell' => $cell['sourceCell'],
             'sourceColumn' => $cell['sourceColumn'],
+            ...self::sourceRowCoordinateFields($sourceRow, $sourceRowspan),
             'colspan' => $cell['colspan'],
             'rowspan' => $cell['rowspan'],
             'verticalAlignment' => self::cellVerticalAlignment($cell['node']),
             'anchorRow' => $row,
             'anchorColumn' => $cell['column'],
+            ...self::anchorSourceRowCoordinateFields($sourceRow, $sourceRowspan),
             'occupiedSlots' => self::occupiedSlotRecords(
                 $row,
                 $cell['column'],
@@ -5610,7 +5682,7 @@ final class TableGeometry
     }
 
     /**
-     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int} $cell
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int,sourceRow:int,sourceRowspan:int,sourceRowEnd:int,sourceRowRange:array{0:int,1:int},sourceRows:list<int>} $cell
      * @return array<string, mixed>
      */
     private static function coveredGridSlot(
@@ -5621,6 +5693,8 @@ final class TableGeometry
         string $covering,
         array $cell
     ): array {
+        $sourceRow = (int) ($cell['sourceRow'] ?? $anchorRow);
+        $sourceRowspan = max(1, (int) ($cell['sourceRowspan'] ?? $cell['rowspan'] ?? 1));
         $slot = [
             'kind' => 'covered',
             'row' => $row,
@@ -5628,10 +5702,12 @@ final class TableGeometry
             'node' => $cell['node'],
             'sourceCell' => $cell['sourceCell'],
             'sourceColumn' => $cell['sourceColumn'],
+            ...self::sourceRowCoordinateFields($sourceRow, $sourceRowspan),
             'colspan' => $cell['colspan'],
             'rowspan' => $cell['rowspan'],
             'anchorRow' => $anchorRow,
             'anchorColumn' => $anchorColumn,
+            ...self::anchorSourceRowCoordinateFields($sourceRow, $sourceRowspan),
             'covering' => $covering,
         ];
         if (($cell['rowspanToEnd'] ?? false) === true) {
@@ -5681,7 +5757,7 @@ final class TableGeometry
 
     /**
      * @param list<array<string, mixed>> $diagnostics
-     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int} $cell
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int,sourceRow:int,sourceRowspan:int,sourceRowEnd:int,sourceRowRange:array{0:int,1:int},sourceRows:list<int>} $cell
      */
     private static function appendDeclaredColumnDiagnostic(
         array &$diagnostics,
@@ -5703,6 +5779,10 @@ final class TableGeometry
             'column' => $cell['column'],
             'sourceCell' => $cell['sourceCell'],
             'sourceColumn' => $cell['sourceColumn'],
+            ...self::sourceRowCoordinateFields(
+                (int) ($cell['sourceRow'] ?? $rowIndex),
+                max(1, (int) ($cell['sourceRowspan'] ?? 1))
+            ),
             'colspan' => $rawColspan,
             'declaredColumns' => $declaredColumnCount,
             'endColumn' => $endColumn,
@@ -5737,6 +5817,7 @@ final class TableGeometry
                 }
 
                 $rawColspan = self::cellColspan($cell);
+                $sourceRowspan = max(1, self::cellRowspanForRows($cell, $rowIndex, $rowCount));
                 $overlapColumns = [];
                 $coveredBy = [];
                 for ($coveredColumn = $sourceColumn; $coveredColumn < $sourceColumn + $rawColspan; $coveredColumn++) {
@@ -5751,6 +5832,10 @@ final class TableGeometry
                         'column' => (int) $coveringCell['anchorColumn'],
                         'sourceCell' => (int) $coveringCell['sourceCell'],
                         'sourceColumn' => (int) $coveringCell['sourceColumn'],
+                        ...self::sourceRowCoordinateFields(
+                            (int) ($coveringCell['sourceRow'] ?? $coveringCell['anchorRow']),
+                            max(1, (int) ($coveringCell['sourceRowspan'] ?? $coveringCell['rowspan'] ?? 1))
+                        ),
                         'colspan' => (int) $coveringCell['colspan'],
                         'rowspan' => (int) $coveringCell['rowspan'],
                     ];
@@ -5768,6 +5853,7 @@ final class TableGeometry
                         'sourceCell' => $sourceCell,
                         'sourceColumn' => $sourceColumn,
                         'sourceEndColumn' => $sourceColumn + $rawColspan,
+                        ...self::sourceRowCoordinateFields($rowIndex, $sourceRowspan),
                         'visualShift' => $column - $sourceColumn,
                         'colspan' => $rawColspan,
                         'declaredColumns' => $declaredColumnCount,
@@ -5777,7 +5863,7 @@ final class TableGeometry
                     ];
                 }
 
-                $rowspan = min(self::cellRowspanForRows($cell, $rowIndex, $rowCount), max(1, $rowCount - $rowIndex));
+                $rowspan = min($sourceRowspan, max(1, $rowCount - $rowIndex));
                 if ($rowspan > 1) {
                     self::activateRichRowspan(
                         $activeRowspans,
@@ -5786,7 +5872,8 @@ final class TableGeometry
                         $rowspan,
                         $rowIndex,
                         $sourceCell,
-                        $sourceColumn
+                        $sourceColumn,
+                        $sourceRowspan
                     );
                 }
 
@@ -6153,7 +6240,8 @@ final class TableGeometry
         int $rowspan,
         int $anchorRow,
         int $sourceCell,
-        int $sourceColumn
+        int $sourceColumn,
+        int $sourceRowspan
     ): void {
         for ($column = $startColumn; $column < $startColumn + $colspan; $column++) {
             if (($activeRowspans[$column]['remainingRows'] ?? 0) >= $rowspan - 1) {
@@ -6166,6 +6254,8 @@ final class TableGeometry
                 'anchorColumn' => $startColumn,
                 'sourceCell' => $sourceCell,
                 'sourceColumn' => $sourceColumn,
+                'sourceRow' => $anchorRow,
+                'sourceRowspan' => $sourceRowspan,
                 'colspan' => $colspan,
                 'rowspan' => $rowspan,
             ];

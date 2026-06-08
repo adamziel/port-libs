@@ -3173,6 +3173,47 @@ return [
         $t->same('tagged-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="tagged-yaml-body">Tagged YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml implicit timestamp metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Implicit timestamp **Packet**',
+            'date: 2026-6-5',
+            'published-at: 2026-6-5 6:46:51 +5',
+            'review:',
+            '  opened-at: 2026-06-05T06:46:51-0330',
+            '  invalid-date: 2026-13-05',
+            '  invalid-time: 2026-06-05 24:00:00Z',
+            '  quoted-date: "2026-6-5"',
+            '  flow: {due: 2026-6-7, closed-at: 2026-06-05 06:46:51.25 +00:00, invalid-offset: 2026-06-05 06:46:51 +24:00}',
+            'references:',
+            '  - id: implicit-timestamp-ref',
+            '    accessed-at: 2026-06-05T6:46:51Z',
+            '...',
+            '',
+            '# Implicit timestamp YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Implicit timestamp **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('2026-06-05', $meta['date']);
+        $t->same('2026-06-05T06:46:51+05:00', $meta['published-at']);
+        $t->same('2026-06-05T06:46:51-03:30', $meta['review']['opened-at']);
+        $t->same('2026-13-05', $meta['review']['invalid-date']);
+        $t->same('2026-06-05 24:00:00Z', $meta['review']['invalid-time']);
+        $t->same('2026-6-5', $meta['review']['quoted-date']);
+        $t->same('2026-06-07', $meta['review']['flow']['due']);
+        $t->same('2026-06-05T06:46:51.25+00:00', $meta['review']['flow']['closed-at']);
+        $t->same('2026-06-05 06:46:51 +24:00', $meta['review']['flow']['invalid-offset']);
+        $t->same('implicit-timestamp-ref', $meta['references'][0]['id']);
+        $t->same('2026-06-05T06:46:51Z', $meta['references'][0]['accessed-at']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('implicit-timestamp-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="implicit-timestamp-yaml-body">Implicit timestamp YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml multiline double quoted metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

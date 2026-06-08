@@ -3069,6 +3069,7 @@ return [
             'compressionLevel' => 9,
         ]);
         $metadata = DeflateStream::inspectZlib($zlib);
+        $rawMetadata = DeflateStream::inspectRaw($raw);
         $zlibRoundTrip = TarArchive::fromString(DeflateStream::decode($zlib));
         $rawRoundTrip = TarArchive::fromString(DeflateStream::decode($raw, DeflateStream::FORMAT_RAW));
 
@@ -3078,11 +3079,26 @@ return [
         $t->same('maximum', $metadata['compressionLevelHint']);
         $t->same(strlen($archive->bytes()), $metadata['uncompressedSize']);
         $t->same(strlen($zlib) - 6, $metadata['compressedSize']);
+        $t->same(2, $metadata['headerSize']);
+        $t->same(2, $metadata['compressedPayloadOffset']);
+        $t->same(strlen($zlib) - 6, $metadata['compressedPayloadSize']);
+        $t->same(strlen($zlib) - 4, $metadata['trailerOffset']);
+        $t->same(4, $metadata['trailerSize']);
+        $t->same(strlen($zlib), $metadata['consumedBytes']);
         $t->same($archive->bytes(), $metadata['data']);
         $t->same('{"source":"deflate-tar","target":"wordpress"}', $zlibRoundTrip->read('/packet/manifest.json'));
         $t->same("# Deflate archive\n\nReady for import review.\n", $zlibRoundTrip->read('/packet/content.md'));
         $t->same($zlibRoundTrip->read('/packet/content.md'), $rawRoundTrip->read('packet/content.md'));
         $t->same($metadata['adler32'], intval(hash('adler32', $archive->bytes()), 16));
+        $t->same(sprintf('%08x', $metadata['adler32']), $metadata['adler32Hex']);
+        $t->same(DeflateStream::FORMAT_RAW, $rawMetadata['format']);
+        $t->same(strlen($raw), $rawMetadata['compressedSize']);
+        $t->same(strlen($raw), $rawMetadata['compressedPayloadSize']);
+        $t->same(0, $rawMetadata['headerSize']);
+        $t->same(0, $rawMetadata['compressedPayloadOffset']);
+        $t->same(0, $rawMetadata['trailerSize']);
+        $t->same(null, $rawMetadata['trailerOffset']);
+        $t->same(strlen($raw), $rawMetadata['consumedBytes']);
     },
 
     'inspects raw and zlib deflate stream provenance for tar review packets' => static function (TestRunner $t): void {
@@ -3126,10 +3142,16 @@ return [
         $t->same(1, $zlibInspection['stream']['memberCount']);
         $t->same(strlen($zlib), $zlibInspection['stream']['compressedSize']);
         $t->same(strlen($zlib) - 6, $zlibInspection['stream']['compressedPayloadSize']);
+        $t->same(2, $zlibInspection['stream']['headerSize']);
+        $t->same(2, $zlibInspection['stream']['compressedPayloadOffset']);
+        $t->same(strlen($zlib) - 4, $zlibInspection['stream']['trailerOffset']);
+        $t->same(4, $zlibInspection['stream']['trailerSize']);
+        $t->same(strlen($zlib), $zlibInspection['stream']['consumedBytes']);
         $t->same(strlen($tarBytes), $zlibInspection['stream']['uncompressedSize']);
         $t->same(32768, $zlibInspection['stream']['windowSize']);
         $t->same('maximum', $zlibInspection['stream']['compressionLevelHint']);
         $t->same(intval(hash('adler32', $tarBytes), 16), $zlibInspection['stream']['adler32']);
+        $t->same(sprintf('%08x', intval(hash('adler32', $tarBytes), 16)), $zlibInspection['stream']['adler32Hex']);
         $t->same("# Deflate provenance\n\nReady for stream review.\n", $zlibInspection['archive']->read('/packet/content.md'));
 
         $t->same(ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR, $rawInspection['format']);
@@ -3137,6 +3159,11 @@ return [
         $t->same(1, $rawInspection['stream']['memberCount']);
         $t->same(strlen($raw), $rawInspection['stream']['compressedSize']);
         $t->same(strlen($raw), $rawInspection['stream']['compressedPayloadSize']);
+        $t->same(0, $rawInspection['stream']['headerSize']);
+        $t->same(0, $rawInspection['stream']['compressedPayloadOffset']);
+        $t->same(null, $rawInspection['stream']['trailerOffset']);
+        $t->same(0, $rawInspection['stream']['trailerSize']);
+        $t->same(strlen($raw), $rawInspection['stream']['consumedBytes']);
         $t->same(strlen($tarBytes), $rawInspection['stream']['uncompressedSize']);
         $t->same(['packet/manifest.json', 'packet/content.md'], $rawInspection['entryNames']);
         $t->same('{"source":"deflate-provenance","target":"wordpress"}', $rawInspection['archive']->read('/packet/manifest.json'));
@@ -3236,6 +3263,13 @@ return [
         $t->same($tarDictionaryId, $tarMetadata['dictionaryAdler32']);
         $t->same(sprintf('%08x', $tarDictionaryId), $tarMetadata['dictionaryAdler32Hex']);
         $t->same(intval(hash('adler32', $tarBytes), 16), $tarMetadata['adler32']);
+        $t->same(sprintf('%08x', intval(hash('adler32', $tarBytes), 16)), $tarMetadata['adler32Hex']);
+        $t->same(6, $tarMetadata['headerSize']);
+        $t->same(6, $tarMetadata['compressedPayloadOffset']);
+        $t->same(strlen($zlibTar) - 10, $tarMetadata['compressedPayloadSize']);
+        $t->same(strlen($zlibTar) - 4, $tarMetadata['trailerOffset']);
+        $t->same(4, $tarMetadata['trailerSize']);
+        $t->same(strlen($zlibTar), $tarMetadata['consumedBytes']);
         $t->same(strlen($tarBytes), $tarMetadata['uncompressedSize']);
         $t->same(strlen($zlibTar) - 10, $tarMetadata['compressedSize']);
         $t->same("# ZLIB dictionary TAR\n\nReady for supplied dictionary import.\n", $tarRoundTrip->read('/packet/content.md'));

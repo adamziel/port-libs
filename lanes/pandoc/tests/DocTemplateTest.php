@@ -1862,6 +1862,124 @@ HTML,
         ], null, 'beamer'));
     },
 
+    'renders bounded pandoc default revealjs template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $reveal = $renderer->renderResource('templates/default', [], [
+            'lang' => 'en',
+            'dir' => 'ltr',
+            'pandoc-version' => '3.7.0',
+            'pagetitle' => 'Reveal Packet',
+            'title' => 'Reveal Default Review',
+            'subtitle' => 'Native slide handoff',
+            'author' => ['Migration bot', 'Content editor'],
+            'author-meta' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-07',
+            'date-meta' => '2026-06-07',
+            'keywords' => ['migration', 'slides', 'wordpress'],
+            'description-meta' => 'Reveal.js review packet',
+            'revealjs-url' => 'vendor/reveal.js',
+            'theme' => 'league',
+            'css' => ['review-slides.css'],
+            'header-includes' => ['<meta name="robots" content="noindex">'],
+            'include-before' => ['<section><h2>Reviewer Queue</h2></section>'],
+            'toc' => true,
+            'toc-title' => 'Deck Contents',
+            'table-of-contents' => '<ul><li>Imported slides</li></ul>',
+            'body' => '<section><h2>Imported slides</h2><p>Review body.</p></section>',
+            'include-after' => ['<section><h2>Handoff</h2></section>'],
+            'transition' => 'fade',
+            'background-transition' => 'slide',
+            'controls' => true,
+            'progress' => false,
+            'slideNumber' => 'c/t',
+            'history' => true,
+            'keyboard' => true,
+            'overview' => true,
+            'center' => false,
+            'touch' => true,
+            'loop' => true,
+            'rtl' => false,
+            'navigationMode' => 'linear',
+            'fragments' => false,
+            'embedded' => false,
+            'width' => 1280,
+            'height' => 720,
+            'margin' => '0.05',
+            'minScale' => '0.2',
+            'maxScale' => '1.5',
+            'revealjs-plugins' => [
+                'RevealNotes' => 'vendor/reveal.js/plugin/notes/notes.js',
+                'RevealSearch' => 'vendor/reveal.js/plugin/search/search.js',
+            ],
+        ], null, 'revealjs');
+
+        foreach ([
+            '<!doctype html>',
+            '<html lang="en" dir="ltr">',
+            '<meta charset="utf-8">',
+            '<meta name="generator" content="pandoc 3.7.0">',
+            '<meta name="author" content="Migration bot">',
+            '<meta name="author" content="Content editor">',
+            '<meta name="dcterms.date" content="2026-06-07">',
+            '<meta name="keywords" content="migration, slides, wordpress">',
+            '<meta name="description" content="Reveal.js review packet">',
+            '<title>Reveal Packet</title>',
+            '<link rel="stylesheet" href="vendor/reveal.js/dist/reveal.css">',
+            '<link rel="stylesheet" href="vendor/reveal.js/dist/theme/league.css" id="theme">',
+            '<link rel="stylesheet" href="review-slides.css">',
+            '<meta name="robots" content="noindex">',
+            '<div class="reveal">',
+            '<div class="slides">',
+            '<section id="title-slide">',
+            '<h1 class="title">Reveal Default Review</h1>',
+            '<p class="subtitle">Native slide handoff</p>',
+            '<p class="author">Migration bot</p>',
+            '<p class="author">Content editor</p>',
+            '<p class="date">2026-06-07</p>',
+            '<section><h2>Reviewer Queue</h2></section>',
+            '<nav id="TOC" role="doc-toc">',
+            '<h2 id="toc-title">Deck Contents</h2>',
+            '<ul><li>Imported slides</li></ul>',
+            '<section><h2>Imported slides</h2><p>Review body.</p></section>',
+            '<section><h2>Handoff</h2></section>',
+            '<script src="vendor/reveal.js/dist/reveal.js"></script>',
+            '<script src="vendor/reveal.js/plugin/notes/notes.js"></script>',
+            '<script src="vendor/reveal.js/plugin/search/search.js"></script>',
+            'Reveal.initialize({',
+            'hash: true,',
+            'controls: true,',
+            'progress: false,',
+            'slideNumber: "c/t",',
+            'transition: "fade",',
+            'backgroundTransition: "slide",',
+            'navigationMode: "linear",',
+            'fragments: false,',
+            'embedded: false,',
+            'width: 1280,',
+            'height: 720,',
+            'margin: 0.05,',
+            'minScale: 0.2,',
+            'maxScale: 1.5,',
+            'plugins: [ RevealNotes, RevealSearch ]',
+        ] as $needle) {
+            $t->contains($needle, $reveal);
+        }
+
+        $direct = $renderer->renderResource('templates/default.revealjs', [], [
+            'title' => 'Direct Reveal',
+            'body' => '<section>Direct body.</section>',
+        ]);
+        $t->contains('<h1 class="title">Direct Reveal</h1>', $direct);
+        $t->contains('<section>Direct body.</section>', $direct);
+
+        $t->same('custom revealjs', $renderer->renderResource('templates/default', [
+            'templates/default.revealjs' => 'custom $body$',
+        ], [
+            'body' => 'revealjs',
+        ], null, 'revealjs'));
+    },
+
     'renders bounded pandoc default office and epub template resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

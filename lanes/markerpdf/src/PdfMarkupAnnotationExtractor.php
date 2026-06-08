@@ -458,6 +458,7 @@ final class PdfMarkupAnnotationExtractor
         }
 
         $selected = null;
+        $selectedMalformed = false;
         $offset = 0;
         $length = strlen($dictionary);
         while ($offset < $length) {
@@ -482,12 +483,17 @@ final class PdfMarkupAnnotationExtractor
 
             if ($key === $name) {
                 $selected = $value;
+                if ($name === 'Annots') {
+                    $tailOffset = $valueEnd;
+                    $this->skipWhitespaceAndComments($dictionary, $tailOffset);
+                    $selectedMalformed = $tailOffset < $length && $dictionary[$tailOffset] !== '/';
+                }
             }
 
             $offset = $valueEnd;
         }
 
-        return $selected;
+        return $selectedMalformed ? null : $selected;
     }
 
     /**
@@ -509,6 +515,10 @@ final class PdfMarkupAnnotationExtractor
             }
 
             if (str_starts_with($objectBody, '[')) {
+                if ($this->arrayValueHasTrailingOperand($objectBody)) {
+                    return [];
+                }
+
                 return $this->annotationBodiesFromArray($this->arrayBodyFromValue($objectBody), $objects, $pageObjectNumber, $pageGeneration);
             }
 
@@ -519,6 +529,10 @@ final class PdfMarkupAnnotationExtractor
         }
 
         if (str_starts_with($value, '[')) {
+            if ($this->arrayValueHasTrailingOperand($value)) {
+                return [];
+            }
+
             return $this->annotationBodiesFromArray($this->arrayBodyFromValue($value), $objects, $pageObjectNumber, $pageGeneration);
         }
 
@@ -530,6 +544,26 @@ final class PdfMarkupAnnotationExtractor
         }
 
         return [];
+    }
+
+    private function arrayValueHasTrailingOperand(string $value): bool
+    {
+        $offset = 0;
+        $this->skipWhitespaceAndComments($value, $offset);
+        if (($value[$offset] ?? '') !== '[') {
+            return false;
+        }
+
+        $endOffset = null;
+        $this->readPdfArrayAt($value, $offset, $endOffset);
+        if ($endOffset === null) {
+            return false;
+        }
+
+        $tailOffset = $endOffset;
+        $this->skipWhitespaceAndComments($value, $tailOffset);
+
+        return $tailOffset < strlen($value);
     }
 
     /**

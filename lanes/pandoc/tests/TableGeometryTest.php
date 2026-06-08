@@ -1760,6 +1760,62 @@ return [
         $t->contains('<tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Import</td></tr></tbody>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Body-local head row review</figcaption>', $blocks);
     },
+    'serializes source row coordinates for spanned table geometry handoff' => static function (TestRunner $t) use ($buildBodyHeadRowRoleDocument, $buildSectionScopedRowspanDocument): void {
+        $document = $buildBodyHeadRowRoleDocument();
+        $table = $document->children[0];
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $coverage = TableGeometry::cellCoverage($table);
+        $markdownDowngrades = array_values(array_filter(
+            TableGeometry::writerDowngradeDiagnostics($table, 'markdown'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-rowspan-flattened'
+        ));
+
+        $posts = $coverage[6];
+        $t->same('body', $posts['section']);
+        $t->same(1, $posts['sourceRow']);
+        $t->same(2, $posts['sourceRowspan']);
+        $t->same(3, $posts['sourceRowEnd']);
+        $t->same([1, 3], $posts['sourceRowRange']);
+        $t->same([1, 2], $posts['sourceRows']);
+        $t->same([2, 4], $posts['globalRowRange']);
+        $t->same([2, 3], $posts['globalRows']);
+
+        $bodyHeadSlot = $packet['sections'][1]['rows'][0]['slots'][0] ?? [];
+        $anchorSlot = $packet['sections'][1]['rows'][1]['slots'][0] ?? [];
+        $coveredSlot = $packet['sections'][1]['rows'][2]['slots'][0] ?? [];
+        $t->same('cell', $bodyHeadSlot['kind'] ?? null);
+        $t->same(0, $bodyHeadSlot['sourceRow'] ?? null);
+        $t->same([0], $bodyHeadSlot['sourceRows'] ?? null);
+        $t->same('cell', $anchorSlot['kind'] ?? null);
+        $t->same(1, $anchorSlot['sourceRow'] ?? null);
+        $t->same([1, 3], $anchorSlot['sourceRowRange'] ?? null);
+        $t->same(1, $anchorSlot['anchorSourceRow'] ?? null);
+        $t->same([1, 2], $anchorSlot['anchorSourceRows'] ?? null);
+        $t->same('covered', $coveredSlot['kind'] ?? null);
+        $t->same(1, $coveredSlot['sourceRow'] ?? null);
+        $t->same([1, 3], $coveredSlot['sourceRowRange'] ?? null);
+        $t->same(1, $coveredSlot['anchorSourceRow'] ?? null);
+        $t->same([1, 2], $coveredSlot['anchorSourceRows'] ?? null);
+        $t->same(2, $coveredSlot['anchorGlobalRow'] ?? null);
+
+        $t->same(1, count($markdownDowngrades));
+        $t->same(1, $markdownDowngrades[0]['sourceRow'] ?? null);
+        $t->same([1, 3], $markdownDowngrades[0]['sourceRowRange'] ?? null);
+        $t->same([1, 2], $markdownDowngrades[0]['sourceRows'] ?? null);
+
+        $sectionBoundaryDocument = $buildSectionScopedRowspanDocument();
+        $sectionDiagnostics = TableGeometry::diagnostics($sectionBoundaryDocument->children[0]);
+        $sectionBoundaryDiagnostics = array_values(array_filter(
+            $sectionDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'rowspan-crosses-section-boundary'
+        ));
+        $t->same(1, count($sectionBoundaryDiagnostics));
+        $t->same(0, $sectionBoundaryDiagnostics[0]['sourceRow'] ?? null);
+        $t->same(2, $sectionBoundaryDiagnostics[0]['sourceRowspan'] ?? null);
+        $t->same([0, 2], $sectionBoundaryDiagnostics[0]['sourceRowRange'] ?? null);
+        $t->same([0, 1], $sectionBoundaryDiagnostics[0]['sourceRows'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'summarizes pandoc table row groups for importer review packets' => static function (TestRunner $t): void {
         $table = new AstNode('table', [
             'caption' => 'Grouped table review',

@@ -3740,6 +3740,92 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfAnnotations']);
     },
 
+    'fake runner extracts bounded pdf annotation border styles and popups from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/annotation-review.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [5 0 R 6 0 R] >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /FreeText /Rect [72 640 288 700] /Contents (Style review) /BS << /S /D /W 2 /D [3 2] >> /Popup 7 0 R >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /Link /Rect [72 600 288 624] /BS 8 0 R /A << /S /URI /URI (https://example.test/review) >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /Annot /Subtype /Popup /Rect [100 500 260 560] /Open true /Parent 5 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /S /U /W 1.5 >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/annotation-review.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/annotation-review.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '5 0 R',
+                'subtype' => 'FreeText',
+                'borderStyle' => 'D',
+                'borderStyleLabel' => 'dashed',
+                'borderWidth' => 2.0,
+                'borderDashPattern' => [3.0, 2.0],
+                'popupObject' => '7 0 R',
+                'popupRect' => [100.0, 500.0, 260.0, 560.0],
+                'popupOpen' => true,
+                'popupParent' => '5 0 R',
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '6 0 R',
+                'subtype' => 'Link',
+                'borderStyle' => 'U',
+                'borderStyleLabel' => 'underline',
+                'borderWidth' => 1.5,
+                'borderDashPattern' => null,
+                'popupObject' => null,
+                'popupRect' => null,
+                'popupOpen' => null,
+                'popupParent' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfAnnotationReviewMetadata']);
+        $t->contains('pdf-byte-annotation-review-metadata:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-border-styles:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-popup-links:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-popup-open:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfAnnotationReviewMetadata']);
+    },
+
     'fake runner extracts bounded pdf annotation appearance streams from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/annotation-appearances.pdf']);

@@ -7259,7 +7259,7 @@ final class PdfMetadataExtractor
     private function nameTreeNodeLimits(array $node, array $objects): ?array
     {
         $items = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Limits') ?? '', $objects);
-        if (count($items) < 2) {
+        if (count($items) !== 2) {
             return null;
         }
 
@@ -19870,6 +19870,15 @@ final class PdfMetadataExtractor
             $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
             $value = $this->readPdfValueAt($body, $valueOffset);
             if ($value === null) {
+                if ($this->decodePdfName($match[1]) === $key) {
+                    $reviews[] = [
+                        'value' => '',
+                        'single_value' => false,
+                        'trailing_operand' => true,
+                        'trailing_operand_shape' => 'missing_value',
+                        'trailing_operand_preview' => 'missing_top_level_value',
+                    ];
+                }
                 $offset += strlen($match[0]);
                 continue;
             }

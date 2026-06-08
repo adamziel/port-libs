@@ -1754,6 +1754,10 @@ final class PdfPagePropertyExtractor
             }
 
             $parentValue = $this->dictionaryRawValue($dictionary, 'Parent');
+            if ($this->topLevelDirectDictionaryValueHasTrailingNonName($dictionary, 'Parent')) {
+                break;
+            }
+
             if ($parentValue === null) {
                 $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects, $lineage);
                 if ($this->pageObjectLineageIsPrefix($lineage, $catalogLineage)) {

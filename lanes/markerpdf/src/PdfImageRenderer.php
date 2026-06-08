@@ -4512,7 +4512,7 @@ final class PdfImageRenderer
             }
 
             $filters = [];
-            foreach ($this->pdfArrayValues($array['value']) as $entry) {
+            foreach ($this->imageFilterArrayValues($array['value']) as $entry) {
                 $entry = trim($this->resolvePdfValue($entry, $objects));
                 if ($entry === 'null') {
                     $filters[] = null;
@@ -4554,6 +4554,63 @@ final class PdfImageRenderer
         }
 
         return $name === null ? [$this->imageFilterOperandFallbackName($resolved)] : [$name];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function imageFilterArrayValues(string $array): array
+    {
+        $body = trim($array);
+        if (!str_starts_with($body, '[') || !str_ends_with($body, ']')) {
+            return [];
+        }
+
+        $values = [];
+        $offset = 1;
+        $end = strlen($body) - 1;
+        while ($offset < $end) {
+            $read = $this->readPdfValueWithOffset($body, $offset);
+            if ($read !== null && $read['next'] > $offset) {
+                $values[] = $read['value'];
+                $offset = $read['next'];
+                continue;
+            }
+
+            $malformed = $this->readMalformedImageFilterArrayOperand($body, $offset, $end);
+            if ($malformed === null || $malformed['next'] <= $offset) {
+                break;
+            }
+
+            $values[] = $malformed['value'];
+            $offset = $malformed['next'];
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return array{value: string, next: int}|null
+     */
+    private function readMalformedImageFilterArrayOperand(string $source, int $offset, int $end): ?array
+    {
+        $offset = $this->skipPdfWhitespace($source, $offset);
+        if ($offset >= $end || $source[$offset] === ']') {
+            return null;
+        }
+
+        $start = $offset;
+        while ($offset < $end && !$this->isPdfBareTokenDelimiter($source[$offset])) {
+            $offset++;
+        }
+        if ($offset === $start) {
+            $offset++;
+        }
+
+        return [
+            'value' => substr($source, $start, $offset - $start),
+            'next' => $offset,
+        ];
     }
 
     private function imageFilterOperandFallbackName(string $resolved): string

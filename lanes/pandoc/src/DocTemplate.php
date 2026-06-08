@@ -389,6 +389,7 @@ final class DocTemplate
             'default.asciidoc' => $this->defaultAsciiDocTemplate(),
             'default.latex' => $this->defaultLatexTemplate(),
             'default.beamer' => $this->defaultBeamerTemplate(),
+            'default.revealjs' => $this->defaultRevealJsTemplate(),
             'default.context' => $this->defaultContextTemplate(),
             'default.man' => $this->defaultManTemplate(),
             'default.ms' => $this->defaultMsTemplate(),
@@ -423,6 +424,7 @@ final class DocTemplate
             'default.asciidoc',
             'default.latex',
             'default.beamer',
+            'default.revealjs',
             'default.context',
             'default.man',
             'default.ms',
@@ -1052,6 +1054,96 @@ $include-after$
 $endfor$
 \end{document}
 BEAMER;
+    }
+
+    private function defaultRevealJsTemplate(): string
+    {
+        return <<<'REVEALJS'
+<!doctype html>
+<html$if(lang)$ lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
+<head>
+<meta charset="utf-8">
+<meta name="generator" content="pandoc $pandoc-version$">
+$for(author-meta)$<meta name="author" content="$it$">
+$endfor$$if(date-meta)$<meta name="dcterms.date" content="$date-meta$">
+$endif$$if(keywords)$<meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$">
+$endif$$if(description-meta)$<meta name="description" content="$description-meta$">
+$endif$<title>$if(pagetitle)$$pagetitle$$elseif(title)$$title$$endif$</title>
+<link rel="stylesheet" href="$if(revealjs-url)$$revealjs-url$$else$reveal.js$endif$/dist/reveal.css">
+<link rel="stylesheet" href="$if(revealjs-url)$$revealjs-url$$else$reveal.js$endif$/dist/theme/$if(theme)$$theme$$else$black$endif$.css" id="theme">
+$for(css)$<link rel="stylesheet" href="$it$">
+$endfor$$for(header-includes)$$it$
+$endfor$</head>
+<body>
+<div class="reveal">
+<div class="slides">
+$if(title)$<section id="title-slide">
+<h1 class="title">$title$</h1>
+$if(subtitle)$<p class="subtitle">$subtitle$</p>
+$endif$$for(author)$<p class="author">$it$</p>
+$endfor$$if(date)$<p class="date">$date$</p>
+$endif$</section>
+$endif$$for(include-before)$$it$
+$endfor$$if(toc)$<nav id="$idprefix$TOC" role="doc-toc">
+$if(toc-title)$<h2 id="$idprefix$toc-title">$toc-title$</h2>
+$endif$$table-of-contents$
+</nav>
+$endif$$body$
+$for(include-after)$$it$
+$endfor$</div>
+</div>
+<script src="$if(revealjs-url)$$revealjs-url$$else$reveal.js$endif$/dist/reveal.js"></script>
+$for(revealjs-plugins/pairs)$<script src="$it.value$"></script>
+$endfor$<script>
+Reveal.initialize({
+  hash: $if(hash)$$hash$$else$true$endif$,
+  controls: $if(controls)$$controls$$else$true$endif$,
+  progress: $if(progress)$$progress$$else$false$endif$,
+  slideNumber: $if(slideNumber)$"$slideNumber$"$else$false$endif$,
+  transition: "$if(transition)$$transition$$else$slide$endif$",
+  backgroundTransition: "$if(background-transition)$$background-transition$$else$fade$endif$",
+  history: $if(history)$$history$$else$false$endif$,
+  keyboard: $if(keyboard)$$keyboard$$else$true$endif$,
+  overview: $if(overview)$$overview$$else$true$endif$,
+  center: $if(center)$$center$$else$false$endif$,
+  touch: $if(touch)$$touch$$else$true$endif$,
+  loop: $if(loop)$$loop$$else$false$endif$,
+  rtl: $if(rtl)$$rtl$$else$false$endif$,
+$if(navigationMode)$
+  navigationMode: "$navigationMode$",
+$endif$$if(fragments)$
+  fragments: $fragments$,
+$else$
+  fragments: false,
+$endif$$if(embedded)$
+  embedded: $embedded$,
+$else$
+  embedded: false,
+$endif$$if(width)$
+  width: $width$,
+$endif$$if(height)$
+  height: $height$,
+$endif$$if(margin)$
+  margin: $margin$,
+$endif$$if(minScale)$
+  minScale: $minScale$,
+$endif$$if(maxScale)$
+  maxScale: $maxScale$,
+$endif$$if(parallaxBackgroundImage)$
+  parallaxBackgroundImage: "$parallaxBackgroundImage$",
+$endif$$if(parallaxBackgroundSize)$
+  parallaxBackgroundSize: "$parallaxBackgroundSize$",
+$endif$$if(parallaxBackgroundHorizontal)$
+  parallaxBackgroundHorizontal: $parallaxBackgroundHorizontal$,
+$endif$$if(parallaxBackgroundVertical)$
+  parallaxBackgroundVertical: $parallaxBackgroundVertical$,
+$endif$$if(revealjs-plugins)$
+  plugins: [ $for(revealjs-plugins/pairs)$$it.key$$sep$, $endfor$ ]
+$endif$});
+</script>
+</body>
+</html>
+REVEALJS;
     }
 
     private function defaultOpenXmlTemplate(): string
