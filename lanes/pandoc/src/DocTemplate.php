@@ -406,6 +406,9 @@ final class DocTemplate
             'default.markdown', 'default.commonmark' => $this->defaultMarkdownTemplate(),
             'default.rst' => $this->defaultRstTemplate(),
             'default.bbcode' => $this->defaultBbcodeTemplate(),
+            'default.jira' => $this->defaultJiraTemplate(),
+            'default.dokuwiki', 'default.mediawiki' => $this->defaultWikiTocTemplate(),
+            'default.vimdoc' => $this->defaultVimdocTemplate(),
             'default.asciidoc' => $this->defaultAsciiDocTemplate(),
             'default.muse' => $this->defaultMuseTemplate(),
             'default.org' => $this->defaultOrgTemplate(),
@@ -452,6 +455,10 @@ final class DocTemplate
             'default.commonmark',
             'default.rst',
             'default.bbcode',
+            'default.jira',
+            'default.dokuwiki',
+            'default.mediawiki',
+            'default.vimdoc',
             'default.asciidoc',
             'default.muse',
             'default.org',
@@ -509,6 +516,27 @@ $for(include-after)$
 $include-after$
 $endfor$
 MD;
+    }
+
+    private function defaultJiraTemplate(): string
+    {
+        return <<<'JIRA'
+$for(include-before)$ $include-before$ $endfor$ $body$ $for(include-after)$ $include-after$ $endfor$
+JIRA;
+    }
+
+    private function defaultWikiTocTemplate(): string
+    {
+        return <<<'WIKI'
+$for(include-before)$ $include-before$ $endfor$ $if(toc)$ __TOC__ $endif$ $body$ $for(include-after)$ $include-after$ $endfor$
+WIKI;
+    }
+
+    private function defaultVimdocTemplate(): string
+    {
+        return <<<'VIMDOC'
+$if(filename)$*${filename}* $endif$$if(abstract)$${abstract}$endif$$if(filename)$ $endif$$if(combined-title)$${combined-title} $endif$$toc-reminder$ $if(toc)$ $toc$ $endif$ $body$ $modeline$
+VIMDOC;
     }
 
     private function defaultRstTemplate(): string

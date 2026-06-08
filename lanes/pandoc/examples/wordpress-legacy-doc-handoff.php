@@ -959,6 +959,13 @@ $externalFileTable = $sttbFnm([
         'ichRelative' => 0xff,
         'fnfb' => 0x10,
     ],
+    [
+        'path' => 'https://e.test/c.doc',
+        'referenceTypeCode' => 5,
+        'documentIndex' => 5,
+        'ichRelative' => 0xff,
+        'fnfb' => 0x10,
+    ],
 ]);
 $routeSlipTable = $routeSlip([
     [
@@ -1617,7 +1624,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($summary['wordpressBlocks'], 'packet-draft.doc') || str_contains($summary['wordpressBlocks'], 'Review Lead')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered SttbSavedBy metadata into blocks');
     }
-    if (($summary['metadata']['externalFileReferenceCount'] ?? null) !== 2 || count($summary['externalFileReferences'] ?? []) !== 2) {
+    if (($summary['metadata']['externalFileReferenceCount'] ?? null) !== 3 || count($summary['externalFileReferences'] ?? []) !== 3) {
         throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm external-file inventory');
     }
     if (($summary['metadata']['externalFileReferencePolicy'] ?? '') !== 'metadata-only-native-review') {
@@ -1631,6 +1638,22 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['externalFileReferences'][1]['path'] ?? '') !== 'https://example.test/merge/source.csv' || ($summary['externalFileReferences'][1]['referenceType'] ?? '') !== 'mail-merge-data-source' || ($summary['externalFileReferences'][1]['fileSystem'] ?? '') !== 'non-file-system') {
         throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm external source metadata');
+    }
+    if (($summary['externalFileReferences'][2]['path'] ?? '') !== 'https://e.test/c.doc' || ($summary['externalFileReferences'][2]['referenceType'] ?? '') !== 'subdocument' || ($summary['externalFileReferences'][2]['fileSystem'] ?? '') !== 'non-file-system') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm include-field source metadata');
+    }
+    foreach ([
+        'data-legacy-doc-include-external-reference-index="2"',
+        'data-legacy-doc-include-external-reference-match="path"',
+        'data-legacy-doc-include-external-reference-type="subdocument"',
+        'data-legacy-doc-include-external-reference-document-index="5"',
+        'data-legacy-doc-include-external-reference-file-system="non-file-system"',
+        'data-legacy-doc-include-external-reference-policy="metadata-only-native-review"',
+        'data-legacy-doc-include-external-reference-can-expose-bytes="false"',
+    ] as $expectedAttribute) {
+        if (!str_contains($summary['wordpressBlocks'], $expectedAttribute)) {
+            throw new RuntimeException('Legacy DOC handoff self-test missing include/SttbFnm relationship attribute: ' . $expectedAttribute);
+        }
     }
     if (str_contains($summary['wordpressBlocks'], 'appendix-a.doc') || str_contains($summary['wordpressBlocks'], 'source.csv')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered SttbFnm metadata into blocks');
@@ -2277,7 +2300,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-docvariable" data-legacy-doc-field="docvariable" data-legacy-doc-field-instruction="DOCVARIABLE Batch" data-legacy-doc-data-field-type="document-variable" data-legacy-doc-data-field-name="Batch">42</span>',
         '<span class="legacy-doc-field legacy-doc-symbol-field legacy-doc-field-symbol" data-legacy-doc-field="symbol" data-legacy-doc-field-instruction="SYMBOL 183 \f &quot;Symbol&quot; \s 12 \u" data-legacy-doc-symbol-code="183" data-legacy-doc-symbol-font="Symbol" data-legacy-doc-symbol-size="12" data-legacy-doc-symbol-switches="u">·</span>',
         '<span class="legacy-doc-field legacy-doc-include-field legacy-doc-field-includepicture" data-legacy-doc-field="includepicture" data-legacy-doc-field-instruction="INCLUDEPICTURE &quot;chart.png&quot; \d \* MERGEFORMAT" data-legacy-doc-include-field-type="picture" data-legacy-doc-include-source="chart.png" data-legacy-doc-include-source-kind="file-path" data-legacy-doc-include-source-basename="chart.png" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-include-field-switches="d" data-legacy-doc-include-field-switch-d="true">chart</span>',
-        '<span class="legacy-doc-field legacy-doc-include-field legacy-doc-field-includetext" data-legacy-doc-field="includetext" data-legacy-doc-field-instruction="INCLUDETEXT &quot;https://e.test/c.doc&quot; \c &quot;H1&quot; \!" data-legacy-doc-include-field-type="text" data-legacy-doc-include-source="https://e.test/c.doc" data-legacy-doc-include-source-kind="external-url" data-legacy-doc-include-source-basename="c.doc" data-legacy-doc-include-field-switches="c !" data-legacy-doc-include-field-switch-c="H1" data-legacy-doc-include-field-lock-result="true">clause</span>',
+        '<span class="legacy-doc-field legacy-doc-include-field legacy-doc-field-includetext" data-legacy-doc-field="includetext" data-legacy-doc-field-instruction="INCLUDETEXT &quot;https://e.test/c.doc&quot; \c &quot;H1&quot; \!" data-legacy-doc-include-field-type="text" data-legacy-doc-include-source="https://e.test/c.doc" data-legacy-doc-include-source-kind="external-url" data-legacy-doc-include-source-basename="c.doc" data-legacy-doc-include-external-reference-index="2" data-legacy-doc-include-external-reference-match="path" data-legacy-doc-include-external-reference-type="subdocument" data-legacy-doc-include-external-reference-document-index="5" data-legacy-doc-include-external-reference-file-system="non-file-system" data-legacy-doc-include-external-reference-policy="metadata-only-native-review" data-legacy-doc-include-external-reference-can-expose-bytes="false" data-legacy-doc-include-field-switches="c !" data-legacy-doc-include-field-switch-c="H1" data-legacy-doc-include-field-lock-result="true">clause</span>',
         '<span class="legacy-doc-field legacy-doc-action-field legacy-doc-field-macrobutton" data-legacy-doc-field="macrobutton" data-legacy-doc-field-instruction="MACROBUTTON ApproveImport &quot;Approve packet&quot;" data-legacy-doc-action-field-type="macro" data-legacy-doc-action-field-command="ApproveImport" data-legacy-doc-action-field-command-kind="macro" data-legacy-doc-action-field-policy="metadata-only-native-review" data-legacy-doc-action-field-execution="disabled" data-legacy-doc-action-field-display-text="Approve packet">Approve packet</span>',
         '<span class="legacy-doc-field legacy-doc-action-field legacy-doc-field-gotobutton" data-legacy-doc-field="gotobutton" data-legacy-doc-field-instruction="GOTOBUTTON legacy_anchor &quot;Jump to source&quot;" data-legacy-doc-action-field-type="navigation" data-legacy-doc-action-field-destination="legacy_anchor" data-legacy-doc-action-field-destination-kind="bookmark-or-goto-target" data-legacy-doc-action-field-policy="metadata-only-native-review" data-legacy-doc-action-field-execution="disabled" data-legacy-doc-action-field-display-text="Jump to source">Jump to source</span>',
         '<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonumlgl" data-legacy-doc-field="autonumlgl" data-legacy-doc-field-instruction="AUTONUMLGL" data-legacy-doc-numbering-field-type="auto-number-legal">2.1</span>',

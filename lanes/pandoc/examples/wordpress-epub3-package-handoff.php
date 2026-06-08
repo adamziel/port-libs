@@ -212,9 +212,10 @@ XML;
 
 $slideshowFallbackXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">
-  <body>
+  <body onload="prepareSlideshowFallback()">
     <h1>Source slideshow fallback</h1>
     <p>Scripted EPUB slideshow fallback is preserved for WordPress review.</p>
+    <script id="slideshow-review-script" type="text/javascript">window.slideshowReview = true;</script>
   </body>
 </html>
 XML;
@@ -997,6 +998,12 @@ XML;
     if (($result['xhtmlResourceReport']['triggerAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['triggerCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB XHTML content scan to identify trigger controls');
     }
+    if (($result['xhtmlResourceReport']['scriptedAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['scriptCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB XHTML content scan to identify scripted fallback content');
+    }
+    if (($result['xhtmlResourceReport']['scriptEventHandlerCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['javascriptReferenceCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected EPUB XHTML scripted fallback scan to preserve event-handler metadata without active URL execution');
+    }
     if (($result['xhtmlResourceReport']['viewportAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['viewportCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB XHTML content scan to identify viewport metadata');
     }
@@ -1024,6 +1031,20 @@ XML;
     }
     if (($result['document']->children[0]->attr('contentTriggers')[0]['id'] ?? null) !== 'source-audio-trigger') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB trigger metadata');
+    }
+    $fallbackScripts = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/slideshow-fallback.xhtml']['scripts'] ?? [];
+    if (($fallbackScripts[0]['id'] ?? null) !== 'slideshow-review-script' || ($fallbackScripts[0]['inlineTextSha256'] ?? null) !== hash('sha256', 'window.slideshowReview = true;')) {
+        throw new RuntimeException('Expected EPUB scripted fallback inline script source to remain hashable for review');
+    }
+    $fallbackEventHandlers = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/slideshow-fallback.xhtml']['scriptEventHandlers'] ?? [];
+    if (($fallbackEventHandlers[0]['attribute'] ?? null) !== 'onload' || ($fallbackEventHandlers[0]['valueSha256'] ?? null) !== hash('sha256', 'prepareSlideshowFallback()')) {
+        throw new RuntimeException('Expected EPUB scripted fallback event-handler metadata to remain hashable for review');
+    }
+    if (($result['document']->children[1]->attr('contentScripts')[0]['id'] ?? null) !== 'slideshow-review-script') {
+        throw new RuntimeException('Expected WordPress fallback handoff block to expose EPUB script metadata');
+    }
+    if (($result['document']->children[1]->attr('contentScriptEventHandlers')[0]['attribute'] ?? null) !== 'onload') {
+        throw new RuntimeException('Expected WordPress fallback handoff block to expose EPUB script event-handler metadata');
     }
     if (($result['cssResourceReport']['assetCount'] ?? null) !== 1 || ($result['cssResourceReport']['referenceCount'] ?? null) !== 2) {
         throw new RuntimeException('Expected EPUB CSS resource report to scan the package stylesheet');
@@ -1426,6 +1447,9 @@ echo 'chapterSwitchCaseNamespace=' . ($result['xhtmlResourceReport']['itemsByPar
 echo 'chapterSwitchDefault=' . ($result['document']->children[0]->attr('contentSwitches')[0]['defaults'][0]['text'] ?? '') . "\n";
 echo 'xhtmlContentTriggerAssets=' . ($result['xhtmlResourceReport']['triggerAssetCount'] ?? 0) . "\n";
 echo 'xhtmlContentTriggers=' . ($result['xhtmlResourceReport']['triggerCount'] ?? 0) . "\n";
+echo 'xhtmlScriptedAssets=' . ($result['xhtmlResourceReport']['scriptedAssetCount'] ?? 0) . "\n";
+echo 'xhtmlScripts=' . ($result['xhtmlResourceReport']['scriptCount'] ?? 0) . "\n";
+echo 'xhtmlScriptEventHandlers=' . ($result['xhtmlResourceReport']['scriptEventHandlerCount'] ?? 0) . "\n";
 echo 'xhtmlViewportAssets=' . ($result['xhtmlResourceReport']['viewportAssetCount'] ?? 0) . "\n";
 echo 'chapterViewport=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['raw'] ?? '') . "\n";
 echo 'chapterContentReviewFlags=' . implode(',', $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) . "\n";

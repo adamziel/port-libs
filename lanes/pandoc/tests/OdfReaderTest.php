@@ -4312,6 +4312,90 @@ XML;
         $t->contains('<span class="odf-change odf-insertion" data-odf-change-id="ct-ins" data-odf-change-type="insertion" data-odf-change-creator="Editor A" data-odf-change-date="2026-06-05T00:10:00Z">inserted review text</span>', $blocksHtml);
         $t->contains('<span class="odf-change odf-deletion" data-odf-change-id="ct-del" data-odf-change-type="deletion" data-odf-change-creator="Editor B" data-odf-change-date="2026-06-05T00:12:00Z">legacy deleted claim</span>', $blocksHtml);
     },
+    'maps ODT tracked table changes into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTrackedTableChanges = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <office:body>
+    <office:text>
+      <table:tracked-changes>
+        <table:tracked-change table:id="tc-delete-row" table:acceptance-state="pending">
+          <office:change-info>
+            <dc:creator>Sheet Reviewer</dc:creator>
+            <dc:date>2026-06-08T18:15:00Z</dc:date>
+            <text:p>Deleted source row after import reconciliation.</text:p>
+          </office:change-info>
+          <table:deletion table:type="row" table:position="Review.3" table:table="Review"/>
+        </table:tracked-change>
+        <table:tracked-change table:id="tc-cell-value" table:acceptance-state="accepted" table:rejecting-change-id="tc-delete-row">
+          <office:change-info>
+            <dc:creator>Data Reviewer</dc:creator>
+            <dc:date>2026-06-08T18:17:00Z</dc:date>
+          </office:change-info>
+          <table:cell-content-change table:cell-address="Review.B2" office:value-type="string" office:string-value="Ready">
+            <table:previous table:cell-address="Review.B2" office:value-type="string" office:string-value="Draft"><text:p>Draft</text:p></table:previous>
+          </table:cell-content-change>
+        </table:tracked-change>
+        <table:tracked-change table:id="tc-move-range">
+          <office:change-info>
+            <dc:creator>Data Reviewer</dc:creator>
+            <dc:date>2026-06-08T18:19:00Z</dc:date>
+          </office:change-info>
+          <table:movement table:source-range-address="Review.A5:Review.B5" table:target-range-address="Review.A2:Review.B2"/>
+        </table:tracked-change>
+      </table:tracked-changes>
+      <text:p>Table change metadata remains review-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTrackedTableChanges));
+        $declarations = $result['contentDeclarations'];
+        $documentDeclarations = $result['document']->attr('contentDeclarations');
+        $changes = $declarations['tableTrackedChanges'];
+        $changesById = $declarations['tableTrackedChangesById'];
+
+        $t->same('Table change metadata remains review-only.', $result['document']->children[0]->attr('text'));
+        $t->same(3, $declarations['tableTrackedChangeCount']);
+        $t->same(['deletion' => 1, 'cell-content-change' => 1, 'movement' => 1], $declarations['tableTrackedChangeActionCounts']);
+        $t->same($declarations, $documentDeclarations);
+        $t->same(3, count($changes));
+        $t->same('tc-delete-row', $changes[0]['id']);
+        $t->same('pending', $changes[0]['acceptanceState']);
+        $t->same('Sheet Reviewer', $changesById['tc-delete-row']['creator']);
+        $t->same('2026-06-08T18:15:00Z', $changesById['tc-delete-row']['date']);
+        $t->same(['Deleted source row after import reconciliation.'], $changesById['tc-delete-row']['comments']);
+        $t->same('deletion', $changesById['tc-delete-row']['actionType']);
+        $t->same('deletion', $changesById['tc-delete-row']['action']['element']);
+        $t->same('row', $changesById['tc-delete-row']['action']['attributes']['type']);
+        $t->same('Review.3', $changesById['tc-delete-row']['action']['attributes']['position']);
+        $t->same('Review', $changesById['tc-delete-row']['action']['attributes']['table']);
+
+        $cellChange = $changesById['tc-cell-value'];
+        $t->same('accepted', $cellChange['acceptanceState']);
+        $t->same('tc-delete-row', $cellChange['rejectingChangeId']);
+        $t->same('cell-content-change', $cellChange['actionType']);
+        $t->same('Review.B2', $cellChange['action']['attributes']['cellAddress']);
+        $t->same('string', $cellChange['action']['attributes']['valueType']);
+        $t->same('Ready', $cellChange['action']['attributes']['stringValue']);
+        $t->same('previous', $cellChange['action']['previous'][0]['element']);
+        $t->same('Draft', $cellChange['action']['previous'][0]['attributes']['stringValue']);
+        $t->same('Draft', $cellChange['action']['previous'][0]['text']);
+
+        $movement = $changesById['tc-move-range'];
+        $t->same('movement', $movement['actionType']);
+        $t->same('Review.A5:Review.B5', $movement['action']['attributes']['sourceRangeAddress']);
+        $t->same('Review.A2:Review.B2', $movement['action']['attributes']['targetRangeAddress']);
+
+        $t->same(3, $result['importReport']['contentDeclarations']['tableTrackedChangeCount']);
+        $t->same(['deletion' => 1, 'cell-content-change' => 1, 'movement' => 1], $result['importReport']['contentDeclarations']['tableTrackedChangeActionCounts']);
+        $t->same(3, $result['importReport']['content']['tableTrackedChangeCount']);
+        $t->same(0, $result['importReport']['content']['trackedChangeCount']);
+    },
     'maps ODT embedded MathML objects into display math handoff nodes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $contentWithMathObjects = <<<'XML'
 <office:document-content

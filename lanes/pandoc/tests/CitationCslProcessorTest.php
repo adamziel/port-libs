@@ -12908,6 +12908,110 @@ XML);
         ]])->item('manual-presort');
         $t->same('mm', $direct['presort'] ?? null);
     },
+    'maps bounded biblatex index title fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{index-title-manual,
+  author         = {Smith, Ada},
+  title          = {The Source Audit Companion},
+  indextitle     = {Source Audit Companion, The},
+  indexsorttitle = {Source Audit Companion},
+  date           = {2026},
+  publisher      = {Review Press}
+}
+
+@inbook{inherited-index-chapter,
+  author   = {Ng, Nia},
+  title    = {Checklist Chapter},
+  pages    = {12--18},
+  crossref = {index-title-manual}
+}
+
+@book{fallback-index-manual,
+  author     = {Roe, Pat},
+  title      = {Archive Index Packet},
+  indextitle = {Archive Index Packet, The},
+  date       = {2025},
+  publisher  = {Migration Desk}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('Source Audit Companion, The', $items[0]['index-title'] ?? null);
+        $t->same('Source Audit Companion', $items[0]['index-sort-title'] ?? null);
+        $t->same('Source Audit Companion, The', $items[1]['index-title'] ?? null);
+        $t->same('Source Audit Companion', $items[1]['index-sort-title'] ?? null);
+        $t->same('Archive Index Packet, The', $items[2]['index-title'] ?? null);
+        $t->same('Archive Index Packet, The', $items[2]['index-sort-title'] ?? null);
+        $t->same('Source Audit Companion, The', $items[0]['rawBibtex']['fields']['indextitle'] ?? null);
+        $t->same('Source Audit Companion', $items[0]['rawBibtex']['fields']['indexsorttitle'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('index-title-manual');
+        $chapter = $processor->item('inherited-index-chapter');
+        $fallback = $processor->item('fallback-index-manual');
+        $t->same('Source Audit Companion, The', $manual['indexTitle'] ?? null);
+        $t->same('Source Audit Companion', $manual['indexSortTitle'] ?? null);
+        $t->same('Source Audit Companion, The', $chapter['indexTitle'] ?? null);
+        $t->same('Source Audit Companion', $chapter['indexSortTitle'] ?? null);
+        $t->same('Archive Index Packet, The', $fallback['indexTitle'] ?? null);
+        $t->same('Archive Index Packet, The', $fallback['indexSortTitle'] ?? null);
+        $t->same(
+            'Smith, Ada. The Source Audit Companion. Review Press, 2026. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion.',
+            $processor->renderBibliographyEntry('index-title-manual')
+        );
+        $t->same(
+            'Roe, Pat. Archive Index Packet. Migration Desk, 2025. Index title: Archive Index Packet, The. Index sort title: Archive Index Packet, The.',
+            $processor->renderBibliographyEntry('fallback-index-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Index Title Review</title>
+    <id>https://example.test/styles/bounded-biblatex-index-title-review</id>
+    <updated>2026-06-08T18:04:20+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="indextitle"/>
+        <text variable="indexsorttitle"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="index-title"/>
+      <text variable="index-sort-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | Source Audit Companion, The | Source Audit Companion; Ng | Source Audit Companion, The | Source Audit Companion]', $styled->renderCitationCluster([
+            $citation('index-title-manual', '[@index-title-manual]'),
+            $citation('inherited-index-chapter', '[@inherited-index-chapter]'),
+        ]));
+        $t->same('The Source Audit Companion :: Source Audit Companion, The :: Source Audit Companion', $styled->renderBibliographyEntry('index-title-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-index-title',
+            'title' => 'Direct Index Packet',
+            'index-title' => 'Direct Index Packet, The',
+            'indexsorttitle' => 'Direct Index Packet',
+        ]])->item('direct-index-title');
+        $t->same('Direct Index Packet, The', $direct['indexTitle'] ?? null);
+        $t->same('Direct Index Packet', $direct['indexSortTitle'] ?? null);
+
+        $document = (new MarkdownReader())->read('Index-title source @index-title-manual and chapter [@inherited-index-chapter] keep generated source indexes reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Index-title source Smith (2026) and chapter (Ng 2026) keep generated source indexes reviewable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. The Source Audit Companion. Review Press, 2026. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Checklist Chapter. The Source Audit Companion. Review Press, 2026. 12-18. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion.</dd>', $blocks);
+    },
     'maps bounded biblatex pagination fields into csl page labels' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{column-source,

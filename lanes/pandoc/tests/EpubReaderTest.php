@@ -3859,6 +3859,100 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB XHTML scripted content sources for static review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $scriptedXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>Scripted review chapter</title>
+    <script id="head-inline" type="text/javascript">console.log("review");</script>
+  </head>
+  <body onload="bootstrapReview()">
+    <p><a id="unsafe-link" href="javascript:alert('legacy')">Legacy action</a></p>
+    <script id="local-script" src="../scripts/app.js" defer="defer"></script>
+    <script id="remote-script" src="https://cdn.example.test/epub/app.js" async="async"></script>
+    <button id="event-button" onclick="runImport()">Run import action</button>
+  </body>
+</html>
+XML;
+        $opfWithScriptedContent = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="scripted-content" href="text/scripted.xhtml" media-type="application/xhtml+xml"/>'
+                . '<item id="app-js" href="scripts/app.js" media-type="application/javascript"/>'
+                . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithScriptedContent = str_replace(
+            '</spine>',
+            '<itemref idref="scripted-content"/></spine>',
+            $opfWithScriptedContent
+        );
+
+        $localScript = 'window.localReview = true;';
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithScriptedContent,
+            null,
+            [
+                ['name' => 'OEBPS/text/scripted.xhtml', 'data' => $scriptedXhtml],
+                ['name' => 'OEBPS/scripts/app.js', 'data' => $localScript],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/scripted.xhtml'];
+
+        $t->same(1, $report['scriptedAssetCount']);
+        $t->same(3, $report['scriptCount']);
+        $t->same(2, $report['scriptEventHandlerCount']);
+        $t->same(1, $report['javascriptReferenceCount']);
+        $t->same(['scripted', 'remote-resources'], $asset['reviewFlags']);
+        $t->same(true, $asset['flags']['scripted']);
+        $t->same(true, $asset['flags']['remoteResources']);
+
+        $t->same(3, $asset['scriptCount']);
+        $t->same('head-inline', $asset['scripts'][0]['id']);
+        $t->same(true, $asset['scripts'][0]['inline']);
+        $t->same('text/javascript', $asset['scripts'][0]['type']);
+        $t->same(strlen('console.log("review");'), $asset['scripts'][0]['inlineTextLength']);
+        $t->same(hash('sha256', 'console.log("review");'), $asset['scripts'][0]['inlineTextSha256']);
+        $t->same('inline-xhtml-script-content', $asset['scripts'][0]['diagnostics'][0]['type']);
+
+        $t->same('local-script', $asset['scripts'][1]['id']);
+        $t->same(false, $asset['scripts'][1]['inline']);
+        $t->same('../scripts/app.js', $asset['scripts'][1]['src']);
+        $t->same('/OEBPS/scripts/app.js', $asset['scripts'][1]['part']);
+        $t->same('app-js', $asset['scripts'][1]['manifestId']);
+        $t->same(strlen($localScript), $asset['scripts'][1]['byteLength']);
+        $t->same(hash('sha256', $localScript), $asset['scripts'][1]['byteSha256']);
+        $t->same(true, $asset['scripts'][1]['defer']);
+
+        $t->same('remote-script', $asset['scripts'][2]['id']);
+        $t->same(true, $asset['scripts'][2]['external']);
+        $t->same('https://cdn.example.test/epub/app.js', $asset['scripts'][2]['target']);
+        $t->same('external-xhtml-script-source-reference', $asset['scripts'][2]['diagnostics'][0]['type']);
+        $t->same(true, $asset['scripts'][2]['async']);
+
+        $t->same(2, $asset['scriptEventHandlerCount']);
+        $t->same('body', $asset['scriptEventHandlers'][0]['element']);
+        $t->same('onload', $asset['scriptEventHandlers'][0]['attribute']);
+        $t->same(hash('sha256', 'bootstrapReview()'), $asset['scriptEventHandlers'][0]['valueSha256']);
+        $t->same('event-button', $asset['scriptEventHandlers'][1]['elementId']);
+        $t->same('onclick', $asset['scriptEventHandlers'][1]['attribute']);
+
+        $javascriptReference = $asset['javascriptReferences'][0];
+        $t->same('a', $javascriptReference['element']);
+        $t->same('href', $javascriptReference['attribute']);
+        $t->same("javascript:alert('legacy')", $javascriptReference['href']);
+        $t->same(true, $javascriptReference['external']);
+        $t->same('javascript-xhtml-content-reference', $javascriptReference['diagnostics'][0]['type']);
+
+        $scanBlock = $result['document']->children[2];
+        $t->same('/OEBPS/text/scripted.xhtml', $scanBlock->attr('part'));
+        $t->same($asset['scripts'], $scanBlock->attr('contentScripts'));
+        $t->same($asset['scriptEventHandlers'], $scanBlock->attr('contentScriptEventHandlers'));
+        $t->same($asset['javascriptReferences'], $scanBlock->attr('contentJavascriptReferences'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reports EPUB stylesheet resource references for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithCssAssets = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

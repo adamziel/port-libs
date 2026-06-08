@@ -9832,6 +9832,10 @@ final class EpubReader
                 'contentViewport' => $contentReport['metadata']['viewport'],
                 'contentViewports' => $contentReport['metadata']['viewports'],
                 'contentReferences' => $contentReport['references'],
+                'contentScripts' => $contentReport['scripts'],
+                'contentScriptEventHandlers' => $contentReport['scriptEventHandlers'],
+                'contentJavascriptReferences' => $contentReport['javascriptReferences'],
+                'contentScriptDiagnostics' => $contentReport['scriptDiagnostics'],
                 'contentSwitches' => $contentReport['switches'],
                 'contentTriggers' => $contentReport['triggers'],
                 'contentSemantics' => $contentReport['semantics'],
@@ -10675,6 +10679,13 @@ final class EpubReader
         $invalidViewportCount = 0;
         $viewportItems = [];
         $viewportDiagnostics = [];
+        $scriptCount = 0;
+        $scriptEventHandlerCount = 0;
+        $javascriptReferenceCount = 0;
+        $scriptItems = [];
+        $scriptEventHandlers = [];
+        $javascriptReferences = [];
+        $scriptDiagnostics = [];
         $reviewRequiredCount = 0;
         $referenceCount = 0;
 
@@ -10702,6 +10713,14 @@ final class EpubReader
                 'metadataDiagnostics' => is_array($report['metadata']['diagnostics'] ?? null) ? array_values($report['metadata']['diagnostics']) : [],
                 'referenceCount' => count(is_array($report['references'] ?? null) ? $report['references'] : []),
                 'references' => is_array($report['references'] ?? null) ? array_values($report['references']) : [],
+                'scriptCount' => count(is_array($report['scripts'] ?? null) ? $report['scripts'] : []),
+                'scripts' => is_array($report['scripts'] ?? null) ? array_values($report['scripts']) : [],
+                'scriptEventHandlerCount' => count(is_array($report['scriptEventHandlers'] ?? null) ? $report['scriptEventHandlers'] : []),
+                'scriptEventHandlers' => is_array($report['scriptEventHandlers'] ?? null) ? array_values($report['scriptEventHandlers']) : [],
+                'javascriptReferenceCount' => count(is_array($report['javascriptReferences'] ?? null) ? $report['javascriptReferences'] : []),
+                'javascriptReferences' => is_array($report['javascriptReferences'] ?? null) ? array_values($report['javascriptReferences']) : [],
+                'scriptDiagnosticCount' => count(is_array($report['scriptDiagnostics'] ?? null) ? $report['scriptDiagnostics'] : []),
+                'scriptDiagnostics' => is_array($report['scriptDiagnostics'] ?? null) ? array_values($report['scriptDiagnostics']) : [],
                 'switchCount' => count(is_array($report['switches'] ?? null) ? $report['switches'] : []),
                 'switches' => is_array($report['switches'] ?? null) ? array_values($report['switches']) : [],
                 'switchCaseCount' => is_int($report['switchCaseCount'] ?? null) ? $report['switchCaseCount'] : 0,
@@ -10722,6 +10741,12 @@ final class EpubReader
             ];
 
             $referenceCount += $item['referenceCount'];
+            $scriptCount += $item['scriptCount'];
+            $scriptEventHandlerCount += $item['scriptEventHandlerCount'];
+            $javascriptReferenceCount += $item['javascriptReferenceCount'];
+            array_push($scriptItems, ...$item['scripts']);
+            array_push($scriptEventHandlers, ...$item['scriptEventHandlers']);
+            array_push($javascriptReferences, ...$item['javascriptReferences']);
             $switchCount += $item['switchCount'];
             $switchCaseCount += $item['switchCaseCount'];
             $switchDefaultCount += $item['switchDefaultCount'];
@@ -10787,6 +10812,11 @@ final class EpubReader
                     'part' => $part,
                 ] + $diagnostic;
             }
+            foreach ($item['scriptDiagnostics'] as $diagnostic) {
+                $scriptDiagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
             foreach ($item['metadataDiagnostics'] as $diagnostic) {
                 $viewportDiagnostics[] = [
                     'part' => $part,
@@ -10811,6 +10841,13 @@ final class EpubReader
             'mathmlAssetCount' => $mathmlAssetCount,
             'svgAssetCount' => $svgAssetCount,
             'scriptedAssetCount' => $scriptedAssetCount,
+            'scriptCount' => $scriptCount,
+            'scriptEventHandlerCount' => $scriptEventHandlerCount,
+            'javascriptReferenceCount' => $javascriptReferenceCount,
+            'scriptItems' => $scriptItems,
+            'scriptEventHandlers' => $scriptEventHandlers,
+            'javascriptReferences' => $javascriptReferences,
+            'scriptDiagnostics' => $scriptDiagnostics,
             'switchAssetCount' => $switchAssetCount,
             'switchCount' => $switchCount,
             'switchCaseCount' => $switchCaseCount,
@@ -10856,6 +10893,9 @@ final class EpubReader
     ): array {
         $flags = self::emptyXhtmlContentResourceFlags();
         $references = [];
+        $scripts = [];
+        $scriptEventHandlers = [];
+        $javascriptReferences = [];
         $switches = [];
         $triggers = [];
         $semantics = [];
@@ -10871,6 +10911,10 @@ final class EpubReader
                 'reviewFlags' => [],
                 'metadata' => self::emptyXhtmlContentMetadataReport($part),
                 'references' => [],
+                'scripts' => [],
+                'scriptEventHandlers' => [],
+                'javascriptReferences' => [],
+                'scriptDiagnostics' => [],
                 'switches' => [],
                 'switchCaseCount' => 0,
                 'switchDefaultCount' => 0,
@@ -10901,6 +10945,9 @@ final class EpubReader
                 $manifestByPart,
                 $flags,
                 $references,
+                $scripts,
+                $scriptEventHandlers,
+                $javascriptReferences,
                 $switches,
                 $triggers,
                 $semantics,
@@ -10921,6 +10968,36 @@ final class EpubReader
                 ] + $diagnostic;
             }
         }
+        $scriptDiagnostics = [];
+        foreach ($scripts as $script) {
+            foreach ($script['diagnostics'] as $diagnostic) {
+                $scriptDiagnostics[] = [
+                    'scriptIndex' => $script['index'],
+                    'scriptId' => $script['id'],
+                ] + $diagnostic;
+            }
+        }
+        foreach ($scriptEventHandlers as $eventHandler) {
+            foreach ($eventHandler['diagnostics'] as $diagnostic) {
+                $scriptDiagnostics[] = [
+                    'eventHandlerIndex' => $eventHandler['index'],
+                    'element' => $eventHandler['element'],
+                    'elementId' => $eventHandler['elementId'],
+                    'attribute' => $eventHandler['attribute'],
+                ] + $diagnostic;
+            }
+        }
+        foreach ($javascriptReferences as $javascriptReference) {
+            foreach ($javascriptReference['diagnostics'] as $diagnostic) {
+                $scriptDiagnostics[] = [
+                    'javascriptReferenceIndex' => $javascriptReference['index'],
+                    'element' => $javascriptReference['element'],
+                    'attribute' => $javascriptReference['attribute'],
+                    'href' => $javascriptReference['href'],
+                ] + $diagnostic;
+            }
+        }
+        array_push($diagnostics, ...$scriptDiagnostics);
         foreach ($switches as $switch) {
             foreach ($switch['diagnostics'] as $diagnostic) {
                 $diagnostics[] = [
@@ -10958,6 +11035,10 @@ final class EpubReader
             'reviewFlags' => self::xhtmlContentReviewFlags($flags),
             'metadata' => $metadata,
             'references' => $references,
+            'scripts' => $scripts,
+            'scriptEventHandlers' => $scriptEventHandlers,
+            'javascriptReferences' => $javascriptReferences,
+            'scriptDiagnostics' => $scriptDiagnostics,
             'switches' => $switches,
             'switchCaseCount' => array_sum(array_map(
                 static fn (array $switch): int => is_int($switch['caseCount'] ?? null) ? $switch['caseCount'] : 0,
@@ -11205,6 +11286,9 @@ final class EpubReader
      * @param array<string, array<string, mixed>> $manifestByPart
      * @param array<string, bool> $flags
      * @param list<array<string, mixed>> $references
+     * @param list<array<string, mixed>> $scripts
+     * @param list<array<string, mixed>> $scriptEventHandlers
+     * @param list<array<string, mixed>> $javascriptReferences
      * @param list<array<string, mixed>> $switches
      * @param list<array<string, mixed>> $triggers
      * @param list<array<string, mixed>> $semantics
@@ -11217,6 +11301,9 @@ final class EpubReader
         array $manifestByPart,
         array &$flags,
         array &$references,
+        array &$scripts,
+        array &$scriptEventHandlers,
+        array &$javascriptReferences,
         array &$switches,
         array &$triggers,
         array &$semantics,
@@ -11233,6 +11320,13 @@ final class EpubReader
         }
         if ($namespace === self::XHTML_NS && $localName === 'script') {
             $flags['scripted'] = true;
+            $scripts[] = $this->xhtmlScriptReport(
+                $package,
+                $part,
+                $element,
+                $manifestByPart,
+                count($scripts)
+            );
         }
         if ($namespace === self::EPUB_OPS_NS && $localName === 'switch') {
             $flags['switch'] = true;
@@ -11256,6 +11350,11 @@ final class EpubReader
 
         foreach (self::xhtmlEventHandlerAttributes($element) as $attributeName) {
             $flags['scripted'] = true;
+            $scriptEventHandlers[] = self::xhtmlScriptEventHandlerReport(
+                $element,
+                $attributeName,
+                count($scriptEventHandlers)
+            );
             $references[] = [
                 'index' => count($references),
                 'element' => $element->localName,
@@ -11288,6 +11387,7 @@ final class EpubReader
             if ($href === '') {
                 continue;
             }
+            $javascriptReference = preg_match('/^javascript:/i', $href) === 1;
             if (preg_match('/^javascript:/i', $href) === 1) {
                 $flags['scripted'] = true;
             }
@@ -11302,6 +11402,19 @@ final class EpubReader
                 count($references),
                 $flags
             );
+            if ($javascriptReference) {
+                array_unshift($reference['diagnostics'], [
+                    'type' => 'javascript-xhtml-content-reference',
+                    'href' => $href,
+                    'message' => 'EPUB XHTML content uses a javascript: URL that remains inert and requires review',
+                ]);
+                $javascriptReferences[] = self::xhtmlJavascriptReferenceReport(
+                    $element,
+                    $attribute['attribute'],
+                    $reference,
+                    count($javascriptReferences)
+                );
+            }
             if (isset($attribute['srcsetCandidateIndex'])) {
                 $reference['srcsetCandidateIndex'] = (int) $attribute['srcsetCandidateIndex'];
                 $reference['srcsetCandidate'] = is_string($attribute['srcsetCandidate'] ?? null)
@@ -11323,12 +11436,166 @@ final class EpubReader
                 $manifestByPart,
                 $flags,
                 $references,
+                $scripts,
+                $scriptEventHandlers,
+                $javascriptReferences,
                 $switches,
                 $triggers,
                 $semantics,
                 $elementIds
             );
         }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function xhtmlScriptReport(
+        ZipPackage $package,
+        string $part,
+        \DOMElement $element,
+        array $manifestByPart,
+        int $index
+    ): array {
+        $src = self::nullableAttribute($element, 'src');
+        $reference = $src === null ? null : $this->packageReference(
+            $package,
+            $part,
+            $src,
+            $manifestByPart,
+            'xhtml-script-source'
+        );
+        $diagnostics = is_array($reference) ? $reference['diagnostics'] : [];
+        if (is_array($reference) && ($reference['encrypted'] ?? false) === true) {
+            $diagnostics[] = [
+                'type' => 'encrypted-xhtml-script-source',
+                'part' => $reference['part'],
+                'message' => 'EPUB XHTML script source references an encrypted package part that cannot be exposed directly',
+            ];
+        }
+
+        $inlineText = $src === null ? (string) $element->textContent : '';
+        if ($src === null && trim($inlineText) !== '') {
+            $diagnostics[] = [
+                'type' => 'inline-xhtml-script-content',
+                'message' => 'EPUB XHTML content contains inline script source that remains inert and requires review',
+            ];
+        }
+
+        $byteSha256 = null;
+        if (
+            is_array($reference)
+            && ($reference['external'] ?? false) !== true
+            && ($reference['exists'] ?? false) === true
+            && ($reference['canExposeBytes'] ?? false) === true
+            && is_string($reference['part'] ?? null)
+        ) {
+            try {
+                $byteSha256 = hash('sha256', $package->read((string) $reference['part']));
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => 'xhtml-script-source-bytes-unavailable',
+                    'part' => $reference['part'],
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'index' => $index,
+            'sourcePart' => $part,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'type' => self::nullableAttribute($element, 'type'),
+            'src' => $src,
+            'target' => is_array($reference) ? $reference['target'] : null,
+            'part' => is_array($reference) ? $reference['part'] : null,
+            'fragment' => is_array($reference) ? $reference['fragment'] : null,
+            'fragmentKind' => is_array($reference) ? $reference['fragmentKind'] : null,
+            'epubCfi' => is_array($reference) ? $reference['epubCfi'] : null,
+            'mediaFragment' => is_array($reference) ? $reference['mediaFragment'] : null,
+            'external' => is_array($reference) ? $reference['external'] : false,
+            'exists' => is_array($reference) ? $reference['exists'] : null,
+            'byteLength' => is_array($reference) ? $reference['byteLength'] : null,
+            'crc32' => is_array($reference) ? $reference['crc32'] : null,
+            'byteSha256' => $byteSha256,
+            'manifestId' => is_array($reference) ? $reference['manifestId'] : null,
+            'mediaType' => is_array($reference) ? $reference['mediaType'] : null,
+            'encrypted' => is_array($reference) ? $reference['encrypted'] : false,
+            'canExposeBytes' => is_array($reference) ? $reference['canExposeBytes'] : null,
+            'inline' => $src === null,
+            'inlineTextLength' => strlen($inlineText),
+            'inlineTextSha256' => $inlineText === '' ? null : hash('sha256', $inlineText),
+            'async' => $element->hasAttribute('async'),
+            'defer' => $element->hasAttribute('defer'),
+            'nomodule' => $element->hasAttribute('nomodule'),
+            'crossorigin' => self::nullableAttribute($element, 'crossorigin'),
+            'integrity' => self::nullableAttribute($element, 'integrity'),
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlScriptEventHandlerReport(\DOMElement $element, string $attributeName, int $index): array
+    {
+        $value = trim($element->getAttribute($attributeName));
+
+        return [
+            'index' => $index,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'elementId' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'attribute' => $attributeName,
+            'value' => $value,
+            'valueLength' => strlen($value),
+            'valueSha256' => $value === '' ? null : hash('sha256', $value),
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+            'diagnostics' => [[
+                'type' => 'scripted-xhtml-content-attribute',
+                'attribute' => $attributeName,
+                'message' => 'EPUB XHTML content carries an inline script event handler that requires review',
+            ]],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $reference
+     *
+     * @return array<string, mixed>
+     */
+    private static function xhtmlJavascriptReferenceReport(
+        \DOMElement $element,
+        string $attributeName,
+        array $reference,
+        int $index
+    ): array {
+        return [
+            'index' => $index,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'elementId' => self::nullableAttribute($element, 'id'),
+            'attribute' => $attributeName,
+            'href' => is_string($reference['href'] ?? null) ? $reference['href'] : null,
+            'target' => is_string($reference['target'] ?? null) ? $reference['target'] : null,
+            'part' => is_string($reference['part'] ?? null) ? $reference['part'] : null,
+            'external' => (bool) ($reference['external'] ?? false),
+            'exists' => (bool) ($reference['exists'] ?? false),
+            'diagnostics' => is_array($reference['diagnostics'] ?? null) ? array_values($reference['diagnostics']) : [],
+        ];
     }
 
     /**
@@ -12845,6 +13112,10 @@ final class EpubReader
                 'contentViewport' => $asset['contentViewport'] ?? [],
                 'contentViewports' => $asset['contentViewports'] ?? [],
                 'contentReferences' => $asset['contentReferences'] ?? [],
+                'contentScripts' => $asset['contentScripts'] ?? [],
+                'contentScriptEventHandlers' => $asset['contentScriptEventHandlers'] ?? [],
+                'contentJavascriptReferences' => $asset['contentJavascriptReferences'] ?? [],
+                'contentScriptDiagnostics' => $asset['contentScriptDiagnostics'] ?? [],
                 'contentSwitches' => $asset['contentSwitches'] ?? [],
                 'contentTriggers' => $asset['contentTriggers'] ?? [],
                 'contentSemantics' => $asset['contentSemantics'] ?? [],

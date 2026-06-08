@@ -1909,6 +1909,96 @@ HTML,
         ], null, 'bbcode_steam'));
     },
 
+    'renders bounded pandoc default wiki and vimdoc template resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $jira = $renderer->renderResource('templates/default', [], [
+            'include-before' => ['h1. Before Jira import'],
+            'body' => 'h2. Imported Jira body',
+            'include-after' => ['h1. Jira handoff'],
+        ], null, 'jira+smart');
+
+        foreach ([
+            'h1. Before Jira import',
+            'h2. Imported Jira body',
+            'h1. Jira handoff',
+        ] as $needle) {
+            $t->contains($needle, $jira);
+        }
+        $t->same(false, str_contains($jira, '__TOC__'));
+
+        foreach ([
+            'dokuwiki' => '====== DokuWiki body ======',
+            'mediawiki' => '== MediaWiki body ==',
+        ] as $format => $body) {
+            $output = $renderer->renderResource('templates/default', [], [
+                'include-before' => ['//Before ' . $format . ' import//'],
+                'toc' => true,
+                'body' => $body,
+                'include-after' => ['//After ' . $format . ' import//'],
+            ], null, $format . '+smart');
+
+            foreach ([
+                '//Before ' . $format . ' import//',
+                '__TOC__',
+                $body,
+                '//After ' . $format . ' import//',
+            ] as $needle) {
+                $t->contains($needle, $output);
+            }
+        }
+
+        $directMediaWiki = $renderer->renderResource('templates/default.mediawiki', [], [
+            'toc' => true,
+            'body' => 'Direct MediaWiki body',
+        ]);
+        $t->contains('__TOC__', $directMediaWiki);
+        $t->contains('Direct MediaWiki body', $directMediaWiki);
+
+        $vimdoc = $renderer->renderResource('templates/default', [], [
+            'filename' => 'wp-import-review.txt',
+            'abstract' => 'WordPress import review packet.',
+            'combined-title' => 'WP Import Review',
+            'toc-reminder' => 'Type gO for table of contents.',
+            'toc' => '|wp-import-toc|',
+            'body' => '*wp-import-body* Converted Vimdoc body.',
+            'modeline' => 'vim:tw=78:ft=help:norl:',
+        ], null, 'vimdoc+smart');
+
+        foreach ([
+            '*wp-import-review.txt*',
+            'WordPress import review packet.',
+            'WP Import Review',
+            'Type gO for table of contents.',
+            '|wp-import-toc|',
+            '*wp-import-body* Converted Vimdoc body.',
+            'vim:tw=78:ft=help:norl:',
+        ] as $needle) {
+            $t->contains($needle, $vimdoc);
+        }
+
+        $directVimdoc = $renderer->renderResource('templates/default.vimdoc', [], [
+            'body' => 'Direct Vimdoc body',
+        ]);
+        $t->contains('Direct Vimdoc body', $directVimdoc);
+
+        $t->same('custom jira', $renderer->renderResource('templates/default', [
+            'templates/default.jira' => 'custom $body$',
+        ], [
+            'body' => 'jira',
+        ], null, 'jira'));
+        $t->same('custom dokuwiki', $renderer->renderResource('templates/default', [
+            'templates/default.dokuwiki' => 'custom $body$',
+        ], [
+            'body' => 'dokuwiki',
+        ], null, 'dokuwiki'));
+        $t->same('custom vimdoc', $renderer->renderResource('templates/default', [
+            'templates/default.vimdoc' => 'custom $body$',
+        ], [
+            'body' => 'vimdoc',
+        ], null, 'vimdoc'));
+    },
+
     'renders bounded pandoc default latex template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

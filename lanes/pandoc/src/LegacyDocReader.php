@@ -143,6 +143,9 @@ final class LegacyDocReader
         0x5a => 'listnum',
     ];
 
+    /** @var list<array<string,mixed>> */
+    private array $activeExternalFileReferences = [];
+
     /**
      * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
@@ -430,14 +433,22 @@ final class LegacyDocReader
             'routeSlip' => $routeSlip,
         ];
 
-        return [
-            'document' => new AstNode('document', $attrs, $this->paragraphNodes(
+        $previousExternalFileReferences = $this->activeExternalFileReferences;
+        $this->activeExternalFileReferences = $externalFileReferences;
+        try {
+            $documentChildren = $this->paragraphNodes(
                 $textResult['text'],
                 $bookmarks,
                 array_merge($footnotes, $endnotes, $comments),
                 $embeddedObjectReferences,
                 $pictureReferences
-            )),
+            );
+        } finally {
+            $this->activeExternalFileReferences = $previousExternalFileReferences;
+        }
+
+        return [
+            'document' => new AstNode('document', $attrs, $documentChildren),
             'metadata' => $metadata,
             'streams' => $compoundFile->streamNames(),
             'streamDirectory' => $streamDirectory,
@@ -2105,6 +2116,17 @@ final class LegacyDocReader
             'data-legacy-doc-include-source-kind' => preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $source) === 1 ? 'external-url' : 'file-path',
             'data-legacy-doc-include-source-basename' => $this->legacyPathBasename($source),
         ];
+        $externalReference = $this->matchingExternalFileReference($source);
+        if ($externalReference !== null) {
+            $reference = $externalReference['reference'];
+            $attributes['data-legacy-doc-include-external-reference-index'] = (string) ((int) ($reference['index'] ?? 0));
+            $attributes['data-legacy-doc-include-external-reference-match'] = $externalReference['matchedOn'];
+            $attributes['data-legacy-doc-include-external-reference-type'] = (string) ($reference['referenceType'] ?? 'unknown');
+            $attributes['data-legacy-doc-include-external-reference-document-index'] = (string) ((int) ($reference['documentIndex'] ?? 0));
+            $attributes['data-legacy-doc-include-external-reference-file-system'] = (string) ($reference['fileSystem'] ?? 'unknown');
+            $attributes['data-legacy-doc-include-external-reference-policy'] = (string) ($reference['extractionPolicy'] ?? 'metadata-only-native-review');
+            $attributes['data-legacy-doc-include-external-reference-can-expose-bytes'] = ($reference['canExposeBytes'] ?? false) === true ? 'true' : 'false';
+        }
 
         $format = $this->fieldFormatSwitchValue($tokens);
         if ($format !== null && $format !== '') {
@@ -2138,6 +2160,56 @@ final class LegacyDocReader
             'classes' => ['legacy-doc-field', 'legacy-doc-include-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return array{reference:array<string,mixed>,matchedOn:string}|null
+     */
+    private function matchingExternalFileReference(string $source): ?array
+    {
+        if ($this->activeExternalFileReferences === []) {
+            return null;
+        }
+
+        $sourceKey = $this->externalFileReferenceMatchKey($source);
+        if ($sourceKey === '') {
+            return null;
+        }
+
+        foreach ($this->activeExternalFileReferences as $reference) {
+            foreach ([
+                'path' => 'path',
+                'relativePath' => 'relative-path',
+            ] as $field => $matchedOn) {
+                $candidate = $reference[$field] ?? null;
+                if (!is_string($candidate) || $candidate === '') {
+                    continue;
+                }
+                if ($this->externalFileReferenceMatchKey($candidate) === $sourceKey) {
+                    return [
+                        'reference' => $reference,
+                        'matchedOn' => $matchedOn,
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function externalFileReferenceMatchKey(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+        if (preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $value) === 1) {
+            return $value;
+        }
+
+        $value = str_replace('\\', '/', $value);
+
+        return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
     }
 
     /**

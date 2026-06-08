@@ -619,6 +619,8 @@ final class BibtexCslParser
             'sort-name' => self::firstField($fields, ['sortname', 'sort-name']),
             'sort-title' => self::firstField($fields, ['sorttitle', 'sort-title']),
             'sort-year' => self::firstField($fields, ['sortyear', 'sort-year']),
+            'index-title' => self::firstField($fields, ['indextitle', 'index-title']),
+            'index-sort-title' => self::indexSortTitle($fields),
             'label-alpha' => self::firstField($fields, ['labelalpha', 'label-alpha']),
             'label-title' => self::firstField($fields, ['labeltitle', 'label-title']),
             'extra-date' => self::firstField($fields, ['extradate', 'extra-date']),
@@ -1112,6 +1114,19 @@ final class BibtexCslParser
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function indexSortTitle(array $fields): string
+    {
+        $indexSortTitle = self::firstField($fields, ['indexsorttitle', 'index-sort-title']);
+        if ($indexSortTitle !== '') {
+            return $indexSortTitle;
+        }
+
+        return self::firstField($fields, ['indextitle', 'index-title']);
     }
 
     /**

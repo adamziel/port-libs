@@ -5788,6 +5788,11 @@ final class DocxReader
             'FORMCHECKBOX' => ['field' => 'formcheckbox', 'type' => 'checkbox'],
             'FORMDROPDOWN' => ['field' => 'formdropdown', 'type' => 'dropdown'],
         ];
+        $dataFieldNames = [
+            'MERGEFIELD' => ['field' => 'mergefield', 'type' => 'mail-merge'],
+            'DOCVARIABLE' => ['field' => 'docvariable', 'type' => 'document-variable'],
+            'DOCPROPERTY' => ['field' => 'docproperty', 'type' => 'document-property'],
+        ];
 
         $fieldName = strtoupper(array_shift($tokens));
         if ($fieldName === 'SEQ') {
@@ -5801,6 +5806,15 @@ final class DocxReader
                 $tokens,
                 $instruction,
                 $formField
+            );
+        }
+
+        if (isset($dataFieldNames[$fieldName])) {
+            return $this->dataFieldSpanAttrs(
+                $dataFieldNames[$fieldName]['field'],
+                $dataFieldNames[$fieldName]['type'],
+                $tokens,
+                $instruction
             );
         }
 
@@ -5857,6 +5871,49 @@ final class DocxReader
             array_push($classes, ...$formField['classes']);
             foreach ($formField['attributes'] as $name => $value) {
                 $attributes[$name] = $value;
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function dataFieldSpanAttrs(string $fieldKey, string $dataType, array $tokens, string $instruction): array
+    {
+        $classes = ['docx-field', 'docx-field-' . $fieldKey, 'docx-data-field', 'docx-data-field-' . $dataType];
+        $attributes = [
+            'data-docx-field' => $fieldKey,
+            'data-docx-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-docx-data-field-type' => $dataType,
+        ];
+
+        $name = $this->fieldTargetToken($tokens);
+        if ($name !== null && $name !== '') {
+            $attributes['data-docx-data-field-name'] = $name;
+        }
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-docx-field-format'] = $format;
+        }
+
+        if ($fieldKey === 'mergefield') {
+            $beforeText = $this->fieldSwitchValue($tokens, 'b');
+            if ($beforeText !== null) {
+                $classes[] = 'docx-data-field-before-text';
+                $attributes['data-docx-data-field-before-text'] = $beforeText;
+            }
+
+            $afterText = $this->fieldSwitchValue($tokens, 'f');
+            if ($afterText !== null) {
+                $classes[] = 'docx-data-field-after-text';
+                $attributes['data-docx-data-field-after-text'] = $afterText;
             }
         }
 
@@ -6197,6 +6254,27 @@ final class DocxReader
 
             $switch = strtolower(substr($token, 1));
             if (($switch === '*' || $switch === '@') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                return $tokens[$index + 1];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function fieldSwitchValue(array $tokens, string $switchName): ?string
+    {
+        $switchName = strtolower($switchName);
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if (!str_starts_with($token, '\\')) {
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if ($switch === $switchName && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
                 return $tokens[$index + 1];
             }
         }

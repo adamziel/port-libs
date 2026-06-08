@@ -628,6 +628,48 @@ HTML,
         exit(1);
     }
 
+    $wikiFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'include-before' => ['== WordPress review queue =='],
+        'toc' => true,
+        'body' => '== Imported wiki body ==',
+        'include-after' => ['== Handoff =='],
+    ], null, 'mediawiki+smart');
+    foreach ([
+        '== WordPress review queue ==',
+        '__TOC__',
+        '== Imported wiki body ==',
+        '== Handoff ==',
+    ] as $needle) {
+        if (!str_contains($wikiFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate wiki default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
+    $vimdocFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'filename' => 'wp-import-review.txt',
+        'abstract' => 'WordPress review packet.',
+        'combined-title' => 'WP Import Review',
+        'toc-reminder' => 'Use gO for review sections.',
+        'toc' => '|wp-import-review-toc|',
+        'body' => '*wp-import-body* Vimdoc body handoff.',
+        'modeline' => 'vim:tw=78:ft=help:norl:',
+    ], null, 'vimdoc');
+    foreach ([
+        '*wp-import-review.txt*',
+        'WordPress review packet.',
+        'WP Import Review',
+        'Use gO for review sections.',
+        '|wp-import-review-toc|',
+        '*wp-import-body* Vimdoc body handoff.',
+        'vim:tw=78:ft=help:norl:',
+    ] as $needle) {
+        if (!str_contains($vimdocFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate Vimdoc default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $manFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'has-tables' => true,
         'pandoc-version' => '3.7.0',

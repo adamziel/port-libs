@@ -1748,6 +1748,26 @@ $fieldMetadataDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$dataFieldDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Reviewer </w:t></w:r>
+      <w:fldSimple w:instr=' MERGEFIELD ReviewerName \b "Reviewed by " \f " for migration" \* MERGEFORMAT '><w:r><w:t>Ada Lovelace</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> packet </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> DOCVARIABLE ImportBatch \* MERGEFORMAT </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>batch-42</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> from </w:t></w:r>
+      <w:fldSimple w:instr=' DOCPROPERTY "Source System" \* MERGEFORMAT '><w:r><w:t>legacy-cms</w:t></w:r></w:fldSimple>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $legacyFormFieldDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -3394,6 +3414,14 @@ $buildFieldMetadataPackage = static function () use ($contentTypesXml, $packageR
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $fieldMetadataDocumentXml],
+    ]);
+};
+
+$buildDataFieldPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $dataFieldDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $dataFieldDocumentXml],
     ]);
 };
 
@@ -6130,6 +6158,87 @@ return [
         $t->contains('<span class="docx-field docx-field-seq" data-docx-field="seq" data-docx-field-instruction="SEQ Figure \* ARABIC" data-docx-field-sequence="Figure" data-docx-field-format="ARABIC">4</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-seq docx-field-current-sequence" data-docx-field="seq" data-docx-field-instruction="SEQ Figure \c" data-docx-field-sequence="Figure" data-docx-field-current-sequence="true">4</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-seq docx-field-reset-number docx-field-reset-heading-level" data-docx-field="seq" data-docx-field-instruction="SEQ Table \* roman \r 3 \s 2" data-docx-field-sequence="Table" data-docx-field-format="roman" data-docx-field-reset-number="3" data-docx-field-reset-heading-level="2">iii</span>', $blocks);
+    },
+    'preserves DOCX data and document field metadata around displayed results' => static function (TestRunner $t) use ($buildDataFieldPackage): void {
+        $document = (new DocxReader())->readDocument($buildDataFieldPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Reviewer ', $paragraph->children[0]->attr('text'));
+
+        $merge = $paragraph->children[1];
+        $t->same('span', $merge->type);
+        $t->same([
+            'docx-field',
+            'docx-field-mergefield',
+            'docx-data-field',
+            'docx-data-field-mail-merge',
+            'docx-data-field-before-text',
+            'docx-data-field-after-text',
+        ], $merge->attr('classes'));
+        $mergeAttrs = $merge->attr('attributes');
+        $t->same('mergefield', $mergeAttrs['data-docx-field']);
+        $t->same('MERGEFIELD ReviewerName \b "Reviewed by " \f " for migration" \* MERGEFORMAT', $mergeAttrs['data-docx-field-instruction']);
+        $t->same('mail-merge', $mergeAttrs['data-docx-data-field-type']);
+        $t->same('ReviewerName', $mergeAttrs['data-docx-data-field-name']);
+        $t->same('Reviewed by ', $mergeAttrs['data-docx-data-field-before-text']);
+        $t->same(' for migration', $mergeAttrs['data-docx-data-field-after-text']);
+        $t->same('MERGEFORMAT', $mergeAttrs['data-docx-field-format']);
+        $t->same('Ada Lovelace', $merge->children[0]->attr('text'));
+
+        $t->same(' packet ', $paragraph->children[2]->attr('text'));
+        $variable = $paragraph->children[3];
+        $t->same('span', $variable->type);
+        $t->same([
+            'docx-field',
+            'docx-field-docvariable',
+            'docx-data-field',
+            'docx-data-field-document-variable',
+        ], $variable->attr('classes'));
+        $variableAttrs = $variable->attr('attributes');
+        $t->same('docvariable', $variableAttrs['data-docx-field']);
+        $t->same('DOCVARIABLE ImportBatch \* MERGEFORMAT', $variableAttrs['data-docx-field-instruction']);
+        $t->same('document-variable', $variableAttrs['data-docx-data-field-type']);
+        $t->same('ImportBatch', $variableAttrs['data-docx-data-field-name']);
+        $t->same('MERGEFORMAT', $variableAttrs['data-docx-field-format']);
+        $t->same('batch-42', $variable->children[0]->attr('text'));
+
+        $t->same(' from ', $paragraph->children[4]->attr('text'));
+        $property = $paragraph->children[5];
+        $t->same('span', $property->type);
+        $t->same([
+            'docx-field',
+            'docx-field-docproperty',
+            'docx-data-field',
+            'docx-data-field-document-property',
+        ], $property->attr('classes'));
+        $propertyAttrs = $property->attr('attributes');
+        $t->same('docproperty', $propertyAttrs['data-docx-field']);
+        $t->same('DOCPROPERTY "Source System" \* MERGEFORMAT', $propertyAttrs['data-docx-field-instruction']);
+        $t->same('document-property', $propertyAttrs['data-docx-data-field-type']);
+        $t->same('Source System', $propertyAttrs['data-docx-data-field-name']);
+        $t->same('MERGEFORMAT', $propertyAttrs['data-docx-field-format']);
+        $t->same('legacy-cms', $property->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[6]->attr('text'));
+
+        $t->contains('[Ada Lovelace]{.docx-field .docx-field-mergefield .docx-data-field .docx-data-field-mail-merge', $markdown);
+        $t->contains('data-docx-data-field-name="ReviewerName"', $markdown);
+        $t->contains('data-docx-data-field-before-text="Reviewed by "', $markdown);
+        $t->contains('[batch-42]{.docx-field .docx-field-docvariable .docx-data-field .docx-data-field-document-variable', $markdown);
+        $t->contains('data-docx-data-field-name="ImportBatch"', $markdown);
+        $t->contains('[legacy-cms]{.docx-field .docx-field-docproperty .docx-data-field .docx-data-field-document-property', $markdown);
+        $t->contains('data-docx-data-field-name="Source System"', $markdown);
+
+        $t->contains('<span class="docx-field docx-field-mergefield docx-data-field docx-data-field-mail-merge docx-data-field-before-text docx-data-field-after-text"', $blocks);
+        $t->contains('data-docx-data-field-name="ReviewerName"', $blocks);
+        $t->contains('data-docx-data-field-before-text="Reviewed by "', $blocks);
+        $t->contains('<span class="docx-field docx-field-docvariable docx-data-field docx-data-field-document-variable"', $blocks);
+        $t->contains('data-docx-data-field-name="ImportBatch"', $blocks);
+        $t->contains('<span class="docx-field docx-field-docproperty docx-data-field docx-data-field-document-property"', $blocks);
+        $t->contains('data-docx-data-field-name="Source System"', $blocks);
+        $t->contains('Reviewer <span', $blocks);
     },
     'preserves DOCX legacy form-field metadata around displayed results' => static function (TestRunner $t) use ($buildLegacyFormFieldPackage): void {
         $document = (new DocxReader())->readDocument($buildLegacyFormFieldPackage());

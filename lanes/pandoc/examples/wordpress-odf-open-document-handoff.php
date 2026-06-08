@@ -143,6 +143,25 @@ $contentXml = <<<'XML'
           </text:deletion>
         </text:changed-region>
       </text:tracked-changes>
+      <table:tracked-changes>
+        <table:tracked-change table:id="tbl-review-status" table:acceptance-state="accepted">
+          <office:change-info>
+            <dc:creator>Migration Reviewer</dc:creator>
+            <dc:date>2026-06-08T18:20:00Z</dc:date>
+            <text:p>Updated table status during source review.</text:p>
+          </office:change-info>
+          <table:cell-content-change table:cell-address="Review.B2" office:value-type="string" office:string-value="Ready">
+            <table:previous table:cell-address="Review.B2" office:value-type="string" office:string-value="Draft"><text:p>Draft</text:p></table:previous>
+          </table:cell-content-change>
+        </table:tracked-change>
+        <table:tracked-change table:id="tbl-delete-stale-row" table:acceptance-state="pending" table:rejecting-change-id="tbl-review-status">
+          <office:change-info>
+            <dc:creator>Migration Reviewer</dc:creator>
+            <dc:date>2026-06-08T18:22:00Z</dc:date>
+          </office:change-info>
+          <table:deletion table:type="row" table:position="Review.4" table:table="Review"/>
+        </table:tracked-change>
+      </table:tracked-changes>
       <office:forms>
         <form:form form:name="Import Review" xlink:href="https://example.test/import-review" xlink:type="simple" form:method="post" form:target-frame="_blank" form:command-type="table" form:command="import_review_packets" form:datasource="wp_import_queue" form:apply-filter="true">
           <form:checkbox form:id="ctrl-review-approval" form:name="ReviewApproval" form:label="Review approved" form:current-state="checked"/>
@@ -714,6 +733,23 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['trackedChanges']['count'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT tracked changes to be reported');
     }
+    if (($result['importReport']['contentDeclarations']['tableTrackedChangeCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT tracked table changes to be reported as content declarations');
+    }
+    if (($result['importReport']['content']['tableTrackedChangeCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT tracked table changes to be counted in content metadata');
+    }
+    $tableChangesById = $result['contentDeclarations']['tableTrackedChangesById'] ?? [];
+    if (($tableChangesById['tbl-review-status']['actionType'] ?? '') !== 'cell-content-change'
+        || ($tableChangesById['tbl-review-status']['action']['attributes']['cellAddress'] ?? '') !== 'Review.B2'
+        || ($tableChangesById['tbl-review-status']['action']['previous'][0]['attributes']['stringValue'] ?? '') !== 'Draft') {
+        throw new RuntimeException('Expected ODT tracked table cell-content-change metadata to survive import review');
+    }
+    if (($tableChangesById['tbl-delete-stale-row']['actionType'] ?? '') !== 'deletion'
+        || ($tableChangesById['tbl-delete-stale-row']['action']['attributes']['position'] ?? '') !== 'Review.4'
+        || ($tableChangesById['tbl-delete-stale-row']['rejectingChangeId'] ?? '') !== 'tbl-review-status') {
+        throw new RuntimeException('Expected ODT tracked table deletion metadata to survive import review');
+    }
     if (($result['importReport']['content']['mathCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT MathML object to be reported');
     }
@@ -825,4 +861,5 @@ echo 'mediaItems=' . count($result['media']) . "\n";
 echo 'styleCount=' . count($result['styles']) . "\n";
 echo 'pageLayoutCount=' . count($result['pageLayouts']) . "\n";
 echo 'masterPageCount=' . count($result['masterPages']) . "\n";
+echo 'trackedTableChanges=' . ($result['importReport']['contentDeclarations']['tableTrackedChangeCount'] ?? 0) . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";

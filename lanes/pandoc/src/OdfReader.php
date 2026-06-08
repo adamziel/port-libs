@@ -239,6 +239,7 @@ final class OdfReader
                     'dataPilotFieldCount' => (int) ($content['contentDeclarations']['dataPilotFieldCount'] ?? 0),
                     'dataPilotSubtotalCount' => (int) ($content['contentDeclarations']['dataPilotSubtotalCount'] ?? 0),
                     'dataPilotMemberCount' => (int) ($content['contentDeclarations']['dataPilotMemberCount'] ?? 0),
+                    'tableTrackedChangeCount' => (int) ($content['contentDeclarations']['tableTrackedChangeCount'] ?? 0),
                     'ddeConnectionDeclarationCount' => (int) ($content['contentDeclarations']['ddeConnectionDeclarationCount'] ?? 0),
                 ],
             ],
@@ -2572,6 +2573,21 @@ final class OdfReader
             }
         }
 
+        $tableTrackedChanges = $this->tableTrackedChangesFromText($text);
+        $tableTrackedChangesById = [];
+        $tableTrackedChangeActionCounts = [];
+        foreach ($tableTrackedChanges as $change) {
+            $id = (string) ($change['id'] ?? '');
+            if ($id !== '') {
+                $tableTrackedChangesById[$id] = $change;
+            }
+
+            $actionType = (string) ($change['actionType'] ?? '');
+            if ($actionType !== '') {
+                $tableTrackedChangeActionCounts[$actionType] = ($tableTrackedChangeActionCounts[$actionType] ?? 0) + 1;
+            }
+        }
+
         $ddeConnectionDeclarations = $this->ddeConnectionDeclarationsFromText($text);
         $ddeConnectionDeclarationsByName = [];
         foreach ($ddeConnectionDeclarations as $declaration) {
@@ -2607,6 +2623,10 @@ final class OdfReader
             'dataPilotMemberCount' => $dataPilotMemberCount,
             'dataPilotTables' => $dataPilotTables,
             'dataPilotTablesByName' => $dataPilotTablesByName,
+            'tableTrackedChangeCount' => count($tableTrackedChanges),
+            'tableTrackedChanges' => $tableTrackedChanges,
+            'tableTrackedChangesById' => $tableTrackedChangesById,
+            'tableTrackedChangeActionCounts' => $tableTrackedChangeActionCounts,
             'ddeConnectionDeclarationCount' => count($ddeConnectionDeclarations),
             'ddeConnectionDeclarations' => $ddeConnectionDeclarations,
             'ddeConnectionDeclarationsByName' => $ddeConnectionDeclarationsByName,
@@ -3253,6 +3273,116 @@ final class OdfReader
         }
 
         return $count;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function tableTrackedChangesFromText(\DOMElement $text): array
+    {
+        $changes = [];
+        foreach (self::childElements($text, 'tracked-changes', self::TABLE_NS) as $container) {
+            foreach (self::childElements($container, 'tracked-change', self::TABLE_NS) as $change) {
+                $definition = $this->tableTrackedChangeDefinition($change);
+                if ($definition !== []) {
+                    $changes[] = $definition;
+                }
+            }
+        }
+
+        return $changes;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableTrackedChangeDefinition(\DOMElement $change): array
+    {
+        $id = self::attr($change, self::TABLE_NS, 'id');
+        if ($id === '') {
+            $id = self::attr($change, self::XML_NS, 'id');
+        }
+        if ($id === '') {
+            return [];
+        }
+
+        $changeInfo = self::firstChildElement($change, 'change-info', self::OFFICE_NS);
+        $comments = [];
+        if ($changeInfo instanceof \DOMElement) {
+            foreach (self::childElements($changeInfo, 'p', self::TEXT_NS) as $paragraph) {
+                $text = self::normalizedText($paragraph);
+                if ($text !== '') {
+                    $comments[] = $text;
+                }
+            }
+        }
+
+        $action = [];
+        foreach (self::childElements($change) as $child) {
+            if ($child->namespaceURI !== self::TABLE_NS) {
+                continue;
+            }
+
+            $action = $this->tableTrackedChangeActionDefinition($child);
+            break;
+        }
+
+        return self::withoutEmpty([
+            'id' => $id,
+            'acceptanceState' => self::nullable(self::attr($change, self::TABLE_NS, 'acceptance-state')),
+            'rejectingChangeId' => self::nullable(self::attr($change, self::TABLE_NS, 'rejecting-change-id')),
+            'creator' => $changeInfo instanceof \DOMElement ? $this->changeInfoText($changeInfo, 'creator') : '',
+            'date' => $changeInfo instanceof \DOMElement ? $this->changeInfoText($changeInfo, 'date') : '',
+            'comments' => $comments,
+            'actionType' => $action['element'] ?? null,
+            'action' => $action,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableTrackedChangeActionDefinition(\DOMElement $action): array
+    {
+        $previous = [];
+        $nested = [];
+        foreach (self::childElements($action) as $child) {
+            if ($child->namespaceURI !== self::TABLE_NS) {
+                continue;
+            }
+
+            $entry = $this->tableTrackedChangeChildDefinition($child);
+            if ($entry === []) {
+                continue;
+            }
+
+            if ($child->localName === 'previous') {
+                $previous[] = $entry;
+                continue;
+            }
+
+            $nested[] = $entry;
+        }
+
+        return self::withoutEmpty([
+            'element' => $action->localName,
+            'attributes' => $this->odfElementMetadataAttributes($action, [self::TABLE_NS, self::OFFICE_NS]),
+            'text' => self::nullable(self::normalizedText($action)),
+            'previous' => $previous,
+            'children' => $nested,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableTrackedChangeChildDefinition(\DOMElement $element): array
+    {
+        return self::withoutEmpty([
+            'element' => $element->localName,
+            'attributes' => $this->odfElementMetadataAttributes($element, [self::TABLE_NS, self::OFFICE_NS]),
+            'text' => self::nullable(self::normalizedText($element)),
+        ]);
     }
 
     /**

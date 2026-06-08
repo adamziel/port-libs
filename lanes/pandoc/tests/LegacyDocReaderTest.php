@@ -2729,6 +2729,73 @@ return [
             'WordDocument' => $missingTableWordDocument,
         ])));
     },
+    'relates legacy DOC include fields to matching SttbFnm external filename records' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbFnm, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Linked '
+            . $fieldBegin . ' INCLUDETEXT "Subdocs\chapter1.doc" \! '
+            . $fieldSeparator . 'chapter text' . $fieldEnd
+            . ' and '
+            . $fieldBegin . ' INCLUDEPICTURE "C:/Legacy/Figures/chart.png" \d '
+            . $fieldSeparator . 'chart' . $fieldEnd
+            . ".\r";
+        $externalFileTable = $sttbFnm([
+            [
+                'path' => 'C:\Legacy\Subdocs\chapter1.doc',
+                'referenceTypeCode' => 5,
+                'documentIndex' => 2,
+                'ichRelative' => 10,
+                'fnfb' => 0x08,
+            ],
+            [
+                'path' => 'C:\Legacy\Figures\chart.png',
+                'referenceTypeCode' => 5,
+                'documentIndex' => 3,
+                'ichRelative' => 10,
+                'fnfb' => 0x09,
+            ],
+        ]);
+        $wordDocument = $buildExtendedFibWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x02da, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($externalFileTable)), 0x02de, 4);
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $externalFileTable,
+        ]));
+        $paragraph = $result['document']->children[0];
+        $includedText = $paragraph->children[1];
+        $includedPicture = $paragraph->children[3];
+        $textAttributes = $includedText->attr('attributes');
+        $pictureAttributes = $includedPicture->attr('attributes');
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $markdown = (new MarkdownWriter())->write($result['document']);
+
+        $t->same('includetext', $textAttributes['data-legacy-doc-field']);
+        $t->same('Subdocs\chapter1.doc', $textAttributes['data-legacy-doc-include-source']);
+        $t->same('0', $textAttributes['data-legacy-doc-include-external-reference-index']);
+        $t->same('relative-path', $textAttributes['data-legacy-doc-include-external-reference-match']);
+        $t->same('subdocument', $textAttributes['data-legacy-doc-include-external-reference-type']);
+        $t->same('2', $textAttributes['data-legacy-doc-include-external-reference-document-index']);
+        $t->same('ntfs', $textAttributes['data-legacy-doc-include-external-reference-file-system']);
+        $t->same('metadata-only-native-review', $textAttributes['data-legacy-doc-include-external-reference-policy']);
+        $t->same('false', $textAttributes['data-legacy-doc-include-external-reference-can-expose-bytes']);
+        $t->same('includepicture', $pictureAttributes['data-legacy-doc-field']);
+        $t->same('C:/Legacy/Figures/chart.png', $pictureAttributes['data-legacy-doc-include-source']);
+        $t->same('1', $pictureAttributes['data-legacy-doc-include-external-reference-index']);
+        $t->same('path', $pictureAttributes['data-legacy-doc-include-external-reference-match']);
+        $t->same('subdocument', $pictureAttributes['data-legacy-doc-include-external-reference-type']);
+        $t->same('3', $pictureAttributes['data-legacy-doc-include-external-reference-document-index']);
+        $t->same('fat+ntfs', $pictureAttributes['data-legacy-doc-include-external-reference-file-system']);
+        $t->same('metadata-only-native-review', $pictureAttributes['data-legacy-doc-include-external-reference-policy']);
+        $t->same('false', $pictureAttributes['data-legacy-doc-include-external-reference-can-expose-bytes']);
+        $t->same(2, $result['metadata']['externalFileReferenceCount']);
+        $t->contains('data-legacy-doc-include-external-reference-index="0"', $blocks);
+        $t->contains('data-legacy-doc-include-external-reference-match="relative-path"', $blocks);
+        $t->contains('data-legacy-doc-include-external-reference-file-system="fat+ntfs"', $blocks);
+        $t->contains('data-legacy-doc-include-external-reference-index="0"', $markdown);
+        $t->true(!str_contains($blocks, 'C:\Legacy\Subdocs\chapter1.doc'));
+    },
     'extracts legacy DOC RouteSlip routing metadata as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $routeSlip, $u16, $u32): void {
         $routeSlipTable = $routeSlip([
             [
