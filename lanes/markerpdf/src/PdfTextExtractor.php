@@ -14739,20 +14739,18 @@ final class PdfTextExtractor
                     if ($claimableLimits !== null) {
                         foreach ($claimedKidLimits as $claimedLimits) {
                             // Keep accepted singleton endpoint kids, but block ranges that cross a claimed endpoint.
+                            $sameLowerBound = $claimableLimits[0] === $claimedLimits[0];
+                            $startsInsideClaim = $claimableLimits[0] > $claimedLimits[0]
+                                && $claimableLimits[0] < $claimedLimits[1];
+                            $crossesUpperEndpoint = $claimableLimits[0] === $claimedLimits[1]
+                                && $claimableLimits[1] > $claimedLimits[1];
                             if (
-                                (
-                                    $claimableLimits[0] === $claimedLimits[0]
-                                    || (
-                                        $claimableLimits[0] > $claimedLimits[0]
-                                        && $claimableLimits[0] < $claimedLimits[1]
-                                    )
-                                    || (
-                                        $claimableLimits[0] === $claimedLimits[1]
-                                        && $claimableLimits[1] > $claimedLimits[1]
-                                    )
+                                $sameLowerBound
+                                || (
+                                    ($startsInsideClaim || $crossesUpperEndpoint)
+                                    && $pageIndex >= $claimedLimits[0]
+                                    && $pageIndex <= $claimedLimits[1]
                                 )
-                                && $pageIndex >= $claimedLimits[0]
-                                && $pageIndex <= $claimedLimits[1]
                             ) {
                                 continue 2;
                             }
