@@ -24474,6 +24474,10 @@ final class PdfTextExtractor
             $token = $tokens[$index];
 
             if ($insideTextObject) {
+                if ($token === 'BT') {
+                    return false;
+                }
+
                 if ($token === 'ET') {
                     $insideTextObject = false;
                 }
@@ -24500,6 +24504,10 @@ final class PdfTextExtractor
 
             if ($compatibilityDepth > 0) {
                 continue;
+            }
+
+            if ($token === 'ET') {
+                return false;
             }
 
             if ($token === 'q') {
