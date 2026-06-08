@@ -51,6 +51,8 @@ final class MarkdownReader
     /** @var list<array<string, string>> */
     private array $yamlMetadataScalarProvenance = [];
 
+    private bool $yamlMetadataRecordScalarProvenance = true;
+
     private bool $yamlMetadataInvalid = false;
 
     /** @var array<string, string> */
@@ -965,6 +967,25 @@ final class MarkdownReader
         }
     }
 
+    private function withYamlMetadataScalarProvenanceRecording(bool $record, callable $callback): mixed
+    {
+        $previous = $this->yamlMetadataRecordScalarProvenance;
+        $this->yamlMetadataRecordScalarProvenance = $record;
+        try {
+            return $callback();
+        } finally {
+            $this->yamlMetadataRecordScalarProvenance = $previous;
+        }
+    }
+
+    private function parseYamlScalarKeyValue(string $value): mixed
+    {
+        return $this->withYamlMetadataScalarProvenanceRecording(
+            false,
+            fn (): mixed => $this->parseYamlScalarValue($value)
+        );
+    }
+
     /**
      * @return list<int|null>
      */
@@ -1412,7 +1433,7 @@ final class MarkdownReader
             $keyValue = $this->parseYamlIndentedValue($keyLines, $keySourceLines);
         } else {
             $quotedKey = $this->yamlExplicitKeySourceStartsQuoted($keySource);
-            $keyValue = $this->parseYamlScalarValue($keySource);
+            $keyValue = $this->parseYamlScalarKeyValue($keySource);
             while (
                 isset($lines[$cursor])
                 && (trim($lines[$cursor]) === '' || str_starts_with(trim($lines[$cursor]), '#'))
@@ -1517,7 +1538,7 @@ final class MarkdownReader
             $keyValue = $this->parseYamlIndentedValue($keyLines, $keySourceLines);
         } else {
             $quotedKey = $this->yamlExplicitKeySourceStartsQuoted($keySource);
-            $keyValue = $this->parseYamlScalarValue($keySource);
+            $keyValue = $this->parseYamlScalarKeyValue($keySource);
         }
 
         $key = $this->normalizeYamlExplicitMappingKey($keyValue);
@@ -1744,9 +1765,20 @@ final class MarkdownReader
             }
             $value = $this->parseYamlIndentedValue($children, $childrenSourceLines);
         } else {
-            $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children)
-                ?? $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
+            $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children);
+            $quotedStyle = $multiline !== null ? 'double-quoted' : null;
+            if ($multiline === null) {
+                $multiline = $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
+                $quotedStyle = $multiline !== null ? 'single-quoted' : null;
+            }
             if ($multiline !== null) {
+                $this->recordYamlQuotedScalarProvenance(
+                    $this->yamlQuotedScalarSource($sourceValue, $children),
+                    $quotedStyle ?? 'quoted',
+                    $this->yamlMetadataCurrentSourceLine,
+                    $childrenSourceLines ?? [],
+                    $this->yamlExplicitScalarTag($tags)
+                );
                 $value = $multiline;
             } elseif ($this->isYamlPlainMultilineScalar($children)) {
                 $this->recordYamlPlainScalarProvenance(
@@ -1994,8 +2026,58 @@ final class MarkdownReader
         $this->yamlMetadataScalarProvenance[] = $entry;
     }
 
+    /**
+     * @param list<int|null> $continuationSourceLines
+     */
+    private function recordYamlQuotedScalarProvenance(
+        string $source,
+        string $style,
+        ?int $sourceLine = null,
+        array $continuationSourceLines = [],
+        ?string $explicitTag = null
+    ): void {
+        if (!$this->yamlMetadataRecordScalarProvenance) {
+            return;
+        }
+
+        $sourceLine ??= $this->yamlMetadataCurrentSourceLine;
+        $sourceLineCount = max(1, substr_count($source, "\n") + 1);
+        $entry = [
+            'type' => 'yaml-quoted-scalar',
+            'style' => $style,
+            'source' => $source,
+            'sourceLineCount' => (string) $sourceLineCount,
+            'multiline' => $sourceLineCount === 1 ? 'false' : 'true',
+        ];
+        $path = $this->currentYamlMetadataDiagnosticPath();
+        if ($path !== null) {
+            $entry['path'] = $path;
+        }
+        if ($sourceLine !== null) {
+            $entry['sourceLine'] = (string) $sourceLine;
+        }
+        if ($explicitTag !== null) {
+            $entry['explicitTag'] = $explicitTag;
+        }
+
+        $sourceLineNumbers = array_values(array_filter(
+            array_merge([$sourceLine], $continuationSourceLines),
+            static fn (?int $line): bool => $line !== null
+        ));
+        if ($sourceLineNumbers !== []) {
+            $entry['contentStartLine'] = (string) $sourceLineNumbers[0];
+            $entry['contentEndLine'] = (string) $sourceLineNumbers[count($sourceLineNumbers) - 1];
+        }
+
+        $this->yamlMetadataScalarProvenance[] = $entry;
+    }
+
     private function recordYamlTypedScalarProvenance(string $source, string $scalarType, mixed $value, ?string $explicitTag = null): void
     {
+        if (!$this->yamlMetadataRecordScalarProvenance) {
+            return;
+        }
+
         $kind = $this->yamlMetadataValueKind($value);
         if (
             ($scalarType === 'boolean' && $kind !== 'boolean')
@@ -2075,7 +2157,10 @@ final class MarkdownReader
         }
 
         if (count($normalized) === 1) {
-            return $this->parseYamlScalarValue(trim($normalized[0]));
+            return $this->withYamlMetadataSourceLine(
+                $sourceLines[0] ?? null,
+                fn (): mixed => $this->parseYamlScalarValue(trim($normalized[0]))
+            );
         }
 
         return $this->parseYamlPlainMultilineScalar($normalized);
@@ -2282,9 +2367,26 @@ final class MarkdownReader
                 continue;
             }
 
-            $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children)
-                ?? $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
+            $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children);
+            $quotedStyle = $multiline !== null ? 'double-quoted' : null;
+            if ($multiline === null) {
+                $multiline = $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
+                $quotedStyle = $multiline !== null ? 'single-quoted' : null;
+            }
             if ($multiline !== null) {
+                $this->withYamlMetadataPathSegment(
+                    $itemPath,
+                    fn (): mixed => $this->withYamlMetadataSourceLine(
+                        $sourceLine,
+                        fn (): mixed => $this->recordYamlQuotedScalarProvenance(
+                            $this->yamlQuotedScalarSource($sourceValue, $children),
+                            $quotedStyle ?? 'quoted',
+                            $sourceLine,
+                            $childrenSourceLines,
+                            $this->yamlExplicitScalarTag($tags)
+                        )
+                    )
+                );
                 $multiline = $this->applyYamlExplicitScalarTagToParsedValue($multiline, $tags);
                 $this->withYamlMetadataSourceLine(
                     $sourceLine,
@@ -2739,6 +2841,10 @@ final class MarkdownReader
             if ($provenanceType !== null) {
                 $this->recordYamlTypedScalarProvenance($value, $provenanceType, $parsed, $explicitScalarTag);
             }
+            $quotedStyle = $this->yamlQuotedScalarStyle($value);
+            if ($quotedStyle !== null) {
+                $this->recordYamlQuotedScalarProvenance($value, $quotedStyle, null, [], $explicitScalarTag);
+            }
             $this->rememberYamlAnchor($anchorName, $parsed);
             return $parsed;
         }
@@ -2762,6 +2868,10 @@ final class MarkdownReader
         }
 
         if (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'"))) {
+            $quotedStyle = $this->yamlQuotedScalarStyle($value);
+            if ($quotedStyle !== null) {
+                $this->recordYamlQuotedScalarProvenance($value, $quotedStyle);
+            }
             $parsed = $this->unquoteYamlScalar($value);
             $this->rememberYamlAnchor($anchorName, $parsed);
             return $parsed;
@@ -3121,7 +3231,7 @@ final class MarkdownReader
 
             $keyTagStart = count($this->yamlMetadataTagProvenance);
             $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
-            $key = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarValue($item));
+            $key = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarKeyValue($item));
             if ($key === null || $key === '') {
                 continue;
             }
@@ -3182,13 +3292,13 @@ final class MarkdownReader
                 } else {
                     $keyValue = $this->withYamlMetadataSourceLine(
                         $sourceLine,
-                        fn (): mixed => $this->parseYamlScalarValue($keySource)
+                        fn (): mixed => $this->parseYamlScalarKeyValue($keySource)
                     );
                 }
             } else {
                 $keyValue = $this->withYamlMetadataSourceLine(
                     $sourceLine,
-                    fn (): mixed => $this->parseYamlScalarValue($trimmed)
+                    fn (): mixed => $this->parseYamlScalarKeyValue($trimmed)
                 );
             }
 
@@ -3494,7 +3604,7 @@ final class MarkdownReader
             $item = trim($m[1]);
         }
 
-        $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarValue($item));
+        $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarKeyValue($item));
 
         return $normalized ?? '';
     }
@@ -3507,7 +3617,7 @@ final class MarkdownReader
         }
 
         if (preg_match('/^\?[ \t]+(.+)$/s', $key, $m) === 1) {
-            $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarValue(trim($m[1])));
+            $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarKeyValue(trim($m[1])));
 
             return $normalized ?? '';
         }
@@ -3563,6 +3673,36 @@ final class MarkdownReader
         }
 
         return str_replace("''", "'", $this->foldYamlSingleQuotedContinuationLines($inner));
+    }
+
+    /**
+     * @param list<string> $continuationLines
+     */
+    private function yamlQuotedScalarSource(string $sourceValue, array $continuationLines = []): string
+    {
+        if ($continuationLines === []) {
+            return $sourceValue;
+        }
+
+        return $sourceValue . "\n" . implode("\n", $continuationLines);
+    }
+
+    private function yamlQuotedScalarStyle(string $source): ?string
+    {
+        $source = ltrim($source);
+        if ($source === '') {
+            return null;
+        }
+
+        if ($source[0] === '"' && str_ends_with($source, '"') && $this->extractYamlDoubleQuotedInner($source) !== null) {
+            return 'double-quoted';
+        }
+
+        if ($source[0] === "'" && str_ends_with($source, "'") && $this->extractYamlSingleQuotedInner($source) !== null) {
+            return 'single-quoted';
+        }
+
+        return null;
     }
 
     private function extractYamlDoubleQuotedInner(string $source): ?string

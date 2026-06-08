@@ -902,6 +902,37 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_key_exists('/typed-review/quoted-legacy-approved', $yamlTypedScalarProvenance)) {
         throw new RuntimeException('YAML metadata self-test recorded quoted yes as a typed scalar');
     }
+    $yamlQuotedScalarProvenance = [];
+    foreach ($yamlScalarProvenance as $entry) {
+        if (($entry['type'] ?? '') === 'yaml-quoted-scalar') {
+            $yamlQuotedScalarProvenance[$entry['path'] ?? ''] = $entry;
+        }
+    }
+    foreach ([
+        '/title' => ['double-quoted', '1'],
+        '/author/1' => ['double-quoted', '1'],
+        '/typed-review/typed-revision' => ['double-quoted', '1'],
+        '/typed-review/approved' => ['double-quoted', '1'],
+        '/typed-review/quoted-legacy-approved' => ['double-quoted', '1'],
+        '/escaped-source-title' => ['double-quoted', '1'],
+        '/escaped-source-uri' => ['double-quoted', '1'],
+        '/multiline-source-title' => ['double-quoted', '2'],
+        '/source-continuation-uri' => ['double-quoted', '2'],
+        '/single-quoted-source-note' => ['single-quoted', '2'],
+        '/single-quoted-labels/0' => ['single-quoted', '1'],
+        '/flow-quoted-review/note' => ['double-quoted', '2'],
+        '/flow-quoted-review/owner' => ['single-quoted', '2'],
+        '/flow-comment-review/note' => ['double-quoted', '1'],
+        '/boolean-synonym-flow-review/quoted' => ['double-quoted', '1'],
+    ] as $expectedQuotedPath => [$expectedStyle, $expectedLineCount]) {
+        $entry = $yamlQuotedScalarProvenance[$expectedQuotedPath] ?? null;
+        if ($entry === null) {
+            throw new RuntimeException('YAML metadata self-test missing quoted scalar provenance ' . $expectedQuotedPath);
+        }
+        if (($entry['style'] ?? '') !== $expectedStyle || ($entry['sourceLineCount'] ?? '') !== $expectedLineCount) {
+            throw new RuntimeException('YAML metadata self-test has wrong quoted scalar provenance ' . $expectedQuotedPath);
+        }
+    }
     if (count($yamlStreamProvenance) !== 3) {
         throw new RuntimeException('YAML metadata self-test missing stream provenance records');
     }

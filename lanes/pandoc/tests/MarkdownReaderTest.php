@@ -4214,6 +4214,105 @@ return [
         $t->same('typed-scalar-provenance-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="typed-scalar-provenance-yaml-body">Typed scalar provenance YAML body</h1>', $blocks);
     },
+    'records pandoc yaml quoted scalar source provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: "Quoted provenance **Packet**"',
+            'review:',
+            '  double-note: "Keep # hash and \"quotes\""',
+            "  single-note: 'Reviewer''s source: packet'",
+            '  double-multiline: "Line one',
+            '    line two"',
+            '  continuation-uri: "https://example.test/\\',
+            '    exports/packet#front"',
+            "  single-multiline: 'Single",
+            "    quoted # source'",
+            '  explicit-string: !!str "007"',
+            '  quoted-yes: "yes"',
+            'flow-review: {double: "flow: value", single: \'flow # hash\', labels: ["Data, Liberation", \'source:key\'], explicit: !!str "009"}',
+            'authors:',
+            '  - "Reviewer',
+            '    One"',
+            "  - 'Editor''s Desk'",
+            'references:',
+            '  - id: quoted-provenance-ref',
+            '    title: "Source',
+            '      **Export**"',
+            '...',
+            '',
+            '# Quoted scalar provenance YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataScalarProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $quoted = [];
+        $typed = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-quoted-scalar') {
+                $quoted[$entry['path'] ?? ''] = $entry;
+            }
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        $t->same('Quoted provenance **Packet**', $meta['title']);
+        $t->same('Keep # hash and "quotes"', $meta['review']['double-note']);
+        $t->same("Reviewer's source: packet", $meta['review']['single-note']);
+        $t->same('Line one line two', $meta['review']['double-multiline']);
+        $t->same('https://example.test/exports/packet#front', $meta['review']['continuation-uri']);
+        $t->same('Single quoted # source', $meta['review']['single-multiline']);
+        $t->same('007', $meta['review']['explicit-string']);
+        $t->same('yes', $meta['review']['quoted-yes']);
+        $t->same('flow: value', $meta['flow-review']['double']);
+        $t->same('flow # hash', $meta['flow-review']['single']);
+        $t->same(['Data, Liberation', 'source:key'], $meta['flow-review']['labels']);
+        $t->same('009', $meta['flow-review']['explicit']);
+        $t->same('Reviewer One', $meta['authors'][0]);
+        $t->same("Editor's Desk", $meta['authors'][1]);
+        $t->same('Source **Export**', $meta['references'][0]['title']);
+        $t->same(false, array_key_exists('__yamlMetadataScalarProvenance', $meta));
+
+        $t->same(16, count($quoted));
+        $t->same('double-quoted', $quoted['/title']['style'] ?? null);
+        $t->same('"Quoted provenance **Packet**"', $quoted['/title']['source'] ?? null);
+        $t->same('2', $quoted['/title']['sourceLine'] ?? null);
+        $t->same('double-quoted', $quoted['/review/double-note']['style'] ?? null);
+        $t->same('"Keep # hash and \"quotes\""', $quoted['/review/double-note']['source'] ?? null);
+        $t->same('4', $quoted['/review/double-note']['sourceLine'] ?? null);
+        $t->same('single-quoted', $quoted['/review/single-note']['style'] ?? null);
+        $t->same("'Reviewer''s source: packet'", $quoted['/review/single-note']['source'] ?? null);
+        $t->same('5', $quoted['/review/single-note']['sourceLine'] ?? null);
+        $t->same('2', $quoted['/review/double-multiline']['sourceLineCount'] ?? null);
+        $t->same('true', $quoted['/review/double-multiline']['multiline'] ?? null);
+        $t->same('6', $quoted['/review/double-multiline']['sourceLine'] ?? null);
+        $t->same('7', $quoted['/review/double-multiline']['contentEndLine'] ?? null);
+        $t->same('2', $quoted['/review/continuation-uri']['sourceLineCount'] ?? null);
+        $t->same('8', $quoted['/review/continuation-uri']['sourceLine'] ?? null);
+        $t->same('9', $quoted['/review/continuation-uri']['contentEndLine'] ?? null);
+        $t->same('single-quoted', $quoted['/review/single-multiline']['style'] ?? null);
+        $t->same('10', $quoted['/review/single-multiline']['sourceLine'] ?? null);
+        $t->same('11', $quoted['/review/single-multiline']['contentEndLine'] ?? null);
+        $t->same('str', $quoted['/review/explicit-string']['explicitTag'] ?? null);
+        $t->same('"007"', $quoted['/review/explicit-string']['source'] ?? null);
+        $t->same('false', $quoted['/flow-review/double']['multiline'] ?? null);
+        $t->same('14', $quoted['/flow-review/double']['sourceLine'] ?? null);
+        $t->same('double-quoted', $quoted['/flow-review/labels/0']['style'] ?? null);
+        $t->same('single-quoted', $quoted['/flow-review/labels/1']['style'] ?? null);
+        $t->same('str', $quoted['/flow-review/explicit']['explicitTag'] ?? null);
+        $t->same('16', $quoted['/authors/0']['sourceLine'] ?? null);
+        $t->same('17', $quoted['/authors/0']['contentEndLine'] ?? null);
+        $t->same('18', $quoted['/authors/1']['sourceLine'] ?? null);
+        $t->same('21', $quoted['/references/0/title']['sourceLine'] ?? null);
+        $t->same('22', $quoted['/references/0/title']['contentEndLine'] ?? null);
+        $t->same(false, array_key_exists('/review/quoted-yes', $typed));
+        $t->same(false, array_key_exists('/flow-review/explicit', $typed));
+        $t->same(false, array_key_exists('/flow-review/source:key', $quoted));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('quoted-scalar-provenance-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="quoted-scalar-provenance-yaml-body">Quoted scalar provenance YAML body</h1>', $blocks);
+    },
     'records pandoc yaml ambiguous top-level field names as diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
