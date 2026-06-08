@@ -242,7 +242,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'revision-metadata-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -2654,6 +2654,20 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlRevisionMetadataAttribute($tagName, $name)) {
+                $revisionMetadata = self::normalizeHtmlRevisionMetadataAttribute(
+                    $name,
+                    $value,
+                    $tagName,
+                    $diagnostics,
+                    $baseUrl
+                );
+                foreach ($revisionMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isBlockedAttribute($name, $foreignContext)) {
                 $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
@@ -2864,6 +2878,113 @@ final class Html5DomFragment
         ];
 
         return ['data-pandoc-' . $attribute . '-state', $state];
+    }
+
+    private static function isHtmlRevisionMetadataAttribute(string $tagName, string $name): bool
+    {
+        return in_array(strtolower($tagName), ['del', 'ins'], true)
+            && in_array(strtolower($name), ['cite', 'datetime'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlRevisionMetadataAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): array {
+        $attribute = strtolower($name);
+        if ($attribute === 'cite') {
+            $cite = self::normalizeHtmlRevisionCiteAttribute($value, $tagName, $diagnostics, $baseUrl);
+
+            return $cite === null ? [] : ['data-pandoc-revision-cite' => $cite];
+        }
+
+        $datetime = self::normalizeHtmlRevisionDatetimeAttribute($value, $tagName, $diagnostics);
+
+        return $datetime === null
+            ? []
+            : [
+                'data-pandoc-revision-datetime' => $datetime[1],
+                'data-pandoc-revision-kind' => $datetime[0],
+            ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlRevisionCiteAttribute(
+        string $value,
+        string $tagName,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?string {
+        $normalized = self::normalizeUrlAttributeValue($value);
+        if ($normalized === '' || !self::isSafeFetchUrl($normalized)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => $tagName,
+                'attribute' => 'cite',
+            ];
+
+            return null;
+        }
+
+        if ($normalized !== $value) {
+            $diagnostics[] = [
+                'code' => 'normalized-url',
+                'tag' => $tagName,
+                'attribute' => 'cite',
+            ];
+        }
+
+        if ($baseUrl !== null) {
+            $normalized = self::resolveRelativeUrl($baseUrl, $normalized);
+        }
+
+        $diagnostics[] = [
+            'code' => 'revision-metadata-review',
+            'tag' => $tagName,
+            'attribute' => 'cite',
+            'reason' => 'revision-cite-preserved-as-metadata',
+        ];
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string}|null
+     */
+    private static function normalizeHtmlRevisionDatetimeAttribute(
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): ?array {
+        $datetime = self::normalizeHtmlTimeDatetimeValue(self::cleanHtmlMetadataAttribute($value));
+        if ($datetime === null || !in_array($datetime[0], ['date', 'global-datetime', 'local-datetime'], true)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => 'datetime',
+            ];
+
+            return null;
+        }
+
+        $diagnostics[] = [
+            'code' => 'revision-metadata-review',
+            'tag' => $tagName,
+            'attribute' => 'datetime',
+            'kind' => $datetime[0],
+            'reason' => 'revision-datetime-preserved-as-metadata',
+        ];
+
+        return $datetime;
     }
 
     /**

@@ -1410,6 +1410,81 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected malformed datetime schemes to stay diagnostic-only');
         $t->true(!str_contains($blocks, ' datetime='), 'Expected WordPress blocks to omit source datetime attributes');
     },
+    'converts ins and del revision metadata into inert reviewer attributes before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article><p>'
+            . '<ins cite="./revisions/add-note.html" datetime=" 2026-06-08 09:30Z " data-pandoc-revision-cite="source-spoof">Added copy</ins>'
+            . '<del cite=" h&#9;ttps://review.example.test/revisions/remove.html#old " datetime="2026-06-07">Removed copy</del>'
+            . '</p><p>'
+            . '<ins cite="java&#10;script:alert(1)" datetime="PT2H">Bad cite</ins>'
+            . '<del datetime="2026-13-40" cite="./safe-delete.html">Bad date</del>'
+            . '</p></article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/revision-metadata-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><p>'
+            . '<ins data-pandoc-revision-cite="https://source.example.test/import/posts/revisions/add-note.html" data-pandoc-revision-datetime="2026-06-08T09:30Z" data-pandoc-revision-kind="global-datetime">Added copy</ins>'
+            . '<del data-pandoc-revision-cite="https://review.example.test/revisions/remove.html#old" data-pandoc-revision-datetime="2026-06-07" data-pandoc-revision-kind="date">Removed copy</del>'
+            . '</p><p><ins>Bad cite</ins><del data-pandoc-revision-cite="https://source.example.test/import/posts/safe-delete.html">Bad date</del></p></article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Added copyRemoved copyBad citeBad date', $fragment->textContent());
+        $t->same(['article', 'del', 'ins', 'p'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['cite', 'data-pandoc-revision-cite', 'datetime'], $summary['filteredAttributes']);
+        $t->same([
+            'revision-metadata-review',
+            'revision-metadata-review',
+            'unsafe-attribute',
+            'normalized-url',
+            'revision-metadata-review',
+            'revision-metadata-review',
+            'unsafe-url',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'revision-metadata-review',
+        ], $policyDiagnostics);
+        $revisions = [
+            $nodes[0]['children'][0]['children'][0],
+            $nodes[0]['children'][0]['children'][1],
+            $nodes[0]['children'][1]['children'][0],
+            $nodes[0]['children'][1]['children'][1],
+        ];
+        $t->same([
+            'data-pandoc-revision-cite' => 'https://source.example.test/import/posts/revisions/add-note.html',
+            'data-pandoc-revision-datetime' => '2026-06-08T09:30Z',
+            'data-pandoc-revision-kind' => 'global-datetime',
+        ], $revisions[0]['attrs']);
+        $t->same([
+            'data-pandoc-revision-cite' => 'https://review.example.test/revisions/remove.html#old',
+            'data-pandoc-revision-datetime' => '2026-06-07',
+            'data-pandoc-revision-kind' => 'date',
+        ], $revisions[1]['attrs']);
+        $t->same([], $revisions[2]['attrs']);
+        $t->same([
+            'data-pandoc-revision-cite' => 'https://source.example.test/import/posts/safe-delete.html',
+        ], $revisions[3]['attrs']);
+        $t->same('/migration/revision-metadata-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, ' cite='), 'Expected source revision cite attributes to be replaced by inert metadata');
+        $t->true(!str_contains($html, ' datetime='), 'Expected source revision datetime attributes to be replaced by inert metadata');
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned revision metadata to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe revision cite URL to stay diagnostic-only');
+        $t->true(!str_contains($blocks, ' datetime='), 'Expected WordPress blocks to omit source revision datetime attributes');
+    },
     'parses XML fragments strictly and rejects DTD entity expansion inputs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromXml('<root xml:lang="en"><br/><custom data-id="42">A &amp; B</custom></root><note/>');
         $summary = $fragment->summary();
