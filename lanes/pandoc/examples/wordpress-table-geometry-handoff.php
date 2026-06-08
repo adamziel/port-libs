@@ -175,6 +175,21 @@ $legacySpacingTables = array_values(array_filter(
     $legacySpacingDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$backgroundColorDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="background-color-grid" data-source="html-reader" bgcolor="#FFF4CC" style="background-color: #e6ffed; background-image:url(javascript:alert(1))">
+<caption>Background color review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$backgroundColorTables = array_values(array_filter(
+    $backgroundColorDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $layoutWidthDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="layout-width-grid" data-source="html-reader" width="80%">
 <caption>Layout width review</caption>
@@ -1203,6 +1218,7 @@ $document = new AstNode('document', [], [
     ...$verticalAlignmentTables,
     ...$legacyFrameTables,
     ...$legacySpacingTables,
+    ...$backgroundColorTables,
     ...$layoutWidthTables,
     ...$layoutHeightTables,
     ...$placementAlignmentTables,
@@ -2439,6 +2455,53 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($legacySpacingPacket, JSON_THROW_ON_ERROR);
     json_encode($legacySpacingDowngrades, JSON_THROW_ON_ERROR);
+
+    $backgroundColorTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'background-color-grid') {
+            $backgroundColorTable = $node;
+            break;
+        }
+    }
+    $backgroundColorPacket = $backgroundColorTable instanceof AstNode ? $backgroundColorTable->attr('tableGeometry') : null;
+    $backgroundColorDowngrades = $backgroundColorTable instanceof AstNode ? TableGeometry::reviewPacket($backgroundColorTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $backgroundColorDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $backgroundColorDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-background'
+        ));
+        $backgroundColorDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$backgroundColorTable instanceof AstNode
+        || !is_array($backgroundColorPacket)
+        || ($backgroundColorPacket['tableBackground']['attributes'] ?? null) !== [
+            'background-color' => '#e6ffed',
+            'bgcolor' => '#fff4cc',
+        ]
+        || ($backgroundColorPacket['tableBackground']['backgroundColor'] ?? null) !== '#e6ffed'
+        || ($backgroundColorPacket['tableBackground']['backgroundColorSource'] ?? null) !== 'style'
+        || ($backgroundColorPacket['summary']['hasTableBackground'] ?? null) !== true
+        || ($backgroundColorPacket['summary']['tableBackgroundColor'] ?? null) !== '#e6ffed'
+        || ($backgroundColorDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-background-requires-raw-html'
+        || ($backgroundColorDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-background-review-required'
+        || ($backgroundColorDiagnostics['latex']['code'] ?? null) !== 'latex-table-background-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML table background metadata');
+    }
+    if (
+        !str_contains($blocks, '<table id="background-color-grid" data-source="html-reader" bgcolor="#fff4cc" style="background-color:#e6ffed">')
+        || str_contains($blocks, 'background-image:url')
+        || str_contains($blocks, 'javascript:alert')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing sanitized WordPress table background output');
+    }
+    json_encode($backgroundColorPacket, JSON_THROW_ON_ERROR);
+    json_encode($backgroundColorDowngrades, JSON_THROW_ON_ERROR);
 
     $layoutWidthTable = null;
     foreach ($document->children as $node) {

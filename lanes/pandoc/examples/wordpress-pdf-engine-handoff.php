@@ -131,10 +131,10 @@ $fakePageContentBytes = implode("\n", [
 ]);
 $fakeFilteredPageContentBytes = "compressed final page content bytes\n";
 $fakePieceInfoPrivateBytes = "review source path=handoff/pdf-review-packet.tex\n";
-$fakeObjectStreamHeader = "80 0 81 24\n";
-$fakeObjectStreamBytes = $fakeObjectStreamHeader
-    . "<< /Title (Compressed outline) >>\n"
-    . "<< /ReviewTarget (packet-summary) >>\n";
+$fakeObjectStreamMemberOne = "<< /Title (Compressed outline) >>\n";
+$fakeObjectStreamMemberTwo = "<< /Type /Metadata /ReviewTarget (packet-summary) >>\n";
+$fakeObjectStreamHeader = '80 0 81 ' . strlen($fakeObjectStreamMemberOne) . "\n";
+$fakeObjectStreamBytes = $fakeObjectStreamHeader . $fakeObjectStreamMemberOne . $fakeObjectStreamMemberTwo;
 $fakeXrefStreamBytes = "fake compressed xref stream bytes\n";
 $fakeCatalogJavaScript = 'app.alert("Review packet requires active-content review")';
 $fakePageJavaScript = 'this.print({bUI:false});';
@@ -980,6 +980,7 @@ $summary = [
         'pdfXrefStreams' => $fakeResult['pdfXrefStreams'],
         'pdfXrefStreamFilters' => $fakeResult['pdfXrefStreamFilters'],
         'pdfObjectStreams' => $fakeResult['pdfObjectStreams'],
+        'pdfObjectStreamMembers' => $fakeResult['pdfObjectStreamMembers'],
         'pdfObjectStreamFilters' => $fakeResult['pdfObjectStreamFilters'],
         'pdfPageCount' => $fakeResult['pdfPageCount'],
         'pdfPageBoxes' => $fakeResult['pdfPageBoxes'],
@@ -1127,6 +1128,7 @@ $summary = [
         'finalPdfXrefStreams' => $fakeSequence['finalPdfXrefStreams'],
         'finalPdfXrefStreamFilters' => $fakeSequence['finalPdfXrefStreamFilters'],
         'finalPdfObjectStreams' => $fakeSequence['finalPdfObjectStreams'],
+        'finalPdfObjectStreamMembers' => $fakeSequence['finalPdfObjectStreamMembers'],
         'finalPdfObjectStreamFilters' => $fakeSequence['finalPdfObjectStreamFilters'],
         'finalPdfPageBoxes' => $fakeSequence['finalPdfPageBoxes'],
         'finalPdfPageRotations' => $fakeSequence['finalPdfPageRotations'],
@@ -1583,10 +1585,19 @@ if (in_array('--self-test', $argv, true)) {
         '"object":"35 0 R"',
         '"objectCount":2',
         '"objectNumbers":[80,81]',
+        'pdfObjectStreamMembers',
+        'finalPdfObjectStreamMembers',
+        '"objectNumber":80',
+        '"objectNumber":81',
+        '"dictionaryKeys":["ReviewTarget","Type"]',
+        '"type":"Metadata"',
+        '"title":"Compressed outline"',
         'pdfObjectStreamFilters',
         'finalPdfObjectStreamFilters',
         'pdf-byte-object-streams:1',
         'pdf-byte-object-stream-objects:2',
+        'pdf-byte-object-stream-members:2',
+        'pdf-byte-object-stream-member-dictionaries:2',
         'pdf-byte-page-boxes:2',
         'pdf-byte-page-rotations:2',
         'pdfOutlineTitles',

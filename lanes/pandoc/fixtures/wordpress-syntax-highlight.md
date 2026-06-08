@@ -1346,3 +1346,25 @@ source_id,title,status,views,featured
 43,Untitled,publish,0,false
 44,"Media path: uploads/hero.jpg",needs-review,,null
 ```
+
+``` {.erl #erlang-review .numberLines startFrom=1120}
+%% Erlang WordPress import review worker
+-module(wp_import_review).
+-behaviour(gen_server).
+-export([normalize_title/1, handle_call/3]).
+-define(DEFAULT_TITLE, <<"Untitled">>).
+
+-record(review_packet, {source_id :: integer(), title = undefined, blocks = []}).
+
+normalize_title(#review_packet{source_id = SourceId, title = Title} = Packet)
+    when is_binary(Title); is_list(Title) ->
+    Trimmed = string:trim(unicode:characters_to_list(Title)),
+    case Trimmed of
+        "" -> <<"Untitled">>;
+        _  -> list_to_binary(Trimmed)
+    end.
+
+handle_call({review, #review_packet{blocks = Blocks}}, _From, State) ->
+    HtmlBlocks = [maps:get(<<"blockName">>, Block, <<"core/paragraph">>) || Block <- Blocks],
+    {reply, {ok, HtmlBlocks}, State}.
+```

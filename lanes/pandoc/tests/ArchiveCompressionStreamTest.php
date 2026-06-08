@@ -1230,6 +1230,71 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($corruptedHeader));
     },
 
+    'preflights tar checksum provenance without exposing package payloads' => static function (TestRunner $t) use ($rawTarHeader, $rewriteTarHeaderWithSignedChecksum, $paxPayload): void {
+        $unsignedName = "packet/caf\u{00e9}-unsigned.md";
+        $signedName = "packet/r\u{00e9}sum\u{00e9}-signed.md";
+        $unsignedBytes = "# POSIX checksum packet\n\nReady for archive review.\n";
+        $signedBytes = "# Historic signed checksum packet\n\nReady for archive review.\n";
+        $unsignedRecord = $rawTarHeader($unsignedName, '0', $unsignedBytes, 1780479092, false);
+        $paxRecord = $rawTarHeader('PaxHeaders/checksum', 'x', $paxPayload([
+            'path' => $signedName,
+            'size' => (string) strlen($signedBytes),
+        ]), 1780479093, false);
+        $signedRecord = $rewriteTarHeaderWithSignedChecksum(
+            $rawTarHeader("placeholder-r\u{00e9}sum\u{00e9}.md", '0', $signedBytes, 1780479094, false, 0)
+        );
+        $archiveBytes = $unsignedRecord . $paxRecord . $signedRecord . str_repeat("\0", 1024);
+        $gzipBytes = GzipStream::build($archiveBytes, [
+            'filename' => 'wordpress-tar-checksum-policy.tar',
+            'comment' => 'TAR checksum provenance preflight',
+        ]);
+        $corruptedHeader = substr_replace($archiveBytes, 'x', 0, 1);
+
+        $inspection = ArchiveCompressionStream::inspectTarChecksumPolicy(
+            $gzipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes)
+        );
+
+        $t->same('tar-checksum-policy', $inspection['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same(strlen($archiveBytes), $inspection['uncompressedSize']);
+        $t->same(3, $inspection['headerRecordCount']);
+        $t->same(2, $inspection['entryCount']);
+        $t->same(1, $inspection['metadataRecordCount']);
+        $t->same(2, $inspection['unsignedChecksumRecordCount']);
+        $t->same(1, $inspection['signedChecksumRecordCount']);
+        $t->same(1, $inspection['ambiguousChecksumRecordCount']);
+        $t->same('checksum-provenance-only-no-extraction', $inspection['extractionPolicy']);
+        $t->same(['tar-header-historic-signed-checksum'], $inspection['diagnostics']);
+        $t->same([$unsignedName, 'PaxHeaders/checksum', $signedName], array_column($inspection['entries'], 'name'));
+        $t->same(['regular-file', 'pax-local', 'regular-file'], array_column($inspection['entries'], 'role'));
+        $t->same([
+            'posix-unsigned',
+            'posix-unsigned-and-historic-signed',
+            'historic-signed',
+        ], array_column($inspection['entries'], 'checksumKind'));
+        $t->same([true, true, false], array_column($inspection['entries'], 'matchesUnsigned'));
+        $t->same([false, true, true], array_column($inspection['entries'], 'matchesSigned'));
+        $t->same([0, 1024, 2048], array_column($inspection['entries'], 'headerOffset'));
+        $t->same([1024, 2048, 3072], array_column($inspection['entries'], 'recordEndOffset'));
+        $t->same(0, $inspection['entries'][2]['headerPayloadSize']);
+        $t->same(strlen($signedBytes), $inspection['entries'][2]['payloadSize']);
+        $t->same('pax-path', $inspection['entries'][2]['nameSource']);
+        $t->same($inspection['entries'][0]['storedChecksum'], $inspection['entries'][0]['unsignedChecksum']);
+        $t->same($inspection['entries'][2]['storedChecksum'], $inspection['entries'][2]['signedChecksum']);
+        $t->true($inspection['entries'][0]['unsignedChecksum'] !== $inspection['entries'][0]['signedChecksum']);
+        $t->true($inspection['entries'][2]['unsignedChecksum'] !== $inspection['entries'][2]['signedChecksum']);
+        $t->same('accepted-checksum-provenance', $inspection['entries'][2]['policy']);
+        $t->same(['tar-header-historic-signed-checksum'], $inspection['entries'][2]['diagnostics']);
+        $t->same('wordpress-tar-checksum-policy.tar', $inspection['stream']['members'][0]['filename']);
+        $t->true(!array_key_exists('archive', $inspection));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarChecksumPolicy(
+            $corruptedHeader,
+            ArchiveCompressionStream::FORMAT_TAR
+        ));
+    },
+
     'reads legacy tar contiguous file entries as regular package files' => static function (TestRunner $t) use ($rawTarHeader): void {
         $documentBytes = "# Legacy contiguous TAR entry\n\nReady for WordPress archive review.\n";
         $archiveBytes = $rawTarHeader('packet/legacy-contiguous.md', '7', $documentBytes, 1780479069);

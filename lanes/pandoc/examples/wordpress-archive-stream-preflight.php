@@ -660,6 +660,11 @@ $signedChecksumInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
     strlen($signedChecksumArchiveBytes),
     strlen($signedChecksumContentBytes)
 );
+$tarChecksumPolicyInspection = ArchiveCompressionStream::inspectTarChecksumPolicy(
+    $signedChecksumGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($signedChecksumArchiveBytes)
+);
 $charsetArchiveBytes = $rawTarHeader('GlobalHead/charset', 'g', $paxPayload([
     'hdrcharset' => 'ISO-IR 10646 2000 UTF-8',
     'comment' => 'UTF-8 PAX metadata',
@@ -1460,6 +1465,11 @@ if (in_array('--self-test', $argv, true)) {
         'signedChecksumFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'signedChecksumName' => "packet/signed-\u{2603}-checksum.md",
         'signedChecksumModifiedAt' => 1780479083,
+        'tarChecksumPolicyType' => 'tar-checksum-policy',
+        'tarChecksumExtractionPolicy' => 'checksum-provenance-only-no-extraction',
+        'tarChecksumHeaderRecordCount' => 1,
+        'tarChecksumSignedRecordCount' => 1,
+        'tarChecksumChecksumKind' => 'historic-signed',
         'charsetFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'charsetName' => "packet/charset-\u{2603}.md",
         'charsetGlobalHdrcharset' => 'ISO-IR 10646 2000 UTF-8',
@@ -1850,6 +1860,13 @@ if (in_array('--self-test', $argv, true)) {
         || ($signedChecksumInspection['entryLayouts'][0]['modifiedAt'] ?? null) !== $expected['signedChecksumModifiedAt']
         || ($signedChecksumInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-signed-checksum.tar'
         || $signedChecksumInspection['archive']->read('/' . $expected['signedChecksumName']) !== $signedChecksumContentBytes
+        || $tarChecksumPolicyInspection['type'] !== $expected['tarChecksumPolicyType']
+        || $tarChecksumPolicyInspection['extractionPolicy'] !== $expected['tarChecksumExtractionPolicy']
+        || $tarChecksumPolicyInspection['headerRecordCount'] !== $expected['tarChecksumHeaderRecordCount']
+        || $tarChecksumPolicyInspection['signedChecksumRecordCount'] !== $expected['tarChecksumSignedRecordCount']
+        || ($tarChecksumPolicyInspection['entries'][0]['checksumKind'] ?? null) !== $expected['tarChecksumChecksumKind']
+        || ($tarChecksumPolicyInspection['entries'][0]['name'] ?? null) !== $expected['signedChecksumName']
+        || ($tarChecksumPolicyInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-signed-checksum.tar'
         || $charsetInspection['format'] !== $expected['charsetFormat']
         || ($charsetInspection['entryNames'][0] ?? null) !== $expected['charsetName']
         || ($charsetInspection['archive']->entry('/' . $expected['charsetName'])->globalPaxHeaders['hdrcharset'] ?? null) !== $expected['charsetGlobalHdrcharset']
@@ -2279,6 +2296,11 @@ echo 'multiVolumePolicy.malformedOffsetBlocked=' . ($multiVolumeMalformedOffsetB
 echo 'signedChecksum.format=' . $signedChecksumInspection['format'] . "\n";
 echo 'signedChecksum.entry=' . $signedChecksumInspection['entryNames'][0] . "\n";
 echo 'signedChecksum.modifiedAt=' . $signedChecksumInspection['entryLayouts'][0]['modifiedAt'] . "\n";
+echo 'tarChecksumPolicy.type=' . $tarChecksumPolicyInspection['type'] . "\n";
+echo 'tarChecksumPolicy.extractionPolicy=' . $tarChecksumPolicyInspection['extractionPolicy'] . "\n";
+echo 'tarChecksumPolicy.headerRecordCount=' . $tarChecksumPolicyInspection['headerRecordCount'] . "\n";
+echo 'tarChecksumPolicy.signedChecksumRecordCount=' . $tarChecksumPolicyInspection['signedChecksumRecordCount'] . "\n";
+echo 'tarChecksumPolicy.firstChecksumKind=' . $tarChecksumPolicyInspection['entries'][0]['checksumKind'] . "\n";
 echo 'charset.format=' . $charsetInspection['format'] . "\n";
 echo 'charset.entry=' . $charsetInspection['entryNames'][0] . "\n";
 echo 'charset.globalHdrcharset=' . $charsetInspection['archive']->entry('/' . $charsetInspection['entryNames'][0])->globalPaxHeaders['hdrcharset'] . "\n";

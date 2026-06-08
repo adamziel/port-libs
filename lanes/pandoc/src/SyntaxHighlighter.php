@@ -96,6 +96,9 @@ final class SyntaxHighlighter
         'elm-module' => 'elm',
         'elm-source' => 'elm',
         'elixir' => 'elixir',
+        'erl' => 'erlang',
+        'erlang' => 'erlang',
+        'erlang-header' => 'erlang',
         'ex' => 'elixir',
         'exs' => 'elixir',
         'flutter' => 'dart',
@@ -117,6 +120,7 @@ final class SyntaxHighlighter
         'handlebars' => 'mustache',
         'hbs' => 'mustache',
         'hogan' => 'mustache',
+        'hrl' => 'erlang',
         'hulk' => 'mustache',
         'html5' => 'html',
         'html-handlebars' => 'mustache',
@@ -743,6 +747,7 @@ final class SyntaxHighlighter
             'dockerfile' => $this->tokenizeDockerfile($code),
             'elm' => $this->tokenizeElm($code),
             'elixir' => $this->tokenizeElixir($code),
+            'erlang' => $this->tokenizeErlang($code),
             'fish' => $this->tokenizeFish($code),
             'go' => $this->tokenizeGo($code),
             'graphql' => $this->tokenizeGraphql($code),
@@ -2973,6 +2978,34 @@ final class SyntaxHighlighter
             ['datatype', '/^[A-Z][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
             ['variable', '/^[A-Za-z*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*/'],
             ['operator', '/^(?:#\\(|#\\[|#\\{|,@|[{}()[\\]\'`.,])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeErlang(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^%[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['constant', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['constant', '/^\\$(?:\\\\(?:x[0-9A-Fa-f]{1,6}|[0-7]{1,3}|.)|[^\\s])/'],
+            ['attribute', '/^-[a-z][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['preprocessor', '/^\\?[A-Za-z_][A-Za-z0-9_]*/'],
+            ['datatype', '/^#[a-z][A-Za-z0-9_]*(?=\\s*[.{])/'],
+            ['attribute', '/^\\b[a-z][A-Za-z0-9_]*(?=\\s*(?:::|=|=>))/'],
+            ['keyword', '/^\\b(?:after|begin|case|catch|cond|end|fun|if|let|maybe|of|receive|try|when)\\b/'],
+            ['constant', '/^\\b(?:false|nil|ok|true|undefined)\\b/'],
+            ['datatype', '/^\\b(?:binary|boolean|float|integer|list|map|number|pid|string|term|tuple)\\b(?=\\s*(?:\\(|,|\\)|$))/'],
+            ['datatype', '/^\\b(?:erlang|gen_server|io|lists|maps|string|unicode)\\b(?=\\s*:)/'],
+            ['number', '/^-?\\b(?:(?:[2-9]|[12][0-9]|3[0-6])#[0-9A-Za-z]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['function', '/^\\b[a-z][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b_[A-Za-z0-9_]*\\b/'],
+            ['variable', '/^\\b[A-Z][A-Za-z0-9_]*\\b/'],
+            ['constant', '/^\\b[a-z][A-Za-z0-9_]*(?=\\s*(?:[,.;\\]\\}\\)\\|\\/]|=>|$))/'],
+            ['variable', '/^\\b[a-z][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:->|<-|=>|:=|::|=:=|=\\/=|\\/=|==|=<|>=|\\+\\+|--|\\|\\||<<|>>|[{}()[\\];,.+*\\/%=!<>?:#&|^-])/'],
         ]);
     }
 

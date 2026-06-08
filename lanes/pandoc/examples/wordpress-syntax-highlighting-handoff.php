@@ -460,6 +460,12 @@ if (!$csvCodeBlock instanceof PortLibs\Pandoc\AstNode || $csvCodeBlock->type !==
 }
 $csv = $highlighter->highlightCodeBlock($csvCodeBlock, 'tango');
 $csvWordpressBlock = $highlighter->wordpressHtmlBlock($csvCodeBlock, 'tango');
+$erlangCodeBlock = $document->children[73] ?? null;
+if (!$erlangCodeBlock instanceof PortLibs\Pandoc\AstNode || $erlangCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an Erlang review code block');
+}
+$erlang = $highlighter->highlightCodeBlock($erlangCodeBlock, 'zenburn');
+$erlangWordpressBlock = $highlighter->wordpressHtmlBlock($erlangCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2006,6 +2012,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($csvWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
         throw new RuntimeException('Expected CSV WordPress style metadata');
     }
+    if (($erlang['language'] ?? '') !== 'erlang') {
+        throw new RuntimeException('Expected Erlang language alias handoff');
+    }
+    if (($erlang['requestedLanguage'] ?? '') !== 'erl') {
+        throw new RuntimeException('Expected Erlang requested-language wrapper handoff');
+    }
+    if (($erlang['lineNumbering']['start'] ?? null) !== 1120) {
+        throw new RuntimeException('Expected Erlang source startFrom line-number handoff');
+    }
+    if (!str_contains($erlang['html'], '<span class="ot">-module</span><span class="op">(</span><span class="cn">wp_import_review</span><span class="op">).</span>')) {
+        throw new RuntimeException('Expected Erlang module attribute token handoff');
+    }
+    if (!str_contains($erlang['html'], '<span class="fu">normalize_title</span><span class="op">(</span><span class="dt">#review_packet</span>')) {
+        throw new RuntimeException('Expected Erlang record function-head token handoff');
+    }
+    if (!str_contains($erlang['html'], '<span class="dt">maps</span><span class="op">:</span><span class="fu">get</span><span class="op">(&lt;&lt;</span><span class="st">&quot;blockName&quot;</span>')) {
+        throw new RuntimeException('Expected Erlang maps:get binary-string token handoff');
+    }
+    if (!str_contains($erlangWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected Erlang WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2098,6 +2125,7 @@ echo "sedHighlightedHtml:\n" . $sed['html'] . "\n";
 echo "vimHighlightedHtml:\n" . $vim['html'] . "\n";
 echo "schemeHighlightedHtml:\n" . $scheme['html'] . "\n";
 echo "csvHighlightedHtml:\n" . $csv['html'] . "\n";
+echo "erlangHighlightedHtml:\n" . $erlang['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2161,4 +2189,5 @@ echo "bibtexWordpressBlock:\n" . $bibtexWordpressBlock . "\n";
 echo "vimWordpressBlock:\n" . $vimWordpressBlock . "\n";
 echo "schemeWordpressBlock:\n" . $schemeWordpressBlock . "\n";
 echo "csvWordpressBlock:\n" . $csvWordpressBlock . "\n";
+echo "erlangWordpressBlock:\n" . $erlangWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

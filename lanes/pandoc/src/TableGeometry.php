@@ -1663,6 +1663,7 @@ final class TableGeometry
         $tableAlignment = self::tableAlignmentMetadata($table);
         $tableFrame = self::tableFrameMetadata($table);
         $tableSpacing = self::tableSpacingMetadata($table);
+        $tableBackground = self::tableBackgroundMetadata($table);
         $directionality = self::directionalityMetadata($table, $sections, $coverageRecords);
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $idPrefix = self::reviewPacketIdPrefix($table, $options);
@@ -1724,6 +1725,7 @@ final class TableGeometry
                 $tableAlignment,
                 $tableFrame,
                 $tableSpacing,
+                $tableBackground,
                 $directionality,
                 (string) ($sourceSummary['text'] ?? '')
             ),
@@ -1743,6 +1745,10 @@ final class TableGeometry
 
         if ($tableSpacing !== []) {
             $packet['tableSpacing'] = $tableSpacing;
+        }
+
+        if ($tableBackground !== []) {
+            $packet['tableBackground'] = $tableBackground;
         }
 
         if ($sourceSummary !== []) {
@@ -4629,6 +4635,7 @@ final class TableGeometry
         array $tableAlignment,
         array $tableFrame,
         array $tableSpacing,
+        array $tableBackground,
         array $directionality,
         string $sourceSummary
     ): array
@@ -4889,6 +4896,10 @@ final class TableGeometry
             'tableCellPadding' => (string) ($tableSpacing['cellPadding'] ?? ''),
             'tableCellSpacing' => (string) ($tableSpacing['cellSpacing'] ?? ''),
             'tableSpacingAttributeCount' => count(is_array($tableSpacing['attributes'] ?? null) ? $tableSpacing['attributes'] : []),
+            'hasTableBackground' => $tableBackground !== [],
+            'tableBackgroundColor' => (string) ($tableBackground['backgroundColor'] ?? ''),
+            'tableBackgroundColorSource' => (string) ($tableBackground['backgroundColorSource'] ?? ''),
+            'tableBackgroundAttributeCount' => count(is_array($tableBackground['attributes'] ?? null) ? $tableBackground['attributes'] : []),
             'hasTableDirectionality' => (bool) ($directionalitySummary['hasDirectionality'] ?? false),
             'directionRecordCount' => (int) ($directionalitySummary['directionRecordCount'] ?? 0),
             'directionalCellCount' => (int) ($directionalitySummary['directionalCellCount'] ?? 0),
@@ -5305,6 +5316,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -5383,6 +5395,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -5473,6 +5486,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::tableBackgroundWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -6315,6 +6329,43 @@ final class TableGeometry
             'attributeCount' => count(is_array($tableSpacing['attributes'] ?? null) ? $tableSpacing['attributes'] : []),
             'attributes' => $tableSpacing['attributes'] ?? [],
             'sourceAttributes' => $tableSpacing['sourceAttributes'] ?? [],
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableBackgroundWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $tableBackground = self::tableBackgroundMetadata($table);
+        if ($tableBackground === []) {
+            return [];
+        }
+
+        $requirements = [
+            'markdown' => ['markdown-table-background-requires-raw-html', 'raw-html-table-background'],
+            'asciidoc' => ['asciidoc-table-background-review-required', 'table-background-review'],
+            'latex' => ['latex-table-background-review-required', 'table-background-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-background',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-background',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'backgroundColor' => (string) ($tableBackground['backgroundColor'] ?? ''),
+            'backgroundColorSource' => (string) ($tableBackground['backgroundColorSource'] ?? ''),
+            'attributeCount' => count(is_array($tableBackground['attributes'] ?? null) ? $tableBackground['attributes'] : []),
+            'attributes' => $tableBackground['attributes'] ?? [],
+            'sourceAttributes' => $tableBackground['sourceAttributes'] ?? [],
         ]];
     }
 
@@ -7937,6 +7988,64 @@ final class TableGeometry
         return $record;
     }
 
+    /**
+     * @return array{source:string,attributes:array<string, string>,backgroundColor:string,backgroundColorSource:string,legacyBackgroundColor?:string,cssBackgroundColor?:string,sourceAttributes?:array<string, mixed>}
+     */
+    private static function tableBackgroundMetadata(AstNode $table): array
+    {
+        $attributes = self::stringAttributeMap($table->attr('htmlAttributes', []), true);
+        foreach (self::stringAttributeMap($table->attr('attributes', []), false) as $name => $value) {
+            $key = strtolower(trim($name));
+            if ($key !== '' && !array_key_exists($key, $attributes)) {
+                $attributes[$key] = $value;
+            }
+        }
+
+        $recordAttributes = [];
+        $legacyBackgroundColor = '';
+        if (array_key_exists('bgcolor', $attributes)) {
+            $legacyBackgroundColor = self::normalizeTableBackgroundColorAttribute((string) $attributes['bgcolor']);
+            if ($legacyBackgroundColor !== '') {
+                $recordAttributes['bgcolor'] = $legacyBackgroundColor;
+            }
+        }
+
+        $cssBackgroundColor = '';
+        if (array_key_exists('style', $attributes)) {
+            $cssBackgroundColor = self::normalizeTableBackgroundStyleAttribute((string) $attributes['style']);
+            if ($cssBackgroundColor !== '') {
+                $recordAttributes['background-color'] = $cssBackgroundColor;
+            }
+        }
+
+        if ($recordAttributes === []) {
+            return [];
+        }
+
+        ksort($recordAttributes);
+        $backgroundColor = $cssBackgroundColor !== '' ? $cssBackgroundColor : $legacyBackgroundColor;
+        $backgroundColorSource = $cssBackgroundColor !== '' ? 'style' : 'bgcolor';
+        $record = [
+            'source' => 'html-table-background',
+            'attributes' => $recordAttributes,
+            'backgroundColor' => $backgroundColor,
+            'backgroundColorSource' => $backgroundColorSource,
+        ];
+        if ($legacyBackgroundColor !== '') {
+            $record['legacyBackgroundColor'] = $legacyBackgroundColor;
+        }
+        if ($cssBackgroundColor !== '') {
+            $record['cssBackgroundColor'] = $cssBackgroundColor;
+        }
+
+        $sourceAttributes = self::sourceAttributeSummary($table);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
     private static function normalizeTableFrameAttribute(string $value): string
     {
         $value = strtolower(trim($value));
@@ -7973,6 +8082,73 @@ final class TableGeometry
         $value = trim($value);
 
         return preg_match('/^\d{1,3}$/', $value) === 1 ? $value : '';
+    }
+
+    private static function normalizeTableBackgroundStyleAttribute(string $style): string
+    {
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (strtolower(trim($name)) !== 'background-color') {
+                continue;
+            }
+
+            $color = self::normalizeTableBackgroundColorAttribute($value);
+            if ($color !== '') {
+                return $color;
+            }
+        }
+
+        return '';
+    }
+
+    private static function normalizeTableBackgroundColorAttribute(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (preg_match('/^#([0-9a-fA-F]{3})$/', $value, $match) === 1) {
+            return '#' . strtolower($match[1][0] . $match[1][0] . $match[1][1] . $match[1][1] . $match[1][2] . $match[1][2]);
+        }
+
+        if (preg_match('/^#([0-9a-fA-F]{6})$/', $value, $match) === 1) {
+            return '#' . strtolower($match[1]);
+        }
+
+        if (preg_match('/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i', $value, $match) === 1) {
+            $channels = [(int) $match[1], (int) $match[2], (int) $match[3]];
+            foreach ($channels as $channel) {
+                if ($channel < 0 || $channel > 255) {
+                    return '';
+                }
+            }
+
+            return 'rgb(' . implode(', ', array_map(static fn (int $channel): string => (string) $channel, $channels)) . ')';
+        }
+
+        $name = strtolower($value);
+        return in_array($name, [
+            'aqua',
+            'black',
+            'blue',
+            'fuchsia',
+            'gray',
+            'green',
+            'grey',
+            'lime',
+            'maroon',
+            'navy',
+            'olive',
+            'orange',
+            'purple',
+            'red',
+            'silver',
+            'teal',
+            'transparent',
+            'white',
+            'yellow',
+        ], true) ? $name : '';
     }
 
     /**

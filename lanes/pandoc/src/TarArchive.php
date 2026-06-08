@@ -229,6 +229,261 @@ final class TarArchive
 
     /**
      * @return array{
+     *     type:string,
+     *     headerRecordCount:int,
+     *     entryCount:int,
+     *     metadataRecordCount:int,
+     *     unsignedChecksumRecordCount:int,
+     *     signedChecksumRecordCount:int,
+     *     ambiguousChecksumRecordCount:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     entries:list<array{
+     *         name:string,
+     *         role:string,
+     *         typeFlag:string,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         recordEndOffset:int,
+     *         payloadSize:int,
+     *         headerPayloadSize:int,
+     *         checksumField:string,
+     *         storedChecksum:int,
+     *         storedChecksumOctal:string,
+     *         unsignedChecksum:int,
+     *         signedChecksum:int,
+     *         matchesUnsigned:bool,
+     *         matchesSigned:bool,
+     *         checksumKind:string,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>
+     * }
+     */
+    public static function checksumPolicyPreflight(string $bytes): array
+    {
+        if ($bytes === '') {
+            throw new \RuntimeException('TAR archive is empty');
+        }
+
+        if (strlen($bytes) % self::BLOCK_SIZE !== 0) {
+            throw new \RuntimeException('TAR archive length must be aligned to 512-byte records');
+        }
+
+        $cursor = 0;
+        $length = strlen($bytes);
+        $pendingPaxHeaders = [];
+        $globalPaxHeaders = [];
+        $pendingGnuLongName = null;
+        $pendingGnuLongLink = null;
+        $entries = [];
+        $headerRecordCount = 0;
+        $entryCount = 0;
+        $metadataRecordCount = 0;
+        $unsignedChecksumRecordCount = 0;
+        $signedChecksumRecordCount = 0;
+        $ambiguousChecksumRecordCount = 0;
+        $sawEndMarker = false;
+
+        while ($cursor < $length) {
+            $headerOffset = $cursor;
+            $header = substr($bytes, $cursor, self::BLOCK_SIZE);
+            if (self::isZeroBlock($header)) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                self::assertTrailingZeroBlocks($bytes, $cursor);
+                $sawEndMarker = true;
+                break;
+            }
+
+            $checksum = self::validateHeaderChecksum($header);
+            $headerRecordCount++;
+            if ($checksum['matchesUnsigned']) {
+                $unsignedChecksumRecordCount++;
+            }
+            if (!$checksum['matchesUnsigned'] && $checksum['matchesSigned']) {
+                $signedChecksumRecordCount++;
+            }
+            if ($checksum['matchesUnsigned'] && $checksum['matchesSigned']) {
+                $ambiguousChecksumRecordCount++;
+            }
+
+            $typeFlag = substr($header, 156, 1);
+            if ($typeFlag === "\0" || $typeFlag === '') {
+                $typeFlag = self::TYPE_REGULAR;
+            }
+
+            $headerSize = self::readNumericField(substr($header, 124, 12), 'TAR entry size');
+            $dataOffset = $cursor + self::BLOCK_SIZE;
+            self::assertRange($bytes, $dataOffset, $headerSize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($headerSize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_NAME) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
+                $metadataRecordCount++;
+                $entries[] = self::checksumPolicyRecord(
+                    $checksum,
+                    $headerOffset,
+                    $dataOffset,
+                    $nextCursor,
+                    $headerSize,
+                    $headerSize,
+                    self::trimNullField(substr($header, 0, 100)),
+                    'gnu-long-name',
+                    $typeFlag,
+                    TarArchiveEntry::NAME_SOURCE_HEADER
+                );
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_LINK) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongLink = self::parseGnuLongLink(substr($bytes, $dataOffset, $headerSize));
+                $metadataRecordCount++;
+                $entries[] = self::checksumPolicyRecord(
+                    $checksum,
+                    $headerOffset,
+                    $dataOffset,
+                    $nextCursor,
+                    $headerSize,
+                    $headerSize,
+                    self::trimNullField(substr($header, 0, 100)),
+                    'gnu-long-link',
+                    $typeFlag,
+                    TarArchiveEntry::NAME_SOURCE_HEADER
+                );
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
+                $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $headerSize));
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($typeFlag === self::TYPE_PAX_EXTENDED) {
+                    self::assertLinkPolicyLocalPaxHeaders($headers);
+                    $pendingPaxHeaders = $headers;
+                } else {
+                    self::assertGlobalPaxHeaders($headers);
+                    $globalPaxHeaders = self::applyPaxHeaderRecords($globalPaxHeaders, $headers);
+                }
+
+                $metadataRecordCount++;
+                $entries[] = self::checksumPolicyRecord(
+                    $checksum,
+                    $headerOffset,
+                    $dataOffset,
+                    $nextCursor,
+                    $headerSize,
+                    $headerSize,
+                    self::trimNullField(substr($header, 0, 100)),
+                    $typeFlag === self::TYPE_PAX_EXTENDED ? 'pax-local' : 'pax-global',
+                    $typeFlag,
+                    TarArchiveEntry::NAME_SOURCE_HEADER
+                );
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            $metadataHeaders = self::mergePaxHeaderRecords($globalPaxHeaders, $pendingPaxHeaders);
+            $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            $nameSource = self::resolvedNameSourceFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            self::assertSafePath($name, 'TAR entry name');
+            $entrySize = self::resolvedSizeFromHeader($header, $metadataHeaders);
+            self::assertRange($bytes, $dataOffset, $entrySize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($entrySize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+
+            if ($pendingGnuLongLink !== null && $typeFlag !== self::TYPE_HARD_LINK && $typeFlag !== self::TYPE_SYMBOLIC_LINK) {
+                throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+            }
+
+            if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
+                $linkTarget = self::resolvedLinkTargetFromHeader($header, $metadataHeaders, $pendingGnuLongLink);
+                self::assertSafePath($linkTarget, 'TAR link target');
+            }
+
+            $entryCount++;
+            $entries[] = self::checksumPolicyRecord(
+                $checksum,
+                $headerOffset,
+                $dataOffset,
+                $nextCursor,
+                $entrySize,
+                $headerSize,
+                $name,
+                self::checksumPolicyTypeName($typeFlag),
+                $typeFlag,
+                $nameSource
+            );
+            $pendingPaxHeaders = [];
+            $pendingGnuLongName = null;
+            $pendingGnuLongLink = null;
+            $cursor = $nextCursor;
+        }
+
+        if (!$sawEndMarker) {
+            throw new \RuntimeException('TAR archive is missing the required two-block end marker');
+        }
+
+        return [
+            'type' => 'tar-checksum-policy',
+            'headerRecordCount' => $headerRecordCount,
+            'entryCount' => $entryCount,
+            'metadataRecordCount' => $metadataRecordCount,
+            'unsignedChecksumRecordCount' => $unsignedChecksumRecordCount,
+            'signedChecksumRecordCount' => $signedChecksumRecordCount,
+            'ambiguousChecksumRecordCount' => $ambiguousChecksumRecordCount,
+            'handoffPolicy' => 'within-thresholds',
+            'extractionPolicy' => 'checksum-provenance-only-no-extraction',
+            'diagnostics' => $signedChecksumRecordCount > 0 ? ['tar-header-historic-signed-checksum'] : [],
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     entryCount:int,
      *     linkEntryCount:int,
      *     hardLinkCount:int,
@@ -2175,13 +2430,28 @@ final class TarArchive
         return 'header-device-numbers';
     }
 
-    private static function validateHeaderChecksum(string $header): void
+    /**
+     * @return array{
+     *     checksumField:string,
+     *     storedChecksum:int,
+     *     storedChecksumOctal:string,
+     *     unsignedChecksum:int,
+     *     signedChecksum:int,
+     *     matchesUnsigned:bool,
+     *     matchesSigned:bool,
+     *     checksumKind:string
+     * }
+     */
+    private static function validateHeaderChecksum(string $header): array
     {
         $stored = self::readOctalField(substr($header, 148, 8), 'TAR header checksum');
+        $checksumField = trim(substr($header, 148, 8), " \0");
         $checksummedHeader = substr_replace($header, str_repeat(' ', 8), 148, 8);
         $actual = self::checksum($checksummedHeader);
         $signedActual = self::signedChecksum($checksummedHeader);
-        if ($stored !== $actual && $stored !== $signedActual) {
+        $matchesUnsigned = $stored === $actual;
+        $matchesSigned = $stored === $signedActual;
+        if (!$matchesUnsigned && !$matchesSigned) {
             throw new \RuntimeException('TAR header checksum does not match header bytes');
         }
 
@@ -2193,6 +2463,120 @@ final class TarArchive
         if ($magic === self::USTAR_MAGIC && substr($header, 263, 2) !== self::USTAR_VERSION) {
             throw new \RuntimeException('Unsupported TAR header ustar version');
         }
+
+        return [
+            'checksumField' => $checksumField,
+            'storedChecksum' => $stored,
+            'storedChecksumOctal' => decoct($stored),
+            'unsignedChecksum' => $actual,
+            'signedChecksum' => $signedActual,
+            'matchesUnsigned' => $matchesUnsigned,
+            'matchesSigned' => $matchesSigned,
+            'checksumKind' => self::checksumKind($matchesUnsigned, $matchesSigned),
+        ];
+    }
+
+    private static function checksumKind(bool $matchesUnsigned, bool $matchesSigned): string
+    {
+        if ($matchesUnsigned && $matchesSigned) {
+            return 'posix-unsigned-and-historic-signed';
+        }
+
+        if ($matchesUnsigned) {
+            return 'posix-unsigned';
+        }
+
+        return 'historic-signed';
+    }
+
+    /**
+     * @param array{
+     *     checksumField:string,
+     *     storedChecksum:int,
+     *     storedChecksumOctal:string,
+     *     unsignedChecksum:int,
+     *     signedChecksum:int,
+     *     matchesUnsigned:bool,
+     *     matchesSigned:bool,
+     *     checksumKind:string
+     * } $checksum
+     * @return array{
+     *     name:string,
+     *     role:string,
+     *     typeFlag:string,
+     *     nameSource:string,
+     *     headerOffset:int,
+     *     dataOffset:int,
+     *     recordEndOffset:int,
+     *     payloadSize:int,
+     *     headerPayloadSize:int,
+     *     checksumField:string,
+     *     storedChecksum:int,
+     *     storedChecksumOctal:string,
+     *     unsignedChecksum:int,
+     *     signedChecksum:int,
+     *     matchesUnsigned:bool,
+     *     matchesSigned:bool,
+     *     checksumKind:string,
+     *     policy:string,
+     *     diagnostics:list<string>
+     * }
+     */
+    private static function checksumPolicyRecord(
+        array $checksum,
+        int $headerOffset,
+        int $dataOffset,
+        int $recordEndOffset,
+        int $payloadSize,
+        int $headerPayloadSize,
+        string $name,
+        string $role,
+        string $typeFlag,
+        string $nameSource
+    ): array {
+        $diagnostics = $checksum['checksumKind'] === 'historic-signed'
+            ? ['tar-header-historic-signed-checksum']
+            : [];
+
+        return [
+            'name' => $name,
+            'role' => $role,
+            'typeFlag' => $typeFlag,
+            'nameSource' => $nameSource,
+            'headerOffset' => $headerOffset,
+            'dataOffset' => $dataOffset,
+            'recordEndOffset' => $recordEndOffset,
+            'payloadSize' => $payloadSize,
+            'headerPayloadSize' => $headerPayloadSize,
+            'checksumField' => $checksum['checksumField'],
+            'storedChecksum' => $checksum['storedChecksum'],
+            'storedChecksumOctal' => $checksum['storedChecksumOctal'],
+            'unsignedChecksum' => $checksum['unsignedChecksum'],
+            'signedChecksum' => $checksum['signedChecksum'],
+            'matchesUnsigned' => $checksum['matchesUnsigned'],
+            'matchesSigned' => $checksum['matchesSigned'],
+            'checksumKind' => $checksum['checksumKind'],
+            'policy' => 'accepted-checksum-provenance',
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private static function checksumPolicyTypeName(string $typeFlag): string
+    {
+        return match ($typeFlag) {
+            self::TYPE_REGULAR => 'regular-file',
+            self::TYPE_CONTIGUOUS_FILE => 'contiguous-file',
+            self::TYPE_DIRECTORY => 'directory',
+            self::TYPE_HARD_LINK => 'hard-link',
+            self::TYPE_SYMBOLIC_LINK => 'symbolic-link',
+            self::TYPE_CHARACTER_DEVICE => 'character-device',
+            self::TYPE_BLOCK_DEVICE => 'block-device',
+            self::TYPE_FIFO => 'fifo',
+            self::TYPE_GNU_SPARSE => 'gnu-sparse',
+            self::TYPE_GNU_MULTIVOLUME => 'gnu-multivolume',
+            self::TYPE_GNU_DUMPDIR => 'gnu-dumpdir',
+            default => 'type-' . $typeFlag,
+        };
     }
 
     private static function checksum(string $header): int

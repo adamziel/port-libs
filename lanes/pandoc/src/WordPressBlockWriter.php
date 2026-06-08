@@ -514,10 +514,63 @@ final class WordPressBlockWriter
 
     private function renderTableElementAttrs(AstNode $node): string
     {
-        return $this->renderStoredHtmlAttrs($node, true, ['align', 'border', 'cellpadding', 'cellspacing', 'frame', 'rules'])
+        return $this->renderStoredTableElementAttrs($node)
             . $this->renderLegacyTableAlignmentAttrs($node)
             . $this->renderLegacyTableFrameAttrs($node)
             . $this->renderLegacyTableSpacingAttrs($node);
+    }
+
+    private function renderStoredTableElementAttrs(AstNode $node): string
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+        $htmlAttributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
+
+        $attrs = '';
+        $id = (string) ($htmlAttributes['id'] ?? $node->attr('id', ''));
+        if ($id !== '') {
+            $attrs .= ' id="' . $this->esc($id) . '"';
+        }
+
+        $class = (string) ($htmlAttributes['class'] ?? '');
+        if ($class === '') {
+            $classes = $node->attr('classes', []);
+            if (is_array($classes) && $classes !== []) {
+                $class = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $classes));
+            }
+        }
+        if ($class !== '') {
+            $attrs .= ' class="' . $this->esc($class) . '"';
+        }
+
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if (
+                $name === 'id'
+                || $name === 'class'
+                || in_array($name, ['align', 'border', 'cellpadding', 'cellspacing', 'frame', 'rules'], true)
+                || !$this->isAllowedTableHtmlAttr($name)
+            ) {
+                continue;
+            }
+
+            if ($name === 'bgcolor') {
+                $value = $this->legacyTableBackgroundColorValue((string) $value);
+            } elseif ($name === 'style') {
+                $value = $this->legacyTableStyleValue((string) $value);
+            } else {
+                $value = $this->allowedTableHtmlAttrValue($name, $value);
+            }
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderCaptionInlines(AstNode $node): string
@@ -1557,6 +1610,144 @@ final class WordPressBlockWriter
         $direction = strtolower(trim($value));
 
         return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
+    }
+
+    private function legacyTableStyleValue(string $style): string
+    {
+        $declarations = [];
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            $name = strtolower(trim($name));
+            $value = trim($value);
+            if ($name === '' || $value === '') {
+                continue;
+            }
+
+            if ($name === 'background-color') {
+                $color = $this->legacyTableBackgroundColorValue($value);
+                if ($color !== '') {
+                    $declarations[] = 'background-color:' . $color;
+                }
+                continue;
+            }
+
+            if ($name === 'width' || $name === 'height') {
+                $dimension = $this->legacyTableCssDimensionValue($value);
+                if ($dimension !== '') {
+                    $declarations[] = $name . ':' . $dimension;
+                }
+                continue;
+            }
+
+            if (in_array($name, ['margin-left', 'margin-right', 'margin-inline-start', 'margin-inline-end'], true)) {
+                $margin = $this->legacyTableCssLengthValue($value, true, true);
+                if ($margin !== '') {
+                    $declarations[] = $name . ':' . $margin;
+                }
+                continue;
+            }
+
+            if ($name === 'table-layout') {
+                $layout = strtolower($value);
+                if (in_array($layout, ['auto', 'fixed'], true)) {
+                    $declarations[] = 'table-layout:' . $layout;
+                }
+                continue;
+            }
+
+            if ($name === 'border-collapse') {
+                $collapse = strtolower($value);
+                if (in_array($collapse, ['collapse', 'separate'], true)) {
+                    $declarations[] = 'border-collapse:' . $collapse;
+                }
+            }
+        }
+
+        return implode('; ', $declarations);
+    }
+
+    private function legacyTableBackgroundColorValue(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (preg_match('/^#([0-9a-fA-F]{3})$/', $value, $match) === 1) {
+            return '#' . strtolower($match[1][0] . $match[1][0] . $match[1][1] . $match[1][1] . $match[1][2] . $match[1][2]);
+        }
+
+        if (preg_match('/^#([0-9a-fA-F]{6})$/', $value, $match) === 1) {
+            return '#' . strtolower($match[1]);
+        }
+
+        if (preg_match('/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i', $value, $match) === 1) {
+            $channels = [(int) $match[1], (int) $match[2], (int) $match[3]];
+            foreach ($channels as $channel) {
+                if ($channel < 0 || $channel > 255) {
+                    return '';
+                }
+            }
+
+            return 'rgb(' . implode(', ', array_map(static fn (int $channel): string => (string) $channel, $channels)) . ')';
+        }
+
+        $name = strtolower($value);
+        return in_array($name, [
+            'aqua',
+            'black',
+            'blue',
+            'fuchsia',
+            'gray',
+            'green',
+            'grey',
+            'lime',
+            'maroon',
+            'navy',
+            'olive',
+            'orange',
+            'purple',
+            'red',
+            'silver',
+            'teal',
+            'transparent',
+            'white',
+            'yellow',
+        ], true) ? $name : '';
+    }
+
+    private function legacyTableCssDimensionValue(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+(?:\.\d+)?)%$/', $value, $match) === 1) {
+            $number = (float) $match[1];
+            if ($number > 0.0 && $number <= 100.0) {
+                return rtrim(rtrim(number_format($number, 4, '.', ''), '0'), '.') . '%';
+            }
+
+            return '';
+        }
+
+        return $this->legacyTableCssLengthValue($value, false, false);
+    }
+
+    private function legacyTableCssLengthValue(string $value, bool $allowAuto, bool $allowNegative): string
+    {
+        $value = trim($value);
+        if ($allowAuto && strtolower($value) === 'auto') {
+            return 'auto';
+        }
+
+        if (preg_match('/^(-?\d+(?:\.\d+)?)(px|pt|pc|in|cm|mm|em|rem|%)$/i', $value, $match) !== 1) {
+            return '';
+        }
+
+        $number = (float) $match[1];
+        if ((!$allowNegative && $number < 0.0) || abs($number) > 10000.0) {
+            return '';
+        }
+
+        return rtrim(rtrim(number_format($number, 4, '.', ''), '0'), '.') . strtolower($match[2]);
     }
 
     private function allowedTableDimensionValue(mixed $value): ?string

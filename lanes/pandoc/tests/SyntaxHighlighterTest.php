@@ -3530,6 +3530,58 @@ return [
         $t->contains('<span class="ot">source_id</span><span class="op">	</span><span class="ot">title</span><span class="op">	</span><span class="ot">status</span>', $directTsv['html']);
         $t->contains('<span class="dv">42</span><span class="op">	</span><span class="st">&quot;Legacy export&quot;</span><span class="op">	</span><span class="va">draft</span>', $directTsv['html']);
     },
+    'highlights erlang otp review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[73] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an Erlang review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $directErlang = $highlighter->highlight(
+            '-module(review). -export([normalize/1]). normalize(Title) -> string:trim(Title).',
+            'erlang-header'
+        );
+
+        $t->same('erl', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('erlang', SyntaxHighlighter::normalizeLanguage('erlang'));
+        $t->same('erlang', SyntaxHighlighter::normalizeLanguage('erl'));
+        $t->same('erlang', SyntaxHighlighter::normalizeLanguage('hrl'));
+        $t->same('erlang', SyntaxHighlighter::normalizeLanguage('language-erlang-header'));
+        $t->same('erlang', $highlighted['language']);
+        $t->same('erl', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1120, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource erl numberLines"><code class="sourceCode erlang" style="counter-reset: source-line 1119;">', $highlighted['html']);
+        $t->contains('<span id="erlang-review-1120"><a href="#erlang-review-1120"></a><span class="co">%% Erlang WordPress import review worker</span></span>', $highlighted['html']);
+        $t->contains('<span class="ot">-module</span><span class="op">(</span><span class="cn">wp_import_review</span><span class="op">).</span>', $highlighted['html']);
+        $t->contains('<span class="ot">-behaviour</span><span class="op">(</span><span class="cn">gen_server</span><span class="op">).</span>', $highlighted['html']);
+        $t->contains('<span class="ot">-export</span><span class="op">([</span><span class="cn">normalize_title</span><span class="op">/</span><span class="dv">1</span><span class="op">,</span> <span class="cn">handle_call</span><span class="op">/</span><span class="dv">3</span><span class="op">]).</span>', $highlighted['html']);
+        $t->contains('<span class="ot">-define</span><span class="op">(</span><span class="va">DEFAULT_TITLE</span><span class="op">,</span> <span class="op">&lt;&lt;</span><span class="st">&quot;Untitled&quot;</span><span class="op">&gt;&gt;).</span>', $highlighted['html']);
+        $t->contains('<span class="ot">-record</span><span class="op">(</span><span class="cn">review_packet</span><span class="op">,</span> <span class="op">{</span><span class="ot">source_id</span> <span class="op">::</span> <span class="dt">integer</span><span class="op">(),</span>', $highlighted['html']);
+        $t->contains('<span class="fu">normalize_title</span><span class="op">(</span><span class="dt">#review_packet</span><span class="op">{</span><span class="ot">source_id</span> <span class="op">=</span> <span class="va">SourceId</span>', $highlighted['html']);
+        $t->contains('<span class="kw">when</span> <span class="fu">is_binary</span><span class="op">(</span><span class="va">Title</span><span class="op">);</span> <span class="fu">is_list</span><span class="op">(</span><span class="va">Title</span><span class="op">)</span> <span class="op">-&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="va">Trimmed</span> <span class="op">=</span> <span class="dt">string</span><span class="op">:</span><span class="fu">trim</span><span class="op">(</span><span class="dt">unicode</span><span class="op">:</span><span class="fu">characters_to_list</span><span class="op">(</span><span class="va">Title</span><span class="op">)),</span>', $highlighted['html']);
+        $t->contains('<span class="kw">case</span> <span class="va">Trimmed</span> <span class="kw">of</span>', $highlighted['html']);
+        $t->contains('<span class="st">&quot;&quot;</span> <span class="op">-&gt;</span> <span class="op">&lt;&lt;</span><span class="st">&quot;Untitled&quot;</span><span class="op">&gt;&gt;;</span>', $highlighted['html']);
+        $t->contains('<span class="va">HtmlBlocks</span> <span class="op">=</span> <span class="op">[</span><span class="dt">maps</span><span class="op">:</span><span class="fu">get</span><span class="op">(&lt;&lt;</span><span class="st">&quot;blockName&quot;</span><span class="op">&gt;&gt;,</span>', $highlighted['html']);
+        $t->contains('<span class="cn">ok</span><span class="op">,</span> <span class="va">HtmlBlocks</span>', $highlighted['html']);
+        $t->contains('<!-- wp:html -->', $wordpressBlock);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<pre class="sourceCode numberSource erl numberLines"><code class="sourceCode erlang" style="counter-reset: source-line 1119;">', $wordpressBlock);
+        $t->same('erlang', $directErlang['language']);
+        $t->same('erlang-header', $directErlang['requestedLanguage']);
+        $t->contains('<span class="ot">-module</span><span class="op">(</span><span class="cn">review</span><span class="op">).</span>', $directErlang['html']);
+        $t->contains('<span class="fu">normalize</span><span class="op">(</span><span class="va">Title</span><span class="op">)</span> <span class="op">-&gt;</span> <span class="dt">string</span><span class="op">:</span><span class="fu">trim</span><span class="op">(</span><span class="va">Title</span><span class="op">).</span>', $directErlang['html']);
+    },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
             'name' => 'Review Import',

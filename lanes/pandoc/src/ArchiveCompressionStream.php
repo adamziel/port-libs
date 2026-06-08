@@ -1591,6 +1591,64 @@ final class ArchiveCompressionStream
      *     format:string,
      *     tarBytes:string,
      *     uncompressedSize:int,
+     *     type:string,
+     *     headerRecordCount:int,
+     *     entryCount:int,
+     *     metadataRecordCount:int,
+     *     unsignedChecksumRecordCount:int,
+     *     signedChecksumRecordCount:int,
+     *     ambiguousChecksumRecordCount:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     entries:list<array{
+     *         name:string,
+     *         role:string,
+     *         typeFlag:string,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         recordEndOffset:int,
+     *         payloadSize:int,
+     *         headerPayloadSize:int,
+     *         checksumField:string,
+     *         storedChecksum:int,
+     *         storedChecksumOctal:string,
+     *         unsignedChecksum:int,
+     *         signedChecksum:int,
+     *         matchesUnsigned:bool,
+     *         matchesSigned:bool,
+     *         checksumKind:string,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectTarChecksumPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $tarBytes = self::decodeTarBytes($bytes, $format, $maxUncompressedBytes);
+        $policy = TarArchive::checksumPolicyPreflight($tarBytes);
+
+        return [
+            'format' => $format,
+            'tarBytes' => $tarBytes,
+            'uncompressedSize' => strlen($tarBytes),
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     tarBytes:string,
+     *     uncompressedSize:int,
      *     entryCount:int,
      *     linkEntryCount:int,
      *     hardLinkCount:int,

@@ -1444,6 +1444,115 @@ HTML;
         json_encode($invalidPacket, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table background attributes for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="background-color-grid" data-source="html-reader" bgcolor="#FFF4CC" style="background-color: #e6ffed; background-image:url(javascript:alert(1))">
+<caption>Background color review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+<table id="background-rgb-grid" style="background-color: rgb(12, 34, 56)">
+<tbody>
+<tr><td>RGB</td><td>Preserved</td></tr>
+</tbody>
+</table>
+<table id="background-invalid" bgcolor="expression(alert(1))" style="background-color: calc(1px); background-image:url(javascript:alert(1))">
+<tbody>
+<tr><td>Invalid</td><td>Dropped</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $tables = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $table = $tables[0] ?? null;
+        $rgbTable = $tables[1] ?? null;
+        $invalidTable = $tables[2] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->true($rgbTable instanceof AstNode);
+        $t->true($invalidTable instanceof AstNode);
+        if (!$table instanceof AstNode || !$rgbTable instanceof AstNode || !$invalidTable instanceof AstNode) {
+            return;
+        }
+
+        $packet = $table->attr('tableGeometry');
+        $rgbPacket = $rgbTable->attr('tableGeometry');
+        $invalidPacket = $invalidTable->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $backgroundDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-background'
+            ));
+            $backgroundDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same([
+            'background-color' => '#e6ffed',
+            'bgcolor' => '#fff4cc',
+        ], $packet['tableBackground']['attributes'] ?? null);
+        $t->same('#e6ffed', $packet['tableBackground']['backgroundColor'] ?? null);
+        $t->same('style', $packet['tableBackground']['backgroundColorSource'] ?? null);
+        $t->same('#fff4cc', $packet['tableBackground']['legacyBackgroundColor'] ?? null);
+        $t->same('#e6ffed', $packet['tableBackground']['cssBackgroundColor'] ?? null);
+        $t->same('#FFF4CC', $packet['tableBackground']['sourceAttributes']['htmlAttributes']['bgcolor'] ?? null);
+        $t->same(true, $packet['summary']['hasTableBackground'] ?? null);
+        $t->same('#e6ffed', $packet['summary']['tableBackgroundColor'] ?? null);
+        $t->same('style', $packet['summary']['tableBackgroundColorSource'] ?? null);
+        $t->same(2, $packet['summary']['tableBackgroundAttributeCount'] ?? null);
+
+        $t->same(true, is_array($rgbPacket));
+        $rgbPacket = is_array($rgbPacket) ? $rgbPacket : [];
+        $t->same('rgb(12, 34, 56)', $rgbPacket['tableBackground']['backgroundColor'] ?? null);
+        $t->same('style', $rgbPacket['tableBackground']['backgroundColorSource'] ?? null);
+        $t->same([
+            'background-color' => 'rgb(12, 34, 56)',
+        ], $rgbPacket['tableBackground']['attributes'] ?? null);
+
+        $t->same(true, is_array($invalidPacket));
+        $invalidPacket = is_array($invalidPacket) ? $invalidPacket : [];
+        $t->true(!array_key_exists('tableBackground', $invalidPacket));
+        $t->same(false, $invalidPacket['summary']['hasTableBackground'] ?? null);
+
+        $t->same([
+            'markdown-table-background-requires-raw-html',
+            'asciidoc-table-background-review-required',
+            'latex-table-background-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $backgroundDiagnostics['markdown'],
+            $backgroundDiagnostics['asciidoc'],
+            $backgroundDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-background', $backgroundDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-background', $backgroundDiagnostics['markdown']['source'] ?? null);
+        $t->same('#e6ffed', $backgroundDiagnostics['markdown']['backgroundColor'] ?? null);
+        $t->same('style', $backgroundDiagnostics['markdown']['backgroundColorSource'] ?? null);
+        $t->same(2, $backgroundDiagnostics['markdown']['attributeCount'] ?? null);
+
+        $t->contains('<table id="background-color-grid" data-source="html-reader" bgcolor="#fff4cc" style="background-color:#e6ffed">', $blocks);
+        $t->contains('<table id="background-rgb-grid" style="background-color:rgb(12, 34, 56)">', $blocks);
+        $t->true(!str_contains($blocks, 'expression('));
+        $t->true(!str_contains($blocks, 'background-image'));
+        $t->true(!str_contains($blocks, 'calc(1px)'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($rgbPacket, JSON_THROW_ON_ERROR);
+        json_encode($invalidPacket, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
     'normalizes html table width layout metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="layout-width-grid" data-source="html-reader" width="80%">

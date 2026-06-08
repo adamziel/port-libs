@@ -741,6 +741,15 @@ return [
         $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDefaultExtensions']);
         $t->same([], $audit['luaEngineLibraryClosure']['presentOtherExtensions']);
         $t->same([], $audit['luaEngineLibraryClosure']['unexpectedOtherExtensions']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryAutogenModules(), $audit['luaEngineLibraryClosure']['expectedAutogenModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['presentAutogenModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedAutogenModules']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryReexportedModules(), $audit['luaEngineLibraryClosure']['expectedReexportedModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['presentReexportedModules']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedReexportedModules']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryModuleInterfaceFields(), $audit['luaEngineLibraryClosure']['expectedModuleInterfaceFields']);
+        $t->same([], $audit['luaEngineLibraryClosure']['presentModuleInterfaceFields']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedModuleInterfaceFields']);
         $t->same(true, in_array('hslua-module-zip', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
         $t->same(true, in_array('pandoc-lua-marshal', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['type']);
@@ -5483,6 +5492,77 @@ return [
         $t->contains('unexpected pandoc-lua-engine library mixins: hslua-module-path (HsLua.Module.Path as HsLua.Module.Path.RunnerAudit)', $blocked);
         $t->contains('unexpected pandoc-lua-engine library build-tool dependencies: build-tool-depends: hsc2hs:hsc2hs >= 0.68, build-tool-depends: happy:happy >= 1.20, build-tools: alex, build-tools: doctest', $blocked);
         $t->contains('no unexpected pandoc-lua-engine library mixins or build-tool dependencies', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks lua engine library generated module interface fields before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            implode("\n", [
+                'library',
+                '  import: test-options',
+                '  hs-source-dirs: src',
+                '  exposed-modules: Text.Pandoc.Lua',
+            ]),
+            implode("\n", [
+                'library',
+                '  import: test-options',
+                '  hs-source-dirs: src',
+                '  autogen-modules:',
+                '    Paths_pandoc_lua_engine,',
+                '    Text.Pandoc.Lua.Generated.Autogen',
+                '  reexported-modules:',
+                '    hslua-module-path:HsLua.Module.Path as Text.Pandoc.Lua.Generated.Path',
+                '  signatures: Text.Pandoc.Lua.Signature',
+                '  virtual-modules:',
+                '    Text.Pandoc.Lua.Virtual',
+                '  exposed-modules: Text.Pandoc.Lua',
+            ]),
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExtraSourceFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExtraDocFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExtraTmpFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDataFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedConditionalBranches']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedNativeSystemFields']);
+        $t->same([
+            'Paths_pandoc_lua_engine',
+            'Text.Pandoc.Lua.Generated.Autogen',
+        ], $audit['luaEngineLibraryClosure']['presentAutogenModules']);
+        $t->same($audit['luaEngineLibraryClosure']['presentAutogenModules'], $audit['luaEngineLibraryClosure']['unexpectedAutogenModules']);
+        $t->same([
+            'hslua-module-path:HsLua.Module.Path as Text.Pandoc.Lua.Generated.Path',
+        ], $audit['luaEngineLibraryClosure']['presentReexportedModules']);
+        $t->same($audit['luaEngineLibraryClosure']['presentReexportedModules'], $audit['luaEngineLibraryClosure']['unexpectedReexportedModules']);
+        $t->same([
+            'signatures' => ['Text.Pandoc.Lua.Signature'],
+            'virtual-modules' => ['Text.Pandoc.Lua.Virtual'],
+        ], $audit['luaEngineLibraryClosure']['presentModuleInterfaceFields']);
+        $t->same([
+            'signatures: Text.Pandoc.Lua.Signature',
+            'virtual-modules: Text.Pandoc.Lua.Virtual',
+        ], $audit['luaEngineLibraryClosure']['unexpectedModuleInterfaceFields']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected pandoc-lua-engine library autogen-modules: Paths_pandoc_lua_engine, Text.Pandoc.Lua.Generated.Autogen', $blocked);
+        $t->contains('unexpected pandoc-lua-engine library reexported-modules: hslua-module-path:HsLua.Module.Path as Text.Pandoc.Lua.Generated.Path', $blocked);
+        $t->contains('unexpected pandoc-lua-engine library module interface fields: signatures: Text.Pandoc.Lua.Signature, virtual-modules: Text.Pandoc.Lua.Virtual', $blocked);
+        $t->contains('no unexpected pandoc-lua-engine library generated, reexported, or module interface fields', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
 ];

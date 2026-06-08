@@ -274,6 +274,7 @@ final class PdfEngineHandoff
      *     pdfXrefStreams: list<array{object:string, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, index:list<int>, w:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     pdfXrefStreamFilters: array<string, int>,
      *     pdfObjectStreams: list<array{object:string, objectCount:int|null, firstByteOffset:int|null, extends:string|null, objectNumbers:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
+     *     pdfObjectStreamMembers: list<array{objectStream:string, objectNumber:int, memberIndex:int, declaredOffset:int, streamOffset:int, memberBytes:int|null, memberSha256:string|null, valueKind:string|null, dictionaryKeys:list<string>, type:string|null, subtype:string|null, title:string|null}>,
      *     pdfObjectStreamFilters: array<string, int>,
      *     pdfPageCount: int|null,
      *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
@@ -727,6 +728,7 @@ final class PdfEngineHandoff
         $pdfXrefStreams = [];
         $pdfXrefStreamFilters = [];
         $pdfObjectStreams = [];
+        $pdfObjectStreamMembers = [];
         $pdfObjectStreamFilters = [];
         $pdfPageCount = null;
         $pdfPageBoxes = [];
@@ -838,6 +840,7 @@ final class PdfEngineHandoff
                 $pdfXrefStreams = $pdfInspection['xrefStreams'];
                 $pdfXrefStreamFilters = $pdfInspection['xrefStreamFilters'];
                 $pdfObjectStreams = $pdfInspection['objectStreams'];
+                $pdfObjectStreamMembers = $pdfInspection['objectStreamMembers'];
                 $pdfObjectStreamFilters = $pdfInspection['objectStreamFilters'];
                 $pdfPageCount = $pdfInspection['pageCount'];
                 $pdfPageBoxes = $pdfInspection['pageBoxes'];
@@ -1412,6 +1415,18 @@ final class PdfEngineHandoff
                     }
                     foreach (array_keys($objectStreamSkips) as $skipReason) {
                         $diagnostics[] = 'pdf-byte-object-stream-skipped:' . $skipReason;
+                    }
+                }
+                if ($pdfObjectStreamMembers !== []) {
+                    $diagnostics[] = 'pdf-byte-object-stream-members:' . count($pdfObjectStreamMembers);
+                    $objectStreamMemberDictionaries = 0;
+                    foreach ($pdfObjectStreamMembers as $member) {
+                        if (($member['valueKind'] ?? null) === 'dictionary') {
+                            $objectStreamMemberDictionaries++;
+                        }
+                    }
+                    if ($objectStreamMemberDictionaries > 0) {
+                        $diagnostics[] = 'pdf-byte-object-stream-member-dictionaries:' . $objectStreamMemberDictionaries;
                     }
                 }
                 if ($pdfObjectStreamFilters !== []) {
@@ -2787,6 +2802,7 @@ final class PdfEngineHandoff
             'pdfXrefStreams' => $pdfXrefStreams,
             'pdfXrefStreamFilters' => $pdfXrefStreamFilters,
             'pdfObjectStreams' => $pdfObjectStreams,
+            'pdfObjectStreamMembers' => $pdfObjectStreamMembers,
             'pdfObjectStreamFilters' => $pdfObjectStreamFilters,
             'pdfPageCount' => $pdfPageCount,
             'pdfPageBoxes' => $pdfPageBoxes,
@@ -2944,6 +2960,7 @@ final class PdfEngineHandoff
      *     finalPdfXrefStreams: list<array{object:string, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, index:list<int>, w:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     finalPdfXrefStreamFilters: array<string, int>,
      *     finalPdfObjectStreams: list<array{object:string, objectCount:int|null, firstByteOffset:int|null, extends:string|null, objectNumbers:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
+     *     finalPdfObjectStreamMembers: list<array{objectStream:string, objectNumber:int, memberIndex:int, declaredOffset:int, streamOffset:int, memberBytes:int|null, memberSha256:string|null, valueKind:string|null, dictionaryKeys:list<string>, type:string|null, subtype:string|null, title:string|null}>,
      *     finalPdfObjectStreamFilters: array<string, int>,
      *     finalPdfOutlineTitles: list<string>,
      *     finalPdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
@@ -3190,6 +3207,7 @@ final class PdfEngineHandoff
             'finalPdfXrefStreams' => is_array($finalRun) && is_array($finalRun['pdfXrefStreams'] ?? null) ? $finalRun['pdfXrefStreams'] : [],
             'finalPdfXrefStreamFilters' => is_array($finalRun) && is_array($finalRun['pdfXrefStreamFilters'] ?? null) ? $finalRun['pdfXrefStreamFilters'] : [],
             'finalPdfObjectStreams' => is_array($finalRun) && is_array($finalRun['pdfObjectStreams'] ?? null) ? $finalRun['pdfObjectStreams'] : [],
+            'finalPdfObjectStreamMembers' => is_array($finalRun) && is_array($finalRun['pdfObjectStreamMembers'] ?? null) ? $finalRun['pdfObjectStreamMembers'] : [],
             'finalPdfObjectStreamFilters' => is_array($finalRun) && is_array($finalRun['pdfObjectStreamFilters'] ?? null) ? $finalRun['pdfObjectStreamFilters'] : [],
             'finalPdfOutlineTitles' => is_array($finalRun) && is_array($finalRun['pdfOutlineTitles'] ?? null) ? $finalRun['pdfOutlineTitles'] : [],
             'finalPdfOutlines' => is_array($finalRun) && is_array($finalRun['pdfOutlines'] ?? null) ? $finalRun['pdfOutlines'] : [],
@@ -4299,6 +4317,7 @@ final class PdfEngineHandoff
      *     xrefStreams:list<array{object:string, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, index:list<int>, w:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     xrefStreamFilters:array<string, int>,
      *     objectStreams:list<array{object:string, objectCount:int|null, firstByteOffset:int|null, extends:string|null, objectNumbers:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
+     *     objectStreamMembers:list<array{objectStream:string, objectNumber:int, memberIndex:int, declaredOffset:int, streamOffset:int, memberBytes:int|null, memberSha256:string|null, valueKind:string|null, dictionaryKeys:list<string>, type:string|null, subtype:string|null, title:string|null}>,
      *     objectStreamFilters:array<string, int>,
      *     pageCount:int|null,
      *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
@@ -4395,6 +4414,7 @@ final class PdfEngineHandoff
         $trailerRevisions = $this->extractPdfTrailerRevisions($pdfBytes);
         $xrefStreams = $this->extractPdfXrefStreams($pdfBytes);
         $objectStreams = $this->extractPdfObjectStreams($pdfBytes);
+        $objectStreamMembers = $this->extractPdfObjectStreamMembers($pdfBytes);
         $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
         $pageProductionMetadata = $this->extractPdfPageProductionMetadata($pdfBytes, $catalog);
         $pageDisplayMetadata = $this->extractPdfPageDisplayMetadata($pdfBytes, $catalog);
@@ -4446,6 +4466,7 @@ final class PdfEngineHandoff
             'xrefStreams' => $xrefStreams,
             'xrefStreamFilters' => $this->summarizePdfStructuralStreamFilters($xrefStreams),
             'objectStreams' => $objectStreams,
+            'objectStreamMembers' => $objectStreamMembers,
             'objectStreamFilters' => $this->summarizePdfStructuralStreamFilters($objectStreams),
             'pageCount' => $this->extractPdfPageCount($pdfBytes),
             'pageBoxes' => $pageBoxes,
@@ -4797,6 +4818,149 @@ final class PdfEngineHandoff
         usort($streams, fn (array $a, array $b): int => $this->pdfReferenceSortKey($a['object']) <=> $this->pdfReferenceSortKey($b['object']));
 
         return $streams;
+    }
+
+    /**
+     * @return list<array{objectStream:string, objectNumber:int, memberIndex:int, declaredOffset:int, streamOffset:int, memberBytes:int|null, memberSha256:string|null, valueKind:string|null, dictionaryKeys:list<string>, type:string|null, subtype:string|null, title:string|null}>
+     */
+    private function extractPdfObjectStreamMembers(string $pdfBytes): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $members = [];
+        foreach ($objects as $reference => $body) {
+            if ($this->extractPdfNameToken($body, 'Type') !== 'ObjStm') {
+                continue;
+            }
+            if (preg_match('/\/Filter\b/s', $body) === 1) {
+                continue;
+            }
+
+            $bytes = $this->extractPdfStreamBytes($body);
+            if ($bytes === null || strlen($bytes) > self::MAX_OBJECT_STREAM_BYTES) {
+                continue;
+            }
+
+            $first = $this->extractPdfIntegerToken($body, 'First');
+            if ($first === null) {
+                continue;
+            }
+
+            $streamReference = $reference . ' R';
+            $payloadStart = max(0, min(strlen($bytes), $first));
+            $payloadBytes = max(0, strlen($bytes) - $payloadStart);
+            $pairs = $this->extractPdfObjectStreamHeaderPairs($body);
+            foreach ($pairs as $index => $pair) {
+                $memberBytes = null;
+                $memberSha256 = null;
+                $valueKind = null;
+                $dictionaryKeys = [];
+                $type = null;
+                $subtype = null;
+                $title = null;
+                if ($pair['offset'] <= $payloadBytes) {
+                    $endOffset = $this->nextPdfObjectStreamMemberOffset($pairs, $pair['offset'], $payloadBytes);
+                    $memberBody = substr($bytes, $payloadStart + $pair['offset'], max(0, $endOffset - $pair['offset']));
+                    $memberBytes = strlen($memberBody);
+                    $memberSha256 = hash('sha256', $memberBody);
+                    $parsed = $this->parsePdfValueAt(ltrim($memberBody), 0);
+                    if ($parsed !== null) {
+                        $valueKind = $parsed['kind'] === 'keyword' && $parsed['value'] === 'null' ? 'null' : $parsed['kind'];
+                        if ($parsed['kind'] === 'dictionary') {
+                            foreach ($this->extractPdfTopLevelDictionaryEntries($parsed['value']) as $entry) {
+                                $dictionaryKeys[] = $entry['key'];
+                            }
+                            $dictionaryKeys = array_values(array_unique($dictionaryKeys));
+                            sort($dictionaryKeys);
+                            $type = $this->extractPdfStringOrNameValue($parsed['value'], 'Type');
+                            $subtype = $this->extractPdfStringOrNameValue($parsed['value'], 'Subtype');
+                            $title = $this->extractPdfStringOrNameValue($parsed['value'], 'Title');
+                        }
+                    }
+                }
+
+                $members[] = [
+                    'objectStream' => $streamReference,
+                    'objectNumber' => $pair['objectNumber'],
+                    'memberIndex' => $index + 1,
+                    'declaredOffset' => $pair['offset'],
+                    'streamOffset' => $payloadStart + $pair['offset'],
+                    'memberBytes' => $memberBytes,
+                    'memberSha256' => $memberSha256,
+                    'valueKind' => $valueKind,
+                    'dictionaryKeys' => $dictionaryKeys,
+                    'type' => $type,
+                    'subtype' => $subtype,
+                    'title' => $title,
+                ];
+            }
+        }
+
+        usort($members, function (array $a, array $b): int {
+            $left = $this->pdfReferenceSortKey($a['objectStream']);
+            $right = $this->pdfReferenceSortKey($b['objectStream']);
+
+            return [$left[0], $left[1], $a['memberIndex']] <=> [$right[0], $right[1], $b['memberIndex']];
+        });
+
+        return $members;
+    }
+
+    /**
+     * @return list<array{objectNumber:int, offset:int}>
+     */
+    private function extractPdfObjectStreamHeaderPairs(string $dictionary): array
+    {
+        if (preg_match('/\/Filter\b/s', $dictionary) === 1) {
+            return [];
+        }
+
+        $bytes = $this->extractPdfStreamBytes($dictionary);
+        if ($bytes === null || strlen($bytes) > self::MAX_OBJECT_STREAM_BYTES) {
+            return [];
+        }
+
+        $first = $this->extractPdfIntegerToken($dictionary, 'First');
+        if ($first === null) {
+            return [];
+        }
+
+        $objectCount = $this->extractPdfIntegerToken($dictionary, 'N');
+        $headerLength = max(0, min(strlen($bytes), $first));
+        $header = substr($bytes, 0, $headerLength);
+        if (preg_match_all('/-?\d+/', $header, $matches) < 1) {
+            return [];
+        }
+
+        $numbers = array_map('intval', $matches[0]);
+        $pairs = [];
+        $limit = $objectCount === null ? intdiv(count($numbers), 2) : max(0, $objectCount);
+        for ($i = 0; $i + 1 < count($numbers) && count($pairs) < $limit; $i += 2) {
+            if ($numbers[$i] < 0 || $numbers[$i + 1] < 0) {
+                continue;
+            }
+
+            $pairs[] = [
+                'objectNumber' => $numbers[$i],
+                'offset' => $numbers[$i + 1],
+            ];
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @param list<array{objectNumber:int, offset:int}> $pairs
+     */
+    private function nextPdfObjectStreamMemberOffset(array $pairs, int $offset, int $payloadBytes): int
+    {
+        $next = $payloadBytes;
+        foreach ($pairs as $pair) {
+            if ($pair['offset'] > $offset && $pair['offset'] < $next) {
+                $next = $pair['offset'];
+            }
+        }
+
+        return $next;
     }
 
     /**

@@ -716,10 +716,10 @@ MARKDOWN);
     'fake runner extracts bounded pdf xref stream and object stream preflight metadata' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/modern.pdf']);
-        $objectStreamHeader = "8 0 9 24\n";
-        $objectStreamPayload = $objectStreamHeader
-            . "<< /Title (Compressed outline) >>\n"
-            . "<< /Subtype /Link >>\n";
+        $objectStreamMemberOne = "<< /Title (Compressed outline) >>\n";
+        $objectStreamMemberTwo = "<< /Type /Annot /Subtype /Link >>\n";
+        $objectStreamHeader = '8 0 9 ' . strlen($objectStreamMemberOne) . "\n";
+        $objectStreamPayload = $objectStreamHeader . $objectStreamMemberOne . $objectStreamMemberTwo;
         $xrefStreamPayload = "fake compressed xref stream bytes";
         $pdfBytes = implode("\n", [
             '%PDF-1.7',
@@ -797,17 +797,144 @@ MARKDOWN);
                 'streamSkipped' => null,
             ],
         ], $result['pdfObjectStreams']);
+        $t->same([
+            [
+                'objectStream' => '4 0 R',
+                'objectNumber' => 8,
+                'memberIndex' => 1,
+                'declaredOffset' => 0,
+                'streamOffset' => strlen($objectStreamHeader),
+                'memberBytes' => strlen($objectStreamMemberOne),
+                'memberSha256' => hash('sha256', $objectStreamMemberOne),
+                'valueKind' => 'dictionary',
+                'dictionaryKeys' => ['Title'],
+                'type' => null,
+                'subtype' => null,
+                'title' => 'Compressed outline',
+            ],
+            [
+                'objectStream' => '4 0 R',
+                'objectNumber' => 9,
+                'memberIndex' => 2,
+                'declaredOffset' => strlen($objectStreamMemberOne),
+                'streamOffset' => strlen($objectStreamHeader) + strlen($objectStreamMemberOne),
+                'memberBytes' => strlen($objectStreamMemberTwo),
+                'memberSha256' => hash('sha256', $objectStreamMemberTwo),
+                'valueKind' => 'dictionary',
+                'dictionaryKeys' => ['Subtype', 'Type'],
+                'type' => 'Annot',
+                'subtype' => 'Link',
+                'title' => null,
+            ],
+        ], $result['pdfObjectStreamMembers']);
         $t->same([], $result['pdfObjectStreamFilters']);
         $t->contains('pdf-byte-xref-streams:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-xref-stream-filter:FlateDecode:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-xref-stream-skipped:filtered', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-object-streams:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-object-stream-objects:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-object-stream-members:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-object-stream-member-dictionaries:2', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($result['pdfXrefStreams'], $sequence['finalPdfXrefStreams']);
         $t->same($result['pdfXrefStreamFilters'], $sequence['finalPdfXrefStreamFilters']);
         $t->same($result['pdfObjectStreams'], $sequence['finalPdfObjectStreams']);
+        $t->same($result['pdfObjectStreamMembers'], $sequence['finalPdfObjectStreamMembers']);
         $t->same($result['pdfObjectStreamFilters'], $sequence['finalPdfObjectStreamFilters']);
+    },
+
+    'fake runner extracts bounded pdf object stream member provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['outputPath' => 'packets/object-stream-members.pdf']);
+        $memberOne = "<< /Type /Metadata /Title (Compressed review metadata) >>\n";
+        $memberTwo = "<< /Type /Annot /Subtype /Link /Contents (Compressed link) >>\n";
+        $header = '40 0 41 ' . strlen($memberOne) . "\n";
+        $payload = $header . $memberOne . $memberTwo;
+        $filteredPayload = "filtered compressed object stream bytes\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /ObjStm /N 2 /First ' . strlen($header) . ' /Length ' . strlen($payload) . ' >>',
+            'stream',
+            $payload,
+            'endstream',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length ' . strlen($filteredPayload) . ' >>',
+            'stream',
+            $filteredPayload,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Size 42 /Root 1 0 R >>',
+            'startxref',
+            '512',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/object-stream-members.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/object-stream-members.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'objectStream' => '4 0 R',
+                'objectNumber' => 40,
+                'memberIndex' => 1,
+                'declaredOffset' => 0,
+                'streamOffset' => strlen($header),
+                'memberBytes' => strlen($memberOne),
+                'memberSha256' => hash('sha256', $memberOne),
+                'valueKind' => 'dictionary',
+                'dictionaryKeys' => ['Title', 'Type'],
+                'type' => 'Metadata',
+                'subtype' => null,
+                'title' => 'Compressed review metadata',
+            ],
+            [
+                'objectStream' => '4 0 R',
+                'objectNumber' => 41,
+                'memberIndex' => 2,
+                'declaredOffset' => strlen($memberOne),
+                'streamOffset' => strlen($header) + strlen($memberOne),
+                'memberBytes' => strlen($memberTwo),
+                'memberSha256' => hash('sha256', $memberTwo),
+                'valueKind' => 'dictionary',
+                'dictionaryKeys' => ['Contents', 'Subtype', 'Type'],
+                'type' => 'Annot',
+                'subtype' => 'Link',
+                'title' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfObjectStreamMembers']);
+        $t->same(['FlateDecode' => 1], $result['pdfObjectStreamFilters']);
+        $t->contains('pdf-byte-object-streams:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-object-stream-skipped:filtered', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-object-stream-members:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-object-stream-member-dictionaries:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfObjectStreamMembers']);
     },
 
     'fake runner extracts bounded pdf page tree and outline titles from produced bytes' => static function (TestRunner $t) use ($document): void {
