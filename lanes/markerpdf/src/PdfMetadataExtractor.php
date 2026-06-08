@@ -13367,7 +13367,7 @@ final class PdfMetadataExtractor
     private function xmpRdfCollectionItemsHaveValues(array $items): bool
     {
         foreach ($items as $item) {
-            if ($this->xmpQualifiedTextValue($item) !== null) {
+            if ($this->xmpCollectionItemTextValues($item) !== []) {
                 return true;
             }
 
@@ -13425,6 +13425,10 @@ final class PdfMetadataExtractor
      */
     private function xmpRdfResourceWrappedCollectionItems(DOMElement $description): array
     {
+        if ($this->xmpDirectRdfAttributeMembershipValues($description) !== []) {
+            return [$description];
+        }
+
         $directItems = $this->xmpDirectRdfCollectionItems($description);
         if ($this->xmpRdfCollectionItemsHaveValues($directItems)) {
             return $directItems;
@@ -15062,8 +15066,7 @@ final class PdfMetadataExtractor
     {
         $values = [];
         foreach ($this->xmpRdfCollectionItems($element) as $item) {
-            $value = $this->xmpCollectionItemTextValue($item);
-            if ($value !== null) {
+            foreach ($this->xmpCollectionItemTextValues($item) as $value) {
                 $values[] = $value;
             }
         }
@@ -15217,18 +15220,30 @@ final class PdfMetadataExtractor
     {
         $first = null;
         foreach ($this->xmpRdfCollectionItems($element) as $item) {
-            $value = $this->xmpCollectionItemTextValue($item);
-            if ($value === null) {
-                continue;
-            }
-
-            $first ??= $value;
-            if (strcasecmp($this->xmpInheritedXmlLang($item), 'x-default') === 0) {
-                return $value;
+            foreach ($this->xmpCollectionItemTextValues($item) as $value) {
+                $first ??= $value;
+                if (strcasecmp($this->xmpInheritedXmlLang($item), 'x-default') === 0) {
+                    return $value;
+                }
             }
         }
 
         return $first ?? $this->xmpQualifiedTextValue($element);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xmpCollectionItemTextValues(DOMElement $item): array
+    {
+        $attributeMembers = $this->xmpDirectRdfAttributeMembershipValues($item);
+        if ($attributeMembers !== []) {
+            return $attributeMembers;
+        }
+
+        $value = $this->xmpCollectionItemTextValue($item);
+
+        return $value === null ? [] : [$value];
     }
 
     private function xmpCollectionItemTextValue(DOMElement $item): ?string
