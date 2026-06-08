@@ -46885,18 +46885,18 @@ final class PdfTextExtractor
      */
     private function quoteTextShowingOperand(array $operands): ?string
     {
-        if (count($operands) < 3) {
+        if (count($operands) !== 3) {
             return null;
         }
 
-        $operand = $operands[count($operands) - 1];
+        $operand = $operands[2];
         if (!is_string($operand) || !$this->isTextOperand($operand)) {
             return null;
         }
 
         if (
-            $this->numericOperand($operands[count($operands) - 3]) === null
-            || $this->numericOperand($operands[count($operands) - 2]) === null
+            $this->numericOperand($operands[0]) === null
+            || $this->numericOperand($operands[1]) === null
         ) {
             return null;
         }
@@ -47079,11 +47079,11 @@ final class PdfTextExtractor
      */
     private function textRiseOperand(array $operands): ?float
     {
-        if ($operands === []) {
+        if (count($operands) !== 1) {
             return null;
         }
 
-        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 1]));
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[0]));
     }
 
     /**
@@ -47125,11 +47125,11 @@ final class PdfTextExtractor
      */
     private function textCharacterSpacingOperand(array $operands): ?float
     {
-        if ($operands === []) {
+        if (count($operands) !== 1) {
             return null;
         }
 
-        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 1]));
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[0]));
     }
 
     /**
@@ -47137,11 +47137,11 @@ final class PdfTextExtractor
      */
     private function textWordSpacingOperand(array $operands): ?float
     {
-        if ($operands === []) {
+        if (count($operands) !== 1) {
             return null;
         }
 
-        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 1]));
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[0]));
     }
 
     /**

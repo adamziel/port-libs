@@ -663,7 +663,7 @@ final class PdfLinkAnnotationExtractor
             return false;
         }
 
-        $pageReference = $this->referenceValueAfterName($annotationBody, 'P');
+        $pageReference = $this->annotationPageReferenceFromBody($annotationBody);
 
         if ($pageReference === null) {
             return true;
@@ -674,6 +674,21 @@ final class PdfLinkAnnotationExtractor
         }
 
         return $pageGeneration === null || $pageReference['generation'] === $pageGeneration;
+    }
+
+    /**
+     * @return array{object: int, generation: int}|null
+     */
+    private function annotationPageReferenceFromBody(string $annotationBody): ?array
+    {
+        $dictionary = str_starts_with(ltrim($annotationBody), '<<')
+            ? $this->dictionaryObjectBody($annotationBody)
+            : null;
+        $value = $dictionary === null
+            ? $this->dictionaryValueAfterName($annotationBody, 'P')
+            : $this->dictionaryValueAfterName($dictionary, 'P');
+
+        return $value === null ? null : $this->objectReferenceFromValue($value);
     }
 
     private function skipWhitespace(string $value, int &$offset): void

@@ -499,7 +499,6 @@ final class LayoutAnnotator
             if (
                 $marker !== $sourceIndex
                 && $marker !== $pageNumber
-                && $marker !== $pageNumber + 1
             ) {
                 return false;
             }

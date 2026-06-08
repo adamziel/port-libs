@@ -2008,7 +2008,7 @@ final class PdfAnnotationExtractor
             return false;
         }
 
-        $value = $this->valueAfterName($annotationBody, 'P');
+        $value = $this->lastDictionaryRawValue($annotationBody, 'P');
         if ($value !== null && $this->dictionaryValueHasTrailingOperand($annotationBody, 'P')) {
             return false;
         }

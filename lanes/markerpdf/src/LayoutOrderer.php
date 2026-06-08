@@ -812,7 +812,6 @@ final class LayoutOrderer
             if (
                 $marker !== $sourceIndex
                 && $marker !== $pageNumber
-                && $marker !== $pageNumber + 1
             ) {
                 return false;
             }

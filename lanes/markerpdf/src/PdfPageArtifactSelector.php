@@ -1123,7 +1123,7 @@ final class PdfPageArtifactSelector
         foreach ($markers['envelope_page_keys'] ?? [] as $marker) {
             if (
                 $marker !== $sourceIndex
-                && ($pageNumber === null || ($marker !== $pageNumber && $marker !== $pageNumber + 1))
+                && ($pageNumber === null || $marker !== $pageNumber)
             ) {
                 return null;
             }
