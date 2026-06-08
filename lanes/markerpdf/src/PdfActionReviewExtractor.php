@@ -1810,6 +1810,7 @@ final class PdfActionReviewExtractor
             $seen[$key] = true;
 
             $definition = null;
+            $bodyForReferences = null;
             $entry = $entries[$objectNumber] ?? null;
             if ($entry !== null) {
                 if (($entry['type'] ?? null) !== 1 || ($entry['generation'] ?? 0) !== $generation) {
@@ -1826,6 +1827,7 @@ final class PdfActionReviewExtractor
                     && $owner['offset'] < $currentOffset
                 ) {
                     $definition = $owner;
+                    $bodyForReferences = $definition['body'];
                 }
             } else {
                 $definition = $this->currentUpdateDefinitionForXrefEntry(
@@ -1841,19 +1843,155 @@ final class PdfActionReviewExtractor
                         'generation' => $definition['generation'],
                         'offset' => $definition['offset'],
                     ];
+                    $bodyForReferences = $definition['body'];
+                } else {
+                    $compressedMember = $this->currentUpdateObjectStreamMemberEntryForGraphReference(
+                        $objectNumber,
+                        $generation,
+                        $entries,
+                        $definitions,
+                        $previousOffset,
+                        $currentOffset
+                    );
+                    if ($compressedMember !== null) {
+                        $entries[$objectNumber] = $compressedMember['entry'];
+                        $bodyForReferences = $compressedMember['body'];
+                    }
                 }
             }
 
-            if ($definition === null) {
+            if ($bodyForReferences === null) {
                 continue;
             }
 
-            foreach ($this->objectReferencesInBody($definition['body']) as $nestedReference) {
+            foreach ($this->objectReferencesInBody($bodyForReferences) as $nestedReference) {
                 $pending[] = $nestedReference;
             }
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}> $entries
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @return array{entry: array{type: int, object_stream: int, index: int, index_is_explicit: bool}, body: string}|null
+     */
+    private function currentUpdateObjectStreamMemberEntryForGraphReference(
+        int $objectNumber,
+        int $generation,
+        array $entries,
+        array $definitions,
+        int $previousOffset,
+        int $currentOffset
+    ): ?array {
+        if ($objectNumber < 1 || $generation !== 0) {
+            return null;
+        }
+
+        $candidates = [];
+        foreach ($entries as $carrierObjectNumber => $carrierEntry) {
+            if (($carrierEntry['type'] ?? null) !== 1 || !isset($carrierEntry['offset'])) {
+                continue;
+            }
+
+            $carrierOffset = $carrierEntry['offset'];
+            if (!is_int($carrierOffset) || $carrierOffset <= $previousOffset || $carrierOffset >= $currentOffset) {
+                continue;
+            }
+
+            $carrierDefinition = $this->definitionAtOffset($definitions, $carrierOffset);
+            if (
+                $carrierDefinition === null
+                || $carrierDefinition['object'] !== (int) $carrierObjectNumber
+                || $carrierDefinition['generation'] !== ($carrierEntry['generation'] ?? 0)
+            ) {
+                continue;
+            }
+
+            $member = $this->currentUpdateObjectStreamMemberFromCarrier(
+                $carrierDefinition,
+                $objectNumber
+            );
+            if ($member === null) {
+                continue;
+            }
+
+            $candidates[] = [
+                'entry' => [
+                    'type' => 2,
+                    'object_stream' => (int) $carrierObjectNumber,
+                    'index' => $member['index'],
+                    'index_is_explicit' => true,
+                ],
+                'body' => $member['body'],
+            ];
+        }
+
+        return count($candidates) === 1 ? $candidates[0] : null;
+    }
+
+    /**
+     * @param array{object: int, generation: int, body: string, offset: int} $carrierDefinition
+     * @return array{index: int, body: string}|null
+     */
+    private function currentUpdateObjectStreamMemberFromCarrier(array $carrierDefinition, int $objectNumber): ?array
+    {
+        $dictionary = $this->dictionaryItems($this->parseFirstObjectValue($carrierDefinition['body']));
+        if ($dictionary === null || $this->nameValue($dictionary['Type'] ?? null) !== 'ObjStm') {
+            return null;
+        }
+
+        $objects = [
+            $carrierDefinition['object'] => $carrierDefinition,
+        ];
+        $dictionary = $this->objectStreamDictionaryWithResolvedOperands($dictionary, $objects);
+
+        $declaredCount = $this->directIntegerValue($dictionary['N'] ?? null);
+        $firstOffset = $this->directIntegerValue($dictionary['First'] ?? null);
+        if ($declaredCount === null || $declaredCount < 1 || $firstOffset === null || $firstOffset < 0) {
+            return null;
+        }
+
+        $decoded = $this->decodedStreamBytesFromDictionary($carrierDefinition['body'], $dictionary);
+        if ($decoded === null || $firstOffset > strlen($decoded)) {
+            return null;
+        }
+
+        $members = $this->objectStreamHeaderMembers(substr($decoded, 0, $firstOffset), $declaredCount);
+        if ($members === []) {
+            return null;
+        }
+
+        $memberIndexes = [];
+        foreach ($members as $index => $member) {
+            if ($member['object_id'] === $objectNumber) {
+                $memberIndexes[] = $index;
+            }
+        }
+        if (count($memberIndexes) !== 1) {
+            return null;
+        }
+
+        $memberIndex = $memberIndexes[0];
+        $body = $this->objectStreamMemberBody(
+            $objects,
+            [
+                'type' => 2,
+                'object_stream' => $carrierDefinition['object'],
+                'index' => $memberIndex,
+                'index_is_explicit' => true,
+            ],
+            $objectNumber
+        );
+        if ($body === null || trim($body) === '') {
+            return null;
+        }
+
+        return [
+            'index' => $memberIndex,
+            'body' => $body,
+        ];
     }
 
     /**
