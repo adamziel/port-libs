@@ -20290,7 +20290,7 @@ final class PdfMetadataExtractor
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
-                default => $stream,
+                default => null,
             };
             if ($decoded === null) {
                 return null;

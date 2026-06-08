@@ -12,6 +12,9 @@ final class PdfMarkupAnnotationExtractor
     /** @var array<int, array<int, string>> */
     private array $objectBodiesByGeneration = [];
 
+    /** @var array<int, true> */
+    private array $xrefFreeObjectNumbers = [];
+
     /**
      * Native boundary for PDF text-markup review annotations.
      *
@@ -21,6 +24,11 @@ final class PdfMarkupAnnotationExtractor
     {
         $objects = $this->pdfObjects($pdfBytes);
         $this->objectBodiesByGeneration = $this->pdfObjectBodiesByGeneration($pdfBytes);
+        $this->xrefFreeObjectNumbers = PdfXrefFreeObjectMap::freeObjectNumbers($pdfBytes);
+        foreach (array_keys($this->xrefFreeObjectNumbers) as $objectNumber) {
+            unset($objects[$objectNumber], $this->objectBodiesByGeneration[$objectNumber]);
+        }
+
         $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
         $pageObjectReferences = $this->orderedPageObjectReferences($objects);
         $pages = [];
@@ -1468,6 +1476,10 @@ final class PdfMarkupAnnotationExtractor
      */
     private function objectBodyForReference(int $objectNumber, int $generation, array $objects): ?string
     {
+        if (isset($this->xrefFreeObjectNumbers[$objectNumber])) {
+            return null;
+        }
+
         if (array_key_exists($generation, $this->objectBodiesByGeneration[$objectNumber] ?? [])) {
             return $this->objectBodiesByGeneration[$objectNumber][$generation];
         }

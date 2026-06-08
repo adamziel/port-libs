@@ -25834,6 +25834,10 @@ final class PdfTextExtractor
         array $matrix,
         ?array $currentPathPoint
     ): array {
+        if ($currentPathPoint === null) {
+            return [];
+        }
+
         $requiredOperands = $operator === 'c' ? 6 : 4;
         if (count($operands) !== $requiredOperands) {
             return [];
@@ -25848,10 +25852,7 @@ final class PdfTextExtractor
             $numbers[] = $number;
         }
 
-        $points = [];
-        if ($currentPathPoint !== null) {
-            $points[] = $currentPathPoint;
-        }
+        $points = [$currentPathPoint];
 
         if ($operator === 'c') {
             for ($index = 0; $index < 6; $index += 2) {

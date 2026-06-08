@@ -531,6 +531,7 @@ final class PdfOutlineExtractor
      * @return array{
      *     source: list<string>,
      *     outline: list<array<string, mixed>>,
+     *     outline_root_review?: array<string, mixed>,
      *     open_action_review_actions: list<array<string, mixed>>,
      *     outline_action_review_actions: list<array<string, mixed>>,
      *     page_presentations: list<array<string, mixed>>,
@@ -575,10 +576,19 @@ final class PdfOutlineExtractor
         $articleBeadsByPage = $this->articleBeadsByPageIndex($articleThreads);
         $pageReviews = $includePageReview ? (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdfBytes) : [];
         $pageReviewsByPage = $this->pageReviewsByPageIndex($pageReviews);
-        $outlineReviewMetadataByObject = $this->outlineItemDocumentReviewMetadataByObject($pdfBytes);
+        $documentOutlineReviewMetadata = $this->documentOutlineReviewMetadata($pdfBytes);
+        $outlineRootReviewMetadata = $this->outlineRootDocumentReviewMetadata($documentOutlineReviewMetadata);
+        $outlineReviewMetadataByObject = $this->outlineItemDocumentReviewMetadataByObjectFromOutline(
+            $documentOutlineReviewMetadata
+        );
 
         $outlineRoot = $this->catalogOutlineRootDictionary($catalog, $objects);
         if ($outlineRoot !== null) {
+            if ($outlineRootReviewMetadata !== []) {
+                $metadata['source'][] = 'outline_root_review';
+                $metadata['outline_root_review'] = $outlineRootReviewMetadata;
+            }
+
             $outlineRootObject = $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects);
             if ($this->outlineRootAllowsItemTraversal($outlineRoot, $objects, $outlineRootObject)) {
                 foreach ($this->outlineStructureDestinationPageContextItems(
@@ -1170,8 +1180,29 @@ final class PdfOutlineExtractor
      */
     private function outlineItemDocumentReviewMetadataByObject(string $pdfBytes): array
     {
+        return $this->outlineItemDocumentReviewMetadataByObjectFromOutline(
+            $this->documentOutlineReviewMetadata($pdfBytes)
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function documentOutlineReviewMetadata(string $pdfBytes): array
+    {
         $documentMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
-        $items = $documentMetadata['document_outline']['items'] ?? null;
+        $outline = $documentMetadata['document_outline'] ?? null;
+
+        return is_array($outline) ? $outline : [];
+    }
+
+    /**
+     * @param array<string, mixed> $documentOutline
+     * @return array<int, array<string, mixed>>
+     */
+    private function outlineItemDocumentReviewMetadataByObjectFromOutline(array $documentOutline): array
+    {
+        $items = $documentOutline['items'] ?? null;
         if (!is_array($items)) {
             return [];
         }
@@ -1207,6 +1238,50 @@ final class PdfOutlineExtractor
         }
 
         return $byObject;
+    }
+
+    /**
+     * Root `/Outlines /Metadata` is document-level navigation review metadata,
+     * not an item row. Carry only the already redacted boundary summary.
+     *
+     * @param array<string, mixed> $outline
+     * @return array<string, mixed>
+     */
+    private function outlineRootDocumentReviewMetadata(array $outline): array
+    {
+        if (!is_array($outline['metadata_stream_review'] ?? null)) {
+            return [];
+        }
+
+        $context = [];
+        foreach ([
+            'outline_root_object',
+            'first_item_object',
+            'last_item_object',
+            'has_children',
+            'outline_count',
+            'declared_visible_count',
+            'descendant_count',
+            'is_open',
+            'is_collapsed',
+            'structure_state',
+            'metadata_stream_review',
+        ] as $key) {
+            if (array_key_exists($key, $outline)) {
+                $context[$key] = $outline[$key];
+            }
+        }
+
+        if ($context === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'outline_root_review',
+            'review_only' => true,
+            'payload_included' => false,
+            'visible_text_source' => false,
+        ] + $context;
     }
 
     /**
