@@ -314,6 +314,9 @@ final class PdfActionReviewExtractor
 
         $resolved = $this->resolveValue($value);
         $array = $this->arrayItems($resolved);
+        if ($array !== null && $this->objectValueHasTrailingOperand($resolved)) {
+            return [];
+        }
         if ($array !== null) {
             $actions = [];
             foreach ($array as $item) {
@@ -343,7 +346,12 @@ final class PdfActionReviewExtractor
 
         $malformedValueKeys = $this->dictionaryMalformedValueOperandKeySet($resolved);
         $type = $this->nameValue($this->resolveValue($dict['S'] ?? null));
-        if ($this->resolvedDictionaryHasDuplicateKeys($resolved, ['S']) || isset($malformedValueKeys['S'])) {
+        $hasObjectTrailingOperand = $this->objectValueHasTrailingOperand($resolved);
+        if (
+            $hasObjectTrailingOperand
+            || $this->resolvedDictionaryHasDuplicateKeys($resolved, ['S'])
+            || isset($malformedValueKeys['S'])
+        ) {
             $action = $this->reviewAction($type ?? 'unknown', 'malformed-action-dictionary', null, null, null, [], [], null, null, null, null);
         } else {
             $action = $this->reviewActionFromDictionary($dict, $value, $type);
@@ -358,6 +366,7 @@ final class PdfActionReviewExtractor
                 $action['action_object'] = $actionObject;
                 $action['action_generation'] = $actionReference['generation'] ?? 0;
             }
+            $action += $this->objectTrailingOperandReviewFields($resolved, 'action_object_trailing_operands');
             $action += $this->duplicateKeyReviewFields($resolved, 'action_dictionary_duplicate_keys');
             $action += $this->malformedValueOperandReviewFields($resolved, 'action_dictionary_malformed_value_operands');
             if ($depth > 0) {
@@ -367,7 +376,7 @@ final class PdfActionReviewExtractor
             $actions[] = $action;
         }
 
-        if (array_key_exists('Next', $dict) && !isset($malformedValueKeys['Next'])) {
+        if (!$hasObjectTrailingOperand && array_key_exists('Next', $dict) && !isset($malformedValueKeys['Next'])) {
             foreach ($this->reviewActionsFromValue($dict['Next'], $seen, $depth + 1) as $nextAction) {
                 $nextAction['chained'] = true;
                 $nextAction['chain_index'] = $nextAction['chain_index'] ?? ($depth + 1);
@@ -387,7 +396,7 @@ final class PdfActionReviewExtractor
         $malformedValueKeys = $this->dictionaryMalformedValueOperandKeySet($this->resolveValue($originalValue));
 
         if ($type === 'GoTo' && array_key_exists('D', $action)) {
-            if (isset($malformedValueKeys['D'])) {
+            if (isset($malformedValueKeys['D']) || $this->objectValueHasTrailingOperand($this->resolveValue($action['D']))) {
                 return $this->malformedActionDictionaryReview('GoTo');
             }
 
@@ -395,7 +404,7 @@ final class PdfActionReviewExtractor
         }
 
         if ($type === 'URI') {
-            if (isset($malformedValueKeys['URI'])) {
+            if (isset($malformedValueKeys['URI']) || $this->objectValueHasTrailingOperand($this->resolveValue($action['URI'] ?? null))) {
                 return $this->malformedActionDictionaryReview('URI');
             }
 
@@ -429,7 +438,12 @@ final class PdfActionReviewExtractor
         }
 
         if ($type === 'GoToR') {
-            if (isset($malformedValueKeys['F']) || isset($malformedValueKeys['D'])) {
+            if (
+                isset($malformedValueKeys['F'])
+                || isset($malformedValueKeys['D'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['F'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['D'] ?? null))
+            ) {
                 return $this->malformedActionDictionaryReview('GoToR');
             }
 
@@ -455,7 +469,12 @@ final class PdfActionReviewExtractor
         }
 
         if ($type === 'Launch') {
-            if (isset($malformedValueKeys['F']) || isset($malformedValueKeys['Win'])) {
+            if (
+                isset($malformedValueKeys['F'])
+                || isset($malformedValueKeys['Win'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['F'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Win'] ?? null))
+            ) {
                 return $this->malformedActionDictionaryReview('Launch');
             }
 
@@ -495,7 +514,7 @@ final class PdfActionReviewExtractor
         }
 
         if ($type === 'Named') {
-            if (isset($malformedValueKeys['N'])) {
+            if (isset($malformedValueKeys['N']) || $this->objectValueHasTrailingOperand($this->resolveValue($action['N'] ?? null))) {
                 return $this->malformedActionDictionaryReview('Named');
             }
 
@@ -503,7 +522,7 @@ final class PdfActionReviewExtractor
         }
 
         if ($type === 'ImportData') {
-            if (isset($malformedValueKeys['F'])) {
+            if (isset($malformedValueKeys['F']) || $this->objectValueHasTrailingOperand($this->resolveValue($action['F'] ?? null))) {
                 return $this->malformedActionDictionaryReview('ImportData');
             }
 
@@ -511,7 +530,12 @@ final class PdfActionReviewExtractor
         }
 
         if ($type === 'Hide') {
-            if (isset($malformedValueKeys['T']) || isset($malformedValueKeys['H'])) {
+            if (
+                isset($malformedValueKeys['T'])
+                || isset($malformedValueKeys['H'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['T'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['H'] ?? null))
+            ) {
                 return $this->malformedActionDictionaryReview('Hide');
             }
 
@@ -523,6 +547,9 @@ final class PdfActionReviewExtractor
                 isset($malformedValueKeys['Fields'])
                 || isset($malformedValueKeys['Flags'])
                 || ($type === 'SubmitForm' && isset($malformedValueKeys['F']))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Fields'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Flags'] ?? null))
+                || ($type === 'SubmitForm' && $this->objectValueHasTrailingOperand($this->resolveValue($action['F'] ?? null)))
             ) {
                 return $this->malformedActionDictionaryReview($type);
             }
@@ -745,6 +772,10 @@ final class PdfActionReviewExtractor
     private function remoteDestinationValue(mixed $value): ?array
     {
         $resolved = $this->resolveValue($value);
+        if ($this->objectValueHasTrailingOperand($resolved)) {
+            return null;
+        }
+
         $name = $this->stringOrNameValue($resolved);
         if ($name !== null) {
             return [
@@ -807,6 +838,10 @@ final class PdfActionReviewExtractor
     private function fileSpecValue(mixed $value): ?string
     {
         $resolved = $this->resolveValue($value);
+        if ($this->objectValueHasTrailingOperand($resolved)) {
+            return null;
+        }
+
         $file = $this->stringOrNameValue($resolved);
         if ($file !== null && $file !== '') {
             return $file;
@@ -1016,6 +1051,10 @@ final class PdfActionReviewExtractor
         }
 
         $resolved = $this->resolveValue($destination);
+        if ($this->objectValueHasTrailingOperand($resolved)) {
+            return null;
+        }
+
         $name = $this->stringOrNameValue($resolved);
         if ($name !== null) {
             if (isset($seenNames[$name]) || !array_key_exists($name, $this->destinations)) {
@@ -1128,6 +1167,10 @@ final class PdfActionReviewExtractor
         }
 
         $resolved = $this->resolveValue($value);
+        if ($this->objectValueHasTrailingOperand($resolved)) {
+            return false;
+        }
+
         if ($this->stringOrNameValue($resolved) !== null) {
             return true;
         }
@@ -1277,13 +1320,15 @@ final class PdfActionReviewExtractor
                 continue;
             }
 
-            $tokens = $this->tokens($this->firstObjectValue(trim($definition['body'])));
+            $definitionBody = trim($definition['body']);
+            $tokens = $this->tokens($this->firstObjectValue($definitionBody));
             if ($tokens === []) {
                 continue;
             }
 
             $index = 0;
             $value = $this->parseValue($tokens, $index);
+            $value = $this->valueWithObjectTrailingOperandReview($value, $definitionBody);
             $generation = $definition['generation'];
             $this->objectsByGeneration[$objectNumber][$generation] = $value;
             $values[$objectNumber] = $value;
@@ -2847,6 +2892,164 @@ final class PdfActionReviewExtractor
             'malformed_action_operand_review' => $review,
             'malformed_action_operand_keys' => $review['keys'],
         ];
+    }
+
+    /**
+     * @return array{object_trailing_operand_review?: array<string, mixed>}
+     */
+    private function objectTrailingOperandReviewFields(mixed $value, string $source): array
+    {
+        if (
+            !is_array($value)
+            || !is_array($value['objectTrailingOperandReview'] ?? null)
+        ) {
+            return [];
+        }
+
+        $review = $value['objectTrailingOperandReview'];
+        $review['source'] = $source;
+
+        return ['object_trailing_operand_review' => $review];
+    }
+
+    private function objectValueHasTrailingOperand(mixed $value): bool
+    {
+        return is_array($value) && is_array($value['objectTrailingOperandReview'] ?? null);
+    }
+
+    private function valueWithObjectTrailingOperandReview(mixed $value, string $objectBody): mixed
+    {
+        if (!is_array($value) || !$this->objectBodyHasTrailingOperand($objectBody)) {
+            return $value;
+        }
+
+        $value['objectTrailingOperandReview'] = [
+            'source' => 'object_trailing_operands',
+            'review_only' => true,
+            'payload_included' => false,
+            'visible_text_source' => false,
+            'selected_value_policy' => 'reject_indirect_object_for_action_or_destination',
+        ];
+
+        return $value;
+    }
+
+    private function objectBodyHasTrailingOperand(string $body): bool
+    {
+        $body = trim($body);
+        if ($body === '') {
+            return false;
+        }
+
+        $endOffset = $this->firstObjectValueEndOffset($body);
+        if ($endOffset === null || $endOffset <= 0) {
+            return false;
+        }
+
+        $tailOffset = $endOffset;
+        $this->skipPdfWhitespaceAndCommentsAt($body, $tailOffset);
+        if ($tailOffset >= strlen($body)) {
+            return false;
+        }
+
+        if (str_starts_with($body, '<<') && $this->pdfKeywordAt($body, $tailOffset, 'stream')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function firstObjectValueEndOffset(string $body): ?int
+    {
+        $offset = 0;
+        $this->skipPdfWhitespaceAndCommentsAt($body, $offset);
+        if ($offset >= strlen($body)) {
+            return null;
+        }
+
+        if (substr($body, $offset, 2) === '<<') {
+            return $this->dictionaryEndOffset($body, $offset);
+        }
+
+        if (($body[$offset] ?? '') === '[') {
+            return $this->arrayEndOffset($body, $offset);
+        }
+
+        if (($body[$offset] ?? '') === '(') {
+            $cursor = $offset;
+            $this->readLiteralToken($body, $cursor);
+
+            return $cursor;
+        }
+
+        if (($body[$offset] ?? '') === '<') {
+            $cursor = $offset;
+            $this->readHexToken($body, $cursor);
+
+            return $cursor;
+        }
+
+        if (($body[$offset] ?? '') === '/') {
+            $cursor = $offset + 1;
+            while ($cursor < strlen($body) && !$this->isDelimiter($body[$cursor])) {
+                $cursor++;
+            }
+
+            return $cursor;
+        }
+
+        if (preg_match('/\G[+-]?\d+/s', $body, $firstInteger, 0, $offset) === 1) {
+            $cursor = $offset + strlen($firstInteger[0]);
+            $afterFirstInteger = $cursor;
+            $this->skipPdfWhitespaceAndCommentsAt($body, $cursor);
+            if (
+                $cursor > $afterFirstInteger
+                && preg_match('/\G[+-]?\d+/s', $body, $secondInteger, 0, $cursor) === 1
+            ) {
+                $cursor += strlen($secondInteger[0]);
+                $afterSecondInteger = $cursor;
+                $this->skipPdfWhitespaceAndCommentsAt($body, $cursor);
+                if (
+                    $cursor > $afterSecondInteger
+                    && ($body[$cursor] ?? '') === 'R'
+                    && $this->tokenBoundaryAfterOffset($body, $cursor + 1)
+                ) {
+                    return $cursor + 1;
+                }
+            }
+        }
+
+        $cursor = $offset;
+        while ($cursor < strlen($body) && !$this->isDelimiter($body[$cursor])) {
+            $cursor++;
+        }
+
+        return $cursor > $offset ? $cursor : null;
+    }
+
+    private function tokenBoundaryAfterOffset(string $body, int $offset): bool
+    {
+        $next = $body[$offset] ?? '';
+
+        return $next === '' || $this->isDelimiter($next);
+    }
+
+    private function skipPdfWhitespaceAndCommentsAt(string $body, int &$offset): void
+    {
+        $length = strlen($body);
+        while ($offset < $length) {
+            while ($offset < $length && ctype_space($body[$offset])) {
+                $offset++;
+            }
+
+            if (($body[$offset] ?? '') !== '%') {
+                return;
+            }
+
+            while ($offset < $length && $body[$offset] !== "\n" && $body[$offset] !== "\r") {
+                $offset++;
+            }
+        }
     }
 
     /**
