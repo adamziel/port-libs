@@ -42,7 +42,12 @@ if (
     || ($review['uninvoked_image_xobject_count'] ?? 0) !== 1
     || ($entriesByName['Malformed Image']['invoked'] ?? true) !== false
     || ($entriesByName['Malformed Image']['invocation_count'] ?? null) !== 0
+    || ($entriesByName['Malformed Image']['malformed_do_operand_count'] ?? null) !== 1
+    || ($entriesByName['Malformed Image']['malformed_do_operand_policy'] ?? null) !== 'reject_malformed_image_xobject_do_operands'
+    || ($entriesByName['Malformed Image']['malformed_do_operands'][0]['reason'] ?? null) !== 'extra_do_operands'
+    || ($entriesByName['Malformed Image']['malformed_do_operands'][0]['operand_types'] ?? null) !== ['number', 'name']
     || ($entriesByName['Valid Image']['invoked'] ?? false) !== true
+    || ($entriesByName['Valid Image']['malformed_do_operand_count'] ?? null) !== 0
     || ($entriesByName['Valid Image']['decoded_sha256'] ?? null) !== hash('sha256', $validPayload)
     || str_contains($plainText, 'WordPress Malformed Do Image Payload Noise')
     || str_contains($plainText, 'WordPress Valid Do Image Payload Noise')
@@ -59,6 +64,10 @@ $metadata = [
     'invoked_image_xobject_count' => $review['invoked_image_xobject_count'],
     'uninvoked_image_xobject_count' => $review['uninvoked_image_xobject_count'],
     'malformed_extra_operand_unpainted' => ($entriesByName['Malformed Image']['invoked'] ?? true) === false,
+    'malformed_do_operand_count' => $entriesByName['Malformed Image']['malformed_do_operand_count'] ?? null,
+    'malformed_do_operand_policy' => $entriesByName['Malformed Image']['malformed_do_operand_policy'] ?? null,
+    'malformed_do_operand_reason' => $entriesByName['Malformed Image']['malformed_do_operands'][0]['reason'] ?? null,
+    'malformed_do_operand_types' => $entriesByName['Malformed Image']['malformed_do_operands'][0]['operand_types'] ?? null,
     'valid_sibling_image_painted' => ($entriesByName['Valid Image']['invoked'] ?? false) === true,
     'valid_sibling_bbox' => $entriesByName['Valid Image']['image_unit_bbox'] ?? null,
     'payload_in_visible_text' => str_contains($plainText, 'WordPress Malformed Do Image Payload Noise')

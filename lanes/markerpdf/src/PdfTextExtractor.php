@@ -5064,12 +5064,14 @@ final class PdfTextExtractor
         string $content,
         array $baseStates = [],
         array $graphicsStateResourceReviews = [],
-        array $markedContentProperties = []
+        array $markedContentProperties = [],
+        ?array &$malformedInvocationDetails = null
     ): array
     {
         $currentStates = $this->normalizedInvocationBaseStates($baseStates);
         $graphicsStateStack = [];
         $invocations = [];
+        $malformedInvocations = [];
         $operands = [];
         $insideTextObject = false;
         $compatibilityDepth = 0;
@@ -5244,6 +5246,11 @@ final class PdfTextExtractor
                             $invocations[$resourceName][array_key_last($invocations[$resourceName])]['graphics_state'] = $reviewGraphicsState;
                         }
                     }
+                } else {
+                    $malformed = $this->malformedXObjectDoOperandDetail($operands, $currentStates);
+                    if ($malformed !== null) {
+                        $malformedInvocations[$malformed['resource_name']][] = $malformed['detail'];
+                    }
                 }
                 $operands = [];
                 continue;
@@ -5252,7 +5259,252 @@ final class PdfTextExtractor
             $operands = [];
         }
 
+        if ($malformedInvocationDetails !== null) {
+            $malformedInvocationDetails = $malformedInvocations;
+        }
+
         return $invocations;
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param list<array<string, mixed>> $currentStates
+     * @return array{resource_name: string, detail: array<string, mixed>}|null
+     */
+    private function malformedXObjectDoOperandDetail(array $operands, array $currentStates): ?array
+    {
+        if (count($operands) <= 1) {
+            return null;
+        }
+
+        $nameIndexes = [];
+        $nameOperands = [];
+        $resourceNames = [];
+        foreach ($operands as $index => $operand) {
+            if (!is_string($operand) || !str_starts_with($operand, '/')) {
+                continue;
+            }
+
+            $nameIndexes[] = $index;
+            $resourceName = $this->decodePdfName(substr($operand, 1));
+            $nameOperands[] = '/' . $resourceName;
+            $resourceNames[] = $resourceName;
+        }
+
+        if (count($resourceNames) !== 1 || $resourceNames[0] === '') {
+            return null;
+        }
+
+        $matrices = [];
+        $bboxes = [];
+        $clipBboxes = [];
+        $visibleBboxes = [];
+        foreach ($currentStates as $state) {
+            $matrix = $state['matrix'] ?? null;
+            if (!is_array($matrix) || count($matrix) < 6) {
+                continue;
+            }
+
+            $normalizedMatrix = $this->normalizedPdfReviewNumbers(array_slice($matrix, 0, 6));
+            $bbox = $this->imageUnitBboxForMatrix($normalizedMatrix);
+            $clipBbox = $this->normalizedPdfRectangleOrNull($state['clip_bbox'] ?? null);
+            $visibleBbox = $this->visibleImageInvocationBbox($bbox, $clipBbox);
+
+            $matrices[] = $normalizedMatrix;
+            $bboxes[] = $bbox;
+            if ($clipBbox !== null) {
+                $clipBboxes[] = $clipBbox;
+            }
+            if ($visibleBbox !== null) {
+                $visibleBboxes[] = $visibleBbox;
+            }
+        }
+
+        return [
+            'resource_name' => $resourceNames[0],
+            'detail' => [
+                'reason' => 'extra_do_operands',
+                'operator' => 'Do',
+                'expected_operand_count' => 1,
+                'operand_count' => count($operands),
+                'resource_operand_index' => $nameIndexes[0],
+                'name_operands' => $nameOperands,
+                'resource_names' => $resourceNames,
+                'operand_types' => array_map(
+                    fn (string $operand): string => $this->contentOperandReviewType($operand),
+                    $operands
+                ),
+                'operand_previews' => array_map(
+                    fn (string $operand): string => $this->contentOperandPreview($operand),
+                    $operands
+                ),
+                'matrices' => $matrices,
+                'bboxes' => $bboxes,
+                'clip_bboxes' => $clipBboxes,
+                'visible_bboxes' => $visibleBboxes,
+                'paints_image' => false,
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     * @return list<array<string, mixed>>
+     */
+    private function imageXObjectMalformedDoOperandReviews(array $details): array
+    {
+        $reviews = [];
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $matrices = $this->normalizedPdfMatrixList($detail['matrices'] ?? []);
+            $bboxes = $this->normalizedPdfRectangleList($detail['bboxes'] ?? []);
+            $clipBboxes = $this->normalizedPdfRectangleList($detail['clip_bboxes'] ?? []);
+            $visibleBboxes = $this->normalizedPdfRectangleList($detail['visible_bboxes'] ?? []);
+
+            $reviews[] = [
+                'reason' => is_string($detail['reason'] ?? null) ? $detail['reason'] : 'malformed_do_operand',
+                'operator' => 'Do',
+                'expected_operand_count' => 1,
+                'operand_count' => is_int($detail['operand_count'] ?? null) ? $detail['operand_count'] : 0,
+                'resource_operand_index' => is_int($detail['resource_operand_index'] ?? null)
+                    ? $detail['resource_operand_index']
+                    : null,
+                'name_operands' => $this->stringList($detail['name_operands'] ?? []),
+                'resource_names' => $this->stringList($detail['resource_names'] ?? []),
+                'operand_types' => $this->stringList($detail['operand_types'] ?? []),
+                'operand_previews' => $this->stringList($detail['operand_previews'] ?? []),
+                'matrices' => $matrices,
+                'bboxes' => $bboxes,
+                'clip_bboxes' => $clipBboxes,
+                'visible_bboxes' => $visibleBboxes,
+                'paints_image' => false,
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        return $reviews;
+    }
+
+    private function contentOperandReviewType(string $operand): string
+    {
+        $trimmed = trim($operand);
+        if ($trimmed === '') {
+            return 'empty';
+        }
+
+        if ($trimmed === 'null') {
+            return 'null';
+        }
+
+        if ($trimmed === 'true' || $trimmed === 'false') {
+            return 'boolean';
+        }
+
+        if (str_starts_with($trimmed, '/')) {
+            return 'name';
+        }
+
+        if (str_starts_with($trimmed, '<<')) {
+            return 'dictionary';
+        }
+
+        if (str_starts_with($trimmed, '[')) {
+            return 'array';
+        }
+
+        if (str_starts_with($trimmed, '(')) {
+            return 'literal';
+        }
+
+        if (str_starts_with($trimmed, '<')) {
+            return 'hex_string';
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $trimmed) === 1) {
+            return 'number';
+        }
+
+        return 'bareword';
+    }
+
+    private function contentOperandPreview(string $operand): string
+    {
+        $preview = trim((string) preg_replace('/\s+/', ' ', $operand));
+
+        return strlen($preview) > 80 ? substr($preview, 0, 77) . '...' : $preview;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($values as $value) {
+            if (is_string($value)) {
+                $strings[] = $value;
+            }
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @return list<list<float>>
+     */
+    private function normalizedPdfMatrixList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($values as $value) {
+            if (!is_array($value) || count($value) < 6) {
+                continue;
+            }
+
+            $numbers = [];
+            foreach (array_slice($value, 0, 6) as $number) {
+                if (!is_int($number) && !is_float($number)) {
+                    continue 2;
+                }
+                $numbers[] = (float) $number;
+            }
+            $normalized[] = $this->normalizedPdfReviewNumbers($numbers);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<list<float>>
+     */
+    private function normalizedPdfRectangleList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($values as $value) {
+            $rectangle = $this->normalizedPdfRectangleOrNull($value);
+            if ($rectangle !== null) {
+                $normalized[] = $rectangle;
+            }
+        }
+
+        return $normalized;
     }
 
     /**
@@ -6908,15 +7160,21 @@ final class PdfTextExtractor
         $graphicsStateResourceReviews = $this->extGStateResourceReviews($resourceOwnerBody, $objects);
         $markedContentProperties = $this->markedContentPropertiesFromResourceOwnerBody($resourceOwnerBody, $objects);
         $invocations = [];
+        $malformedInvocations = [];
         $patternPaints = [];
         foreach ($decodedContents as $content) {
+            $contentMalformedInvocations = [];
             foreach ($this->contentXObjectInvocationDetails(
                 $content,
                 $ownerInvocationMatrices,
                 $graphicsStateResourceReviews,
-                $markedContentProperties
+                $markedContentProperties,
+                $contentMalformedInvocations
             ) as $resourceName => $details) {
                 $invocations[$resourceName] = array_merge($invocations[$resourceName] ?? [], $details);
+            }
+            foreach ($contentMalformedInvocations as $resourceName => $details) {
+                $malformedInvocations[$resourceName] = array_merge($malformedInvocations[$resourceName] ?? [], $details);
             }
             foreach ($this->contentPatternPaintInvocationDetails(
                 $content,
@@ -6940,6 +7198,10 @@ final class PdfTextExtractor
             $effectiveInvocationDetails = $localInvocationDetails !== [] && $optionalContentVisible
                 ? $localInvocationDetails
                 : [];
+            $localMalformedInvocationDetails = $malformedInvocations[$resourceName] ?? [];
+            $effectiveMalformedInvocationDetails = $localMalformedInvocationDetails !== [] && $optionalContentVisible
+                ? $localMalformedInvocationDetails
+                : [];
             $entryResourcePath = [...$resourcePath, $resourceName];
             $entry = $this->imageXObjectBoundaryEntry(
                 $pageIndex,
@@ -6947,6 +7209,7 @@ final class PdfTextExtractor
                 $resourceName,
                 $objectNumber,
                 $effectiveInvocationDetails,
+                $effectiveMalformedInvocationDetails,
                 $objects,
                 $entryResourcePath,
                 $parentFormObjectNumber,
@@ -7219,6 +7482,7 @@ final class PdfTextExtractor
         string $resourceName,
         int $objectNumber,
         array $invocationDetails,
+        array $malformedInvocationDetails,
         array $objects,
         array $resourcePath = [],
         ?int $parentFormObjectNumber = null,
@@ -7515,6 +7779,7 @@ final class PdfTextExtractor
             $objects,
             $filters
         );
+        $malformedDoOperands = $this->imageXObjectMalformedDoOperandReviews($malformedInvocationDetails);
 
         return [
             'page_index' => $pageIndex,
@@ -7563,6 +7828,12 @@ final class PdfTextExtractor
             'geometry_paint_suppression_reasons' => array_keys($geometryPaintSuppressionReasons),
             'invocation_marked_content' => $invocationMarkedContent,
             'marked_content_review_only' => $invocationMarkedContent !== [],
+            'malformed_do_operand_count' => count($malformedDoOperands),
+            'malformed_do_operands' => $malformedDoOperands,
+            'malformed_do_operand_policy' => $malformedDoOperands === []
+                ? null
+                : 'reject_malformed_image_xobject_do_operands',
+            'malformed_do_operand_review_only' => $malformedDoOperands !== [],
             'invocation_form_transparency_groups' => $invocationFormTransparencyGroups,
             'form_transparency_group_review_only' => $invocationFormTransparencyGroups !== [],
             'form_transparency_group_count' => $formTransparencyGroupCount,
