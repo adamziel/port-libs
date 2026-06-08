@@ -1519,6 +1519,28 @@ HTML);
         exit(1);
     }
 
+    $breakablePartialSummary = (new DocTemplate())->renderWrapped(
+        'Summary: $~$${ components/review-summary() }$~$',
+        [],
+        22,
+        ['components/review-summary' => 'media links layout status'],
+    );
+    if ($breakablePartialSummary !== "Summary: media links\nlayout status") {
+        fwrite(STDERR, "Unexpected doctemplate inherited breakable partial output\n");
+        exit(1);
+    }
+
+    $nowrapBreakablePartialSummary = (new DocTemplate())->renderWrapped(
+        'Summary: $~$${ components/review-summary()/nowrap }$~$',
+        [],
+        22,
+        ['components/review-summary' => 'media links layout status'],
+    );
+    if ($nowrapBreakablePartialSummary !== 'Summary: media links layout status') {
+        fwrite(STDERR, "Unexpected doctemplate nowrap inherited breakable partial output\n");
+        exit(1);
+    }
+
     $pipedVariableSources = (new DocTemplate())->render('Sources: $reviewSources/uppercase[ / ]$', $context);
     if ($pipedVariableSources !== 'Sources: MEDIA / LINKS / LAYOUT') {
         fwrite(STDERR, "Missing expected doctemplate piped variable separator output\n");

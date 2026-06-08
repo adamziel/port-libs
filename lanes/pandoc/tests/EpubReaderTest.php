@@ -1688,8 +1688,35 @@ XML;
 
         $t->same('Empty reviewer list', $ncx['navLists'][1]['title']);
         $t->same(0, $ncx['navLists'][1]['itemCount']);
-        $t->same(1, $result['navigation']['ncxCount']);
-        $t->same(4, $result['navigation']['mappedSpineTargetCount']);
+        $navigation = $result['navigation'];
+        $t->same(1, $navigation['ncxCount']);
+        $t->same(4, $navigation['mappedSpineTargetCount']);
+        $t->same(2, $navigation['ncxNavListCount']);
+        $t->same(3, $navigation['ncxNavListTargetCount']);
+        $t->same(3, $navigation['supplementalTargetCount']);
+        $t->same(1, $navigation['supplementalMappedSpineTargetCount']);
+        $t->same(1, $navigation['supplementalExternalTargetCount']);
+        $t->same(1, $navigation['supplementalMissingTargetCount']);
+        $t->same(0, $navigation['supplementalOutsideSpineTargetCount']);
+
+        $supplemental = $navigation['supplementalItems'];
+        $t->same('ncx-nav-list', $supplemental[0]['source']);
+        $t->same('review-nav-list', $supplemental[0]['listId']);
+        $t->same('Reviewer reference list', $supplemental[0]['listTitle']);
+        $t->same('glossary-target', $supplemental[0]['id']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $supplemental[0]['target']);
+        $t->same(1, $supplemental[0]['spineIndex']);
+        $t->same('chapter-2', $supplemental[0]['spineIdref']);
+        $t->same(true, $supplemental[0]['supplemental']);
+        $t->same('remote-target', $supplemental[1]['id']);
+        $t->same(true, $supplemental[1]['external']);
+        $t->same('missing-target', $supplemental[2]['id']);
+        $t->same(false, $supplemental[2]['exists']);
+        $t->same('external-navigation-target', $navigation['supplementalDiagnostics'][0]['type']);
+        $t->same('ncx-nav-list', $navigation['supplementalDiagnostics'][0]['source']);
+        $t->same('missing-navigation-target', $navigation['supplementalDiagnostics'][1]['type']);
+        $t->same($navigation, $result['importReport']['navigation']);
+        $t->same($navigation, $result['document']->attr('navigation'));
     },
     'preserves EPUB3 nav section and item provenance for review handoff' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $navWithProvenance = <<<'XML'

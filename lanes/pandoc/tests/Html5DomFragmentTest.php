@@ -538,6 +538,56 @@ return [
         $t->true(!str_contains($html, 'Submission value'), 'Expected option label to take precedence over child submission text');
         $t->true(!str_contains($html, 'private'), 'Expected option value to stay hidden from review text');
     },
+    'converts datalist suggestions into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<datalist id="topics" data-pandoc-datalist-options="source-spoof">'
+            . '<base href="https://inactive.example/assets/">'
+            . '<option label="WordPress import" value="wp"></option>'
+            . '<option>Legacy CMS</option>'
+            . '<option label="bad<tag" value="bad"></option>'
+            . '<option value="private-token"></option>'
+            . '<option label="WordPress import"></option>'
+            . '</datalist>'
+            . '<base href="https://source.example.test/import/posts/post.html">'
+            . '<a href="./after.html">after</a>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/datalist-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $diagnosticCounts = array_count_values($fragment->diagnosticCodes());
+
+        $expected = '<span data-pandoc-datalist-id="topics" data-pandoc-datalist-options="WordPress import | Legacy CMS">Datalist suggestions: WordPress import; Legacy CMS</span>'
+            . '<a href="https://source.example.test/import/posts/after.html">after</a>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Datalist suggestions: WordPress import; Legacy CMSafter', $fragment->textContent());
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(['a', 'span'], $summary['elementNames']);
+        $t->same(['base', 'datalist', 'option'], $summary['blockedTags']);
+        $t->same(['data-pandoc-datalist-options', 'id', 'label'], $summary['filteredAttributes']);
+        $t->same(13, $summary['diagnostics']);
+        $t->same(1, $diagnosticCounts['libxml-repair'] ?? 0);
+        $t->same(8, $diagnosticCounts['blocked-tag'] ?? 0);
+        $t->same(2, $diagnosticCounts['unsafe-attribute'] ?? 0);
+        $t->same(2, $diagnosticCounts['datalist-review'] ?? 0);
+        $t->same('span', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-datalist-id' => 'topics',
+            'data-pandoc-datalist-options' => 'WordPress import | Legacy CMS',
+        ], $nodes[0]['attrs']);
+        $t->same('Datalist suggestions: WordPress import; Legacy CMS', $nodes[0]['children'][0]['text']);
+        $t->same('a', $nodes[1]['name']);
+        $t->same('/migration/datalist-review.html', $document->children[0]->attr('part'));
+        foreach (['<datalist', '<option', '<base', 'value=', 'private-token', 'source-spoof', 'bad&lt;tag', 'bad<tag', 'inactive.example'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected datalist handoff to strip live or unsafe source content: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to strip live or unsafe source content: ' . $blocked);
+        }
+    },
     'preserves explicit input button labels as reviewer text while dropping controls' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<form action="/submit">'

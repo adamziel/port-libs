@@ -689,6 +689,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['navigation']['targetCount'] ?? null) !== 5 || ($result['navigation']['mappedSpineTargetCount'] ?? null) !== 3) {
         throw new RuntimeException('Expected EPUB nav/NCX targets to reconcile with resolved spine coverage');
     }
+    if (($result['navigation']['ncxNavListCount'] ?? null) !== 1 || ($result['navigation']['ncxNavListTargetCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB navigation report to summarize supplemental NCX navList targets');
+    }
+    if (($result['navigation']['supplementalMappedSpineTargetCount'] ?? null) !== 1 || ($result['navigation']['supplementalExternalTargetCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected supplemental NCX navList targets to keep local and remote review links separate');
+    }
+    if (($result['document']->attr('navigation')['supplementalItems'][0]['listId'] ?? null) !== 'review-references') {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose supplemental NCX navList provenance');
+    }
     if (($result['navigation']['cfiTargetCount'] ?? null) !== 1 || ($result['document']->attr('navigation')['cfiTargets'][0]['fragmentKind'] ?? null) !== 'epub-cfi') {
         throw new RuntimeException('Expected EPUB navigation report to summarize CFI targets');
     }
@@ -1577,6 +1586,9 @@ echo 'ncxNavListFirstTarget=' . ($result['ncx']['navLists'][0]['items'][0]['targ
 echo 'ncxNavListDiagnostics=' . count($result['ncx']['navListDiagnostics'] ?? []) . "\n";
 echo 'navigationTargets=' . ($result['navigation']['targetCount'] ?? 0) . "\n";
 echo 'navigationMappedTargets=' . ($result['navigation']['mappedSpineTargetCount'] ?? 0) . "\n";
+echo 'navigationNcxNavListTargets=' . ($result['navigation']['ncxNavListTargetCount'] ?? 0) . "\n";
+echo 'navigationSupplementalMappedTargets=' . ($result['navigation']['supplementalMappedSpineTargetCount'] ?? 0) . "\n";
+echo 'navigationSupplementalExternalTargets=' . ($result['navigation']['supplementalExternalTargetCount'] ?? 0) . "\n";
 echo 'navigationCfiTargets=' . ($result['navigation']['cfiTargetCount'] ?? 0) . "\n";
 echo 'navigationExternalTargets=' . ($result['navigation']['externalTargetCount'] ?? 0) . "\n";
 echo 'navigationUncoveredLinear=' . ($result['navigation']['uncoveredLinearSpineItemCount'] ?? 0) . "\n";

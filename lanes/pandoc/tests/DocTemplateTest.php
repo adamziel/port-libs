@@ -659,6 +659,35 @@ TPL;
         ]), $output);
     },
 
+    'inherits pandoc doctemplate breakable spaces into partial resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+        $template = <<<'TPL'
+Inline: $~$${ review-line() }$~$
+Applied: $~$${ reviewers:reviewer-line()[ / ] }$~$
+Nowrap: $~$${ review-line()/nowrap }$~$
+TPL;
+
+        $output = $renderer->renderWrapped($template, [
+            'reviewers' => [
+                ['name' => 'Ada Lovelace'],
+                ['name' => 'Grace Hopper'],
+            ],
+        ], 18, [
+            'review-line' => 'media links layout status',
+            'reviewer-line' => '$it.name$ queued',
+        ]);
+
+        $t->same(implode("\n", [
+            'Inline: media',
+            'links layout',
+            'status',
+            'Applied: Ada Lovelace',
+            'queued / Grace Hopper',
+            'queued',
+            'Nowrap: media links layout status',
+        ]), $output);
+    },
+
     'throws on unclosed pandoc doctemplate breakable-space regions' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

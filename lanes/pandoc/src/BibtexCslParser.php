@@ -605,7 +605,7 @@ final class BibtexCslParser
     {
         $page = self::normalizePages(self::firstField($fields, ['pages', 'page']));
         $publisherList = self::literalListFromFirstField($fields, ['publisher', 'institution', 'school', 'organization']);
-        $publisherPlaceList = self::literalListFromFirstField($fields, ['location', 'address', 'venue']);
+        $publisherPlaceList = self::literalListFromFirstField($fields, self::publisherPlaceFieldNames($type, $fields));
         $originalPublisherList = self::literalListFromFirstField($fields, ['origpublisher']);
         $originalPublisherPlaceList = self::literalListFromFirstField($fields, ['origlocation', 'origaddress']);
         $languageList = self::literalListFromFirstField($fields, ['language']);
@@ -1123,6 +1123,19 @@ final class BibtexCslParser
         }
 
         return self::cslType($type);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<string>
+     */
+    private static function publisherPlaceFieldNames(string $type, array $fields): array
+    {
+        if (strtolower($type) === 'unpublished' && self::firstField($fields, ['eventtitle']) !== '') {
+            return ['location', 'address'];
+        }
+
+        return ['location', 'address', 'venue'];
     }
 
     /**

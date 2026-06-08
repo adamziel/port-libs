@@ -79,6 +79,7 @@ final class Html5DomFragment
     private const HTML_FRAGMENT_INACTIVE_BASE_ANCESTORS = [
         'applet' => true,
         'button' => true,
+        'datalist' => true,
         'form' => true,
         'iframe' => true,
         'math' => true,
@@ -244,7 +245,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'value-metadata-review', 'output-metadata-review', 'referrer-policy-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'referrer-policy-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -466,6 +467,12 @@ final class Html5DomFragment
 
             if ($name === 'template') {
                 return self::withHtmlTemplateShadowRootMetadata($node, $children, $diagnostics);
+            }
+
+            if ($name === 'datalist') {
+                $datalistMetadata = self::htmlDatalistReviewMetadataNode($node, $diagnostics);
+
+                return $datalistMetadata === null ? $children : [$datalistMetadata];
             }
 
             return self::withVisibleFormChoiceLabel($node, $name, $children);
@@ -1411,6 +1418,156 @@ final class Html5DomFragment
      * @param list<array<string, mixed>> $diagnostics
      * @return array<string, mixed>|null
      */
+    private static function htmlDatalistReviewMetadataNode(
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?array {
+        foreach ($element->attributes as $attribute) {
+            $attributeName = strtolower($attribute->name);
+            if (!str_starts_with($attributeName, 'data-pandoc-datalist-')) {
+                continue;
+            }
+
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'datalist',
+                'attribute' => $attributeName,
+                'reason' => 'reserved-review-metadata-source-spoof',
+            ], $element);
+        }
+
+        $attrs = [];
+        if ($element->hasAttribute('id')) {
+            $id = self::normalizeHtmlDatalistIdAttribute($element->getAttribute('id'));
+            if ($id === null) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'datalist',
+                    'attribute' => 'id',
+                    'reason' => 'invalid-datalist-id-metadata',
+                ], $element);
+            } else {
+                $attrs['data-pandoc-datalist-id'] = $id;
+                self::addHtmlDatalistReviewDiagnostic($diagnostics, $element, 'id', 'data-pandoc-datalist-id');
+            }
+        }
+
+        $labels = self::htmlDatalistOptionLabels($element, $diagnostics);
+        if ($labels !== []) {
+            $attrs['data-pandoc-datalist-options'] = implode(' | ', $labels);
+            self::addHtmlDatalistReviewDiagnostic($diagnostics, $element, 'label', 'data-pandoc-datalist-options');
+        }
+
+        if ($attrs === []) {
+            return null;
+        }
+
+        $label = $labels === []
+            ? 'Datalist suggestions' . (isset($attrs['data-pandoc-datalist-id']) ? ': ' . $attrs['data-pandoc-datalist-id'] : '')
+            : 'Datalist suggestions: ' . implode('; ', $labels);
+
+        return self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => $label,
+            ]],
+        ], $element);
+    }
+
+    private static function normalizeHtmlDatalistIdAttribute(string $value): ?string
+    {
+        $id = self::cleanHtmlMetadataAttribute($value);
+        if ($id === '' || strlen($id) > 128 || preg_match('/^[A-Za-z][A-Za-z0-9_.:-]*$/', $id) !== 1) {
+            return null;
+        }
+
+        return $id;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<string>
+     */
+    private static function htmlDatalistOptionLabels(\DOMElement $element, array &$diagnostics): array
+    {
+        $labels = [];
+        foreach ($element->getElementsByTagName('option') as $option) {
+            if (!$option instanceof \DOMElement) {
+                continue;
+            }
+
+            $source = null;
+            $sourceAttribute = null;
+            if ($option->hasAttribute('label')) {
+                $source = $option->getAttribute('label');
+                $sourceAttribute = 'label';
+            } elseif (trim($option->textContent) !== '') {
+                $source = $option->textContent;
+            }
+
+            if ($source === null) {
+                continue;
+            }
+
+            $label = self::normalizeHtmlDatalistOptionLabel($source);
+            if ($label === null) {
+                if ($sourceAttribute !== null) {
+                    $diagnostics[] = self::diagnosticWithSourceLine([
+                        'code' => 'unsafe-attribute',
+                        'tag' => 'option',
+                        'attribute' => $sourceAttribute,
+                        'reason' => 'invalid-datalist-option-label',
+                    ], $option);
+                }
+                continue;
+            }
+
+            if (!in_array($label, $labels, true)) {
+                $labels[] = $label;
+            }
+            if (count($labels) >= 20) {
+                break;
+            }
+        }
+
+        return $labels;
+    }
+
+    private static function normalizeHtmlDatalistOptionLabel(string $value): ?string
+    {
+        $label = self::cleanHtmlMetadataAttribute($value);
+        if ($label === '' || strlen($label) > 128 || preg_match('/[<>{}`]/u', $label) === 1) {
+            return null;
+        }
+
+        return $label;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlDatalistReviewDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attributeName,
+        string $metadataAttribute
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'datalist-review',
+            'tag' => 'datalist',
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'datalist-suggestions-preserved-as-review-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>|null
+     */
     private static function htmlFormReviewMetadataNode(
         \DOMElement $element,
         array &$diagnostics,
@@ -2209,6 +2366,7 @@ final class Html5DomFragment
     {
         return in_array(strtolower($name), [
             'button',
+            'datalist',
             'form',
             'applet',
             'iframe',

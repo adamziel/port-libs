@@ -4038,6 +4038,95 @@ XML);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Review Talk. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-04. 2026.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Unpublished Field Notes. 2025.</dd>', $blocks);
     },
+    'keeps bounded biblatex unpublished conference venue separate from publisher place' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@unpublished{forthcoming-poster,
+  author     = {Roe, Pat},
+  title      = {Forthcoming Poster Packet},
+  type       = {Poster},
+  eventtitle = {WordPress Import Summit},
+  eventdate  = {2026-06-06},
+  venue      = {Portland},
+  pubstate   = {forthcoming},
+  date       = {2026}
+}
+
+@inproceedings{published-paper,
+  author     = {Ng, Nia},
+  title      = {Published Proceedings Paper},
+  booktitle  = {WordPress Import Proceedings},
+  eventtitle = {WordPress Import Summit},
+  eventdate  = {2025-05-02},
+  venue      = {Seattle},
+  pubstate   = {inpress},
+  date       = {2025},
+  pages      = {9--12}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('speech', $items[0]['type'] ?? null);
+        $t->same('forthcoming', $items[0]['status'] ?? null);
+        $t->same('Portland', $items[0]['event-place'] ?? null);
+        $t->same('', $items[0]['publisher-place'] ?? null);
+        $t->same('Portland', $items[0]['rawBibtex']['fields']['venue'] ?? null);
+        $t->same('paper-conference', $items[1]['type'] ?? null);
+        $t->same('inpress', $items[1]['status'] ?? null);
+        $t->same('Seattle', $items[1]['event-place'] ?? null);
+        $t->same('Seattle', $items[1]['publisher-place'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $poster = $processor->item('forthcoming-poster');
+        $paper = $processor->item('published-paper');
+        $t->same('speech', $poster['type'] ?? null);
+        $t->same('forthcoming', $poster['status'] ?? null);
+        $t->same('Portland', $poster['eventPlace'] ?? null);
+        $t->same('', $poster['publisherPlace'] ?? null);
+        $t->same('paper-conference', $paper['type'] ?? null);
+        $t->same('inpress', $paper['status'] ?? null);
+        $t->same('Seattle', $paper['eventPlace'] ?? null);
+        $t->same('Seattle', $paper['publisherPlace'] ?? null);
+        $t->same(
+            'Roe, Pat. Forthcoming Poster Packet. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-06. 2026. Status: forthcoming.',
+            $processor->renderBibliographyEntry('forthcoming-poster')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="type"/>
+        <text variable="title"/>
+        <text variable="event-place" prefix="event "/>
+        <text variable="publisher-place" prefix="publisher "/>
+        <text variable="status" prefix="state "/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="event-place" prefix="event "/>
+      <text variable="publisher-place" prefix="publisher "/>
+      <text variable="status" prefix="state "/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[speech | Forthcoming Poster Packet | event Portland | state forthcoming; paper-conference | Published Proceedings Paper | event Seattle | publisher Seattle | state inpress]', $styled->renderCitationCluster([
+            $citation('forthcoming-poster', '[@forthcoming-poster]'),
+            $citation('published-paper', '[@published-paper]'),
+        ]));
+        $t->same('Forthcoming Poster Packet :: event Portland :: state forthcoming', $styled->renderBibliographyEntry('forthcoming-poster'));
+
+        $document = (new MarkdownReader())->read('Conference imports cite @forthcoming-poster and [@published-paper] while keeping unpublished venue semantics visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Conference imports cite Roe (2026) and (Ng 2025) while keeping unpublished venue semantics visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Forthcoming Poster Packet. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-06. 2026. Status: forthcoming.</dd>', $blocks);
+    },
     'maps bounded biblatex publisher and location literal lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{distributed-review,

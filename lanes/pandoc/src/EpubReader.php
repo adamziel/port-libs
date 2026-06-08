@@ -9574,6 +9574,14 @@ final class EpubReader
         $externalCount = 0;
         $missingCount = 0;
         $outsideSpineCount = 0;
+        $supplementalItems = [];
+        $supplementalDiagnostics = [];
+        $supplementalTargetsBySpineIndex = [];
+        $supplementalMappedCount = 0;
+        $supplementalExternalCount = 0;
+        $supplementalMissingCount = 0;
+        $supplementalOutsideSpineCount = 0;
+        $ncxNavListTargetCount = 0;
 
         $navItems = is_array($nav) && is_array($nav['items'] ?? null) ? $nav['items'] : [];
         foreach (self::flattenNavigationItems($navItems) as $sourceIndex => $flat) {
@@ -9619,6 +9627,41 @@ final class EpubReader
                 $missingCount,
                 $outsideSpineCount
             );
+        }
+
+        $ncxNavLists = is_array($ncx) && is_array($ncx['navLists'] ?? null) ? $ncx['navLists'] : [];
+        foreach ($ncxNavLists as $listOffset => $list) {
+            if (!is_array($list)) {
+                continue;
+            }
+
+            $listItems = is_array($list['items'] ?? null) ? $list['items'] : [];
+            foreach (self::flattenNavigationItems($listItems) as $flat) {
+                $item = self::navigationTargetItem(
+                    $flat['item'],
+                    'ncx-nav-list',
+                    $ncxNavListTargetCount,
+                    (int) $flat['depth'],
+                    count($supplementalItems),
+                    $spineByContentPart
+                );
+                $item['supplemental'] = true;
+                $item['listIndex'] = is_int($list['index'] ?? null) ? $list['index'] : $listOffset;
+                $item['listId'] = is_string($list['id'] ?? null) ? $list['id'] : null;
+                $item['listTitle'] = is_string($list['title'] ?? null) ? $list['title'] : '';
+                $supplementalItems[] = $item;
+                ++$ncxNavListTargetCount;
+
+                self::accumulateNavigationTarget(
+                    $item,
+                    $supplementalDiagnostics,
+                    $supplementalTargetsBySpineIndex,
+                    $supplementalMappedCount,
+                    $supplementalExternalCount,
+                    $supplementalMissingCount,
+                    $supplementalOutsideSpineCount
+                );
+            }
         }
 
         $uncoveredLinearSpineItems = [];
@@ -9677,7 +9720,14 @@ final class EpubReader
             'source' => 'nav-ncx',
             'navTocCount' => $navTocCount,
             'ncxCount' => $ncxCount,
+            'ncxNavListCount' => count($ncxNavLists),
+            'ncxNavListTargetCount' => $ncxNavListTargetCount,
             'targetCount' => count($items),
+            'supplementalTargetCount' => count($supplementalItems),
+            'supplementalMappedSpineTargetCount' => $supplementalMappedCount,
+            'supplementalOutsideSpineTargetCount' => $supplementalOutsideSpineCount,
+            'supplementalMissingTargetCount' => $supplementalMissingCount,
+            'supplementalExternalTargetCount' => $supplementalExternalCount,
             'cfiTargetCount' => count($cfiTargets),
             'mediaFragmentTargetCount' => count($mediaFragmentTargets),
             'mappedSpineTargetCount' => $mappedCount,
@@ -9686,11 +9736,13 @@ final class EpubReader
             'externalTargetCount' => $externalCount,
             'uncoveredLinearSpineItemCount' => count($uncoveredLinearSpineItems),
             'items' => $items,
+            'supplementalItems' => $supplementalItems,
             'cfiTargets' => $cfiTargets,
             'mediaFragmentTargets' => $mediaFragmentTargets,
             'spineCoverage' => array_values($spineCoverage),
             'uncoveredLinearSpineItems' => $uncoveredLinearSpineItems,
             'diagnostics' => $diagnostics,
+            'supplementalDiagnostics' => $supplementalDiagnostics,
             'spineDiagnostics' => $spineDiagnostics,
         ];
     }
