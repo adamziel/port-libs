@@ -50820,6 +50820,15 @@ final class PdfTextExtractor
             return $this->decodeHexString($normalized);
         }
 
+        $cidSourceSuffixText = $this->decodeHexStringWithCidSourceSuffixToUnicodeMap(
+            $normalized,
+            $toUnicodeMap,
+            $mappings
+        );
+        if ($cidSourceSuffixText !== null) {
+            return $cidSourceSuffixText;
+        }
+
         $text = '';
         $offset = 0;
         $length = strlen($normalized);
@@ -50849,6 +50858,118 @@ final class PdfTextExtractor
         }
 
         return $text;
+    }
+
+    /**
+     * Some malformed searchable PDFs carry selector/prefix bytes in the Type0
+     * Encoding CMap source code while ToUnicode only maps the trailing source
+     * bytes. Keep the prefix private only when CID source segmentation covers
+     * the whole operand and every longer CID source has an explicit mapped
+     * suffix.
+     *
+     * @param array<string, string> $mappings
+     */
+    private function decodeHexStringWithCidSourceSuffixToUnicodeMap(
+        string $normalized,
+        array $toUnicodeMap,
+        array $mappings
+    ): ?string {
+        $cidCodeSpaceRanges = $toUnicodeMap['cidCodeSpaceRanges'] ?? [];
+        $cidMap = $toUnicodeMap['cidMap'] ?? [];
+        $cidRanges = $toUnicodeMap['cidRanges'] ?? [];
+        if (
+            !is_array($cidCodeSpaceRanges)
+            || $cidCodeSpaceRanges === []
+            || (
+                (!is_array($cidMap) || $cidMap === [])
+                && (!is_array($cidRanges) || $cidRanges === [])
+            )
+        ) {
+            return null;
+        }
+
+        $cidSourceMap = [
+            'map' => is_array($cidMap) ? $cidMap : [],
+            'codeSpaceRanges' => $cidCodeSpaceRanges,
+        ];
+        if (is_array($cidRanges) && $cidRanges !== []) {
+            $cidSourceMap['cidRanges'] = $cidRanges;
+        }
+
+        $sourceKeys = $this->textOperandSourceKeys($normalized, $cidSourceMap);
+        if ($sourceKeys === [] || implode('', $sourceKeys) !== $normalized) {
+            return null;
+        }
+
+        $text = '';
+        $usedSuffix = false;
+        foreach ($sourceKeys as $sourceKey) {
+            if (!$this->sourceKeyHasCidMapping($sourceKey, $cidSourceMap)) {
+                return null;
+            }
+
+            $directText = $this->mappedToUnicodeTextForSourceKey($sourceKey, $toUnicodeMap, $mappings);
+            if ($directText !== null) {
+                $text .= $directText;
+                continue;
+            }
+
+            $suffix = $this->mappedToUnicodeSuffixForCidSourceKey($sourceKey, $toUnicodeMap, $mappings);
+            if ($suffix === null) {
+                return null;
+            }
+
+            $suffixText = $this->mappedToUnicodeTextForSourceKey($suffix, $toUnicodeMap, $mappings);
+            if ($suffixText === null) {
+                return null;
+            }
+
+            $text .= $suffixText;
+            $usedSuffix = true;
+        }
+
+        return $usedSuffix ? $text : null;
+    }
+
+    private function sourceKeyHasCidMapping(string $sourceKey, array $sourceMap): bool
+    {
+        $cidMap = $sourceMap['map'] ?? [];
+        if (is_array($cidMap) && array_key_exists($sourceKey, $cidMap) && is_int($cidMap[$sourceKey])) {
+            return true;
+        }
+
+        return $this->cidFromCidRangesForSourceKey($sourceKey, $sourceMap) !== null;
+    }
+
+    /**
+     * @param array<string, string> $mappings
+     */
+    private function mappedToUnicodeTextForSourceKey(string $sourceKey, array $toUnicodeMap, array $mappings): ?string
+    {
+        if (array_key_exists($sourceKey, $mappings)) {
+            return $mappings[$sourceKey];
+        }
+
+        return $this->toUnicodeRangeTextForSourceKey($sourceKey, $toUnicodeMap);
+    }
+
+    /**
+     * @param array<string, string> $mappings
+     */
+    private function mappedToUnicodeSuffixForCidSourceKey(
+        string $sourceKey,
+        array $toUnicodeMap,
+        array $mappings
+    ): ?string {
+        $length = strlen($sourceKey);
+        for ($offset = 2; $offset < $length; $offset += 2) {
+            $suffix = substr($sourceKey, $offset);
+            if ($suffix !== '' && $this->toUnicodeSourceKeyIsMapped($suffix, $toUnicodeMap, $mappings)) {
+                return $suffix;
+            }
+        }
+
+        return null;
     }
 
     /**
