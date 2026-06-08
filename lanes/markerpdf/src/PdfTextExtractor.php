@@ -18768,6 +18768,7 @@ final class PdfTextExtractor
         $index = $streamStart;
         $length = strlen($value);
         $compatibilityDepth = 0;
+        $insideTextObject = false;
         while ($index < $length) {
             $char = $value[$index];
             if ($this->isPdfWhitespace($char)) {
@@ -18801,7 +18802,8 @@ final class PdfTextExtractor
             }
 
             if (
-                $this->pdfKeywordAt($value, $index, 'endstream')
+                !$insideTextObject
+                && $this->pdfKeywordAt($value, $index, 'endstream')
                 && $this->endstreamTerminatorAt($value, $index, $streamStart)
             ) {
                 return $index;
@@ -18818,7 +18820,7 @@ final class PdfTextExtractor
             }
 
             $token = substr($value, $start, $index - $start);
-            if ($token === 'BI') {
+            if ($token === 'BI' && !$insideTextObject) {
                 $inlineImageEnd = $index;
                 if ($this->skipInlineImage($value, $inlineImageEnd, $compatibilityDepth)) {
                     $index = $inlineImageEnd;
@@ -18826,10 +18828,16 @@ final class PdfTextExtractor
                 }
             }
 
-            if ($token === 'BX') {
+            if (!$insideTextObject && $token === 'BX') {
                 $compatibilityDepth++;
-            } elseif ($token === 'EX' && $compatibilityDepth > 0) {
+            } elseif (!$insideTextObject && $token === 'EX' && $compatibilityDepth > 0) {
                 $compatibilityDepth--;
+            }
+
+            if ($token === 'BT') {
+                $insideTextObject = true;
+            } elseif ($token === 'ET') {
+                $insideTextObject = false;
             }
         }
 
