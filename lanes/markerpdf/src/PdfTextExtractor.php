@@ -23730,7 +23730,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        if ($this->simpleFontWidthArrayHasMalformedDeclaredToken($widthArray, $lastCode === null ? null : ($lastCode - $firstCode + 1))) {
+        if ($this->simpleFontWidthArrayHasMalformedDeclaredToken($widthArray, $lastCode === null ? null : ($lastCode - $firstCode + 1), $objects)) {
             return [];
         }
 
@@ -23781,7 +23781,10 @@ final class PdfTextExtractor
         return $this->pdfSingleNumberFromValue($value, $objects);
     }
 
-    private function simpleFontWidthArrayHasMalformedDeclaredToken(string $arrayBody, ?int $declaredCount): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function simpleFontWidthArrayHasMalformedDeclaredToken(string $arrayBody, ?int $declaredCount, array $objects): bool
     {
         foreach ($this->pdfArrayItems($arrayBody) as $offset => $item) {
             if ($declaredCount !== null && $offset >= $declaredCount) {
@@ -23794,7 +23797,19 @@ final class PdfTextExtractor
             }
 
             $referenceOffset = 0;
-            if ($this->readPdfIndirectReferenceToken($trimmed, $referenceOffset) !== null) {
+            $reference = $this->readPdfIndirectReferenceToken($trimmed, $referenceOffset);
+            if ($reference !== null) {
+                $afterReference = $referenceOffset;
+                $this->skipContentWhitespaceAndComments($trimmed, $afterReference);
+                if ($afterReference < strlen($trimmed)) {
+                    return true;
+                }
+
+                $body = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+                if ($body !== null && $this->pdfSingleNumberFromValue($trimmed, $objects) === null) {
+                    return true;
+                }
+
                 continue;
             }
 
