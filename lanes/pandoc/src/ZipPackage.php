@@ -170,6 +170,7 @@ final class ZipPackage
             $extraLength = self::readUInt16($bytes, $cursor + 30);
             $commentLength = self::readUInt16($bytes, $cursor + 32);
             $diskStart = self::readUInt16($bytes, $cursor + 34);
+            $internalAttributes = self::readUInt16($bytes, $cursor + 36);
             $externalAttributes = self::readUInt32($bytes, $cursor + 38);
             $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
             $variableStart = $cursor + 46;
@@ -232,6 +233,7 @@ final class ZipPackage
                 $modifiedTime,
                 $modifiedDate,
                 $externalAttributes,
+                $internalAttributes,
                 $centralExtraFieldData,
                 $versionMadeBy,
                 $rawName,
@@ -319,7 +321,7 @@ final class ZipPackage
     }
 
     /**
-     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int, extraFieldData?:string}> $parts
+     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int, internalAttributes?:int, extraFieldData?:string}> $parts
      */
     public static function fromParts(array $parts, string $packageComment = ''): self
     {
@@ -327,7 +329,7 @@ final class ZipPackage
     }
 
     /**
-     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int, extraFieldData?:string}> $parts
+     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int, internalAttributes?:int, extraFieldData?:string}> $parts
      */
     public static function build(array $parts, string $packageComment = ''): string
     {
@@ -406,6 +408,10 @@ final class ZipPackage
             if (!is_int($externalAttributes)) {
                 throw new \RuntimeException("ZIP entry {$name} external attributes must be an integer");
             }
+            $internalAttributes = $part['internalAttributes'] ?? 0;
+            if (!is_int($internalAttributes)) {
+                throw new \RuntimeException("ZIP entry {$name} internal attributes must be an integer");
+            }
             self::assertUnixFileTypeMatchesEntryName($name, $externalAttributes);
             if (self::isUnixSymlinkExternalAttributes($externalAttributes)) {
                 throw new \RuntimeException("ZIP symlink entries are not supported by the pandoc package writer: {$name}");
@@ -419,6 +425,7 @@ final class ZipPackage
             self::assertUInt32Value($uncompressedSize, "ZIP entry {$name} uncompressed size");
             self::assertUInt32Value($localHeaderOffset, "ZIP entry {$name} local header offset");
             self::assertUInt32Value($externalAttributes, "ZIP entry {$name} external attributes");
+            self::assertUInt16Value($internalAttributes, "ZIP entry {$name} internal attributes");
             self::assertUInt16Length($extraFieldData, "ZIP entry {$name} extra fields");
 
             $body .= pack(
@@ -453,7 +460,7 @@ final class ZipPackage
                 strlen($extraFieldData),
                 strlen($comment),
                 0,
-                0,
+                $internalAttributes,
                 $externalAttributes,
                 $localHeaderOffset
             );
@@ -2397,6 +2404,186 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     entryCount:int,
+     *     supportedEntryCount:int,
+     *     unsupportedCompressionMethodCount:int,
+     *     storedEntryCount:int,
+     *     deflatedEntryCount:int,
+     *     methodMismatchEntryCount:int,
+     *     unsupportedVersionEntryCount:int,
+     *     hasUnsupportedCompressionMethods:bool,
+     *     extractionPolicy:string,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     unsupportedEntries:list<array<string, mixed>>,
+     *     mismatchedEntries:list<array<string, mixed>>,
+     *     unsupportedVersionEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function compressionMethodPolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before compression methods can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $unsupportedEntries = [];
+        $mismatchedEntries = [];
+        $unsupportedVersionEntries = [];
+        $storedEntryCount = 0;
+        $deflatedEntryCount = 0;
+        $supportedEntryCount = 0;
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+        while ($index < $archive['totalEntryCount']) {
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $versionNeededToExtract = self::readUInt16($bytes, $cursor + 6);
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $method = self::readUInt16($bytes, $cursor + 10);
+            $compressedSize = self::readUInt32($bytes, $cursor + 20);
+            $uncompressedSize = self::readUInt32($bytes, $cursor + 24);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $localHeader = self::readLocalHeaderNameMetadata($bytes, $localHeaderOffset, $index);
+
+            if ($method === 0) {
+                $storedEntryCount++;
+            } elseif ($method === 8) {
+                $deflatedEntryCount++;
+            }
+
+            $methodIsSupported = $method === 0 || $method === 8;
+            $localMethodIsSupported = $localHeader['compressionMethod'] === 0 || $localHeader['compressionMethod'] === 8;
+            $hasUnsupportedMethod = !$methodIsSupported || !$localMethodIsSupported;
+            $hasMethodMismatch = $method !== $localHeader['compressionMethod'];
+            $hasUnsupportedVersion = $versionNeededToExtract > self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT
+                || $localHeader['versionNeededToExtract'] > self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT;
+
+            $diagnostics = [];
+            if ($hasUnsupportedMethod) {
+                $diagnostics[] = 'zip-unsupported-compression-method';
+            }
+            if ($hasMethodMismatch) {
+                $diagnostics[] = 'zip-local-header-compression-method-mismatch';
+            }
+            if ($hasUnsupportedVersion) {
+                $diagnostics[] = 'zip-version-needed-exceeds-bounded-reader';
+            }
+            if ($rawName !== $localHeader['rawName']) {
+                $diagnostics[] = 'zip-local-header-name-mismatch';
+            }
+
+            $entry = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'localName' => $localHeader['name'],
+                'localRawName' => $localHeader['rawName'],
+                'localNameEncoding' => $localHeader['nameEncoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'versionNeededToExtract' => $versionNeededToExtract,
+                'localVersionNeededToExtract' => $localHeader['versionNeededToExtract'],
+                'compressionMethod' => $method,
+                'compressionMethodName' => self::compressionMethodName($method),
+                'localCompressionMethod' => $localHeader['compressionMethod'],
+                'localCompressionMethodName' => self::compressionMethodName($localHeader['compressionMethod']),
+                'generalPurposeFlags' => $flags,
+                'localGeneralPurposeFlags' => $localHeader['generalPurposeFlags'],
+                'compressedSize' => $compressedSize,
+                'uncompressedSize' => $uncompressedSize,
+                'isDirectory' => str_ends_with($decodedName['text'], '/'),
+                'isSupported' => $diagnostics === [],
+                'policy' => $diagnostics === [] ? 'metadata' : 'blocked',
+                'diagnostics' => array_values(array_unique($diagnostics)),
+            ];
+
+            $entries[] = $entry;
+            if ($entry['isSupported']) {
+                $supportedEntryCount++;
+            }
+            if ($hasUnsupportedMethod) {
+                $unsupportedEntries[] = $entry;
+            }
+            if ($hasMethodMismatch) {
+                $mismatchedEntries[] = $entry;
+            }
+            if ($hasUnsupportedVersion) {
+                $unsupportedVersionEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            $index++;
+        }
+
+        if ($cursor !== $archive['centralDirectoryEnd']) {
+            throw new \RuntimeException('ZIP central directory size does not match scanned compression-method policy records');
+        }
+
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($unsupportedEntries !== []) {
+            $issues[] = 'unsupported-compression-methods';
+        }
+        if ($mismatchedEntries !== []) {
+            $issues[] = 'local-header-compression-method-mismatch';
+        }
+        if ($unsupportedVersionEntries !== []) {
+            $issues[] = 'unsupported-version-needed';
+        }
+
+        $hasBlockedCompressionMetadata = $unsupportedEntries !== []
+            || $mismatchedEntries !== []
+            || $unsupportedVersionEntries !== [];
+
+        return [
+            'entryCount' => count($entries),
+            'supportedEntryCount' => $supportedEntryCount,
+            'unsupportedCompressionMethodCount' => count($unsupportedEntries),
+            'storedEntryCount' => $storedEntryCount,
+            'deflatedEntryCount' => $deflatedEntryCount,
+            'methodMismatchEntryCount' => count($mismatchedEntries),
+            'unsupportedVersionEntryCount' => count($unsupportedVersionEntries),
+            'hasUnsupportedCompressionMethods' => $unsupportedEntries !== [],
+            'extractionPolicy' => $hasBlockedCompressionMetadata ? 'unsupported-compression-methods-blocked' : 'supported-compression-methods',
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'unsupportedEntries' => $unsupportedEntries,
+            'mismatchedEntries' => $mismatchedEntries,
+            'unsupportedVersionEntries' => $unsupportedVersionEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     eocdOffset:int,
      *     diskNumber:int,
      *     centralDirectoryDisk:int,
@@ -3325,6 +3512,7 @@ final class ZipPackage
      *     rawNames:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     dosAttributes:array<string, mixed>,
+     *     internalAttributes:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
      *     localHeaders:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
@@ -3358,6 +3546,7 @@ final class ZipPackage
         $rawNames = $this->rawNamePreflight();
         $permissions = $this->permissionPreflight();
         $dosAttributes = $this->dosAttributePreflight();
+        $internalAttributes = $this->internalAttributePreflight();
         $creatorHostSystems = $this->creatorHostSystemPreflight();
         $localHeaders = $this->localHeaderPreflight();
         $dataDescriptors = $this->dataDescriptorPreflight();
@@ -3428,6 +3617,10 @@ final class ZipPackage
             $diagnostics[] = 'hidden-system-or-volume-label-entries';
         }
 
+        if ($internalAttributes['internalAttributeEntryCount'] > 0) {
+            $diagnostics[] = 'internal-file-attributes';
+        }
+
         if ($creatorHostSystems['unknownHostSystemEntryCount'] > 0) {
             $diagnostics[] = 'unknown-creator-host-systems';
         }
@@ -3476,6 +3669,7 @@ final class ZipPackage
             'rawNames' => $rawNames,
             'permissions' => $permissions,
             'dosAttributes' => $dosAttributes,
+            'internalAttributes' => $internalAttributes,
             'creatorHostSystems' => $creatorHostSystems,
             'localHeaders' => $localHeaders,
             'dataDescriptors' => $dataDescriptors,
@@ -3503,6 +3697,7 @@ final class ZipPackage
      *     rawNames:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     dosAttributes:array<string, mixed>,
+     *     internalAttributes:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
      *     localHeaders:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
@@ -3738,6 +3933,120 @@ final class ZipPackage
 
             throw new \RuntimeException(
                 'ZIP package contains unsupported compression methods for native pandoc package import: ' . $entries
+            );
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     internalAttributeEntryCount:int,
+     *     textInternalAttributeEntryCount:int,
+     *     unknownInternalAttributeEntryCount:int,
+     *     internalAttributeEntries:list<array{name:string, isDirectory:bool, internalFileAttributes:int, internalAttributeNames:list<string>, hasTextInternalAttribute:bool, unknownInternalAttributeBits:int, hasUnknownInternalAttributeBits:bool, hasInternalFileAttributes:bool, issues:list<string>}>,
+     *     textInternalAttributeEntries:list<array{name:string, isDirectory:bool, internalFileAttributes:int, internalAttributeNames:list<string>, hasTextInternalAttribute:bool, unknownInternalAttributeBits:int, hasUnknownInternalAttributeBits:bool, hasInternalFileAttributes:bool, issues:list<string>}>,
+     *     unknownInternalAttributeEntries:list<array{name:string, isDirectory:bool, internalFileAttributes:int, internalAttributeNames:list<string>, hasTextInternalAttribute:bool, unknownInternalAttributeBits:int, hasUnknownInternalAttributeBits:bool, hasInternalFileAttributes:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, isDirectory:bool, internalFileAttributes:int, internalAttributeNames:list<string>, hasTextInternalAttribute:bool, unknownInternalAttributeBits:int, hasUnknownInternalAttributeBits:bool, hasInternalFileAttributes:bool, issues:list<string>}>
+     * }
+     */
+    public function internalAttributePreflight(): array
+    {
+        $internalAttributeEntryCount = 0;
+        $textInternalAttributeEntryCount = 0;
+        $unknownInternalAttributeEntryCount = 0;
+        $internalAttributeEntries = [];
+        $textInternalAttributeEntries = [];
+        $unknownInternalAttributeEntries = [];
+        $entries = [];
+
+        foreach ($this->entries as $entry) {
+            $hasText = $entry->hasTextInternalAttribute();
+            $unknownBits = $entry->unknownInternalAttributeBits();
+            $hasUnknownBits = $unknownBits !== 0;
+            $hasInternalAttributes = $entry->internalFileAttributes !== 0;
+            $issues = [];
+
+            if ($hasText) {
+                $textInternalAttributeEntryCount++;
+                $issues[] = 'internal-text-attribute';
+            }
+
+            if ($hasUnknownBits) {
+                $unknownInternalAttributeEntryCount++;
+                $issues[] = 'unknown-internal-file-attribute-bits';
+            }
+
+            if ($hasInternalAttributes) {
+                $internalAttributeEntryCount++;
+            }
+
+            $summary = [
+                'name' => $entry->name,
+                'isDirectory' => $entry->isDirectory(),
+                'internalFileAttributes' => $entry->internalFileAttributes,
+                'internalAttributeNames' => $entry->internalAttributeNames(),
+                'hasTextInternalAttribute' => $hasText,
+                'unknownInternalAttributeBits' => $unknownBits,
+                'hasUnknownInternalAttributeBits' => $hasUnknownBits,
+                'hasInternalFileAttributes' => $hasInternalAttributes,
+                'issues' => $issues,
+            ];
+            $entries[] = $summary;
+
+            if ($hasInternalAttributes) {
+                $internalAttributeEntries[] = $summary;
+            }
+
+            if ($hasText) {
+                $textInternalAttributeEntries[] = $summary;
+            }
+
+            if ($hasUnknownBits) {
+                $unknownInternalAttributeEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'internalAttributeEntryCount' => $internalAttributeEntryCount,
+            'textInternalAttributeEntryCount' => $textInternalAttributeEntryCount,
+            'unknownInternalAttributeEntryCount' => $unknownInternalAttributeEntryCount,
+            'internalAttributeEntries' => $internalAttributeEntries,
+            'textInternalAttributeEntries' => $textInternalAttributeEntries,
+            'unknownInternalAttributeEntries' => $unknownInternalAttributeEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     internalAttributeEntryCount:int,
+     *     textInternalAttributeEntryCount:int,
+     *     unknownInternalAttributeEntryCount:int,
+     *     internalAttributeEntries:list<array{name:string, isDirectory:bool, internalFileAttributes:int, internalAttributeNames:list<string>, hasTextInternalAttribute:bool, unknownInternalAttributeBits:int, hasUnknownInternalAttributeBits:bool, hasInternalFileAttributes:bool, issues:list<string>}>,
+     *     textInternalAttributeEntries:list<array{name:string, isDirectory:bool, internalFileAttributes:int, internalAttributeNames:list<string>, hasTextInternalAttribute:bool, unknownInternalAttributeBits:int, hasUnknownInternalAttributeBits:bool, hasInternalFileAttributes:bool, issues:list<string>}>,
+     *     unknownInternalAttributeEntries:list<array{name:string, isDirectory:bool, internalFileAttributes:int, internalAttributeNames:list<string>, hasTextInternalAttribute:bool, unknownInternalAttributeBits:int, hasUnknownInternalAttributeBits:bool, hasInternalFileAttributes:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, isDirectory:bool, internalFileAttributes:int, internalAttributeNames:list<string>, hasTextInternalAttribute:bool, unknownInternalAttributeBits:int, hasUnknownInternalAttributeBits:bool, hasInternalFileAttributes:bool, issues:list<string>}>
+     * }
+     */
+    public function assertNoInternalFileAttributes(): array
+    {
+        $summary = $this->internalAttributePreflight();
+        if ($summary['internalAttributeEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name']
+                        . ' (' . implode('/', $entry['internalAttributeNames']) . ')',
+                    $summary['internalAttributeEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains internal file attributes that require explicit import review: ' . $entries
             );
         }
 

@@ -334,6 +334,9 @@ final class PdfXrefFreeObjectMap
                 $offset = $objectEnd;
                 continue;
             }
+            if (self::malformedDirectObjectBodyStartAt($pdfBytes, $offset) !== null) {
+                break;
+            }
 
             $char = $pdfBytes[$offset];
             if ($char === '%') {
@@ -384,6 +387,10 @@ final class PdfXrefFreeObjectMap
                 }
                 $offset = $objectEnd;
                 continue;
+            }
+            $malformedObjectBodyStart = self::malformedDirectObjectBodyStartAt($pdfBytes, $offset);
+            if ($malformedObjectBodyStart !== null) {
+                return $tokenOffset >= $malformedObjectBodyStart;
             }
 
             $char = $pdfBytes[$offset];
@@ -441,6 +448,21 @@ final class PdfXrefFreeObjectMap
         $bodyEnd = self::directObjectEndOffset($pdfBytes, $bodyStart);
 
         return $bodyEnd === null ? null : $bodyEnd + strlen('endobj');
+    }
+
+    private static function malformedDirectObjectBodyStartAt(string $pdfBytes, int $offset): ?int
+    {
+        if (!ctype_digit($pdfBytes[$offset] ?? '')) {
+            return null;
+        }
+
+        if (preg_match('/\G\d+\s+\d+\s+obj\b/s', $pdfBytes, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $bodyStart = $offset + strlen($match[0]);
+
+        return self::directObjectEndOffset($pdfBytes, $bodyStart) === null ? $bodyStart : null;
     }
 
     private static function directObjectEndOffset(string $pdfBytes, int $offset): ?int

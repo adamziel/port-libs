@@ -4439,6 +4439,8 @@ XML;
   <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
   <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+  <Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>
+  <Override PartName="/word/webSettings.xml" ContentType="application/xml"/>
   <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
   <Override PartName="/word/footer1.xml" ContentType="application/xml"/>
   <Override PartName="/word/media/not-image.xml" ContentType="application/xml"/>
@@ -4460,6 +4462,8 @@ XML;
   <Relationship Id="rIdCommentsMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments-missing.xml"/>
   <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
   <Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+  <Relationship Id="rIdFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>
+  <Relationship Id="rIdWebSettingsWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings" Target="webSettings.xml"/>
   <Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
   <Relationship Id="rIdFooterWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
   <Relationship Id="rIdHeaderExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="https://example.test/header.xml" TargetMode="External"/>
@@ -4492,6 +4496,8 @@ XML;
             ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
             ['name' => 'word/settings.xml', 'data' => '<w:settings/>'],
             ['name' => 'word/theme/theme1.xml', 'data' => '<a:theme/>'],
+            ['name' => 'word/fontTable.xml', 'data' => '<w:fonts/>'],
+            ['name' => 'word/webSettings.xml', 'data' => '<w:webSettings/>'],
             ['name' => 'word/header1.xml', 'data' => '<w:hdr/>'],
             ['name' => 'word/footer1.xml', 'data' => '<w:ftr/>'],
             ['name' => 'word/media/hero.png', 'data' => 'PNG'],
@@ -4512,6 +4518,8 @@ XML;
             'rIdCommentsMissing',
             'rIdSettings',
             'rIdTheme',
+            'rIdFontTable',
+            'rIdWebSettingsWrongType',
             'rIdHeader',
             'rIdFooterWrongType',
             'rIdHeaderExternal',
@@ -4577,6 +4585,26 @@ XML;
         $t->same('application/vnd.openxmlformats-officedocument.theme+xml', $roles['rIdTheme']['expectedContentType']);
         $t->same(true, $roles['rIdTheme']['valid']);
         $t->same([], $roles['rIdTheme']['issues']);
+
+        $t->same('font-table', $roles['rIdFontTable']['role']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_FONT_TABLE_RELATIONSHIP_TYPE, $roles['rIdFontTable']['type']);
+        $t->same('/word/fontTable.xml', $roles['rIdFontTable']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml', $roles['rIdFontTable']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml', $roles['rIdFontTable']['expectedContentType']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES, $roles['rIdFontTable']['expectedSourceContentTypes']);
+        $t->same(false, $roles['rIdFontTable']['expectedExternal']);
+        $t->same(true, $roles['rIdFontTable']['valid']);
+        $t->same([], $roles['rIdFontTable']['issues']);
+
+        $t->same('web-settings', $roles['rIdWebSettingsWrongType']['role']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_WEB_SETTINGS_RELATIONSHIP_TYPE, $roles['rIdWebSettingsWrongType']['type']);
+        $t->same('/word/webSettings.xml', $roles['rIdWebSettingsWrongType']['targetPart']);
+        $t->same('application/xml', $roles['rIdWebSettingsWrongType']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml', $roles['rIdWebSettingsWrongType']['expectedContentType']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES, $roles['rIdWebSettingsWrongType']['expectedSourceContentTypes']);
+        $t->same(false, $roles['rIdWebSettingsWrongType']['expectedExternal']);
+        $t->same(false, $roles['rIdWebSettingsWrongType']['valid']);
+        $t->same(['invalid-web-settings-content-type'], $roles['rIdWebSettingsWrongType']['issues']);
 
         $t->same('header', $roles['rIdHeader']['role']);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/header', $roles['rIdHeader']['type']);

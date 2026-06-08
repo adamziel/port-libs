@@ -188,6 +188,79 @@ final class MarkerRuntimePlanner
     }
 
     /**
+     * Native review-only boundary for convert_single.py's import-time side effects.
+     *
+     * Unlike batch convert.py, upstream imports pypdfium2 before importing os
+     * and assigning PYTORCH_ENABLE_MPS_FALLBACK. The native plan records that
+     * ordering without importing Python modules, PDFium, Torch, or models.
+     *
+     * @return array<string, mixed>
+     */
+    public function singleDocumentImportBoundaryPlan(): array
+    {
+        $environment = [
+            'PYTORCH_ENABLE_MPS_FALLBACK' => '1',
+        ];
+
+        return [
+            'schema' => 'markerpdf.convert_single_import_boundary.v1',
+            'source' => 'sddai/markerPDF convert_single.py import-time pypdfium2 order, MPS fallback environment, and logging setup',
+            'environment' => $environment,
+            'environment_assignments' => [
+                [
+                    'key' => 'PYTORCH_ENABLE_MPS_FALLBACK',
+                    'value' => $environment['PYTORCH_ENABLE_MPS_FALLBACK'],
+                    'order' => 'after_pypdfium2_import_before_argparse',
+                    'statement' => 'os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"',
+                    'reason' => 'Match upstream single-document runtime setup before argparse and model imports.',
+                ],
+            ],
+            'import_order' => [
+                'time',
+                'pypdfium2',
+                'os',
+                'set_PYTORCH_ENABLE_MPS_FALLBACK',
+                'argparse',
+                'marker.convert.convert_single_pdf',
+                'marker.logger.configure_logging',
+                'marker.models.load_all_models',
+                'marker.output.save_markdown',
+                'configure_logging',
+                'parse_args',
+            ],
+            'pypdfium_import' => [
+                'module' => 'pypdfium2',
+                'statement' => 'import pypdfium2',
+                'comment' => 'Needs to be at the top to avoid warnings',
+                'after_environment_assignments' => false,
+                'before_argparse' => true,
+                'before_marker_model_imports' => true,
+                'native_plan_imports_pypdfium2' => false,
+            ],
+            'logging' => [
+                'function' => 'configure_logging',
+                'called_at_import_time' => true,
+                'after_logger_import' => true,
+                'before_parse_args' => true,
+                'plan' => ['schema' => 'markerpdf.logging_plan.v1'] + $this->loggingPlan(),
+            ],
+            'runtime_boundaries' => [
+                'filesystem_touched_by_import_plan' => false,
+                'model_handoff_reached_by_import_plan' => false,
+                'single_pdf_conversion_reached_by_import_plan' => false,
+                'argument_parser_reached_after_logging' => true,
+            ],
+            'review_only' => true,
+            'executes_python_or_models' => false,
+            'executes_pypdfium' => false,
+            'executes_multiprocessing' => false,
+            'executes_streamlit' => false,
+            'executes_fastapi' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
      * Native review-only boundary for convert.py's import-time side effects.
      *
      * Upstream assigns the conversion environment before importing pypdfium2,

@@ -9,6 +9,7 @@ use InvalidArgumentException;
 final class LayoutAnnotator
 {
     private const AMBIGUOUS_PAGE_MARKER_WRAPPER = '__markerpdf_ambiguous_page_marker_wrapper';
+    private const ENVELOPE_PAGE_KEY_MARKER = '__markerpdf_envelope_page_key_marker';
     private const LAYOUT_RESULT_PAGE_MARKER_KEYS = [
         'page_index',
         'page_idx',
@@ -163,11 +164,15 @@ final class LayoutAnnotator
             if ($this->hasAmbiguousLayoutPayloadWrapper($layoutResults[$index]) || $this->hasMalformedLayoutPageMarkers($layoutResults[$index])) {
                 continue;
             }
+            $sourceIndex = $this->integerValue($pageRange[$index] ?? null) ?? $index;
+            if (!$this->layoutResultPayloadMatchesPage($layoutResults[$index], $pages[$index], $index, $sourceIndex)) {
+                continue;
+            }
             $pages[$index]['layout'] = $this->sanitizeSuppliedLayoutResult(
                 $layoutResults[$index],
                 $pages[$index],
                 $index,
-                $this->integerValue($pageRange[$index] ?? null) ?? $index
+                $sourceIndex
             );
             $assignedPages++;
         }
@@ -186,6 +191,34 @@ final class LayoutAnnotator
                 'batch_size' => $this->batchSize($batchMultiplier),
             ],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $layoutResult
+     * @param array<string, mixed>|null $page
+     */
+    private function layoutResultPayloadMatchesPage(array $layoutResult, ?array $page, int $selectedIndex, ?int $sourceIndex): bool
+    {
+        $payload = $this->layoutResultPayloadSource($layoutResult);
+        $sources = $this->layoutResultPageMarkerSources($payload);
+        $envelopePageKeys = $this->integerFieldsFromSources($sources, [self::ENVELOPE_PAGE_KEY_MARKER]);
+        if ($envelopePageKeys === []) {
+            return true;
+        }
+
+        $sourceIndex ??= $selectedIndex;
+        $pageNumber = $this->pageMarkerNumber($page) ?? $sourceIndex;
+        foreach ($envelopePageKeys as $marker) {
+            if (
+                $marker !== $sourceIndex
+                && $marker !== $pageNumber
+                && $marker !== $pageNumber + 1
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -299,6 +332,9 @@ final class LayoutAnnotator
                 return false;
             }
 
+            if ($this->integerFields($source, [self::ENVELOPE_PAGE_KEY_MARKER]) !== []) {
+                $hasMarkers = true;
+            }
             foreach (self::LAYOUT_RESULT_PAGE_MARKER_FIELD_GROUPS as $fields) {
                 if ($this->integerFields($source, $fields) !== []) {
                     $hasMarkers = true;
@@ -335,6 +371,15 @@ final class LayoutAnnotator
         }
         foreach ($this->integerFieldsFromSources($sources, self::LAYOUT_RESULT_PAGE_MARKER_FIELD_GROUPS[4]) as $marker) {
             if ($marker !== $selectedIndex + 1) {
+                return false;
+            }
+        }
+        foreach ($this->integerFieldsFromSources($sources, [self::ENVELOPE_PAGE_KEY_MARKER]) as $marker) {
+            if (
+                $marker !== $sourceIndex
+                && $marker !== $pageNumber
+                && $marker !== $pageNumber + 1
+            ) {
                 return false;
             }
         }
@@ -439,8 +484,12 @@ final class LayoutAnnotator
         }
 
         $mapped = [];
-        foreach ($value as $candidate) {
+        foreach ($value as $key => $candidate) {
             if (is_array($candidate) && !array_is_list($candidate)) {
+                $pageKey = $this->integerValue($key);
+                if ($pageKey !== null && $this->hasLayoutPayload($candidate)) {
+                    $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
+                }
                 $mapped[] = $candidate;
             }
         }
@@ -605,6 +654,9 @@ final class LayoutAnnotator
                 return true;
             }
 
+            if ($this->integerFields($source, [self::ENVELOPE_PAGE_KEY_MARKER]) !== []) {
+                return true;
+            }
             foreach (self::LAYOUT_RESULT_PAGE_MARKER_FIELD_GROUPS as $fields) {
                 if ($this->integerFields($source, $fields) !== []) {
                     return true;

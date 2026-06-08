@@ -384,6 +384,32 @@ HTML;
         $t->same('body1', $packet['coverage'][6]['section'] ?? null);
         $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
         $t->same(['markdown-column-widths-approximated', 'markdown-table-bodies-flattened', 'markdown-row-headers-flattened', 'markdown-rowspan-flattened'], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $markdownRowspanDowngrades = array_values(array_filter(
+            $packet['writerDowngrades']['markdown'] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-rowspan-flattened'
+        ));
+        $t->same(1, count($markdownRowspanDowngrades));
+        $t->same(true, $markdownRowspanDowngrades[0]['rowspanToEnd'] ?? null);
+        $t->same(3, $markdownRowspanDowngrades[0]['rowspan'] ?? null);
+        $t->same(3, $markdownRowspanDowngrades[0]['rawRowspan'] ?? null);
+        $t->same([
+            ['row' => 1, 'column' => 0, 'covering' => 'rowspan'],
+            ['row' => 2, 'column' => 0, 'covering' => 'rowspan'],
+        ], $markdownRowspanDowngrades[0]['flattenedSlots'] ?? null);
+        $rstRowspanRequirements = array_values(array_filter(
+            TableGeometry::writerDowngradeDiagnostics($table, 'rst-grid-table'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'rst-grid-table-required'
+        ));
+        $t->same(1, count($rstRowspanRequirements));
+        $t->same(true, $rstRowspanRequirements[0]['rowspanToEnd'] ?? null);
+        $t->same('grid-table', $rstRowspanRequirements[0]['requiredFeature'] ?? null);
+        $latexRowspanRequirements = array_values(array_filter(
+            TableGeometry::writerDowngradeDiagnostics($table, 'latex'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'latex-multirow-required'
+        ));
+        $t->same(1, count($latexRowspanRequirements));
+        $t->same(true, $latexRowspanRequirements[0]['rowspanToEnd'] ?? null);
+        $t->same('multirow', $latexRowspanRequirements[0]['requiredFeature'] ?? null);
         $t->contains('<figure class="wp-block-table"><table id="rowspan-zero-grid" data-source="html-reader"><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody id="posts-body"><tr data-row="posts-total"><th rowspan="3" style="text-align:left">Posts</th><td style="text-align:right">42</td></tr><tr data-row="posts-media"><td style="text-align:right">7</td><td>Needs media</td></tr><tr data-row="posts-review"><td style="text-align:right">3</td><td>Review</td></tr></tbody><tbody id="pages-body"><tr data-row="pages-total"><th>Pages</th><td style="text-align:right">5</td><td>Ready</td></tr></tbody></table></figure>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },

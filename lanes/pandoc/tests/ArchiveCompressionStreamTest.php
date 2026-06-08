@@ -179,6 +179,11 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '')
         $name = (string) $entry['name'];
         $data = (string) ($entry['data'] ?? '');
         $method = (int) ($entry['compressionMethod'] ?? 0);
+        $localMethod = (int) ($entry['localCompressionMethod'] ?? $method);
+        $centralMethod = (int) ($entry['centralCompressionMethod'] ?? $method);
+        $versionNeededToExtract = (int) ($entry['versionNeededToExtract'] ?? 20);
+        $localVersionNeededToExtract = (int) ($entry['localVersionNeededToExtract'] ?? $versionNeededToExtract);
+        $centralVersionNeededToExtract = (int) ($entry['centralVersionNeededToExtract'] ?? $versionNeededToExtract);
         $flags = (int) ($entry['flags'] ?? 0);
         $localFlags = (int) ($entry['localFlags'] ?? $flags);
         $centralExtra = (string) ($entry['centralExtra'] ?? $entry['extra'] ?? '');
@@ -191,9 +196,9 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '')
         $body .= pack(
             'VvvvvvVVVvv',
             0x04034b50,
-            20,
+            $localVersionNeededToExtract,
             $localFlags,
-            $method,
+            $localMethod,
             0,
             0,
             $crc32,
@@ -207,9 +212,9 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '')
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
             0x0314,
-            20,
+            $centralVersionNeededToExtract,
             $flags,
-            $method,
+            $centralMethod,
             0,
             0,
             $crc32,
@@ -2705,6 +2710,117 @@ return [
         $t->same('lz4', $lz4Inspection['stream']['type']);
         $t->same(2, $lz4Inspection['stream']['frameCount']);
         $t->same('encrypted zip reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+    },
+
+    'preflights unsupported zip compression methods across archive streams without exposing package entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $utf8 = 0x0800;
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'flags' => $utf8,
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Supported deflate part</w:p></w:body></w:document>',
+                'flags' => $utf8,
+                'compressionMethod' => 8,
+            ],
+            [
+                'name' => 'word/media/bzip2-review.bin',
+                'data' => 'BZIP2 method payload is intentionally not decoded by native package streams',
+                'flags' => $utf8,
+                'compressionMethod' => 12,
+                'versionNeededToExtract' => 46,
+            ],
+            [
+                'name' => 'word/media/local-method-mismatch.bin',
+                'data' => 'Central deflate metadata with local LZMA method mismatch stays blocked',
+                'flags' => $utf8,
+                'compressionMethod' => 8,
+                'localCompressionMethod' => 14,
+            ],
+        ], 'unsupported compression review fixture');
+
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-unsupported-compression.zip',
+                'comment' => 'unsupported ZIP method preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('unsupported zip compression reviewer metadata', 13)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipCompressionMethodPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same($format, $inspection['format']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(4, $inspection['entryCount']);
+            $t->same(2, $inspection['supportedEntryCount']);
+            $t->same(2, $inspection['unsupportedCompressionMethodCount']);
+            $t->same(1, $inspection['storedEntryCount']);
+            $t->same(2, $inspection['deflatedEntryCount']);
+            $t->same(1, $inspection['methodMismatchEntryCount']);
+            $t->same(1, $inspection['unsupportedVersionEntryCount']);
+            $t->same(true, $inspection['hasUnsupportedCompressionMethods']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same('unsupported-compression-methods-blocked', $inspection['extractionPolicy']);
+            $t->same([
+                'unsupported-compression-methods',
+                'local-header-compression-method-mismatch',
+                'unsupported-version-needed',
+            ], $inspection['issues']);
+            $t->same([
+                'word/media/bzip2-review.bin',
+                'word/media/local-method-mismatch.bin',
+            ], array_column($inspection['unsupportedEntries'], 'name'));
+            $t->same('blocked', $inspection['unsupportedEntries'][0]['policy']);
+            $t->same(12, $inspection['unsupportedEntries'][0]['compressionMethod']);
+            $t->same('unsupported', $inspection['unsupportedEntries'][0]['compressionMethodName']);
+            $t->same(46, $inspection['unsupportedEntries'][0]['versionNeededToExtract']);
+            $t->same(['zip-unsupported-compression-method', 'zip-version-needed-exceeds-bounded-reader'], $inspection['unsupportedEntries'][0]['diagnostics']);
+            $t->same(8, $inspection['unsupportedEntries'][1]['compressionMethod']);
+            $t->same(14, $inspection['unsupportedEntries'][1]['localCompressionMethod']);
+            $t->same(['zip-unsupported-compression-method', 'zip-local-header-compression-method-mismatch'], $inspection['unsupportedEntries'][1]['diagnostics']);
+            $t->same('metadata', $inspection['entries'][1]['policy']);
+            $t->same(false, array_key_exists('package', $inspection));
+            $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectZipStream($bytes, $format, strlen($zipBytes)));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipCompressionMethodPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipCompressionMethodPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-unsupported-compression.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('unsupported ZIP method preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('unsupported zip compression reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
     },
 
     'auto-detects bounded zip package fixture compression streams' => static function (TestRunner $t): void {

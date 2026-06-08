@@ -923,9 +923,10 @@ final class PdfImageRenderer
             $plan['image_decode_component_mismatch'] = true;
         }
         $filters = $plan['image_filters'];
+        $filterValues = $this->imageFilterValues($canonical, $objects);
         $previewOnlyFilters = $plan['image_filter_boundary']['preview_only_filters'];
         $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($filters);
-        $unsupportedFilters = $this->unsupportedInlineImageFilters($filters, $canonical, $objects);
+        $unsupportedFilters = $this->unsupportedInlineImageFilters($filterValues, $canonical, $objects);
         $decodeOperandInvalid = ($plan['image_decode_component_mismatch'] ?? false) === true;
         $geometryOperandInvalid = $this->inlineImageGeometryOperandInvalid($canonical, $objects);
         if ($unsupportedFilters !== []) {
@@ -4740,7 +4741,7 @@ final class PdfImageRenderer
     }
 
     /**
-     * @param list<string> $filters
+     * @param list<string|null> $filters
      * @param array<int, string> $objects
      * @return list<string>
      */
@@ -4751,6 +4752,10 @@ final class PdfImageRenderer
         $duplicateDecodeParmsDeclarations = $this->duplicatePdfNameDeclarationCount($dictionary, 'DecodeParms') > 0;
         $unappliedDecodeParmsSlots = $this->unappliedNonNullDecodeParmsSlots($filters, $decodeParms);
         foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
             $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
             $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
 
@@ -4870,7 +4875,8 @@ final class PdfImageRenderer
      */
     private function imageDecodeParmsValues(string $dictionary, array $objects): array
     {
-        $value = $this->extractPdfNameValue($dictionary, 'DecodeParms');
+        $value = $this->extractPdfNameValue($dictionary, 'DecodeParms')
+            ?? $this->imageDecodeParmsValueAfterRejectedFilterOperand($dictionary);
         if ($value === null) {
             return [];
         }
@@ -4888,6 +4894,42 @@ final class PdfImageRenderer
         }
 
         return [$value];
+    }
+
+    private function imageDecodeParmsValueAfterRejectedFilterOperand(string $dictionary): ?string
+    {
+        $body = trim($dictionary);
+        if (str_starts_with($body, '<<')) {
+            $read = $this->readBalancedDictionary($body, 0);
+            if ($read !== null) {
+                $body = trim(substr($read['value'], 2, -2));
+            }
+        }
+
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $key = $this->readPdfValueWithOffset($body, $offset);
+            if ($key === null || !str_starts_with(trim($key['value']), '/')) {
+                break;
+            }
+
+            $value = $this->readPdfValueWithOffset($body, $key['next']);
+            if ($value === null) {
+                break;
+            }
+
+            if ($this->pdfNameValue($key['value']) === 'Filter') {
+                $extraOperandEnd = $this->imageDirectFilterExtraOperandEndAfterValue($body, $value['next']);
+                if ($extraOperandEnd !== null) {
+                    return $this->pdfDictionaryValueForNameFromOffset($body, 'DecodeParms', $extraOperandEnd);
+                }
+            }
+
+            $offset = $value['next'];
+        }
+
+        return null;
     }
 
     /**
@@ -7191,11 +7233,27 @@ final class PdfImageRenderer
         }
 
         $boundary = $this->decodedInlineImageStreamPreviewBoundary($dictionary, $stream, $objects, false, true);
+        $dctPayload = $this->dctPreviewStreamPayloadBytes($imageObject, $objects);
+        $inferredMissingFilterDctPreviewBoundary = $this->imageStreamCanInferMissingDctFilterBoundary(
+            $dictionary,
+            $boundary['filters'],
+            $stream
+        );
         if (
-            $this->imageFilterOperandBoundaryFilters($boundary['filters']) !== []
-            && $this->dctPreviewStreamPayloadBytes($imageObject, $objects) !== null
+            $dctPayload !== null
+            && (
+                $this->imageFilterOperandBoundaryFilters($boundary['filters']) !== []
+                || $inferredMissingFilterDctPreviewBoundary
+            )
         ) {
             $boundary['raw_dct_preview_boundary'] = true;
+        }
+        if ($inferredMissingFilterDctPreviewBoundary) {
+            $boundary['decoded_length'] = null;
+            $boundary['decoded_sha256'] = null;
+            $boundary['decoded_preview_hex'] = null;
+            $boundary['decoded_with_current_filters'] = false;
+            $boundary['decoded_bytes'] = null;
         }
         $dctBoundary = $this->dctPreviewStreamBoundaryReviewForFilters(
             $dictionary,
@@ -8763,11 +8821,15 @@ final class PdfImageRenderer
     private function imageFilterStackCanUseRawDctBoundary(string $dictionary, array $filters): bool
     {
         $filterNames = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
-        if ($this->imageFilterOperandBoundaryFilters($filterNames) === []) {
+        if ($this->pdfNameValue($this->extractPdfNameValue($dictionary, 'Subtype') ?? '') !== 'Image') {
             return false;
         }
 
-        return $this->pdfNameValue($this->extractPdfNameValue($dictionary, 'Subtype') ?? '') === 'Image';
+        if ($filterNames === [] && $this->pdfDictionaryValuesForName($dictionary, 'Filter') === []) {
+            return true;
+        }
+
+        return $this->imageFilterOperandBoundaryFilters($filterNames) !== [];
     }
 
     /**
@@ -9049,6 +9111,11 @@ final class PdfImageRenderer
             return null;
         }
 
+        return $this->rawJpegPreviewPayloadBytesForReview($stream);
+    }
+
+    private function rawJpegPreviewPayloadBytesForReview(string $stream): ?string
+    {
         $eoiEnd = null;
         foreach ($this->dctPreviewEoiEndOffsets($stream) as $candidateEnd) {
             $eoiEnd = $candidateEnd;
@@ -9079,6 +9146,12 @@ final class PdfImageRenderer
         $direct = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream, $stream);
         if ($direct !== null) {
             return $direct;
+        }
+        if ($this->imageStreamCanInferMissingDctFilterBoundary($dictionary, $resolvedFilters, $stream)) {
+            return $this->dctPreviewRawJpegStreamBoundaryReview($stream, $stream, [
+                'inferred_from_raw_image_stream' => true,
+                'declared_filter_missing' => true,
+            ]);
         }
 
         $dctFilterIndex = null;
@@ -9147,6 +9220,29 @@ final class PdfImageRenderer
             return null;
         }
 
+        return $this->dctPreviewRawJpegStreamBoundaryReview(
+            $stream,
+            $reviewStream,
+            [],
+            $decodedFromNativePrefix,
+            $nativePrefixFilters,
+            $stoppedBeforeFilter
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $extraMetadata
+     * @param list<string> $nativePrefixFilters
+     * @return array<string, mixed>|null
+     */
+    private function dctPreviewRawJpegStreamBoundaryReview(
+        string $stream,
+        string $reviewStream,
+        array $extraMetadata = [],
+        bool $decodedFromNativePrefix = false,
+        array $nativePrefixFilters = [],
+        ?string $stoppedBeforeFilter = null
+    ): ?array {
         $length = strlen($reviewStream);
         $start = $this->dctPreviewSoiOffset($reviewStream);
         if ($start === null) {
@@ -9176,6 +9272,7 @@ final class PdfImageRenderer
             'review_stream_length' => strlen($reviewStream),
             'padding_byte_count' => max(0, $paddingEnd - $eoiEnd),
             'stream_trimmed_to_jpeg_eoi' => strlen($reviewStream) < strlen($stream),
+            ...$extraMetadata,
             ...($decodedFromNativePrefix ? [
                 'review_stream_decoded_from_native_prefix' => true,
                 'native_prefix_filters' => $nativePrefixFilters,
@@ -9189,6 +9286,20 @@ final class PdfImageRenderer
             'review_only' => true,
             'native_raster_decode' => false,
         ];
+    }
+
+    /**
+     * @param list<string> $resolvedFilters
+     */
+    private function imageStreamCanInferMissingDctFilterBoundary(
+        string $dictionary,
+        array $resolvedFilters,
+        string $stream
+    ): bool {
+        return $resolvedFilters === []
+            && $this->pdfDictionaryValuesForName($dictionary, 'Filter') === []
+            && $this->pdfNameValue($this->extractPdfNameValue($dictionary, 'Subtype') ?? '') === 'Image'
+            && $this->dctPreviewBytesAreCompleteJpeg($stream);
     }
 
     /**
@@ -9805,6 +9916,57 @@ final class PdfImageRenderer
         }
 
         return $this->readPdfValueWithOffset($body, $nextEnd) !== null;
+    }
+
+    private function imageDirectFilterExtraOperandEndAfterValue(string $body, int $offset): ?int
+    {
+        $offset = $this->skipPdfWhitespace($body, $offset);
+        if ($offset >= strlen($body) || substr($body, $offset, 2) === '>>' || ($body[$offset] ?? '') === ']') {
+            return null;
+        }
+
+        if (($body[$offset] ?? '') !== '/') {
+            $extra = $this->readPdfValueWithOffset($body, $offset);
+
+            return $extra['next'] ?? null;
+        }
+
+        $nameEnd = $this->pdfNameTokenEndOffset($body, $offset);
+        if ($nameEnd <= $offset + 1) {
+            return null;
+        }
+
+        $name = $this->decodePdfName(substr($body, $offset + 1, $nameEnd - $offset - 1));
+        if ($this->imageFilterNameLooksLikeDecoder($name) || $this->imageFilterUnknownNamePrecedesLength($body, $nameEnd)) {
+            return $nameEnd;
+        }
+
+        return null;
+    }
+
+    private function pdfDictionaryValueForNameFromOffset(string $body, string $name, int $offset): ?string
+    {
+        $offset = $this->skipPdfWhitespace($body, $offset);
+        $length = strlen($body);
+        while ($offset < $length) {
+            $key = $this->readPdfValueWithOffset($body, $offset);
+            if ($key === null || !str_starts_with(trim($key['value']), '/')) {
+                break;
+            }
+
+            $value = $this->readPdfValueWithOffset($body, $key['next']);
+            if ($value === null) {
+                break;
+            }
+
+            if ($this->pdfNameValue($key['value']) === $name) {
+                return $value['value'];
+            }
+
+            $offset = $value['next'];
+        }
+
+        return null;
     }
 
     private function imageFilterNameLooksLikeDecoder(string $name): bool

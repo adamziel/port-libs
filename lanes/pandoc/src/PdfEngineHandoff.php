@@ -308,7 +308,7 @@ final class PdfEngineHandoff
      *     pdfDestinationOptions: list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
      *     pdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
      *     pdfUriBase: string|null,
-     *     pdfViewerPreferences: array<string, bool|int|string>,
+     *     pdfViewerPreferences: array<string, bool|int|string|list<int>|list<string>>,
      *     pdfNeedsRendering: bool|null,
      *     pdfCatalogRequirements: list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
@@ -1530,6 +1530,12 @@ final class PdfEngineHandoff
                 }
                 if ($pdfViewerPreferences !== []) {
                     $diagnostics[] = 'pdf-byte-viewer-preferences:' . count($pdfViewerPreferences);
+                    if (isset($pdfViewerPreferences['PrintPageRange']) && is_array($pdfViewerPreferences['PrintPageRange'])) {
+                        $diagnostics[] = 'pdf-byte-viewer-print-page-ranges:' . intdiv(count($pdfViewerPreferences['PrintPageRange']), 2);
+                    }
+                    if (isset($pdfViewerPreferences['Enforce']) && is_array($pdfViewerPreferences['Enforce'])) {
+                        $diagnostics[] = 'pdf-byte-viewer-enforced-preferences:' . count($pdfViewerPreferences['Enforce']);
+                    }
                 }
                 if ($pdfNeedsRendering !== null) {
                     $diagnostics[] = 'pdf-byte-needs-rendering:' . ($pdfNeedsRendering ? 'true' : 'false');
@@ -2354,7 +2360,7 @@ final class PdfEngineHandoff
      *     finalPdfDestinationOptions: list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
      *     finalPdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
      *     finalPdfUriBase: string|null,
-     *     finalPdfViewerPreferences: array<string, bool|int|string>,
+     *     finalPdfViewerPreferences: array<string, bool|int|string|list<int>|list<string>>,
      *     finalPdfNeedsRendering: bool|null,
      *     finalPdfCatalogRequirements: list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
@@ -7229,9 +7235,9 @@ final class PdfEngineHandoff
             return [];
         }
 
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
         $dictionary = null;
         if (preg_match('/\/ViewerPreferences\s+(\d+)\s+(\d+)\s+R\b/s', $catalog, $matches) === 1) {
-            $objects = $this->pdfObjectBodiesByReference($pdfBytes);
             $dictionary = $objects[$matches[1] . ' ' . $matches[2]] ?? null;
         }
 
@@ -7262,6 +7268,19 @@ final class PdfEngineHandoff
             $value = $this->extractPdfIntegerToken($dictionary, $key);
             if ($value !== null) {
                 $preferences[$key] = $value;
+            }
+        }
+
+        $printPageRange = $this->extractPdfArrayOrReferenceValue($dictionary, 'PrintPageRange', $objects);
+        if ($printPageRange !== null && preg_match_all('/-?\d+/', $printPageRange, $matches) > 0) {
+            $preferences['PrintPageRange'] = array_map('intval', $matches[0]);
+        }
+
+        $enforceValue = $this->extractPdfValueForName($dictionary, 'Enforce');
+        if ($enforceValue !== null) {
+            $enforcedPreferences = $this->collectPdfNamesFromValue($enforceValue, $objects);
+            if ($enforcedPreferences !== []) {
+                $preferences['Enforce'] = $enforcedPreferences;
             }
         }
 

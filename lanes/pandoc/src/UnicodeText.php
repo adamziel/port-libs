@@ -748,6 +748,19 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const WINDOWS_874_CONTROLS = [
+        0x80 => 0x20ac,
+        0x85 => 0x2026,
+        0x91 => 0x2018,
+        0x92 => 0x2019,
+        0x93 => 0x201c,
+        0x94 => 0x201d,
+        0x95 => 0x2022,
+        0x96 => 0x2013,
+        0x97 => 0x2014,
+    ];
+
+    /** @var array<int, int> */
     private const KOI8_R_REPLACEMENTS = [
         0x80 => 0x2500,
         0x81 => 0x2502,
@@ -1854,6 +1867,7 @@ final class UnicodeText
             || $normalized === 'windows-1256'
             || $normalized === 'windows-1257'
             || $normalized === 'windows-1258'
+            || $normalized === 'windows-874'
             || $normalized === 'koi8-r'
             || $normalized === 'koi8-u'
             || $normalized === 'iso-8859-1'
@@ -2348,6 +2362,7 @@ final class UnicodeText
             'windows1256', 'cp1256', 'microsoftcp1256', 'ms1256', 'xcp1256' => 'windows-1256',
             'windows1257', 'cp1257', 'microsoftcp1257', 'ms1257', 'xcp1257' => 'windows-1257',
             'windows1258', 'cp1258', 'microsoftcp1258', 'ms1258', 'xcp1258' => 'windows-1258',
+            'windows874', 'cp874', 'microsoftcp874', 'ms874', 'xcp874', 'dos874' => 'windows-874',
             'koi8r', 'cskoi8r', 'koi8' => 'koi8-r',
             'koi8u', 'cskoi8u' => 'koi8-u',
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
@@ -2834,6 +2849,20 @@ final class UnicodeText
                 }
 
                 $out .= self::fromCodepoint($byte);
+                continue;
+            }
+            if ($encoding === 'windows-874' && $byte >= 0x80) {
+                if ($byte <= 0x9f) {
+                    $out .= self::fromCodepoint(self::WINDOWS_874_CONTROLS[$byte] ?? $byte);
+                    continue;
+                }
+                if (!isset(self::TIS_620_REPLACEMENTS[$byte])) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $out .= self::fromCodepoint(self::TIS_620_REPLACEMENTS[$byte]);
                 continue;
             }
             if (($encoding === 'koi8-r' || $encoding === 'koi8-u') && $byte >= 0x80) {

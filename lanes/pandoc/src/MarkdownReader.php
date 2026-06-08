@@ -555,6 +555,10 @@ final class MarkdownReader
         $this->yamlMetadataInvalid = false;
         $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
         try {
+            if ($this->yamlMetadataHasLeadingTabIndentation($yamlLines)) {
+                return [];
+            }
+
             $metadata = $this->parseYamlMetadataLines(
                 $yamlLines,
                 true,
@@ -592,6 +596,20 @@ final class MarkdownReader
             $this->yamlMetadataInvalid = $previousYamlMetadataInvalid;
             $this->yamlMetadataTagHandles = $previousYamlMetadataTagHandles;
         }
+    }
+
+    /**
+     * @param list<string> $yamlLines
+     */
+    private function yamlMetadataHasLeadingTabIndentation(array $yamlLines): bool
+    {
+        foreach ($yamlLines as $line) {
+            if ($line !== '' && $line[0] === "\t" && trim($line) !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

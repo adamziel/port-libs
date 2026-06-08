@@ -20,6 +20,8 @@ final class OpcRelationshipGraph
     public const WORDPROCESSING_COMMENTS_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
     public const WORDPROCESSING_SETTINGS_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     public const WORDPROCESSING_THEME_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
+    public const WORDPROCESSING_FONT_TABLE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
+    public const WORDPROCESSING_WEB_SETTINGS_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     public const WORDPROCESSING_HEADER_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     public const WORDPROCESSING_FOOTER_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     public const WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
@@ -50,6 +52,8 @@ final class OpcRelationshipGraph
     private const WORDPROCESSING_ENDNOTES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
     private const WORDPROCESSING_COMMENTS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
     private const WORDPROCESSING_SETTINGS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
+    private const WORDPROCESSING_FONT_TABLE_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml';
+    private const WORDPROCESSING_WEB_SETTINGS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml';
     private const WORDPROCESSING_HEADER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
     private const WORDPROCESSING_FOOTER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
     private const OFFICE_THEME_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.theme+xml';
@@ -2928,6 +2932,18 @@ final class OpcRelationshipGraph
             self::WORDPROCESSING_THEME_RELATIONSHIP_TYPE => [
                 'role' => 'theme',
                 'expectedContentType' => self::OFFICE_THEME_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_FONT_TABLE_RELATIONSHIP_TYPE => [
+                'role' => 'font-table',
+                'expectedContentType' => self::WORDPROCESSING_FONT_TABLE_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_WEB_SETTINGS_RELATIONSHIP_TYPE => [
+                'role' => 'web-settings',
+                'expectedContentType' => self::WORDPROCESSING_WEB_SETTINGS_CONTENT_TYPE,
                 'expectedSourceContentTypes' => $documentSourceContentTypes,
                 'expectedExternal' => false,
             ],

@@ -5787,20 +5787,194 @@ final class DocxReader
             $attrs['caption'] = $caption;
         }
 
+        $classes = [];
+        $attributes = [];
+        $htmlAttributes = [];
+        $styles = [];
+
         $description = $this->tablePropertyValue($properties, 'tblDescription');
         if ($description !== null) {
-            $attrs['classes'] = ['docx-table-metadata'];
-            $attrs['attributes'] = [
-                'data-docx-table-description' => $description,
-            ];
-            $attrs['htmlAttributes'] = [
-                'aria-description' => $description,
-            ];
+            $classes[] = 'docx-table-metadata';
+            $attributes['data-docx-table-description'] = $description;
+            $htmlAttributes['aria-description'] = $description;
         } elseif ($caption !== null) {
-            $attrs['classes'] = ['docx-table-metadata'];
+            $classes[] = 'docx-table-metadata';
+        }
+
+        $this->appendTableStyleAttrs($properties, $classes, $attributes);
+        $this->appendTableWidthAttrs($properties, $classes, $attributes, $styles);
+        $this->appendTableAlignmentAttrs($properties, $classes, $attributes);
+        $this->appendTableIndentAttrs($properties, $classes, $attributes, $styles);
+        $this->appendTableLayoutAttrs($properties, $classes, $attributes);
+
+        if ($classes !== []) {
+            $attrs['classes'] = array_values(array_unique($classes));
+        }
+        if ($attributes !== []) {
+            $attrs['attributes'] = $attributes;
+        }
+        if ($styles !== []) {
+            $htmlAttributes['style'] = implode('; ', $styles);
+        }
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendTableStyleAttrs(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        $style = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tblStyle');
+        if (!$style instanceof \DOMElement) {
+            return;
+        }
+
+        $value = trim((string) ($this->wordAttr($style, 'val') ?? ''));
+        if ($value === '') {
+            return;
+        }
+
+        $classes[] = 'docx-table-style';
+        $suffix = $this->metadataClassSuffix($value);
+        if ($suffix !== null) {
+            $classes[] = 'docx-table-style-' . $suffix;
+        }
+        $attributes['data-docx-table-style'] = $value;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     * @param list<string> $styles
+     */
+    private function appendTableWidthAttrs(\DOMElement $properties, array &$classes, array &$attributes, array &$styles): void
+    {
+        $width = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tblW');
+        if (!$width instanceof \DOMElement) {
+            return;
+        }
+
+        $type = strtolower(trim((string) ($this->wordAttr($width, 'type') ?? '')));
+        if (!in_array($type, ['dxa', 'pct', 'auto'], true)) {
+            return;
+        }
+
+        $classes[] = 'docx-table-width';
+        $classes[] = 'docx-table-width-' . $type;
+        $attributes['data-docx-table-width-type'] = $type;
+
+        $value = trim((string) ($this->wordAttr($width, 'w') ?? ''));
+        if ($value === '') {
+            return;
+        }
+
+        $attributes['data-docx-table-width-value'] = $value;
+        if (preg_match('/^\d+(?:\.\d+)?$/D', $value) !== 1) {
+            return;
+        }
+
+        $numericValue = (float) $value;
+        if ($numericValue > 0.0 && $type === 'dxa') {
+            $points = $this->formatOpenXmlCssNumber($numericValue / 20.0);
+            $attributes['data-docx-table-width-points'] = $points;
+            $styles[] = 'width:' . $points . 'pt';
+        } elseif ($numericValue > 0.0 && $type === 'pct') {
+            $percent = $this->formatOpenXmlCssNumber($numericValue / 50.0);
+            $attributes['data-docx-table-width-percent'] = $percent;
+            $styles[] = 'width:' . $percent . '%';
+        }
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendTableAlignmentAttrs(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        $alignment = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'jc');
+        if (!$alignment instanceof \DOMElement) {
+            return;
+        }
+
+        $value = strtolower(trim((string) ($this->wordAttr($alignment, 'val') ?? '')));
+        $suffix = $this->metadataClassSuffix($value);
+        if ($suffix === null) {
+            return;
+        }
+
+        $classes[] = 'docx-table-align';
+        $classes[] = 'docx-table-align-' . $suffix;
+        $attributes['data-docx-table-align'] = $value;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     * @param list<string> $styles
+     */
+    private function appendTableIndentAttrs(\DOMElement $properties, array &$classes, array &$attributes, array &$styles): void
+    {
+        $indent = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tblInd');
+        if (!$indent instanceof \DOMElement) {
+            return;
+        }
+
+        $type = strtolower(trim((string) ($this->wordAttr($indent, 'type') ?? '')));
+        if (!in_array($type, ['dxa', 'pct'], true)) {
+            return;
+        }
+
+        $value = trim((string) ($this->wordAttr($indent, 'w') ?? ''));
+        if ($value === '') {
+            return;
+        }
+
+        $classes[] = 'docx-table-indent';
+        $classes[] = 'docx-table-indent-' . $type;
+        $attributes['data-docx-table-indent-type'] = $type;
+        $attributes['data-docx-table-indent-value'] = $value;
+
+        if (preg_match('/^\d+(?:\.\d+)?$/D', $value) !== 1) {
+            return;
+        }
+
+        $numericValue = (float) $value;
+        if ($numericValue > 0.0 && $type === 'dxa') {
+            $points = $this->formatOpenXmlCssNumber($numericValue / 20.0);
+            $attributes['data-docx-table-indent-left-points'] = $points;
+            $styles[] = 'margin-left:' . $points . 'pt';
+        } elseif ($numericValue > 0.0 && $type === 'pct') {
+            $percent = $this->formatOpenXmlCssNumber($numericValue / 50.0);
+            $attributes['data-docx-table-indent-left-percent'] = $percent;
+            $styles[] = 'margin-left:' . $percent . '%';
+        }
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendTableLayoutAttrs(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        $layout = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tblLayout');
+        if (!$layout instanceof \DOMElement) {
+            return;
+        }
+
+        $value = strtolower(trim((string) ($this->wordAttr($layout, 'type') ?? '')));
+        $suffix = $this->metadataClassSuffix($value);
+        if ($suffix === null) {
+            return;
+        }
+
+        $classes[] = 'docx-table-layout';
+        $classes[] = 'docx-table-layout-' . $suffix;
+        $attributes['data-docx-table-layout'] = $value;
     }
 
     /**

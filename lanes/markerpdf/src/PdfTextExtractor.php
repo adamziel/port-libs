@@ -7413,8 +7413,20 @@ final class PdfTextExtractor
             $resolvedFilters,
             $reviewStream
         );
-        $rawDctPreviewBoundary = $filterOperandBoundaryFilters !== []
-            && $this->dctPreviewBytesAreCompleteJpeg($reviewStream);
+        $inferredMissingFilterDctPreviewBoundary = $this->imageStreamCanInferMissingDctFilterBoundary(
+            $stream['dict'],
+            $objects,
+            $reviewFilters,
+            $resolvedFilters,
+            $reviewStream
+        );
+        $rawDctPreviewBoundary = $inferredMissingFilterDctPreviewBoundary
+            || (
+                $filterOperandBoundaryFilters !== []
+                && $this->dctPreviewBytesAreCompleteJpeg($reviewStream)
+            );
+        $decodedWithCurrentFilters = $decoded !== null && !$rawDctPreviewBoundary;
+        $decodedForMetadata = $decodedWithCurrentFilters ? $decoded : null;
         $dctNativePrefixBoundary = $this->dctDecodeNativePrefixStreamBoundaryReview(
             $stream['dict'],
             $stream['stream'],
@@ -7580,14 +7592,14 @@ final class PdfTextExtractor
             'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
             'ccitt_fax_imagemask_polarity_boundary' => $ccittImageMaskPolarityBoundary,
             'native_raster_decode' => $filters !== null
-                && $decoded !== null
+                && $decodedWithCurrentFilters
                 && $previewOnlyFilters === []
                 && $imageDimensionsValid
                 && $bitsPerComponentBoundary === null,
             'raw_length' => strlen($reviewStream),
-            'decoded_with_current_filters' => $decoded !== null,
-            'decoded_length' => $decoded === null ? null : strlen($decoded),
-            'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            'decoded_with_current_filters' => $decodedWithCurrentFilters,
+            'decoded_length' => $decodedForMetadata === null ? null : strlen($decodedForMetadata),
+            'decoded_sha256' => $decodedForMetadata === null ? null : hash('sha256', $decodedForMetadata),
             ...$dctNativePrefixBoundary,
             ...$ccittNativePrefixBoundary,
             'payload_in_visible_text' => false,
@@ -7690,18 +7702,35 @@ final class PdfTextExtractor
      */
     private function imageXObjectOpiProxyEntryReview(string $version, string $opiDictionary, array $objects): array
     {
+        $includedImageDimensions = $this->opiNumericArrayReview($opiDictionary, 'IncludedImageDimensions', $objects);
+        $cropRect = $this->opiNumericArrayReview($opiDictionary, 'CropRect', $objects);
+        $position = $this->opiNumericArrayReview($opiDictionary, 'Position', $objects);
+        $resolution = $this->opiNumericArrayReview($opiDictionary, 'Resolution', $objects);
+
         return [
             'version' => $version,
             'resolved' => true,
-            'type' => $this->pdfNameValueAfterNameResolvingObjects($opiDictionary, 'Type', $objects),
-            'version_value' => $this->pdfNumberValueAfterNameResolvingObjects($opiDictionary, 'Version', $objects),
-            'file_specification' => $this->pdfSingleStringValueAfterName($opiDictionary, 'F', $objects),
-            'image_type' => $this->pdfNameValueAfterNameResolvingObjects($opiDictionary, 'ImageType', $objects),
-            'included_image_dimensions' => $this->opiNumericArrayReview($opiDictionary, 'IncludedImageDimensions', $objects),
-            'crop_rect' => $this->opiNumericArrayReview($opiDictionary, 'CropRect', $objects),
-            'position' => $this->opiNumericArrayReview($opiDictionary, 'Position', $objects),
-            'resolution' => $this->opiNumericArrayReview($opiDictionary, 'Resolution', $objects),
-            'overprint' => $this->pdfBooleanValueAfterNameResolvingObjects($opiDictionary, 'Overprint', $objects),
+            'type' => $this->opiTopLevelNameValue($opiDictionary, 'Type', $objects),
+            'version_value' => $this->opiTopLevelNumberValue($opiDictionary, 'Version', $objects),
+            'file_specification' => $this->opiTopLevelSingleStringValue($opiDictionary, 'F', $objects),
+            'image_type' => $this->opiTopLevelNameValue($opiDictionary, 'ImageType', $objects),
+            'included_image_dimensions' => $includedImageDimensions['numbers'],
+            ...($includedImageDimensions['boundary'] === null ? [] : [
+                'included_image_dimensions_boundary' => $includedImageDimensions['boundary'],
+            ]),
+            'crop_rect' => $cropRect['numbers'],
+            ...($cropRect['boundary'] === null ? [] : [
+                'crop_rect_boundary' => $cropRect['boundary'],
+            ]),
+            'position' => $position['numbers'],
+            ...($position['boundary'] === null ? [] : [
+                'position_boundary' => $position['boundary'],
+            ]),
+            'resolution' => $resolution['numbers'],
+            ...($resolution['boundary'] === null ? [] : [
+                'resolution_boundary' => $resolution['boundary'],
+            ]),
+            'overprint' => $this->topLevelPdfBooleanValueAfterNameResolvingObjects($opiDictionary, 'Overprint', $objects),
             'payload_in_visible_text' => false,
             'review_only' => true,
         ];
@@ -7709,21 +7738,165 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return list<float>|null
+     * @return array{numbers: list<float>|null, boundary: array<string, mixed>|null}
      */
-    private function opiNumericArrayReview(string $dictionary, string $name, array $objects): ?array
+    private function opiNumericArrayReview(string $dictionary, string $name, array $objects): array
     {
-        $arrayBody = $this->pdfArrayValueAfterNameResolvingObjects($dictionary, $name, $objects);
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
+        if ($value === null) {
+            return [
+                'numbers' => null,
+                'boundary' => null,
+            ];
+        }
+
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, $name)) {
+            return [
+                'numbers' => null,
+                'boundary' => $this->opiNumericArrayBoundaryReview(
+                    $name,
+                    'trailing_top_level_operand',
+                    $value,
+                    $objects
+                ),
+            ];
+        }
+
+        $arrayBody = $this->pdfSingleArrayFromValue($value, $objects);
         if ($arrayBody === null) {
-            return null;
+            return [
+                'numbers' => null,
+                'boundary' => $this->opiNumericArrayMalformedOperandBoundary($name, $value, $objects),
+            ];
         }
 
-        $numbers = $this->numbersFromPdfArrayResolvingObjects($arrayBody, $objects);
+        $items = $this->pdfArrayItems($arrayBody);
+        $numbers = [];
+        foreach ($items as $index => $item) {
+            $number = $this->pdfNumberValueAt($item, 0, $objects);
+            if ($number === null || !is_finite($number)) {
+                return [
+                    'numbers' => null,
+                    'boundary' => [
+                        ...$this->opiNumericArrayBoundaryReview(
+                            $name,
+                            'non_numeric_array_item',
+                            $value,
+                            $objects
+                        ),
+                        'invalid_item_index' => $index,
+                    ],
+                ];
+            }
+
+            $numbers[] = $number;
+        }
+
         if ($numbers === []) {
+            return [
+                'numbers' => null,
+                'boundary' => null,
+            ];
+        }
+
+        return [
+            'numbers' => $this->normalizedPdfReviewNumbers($numbers),
+            'boundary' => null,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function opiTopLevelSingleStringValue(string $dictionary, string $name, array $objects): ?string
+    {
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
+        if ($value === null || !$this->pdfValueIsSingleStringOrNameToken($value, $objects)) {
             return null;
         }
 
-        return $this->normalizedPdfReviewNumbers($numbers);
+        return $this->pdfStringTokenAt($value, 0, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function opiTopLevelNameValue(string $dictionary, string $name, array $objects): ?string
+    {
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
+
+        return $value === null ? null : $this->pdfNameValueAt($value, 0, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function opiTopLevelNumberValue(string $dictionary, string $name, array $objects): ?float
+    {
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
+
+        return $value === null ? null : $this->pdfNumberValueAt($value, 0, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function opiNumericArrayMalformedOperandBoundary(string $name, string $value, array $objects): array
+    {
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference === null) {
+            return $this->opiNumericArrayBoundaryReview($name, 'malformed_array_operand', $value, $objects);
+        }
+
+        $objectBody = $this->objectBodyForExactReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+        if ($objectBody === null) {
+            return [
+                ...$this->opiNumericArrayBoundaryReview($name, 'unresolved_indirect_array_operand', $value, $objects),
+                'object_number' => $reference['objectNumber'],
+                'generation' => $reference['generation'],
+            ];
+        }
+
+        $trimmed = trim($objectBody);
+        $arrayBody = str_starts_with($trimmed, '[') ? $this->readPdfArrayAt($trimmed, 0) : null;
+        $reason = 'malformed_indirect_array_operand';
+        if ($arrayBody !== null) {
+            $after = $this->skipPdfWhitespace($trimmed, strlen($arrayBody) + 2);
+            if ($after < strlen($trimmed)) {
+                $reason = 'trailing_indirect_array_operand';
+            }
+        }
+
+        return [
+            ...$this->opiNumericArrayBoundaryReview($name, $reason, $value, $objects),
+            'object_number' => $reference['objectNumber'],
+            'generation' => $reference['generation'],
+            'indirect_value_preview' => $this->imageXObjectOperandPreview($objectBody),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function opiNumericArrayBoundaryReview(string $name, string $reason, string $value, array $objects): array
+    {
+        return [
+            'name' => $name,
+            'present' => true,
+            'resolved' => $reason !== 'unresolved_indirect_array_operand',
+            'valid_numeric_array' => false,
+            'reason' => $reason,
+            'value_preview' => $this->imageXObjectOperandPreview($value),
+            'policy' => 'reject_malformed_opi_numeric_array_operand',
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ];
     }
 
     /**
@@ -9035,6 +9208,13 @@ final class PdfTextExtractor
         if ($filters === null) {
             return $stream;
         }
+        if (
+            $filters === []
+            && $this->topLevelNameValueOffset($dictionary, 'Filter') === null
+            && $this->isImageStreamDictionary($dictionary, $objects)
+        ) {
+            return $this->rawJpegPreviewPayloadBytesForReview($stream) ?? $stream;
+        }
 
         return $this->rawDctPreviewPayloadBytesForReview($filters, $stream) ?? $stream;
     }
@@ -9498,6 +9678,11 @@ final class PdfTextExtractor
             return null;
         }
 
+        return $this->rawJpegPreviewPayloadBytesForReview($stream);
+    }
+
+    private function rawJpegPreviewPayloadBytesForReview(string $stream): ?string
+    {
         $eoiEnd = null;
         foreach ($this->dctPreviewEoiEndOffsets($stream) as $candidateEnd) {
             $eoiEnd = $candidateEnd;
@@ -9531,6 +9716,12 @@ final class PdfTextExtractor
         $direct = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream, $reviewStream);
         if ($direct !== null) {
             return $direct;
+        }
+        if ($this->imageStreamCanInferMissingDctFilterBoundary($dictionary, $objects, $filters, $resolvedFilters, $reviewStream)) {
+            return $this->dctPreviewRawJpegStreamBoundaryReview($stream, $reviewStream, [
+                'inferred_from_raw_image_stream' => true,
+                'declared_filter_missing' => true,
+            ]);
         }
 
         if ($filters === null) {
@@ -9608,6 +9799,29 @@ final class PdfTextExtractor
             return null;
         }
 
+        return $this->dctPreviewRawJpegStreamBoundaryReview(
+            $stream,
+            $reviewStream,
+            [],
+            $decodedFromNativePrefix,
+            $nativePrefixFilters,
+            $stoppedBeforeFilter
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $extraMetadata
+     * @param list<string> $nativePrefixFilters
+     * @return array<string, mixed>|null
+     */
+    private function dctPreviewRawJpegStreamBoundaryReview(
+        string $stream,
+        string $reviewStream,
+        array $extraMetadata = [],
+        bool $decodedFromNativePrefix = false,
+        array $nativePrefixFilters = [],
+        ?string $stoppedBeforeFilter = null
+    ): ?array {
         $length = strlen($reviewStream);
         $start = $this->dctPreviewSoiOffset($reviewStream);
         if ($start === null) {
@@ -9637,6 +9851,7 @@ final class PdfTextExtractor
             'review_stream_length' => strlen($reviewStream),
             'padding_byte_count' => max(0, $paddingEnd - $eoiEnd),
             'stream_trimmed_to_jpeg_eoi' => strlen($reviewStream) < strlen($stream),
+            ...$extraMetadata,
             ...($decodedFromNativePrefix ? [
                 'review_stream_decoded_from_native_prefix' => true,
                 'native_prefix_filters' => $nativePrefixFilters,
@@ -9650,6 +9865,25 @@ final class PdfTextExtractor
             'review_only' => true,
             'native_raster_decode' => false,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null>|null $filters
+     * @param list<string> $resolvedFilters
+     */
+    private function imageStreamCanInferMissingDctFilterBoundary(
+        string $dictionary,
+        array $objects,
+        ?array $filters,
+        array $resolvedFilters,
+        string $reviewStream
+    ): bool {
+        return $filters === []
+            && $resolvedFilters === []
+            && $this->topLevelNameValueOffset($dictionary, 'Filter') === null
+            && $this->isImageStreamDictionary($dictionary, $objects)
+            && $this->dctPreviewBytesAreCompleteJpeg($reviewStream);
     }
 
     /**
@@ -20232,6 +20466,11 @@ final class PdfTextExtractor
                 break;
             }
 
+            if ($this->topLevelDirectDictionaryValueHasTrailingNonName($dictionary, 'Parent')) {
+                $blocked = true;
+                break;
+            }
+
             if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($parentValue), $match) !== 1) {
                 $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
                 if ($catalogLineage !== []) {
@@ -22096,7 +22335,11 @@ final class PdfTextExtractor
                 $wx = $this->numericOperand($operands[0]);
                 $wy = $this->numericOperand($operands[1]);
 
-                return $wx === null || $wy === null ? null : [$wx, $wy];
+                if ($wx === null || $wy === null || $this->type3CharProcHasAdditionalMetricOperator($tokens, $tokenIndex + 1)) {
+                    return null;
+                }
+
+                return [$wx, $wy];
             }
 
             if ($token === 'd1') {
@@ -22117,7 +22360,11 @@ final class PdfTextExtractor
                 $wx = $this->numericOperand($operands[0]);
                 $wy = $this->numericOperand($operands[1]);
 
-                return $wx === null || $wy === null ? null : [$wx, $wy];
+                if ($wx === null || $wy === null || $this->type3CharProcHasAdditionalMetricOperator($tokens, $tokenIndex + 1)) {
+                    return null;
+                }
+
+                return [$wx, $wy];
             }
 
             if ($token === 'R' && $this->type3CharProcCanQueueReferenceOperatorOperand($operands)) {
@@ -22156,6 +22403,52 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function type3CharProcHasAdditionalMetricOperator(array $tokens, int $startIndex): bool
+    {
+        $insideTextObject = false;
+        $compatibilityDepth = 0;
+        $count = count($tokens);
+
+        for ($index = $startIndex; $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($insideTextObject) {
+                if ($token === 'ET') {
+                    $insideTextObject = false;
+                }
+
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $insideTextObject = true;
+                continue;
+            }
+
+            if ($token === 'BX') {
+                $compatibilityDepth++;
+                continue;
+            }
+
+            if ($token === 'EX' && $compatibilityDepth > 0) {
+                $compatibilityDepth--;
+                continue;
+            }
+
+            if ($compatibilityDepth > 0) {
+                continue;
+            }
+
+            if ($token === 'd0' || $token === 'd1') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -23077,7 +23370,16 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->pdfSingleNumberValueAfterNameResolvingObjects($descriptor, 'MissingWidth', $objects);
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($descriptor, 'MissingWidth')) {
+            return null;
+        }
+
+        $value = $this->topLevelPdfValueAfterName($descriptor, 'MissingWidth');
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfSingleNumberFromValue($value, $objects);
     }
 
     /**
@@ -28348,6 +28650,10 @@ final class PdfTextExtractor
                 }
             }
 
+            if ($this->malformedDirectObjectBodyStartAt($pdfBytes, $index) !== null) {
+                break;
+            }
+
             $char = $pdfBytes[$index];
 
             if ($char === '%') {
@@ -28938,6 +29244,11 @@ final class PdfTextExtractor
                         }
                     }
                 }
+            }
+
+            $malformedObjectBodyStart = $this->malformedDirectObjectBodyStartAt($pdfBytes, $index);
+            if ($malformedObjectBodyStart !== null) {
+                return $tokenOffset >= $malformedObjectBodyStart;
             }
 
             $char = $pdfBytes[$index];
@@ -30665,6 +30976,21 @@ final class PdfTextExtractor
         }
 
         return false;
+    }
+
+    private function malformedDirectObjectBodyStartAt(string $pdfBytes, int $offset): ?int
+    {
+        if (!ctype_digit($pdfBytes[$offset] ?? '')) {
+            return null;
+        }
+
+        if (preg_match('/\G\d+\s+\d+\s+obj\b/s', $pdfBytes, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $bodyStart = $offset + strlen($match[0]);
+
+        return $this->pdfObjectEndOffset($pdfBytes, $bodyStart) === null ? $bodyStart : null;
     }
 
     /**
@@ -33242,28 +33568,13 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
                 foreach ($memberTable['members'] as $member) {
                     if ($member['objectNumber'] !== $objectNumber) {
                         continue;
                     }
 
-                    $nextOffset = $this->objectStreamMemberEndOffset(
-                        $memberTable['members'],
-                        $member['offset'],
-                        $objectDataLength,
-                        $memberTable
-                    );
-                    if ($nextOffset === null) {
-                        continue;
-                    }
-
-                    $body = trim(substr(
-                        $memberTable['decoded'],
-                        $memberTable['first'] + $member['offset'],
-                        $nextOffset - $member['offset']
-                    ));
-                    if (!$this->directObjectStreamFilterHelperBodyIsSafe($body)) {
+                    $body = $this->objectStreamMemberBody($memberTable, $member);
+                    if ($body === null || !$this->directObjectStreamFilterHelperBodyIsSafe($body)) {
                         continue;
                     }
 
@@ -34370,6 +34681,7 @@ final class PdfTextExtractor
                     $cidMap,
                     $mappingBlock['declaredCount'],
                     $mappingBlock['overwrite'],
+                    $cidRangeCodeSpaceRanges,
                     $cidRanges
                 );
                 continue;
@@ -35815,12 +36127,14 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, int> $cidMap
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
      */
     private function parseCidChars(
         string $block,
         array &$cidMap,
         ?int $declaredCount = null,
         bool $overwrite = true,
+        array $codeSpaceRanges = [],
         array $cidRanges = []
     ): void
     {
@@ -35840,6 +36154,9 @@ final class PdfTextExtractor
             $source = $this->normalizeHexKey($entry['source']);
             $cid = $entry['cid'];
             if ($source !== '' && strlen($source) <= 8 && $cid >= 0 && $cid <= 0xffff) {
+                if ($codeSpaceRanges !== [] && !$this->sourceKeyMatchesAnyCodeSpaceRange($source, $codeSpaceRanges)) {
+                    continue;
+                }
                 if (
                     !$overwrite
                     && (

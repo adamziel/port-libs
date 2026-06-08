@@ -1997,6 +1997,10 @@ final class PdfAnnotationExtractor
     private function annotationBelongsToPage(string $annotationBody, int $pageObjectNumber, ?int $pageGeneration): bool
     {
         $value = $this->valueAfterName($annotationBody, 'P');
+        if ($value !== null && $this->dictionaryValueHasTrailingOperand($annotationBody, 'P')) {
+            return false;
+        }
+
         $annotationPageReference = $value === null ? null : $this->objectReferenceWithGenerationFromValue($value);
 
         if ($annotationPageReference === null) {

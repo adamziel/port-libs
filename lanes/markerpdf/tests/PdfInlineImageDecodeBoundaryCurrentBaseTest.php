@@ -907,6 +907,58 @@ return [
         $t->same(0, $preview['image_sample_boundary']['surplus_byte_count']);
         $t->same(false, $preview['image_sample_boundary']['truncated_to_declared_samples']);
     },
+    'aligns inline image DecodeParms after null Filter slots before native raster review' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $decodedSample = 'A';
+        $compressedSample = gzcompress("\x01" . $decodedSample, 0);
+        if (!is_string($compressedSample)) {
+            throw new RuntimeException('Unable to build null-slot DecodeParms inline image fixture.');
+        }
+
+        $surplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (Null Slot DecodeParms Inline Noise) Tj ET rawtail';
+        $payload = $compressedSample . $surplus;
+        $dictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [null /Fl] /DP [null << /Predictor 12 /Columns 1 >>] /D [0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Null Slot DecodeParms Inline) Tj ET\n"
+            . "BI {$dictionary} ID {$payload}\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Null Slot DecodeParms Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $renderer->inlineImageReviewPlan($dictionary, $compressedSample);
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $compressedSample, [], 1);
+
+        $t->true(str_contains($surplus, ' EI '));
+        $t->same([
+            'Before Null Slot DecodeParms Inline',
+            'After Null Slot DecodeParms Inline',
+        ], $extractor->extractTextLines($pdf));
+        $t->same("Before Null Slot DecodeParms Inline\nAfter Null Slot DecodeParms Inline", $plainText);
+        foreach (['Null Slot DecodeParms Inline Noise', 'ZZ EI', 'rawtail'] as $excludedText) {
+            $t->true(!str_contains($plainText, $excludedText));
+        }
+
+        $t->same(['FlateDecode'], $review['image_filters']);
+        $t->same([], $review['inline_image']['unsupported_filters']);
+        $t->same([], $review['image_filter_boundary']['unsupported_filters'] ?? []);
+        $t->same(true, $review['inline_image']['native_raster_decode']);
+        $t->same(false, $review['inline_image_review_only']);
+        $t->same('FlateDecode', $review['image_filter_details'][0]['filter'] ?? null);
+        $t->same(12, $review['image_filter_details'][0]['decode_parms']['predictor'] ?? null);
+        $t->same(1, $review['image_filter_details'][0]['decode_parms']['columns'] ?? null);
+
+        $t->same(['FlateDecode'], $preview['image_stream']['filters']);
+        $t->same([], $preview['image_stream']['unsupported_filters']);
+        $t->same(12, $preview['image_stream']['filter_details'][0]['decode_parms']['predictor'] ?? null);
+        $t->same(1, $preview['image_stream']['decoded_length']);
+        $t->same('41', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(hash('sha256', $decodedSample), $preview['image_stream']['decoded_sha256']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same(true, $preview['inline_image']['native_raster_decode']);
+        $t->same(false, $preview['review_only_image_stream']);
+        $t->same([65.0], $preview['pixels'][0]['raw_sample']);
+        $t->same(65 / 255, $preview['pixels'][0]['decoded_gray']);
+    },
     'keeps unfiltered inline image indirect geometry operands closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Indirect Geometry Inline Noise) Tj ET rawtail';

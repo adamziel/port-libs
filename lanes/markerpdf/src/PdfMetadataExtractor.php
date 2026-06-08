@@ -78,6 +78,7 @@ final class PdfMetadataExtractor
         'EmbeddedFiles' => true,
     ];
     private const DESTINATION_NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
+    private const DESTINATION_DICTIONARY_BOUNDARY_KEYS = ['D', 'S'];
     private const VALID_DESTINATION_VIEW_NAMES = [
         'Fit' => true,
         'FitB' => true,
@@ -5020,6 +5021,10 @@ final class PdfMetadataExtractor
 
         $dictionary = $this->resolveDictionaryFromValue($trimmed, $objects);
         if ($dictionary !== null) {
+            if ($this->dictionaryTopLevelHasDuplicateKeys($dictionary['body'], self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)) {
+                return false;
+            }
+
             $entries = $this->dictionaryTopLevelEntries($dictionary['body']);
             if (isset($entries['D'])) {
                 if (isset($entries['S']) && $this->destinationActionNameFromRaw($entries['S'], $objects) !== 'GoTo') {
@@ -5426,14 +5431,18 @@ final class PdfMetadataExtractor
             'action_object' => $destination['action_object'],
         ];
 
-        $styleFlags = $this->dictionaryIntegerValue($dictionary, 'F', $objects);
+        $styleFlags = $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'F')
+            ? null
+            : $this->dictionaryIntegerValue($dictionary, 'F', $objects);
         if ($styleFlags !== null) {
             $row['style_flags'] = $styleFlags;
             $row['is_italic'] = ($styleFlags & 1) !== 0;
             $row['is_bold'] = ($styleFlags & 2) !== 0;
         }
 
-        $textColor = $this->documentOutlineColorRgb($this->dictionaryTopLevelRawValue($dictionary, 'C'), $objects);
+        $textColor = $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'C')
+            ? null
+            : $this->documentOutlineColorRgb($this->dictionaryTopLevelRawValue($dictionary, 'C'), $objects);
         if ($textColor !== null) {
             $row['text_color_rgb'] = $textColor;
             $row['text_color_hex'] = $this->rgbUnitColorToHex($textColor);
@@ -7385,6 +7394,10 @@ final class PdfMetadataExtractor
 
         $dictionary = $this->resolveDictionaryFromValue($trimmed, $objects);
         if ($dictionary !== null) {
+            if ($this->dictionaryTopLevelHasDuplicateKeys($dictionary['body'], self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)) {
+                return null;
+            }
+
             $entries = $this->dictionaryTopLevelEntries($dictionary['body']);
             if (isset($entries['D'])) {
                 if (isset($entries['S']) && $this->destinationActionNameFromRaw($entries['S'], $objects) !== 'GoTo') {
@@ -9901,6 +9914,11 @@ final class PdfMetadataExtractor
     private function standardPermissionBitReview(int $unsigned, int $effectiveRevision): array
     {
         $rows = [];
+        $printMask = 4;
+        $printMinimumRevision = 2;
+        $printBitSet = ($unsigned & $printMask) !== 0;
+        $printAllowed = $effectiveRevision >= $printMinimumRevision && $printBitSet;
+
         foreach (self::STANDARD_PERMISSION_FLAGS as $flag) {
             $mask = (int) $flag['mask'];
             $minimumRevision = (int) $flag['minimum_revision'];
@@ -9908,8 +9926,23 @@ final class PdfMetadataExtractor
             $applicable = $effectiveRevision >= $minimumRevision;
             $allowed = $applicable && $bitSet;
             $denied = $applicable && !$bitSet;
+            $dependencyStatus = null;
+            $denialReason = null;
 
-            $rows[] = [
+            if ($flag['name'] === 'high_quality_print' && $applicable) {
+                if (!$bitSet) {
+                    $dependencyStatus = 'permission_bit_not_set';
+                } elseif (!$printAllowed) {
+                    $allowed = false;
+                    $denied = true;
+                    $dependencyStatus = 'required_print_permission_denied';
+                    $denialReason = $dependencyStatus;
+                } else {
+                    $dependencyStatus = 'required_print_permission_allowed';
+                }
+            }
+
+            $row = [
                 'source' => 'standard_permission_bit_review',
                 'name' => $flag['name'],
                 'bit' => $this->standardPermissionBitNumber($mask),
@@ -9925,6 +9958,19 @@ final class PdfMetadataExtractor
                     ? 'not_applicable_for_revision'
                     : ($allowed ? 'allowed_by_permission_bit' : 'denied_by_permission_bit'),
             ];
+
+            if ($flag['name'] === 'high_quality_print' && $applicable) {
+                $row['requires_permission_name'] = 'print';
+                $row['required_permission_allowed'] = $printAllowed;
+                $row['required_permission_bit_set'] = $printBitSet;
+                $row['dependency_status'] = $dependencyStatus;
+
+                if ($denialReason !== null) {
+                    $row['denial_reason'] = $denialReason;
+                }
+            }
+
+            $rows[] = $row;
         }
 
         return $rows;
@@ -12632,6 +12678,10 @@ final class PdfMetadataExtractor
             return $value;
         }
 
+        if ($this->xmpElementHasElementChildren($element)) {
+            return null;
+        }
+
         return $this->cleanText($element->textContent);
     }
 
@@ -12754,6 +12804,31 @@ final class PdfMetadataExtractor
     {
         foreach ($items as $item) {
             if ($this->xmpQualifiedTextValue($item) !== null) {
+                return true;
+            }
+
+            if ($this->xmpStructuredCollectionItemHasPdfaReviewValue($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function xmpStructuredCollectionItemHasPdfaReviewValue(DOMElement $item): bool
+    {
+        foreach ($item->childNodes as $child) {
+            if (!$child instanceof DOMElement) {
+                continue;
+            }
+
+            if (
+                in_array(
+                    $child->namespaceURI,
+                    [self::NS_PDFA_EXTENSION, self::NS_PDFA_SCHEMA, self::NS_PDFA_PROPERTY],
+                    true
+                )
+            ) {
                 return true;
             }
         }
@@ -16218,6 +16293,21 @@ final class PdfMetadataExtractor
         return false;
     }
 
+    private function malformedDirectObjectBodyStartAt(string $pdfBytes, int $offset): ?int
+    {
+        if (!ctype_digit($pdfBytes[$offset] ?? '')) {
+            return null;
+        }
+
+        if (preg_match('/\G\d+\s+\d+\s+obj\b/s', $pdfBytes, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $bodyStart = $offset + strlen($match[0]);
+
+        return $this->pdfObjectEndOffset($pdfBytes, $bodyStart) === null ? $bodyStart : null;
+    }
+
     /**
      * @return array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>|null
      */
@@ -17436,6 +17526,11 @@ final class PdfMetadataExtractor
                 }
             }
 
+            $malformedObjectBodyStart = $this->malformedDirectObjectBodyStartAt($pdfBytes, $offset);
+            if ($malformedObjectBodyStart !== null) {
+                return $tokenOffset >= $malformedObjectBodyStart;
+            }
+
             $char = $pdfBytes[$offset];
 
             if ($char === '%') {
@@ -17784,6 +17879,10 @@ final class PdfMetadataExtractor
                 }
             }
 
+            if ($this->malformedDirectObjectBodyStartAt($pdfBytes, $index) !== null) {
+                break;
+            }
+
             $char = $pdfBytes[$index];
 
             if ($char === '%') {
@@ -18091,7 +18190,16 @@ final class PdfMetadataExtractor
     private function hasVerifiableStreamFilter(array $filters): bool
     {
         foreach ($filters as $filter) {
-            if (in_array($filter, ['ASCIIHexDecode', 'AHx', 'FlateDecode', 'Fl'], true)) {
+            if (in_array($filter, [
+                'ASCIIHexDecode',
+                'AHx',
+                'ASCII85Decode',
+                'A85',
+                'RunLengthDecode',
+                'RL',
+                'FlateDecode',
+                'Fl',
+            ], true)) {
                 return true;
             }
         }
@@ -18164,8 +18272,14 @@ final class PdfMetadataExtractor
     private function decodeStream(string $dict, string $stream, array $objects): ?string
     {
         foreach ($this->streamFilters($dict, $objects) as $filter) {
+            if (!$this->metadataStreamFilterInputHasBoundedEndMarker($filter, $stream)) {
+                return null;
+            }
+
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
                 default => $stream,
             };
@@ -18176,6 +18290,59 @@ final class PdfMetadataExtractor
         }
 
         return $stream;
+    }
+
+    private function metadataStreamFilterInputHasBoundedEndMarker(string $filter, string $stream): bool
+    {
+        $offset = match ($filter) {
+            'ASCIIHexDecode', 'AHx' => (($offset = strpos($stream, '>')) !== false) ? $offset + 1 : null,
+            'ASCII85Decode', 'A85' => (($offset = strpos($stream, '~>')) !== false) ? $offset + 2 : null,
+            'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null) ? $offset + 1 : null,
+            default => null,
+        };
+
+        if ($offset === null) {
+            if (
+                in_array($filter, ['ASCIIHexDecode', 'AHx'], true)
+                && $this->asciiHexStreamHasOnlyLengthBoundedData($stream)
+            ) {
+                return true;
+            }
+
+            return !in_array($filter, [
+                'ASCIIHexDecode',
+                'AHx',
+                'ASCII85Decode',
+                'A85',
+                'RunLengthDecode',
+                'RL',
+            ], true);
+        }
+
+        return $this->metadataStreamHasOnlyWhitespaceAfterOffset($stream, $offset);
+    }
+
+    private function metadataStreamHasOnlyWhitespaceAfterOffset(string $stream, int $offset): bool
+    {
+        for ($index = $offset, $length = strlen($stream); $index < $length;) {
+            if ($this->isPdfFilterWhitespace($stream[$index])) {
+                $index++;
+                continue;
+            }
+
+            if ($stream[$index] === '%') {
+                $lineLength = strcspn($stream, "\r\n", $index);
+                if ($index + $lineLength >= $length) {
+                    return true;
+                }
+                $index += $lineLength;
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -20718,8 +20885,21 @@ final class PdfMetadataExtractor
             $body = $stream;
         }
 
-        $hex = preg_replace('/\s+/', '', $body);
-        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
+        $hex = '';
+        for ($index = 0, $length = strlen($body); $index < $length; $index++) {
+            $char = $body[$index];
+            if ($this->isPdfFilterWhitespace($char)) {
+                continue;
+            }
+
+            if (!ctype_xdigit($char)) {
+                return null;
+            }
+
+            $hex .= $char;
+        }
+
+        if (preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
             return null;
         }
 
@@ -20729,6 +20909,122 @@ final class PdfMetadataExtractor
 
         $decoded = hex2bin($hex);
         return $decoded === false ? null : $decoded;
+    }
+
+    private function asciiHexStreamHasOnlyLengthBoundedData(string $stream): bool
+    {
+        for ($index = 0, $length = strlen($stream); $index < $length; $index++) {
+            $char = $stream[$index];
+            if ($this->isPdfFilterWhitespace($char)) {
+                continue;
+            }
+
+            if (!ctype_xdigit($char)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function decodeAscii85Stream(string $stream): ?string
+    {
+        $body = $this->trimPdfFilterWhitespace($stream);
+        if (str_starts_with($body, '<~')) {
+            $body = substr($body, 2);
+        }
+
+        $terminator = strpos($body, '~>');
+        if ($terminator !== false) {
+            $body = substr($body, 0, $terminator);
+        }
+
+        $out = '';
+        $group = [];
+        for ($index = 0, $length = strlen($body); $index < $length; $index++) {
+            $char = $body[$index];
+            if ($this->isPdfFilterWhitespace($char)) {
+                continue;
+            }
+
+            if ($char === 'z') {
+                if ($group !== []) {
+                    return null;
+                }
+                $out .= "\0\0\0\0";
+                continue;
+            }
+
+            $ord = ord($char);
+            if ($ord < 33 || $ord > 117) {
+                return null;
+            }
+
+            $group[] = $ord - 33;
+            if (count($group) === 5) {
+                $decodedGroup = $this->decodeAscii85Group($group, 4);
+                if ($decodedGroup === null) {
+                    return null;
+                }
+
+                $out .= $decodedGroup;
+                $group = [];
+            }
+        }
+
+        if ($group !== []) {
+            $groupLength = count($group);
+            if ($groupLength === 1) {
+                return null;
+            }
+            while (count($group) < 5) {
+                $group[] = 84;
+            }
+
+            $decodedGroup = $this->decodeAscii85Group($group, $groupLength - 1);
+            if ($decodedGroup === null) {
+                return null;
+            }
+
+            $out .= $decodedGroup;
+        }
+
+        return $out;
+    }
+
+    private function trimPdfFilterWhitespace(string $value): string
+    {
+        $start = 0;
+        $end = strlen($value);
+        while ($start < $end && $this->isPdfFilterWhitespace($value[$start])) {
+            $start++;
+        }
+        while ($end > $start && $this->isPdfFilterWhitespace($value[$end - 1])) {
+            $end--;
+        }
+
+        return substr($value, $start, $end - $start);
+    }
+
+    /**
+     * @param list<int> $group
+     */
+    private function decodeAscii85Group(array $group, int $bytesToReturn): ?string
+    {
+        $value = 0;
+        foreach ($group as $digit) {
+            $value = ($value * 85) + $digit;
+        }
+        if ($value > 0xffffffff) {
+            return null;
+        }
+
+        $bytes = '';
+        for ($shift = 24; $shift >= 0; $shift -= 8) {
+            $bytes .= chr(($value >> $shift) & 0xff);
+        }
+
+        return substr($bytes, 0, $bytesToReturn);
     }
 
     private function decodeFlateStream(string $stream): ?string
@@ -20742,6 +21038,73 @@ final class PdfMetadataExtractor
         }
 
         return $inflated === false ? null : $inflated;
+    }
+
+    private function decodeRunLengthStream(string $stream): ?string
+    {
+        $out = '';
+        $length = strlen($stream);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $control = ord($stream[$offset]);
+            if ($control === 128) {
+                return $out;
+            }
+
+            if ($control <= 127) {
+                $copyLength = $control + 1;
+                if ($offset + $copyLength >= $length) {
+                    return null;
+                }
+                $out .= substr($stream, $offset + 1, $copyLength);
+                $offset += $copyLength;
+                continue;
+            }
+
+            if ($offset + 1 >= $length) {
+                return null;
+            }
+            $out .= str_repeat($stream[$offset + 1], 257 - $control);
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private function runLengthExplicitEndOffset(string $stream): ?int
+    {
+        $length = strlen($stream);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $control = ord($stream[$offset]);
+            if ($control === 128) {
+                return $offset;
+            }
+
+            if ($control <= 127) {
+                $literalLength = $control + 1;
+                if ($offset + $literalLength >= $length) {
+                    return null;
+                }
+                $offset += $literalLength;
+                continue;
+            }
+
+            if ($offset + 1 >= $length) {
+                return null;
+            }
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private function isPdfFilterWhitespace(string $char): bool
+    {
+        return $char === "\0"
+            || $char === "\t"
+            || $char === "\n"
+            || $char === "\f"
+            || $char === "\r"
+            || $char === ' ';
     }
 
     private function dictionaryObjectBody(string $objectBody): ?string

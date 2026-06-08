@@ -4197,6 +4197,128 @@ XML);
         $t->contains('<p>Redactor source Smith (2026) preserves redactor role aliases.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Redacted Source Dossier. Review Press, 2026. Name annotations: Redactor 1: redacted source notes. Redacted by Roe, Pat; Migration Desk.</dd>', $blocks);
     },
+    'maps bounded biblatex extended editor type roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{extended-editor-roles,
+  author      = {Smith, Ada},
+  editor      = {Roe, Pat},
+  editortype  = {founder},
+  editora     = {Ng, Nia},
+  editoratype = {continuator},
+  editorb     = {Curator, Eli},
+  editorbtype = {reviser},
+  editorc     = {{Source Review Desk}},
+  editorctype = {collaborator},
+  title       = {Extended Editor Role Packet},
+  date        = {2026},
+  publisher   = {Review Press}
+}
+
+@collection{organizer-editor-role,
+  author      = {M{\"u}ller, Mia},
+  editora     = {de la Cruz, Ana Maria},
+  editoratype = {organizer},
+  title       = {Organizer Editor Role Packet},
+  date        = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('extended-editor-roles', $items[0]['id']);
+        $t->same([['family' => 'Roe', 'given' => 'Pat']], $items[0]['founder']);
+        $t->same([['family' => 'Ng', 'given' => 'Nia']], $items[0]['continuator']);
+        $t->same([['family' => 'Curator', 'given' => 'Eli']], $items[0]['reviser']);
+        $t->same([['literal' => 'Source Review Desk']], $items[0]['collaborator']);
+        $t->same('editor', $items[0]['editorial-roles'][0]['field'] ?? null);
+        $t->same('founder', $items[0]['editorial-roles'][0]['type'] ?? null);
+        $t->same('Founder', $items[0]['editorial-roles'][0]['label'] ?? null);
+        $t->same('collaborator', $items[0]['editorial-roles'][3]['type'] ?? null);
+        $t->same('Collaborator', $items[0]['editorial-roles'][3]['label'] ?? null);
+        $t->same('organizer-editor-role', $items[1]['id']);
+        $t->same('organizer', $items[1]['editorial-roles'][0]['type'] ?? null);
+        $t->same('Organizer', $items[1]['editorial-roles'][0]['label'] ?? null);
+        $t->same(false, isset($items[1]['organizer']));
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $extended = $processor->item('extended-editor-roles');
+        $organizer = $processor->item('organizer-editor-role');
+        $t->same('Roe', $extended['founders'][0]['family'] ?? null);
+        $t->same('Ng', $extended['continuators'][0]['family'] ?? null);
+        $t->same('Curator', $extended['revisers'][0]['family'] ?? null);
+        $t->same('Source Review Desk', $extended['collaborators'][0]['literal'] ?? null);
+        $t->same('founder', $extended['editorialRoles'][0]['type'] ?? null);
+        $t->same('organizer', $organizer['editorialRoles'][0]['type'] ?? null);
+        $t->same('(Smith 2026; Müller 2025)', $processor->renderCitationCluster([
+            $citation('extended-editor-roles', '[@extended-editor-roles]'),
+            $citation('organizer-editor-role', '[@organizer-editor-role]'),
+        ]));
+        $t->same(
+            'Smith, Ada. Extended Editor Role Packet. Review Press, 2026. Founded by Roe, Pat. Continued by Ng, Nia. Revised by Curator, Eli. Collaboration by Source Review Desk.',
+            $processor->renderBibliographyEntry('extended-editor-roles')
+        );
+        $t->same(
+            'Müller, Mia. Organizer Editor Role Packet. 2025. Organized by de la Cruz, Ana Maria.',
+            $processor->renderBibliographyEntry('organizer-editor-role')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text value="extended roles"/>
+        <names variable="founder"/>
+        <names variable="continuator"/>
+        <names variable="reviser"/>
+        <names variable="collaborator"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="editorial-role-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[extended roles | Roe | Ng | Curator | Source Review Desk]', $styled->renderCitationCluster([$citation('extended-editor-roles', '[@extended-editor-roles]')]));
+        $t->same('Extended Editor Role Packet :: Founded by Roe, Pat. Continued by Ng, Nia. Revised by Curator, Eli. Collaboration by Source Review Desk.', $styled->renderBibliographyEntry('extended-editor-roles'));
+
+        $manualProcessor = CitationCslProcessor::fromItems([[
+            'id' => 'manual-extended-role',
+            'title' => 'Manual Extended Role Packet',
+            'founder' => [
+                ['literal' => 'Manual Founder'],
+            ],
+            'continuator' => [
+                ['family' => 'Direct', 'given' => 'Dana'],
+            ],
+            'reviser' => [
+                ['literal' => 'Revision Desk'],
+            ],
+            'collaborator' => [
+                ['literal' => 'Collaborator Desk'],
+            ],
+        ]]);
+        $manual = $manualProcessor->item('manual-extended-role');
+        $t->same('Manual Founder', $manual['founders'][0]['literal'] ?? null);
+        $t->same('Direct', $manual['continuators'][0]['family'] ?? null);
+        $t->same('Revision Desk', $manual['revisers'][0]['literal'] ?? null);
+        $t->same('Collaborator Desk', $manual['collaborators'][0]['literal'] ?? null);
+        $t->same(
+            'Manual Extended Role Packet. Founded by Manual Founder. Continued by Direct, Dana. Revised by Revision Desk. Collaboration by Collaborator Desk.',
+            $manualProcessor->renderBibliographyEntry('manual-extended-role')
+        );
+
+        $document = (new MarkdownReader())->read('Extended editor roles @extended-editor-roles and organizer [@organizer-editor-role] preserve BibLaTeX role labels.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Extended editor roles Smith (2026) and organizer (Müller 2025) preserve BibLaTeX role labels.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Extended Editor Role Packet. Review Press, 2026. Founded by Roe, Pat. Continued by Ng, Nia. Revised by Curator, Eli. Collaboration by Source Review Desk.</dd>', $blocks);
+        $t->contains('<dt>Müller 2025</dt><dd>Müller, Mia. Organizer Editor Role Packet. 2025. Organized by de la Cruz, Ana Maria.</dd>', $blocks);
+    },
     'maps bounded biblatex name annotations and name addendum metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{name-annotation-review,

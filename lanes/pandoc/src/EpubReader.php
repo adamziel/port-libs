@@ -6099,10 +6099,15 @@ final class EpubReader
         $metadataElement = self::firstChildElement($collectionElement, 'metadata', self::OPF_NS);
         $collectionLanguage = self::xmlLang($collectionElement);
         $collectionDirection = self::direction($collectionElement);
+        $role = self::nullableAttribute($collectionElement, 'role');
+        $roleReport = self::collectionRoleReport($role, $prefixBindings);
 
         return [
             'id' => self::nullableAttribute($collectionElement, 'id'),
-            'role' => self::nullableAttribute($collectionElement, 'role'),
+            'role' => $role,
+            'roleReport' => $roleReport,
+            'roleTokens' => $roleReport['values'],
+            'primaryRole' => $roleReport['primaryRole'],
             'language' => $collectionLanguage,
             'dir' => $collectionDirection,
             'metadata' => $metadataElement instanceof \DOMElement
@@ -6110,6 +6115,137 @@ final class EpubReader
                 : [],
             'links' => $links,
             'children' => $children,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $prefixBindings
+     *
+     * @return array<string, mixed>
+     */
+    private static function collectionRoleReport(?string $role, array $prefixBindings): array
+    {
+        $raw = trim((string) $role);
+        $values = $raw === '' ? [] : preg_split('/\s+/', $raw);
+        $values = array_values(array_filter(
+            array_map(static fn (mixed $value): string => trim((string) $value), $values ?: []),
+            static fn (string $value): bool => $value !== '',
+        ));
+        $prefixBindings = self::metadataVocabularyPrefixBindings($prefixBindings);
+        $items = [];
+        $diagnostics = [];
+        $seen = [];
+
+        if ($raw === '') {
+            $diagnostics[] = [
+                'type' => 'missing-collection-role',
+                'message' => 'EPUB OPF collection elements should identify their purpose with a role value',
+            ];
+        }
+
+        foreach ($values as $index => $value) {
+            $isAbsolute = self::isAbsoluteUrlWithFragment($value);
+            $looksAbsolute = preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $value) === 1
+                && !preg_match('/^[A-Za-z_][A-Za-z0-9._-]*:[A-Za-z0-9._-]+$/', $value);
+            $isNmtoken = preg_match('/^[A-Za-z0-9._:-]+$/', $value) === 1;
+            $itemDiagnostics = [];
+
+            if (!$isNmtoken && !$isAbsolute) {
+                $itemDiagnostics[] = [
+                    'type' => $looksAbsolute ? 'invalid-collection-role-url-fragment' : 'invalid-collection-role-token',
+                    'role' => $value,
+                    'index' => $index,
+                    'message' => $looksAbsolute
+                        ? 'EPUB OPF absolute collection role URLs must include a fragment identifier'
+                        : 'EPUB OPF collection role values must be NMTOKENs or absolute URLs with fragments',
+                ];
+            }
+
+            if (isset($seen[$value])) {
+                $itemDiagnostics[] = [
+                    'type' => 'duplicate-collection-role-token',
+                    'role' => $value,
+                    'index' => $index,
+                    'previousIndex' => $seen[$value],
+                    'message' => 'EPUB OPF collection role value is repeated',
+                ];
+            }
+            $seen[$value] = $index;
+
+            $prefix = null;
+            $localName = null;
+            $bindingIri = null;
+            $iri = $isAbsolute ? $value : null;
+            $resolved = $isAbsolute;
+            if (!$isAbsolute && preg_match('/^([A-Za-z_][A-Za-z0-9._-]*):([A-Za-z0-9._-]+)$/', $value, $matches) === 1) {
+                $prefix = $matches[1];
+                $localName = $matches[2];
+                $bindingIri = $prefixBindings[$prefix] ?? null;
+                if ($bindingIri === null || $bindingIri === '') {
+                    $itemDiagnostics[] = [
+                        'type' => 'unknown-collection-role-prefix',
+                        'role' => $value,
+                        'prefix' => $prefix,
+                        'index' => $index,
+                        'message' => 'EPUB OPF collection role uses a prefixed token without a package prefix declaration',
+                    ];
+                } else {
+                    $iri = $bindingIri . $localName;
+                    $resolved = true;
+                }
+            }
+
+            $item = [
+                'index' => $index,
+                'value' => $value,
+                'raw' => $value,
+                'kind' => $isAbsolute ? 'absolute-url-with-fragment' : ($prefix === null ? 'nmtoken' : 'prefixed-nmtoken'),
+                'nmtoken' => $isNmtoken,
+                'absoluteUrlWithFragment' => $isAbsolute,
+                'valid' => $itemDiagnostics === [] || array_reduce(
+                    $itemDiagnostics,
+                    static fn (bool $valid, array $diagnostic): bool => $valid
+                        && !in_array($diagnostic['type'] ?? '', ['invalid-collection-role-token', 'invalid-collection-role-url-fragment'], true),
+                    true
+                ),
+                'prefix' => $prefix,
+                'localName' => $localName,
+                'bindingIri' => $bindingIri,
+                'iri' => $iri,
+                'resolved' => $resolved,
+                'diagnostics' => $itemDiagnostics,
+            ];
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+            $items[] = $item;
+        }
+
+        $validItems = array_values(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['valid'] ?? false) === true,
+        ));
+        $resolvedItems = array_values(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['resolved'] ?? false) === true,
+        ));
+        $absoluteItems = array_values(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['absoluteUrlWithFragment'] ?? false) === true,
+        ));
+
+        return [
+            'present' => $raw !== '',
+            'raw' => $raw,
+            'values' => $values,
+            'primaryRole' => is_array($validItems[0] ?? null) ? (string) $validItems[0]['value'] : null,
+            'items' => $items,
+            'count' => count($items),
+            'validCount' => count($validItems),
+            'invalidCount' => count($items) - count($validItems),
+            'resolvedCount' => count($resolvedItems),
+            'absoluteUrlCount' => count($absoluteItems),
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -10424,6 +10560,11 @@ final class EpubReader
     {
         return preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $reference) === 1
             || str_starts_with($reference, '//');
+    }
+
+    private static function isAbsoluteUrlWithFragment(string $reference): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:[^#\s]*#[^\s]+$/', $reference) === 1;
     }
 
     private static function firstSmilTextRef(\DOMElement $element): ?string

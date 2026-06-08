@@ -60,6 +60,7 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
  *     localName?:string,
  *     versionMadeBy?:int,
  *     diskStart?:int,
+ *     internalAttributes?:int,
  *     externalAttributes?:int,
  *     comment?:string,
  *     versionNeededToExtract?:int,
@@ -164,7 +165,7 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             strlen($centralExtra),
             strlen($entryComment),
             $entry['diskStart'] ?? 0,
-            0,
+            $entry['internalAttributes'] ?? 0,
             $entry['externalAttributes'] ?? 0,
             $entry['centralLocalHeaderOffset'] ?? $offset
         );
@@ -1305,6 +1306,80 @@ return [
         $t->same(0x81a40000, $entry->externalFileAttributes);
         $t->same('metadata package', $package->packageComment());
         $t->same('<w:document><w:p>metadata</w:p></w:document>', $package->read('word/document.xml'));
+    },
+
+    'preflights zip internal file attributes before strict media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:p>internal text flag</w:p></w:document>';
+        $binaryMedia = "binary media provenance\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'internalAttributes' => 0x0001,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => $binaryMedia,
+                'method' => 0,
+                'internalAttributes' => 0x8002,
+            ],
+            [
+                'name' => 'word/media/plain.txt',
+                'data' => 'ordinary media note',
+                'method' => 0,
+            ],
+        ]));
+
+        $document = $package->entry('/word/document.xml');
+        $media = $package->entry('/word/media/review.bin');
+        $summary = $package->internalAttributePreflight();
+
+        $t->same(0x0001, $document->internalFileAttributes);
+        $t->same(true, $document->hasTextInternalAttribute());
+        $t->same(0, $document->unknownInternalAttributeBits());
+        $t->same(['apparently-text'], $document->internalAttributeNames());
+        $t->same(0x8002, $media->internalFileAttributes);
+        $t->same(false, $media->hasTextInternalAttribute());
+        $t->same(0x8002, $media->unknownInternalAttributeBits());
+        $t->same(['unknown-0x8002'], $media->internalAttributeNames());
+        $t->same(3, $summary['entryCount']);
+        $t->same(2, $summary['internalAttributeEntryCount']);
+        $t->same(1, $summary['textInternalAttributeEntryCount']);
+        $t->same(1, $summary['unknownInternalAttributeEntryCount']);
+        $t->same('word/document.xml', $summary['internalAttributeEntries'][0]['name']);
+        $t->same(['internal-text-attribute'], $summary['internalAttributeEntries'][0]['issues']);
+        $t->same('word/media/review.bin', $summary['unknownInternalAttributeEntries'][0]['name']);
+        $t->same(['unknown-internal-file-attribute-bits'], $summary['unknownInternalAttributeEntries'][0]['issues']);
+        $t->same(false, $summary['entries'][2]['hasInternalFileAttributes']);
+        $t->same([], $summary['entries'][2]['issues']);
+
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $t->same(false, $strict['isValid']);
+        $t->contains('internal-file-attributes', implode(',', $strict['diagnostics']));
+        $t->same(2, $strict['internalAttributes']['internalAttributeEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertNoInternalFileAttributes());
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertStrictImportable(2048, 100.0, 2048));
+        $t->same($documentXml, $package->read('/word/document.xml'));
+        $t->same($binaryMedia, $package->read('/word/media/review.bin'));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>ordinary internal attributes</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => 'ordinary media note',
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoInternalFileAttributes();
+
+        $t->same(2, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['internalAttributeEntryCount']);
+        $t->same([], $safeSummary['internalAttributeEntries']);
+        $t->same(true, $safePackage->strictImportPreflight(2048, 100.0, 2048)['isValid']);
     },
 
     'preflights unix executable permissions before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {

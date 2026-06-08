@@ -3951,4 +3951,143 @@ return [
         $t->true(!str_contains($encodedReview, 'Unresolved CCITT filter operand payload leak'));
         $t->true(!str_contains($encodedReview, 'Malformed CCITT filter operand payload leak'));
     },
+    'preserves CCITT Fax DecodeParms after rejected scalar extra Filter operand' => static function (TestRunner $t): void {
+        $payload = 'BT /F1 12 Tf 72 700 Td (Scalar extra CCITT filter payload leak) Tj ET';
+        $imageDictionary = '<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 '
+            . '/Filter /CCITTFaxDecode /FlateDecode '
+            . '/DecodeParms << /K -1 /Columns 16 /Rows 0 /BlackIs1 true /EndOfBlock true >> '
+            . '/Decode [1 0] /Length ' . strlen($payload) . ' >>';
+        $content = "BT /F1 12 Tf 72 720 Td (Before scalar extra CCITT filter) Tj ET\n"
+            . "q 16 0 0 1 72 700 cm /ScalarExtra Do Q\n"
+            . 'BT /F1 12 Tf 72 680 Td (After scalar extra CCITT filter) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /ScalarExtra 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n{$imageDictionary}\nstream\n{$payload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same([
+            'Before scalar extra CCITT filter',
+            'After scalar extra CCITT filter',
+        ], $extractor->extractTextLines($pdf));
+        $t->same(
+            "Before scalar extra CCITT filter\nAfter scalar extra CCITT filter",
+            $plainText
+        );
+        $t->true(!str_contains($plainText, 'Scalar extra CCITT filter payload leak'));
+        $t->same(false, $entry['filters_resolved'] ?? null);
+        $t->same(['MalformedFilterOperand', 'CCITTFaxDecode'], $entry['filters'] ?? null);
+        $t->same('reject_malformed_filter_operands', $entry['filter_operand_policy'] ?? null);
+        $t->same(1, $entry['malformed_filter_operand_count'] ?? null);
+        $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same([
+            [
+                'filter' => 'MalformedFilterOperand',
+                'preview_only' => false,
+                'decode_parms' => null,
+            ],
+            [
+                'filter' => 'CCITTFaxDecode',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'CCITTFaxDecode',
+                    'k' => -1,
+                    'columns' => 16,
+                    'rows' => 0,
+                    'black_is_1' => true,
+                    'encoded_byte_align' => null,
+                    'end_of_line' => null,
+                    'end_of_block' => true,
+                    'damaged_rows_before_error' => null,
+                ],
+            ],
+        ], $entry['filter_details'] ?? null);
+        $t->same(true, $entry['ccitt_fax_decode_boundary']['decode_parms_present'] ?? null);
+        $t->same(false, $entry['ccitt_fax_decode_boundary']['invalid_decode_parms'] ?? null);
+        $t->same([
+            'k' => -1,
+            'columns' => 16,
+            'rows' => 0,
+            'black_is_1' => true,
+            'encoded_byte_align' => false,
+            'end_of_line' => false,
+            'end_of_block' => true,
+            'damaged_rows_before_error' => 0,
+        ], $entry['ccitt_fax_decode_boundary']['effective_decode_parms'] ?? null);
+        $t->same(false, $entry['ccitt_fax_decode_boundary']['dimension_mismatch'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+
+        $renderer = new PdfImageRenderer();
+        $plan = $renderer->imageColorSpaceSoftMaskPlan($imageDictionary);
+        $t->same(['MalformedFilterOperand', 'CCITTFaxDecode'], $plan['image_filters'] ?? null);
+        $t->same('reject_malformed_filter_operands', $plan['image_filter_boundary']['filter_operand_policy'] ?? null);
+        $t->same(1, $plan['image_filter_boundary']['malformed_filter_operand_count'] ?? null);
+        $t->same(['CCITTFaxDecode'], $plan['image_filter_boundary']['preview_only_filters'] ?? null);
+        $t->same([
+            [
+                'filter' => 'MalformedFilterOperand',
+                'preview_only' => false,
+                'decode_parms' => null,
+            ],
+            [
+                'filter' => 'CCITTFaxDecode',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'CCITTFaxDecode',
+                    'k' => -1,
+                    'columns' => 16,
+                    'rows' => 0,
+                    'black_is_1' => true,
+                    'encoded_byte_align' => null,
+                    'end_of_line' => null,
+                    'end_of_block' => true,
+                    'damaged_rows_before_error' => null,
+                ],
+            ],
+        ], $plan['image_filter_details'] ?? null);
+        $t->same([
+            'declared_filter' => 'CCITTFaxDecode',
+            'canonical_filter' => 'CCITTFaxDecode',
+            'alias_used' => false,
+            'non_null_filter_index' => 1,
+            'filters_before_ccitt' => ['MalformedFilterOperand'],
+            'native_prefix_filters' => ['MalformedFilterOperand'],
+            'preview_only_filters_before_ccitt' => [],
+            'filters_after_ccitt' => [],
+            'native_filters_after_ccitt' => [],
+            'preview_only_filters_after_ccitt' => [],
+            'ccitt_is_terminal_filter' => true,
+            'post_ccitt_filters_present' => false,
+            'post_ccitt_filters_block_native_decode' => false,
+            'source_filter_preserved' => true,
+            'review_only' => true,
+            'native_raster_decode' => false,
+        ], $plan['ccitt_fax_filter_boundary'] ?? null);
+        $t->same(true, $plan['ccitt_fax_decode_boundary']['decode_parms_present'] ?? null);
+        $t->same(false, $plan['ccitt_fax_decode_boundary']['invalid_decode_parms'] ?? null);
+        $t->same([
+            'k' => -1,
+            'columns' => 16,
+            'rows' => 0,
+            'black_is_1' => true,
+            'encoded_byte_align' => false,
+            'end_of_line' => false,
+            'end_of_block' => true,
+            'damaged_rows_before_error' => 0,
+        ], $plan['ccitt_fax_decode_boundary']['effective_decode_parms'] ?? null);
+        $t->same(false, $plan['ccitt_fax_decode_boundary']['dimension_mismatch'] ?? null);
+        $t->same('group4_two_dimensional', $plan['ccitt_fax_coding_boundary']['coding_mode'] ?? null);
+        $t->contains('ccitt_fax_image_filter_review_only', implode(',', $plan['notes']));
+        $t->contains('malformed_image_filter_operand_fail_closed', implode(',', $plan['notes']));
+        $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', 'Scalar extra CCITT filter payload leak'));
+    },
 ];

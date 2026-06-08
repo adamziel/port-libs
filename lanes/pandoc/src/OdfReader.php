@@ -207,6 +207,8 @@ final class OdfReader
                     'sectionCount' => $contentStats['sectionCount'],
                     'linkedSectionCount' => $contentStats['linkedSectionCount'],
                     'protectedSectionCount' => $contentStats['protectedSectionCount'],
+                    'conditionalSectionCount' => $contentStats['conditionalSectionCount'],
+                    'hiddenSectionCount' => $contentStats['hiddenSectionCount'],
                     'tableOfContentsCount' => $contentStats['tableOfContentsCount'],
                     'generatedIndexCount' => $contentStats['generatedIndexCount'],
                     'tableCaptionCount' => $contentStats['tableCaptionCount'],
@@ -1029,6 +1031,26 @@ final class OdfReader
         if ($digestAlgorithm !== '') {
             $attrs['protectionKeyDigestAlgorithm'] = $digestAlgorithm;
             $attrs['attributes']['data-odf-section-protection-key-digest-algorithm'] = $digestAlgorithm;
+        }
+
+        $condition = self::attr($section, self::TEXT_NS, 'condition');
+        if ($condition !== '') {
+            $attrs['sectionCondition'] = $condition;
+            $attrs['classes'][] = 'odf-conditional-section';
+            $attrs['attributes']['data-odf-section-condition'] = $condition;
+        }
+        $hidden = self::nullableBool(self::attr($section, self::TEXT_NS, 'is-hidden'));
+        if ($hidden !== null) {
+            $attrs['sectionHidden'] = $hidden;
+            $attrs['attributes']['data-odf-section-hidden'] = $hidden ? 'true' : 'false';
+            if ($hidden) {
+                $attrs['classes'][] = 'odf-hidden-section';
+            }
+        }
+        $display = self::attr($section, self::TEXT_NS, 'display');
+        if ($display !== '') {
+            $attrs['sectionDisplay'] = $display;
+            $attrs['attributes']['data-odf-section-display'] = $display;
         }
 
         $sectionSource = self::firstChildElement($section, 'section-source', self::TEXT_NS);
@@ -5300,7 +5322,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -5333,6 +5355,8 @@ final class OdfReader
             'sectionCount' => 0,
             'linkedSectionCount' => 0,
             'protectedSectionCount' => 0,
+            'conditionalSectionCount' => 0,
+            'hiddenSectionCount' => 0,
             'tableOfContentsCount' => 0,
             'generatedIndexCount' => 0,
             'tableCaptionCount' => 0,
@@ -5362,6 +5386,12 @@ final class OdfReader
             }
             if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-protected-section')) {
                 $stats['protectedSectionCount']++;
+            }
+            if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-conditional-section')) {
+                $stats['conditionalSectionCount']++;
+            }
+            if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-hidden-section')) {
+                $stats['hiddenSectionCount']++;
             }
             if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-table-of-contents')) {
                 $stats['tableOfContentsCount']++;

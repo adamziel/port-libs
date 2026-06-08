@@ -712,6 +712,26 @@ $tableMetadataDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tablePropertyLayoutDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblStyle w:val="SourceReviewTable"/>
+        <w:tblW w:type="pct" w:w="4500"/>
+        <w:jc w:val="center"/>
+        <w:tblInd w:type="dxa" w:w="360"/>
+        <w:tblLayout w:type="fixed"/>
+      </w:tblPr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Source field</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Review value</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $tableCellVerticalAlignmentDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2543,6 +2563,14 @@ $buildTableMetadataPackage = static function () use ($contentTypesXml, $packageR
     ]);
 };
 
+$buildTablePropertyLayoutPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tablePropertyLayoutDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tablePropertyLayoutDocumentXml],
+    ]);
+};
+
 $buildTableCellVerticalAlignmentPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableCellVerticalAlignmentDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -3768,6 +3796,54 @@ return [
         $t->contains(': DOCX migration status', $markdown);
         $t->contains('<table class="docx-table-metadata" aria-description="Reviewer summary for imported DOCX table metadata." data-docx-table-description="Reviewer summary for imported DOCX table metadata.">', $blocks);
         $t->contains('<figcaption class="wp-element-caption">DOCX migration status</figcaption>', $blocks);
+    },
+    'preserves DOCX table preferred width alignment indent and style metadata' => static function (TestRunner $t) use ($buildTablePropertyLayoutPackage): void {
+        $document = (new DocxReader())->readDocument($buildTablePropertyLayoutPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $t->same([
+            'docx-table-style',
+            'docx-table-style-sourcereviewtable',
+            'docx-table-width',
+            'docx-table-width-pct',
+            'docx-table-align',
+            'docx-table-align-center',
+            'docx-table-indent',
+            'docx-table-indent-dxa',
+            'docx-table-layout',
+            'docx-table-layout-fixed',
+        ], $table->attr('classes'));
+
+        $attrs = $table->attr('attributes');
+        $t->same('SourceReviewTable', $attrs['data-docx-table-style']);
+        $t->same('pct', $attrs['data-docx-table-width-type']);
+        $t->same('4500', $attrs['data-docx-table-width-value']);
+        $t->same('90', $attrs['data-docx-table-width-percent']);
+        $t->same('center', $attrs['data-docx-table-align']);
+        $t->same('dxa', $attrs['data-docx-table-indent-type']);
+        $t->same('360', $attrs['data-docx-table-indent-value']);
+        $t->same('18', $attrs['data-docx-table-indent-left-points']);
+        $t->same('fixed', $attrs['data-docx-table-layout']);
+        $t->same('width:90%; margin-left:18pt', $table->attr('htmlAttributes')['style']);
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same('SourceReviewTable', $geometry['sourceAttributes']['attributes']['data-docx-table-style'] ?? null);
+        $t->same('90', $geometry['sourceAttributes']['attributes']['data-docx-table-width-percent'] ?? null);
+        $t->same('center', $geometry['sourceAttributes']['attributes']['data-docx-table-align'] ?? null);
+        $t->same('18', $geometry['sourceAttributes']['attributes']['data-docx-table-indent-left-points'] ?? null);
+        $t->same('fixed', $geometry['sourceAttributes']['attributes']['data-docx-table-layout'] ?? null);
+        $t->same('width:90%; margin-left:18pt', $geometry['sourceAttributes']['htmlAttributes']['style'] ?? null);
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Source field | Review value |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-table-width'), 'Pipe-table Markdown handoff should not leak DOCX table layout metadata');
+
+        $t->contains('<table class="docx-table-style docx-table-style-sourcereviewtable docx-table-width docx-table-width-pct docx-table-align docx-table-align-center docx-table-indent docx-table-indent-dxa docx-table-layout docx-table-layout-fixed" style="width:90%; margin-left:18pt" data-docx-table-style="SourceReviewTable" data-docx-table-width-type="pct" data-docx-table-width-value="4500" data-docx-table-width-percent="90" data-docx-table-align="center" data-docx-table-indent-type="dxa" data-docx-table-indent-value="360" data-docx-table-indent-left-points="18" data-docx-table-layout="fixed">', $blocks);
     },
     'preserves DOCX table cell vertical alignment metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellVerticalAlignmentPackage): void {
         $document = (new DocxReader())->readDocument($buildTableCellVerticalAlignmentPackage());

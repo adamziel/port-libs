@@ -164,6 +164,10 @@ final class PdfTextDocumentExtractor
      */
     private function orderedSuppliedDictionaryPageList(array $pages): array
     {
+        if (array_key_exists('blocks', $pages)) {
+            return [$pages];
+        }
+
         if (array_is_list($pages)) {
             return array_map(
                 fn (mixed $page): mixed => $this->unwrapSuppliedDictionaryPageEntry($page),

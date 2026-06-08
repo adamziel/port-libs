@@ -502,6 +502,12 @@ final class Html5DomFragment
             self::childForeignContext($node, $rawName, $elementForeignContext),
             $baseUrl
         );
+        if ($mode === 'html' && $name === 'img') {
+            $imageAltFallback = self::htmlImageAltFallbackNode($node, $attrs, $diagnostics);
+            if ($imageAltFallback !== null) {
+                return [$imageAltFallback];
+            }
+        }
         if ($mode === 'html' && $name === 'details') {
             self::markClosedHtmlDetailsReviewMetadata($node, $attrs, $children, $diagnostics);
         }
@@ -540,6 +546,48 @@ final class Html5DomFragment
         }
 
         return [$element];
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>|null
+     */
+    private static function htmlImageAltFallbackNode(\DOMElement $element, array $attrs, array &$diagnostics): ?array
+    {
+        if (array_key_exists('src', $attrs) || array_key_exists('srcset', $attrs)) {
+            return null;
+        }
+        if (!$element->hasAttribute('src') && !$element->hasAttribute('srcset')) {
+            return null;
+        }
+        if (!$element->hasAttribute('alt')) {
+            return null;
+        }
+
+        $alt = str_replace("\0", '', $element->getAttribute('alt'));
+        if (trim($alt) === '') {
+            return null;
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'image-alt-fallback',
+            'tag' => 'img',
+            'attribute' => 'alt',
+            'reason' => 'stripped-image-resource',
+        ], $element);
+
+        return self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => [
+                'data-pandoc-image-alt-fallback' => 'true',
+            ],
+            'children' => [[
+                'type' => 'text',
+                'text' => $alt,
+            ]],
+        ], $element);
     }
 
     /**

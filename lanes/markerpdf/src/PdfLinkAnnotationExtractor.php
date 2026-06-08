@@ -643,6 +643,10 @@ final class PdfLinkAnnotationExtractor
 
     private function annotationBelongsToPage(string $annotationBody, int $pageObjectNumber, ?int $pageGeneration): bool
     {
+        if ($this->dictionaryValueHasTrailingOperand($annotationBody, 'P')) {
+            return false;
+        }
+
         $pageReference = $this->referenceValueAfterName($annotationBody, 'P');
 
         if ($pageReference === null) {

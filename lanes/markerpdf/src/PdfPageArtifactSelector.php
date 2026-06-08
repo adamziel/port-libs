@@ -548,7 +548,10 @@ final class PdfPageArtifactSelector
             $markers['selected_page_numbers'] = $selectedPageNumbers;
         }
 
-        $envelopePageKeys = $this->integerFieldsFromSources($sources, [self::ENVELOPE_PAGE_KEY_MARKER]);
+        $envelopePageKeys = array_values(array_unique(array_merge(
+            $this->integerFieldsFromSources($sources, [self::ENVELOPE_PAGE_KEY_MARKER]),
+            self::directPayloadEnvelopePageKeys($artifact)
+        ), SORT_REGULAR));
         if ($envelopePageKeys !== []) {
             $markers['envelope_page_keys'] = $envelopePageKeys;
         }
@@ -562,6 +565,60 @@ final class PdfPageArtifactSelector
         }
 
         return $markers;
+    }
+
+    /**
+     * Direct layout/order/image payloads can be stored under a pdftext-shaped
+     * source-page map inside an otherwise current wrapper. The numeric key is
+     * selector-only identity and must agree with the selected page before the
+     * payload can be assigned.
+     *
+     * @param array<mixed> $artifact
+     * @return list<int>
+     */
+    private static function directPayloadEnvelopePageKeys(array $artifact): array
+    {
+        $keys = [];
+        foreach (['pages', 'dictionary_output', 'pdftext'] as $envelopeKey) {
+            $value = $artifact[$envelopeKey] ?? null;
+            if (is_array($value)) {
+                self::collectDirectPayloadEnvelopePageKeys($value, $keys, 0);
+            }
+        }
+
+        return array_values(array_unique($keys, SORT_REGULAR));
+    }
+
+    /**
+     * @param array<mixed> $value
+     * @param list<int> $keys
+     */
+    private static function collectDirectPayloadEnvelopePageKeys(array $value, array &$keys, int $depth): void
+    {
+        if ($depth > 1 || self::hasEnvelopeBlockingDirectArtifactPayload($value)) {
+            return;
+        }
+
+        if (!array_is_list($value)) {
+            foreach ($value as $key => $candidate) {
+                $pageKey = self::integerArrayKey($key);
+                if (
+                    $pageKey !== null
+                    && is_array($candidate)
+                    && !array_is_list($candidate)
+                    && self::hasEnvelopeBlockingDirectArtifactPayload($candidate)
+                ) {
+                    $keys[] = $pageKey;
+                }
+            }
+        }
+
+        foreach (['pages', 'dictionary_output', 'pdftext'] as $nestedKey) {
+            $nested = $value[$nestedKey] ?? null;
+            if (is_array($nested)) {
+                self::collectDirectPayloadEnvelopePageKeys($nested, $keys, $depth + 1);
+            }
+        }
     }
 
     /**

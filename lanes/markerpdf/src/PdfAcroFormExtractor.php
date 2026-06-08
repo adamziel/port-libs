@@ -10288,7 +10288,7 @@ final class PdfAcroFormExtractor
 
     private function acroFormDictionaryBody(string $catalog, array $objects): ?string
     {
-        $value = $this->valueAfterName($catalog, 'AcroForm');
+        $value = $this->lastTopLevelValueAfterName($catalog, 'AcroForm');
         if ($value === null) {
             return null;
         }

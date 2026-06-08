@@ -587,6 +587,28 @@ return [
         $t->contains('<h1 id="ไทย">ไทย</h1>', $blocks);
         $t->contains('<p>เนื้อหา เอกสาร.</p>', $blocks);
     },
+    'decodes windows 874 thai source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xE4\xB7\xC2 Windows\n\n\xE0\xB9\xD7\xE9\xCD\xCB\xD2 \x93\xE0\xCD\xA1\xCA\xD2\xC3\x94 \x97 \x8020; \x85";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp874');
+        $document = (new MarkdownReader())->readBytes($bytes, 'windows-874');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $controls = UnicodeText::decodeBytes("\x81\x82\x98\x99\x9F", 'windows-874');
+        $undefined = UnicodeText::decodeBytes("A\xDBB\xDEC\xFCD\xFFD", 'windows-874');
+
+        $t->same('windows-874', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# ไทย Windows\n\nเนื้อหา “เอกสาร” — €20; …", $decoded['text']);
+        $t->same("\u{0081}\u{0082}\u{0098}\u{0099}\u{009F}", $controls['text']);
+        $t->same(0, UnicodeText::displayWidth($controls['text']));
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D\u{FFFD}D", $undefined['text']);
+        $t->same(4, $undefined['repairs']);
+        $t->same(['encoding' => 'windows-874', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('ไทย Windows', $document->children[0]->attr('text'));
+        $t->same('เนื้อหา “เอกสาร” — €20; …', $document->children[1]->attr('text'));
+        $t->same(23, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="ไทย-windows">ไทย Windows</h1>', $blocks);
+        $t->contains('<p>เนื้อหา “เอกสาร” — €20; …</p>', $blocks);
+    },
     'decodes shift jis japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
         $decoded = UnicodeText::decodeBytes($bytes, 'windows-31j');

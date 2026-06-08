@@ -20,6 +20,7 @@ final class PdfNamedDestinationExtractor
     ];
 
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
+    private const DESTINATION_DICTIONARY_BOUNDARY_KEYS = ['D', 'S'];
 
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
@@ -2105,6 +2106,9 @@ final class PdfNamedDestinationExtractor
 
         $destinationValue = $value;
         $destination = $this->resolve($destinationValue, $objects, $cache);
+        if ($this->valueDictionaryHasDuplicateKeys($destinationValue, $objects, self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)) {
+            return null;
+        }
         if (!$this->isDictionary($destination) || !array_key_exists('D', $destination)) {
             return [
                 'value' => $destinationValue,

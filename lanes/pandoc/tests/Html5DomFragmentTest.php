@@ -140,16 +140,67 @@ return [
 
         $t->contains('<a href="mailto:review@example.test">Mail reviewer</a>', $html);
         $t->contains('<a href="tel:+15550100">Call reviewer</a>', $html);
-        $t->contains('<img alt="Mail image">', $html);
+        $t->contains('<span data-pandoc-image-alt-fallback="true">Mail image</span>', $html);
         $t->contains('<img src="/media/cover.png" alt="Safe image">', $html);
         $t->contains('<video><source type="video/mp4"><source src="https://cdn.example.test/video.mp4" type="video/mp4"></video>', $html);
+        $t->same('Mail reviewerCall reviewerMail image', $fragment->textContent());
         $t->same(['poster', 'src'], $summary['filteredAttributes']);
         $diagnosticCodes = $fragment->diagnosticCodes();
         $unsafeUrlDiagnostics = array_values(array_filter($diagnosticCodes, static fn (string $code): bool => $code === 'unsafe-url'));
+        $imageAltFallbackDiagnostics = array_values(array_filter($diagnosticCodes, static fn (string $code): bool => $code === 'image-alt-fallback'));
         $t->same(3, count($unsafeUrlDiagnostics));
+        $t->same(1, count($imageAltFallbackDiagnostics));
         $t->true(in_array('libxml-repair', $diagnosticCodes, true), 'Expected libxml repair diagnostics for HTML5 media elements');
         $t->true(!str_contains($html, 'src="mailto:'), 'Expected mailto media src URLs to be removed');
         $t->true(!str_contains($html, 'poster="tel:'), 'Expected tel poster URLs to be removed');
+    },
+    'converts stripped image alt text into visible reviewer fallback' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<figure data-review="image-fallback">'
+            . '<img src="javascript:alert(1)" alt="Legacy diagram">'
+            . '<img srcset="javascript:alert(1) 1x, data:text/html;base64,PHNjcmlwdD4= 2x" alt="Responsive threat">'
+            . '<img src="./safe.png" alt="Safe image">'
+            . '<img alt="Decorative placeholder">'
+            . '</figure>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/image-alt-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $expected = '<figure data-review="image-fallback">'
+            . '<span data-pandoc-image-alt-fallback="true">Legacy diagram</span>'
+            . '<span data-pandoc-image-alt-fallback="true">Responsive threat</span>'
+            . '<img src="https://source.example.test/import/posts/safe.png" alt="Safe image">'
+            . '<img alt="Decorative placeholder">'
+            . '</figure>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Legacy diagramResponsive threat', $fragment->textContent());
+        $t->same(['figure', 'img', 'span'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['src', 'srcset'], $summary['filteredAttributes']);
+        $t->same(6, $summary['diagnostics']);
+        $t->same(['unsafe-url', 'image-alt-fallback', 'unsafe-url', 'unsafe-url', 'image-alt-fallback'], $policyDiagnostics);
+        $t->same('span', $nodes[0]['children'][0]['name']);
+        $t->same(['data-pandoc-image-alt-fallback' => 'true'], $nodes[0]['children'][0]['attrs']);
+        $t->same('Legacy diagram', $nodes[0]['children'][0]['children'][0]['text']);
+        $t->same('Responsive threat', $nodes[0]['children'][1]['children'][0]['text']);
+        $t->same('https://source.example.test/import/posts/safe.png', $nodes[0]['children'][2]['attrs']['src']);
+        $t->same(['alt' => 'Decorative placeholder'], $nodes[0]['children'][3]['attrs']);
+        $t->same('/migration/image-alt-fallback-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe image resources to be stripped');
+        $t->true(!str_contains($html, 'data:text/html'), 'Expected active data image candidate to be stripped');
+        $t->true(!str_contains($html, '<img src="javascript:'), 'Expected unsafe image element to become fallback text');
     },
     'filters extended URL attributes and ping side effects before review handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
@@ -722,7 +773,8 @@ return [
 
         $expected = '<figure data-review="inline-image">'
             . '<img src="' . $pngData . '" alt="Inline raster">'
-            . '<img alt="HTML data"><img alt="SVG data"><a>linked data image</a>'
+            . '<span data-pandoc-image-alt-fallback="true">HTML data</span>'
+            . '<span data-pandoc-image-alt-fallback="true">SVG data</span><a>linked data image</a>'
             . '<img src="https://source.example.test/media/fallback.png" alt="Fallback">'
             . '</figure>';
         $policyDiagnostics = array_values(array_filter(
@@ -732,11 +784,13 @@ return [
 
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
-        $t->same(['a', 'figure', 'img'], $summary['elementNames']);
+        $t->same(['a', 'figure', 'img', 'span'], $summary['elementNames']);
         $t->same([], $summary['blockedTags']);
         $t->same(['href', 'src'], $summary['filteredAttributes']);
-        $t->same(['unsafe-url', 'unsafe-url', 'unsafe-url'], $policyDiagnostics);
+        $t->same(['unsafe-url', 'image-alt-fallback', 'unsafe-url', 'image-alt-fallback', 'unsafe-url'], $policyDiagnostics);
         $t->same($pngData, $nodes[0]['children'][0]['attrs']['src']);
+        $t->same('HTML data', $nodes[0]['children'][1]['children'][0]['text']);
+        $t->same('SVG data', $nodes[0]['children'][2]['children'][0]['text']);
         $t->same([], $nodes[0]['children'][3]['attrs']);
         $t->same('https://source.example.test/media/fallback.png', $nodes[0]['children'][4]['attrs']['src']);
         $t->same('/migration/data-image-src-review.html', $document->children[0]->attr('part'));
@@ -2620,7 +2674,7 @@ return [
 
         $t->same(1, is_array($libxmlRepair) ? ($libxmlRepair['line'] ?? null) : null);
         $t->true(is_array($libxmlRepair) && ($libxmlRepair['column'] ?? 0) > 0, 'Expected libxml repair diagnostics to include a source column');
-        $t->same(['unsafe-attribute', 'blocked-tag', 'unsafe-url', 'table-foster-parented-content'], array_map(
+        $t->same(['unsafe-attribute', 'blocked-tag', 'unsafe-url', 'image-alt-fallback', 'table-foster-parented-content'], array_map(
             static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
             $diagnostics
         ));
@@ -2632,10 +2686,13 @@ return [
         $t->same(4, $diagnostics[2]['line'] ?? null);
         $t->same('img', $diagnostics[2]['tag'] ?? null);
         $t->same('src', $diagnostics[2]['attribute'] ?? null);
-        $t->same(5, $diagnostics[3]['line'] ?? null);
-        $t->same('table', $diagnostics[3]['context'] ?? null);
-        $t->same('text', $diagnostics[3]['nodeType'] ?? null);
-        $t->same('<article>' . "\n" . '<p>review paragraph</p>' . "\n\n" . '<img alt="Bad source">' . "\n" . 'loose table note<table><tr><td>A</td></tr></table></article>', $html);
+        $t->same(4, $diagnostics[3]['line'] ?? null);
+        $t->same('img', $diagnostics[3]['tag'] ?? null);
+        $t->same('alt', $diagnostics[3]['attribute'] ?? null);
+        $t->same(5, $diagnostics[4]['line'] ?? null);
+        $t->same('table', $diagnostics[4]['context'] ?? null);
+        $t->same('text', $diagnostics[4]['nodeType'] ?? null);
+        $t->same('<article>' . "\n" . '<p>review paragraph</p>' . "\n\n" . '<span data-pandoc-image-alt-fallback="true">Bad source</span>' . "\n" . 'loose table note<table><tr><td>A</td></tr></table></article>', $html);
     },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');

@@ -443,6 +443,7 @@ final class MathTexConverter
     private const ACCESSIBILITY_TOKEN_TEXT = [
         '+' => 'plus',
         '-' => 'minus',
+        '–' => 'to',
         '=' => 'equals',
         '<' => 'less than',
         '>' => 'greater than',
@@ -1558,7 +1559,7 @@ final class MathTexConverter
             return $this->parseHyperrefCommand($source, $offset);
         }
 
-        if (in_array($command, ['num', 'si', 'unit', 'SI', 'qty', 'ang'], true)) {
+        if (in_array($command, ['num', 'numrange', 'numlist', 'si', 'unit', 'SI', 'qty', 'SIrange', 'qtyrange', 'ang'], true)) {
             return $this->parseSiunitxCommand($source, $offset, $command);
         }
 
@@ -2661,6 +2662,18 @@ final class MathTexConverter
             return $this->parseSiNumberGroup($source, $offset, $command);
         }
 
+        if ($command === 'numrange') {
+            $this->skipOptionalBracketArguments($source, $offset, $command);
+
+            return $this->parseSiNumberRangeCommand($source, $offset, $command);
+        }
+
+        if ($command === 'numlist') {
+            $this->skipOptionalBracketArguments($source, $offset, $command);
+
+            return $this->parseSiNumberListCommand($source, $offset, $command);
+        }
+
         if ($command === 'si' || $command === 'unit') {
             $this->skipOptionalBracketArguments($source, $offset, $command);
 
@@ -2675,6 +2688,21 @@ final class MathTexConverter
 
         $this->skipOptionalBracketArguments($source, $offset, $command);
         $number = $this->parseSiNumberGroup($source, $offset, $command);
+        if ($command === 'SIrange' || $command === 'qtyrange') {
+            $endNumber = $this->parseSiNumberGroup($source, $offset, $command);
+            $prefix = $this->parseOptionalQuantityPrefix($source, $offset, $command);
+            $unit = $this->parseSiUnitGroup($source, $offset, $command);
+            $separator = '<mspace width="0.2222em"></mspace>';
+            $nodes = [$number, $separator, '<mo>–</mo>', $separator, $endNumber, $separator, $unit];
+
+            if ($prefix !== null) {
+                array_unshift($nodes, $separator);
+                array_unshift($nodes, $prefix);
+            }
+
+            return $this->row($nodes);
+        }
+
         $prefix = $this->parseOptionalQuantityPrefix($source, $offset, $command);
         $unit = $this->parseSiUnitGroup($source, $offset, $command);
         $separator = '<mspace width="0.2222em"></mspace>';
@@ -2684,6 +2712,51 @@ final class MathTexConverter
         }
 
         return $this->row([$number, $separator, $unit]);
+    }
+
+    private function parseSiNumberRangeCommand(string $source, int &$offset, string $command): string
+    {
+        $startNumber = $this->parseSiNumberGroup($source, $offset, $command);
+        $endNumber = $this->parseSiNumberGroup($source, $offset, $command);
+        $separator = '<mspace width="0.2222em"></mspace>';
+
+        return $this->row([$startNumber, $separator, '<mo>–</mo>', $separator, $endNumber]);
+    }
+
+    private function parseSiNumberListCommand(string $source, int &$offset, string $command): string
+    {
+        $list = trim($this->readRequiredGroupText($source, $offset));
+        if ($list === '') {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' number list');
+        }
+
+        $numbers = array_map('trim', explode(';', $list));
+        if (count($numbers) < 2) {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' number list with at least two entries');
+        }
+
+        $nodes = [];
+        $lastIndex = count($numbers) - 1;
+        foreach ($numbers as $index => $number) {
+            if ($number === '') {
+                throw new \InvalidArgumentException('Expected TeX \\' . $command . ' number at list item ' . ($index + 1));
+            }
+
+            if ($index > 0) {
+                if ($index === $lastIndex) {
+                    $nodes[] = '<mspace width="0.2222em"></mspace>';
+                    $nodes[] = '<mtext>and</mtext>';
+                    $nodes[] = '<mspace width="0.2222em"></mspace>';
+                } else {
+                    $nodes[] = '<mo>,</mo>';
+                    $nodes[] = '<mspace width="0.2222em"></mspace>';
+                }
+            }
+
+            $nodes[] = $this->siNumberMathMl($number, $command);
+        }
+
+        return $this->row($nodes);
     }
 
     private function parseSiNumberGroup(string $source, int &$offset, string $command): string

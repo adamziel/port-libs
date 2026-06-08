@@ -100,6 +100,34 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\si{\\unknownunit}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\SI{1}{}'));
     },
+    'converts bounded siunitx range and list commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $numberRangeMathml = $converter->texToMathMl('\\numrange{1.25e3}{2,500} + \\numlist{1;2.5;3e2}');
+        $quantityRangeMathml = $converter->texToMathMl('\\SIrange{12}{15}{\\kg\\per\\s} + \\qtyrange[mode=text]{3.5}{4.25}{\\m}', true);
+        $prefixedRangeMathml = $converter->texToMathMl('\\qtyrange{2}{4}[\\text{about}]{\\m\\squared}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\numrange{1}{2}');
+
+        $t->contains('<mn>1.25</mn><mo>×</mo><msup><mn>10</mn><mn>3</mn></msup><mspace width="0.2222em"></mspace><mo>–</mo><mspace width="0.2222em"></mspace><mn>2500</mn>', $numberRangeMathml);
+        $t->contains('<mn>1</mn><mo>,</mo><mspace width="0.2222em"></mspace><mn>2.5</mn><mspace width="0.2222em"></mspace><mtext>and</mtext><mspace width="0.2222em"></mspace><mn>3</mn><mo>×</mo><msup><mn>10</mn><mn>2</mn></msup>', $numberRangeMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\numrange{1.25e3}{2,500} + \\numlist{1;2.5;3e2}</annotation>', $numberRangeMathml);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $quantityRangeMathml);
+        $t->contains('<mrow><mn>12</mn><mspace width="0.2222em"></mspace><mo>–</mo><mspace width="0.2222em"></mspace><mn>15</mn><mspace width="0.2222em"></mspace><mrow><mtext>kg</mtext><mtext>/</mtext><mtext>s</mtext></mrow></mrow>', $quantityRangeMathml);
+        $t->contains('<mrow><mn>3.5</mn><mspace width="0.2222em"></mspace><mo>–</mo><mspace width="0.2222em"></mspace><mn>4.25</mn><mspace width="0.2222em"></mspace><mtext>m</mtext></mrow>', $quantityRangeMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\SIrange{12}{15}{\\kg\\per\\s} + \\qtyrange[mode=text]{3.5}{4.25}{\\m}</annotation>', $quantityRangeMathml);
+        $t->contains('<mrow><mtext>about</mtext><mspace width="0.2222em"></mspace><mn>2</mn><mspace width="0.2222em"></mspace><mo>–</mo><mspace width="0.2222em"></mspace><mn>4</mn><mspace width="0.2222em"></mspace><msup><mtext>m</mtext><mn>2</mn></msup></mrow>', $prefixedRangeMathml);
+        $t->contains('alttext="1 space to space 2"', $accessibleMathml);
+        $t->contains('intent="row(1,space,to,space,2)"', $accessibleMathml);
+        $t->true(!str_contains($numberRangeMathml, '<mi>\\numrange</mi>'));
+        $t->true(!str_contains($numberRangeMathml, '<mi>\\numlist</mi>'));
+        $t->true(!str_contains($quantityRangeMathml, '<mi>\\SIrange</mi>'));
+        $t->true(!str_contains($quantityRangeMathml, '<mi>\\qtyrange</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\numrange{1}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\numrange{}{2}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\numlist{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\numlist{1; ; 2}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\SIrange{1}{2}{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\qtyrange{1}{}{\\m}'));
+    },
     'converts bounded tex binomial commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $binomialMathml = $converter->texToMathMl('\\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c}', true);

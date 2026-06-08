@@ -39,6 +39,7 @@ final class PdfOutlineExtractor
         'XYZ' => true,
     ];
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
+    private const DESTINATION_DICTIONARY_BOUNDARY_KEYS = ['D', 'S'];
     private const NON_OUTLINE_ITEM_TYPES = [
         'Action' => true,
         'Annot' => true,
@@ -1843,7 +1844,7 @@ final class PdfOutlineExtractor
             ] = $value;
         }
 
-        foreach ($this->outlineStyleMetadata($outline, $objects) as $key => $value) {
+        foreach ($this->outlineStyleMetadata($outline, $objects, $outlineObject) as $key => $value) {
             $context[
                 match ($key) {
                     'style_flags' => 'outline_style_flags',
@@ -4364,7 +4365,7 @@ final class PdfOutlineExtractor
                     'last_child_object' => $this->referenceObjectNumber($dict['Last'] ?? null),
                 ];
                 $row += $this->outlineStructureState($dict, $objects, $current);
-                $row += $this->outlineStyleMetadata($dict, $objects);
+                $row += $this->outlineStyleMetadata($dict, $objects, $current);
                 $row += $this->destinationAliasReview($destination['value'], $objects, $destinations);
                 $row = $this->withNavigationTargetMetadata(
                     $row,
@@ -4668,17 +4669,21 @@ final class PdfOutlineExtractor
      * @param array<int, mixed> $objects
      * @return array<string, mixed>
      */
-    private function outlineStyleMetadata(array $outline, array $objects): array
+    private function outlineStyleMetadata(array $outline, array $objects, ?int $outlineObject = null): array
     {
         $metadata = [];
-        $styleFlags = $this->integerOrNullValue($this->resolveValue($outline['F'] ?? null, $objects));
+        $styleFlags = $outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'F')
+            ? null
+            : $this->integerOrNullValue($this->resolveValue($outline['F'] ?? null, $objects));
         if ($styleFlags !== null) {
             $metadata['style_flags'] = $styleFlags;
             $metadata['is_italic'] = ($styleFlags & 1) !== 0;
             $metadata['is_bold'] = ($styleFlags & 2) !== 0;
         }
 
-        $color = $this->outlineColorRgb($outline['C'] ?? null, $objects);
+        $color = $outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'C')
+            ? null
+            : $this->outlineColorRgb($outline['C'] ?? null, $objects);
         if ($color !== null) {
             $metadata['text_color_rgb'] = $color;
             $metadata['text_color_hex'] = $this->rgbUnitColorToHex($color);
@@ -6063,6 +6068,10 @@ final class PdfOutlineExtractor
 
         $dict = $this->dictionaryItems($resolved);
         if ($dict !== null) {
+            if ($this->resolvedDictionaryHasDuplicateBoundaryKeys($destination, $objects, self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)) {
+                return null;
+            }
+
             $localDestination = $this->localDestinationDictionaryValue($dict);
             if ($localDestination !== null) {
                 return $this->destinationViewDetails($localDestination['value'], $objects, $pageIndexes, $destinations, $destinationName, $seenNames);
@@ -6262,6 +6271,10 @@ final class PdfOutlineExtractor
 
         $dict = $this->dictionaryItems($resolved);
         if ($dict !== null) {
+            if ($this->resolvedDictionaryHasDuplicateBoundaryKeys($destination, $objects, self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)) {
+                return null;
+            }
+
             $localDestination = $this->localDestinationDictionaryValue($dict);
             if ($localDestination !== null) {
                 return $this->destinationPageIndex($localDestination['value'], $objects, $pageIndexes, $destinations, $seenNames);

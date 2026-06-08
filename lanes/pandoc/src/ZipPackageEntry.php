@@ -24,6 +24,7 @@ final class ZipPackageEntry
     private const DOS_VOLUME_LABEL_ATTRIBUTE = 0x08;
     private const DOS_DIRECTORY_ATTRIBUTE = 0x10;
     private const DOS_ARCHIVE_ATTRIBUTE = 0x20;
+    private const INTERNAL_TEXT_ATTRIBUTE = 0x0001;
     private const ZIP64_EXTENDED_INFORMATION_EXTRA_ID = 0x0001;
     private const WINZIP_AES_EXTRA_ID = 0x9901;
 
@@ -39,6 +40,7 @@ final class ZipPackageEntry
         public readonly int $lastModifiedTime = 0,
         public readonly int $lastModifiedDate = 0,
         public readonly int $externalFileAttributes = 0,
+        public readonly int $internalFileAttributes = 0,
         public readonly string $centralExtraFieldData = '',
         public readonly int $versionMadeBy = 0,
         ?string $rawName = null,
@@ -114,6 +116,34 @@ final class ZipPackageEntry
         }
         if ($this->hasDosArchiveAttribute()) {
             $names[] = 'archive';
+        }
+
+        return $names;
+    }
+
+    public function hasTextInternalAttribute(): bool
+    {
+        return ($this->internalFileAttributes & self::INTERNAL_TEXT_ATTRIBUTE) !== 0;
+    }
+
+    public function unknownInternalAttributeBits(): int
+    {
+        return $this->internalFileAttributes & ~self::INTERNAL_TEXT_ATTRIBUTE;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function internalAttributeNames(): array
+    {
+        $names = [];
+        if ($this->hasTextInternalAttribute()) {
+            $names[] = 'apparently-text';
+        }
+
+        $unknownBits = $this->unknownInternalAttributeBits();
+        if ($unknownBits !== 0) {
+            $names[] = sprintf('unknown-0x%04x', $unknownBits);
         }
 
         return $names;

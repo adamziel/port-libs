@@ -20,6 +20,7 @@ final class PdfActionReviewExtractor
     ];
 
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
+    private const DESTINATION_DICTIONARY_BOUNDARY_KEYS = ['D', 'S'];
 
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
@@ -980,6 +981,10 @@ final class PdfActionReviewExtractor
 
         $dict = $this->dictionaryItems($resolved);
         if ($dict !== null && array_key_exists('D', $dict)) {
+            if ($this->resolvedDictionaryHasDuplicateKeys($destination, self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)) {
+                return null;
+            }
+
             return $this->destinationViewDetails($dict['D'], $destinationName, $seenNames);
         }
 
@@ -1094,6 +1099,10 @@ final class PdfActionReviewExtractor
 
         $dict = $this->dictionaryItems($resolved);
         if ($dict !== null && array_key_exists('D', $dict)) {
+            if ($this->resolvedDictionaryHasDuplicateKeys($value, self::DESTINATION_DICTIONARY_BOUNDARY_KEYS)) {
+                return false;
+            }
+
             return $this->destinationValueAllowedForMap($dict['D'], $depth + 1);
         }
 

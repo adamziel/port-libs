@@ -917,6 +917,17 @@ final class PdfSecurityPreflight
             'bit_status' => is_string($bit['status'] ?? null) ? $bit['status'] : null,
             'bit_set' => (bool) ($bit['bit_set'] ?? false),
             'applicable' => $applicable,
+            'requires_permission_name' => is_string($bit['requires_permission_name'] ?? null)
+                ? $bit['requires_permission_name']
+                : null,
+            'required_permission_allowed' => is_bool($bit['required_permission_allowed'] ?? null)
+                ? $bit['required_permission_allowed']
+                : null,
+            'required_permission_bit_set' => is_bool($bit['required_permission_bit_set'] ?? null)
+                ? $bit['required_permission_bit_set']
+                : null,
+            'dependency_status' => is_string($bit['dependency_status'] ?? null) ? $bit['dependency_status'] : null,
+            'denial_reason' => is_string($bit['denial_reason'] ?? null) ? $bit['denial_reason'] : null,
             'syntactic_allowed' => $syntacticAllowed,
             'syntactic_denied' => $syntacticDenied,
             'effective_status' => $effectiveStatus,

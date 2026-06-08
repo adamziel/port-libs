@@ -9,6 +9,7 @@ use InvalidArgumentException;
 final class LayoutOrderer
 {
     private const AMBIGUOUS_PAGE_MARKER_WRAPPER = '__markerpdf_ambiguous_page_marker_wrapper';
+    private const ENVELOPE_PAGE_KEY_MARKER = '__markerpdf_envelope_page_key_marker';
     private const ORDER_RESULT_PAGE_MARKER_KEYS = [
         'page_index',
         'page_idx',
@@ -171,11 +172,15 @@ final class LayoutOrderer
             if ($this->hasAmbiguousOrderPayloadWrapper($orderResults[$index]) || $this->hasMalformedOrderPageMarkers($orderResults[$index])) {
                 continue;
             }
+            $sourceIndex = $this->integerValue($pageRange[$index] ?? null) ?? $index;
+            if (!$this->orderResultPayloadMatchesPage($orderResults[$index], $pages[$index], $index, $sourceIndex)) {
+                continue;
+            }
             $pages[$index]['order'] = $this->sanitizeSuppliedOrderResult(
                 $orderResults[$index],
                 $pages[$index],
                 $index,
-                $this->integerValue($pageRange[$index] ?? null) ?? $index
+                $sourceIndex
             );
             $assignedPages++;
         }
@@ -193,6 +198,34 @@ final class LayoutOrderer
                 'order_max_bboxes' => $maxBboxes,
             ],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $orderResult
+     * @param array<string, mixed>|null $page
+     */
+    private function orderResultPayloadMatchesPage(array $orderResult, ?array $page, int $selectedIndex, ?int $sourceIndex): bool
+    {
+        $payload = $this->orderResultPayloadSource($orderResult);
+        $sources = $this->orderResultPageMarkerSources($payload);
+        $envelopePageKeys = $this->integerFieldsFromSources($sources, [self::ENVELOPE_PAGE_KEY_MARKER]);
+        if ($envelopePageKeys === []) {
+            return true;
+        }
+
+        $sourceIndex ??= $selectedIndex;
+        $pageNumber = $this->pageMarkerNumber($page) ?? $sourceIndex;
+        foreach ($envelopePageKeys as $marker) {
+            if (
+                $marker !== $sourceIndex
+                && $marker !== $pageNumber
+                && $marker !== $pageNumber + 1
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -325,8 +358,12 @@ final class LayoutOrderer
         }
 
         $mapped = [];
-        foreach ($value as $candidate) {
+        foreach ($value as $key => $candidate) {
             if (is_array($candidate) && !array_is_list($candidate)) {
+                $pageKey = $this->integerValue($key);
+                if ($pageKey !== null && $this->hasOrderPayload($candidate)) {
+                    $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
+                }
                 $mapped[] = $candidate;
             }
         }
@@ -476,6 +513,9 @@ final class LayoutOrderer
                 return false;
             }
 
+            if ($this->integerFields($source, [self::ENVELOPE_PAGE_KEY_MARKER]) !== []) {
+                $hasMarkers = true;
+            }
             foreach (self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS as $fields) {
                 if ($this->integerFields($source, $fields) !== []) {
                     $hasMarkers = true;
@@ -512,6 +552,15 @@ final class LayoutOrderer
         }
         foreach ($this->integerFieldsFromSources($sources, self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS[4]) as $marker) {
             if ($marker !== $selectedIndex + 1) {
+                return false;
+            }
+        }
+        foreach ($this->integerFieldsFromSources($sources, [self::ENVELOPE_PAGE_KEY_MARKER]) as $marker) {
+            if (
+                $marker !== $sourceIndex
+                && $marker !== $pageNumber
+                && $marker !== $pageNumber + 1
+            ) {
                 return false;
             }
         }
@@ -621,6 +670,9 @@ final class LayoutOrderer
                 return true;
             }
 
+            if ($this->integerFields($source, [self::ENVELOPE_PAGE_KEY_MARKER]) !== []) {
+                return true;
+            }
             foreach (self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS as $fields) {
                 if ($this->integerFields($source, $fields) !== []) {
                     return true;

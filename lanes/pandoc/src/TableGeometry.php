@@ -4862,7 +4862,7 @@ final class TableGeometry
      */
     private static function writerDowngradeRecord(string $code, string $writer, array $record, array $flattenedSlots): array
     {
-        return [
+        $writerRecord = [
             'code' => $code,
             'writer' => $writer,
             'section' => (string) ($record['section'] ?? ''),
@@ -4882,6 +4882,12 @@ final class TableGeometry
             'rowspan' => max(1, (int) ($record['rowspan'] ?? 1)),
             'flattenedSlots' => $flattenedSlots,
         ];
+
+        if (($record['rowspanToEnd'] ?? false) === true) {
+            $writerRecord['rowspanToEnd'] = true;
+        }
+
+        return $writerRecord;
     }
 
     /**

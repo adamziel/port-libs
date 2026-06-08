@@ -937,6 +937,104 @@ return [
         $t->true(!str_contains($pagesEncoded, 'singleton 993 payload must not cross'));
         $t->true(!str_contains($pagesEncoded, 'direct pages singleton metadata must not cross'));
     },
+    'unwraps nested singleton pages dictionaries inside named core envelopes' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = static function (int $pageNumber, string $lead, string $linkUrl, string $tail) use ($pdftextLinkedPage): array {
+            $page = $pdftextLinkedPage();
+            $page['page'] = $pageNumber;
+            $page['raw_nested_singleton_payload'] = "nested singleton {$pageNumber} payload must not cross dictionary_output";
+            $page['blocks'][0]['lines'][0]['spans'][0]['text'] = $lead;
+            $page['blocks'][0]['lines'][0]['spans'][1]['text'] = 'nested singleton link';
+            $page['blocks'][0]['lines'][0]['spans'][1]['url'] = $linkUrl;
+            $page['blocks'][0]['lines'][0]['spans'][2]['text'] = $tail;
+            unset($page['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+            return $page;
+        };
+
+        $stale = $page(1010, 'Stale nested adapter ', 'https://example.com/stale-nested-singleton', ' should not import');
+        $dictionaryOutputPage = $page(1011, 'Nested dictionary_output ', 'https://example.com/nested-dictionary-output', ' unwraps one page');
+        $pdftextPage = $page(1012, 'Nested pdftext ', 'https://example.com/nested-pdftext', ' unwraps one page');
+        $pagesPage = $page(1013, 'Nested pages ', 'https://example.com/nested-pages', ' unwraps one page');
+        $extractor = new PdfTextDocumentExtractor();
+        $processor = new MarkdownPostProcessor();
+
+        $dictionaryOutputDocument = $extractor->getTextBlocks(
+            [
+                'pages' => [1010 => $stale],
+                'dictionary_output' => [
+                    'metadata' => ['raw_private_payload' => 'nested dictionary_output metadata must not cross'],
+                    'pages' => $dictionaryOutputPage,
+                    'raw_pdftext_payload' => 'nested dictionary_output wrapper payload must not cross',
+                ],
+                'raw_adapter_payload' => 'stale nested adapter payload must not cross',
+            ],
+            maxPages: 1
+        );
+        $dictionaryOutputBlocks = $processor->mergeBlocks($processor->mergeSpans($dictionaryOutputDocument['pages']));
+        $dictionaryOutputEncoded = json_encode($dictionaryOutputDocument, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $dictionaryOutputDocument['page_range']);
+        $t->same(1, $dictionaryOutputDocument['metadata']['source_pages']);
+        $t->same(1011, $dictionaryOutputDocument['pages'][0]['pnum']);
+        $t->same('Nested dictionary_output [nested singleton link](https://example.com/nested-dictionary-output) unwraps one page', $dictionaryOutputBlocks[0]['text']);
+        $t->same('https://example.com/nested-dictionary-output', $dictionaryOutputDocument['pages'][0]['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->same('#page-3-xy', $dictionaryOutputDocument['pages'][0]['pdftext_source']['refs'][0]['url']);
+        $t->true(!str_contains($dictionaryOutputEncoded, 'Stale nested adapter'));
+        $t->true(!str_contains($dictionaryOutputEncoded, 'nested singleton 1011 payload must not cross'));
+        $t->true(!str_contains($dictionaryOutputEncoded, 'nested dictionary_output metadata must not cross'));
+        $t->true(!str_contains($dictionaryOutputEncoded, 'nested dictionary_output wrapper payload must not cross'));
+        $t->true(!str_contains($dictionaryOutputEncoded, 'stale nested adapter payload must not cross'));
+
+        $pdftextDocument = $extractor->getTextBlocks(
+            [
+                'pages' => [1010 => $stale],
+                'pdftext' => [
+                    'metadata' => ['raw_private_payload' => 'nested pdftext metadata must not cross'],
+                    'pages' => $pdftextPage,
+                    'raw_pdftext_payload' => 'nested pdftext wrapper payload must not cross',
+                ],
+                'raw_adapter_payload' => 'stale nested pdftext adapter payload must not cross',
+            ],
+            maxPages: 1
+        );
+        $pdftextBlocks = $processor->mergeBlocks($processor->mergeSpans($pdftextDocument['pages']));
+        $pdftextEncoded = json_encode($pdftextDocument, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $pdftextDocument['page_range']);
+        $t->same(1, $pdftextDocument['metadata']['source_pages']);
+        $t->same(1012, $pdftextDocument['pages'][0]['pnum']);
+        $t->same('Nested pdftext [nested singleton link](https://example.com/nested-pdftext) unwraps one page', $pdftextBlocks[0]['text']);
+        $t->same('https://example.com/nested-pdftext', $pdftextDocument['pages'][0]['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->true(!str_contains($pdftextEncoded, 'Stale nested adapter'));
+        $t->true(!str_contains($pdftextEncoded, 'nested singleton 1012 payload must not cross'));
+        $t->true(!str_contains($pdftextEncoded, 'nested pdftext metadata must not cross'));
+        $t->true(!str_contains($pdftextEncoded, 'nested pdftext wrapper payload must not cross'));
+        $t->true(!str_contains($pdftextEncoded, 'stale nested pdftext adapter payload must not cross'));
+
+        $pagesDocument = $extractor->getTextBlocks(
+            [
+                'pages' => [
+                    'metadata' => ['raw_private_payload' => 'nested pages metadata must not cross'],
+                    'pages' => $pagesPage,
+                    'raw_pages_payload' => 'nested pages wrapper payload must not cross',
+                ],
+                'raw_adapter_payload' => 'outer nested pages adapter payload must not cross',
+            ],
+            maxPages: 1
+        );
+        $pagesBlocks = $processor->mergeBlocks($processor->mergeSpans($pagesDocument['pages']));
+        $pagesEncoded = json_encode($pagesDocument, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $pagesDocument['page_range']);
+        $t->same(1, $pagesDocument['metadata']['source_pages']);
+        $t->same(1013, $pagesDocument['pages'][0]['pnum']);
+        $t->same('Nested pages [nested singleton link](https://example.com/nested-pages) unwraps one page', $pagesBlocks[0]['text']);
+        $t->same('https://example.com/nested-pages', $pagesDocument['pages'][0]['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->true(!str_contains($pagesEncoded, 'nested singleton 1013 payload must not cross'));
+        $t->true(!str_contains($pagesEncoded, 'nested pages metadata must not cross'));
+        $t->true(!str_contains($pagesEncoded, 'nested pages wrapper payload must not cross'));
+        $t->true(!str_contains($pagesEncoded, 'outer nested pages adapter payload must not cross'));
+    },
     'unwraps list entry pdftext page envelopes at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = static function (int $pageNumber, string $lead, string $linkUrl, string $tail) use ($pdftextLinkedPage): array {
             $page = $pdftextLinkedPage();

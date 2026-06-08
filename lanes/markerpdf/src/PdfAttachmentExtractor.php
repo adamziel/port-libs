@@ -51,6 +51,8 @@ final class PdfAttachmentExtractor
 
     private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Filter', 'DecodeParms', 'Params'];
 
+    private const EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS = ['Size', 'CheckSum', 'CreationDate', 'ModDate', 'Mac'];
+
     private const STREAM_DECODE_PARMS_BOUNDARY_KEYS = [
         'Predictor',
         'Columns',
@@ -1356,7 +1358,7 @@ final class PdfAttachmentExtractor
         if ($streamObject['stream'] === null) {
             return null;
         }
-        if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject)) {
+        if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject, $objects)) {
             return null;
         }
 
@@ -2692,7 +2694,7 @@ final class PdfAttachmentExtractor
         if ($streamObject['stream'] === null) {
             return null;
         }
-        if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject)) {
+        if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject, $objects)) {
             return null;
         }
 
@@ -2860,7 +2862,7 @@ final class PdfAttachmentExtractor
         if ($streamObjectId === null || $streamObject === null || $streamObject['stream'] === null) {
             return [];
         }
-        if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject)) {
+        if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject, $objects)) {
             return [];
         }
 
@@ -2929,13 +2931,28 @@ final class PdfAttachmentExtractor
      * the stream before importing stale or conflicting attachment metadata.
      *
      * @param array{generation: int, body: string, value: mixed, stream: string|null} $streamObject
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      */
-    private function embeddedFileStreamHasDuplicateBoundaryKeys(array $streamObject): bool
+    private function embeddedFileStreamHasDuplicateBoundaryKeys(array $streamObject, array $objects): bool
     {
         $dictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($streamObject['body']);
+        if ($dictionaryBody === null) {
+            return false;
+        }
 
-        return $dictionaryBody !== null
-            && $this->dictionaryHasDuplicateKeys($dictionaryBody, self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS);
+        if ($this->dictionaryHasDuplicateKeys($dictionaryBody, self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)) {
+            return true;
+        }
+
+        $paramsValue = $this->rawDictionaryEntryValue($dictionaryBody, 'Params');
+        if ($paramsValue === null) {
+            return false;
+        }
+
+        $paramsBody = $this->rawDictionaryBodyFromValue($paramsValue, $objects);
+
+        return $paramsBody !== null
+            && $this->dictionaryHasDuplicateKeys($paramsBody, self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS);
     }
 
     /**
@@ -5243,6 +5260,11 @@ final class PdfAttachmentExtractor
                 }
             }
 
+            $malformedObjectBodyStart = $this->malformedDirectObjectBodyStartAt($pdfBytes, $offset);
+            if ($malformedObjectBodyStart !== null) {
+                return $tokenOffset >= $malformedObjectBodyStart;
+            }
+
             $char = $pdfBytes[$offset];
             if ($char === '%') {
                 $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
@@ -6531,6 +6553,10 @@ final class PdfAttachmentExtractor
                 }
             }
 
+            if ($this->malformedDirectObjectBodyStartAt($pdfBytes, $offset) !== null) {
+                break;
+            }
+
             $char = $pdfBytes[$offset];
             if ($char === '%') {
                 $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
@@ -6589,6 +6615,21 @@ final class PdfAttachmentExtractor
         }
 
         return false;
+    }
+
+    private function malformedDirectObjectBodyStartAt(string $pdfBytes, int $offset): ?int
+    {
+        if (!ctype_digit($pdfBytes[$offset] ?? '')) {
+            return null;
+        }
+
+        if (preg_match('/\G\d+\s+\d+\s+obj\b/s', $pdfBytes, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $bodyStart = $offset + strlen($match[0]);
+
+        return $this->pdfObjectEndOffset($pdfBytes, $bodyStart) === null ? $bodyStart : null;
     }
 
     private function skipPdfCompositeTokenAt(string $pdfBytes, int $offset): ?int

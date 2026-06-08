@@ -377,6 +377,13 @@ final class PdfDocumentSecurityStoreExtractor
         if ($table !== null) {
             $previousOffset = $this->previousXrefOffsetFromSectionBody($table['trailer']);
             $entries = $this->repairCurrentXrefRows($table['entries'], $definitions, $previousOffset, $offset);
+            $entries = $this->repairOmittedCurrentUpdateGraphEntries(
+                $entries,
+                $definitions,
+                $table['trailer'],
+                $previousOffset,
+                $offset
+            );
 
             return $this->mergePreviousXrefEntries($pdfBytes, $entries, $previousOffset, $definitions, $seenOffsets);
         }
@@ -389,6 +396,13 @@ final class PdfDocumentSecurityStoreExtractor
         $entries = $this->xrefStreamEntriesFromDefinition($stream['definition']);
         $previousOffset = $this->previousXrefOffsetFromSectionBody($stream['dictionary']);
         $entries = $this->repairCurrentXrefRows($entries, $definitions, $previousOffset, $stream['definition']['offset']);
+        $entries = $this->repairOmittedCurrentUpdateGraphEntries(
+            $entries,
+            $definitions,
+            $stream['dictionary'],
+            $previousOffset,
+            $stream['definition']['offset']
+        );
 
         return $this->mergePreviousXrefEntries($pdfBytes, $entries, $previousOffset, $definitions, $seenOffsets);
     }
@@ -683,6 +697,188 @@ final class PdfDocumentSecurityStoreExtractor
         }
 
         return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * Sparse incremental xref sections may omit same-revision objects that are
+     * reachable from the current trailer /Root graph. Add those current direct
+     * bodies before merging stale /Prev rows.
+     *
+     * @param array<int, array{type: int, generation?: int, offset?: int}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{type: int, generation?: int, offset?: int}>
+     */
+    private function repairOmittedCurrentUpdateGraphEntries(
+        array $entries,
+        array $definitions,
+        string $sectionBody,
+        ?int $previousOffset,
+        int $currentXrefOffset
+    ): array {
+        if ($previousOffset === null || $previousOffset < 0 || $currentXrefOffset <= $previousOffset) {
+            return $entries;
+        }
+
+        $root = $this->objectReferenceFromValue($this->valueAfterName($sectionBody, 'Root'));
+        if ($root === null) {
+            return $entries;
+        }
+
+        $pending = [$root];
+        $seen = [];
+        while ($pending !== [] && count($seen) < 160) {
+            $reference = array_shift($pending);
+            if (!is_array($reference)) {
+                continue;
+            }
+
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $key = $objectNumber . ':' . $generation;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $definition = null;
+            $entry = $entries[$objectNumber] ?? null;
+            if ($entry !== null) {
+                if (($entry['type'] ?? null) !== 1 || (int) ($entry['generation'] ?? 0) !== $generation) {
+                    continue;
+                }
+
+                $owner = isset($entry['offset'])
+                    ? $this->directObjectDefinitionAtOffset($definitions, (int) $entry['offset'])
+                    : null;
+                if (
+                    $owner !== null
+                    && $owner['objectNumber'] === $objectNumber
+                    && $owner['generation'] === $generation
+                    && $owner['offset'] > $previousOffset
+                    && $owner['offset'] < $currentXrefOffset
+                ) {
+                    $definition = [
+                        'generation' => $owner['generation'],
+                        'offset' => $owner['offset'],
+                        'body' => $owner['body'],
+                    ];
+                }
+            } else {
+                $definition = $this->currentUpdateDirectObjectDefinitionForXrefRow(
+                    $objectNumber,
+                    $generation,
+                    $previousOffset,
+                    $currentXrefOffset,
+                    $definitions
+                );
+                if ($definition !== null) {
+                    $entries[$objectNumber] = [
+                        'type' => 1,
+                        'offset' => $definition['offset'],
+                        'generation' => $definition['generation'],
+                    ];
+                }
+            }
+
+            if ($definition === null) {
+                continue;
+            }
+
+            foreach ($this->objectReferencesInBody($definition['body']) as $nestedReference) {
+                $pending[] = $nestedReference;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function objectReferenceFromValue(?string $value): ?array
+    {
+        if ($value === null || preg_match('/^\s*(\d+)\s+(\d+)\s+R\b/s', $value, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'objectNumber' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     */
+    private function objectReferencesInBody(string $body): array
+    {
+        $dictionary = $this->dictionaryObjectBody($body);
+        if ($dictionary === null) {
+            return [];
+        }
+
+        $references = $this->objectReferencesInDictionaryBody($dictionary);
+        $deduped = [];
+        $seen = [];
+        foreach ($references as $reference) {
+            $key = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $deduped[] = $reference;
+        }
+
+        return $deduped;
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     */
+    private function objectReferencesInDictionaryBody(string $dictionaryBody): array
+    {
+        $references = [];
+        foreach ($this->dictionaryNameValueMap($dictionaryBody) as $value) {
+            foreach ($this->objectReferencesInValue($value) as $reference) {
+                $references[] = $reference;
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     */
+    private function objectReferencesInValue(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            return [$reference];
+        }
+
+        if ($value[0] === '[') {
+            $references = [];
+            foreach ($this->arrayItemsFromValue($value, []) as $item) {
+                foreach ($this->objectReferencesInValue($item) as $nestedReference) {
+                    $references[] = $nestedReference;
+                }
+            }
+
+            return $references;
+        }
+
+        if (substr($value, 0, 2) === '<<') {
+            $dictionary = $this->readPdfDictionaryAt($value, 0);
+            return $dictionary === null ? [] : $this->objectReferencesInDictionaryBody($dictionary);
+        }
+
+        return [];
     }
 
     /**

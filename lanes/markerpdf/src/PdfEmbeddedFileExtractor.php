@@ -29,6 +29,8 @@ final class PdfEmbeddedFileExtractor
 
     private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Filter', 'DecodeParms', 'Params'];
 
+    private const EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS = ['Size', 'CheckSum', 'CreationDate', 'ModDate', 'Mac'];
+
     private const STREAM_DECODE_PARMS_BOUNDARY_KEYS = [
         'Predictor',
         'Columns',
@@ -2215,7 +2217,10 @@ final class PdfEmbeddedFileExtractor
         if (preg_match('/<<(.*?)>>\s*stream\b/s', $body, $match) !== 1) {
             return null;
         }
-        if ($this->dictionaryHasDuplicateKeys($match[1], self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)) {
+        if (
+            $this->dictionaryHasDuplicateKeys($match[1], self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)
+            || $this->embeddedFileStreamHasDuplicateParamsBoundaryKeys($match[1], $objects)
+        ) {
             return null;
         }
         if (!$this->isEmbeddedFileStreamDictionary($match[1], $objects)) {
@@ -2244,7 +2249,10 @@ final class PdfEmbeddedFileExtractor
         if ($stream === null) {
             return null;
         }
-        if ($this->dictionaryHasDuplicateKeys($stream['dictionary'], self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)) {
+        if (
+            $this->dictionaryHasDuplicateKeys($stream['dictionary'], self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)
+            || $this->embeddedFileStreamHasDuplicateParamsBoundaryKeys($stream['dictionary'], $objects)
+        ) {
             return null;
         }
         if (!$this->isEmbeddedFileStreamDictionary($stream['dictionary'], $objects)) {
@@ -2257,6 +2265,17 @@ final class PdfEmbeddedFileExtractor
             'content' => $stream['content'],
             'filters' => $stream['filters'],
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function embeddedFileStreamHasDuplicateParamsBoundaryKeys(string $streamDictionary, array $objects): bool
+    {
+        $params = $this->resolveDictionaryFromValue($this->dictionaryRawValue($streamDictionary, 'Params'), $objects);
+
+        return $params !== null
+            && $this->dictionaryHasDuplicateKeys($params['body'], self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS);
     }
 
     /**
@@ -4625,6 +4644,21 @@ final class PdfEmbeddedFileExtractor
         return false;
     }
 
+    private function malformedDirectObjectBodyStartAt(string $pdfBytes, int $offset): ?int
+    {
+        if (!ctype_digit($pdfBytes[$offset] ?? '')) {
+            return null;
+        }
+
+        if (preg_match('/\G\d+\s+\d+\s+obj\b/s', $pdfBytes, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $bodyStart = $offset + strlen($match[0]);
+
+        return $this->pdfObjectEndOffset($pdfBytes, $bodyStart) === null ? $bodyStart : null;
+    }
+
     /**
      * @return array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>|null
      */
@@ -5920,6 +5954,11 @@ final class PdfEmbeddedFileExtractor
                 }
             }
 
+            $malformedObjectBodyStart = $this->malformedDirectObjectBodyStartAt($pdfBytes, $offset);
+            if ($malformedObjectBodyStart !== null) {
+                return $tokenOffset >= $malformedObjectBodyStart;
+            }
+
             $char = $pdfBytes[$offset];
 
             if ($char === '%') {
@@ -6269,6 +6308,10 @@ final class PdfEmbeddedFileExtractor
                         }
                     }
                 }
+            }
+
+            if ($this->malformedDirectObjectBodyStartAt($pdfBytes, $offset) !== null) {
+                break;
             }
 
             $char = $pdfBytes[$offset];

@@ -395,11 +395,13 @@ final class SuppliedDocumentConverter
             $imageBboxes = isset($tableOrPageResult['image_bboxes']) && is_array($tableOrPageResult['image_bboxes'])
                 ? array_values($tableOrPageResult['image_bboxes'])
                 : [];
+            $tableImages = $this->pageResultTableImages($tableOrPageResult);
+            $tableImagesSource = $this->pageResultTableImagesSource($tableOrPageResult);
             $sharedImageBbox = $this->pageResultSharedImageBboxValue($tableOrPageResult);
             $sharedImageBboxSource = $this->pageResultSharedImageBboxSource($tableOrPageResult);
 
             $firstFlattenedIndex = count($tables);
-            $tableCount = max(count($cellsByTable), count($rowsColsByTable), count($tableBboxes), count($imageBboxes));
+            $tableCount = max(count($cellsByTable), count($rowsColsByTable), count($tableBboxes), count($imageBboxes), count($tableImages));
             $rowAliases = [];
             $colAliases = [];
             for ($tableIndex = 0; $tableIndex < $tableCount; $tableIndex++) {
@@ -439,6 +441,11 @@ final class SuppliedDocumentConverter
                     $table['image_bbox'] = $imageBbox;
                 }
 
+                $tableImage = $tableImages[$tableIndex] ?? null;
+                if (is_array($tableImage) && $tableImagesSource !== null) {
+                    $table = $this->withPageResultTableImageMetadata($table, $tableImage, $tableIndex, $tableImagesSource);
+                }
+
                 $table = $this->withPageResultGeometryMetadata($table, $tableOrPageResult);
 
                 if (isset($tableOrPageResult['pnum']) && (is_int($tableOrPageResult['pnum']) || is_float($tableOrPageResult['pnum']) || is_string($tableOrPageResult['pnum']))) {
@@ -463,6 +470,8 @@ final class SuppliedDocumentConverter
                 'rows_cols_table_count' => count($rowsColsByTable),
                 'table_bbox_count' => count($tableBboxes),
                 'image_bbox_count' => count($imageBboxes),
+                'table_image_count' => count($tableImages),
+                'table_image_source' => $tableImagesSource,
                 'rows_cols_row_aliases' => $rowAliases,
                 'rows_cols_col_aliases' => $colAliases,
                 'shared_image_bbox_source' => $sharedImageBboxSource,
@@ -984,6 +993,164 @@ final class SuppliedDocumentConverter
         foreach (['image_bbox', 'page_image_bbox', 'rendered_image_bbox'] as $key) {
             if ($this->pageResultBboxValue($pageResult[$key] ?? null) !== null) {
                 return $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Upstream tabled keeps one cropped table image in ExtractPageResult.table_imgs
+     * for each table. Native sidecars cannot serialize PIL images, but they can
+     * keep the crop-plan metadata that defines the same page-image boundary.
+     *
+     * @param array<string, mixed> $pageResult
+     * @return list<mixed>
+     */
+    private function pageResultTableImages(array $pageResult): array
+    {
+        $source = $this->pageResultTableImagesSource($pageResult);
+        if ($source === null) {
+            return [];
+        }
+
+        $images = $pageResult[$source] ?? [];
+
+        return is_array($images) ? array_values($images) : [];
+    }
+
+    /**
+     * @param array<string, mixed> $pageResult
+     */
+    private function pageResultTableImagesSource(array $pageResult): ?string
+    {
+        foreach (['table_imgs', 'table_images', 'table_crops', 'crop_images'] as $key) {
+            if (isset($pageResult[$key]) && is_array($pageResult[$key])) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @param array<string|int, mixed> $tableImage
+     * @return array<string, mixed>
+     */
+    private function withPageResultTableImageMetadata(array $table, array $tableImage, int $tableIndex, string $sourceKey): array
+    {
+        if (!isset($table['table_image'])) {
+            $table['table_image'] = $tableImage;
+            $table['table_image_source'] = 'ExtractPageResult.' . $sourceKey . '.' . $tableIndex;
+        }
+
+        if (isset($table['table_bbox']) || isset($table['bbox'])) {
+            return $table;
+        }
+
+        foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox'] as $bboxKey) {
+            if (!array_key_exists($bboxKey, $tableImage)) {
+                continue;
+            }
+
+            $bbox = $this->pageResultTableImageBboxValue($tableImage, $bboxKey);
+            if ($bbox === null) {
+                continue;
+            }
+
+            $table['table_bbox'] = $bbox;
+            $table['table_bbox_source'] = 'ExtractPageResult.' . $sourceKey . '.' . $tableIndex . '.' . $bboxKey;
+            $space = $this->pageResultTableImageBboxCoordinateSpace($tableImage, $bboxKey);
+            if ($space !== null) {
+                $table['table_bbox_coordinate_space'] = $space;
+            }
+            $order = $this->pageResultTableImageBboxCoordinateOrder($tableImage, $bboxKey);
+            if ($order !== null) {
+                $table['bbox_order'] = $order;
+            }
+
+            return $table;
+        }
+
+        return $table;
+    }
+
+    /**
+     * @param array<string|int, mixed> $tableImage
+     * @return list<float>|array<mixed>|null
+     */
+    private function pageResultTableImageBboxValue(array $tableImage, string $bboxKey): mixed
+    {
+        $bbox = $this->pageResultBboxValue($tableImage[$bboxKey] ?? null);
+        if (!is_array($bbox)) {
+            return $bbox;
+        }
+
+        $raw = $this->pageResultRawBboxCoordinates($bbox);
+        $order = $this->pageResultTableImageBboxCoordinateOrder($tableImage, $bboxKey);
+        if ($raw === null || $order === null) {
+            return $bbox;
+        }
+
+        return $this->pageResultCanonicalBbox($this->pageResultApplyBboxCoordinateOrder($raw, $order));
+    }
+
+    /**
+     * @param array<string|int, mixed> $tableImage
+     */
+    private function pageResultTableImageBboxCoordinateSpace(array $tableImage, string $bboxKey): ?string
+    {
+        foreach ([
+            $bboxKey . '_coordinate_space',
+            $bboxKey . '_geometry_space',
+            $bboxKey . '_bbox_coordinate_space',
+            $bboxKey . '_bbox_geometry_space',
+            'table_bbox_coordinate_space',
+            'table_crop_bbox_coordinate_space',
+            'crop_bbox_coordinate_space',
+            'bbox_coordinate_space',
+            'coordinate_space',
+            'geometry_coordinate_space',
+            'geometry_space',
+        ] as $key) {
+            if (isset($tableImage[$key]) && is_scalar($tableImage[$key])) {
+                return (string) $tableImage[$key];
+            }
+        }
+
+        if ($bboxKey === 'highres_bbox' || $bboxKey === 'page_table_bbox') {
+            return 'page_image';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $tableImage
+     */
+    private function pageResultTableImageBboxCoordinateOrder(array $tableImage, string $bboxKey): ?string
+    {
+        foreach ([
+            $bboxKey . '_order',
+            $bboxKey . '_bbox_order',
+            $bboxKey . '_coordinate_order',
+            $bboxKey . '_coordinate_format',
+            'table_bbox_order',
+            'table_bbox_coordinate_order',
+            'bbox_order',
+            'bbox_coordinate_order',
+            'bbox_coordinate_format',
+            'bbox_format',
+            'coordinate_order',
+        ] as $key) {
+            if (!isset($tableImage[$key]) || !is_scalar($tableImage[$key])) {
+                continue;
+            }
+
+            $order = $this->pageResultCanonicalBboxCoordinateOrder((string) $tableImage[$key]);
+            if ($order !== null) {
+                return $order;
             }
         }
 

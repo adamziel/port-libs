@@ -3416,6 +3416,58 @@ XML;
         $t->contains('data-odf-section-protection-key-present="true"', $blocksHtml);
         $t->contains('<p>Linked appendix fallback.</p>', $blocksHtml);
     },
+    'maps ODT conditional and hidden sections into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithConditionalSections = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:section text:name="Conditional Appendix" text:style-name="ReviewCondition" text:condition="ReviewStatus == &quot;ready&quot;" text:is-hidden="false" text:display="condition">
+        <text:p>Conditional appendix remains reviewable.</text:p>
+      </text:section>
+      <text:section text:name="Draft Only" text:condition="DraftOnly" text:is-hidden="true">
+        <text:p>Hidden draft context remains available for audit.</text:p>
+      </text:section>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithConditionalSections));
+        $blocks = $result['document']->children;
+
+        $t->same(2, count($blocks));
+        $conditional = $blocks[0];
+        $hidden = $blocks[1];
+        $t->same('div', $conditional->type);
+        $t->same('conditional-appendix', $conditional->attr('id'));
+        $t->same(['odf-section', 'odf-conditional-section'], $conditional->attr('classes'));
+        $t->same('ReviewStatus == "ready"', $conditional->attr('sectionCondition'));
+        $t->same(false, $conditional->attr('sectionHidden'));
+        $t->same('condition', $conditional->attr('sectionDisplay'));
+        $t->same('ReviewStatus == "ready"', $conditional->attr('attributes')['data-odf-section-condition']);
+        $t->same('false', $conditional->attr('attributes')['data-odf-section-hidden']);
+        $t->same('condition', $conditional->attr('attributes')['data-odf-section-display']);
+        $t->same('Conditional appendix remains reviewable.', $conditional->children[0]->attr('text'));
+        $t->same('div', $hidden->type);
+        $t->same('draft-only', $hidden->attr('id'));
+        $t->same(['odf-section', 'odf-conditional-section', 'odf-hidden-section'], $hidden->attr('classes'));
+        $t->same('DraftOnly', $hidden->attr('sectionCondition'));
+        $t->same(true, $hidden->attr('sectionHidden'));
+        $t->same('true', $hidden->attr('attributes')['data-odf-section-hidden']);
+        $t->same('Hidden draft context remains available for audit.', $hidden->children[0]->attr('text'));
+        $t->same(2, $result['importReport']['content']['sectionCount']);
+        $t->same(2, $result['importReport']['content']['conditionalSectionCount']);
+        $t->same(1, $result['importReport']['content']['hiddenSectionCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('::: {#conditional-appendix .odf-section .odf-conditional-section data-odf-section-name="Conditional Appendix"', $markdown);
+        $t->contains('data-odf-section-condition="ReviewStatus == \\"ready\\""', $markdown);
+        $t->contains('data-odf-section-hidden="false"', $blocksHtml);
+        $t->contains('<div id="draft-only" class="odf-section odf-conditional-section odf-hidden-section" data-odf-section-name="Draft Only" data-odf-section-condition="DraftOnly" data-odf-section-hidden="true">', $blocksHtml);
+    },
     'maps ODT tracked changes into review spans and import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTrackedChanges = <<<'XML'
 <office:document-content
