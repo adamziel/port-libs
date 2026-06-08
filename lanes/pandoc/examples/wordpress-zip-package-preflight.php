@@ -1272,6 +1272,58 @@ $buildEncryptedMetadataBackedPackage = static function (int $flags) use ($crc32)
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildTraditionalEncryptedBackedPackage = static function (
+    string $encryptedHeader = 'PKWAREHEAD12',
+    string $ciphertext = "encrypted media payload bytes\n"
+) use ($crc32): string {
+    $name = 'word/media/traditional-encrypted.bin';
+    $plaintext = "WordPress import media before traditional ZIP encryption\n";
+    $encryptedPayload = $encryptedHeader . $ciphertext;
+    $crc = $crc32($plaintext);
+    $flags = 0x0801;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($encryptedPayload),
+        strlen($plaintext),
+        strlen($name),
+        0
+    );
+    $body .= $name . $encryptedPayload;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($encryptedPayload),
+        strlen($plaintext),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildVersionNeededMismatchBackedPackage = static function () use ($crc32): string {
     $name = 'word/settings.xml';
     $data = '<w:settings><w:updateFields w:val="true"/></w:settings>';
@@ -3110,6 +3162,16 @@ try {
 } catch (RuntimeException $exception) {
     $centralDirectoryEncryptionRejected = str_contains($exception->getMessage(), 'central-directory encryption metadata');
 }
+$traditionalEncryptionPreflight = ZipPackage::encryptionPolicyPreflight($buildTraditionalEncryptedBackedPackage());
+$traditionalEncryptedEntry = $traditionalEncryptionPreflight['encryptedEntries'][0] ?? [];
+$traditionalEncryptedRejected = false;
+try {
+    ZipPackage::fromString($buildTraditionalEncryptedBackedPackage());
+} catch (RuntimeException $exception) {
+    $traditionalEncryptedRejected = str_contains($exception->getMessage(), 'Encrypted ZIP entries');
+}
+$truncatedTraditionalEncryptionPreflight = ZipPackage::encryptionPolicyPreflight($buildTraditionalEncryptedBackedPackage('short', ''));
+$truncatedTraditionalEncryptedEntry = $truncatedTraditionalEncryptionPreflight['encryptedEntries'][0] ?? [];
 $compressedPatchedDataRejected = false;
 try {
     ZipPackage::fromString($buildEncryptedMetadataBackedPackage(0x0820));
@@ -4473,6 +4535,27 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP central-directory encryption metadata to be rejected before media import');
     }
 
+    if (
+        !$traditionalEncryptedRejected
+        || ($traditionalEncryptionPreflight['encryptedEntryCount'] ?? null) !== 1
+        || ($traditionalEncryptionPreflight['traditionalEncryptionEntryCount'] ?? null) !== 1
+        || ($traditionalEncryptedEntry['traditionalEncryptionHeaderLength'] ?? null) !== 12
+        || ($traditionalEncryptedEntry['traditionalEncryptionHeaderAvailableBytes'] ?? null) !== 12
+        || ($traditionalEncryptedEntry['traditionalEncryptionPayloadSize'] ?? null) <= 0
+        || ($traditionalEncryptedEntry['compressedSizeIncludesTraditionalEncryptionHeader'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Expected traditional ZIP encryption layout to be blocked and exposed for review');
+    }
+
+    if (
+        ($truncatedTraditionalEncryptionPreflight['truncatedTraditionalEncryptionHeaderEntryCount'] ?? null) !== 1
+        || ($truncatedTraditionalEncryptedEntry['hasTruncatedTraditionalEncryptionHeader'] ?? null) !== true
+        || !array_key_exists('traditionalEncryptionPayloadOffset', $truncatedTraditionalEncryptedEntry)
+        || $truncatedTraditionalEncryptedEntry['traditionalEncryptionPayloadOffset'] !== null
+    ) {
+        throw new RuntimeException('Expected truncated traditional ZIP encryption headers to remain blocked and visible in preflight');
+    }
+
     if (!$compressedPatchedDataRejected) {
         throw new RuntimeException('Expected ZIP compressed-patched data metadata to be rejected before media import');
     }
@@ -4730,6 +4813,10 @@ echo 'zipCentralDirectorySignatureStrictPolicy=' . ($centralDirectorySignatureSt
 echo 'zipCentralDirectorySignatureStrictDiagnostics=' . implode(',', $centralDirectorySignatureStrictPreflight['diagnostics']) . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'traditionalEncryptionPolicy=' . ($traditionalEncryptedRejected ? $traditionalEncryptionPreflight['extractionPolicy'] : 'not-rejected') . "\n";
+echo 'traditionalEncryptionHeaderBytes=' . ($traditionalEncryptedEntry['traditionalEncryptionHeaderAvailableBytes'] ?? 0) . "\n";
+echo 'traditionalEncryptionPayloadBytes=' . ($traditionalEncryptedEntry['traditionalEncryptionPayloadSize'] ?? 0) . "\n";
+echo 'traditionalEncryptionTruncatedHeaders=' . $truncatedTraditionalEncryptionPreflight['truncatedTraditionalEncryptionHeaderEntryCount'] . "\n";
 echo 'compressedPatchedDataPolicy=' . ($compressedPatchedDataRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipAesExtraFieldPolicy=' . ($aesExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedCompressionMethodPolicy=' . ($unsupportedCompressionMethodRejected ? 'rejected' : 'not-rejected') . "\n";

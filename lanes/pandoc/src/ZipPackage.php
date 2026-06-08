@@ -22,6 +22,7 @@ final class ZipPackage
     private const CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG = 0x2000;
     private const DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS = 0x0002 | 0x0004;
     private const SUPPORTED_GENERAL_PURPOSE_FLAGS = 0x0002 | 0x0004 | 0x0008 | self::UTF8_GENERAL_PURPOSE_FLAG;
+    private const TRADITIONAL_ENCRYPTION_HEADER_LENGTH = 12;
     private const MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT = 20;
     private const INFOZIP_UNICODE_PATH_EXTRA_ID = 0x7075;
     private const INFOZIP_UNICODE_COMMENT_EXTRA_ID = 0x6375;
@@ -2354,6 +2355,7 @@ final class ZipPackage
      *     strongEncryptionEntryCount:int,
      *     centralDirectoryEncryptionEntryCount:int,
      *     winZipAesEntryCount:int,
+     *     truncatedTraditionalEncryptionHeaderEntryCount:int,
      *     hasEncryptedEntries:bool,
      *     extractionPolicy:string,
      *     isSupportedByBoundedReader:bool,
@@ -2385,6 +2387,7 @@ final class ZipPackage
         $strongEncryptionEntryCount = 0;
         $centralDirectoryEncryptionEntryCount = 0;
         $winZipAesEntryCount = 0;
+        $truncatedTraditionalEncryptionHeaderEntryCount = 0;
         $cursor = $archive['centralDirectoryOffset'];
         $index = 0;
         while ($index < $archive['totalEntryCount']) {
@@ -2420,6 +2423,27 @@ final class ZipPackage
                 || (($localHeader['generalPurposeFlags'] & self::CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0);
             $hasWinZipAesExtraField = in_array(self::WINZIP_AES_EXTRA_ID, $centralExtraFieldIds, true)
                 || in_array(self::WINZIP_AES_EXTRA_ID, $localExtraFieldIds, true);
+            $dataOffset = $localHeader['dataOffset'];
+            $traditionalEncryptionHeaderOffset = null;
+            $traditionalEncryptionHeaderLength = 0;
+            $traditionalEncryptionHeaderAvailableBytes = 0;
+            $traditionalEncryptionPayloadOffset = null;
+            $traditionalEncryptionPayloadSize = null;
+            $hasTruncatedTraditionalEncryptionHeader = false;
+
+            if ($hasTraditionalEncryption) {
+                $traditionalEncryptionHeaderOffset = $dataOffset;
+                $traditionalEncryptionHeaderLength = self::TRADITIONAL_ENCRYPTION_HEADER_LENGTH;
+                $traditionalEncryptionHeaderAvailableBytes = min(
+                    $compressedSize,
+                    self::TRADITIONAL_ENCRYPTION_HEADER_LENGTH
+                );
+                $hasTruncatedTraditionalEncryptionHeader = $compressedSize < self::TRADITIONAL_ENCRYPTION_HEADER_LENGTH;
+                if (!$hasTruncatedTraditionalEncryptionHeader) {
+                    $traditionalEncryptionPayloadOffset = $dataOffset + self::TRADITIONAL_ENCRYPTION_HEADER_LENGTH;
+                    $traditionalEncryptionPayloadSize = $compressedSize - self::TRADITIONAL_ENCRYPTION_HEADER_LENGTH;
+                }
+            }
 
             $encryptionTypes = [];
             $diagnostics = [];
@@ -2438,6 +2462,9 @@ final class ZipPackage
             if ($hasWinZipAesExtraField) {
                 $encryptionTypes[] = 'winzip-aes';
                 $diagnostics[] = 'zip-winzip-aes-extra-field';
+            }
+            if ($hasTruncatedTraditionalEncryptionHeader) {
+                $diagnostics[] = 'zip-traditional-encryption-header-truncated';
             }
 
             if ($flags !== $localHeader['generalPurposeFlags']) {
@@ -2467,6 +2494,9 @@ final class ZipPackage
             if ($hasWinZipAesExtraField) {
                 $winZipAesEntryCount++;
             }
+            if ($hasTruncatedTraditionalEncryptionHeader) {
+                $truncatedTraditionalEncryptionHeaderEntryCount++;
+            }
 
             $entry = [
                 'name' => $decodedName['text'],
@@ -2477,12 +2507,21 @@ final class ZipPackage
                 'localHeaderOffset' => $localHeaderOffset,
                 'compressionMethod' => $method,
                 'compressionMethodName' => self::compressionMethodName($method),
+                'localHeaderDataOffset' => $dataOffset,
                 'generalPurposeFlags' => $flags,
                 'localGeneralPurposeFlags' => $localHeader['generalPurposeFlags'],
                 'centralExtraFieldIds' => $centralExtraFieldIds,
                 'localExtraFieldIds' => $localExtraFieldIds,
                 'compressedSize' => $compressedSize,
                 'uncompressedSize' => $uncompressedSize,
+                'compressedDataEnd' => $dataOffset + $compressedSize,
+                'traditionalEncryptionHeaderOffset' => $traditionalEncryptionHeaderOffset,
+                'traditionalEncryptionHeaderLength' => $traditionalEncryptionHeaderLength,
+                'traditionalEncryptionHeaderAvailableBytes' => $traditionalEncryptionHeaderAvailableBytes,
+                'traditionalEncryptionPayloadOffset' => $traditionalEncryptionPayloadOffset,
+                'traditionalEncryptionPayloadSize' => $traditionalEncryptionPayloadSize,
+                'compressedSizeIncludesTraditionalEncryptionHeader' => $hasTraditionalEncryption,
+                'hasTruncatedTraditionalEncryptionHeader' => $hasTruncatedTraditionalEncryptionHeader,
                 'hasTraditionalEncryption' => $hasTraditionalEncryption,
                 'hasStrongEncryption' => $hasStrongEncryption,
                 'hasCentralDirectoryEncryption' => $hasCentralDirectoryEncryption,
@@ -2511,6 +2550,9 @@ final class ZipPackage
         if ($encryptedEntries !== []) {
             $issues[] = 'encrypted-zip-entries';
         }
+        if ($truncatedTraditionalEncryptionHeaderEntryCount > 0) {
+            $issues[] = 'truncated-traditional-encryption-header';
+        }
 
         return [
             'entryCount' => count($entries),
@@ -2519,6 +2561,7 @@ final class ZipPackage
             'strongEncryptionEntryCount' => $strongEncryptionEntryCount,
             'centralDirectoryEncryptionEntryCount' => $centralDirectoryEncryptionEntryCount,
             'winZipAesEntryCount' => $winZipAesEntryCount,
+            'truncatedTraditionalEncryptionHeaderEntryCount' => $truncatedTraditionalEncryptionHeaderEntryCount,
             'hasEncryptedEntries' => $encryptedEntries !== [],
             'extractionPolicy' => $encryptedEntries === [] ? 'no-encrypted-zip-entries' : 'encrypted-zip-entries-blocked',
             'isSupportedByBoundedReader' => $issues === [],

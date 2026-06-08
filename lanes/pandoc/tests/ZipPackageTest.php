@@ -377,6 +377,58 @@ $buildCentralDirectorySignaturePackage = static function (
         . $centralDirectorySignature
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, $centralDirectorySize, strlen($body), 0);
 };
+$buildTraditionalEncryptedPackage = static function (
+    string $encryptedHeader = "PKWAREHEAD12",
+    string $ciphertext = "encrypted stored payload bytes\n"
+) use ($crc32): string {
+    $name = 'word/media/encrypted-review.bin';
+    $plaintext = "review media bytes before traditional ZIP encryption\n";
+    $encryptedPayload = $encryptedHeader . $ciphertext;
+    $crc = $crc32($plaintext);
+    $flags = 0x0801;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($encryptedPayload),
+        strlen($plaintext),
+        strlen($name),
+        0
+    );
+    $body .= $name . $encryptedPayload;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($encryptedPayload),
+        strlen($plaintext),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $packUInt64 = static function (int $value): string {
     if ($value < 0) {
         throw new RuntimeException('ZIP64 fixture values must be non-negative');
@@ -3873,6 +3925,55 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             ['name' => 'word/central-directory-encrypted.xml', 'data' => 'masked local header metadata', 'flags' => 0x2800],
         ])));
+    },
+
+    'preflights traditional zip encryption header layout without extracting bytes' => static function (TestRunner $t) use ($buildTraditionalEncryptedPackage): void {
+        $zip = $buildTraditionalEncryptedPackage();
+        $summary = ZipPackage::encryptionPolicyPreflight($zip);
+        $entry = $summary['encryptedEntries'][0];
+
+        $t->same(1, $summary['entryCount']);
+        $t->same(1, $summary['encryptedEntryCount']);
+        $t->same(1, $summary['traditionalEncryptionEntryCount']);
+        $t->same(0, $summary['strongEncryptionEntryCount']);
+        $t->same(0, $summary['centralDirectoryEncryptionEntryCount']);
+        $t->same(0, $summary['winZipAesEntryCount']);
+        $t->same(0, $summary['truncatedTraditionalEncryptionHeaderEntryCount']);
+        $t->same(true, $summary['hasEncryptedEntries']);
+        $t->same('encrypted-zip-entries-blocked', $summary['extractionPolicy']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['encrypted-zip-entries'], $summary['issues']);
+        $t->same('word/media/encrypted-review.bin', $entry['name']);
+        $t->same('stored', $entry['compressionMethodName']);
+        $t->same(0x0801, $entry['generalPurposeFlags']);
+        $t->same(0x0801, $entry['localGeneralPurposeFlags']);
+        $t->same(true, $entry['hasTraditionalEncryption']);
+        $t->same(false, $entry['hasTruncatedTraditionalEncryptionHeader']);
+        $t->same(['traditional'], $entry['encryptionTypes']);
+        $t->same('blocked', $entry['policy']);
+        $t->same(['zip-encrypted-entry-not-extracted', 'zip-traditional-encryption'], $entry['diagnostics']);
+        $t->same(12, $entry['traditionalEncryptionHeaderLength']);
+        $t->same(12, $entry['traditionalEncryptionHeaderAvailableBytes']);
+        $t->same($entry['localHeaderDataOffset'], $entry['traditionalEncryptionHeaderOffset']);
+        $t->same($entry['localHeaderDataOffset'] + 12, $entry['traditionalEncryptionPayloadOffset']);
+        $t->same($entry['compressedSize'] - 12, $entry['traditionalEncryptionPayloadSize']);
+        $t->same($entry['localHeaderDataOffset'] + $entry['compressedSize'], $entry['compressedDataEnd']);
+        $t->same(true, $entry['compressedSizeIncludesTraditionalEncryptionHeader']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+
+        $truncatedZip = $buildTraditionalEncryptedPackage('short', '');
+        $truncated = ZipPackage::encryptionPolicyPreflight($truncatedZip);
+        $truncatedEntry = $truncated['encryptedEntries'][0];
+
+        $t->same(1, $truncated['truncatedTraditionalEncryptionHeaderEntryCount']);
+        $t->same(['encrypted-zip-entries', 'truncated-traditional-encryption-header'], $truncated['issues']);
+        $t->same(12, $truncatedEntry['traditionalEncryptionHeaderLength']);
+        $t->same(5, $truncatedEntry['traditionalEncryptionHeaderAvailableBytes']);
+        $t->same(null, $truncatedEntry['traditionalEncryptionPayloadOffset']);
+        $t->same(null, $truncatedEntry['traditionalEncryptionPayloadSize']);
+        $t->same(true, $truncatedEntry['hasTruncatedTraditionalEncryptionHeader']);
+        $t->contains('zip-traditional-encryption-header-truncated', implode(',', $truncatedEntry['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($truncatedZip));
     },
 
     'rejects winzip aes extra fields before package import handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
