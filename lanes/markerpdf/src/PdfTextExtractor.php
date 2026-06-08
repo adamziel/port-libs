@@ -15239,7 +15239,10 @@ final class PdfTextExtractor
             $valueIndex = $index + 1;
             $pageIndex = $this->pageLabelPageIndexOperand($items[$index], $objects);
             if ($pageIndex === null) {
-                $index++;
+                $index += $this->pageLabelMalformedIndexOperandConsumesPairedValue($items[$index], $objects)
+                    && $valueIndex < $itemCount
+                    ? 2
+                    : 1;
                 continue;
             }
 
@@ -15294,6 +15297,59 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageLabelMalformedIndexOperandConsumesPairedValue(string $value, array $objects): bool
+    {
+        $value = trim($value);
+        if ($this->pageLabelIntegerScalarValue($value) !== null) {
+            return false;
+        }
+
+        return $this->pageLabelMalformedIndexScalarConsumesPairedValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageLabelMalformedIndexScalarConsumesPairedValue(
+        string $value,
+        array $objects,
+        array $seen = []
+    ): bool {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if ($offset >= strlen($value)) {
+            return false;
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference !== null) {
+            $afterReference = $this->skipPdfWhitespace($value, $reference['endOffset']);
+            if ($afterReference < strlen($value)) {
+                return true;
+            }
+
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+                return false;
+            }
+
+            $body = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return false;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->pageLabelMalformedIndexScalarConsumesPairedValue($body, $objects, $seen);
+        }
+
+        return preg_match('/\G[+-]?\d+(?:\.\d+)?/s', $value, $match, 0, $offset) === 1;
     }
 
     /**
