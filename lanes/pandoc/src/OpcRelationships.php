@@ -8,6 +8,8 @@ final class OpcRelationships
 {
     public const NAMESPACE_URI = 'http://schemas.openxmlformats.org/package/2006/relationships';
 
+    private const RELATIONSHIP_PART_CONTENT_TYPE = 'application/vnd.openxmlformats-package.relationships+xml';
+
     /** @var list<OpcRelationship> */
     private array $relationships = [];
 
@@ -288,6 +290,7 @@ final class OpcRelationships
         $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
         self::assertRelationshipSourcePartName($sourcePartName);
         $sourceEquivalenceKey = self::partNameEquivalenceKey($sourcePartName);
+        $contentTypes = self::contentTypesForPackage($package);
         $relationshipParts = [];
 
         foreach ($package->names() as $packageName) {
@@ -310,6 +313,13 @@ final class OpcRelationships
                 continue;
             }
 
+            if (
+                $contentTypes instanceof OpcContentTypes
+                && !self::contentTypeMatches($contentTypes->contentTypeForPart($relationshipPartName), self::RELATIONSHIP_PART_CONTENT_TYPE)
+            ) {
+                continue;
+            }
+
             $relationshipParts[] = [
                 'relationshipPartName' => $relationshipPartName,
                 'sourcePartName' => $representedSourcePartName,
@@ -322,6 +332,40 @@ final class OpcRelationships
         );
 
         return $relationshipParts;
+    }
+
+    private static function contentTypesForPackage(ZipPackage $package): ?OpcContentTypes
+    {
+        if (!$package->has('[Content_Types].xml')) {
+            return null;
+        }
+
+        return OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
+    }
+
+    private static function contentTypeMatches(?string $actual, string $expected): bool
+    {
+        if ($actual === null) {
+            return false;
+        }
+
+        return self::contentTypeComparisonKey($actual) === self::contentTypeComparisonKey($expected);
+    }
+
+    private static function contentTypeComparisonKey(string $contentType): string
+    {
+        $segments = explode(';', $contentType);
+        $mediaType = strtolower(trim(array_shift($segments) ?? ''));
+        $parameters = array_values(array_filter(
+            array_map(static fn (string $parameter): string => trim($parameter), $segments),
+            static fn (string $parameter): bool => $parameter !== '',
+        ));
+
+        if ($parameters === []) {
+            return $mediaType;
+        }
+
+        return $mediaType . ';' . implode(';', $parameters);
     }
 
     private static function partNameEquivalenceKey(string $partName): string

@@ -1102,6 +1102,22 @@ foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as 
     ];
 }
 
+$directRelationshipContentTypeGuard = [
+    'source' => '/word/draft.xml',
+    'relationshipPartName' => '/word/_rels/draft.xml.rels',
+    'hasRelationshipsForSource' => OpcRelationships::packageHasRelationshipsForSource($package, '/word/draft.xml'),
+    'fromPackageRejected' => false,
+    'fromPackageError' => null,
+    'preflightLoadReason' => $relationshipPartLoads['/word/_rels/draft.xml.rels']['loadReason'] ?? null,
+    'preflightIssues' => $relationshipPartLoads['/word/_rels/draft.xml.rels']['issues'] ?? null,
+];
+try {
+    OpcRelationships::fromPackage($package, '/word/draft.xml');
+} catch (RuntimeException $exception) {
+    $directRelationshipContentTypeGuard['fromPackageRejected'] = true;
+    $directRelationshipContentTypeGuard['fromPackageError'] = $exception->getMessage();
+}
+
 $graph = OpcRelationshipGraph::fromPackage($package);
 $types = $graph->contentTypes();
 $officeDocumentRoot = $graph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
@@ -1625,6 +1641,7 @@ $summary = [
         'relationshipTargets' => $packageConsistencyTargets,
     ],
     'relationshipPartLoads' => $relationshipPartLoads,
+    'directRelationshipContentTypeGuard' => $directRelationshipContentTypeGuard,
     'packageParts' => $packagePartPreflight,
     'relationshipSources' => $graph->sourcePartNames(),
     'relationshipSourceInventory' => $relationshipSourceInventory,
@@ -1997,6 +2014,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['loadReason'] ?? null) !== 'invalid-relationship-content-type'
         || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['relationshipCount'] ?? null) !== null
         || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
+        || ($summary['directRelationshipContentTypeGuard']['source'] ?? null) !== '/word/draft.xml'
+        || ($summary['directRelationshipContentTypeGuard']['relationshipPartName'] ?? null) !== '/word/_rels/draft.xml.rels'
+        || ($summary['directRelationshipContentTypeGuard']['hasRelationshipsForSource'] ?? null) !== false
+        || ($summary['directRelationshipContentTypeGuard']['fromPackageRejected'] ?? null) !== true
+        || !str_contains((string) ($summary['directRelationshipContentTypeGuard']['fromPackageError'] ?? ''), 'OPC relationship part not found: /word/_rels/draft.xml.rels')
+        || ($summary['directRelationshipContentTypeGuard']['preflightLoadReason'] ?? null) !== 'invalid-relationship-content-type'
+        || ($summary['directRelationshipContentTypeGuard']['preflightIssues'] ?? null) !== ['invalid-relationship-content-type']
         || ($summary['relationshipPartLoads']['/_xmlsignatures/_rels/origin.sigs.rels']['loaded'] ?? null) !== true
         || ($summary['relationshipPartLoads']['/_xmlsignatures/_rels/origin.sigs.rels']['loadAction'] ?? null) !== 'loaded'
         || ($summary['relationshipPartLoads']['/_xmlsignatures/_rels/origin.sigs.rels']['loadReason'] ?? null) !== 'loaded'
