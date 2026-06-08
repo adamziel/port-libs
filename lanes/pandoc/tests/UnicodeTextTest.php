@@ -486,7 +486,7 @@ return [
         $xmlBytes = "<?xml version=\"1.0\" encoding=\"ISO-8859-7\"?><root>\xD3\xF5\xED</root>";
         $xml = UnicodeText::declaredCharset($xmlBytes);
         $decodedXml = UnicodeText::decodeBytes($xmlBytes, $xml['encoding']);
-        $unknown = UnicodeText::declaredCharset('<meta charset="x-user-defined"><p>raw</p>');
+        $unknown = UnicodeText::declaredCharset('<meta charset="x-fallback-only"><p>raw</p>');
         $none = UnicodeText::declaredCharset('<p>No declaration</p>');
 
         $t->same('content-type', $transport['source']);
@@ -507,9 +507,34 @@ return [
         $t->same('iso-8859-7', $xml['encoding']);
         $t->contains('Συν', $decodedXml['text']);
         $t->same('utf-8', $unknown['encoding']);
-        $t->same('x-user-defined', $unknown['label']);
+        $t->same('x-fallback-only', $unknown['label']);
         $t->same(['unknown-charset-label-defaulted-to-utf-8'], $unknown['diagnostics']);
         $t->same(['encoding' => null, 'label' => null, 'source' => null, 'offset' => null, 'diagnostics' => []], $none);
+    },
+    'decodes x user defined private use bytes from declared html charset labels into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Private Glyphs\n\nLegacy \x80\x81\xFE\xFF source.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-user-defined');
+        $document = (new MarkdownReader())->readBytes($bytes, 'x-user-defined');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $html = '<meta charset=x-user-defined><p>Legacy ' . "\x80\xFF" . '</p>';
+        $meta = UnicodeText::declaredCharset($html);
+        $decodedHtml = UnicodeText::decodeBytes($html, $meta['encoding']);
+        $text = "Legacy \u{F780}\u{F781}\u{F7FE}\u{F7FF} source.";
+
+        $t->same('x-user-defined', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Private Glyphs\n\n{$text}", $decoded['text']);
+        $t->same(['encoding' => 'x-user-defined', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Private Glyphs', $document->children[0]->attr('text'));
+        $t->same($text, $document->children[1]->attr('text'));
+        $t->same(19, UnicodeText::displayWidth($text));
+        $t->same(23, UnicodeText::displayWidth($text, 'wide'));
+        $t->same('html-meta-charset', $meta['source']);
+        $t->same('x-user-defined', $meta['encoding']);
+        $t->same([], $meta['diagnostics']);
+        $t->contains("Legacy \u{F780}\u{F7FF}", $decodedHtml['text']);
+        $t->contains('<h1 id="private-glyphs">Private Glyphs</h1>', $blocks);
+        $t->contains("<p>{$text}</p>", $blocks);
     },
     'decodes iso 8859 7 greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xC5\xEB\xEB\xE7\xED\xE9\xEA\xDC\n\n\xD3\xF5\xED\xF4\xDC\xEA\xF4\xE7\xF2 \xAB\xEA\xE5\xDF\xEC\xE5\xED\xEF\xBB \xAF \xA420; \xD4\xFC\xED\xEF\xF2 \xEA\xE1\xE9 \xEF\xF2.";

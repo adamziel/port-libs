@@ -2153,6 +2153,7 @@ final class UnicodeText
             || $normalized === 'tis-620'
             || $normalized === 'iso-8859-15'
             || $normalized === 'macintosh'
+            || $normalized === 'x-user-defined'
         ) {
             [$text, $repairs] = self::decodeSingleByte($bytes, $normalized);
 
@@ -2706,6 +2707,7 @@ final class UnicodeText
             'tis620', 'tis6202533', 'cstis620', 'isoir166', 'iso885911', 'iso8859112001', 'thai' => 'tis-620',
             'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
+            'xuserdefined', 'userdefined' => 'x-user-defined',
             'csshiftjis', 'ms932', 'mskanji', 'shiftjis', 'sjis', 'windows31j', 'xsjis', 'cp932' => 'shift_jis',
             'cseucpkdfmtjapanese', 'eucjp', 'xeucjp' => 'euc-jp',
             'iso2022jp', 'csiso2022jp' => 'iso-2022-jp',
@@ -3446,6 +3448,10 @@ final class UnicodeText
             }
             if ($encoding === 'macintosh' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::MAC_ROMAN_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'x-user-defined' && $byte >= 0x80) {
+                $out .= self::fromCodepoint(0xf780 + ($byte - 0x80));
                 continue;
             }
 
