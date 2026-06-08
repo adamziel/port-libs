@@ -250,6 +250,39 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @param array<int|string, string> $dictionaries
+     * @return array<string, mixed>
+     */
+    public static function inspectPackageStreamWithLz4Dictionaries(
+        string $bytes,
+        string $format,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        return match ($format) {
+            self::FORMAT_LZ4_TAR => [
+                'kind' => self::PACKAGE_KIND_TAR,
+            ] + self::inspectTarStreamWithLz4Dictionaries(
+                $bytes,
+                $format,
+                $dictionaries,
+                $maxUncompressedBytes,
+                $maxUnpackedBytes
+            ),
+            self::FORMAT_LZ4_ZIP => [
+                'kind' => self::PACKAGE_KIND_ZIP,
+            ] + self::inspectZipStreamWithLz4Dictionaries(
+                $bytes,
+                $format,
+                $dictionaries,
+                $maxUncompressedBytes
+            ),
+            default => throw new \RuntimeException("LZ4 dictionary package inspection requires an LZ4 archive stream format: {$format}"),
+        };
+    }
+
+    /**
      * @return array{
      *     kind:string,
      *     format:string,
@@ -547,6 +580,38 @@ final class ArchiveCompressionStream
             $archive,
             $maxUncompressedBytes,
             self::zlibDictionaryStreamInspection($bytes, $metadata)
+        );
+    }
+
+    /**
+     * @param array<int|string, string> $dictionaries
+     * @return array<string, mixed>
+     */
+    public static function inspectTarStreamWithLz4Dictionaries(
+        string $bytes,
+        string $format,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+        if ($format !== self::FORMAT_LZ4_TAR) {
+            throw new \RuntimeException("LZ4 dictionary TAR inspection requires LZ4 TAR stream format: {$format}");
+        }
+
+        $dictionaryMap = self::normalizeLz4ExternalDictionaries($dictionaries);
+        $frames = Lz4Frame::framesWithDictionaries($bytes, $dictionaryMap, $maxUncompressedBytes);
+        $tarBytes = self::decodedLz4DataFromFrames($frames);
+        $archive = TarArchive::fromString($tarBytes, $maxUnpackedBytes);
+
+        return self::tarStreamInspection(
+            $bytes,
+            $format,
+            $tarBytes,
+            $archive,
+            $maxUncompressedBytes,
+            self::lz4DictionaryStreamInspection($bytes, $frames, $dictionaryMap)
         );
     }
 
@@ -1004,6 +1069,36 @@ final class ArchiveCompressionStream
             $package,
             $maxUncompressedBytes,
             self::zlibDictionaryStreamInspection($bytes, $metadata)
+        );
+    }
+
+    /**
+     * @param array<int|string, string> $dictionaries
+     * @return array<string, mixed>
+     */
+    public static function inspectZipStreamWithLz4Dictionaries(
+        string $bytes,
+        string $format,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_LZ4_ZIP) {
+            throw new \RuntimeException("LZ4 dictionary ZIP inspection requires LZ4 ZIP stream format: {$format}");
+        }
+
+        $dictionaryMap = self::normalizeLz4ExternalDictionaries($dictionaries);
+        $frames = Lz4Frame::framesWithDictionaries($bytes, $dictionaryMap, $maxUncompressedBytes);
+        $zipBytes = self::decodedLz4DataFromFrames($frames);
+        $package = ZipPackage::fromString($zipBytes);
+
+        return self::zipStreamInspection(
+            $bytes,
+            $format,
+            $zipBytes,
+            $package,
+            $maxUncompressedBytes,
+            self::lz4DictionaryStreamInspection($bytes, $frames, $dictionaryMap)
         );
     }
 
@@ -1788,6 +1883,123 @@ final class ArchiveCompressionStream
             'compressedSize' => strlen($bytes),
             'frames' => $frames,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $frames
+     * @param array<int, string> $dictionaryMap
+     * @return array<string, mixed>
+     */
+    private static function lz4DictionaryStreamInspection(string $bytes, array $frames, array $dictionaryMap): array
+    {
+        $summaryFrames = [];
+        $dataFrameCount = 0;
+        $skippableFrameCount = 0;
+        $dictionaryFrameCount = 0;
+        $blockCount = 0;
+        $uncompressedSize = 0;
+
+        foreach ($frames as $frame) {
+            if (($frame['type'] ?? null) === 'skippable') {
+                $skippableFrameCount++;
+                $summaryFrames[] = [
+                    'type' => 'skippable',
+                    'id' => $frame['id'],
+                    'data' => $frame['data'],
+                    'frameSize' => $frame['frameSize'],
+                ];
+                continue;
+            }
+
+            if (($frame['type'] ?? null) !== 'frame') {
+                throw new \RuntimeException('Unexpected LZ4 frame metadata record');
+            }
+
+            $dictionaryId = $frame['dictionaryId'];
+            $dictionarySize = null;
+            if ($dictionaryId !== null) {
+                $dictionaryFrameCount++;
+                $dictionarySize = strlen($dictionaryMap[$dictionaryId] ?? '');
+            }
+
+            $dataSize = strlen($frame['data']);
+            $dataFrameCount++;
+            $blockCount += $frame['blockCount'];
+            $uncompressedSize += $dataSize;
+            $summaryFrames[] = [
+                'type' => 'frame',
+                'contentSize' => $frame['contentSize'],
+                'dictionaryId' => $dictionaryId,
+                'dictionarySupplied' => $dictionaryId !== null,
+                'dictionarySize' => $dictionarySize,
+                'blockMaxSize' => $frame['blockMaxSize'],
+                'blockIndependent' => $frame['blockIndependent'],
+                'blockChecksum' => $frame['blockChecksum'],
+                'contentChecksum' => $frame['contentChecksum'],
+                'blockCount' => $frame['blockCount'],
+                'blockTypes' => $frame['blockTypes'],
+                'compressedSize' => $frame['compressedSize'],
+                'decodedDataSize' => $dataSize,
+                'frameSize' => $frame['frameSize'],
+            ];
+        }
+
+        return [
+            'type' => 'lz4',
+            'frameCount' => count($summaryFrames),
+            'dataFrameCount' => $dataFrameCount,
+            'skippableFrameCount' => $skippableFrameCount,
+            'dictionaryFrameCount' => $dictionaryFrameCount,
+            'blockCount' => $blockCount,
+            'compressedSize' => strlen($bytes),
+            'uncompressedSize' => $uncompressedSize,
+            'frames' => $summaryFrames,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $frames
+     */
+    private static function decodedLz4DataFromFrames(array $frames): string
+    {
+        $data = '';
+        foreach ($frames as $frame) {
+            if (($frame['type'] ?? null) === 'frame') {
+                $data .= $frame['data'];
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param array<int|string, string> $dictionaries
+     * @return array<int, string>
+     */
+    private static function normalizeLz4ExternalDictionaries(array $dictionaries): array
+    {
+        $normalized = [];
+        foreach ($dictionaries as $id => $dictionary) {
+            if (!is_string($dictionary)) {
+                throw new \RuntimeException('LZ4 external dictionaries must be byte strings');
+            }
+
+            if (is_int($id)) {
+                $dictionaryId = $id;
+            } elseif (is_string($id) && preg_match('/^(?:0|[1-9][0-9]*)$/', $id) === 1) {
+                $dictionaryId = (int) $id;
+            } else {
+                throw new \RuntimeException('LZ4 external dictionary ids must be unsigned 32-bit integers');
+            }
+
+            if ($dictionaryId < 0 || $dictionaryId > 0xffffffff) {
+                throw new \RuntimeException('LZ4 external dictionary id must fit in an unsigned 32-bit field');
+            }
+
+            $normalized[$dictionaryId] = $dictionary;
+        }
+
+        return $normalized;
     }
 
     /**

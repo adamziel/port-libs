@@ -171,6 +171,24 @@ $lz4DictionaryCompressedFrame = static function (
         . pack('V', 0)
         . pack('V', intval(hash('xxh32', $decodedPayload), 16));
 };
+$lz4DictionaryUncompressedFrame = static function (
+    int $dictionaryId,
+    string $decodedPayload,
+    bool $blockIndependent = true
+) use ($lz4HeaderChecksum): string {
+    $descriptor = chr(0x40 | ($blockIndependent ? 0x20 : 0x00) | 0x08 | 0x04 | 0x01)
+        . chr(0x40)
+        . pack('V2', strlen($decodedPayload), 0)
+        . pack('V', $dictionaryId);
+
+    return pack('V', 0x184d2204)
+        . $descriptor
+        . $lz4HeaderChecksum($descriptor)
+        . pack('V', 0x80000000 | strlen($decodedPayload))
+        . $decodedPayload
+        . pack('V', 0)
+        . pack('V', intval(hash('xxh32', $decodedPayload), 16));
+};
 
 $zipFixtureBytes = static function (array $entries, string $packageComment = ''): string {
     $body = '';
@@ -4179,6 +4197,123 @@ return [
             ArchiveCompressionStream::FORMAT_LZ4_TAR,
             [$dictionaryId => $dictionary],
             strlen($decodedPayload) - 1
+        ));
+    },
+
+    'inspects lz4 dictionary package streams with supplied fixture dictionaries' => static function (TestRunner $t) use ($lz4DictionaryUncompressedFrame): void {
+        $tarArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"lz4-dictionary-inspection","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# LZ4 dictionary inspection\n\nReady for WordPress archive review.\n",
+                'modifiedAt' => 1780479093,
+            ],
+        ]);
+        $tarBytes = $tarArchive->bytes();
+        $tarDictionaryId = 0x0a0b0c0d;
+        $tarDictionary = 'packet/content.md:lz4-package-inspection';
+        $lz4Tar = Lz4Frame::skippableFrame('dictionary-id:0x0a0b0c0d', 10)
+            . $lz4DictionaryUncompressedFrame($tarDictionaryId, $tarBytes);
+
+        $tarInspection = ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
+            $lz4Tar,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            [$tarDictionaryId => $tarDictionary],
+            strlen($tarBytes),
+            512
+        );
+        $directTarInspection = ArchiveCompressionStream::inspectTarStreamWithLz4Dictionaries(
+            $lz4Tar,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            [$tarDictionaryId => $tarDictionary],
+            strlen($tarBytes),
+            512
+        );
+
+        $zipPackage = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>LZ4 package inspection</w:p></w:body></w:document>',
+            ],
+        ]);
+        $zipBytes = $zipPackage->bytes();
+        $zipDictionaryId = 0x01020304;
+        $zipDictionary = '[Content_Types].xml:word/document.xml:lz4-inspection';
+        $lz4Zip = Lz4Frame::skippableFrame('dictionary-id:0x01020304', 9)
+            . $lz4DictionaryUncompressedFrame($zipDictionaryId, $zipBytes);
+        $zipInspection = ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
+            $lz4Zip,
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            [$zipDictionaryId => $zipDictionary],
+            strlen($zipBytes)
+        );
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $tarInspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_LZ4_TAR, $tarInspection['format']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $tarInspection['entryNames']);
+        $t->same(2, $tarInspection['entryCount']);
+        $t->same(2, $tarInspection['regularFileCount']);
+        $t->same(strlen($tarBytes), $tarInspection['uncompressedSize']);
+        $t->same("# LZ4 dictionary inspection\n\nReady for WordPress archive review.\n", $tarInspection['archive']->read('/packet/content.md'));
+        $t->same(1780479093, $tarInspection['entryLayouts'][1]['modifiedAt']);
+        $t->same($tarInspection['entryNames'], $directTarInspection['entryNames']);
+        $t->same('lz4', $tarInspection['stream']['type']);
+        $t->same(2, $tarInspection['stream']['frameCount']);
+        $t->same(1, $tarInspection['stream']['dataFrameCount']);
+        $t->same(1, $tarInspection['stream']['skippableFrameCount']);
+        $t->same(1, $tarInspection['stream']['dictionaryFrameCount']);
+        $t->same(1, $tarInspection['stream']['blockCount']);
+        $t->same(strlen($lz4Tar), $tarInspection['stream']['compressedSize']);
+        $t->same(strlen($tarBytes), $tarInspection['stream']['uncompressedSize']);
+        $t->same('dictionary-id:0x0a0b0c0d', $tarInspection['stream']['frames'][0]['data']);
+        $t->same($tarDictionaryId, $tarInspection['stream']['frames'][1]['dictionaryId']);
+        $t->true($tarInspection['stream']['frames'][1]['dictionarySupplied']);
+        $t->same(strlen($tarDictionary), $tarInspection['stream']['frames'][1]['dictionarySize']);
+        $t->same(strlen($tarBytes), $tarInspection['stream']['frames'][1]['contentSize']);
+        $t->same(strlen($tarBytes), $tarInspection['stream']['frames'][1]['decodedDataSize']);
+        $t->same(['uncompressed'], $tarInspection['stream']['frames'][1]['blockTypes']);
+        $t->true($tarInspection['stream']['frames'][1]['contentChecksum']);
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $zipInspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_LZ4_ZIP, $zipInspection['format']);
+        $t->same(['[Content_Types].xml', 'word/document.xml'], $zipInspection['entryNames']);
+        $t->same(2, $zipInspection['entryCount']);
+        $t->same(strlen($zipBytes), $zipInspection['packageByteSize']);
+        $t->same('<w:document><w:body><w:p>LZ4 package inspection</w:p></w:body></w:document>', $zipInspection['package']->read('/word/document.xml'));
+        $t->same('lz4', $zipInspection['stream']['type']);
+        $t->same(1, $zipInspection['stream']['dictionaryFrameCount']);
+        $t->same($zipDictionaryId, $zipInspection['stream']['frames'][1]['dictionaryId']);
+        $t->same(strlen($zipDictionary), $zipInspection['stream']['frames'][1]['dictionarySize']);
+        $t->same(strlen($zipBytes), $zipInspection['stream']['uncompressedSize']);
+        $t->same(strlen($lz4Zip), $zipInspection['stream']['compressedSize']);
+
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
+            $lz4Tar,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            [],
+            strlen($tarBytes),
+            512
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
+            $lz4Tar,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            [$tarDictionaryId => $tarDictionary],
+            strlen($tarBytes),
+            512
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectZipStreamWithLz4Dictionaries(
+            $lz4Zip,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            [$zipDictionaryId => $zipDictionary],
+            strlen($zipBytes)
         ));
     },
 
