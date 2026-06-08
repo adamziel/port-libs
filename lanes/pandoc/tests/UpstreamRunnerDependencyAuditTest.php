@@ -1640,6 +1640,41 @@ return [
         $t->contains('buildable exitcode-stdio test-suite types', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'rejects non buildable cabal benchmark before solver planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $pandocBenchmark): void {
+        $benchmark = $pandocBenchmark([], null, null, null, 'exitcode-stdio-1.0', 'False');
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            $pandocCabal([], null, null, null, 'exitcode-stdio-1.0', null, 'Haskell2010', $benchmark)
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $target = 'benchmark:benchmark-pandoc';
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingTargets']);
+        $t->same(false, $audit['benchmarkDependencyClosure']['present'][$target]['buildable']);
+        $t->contains('buildable expected true, found false', $audit['benchmarkDependencyClosure']['mismatchedEntryPoints'][$target][0]);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched Cabal benchmark entry points: benchmark:benchmark-pandoc (buildable expected true, found false)', $blocked);
+        $t->contains('buildable benchmark components', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'rejects hydrated runner package closure without source and golden fixture artifacts' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $root = $makeTree($requiredFiles($pinnedProject(), null, null, false));
         try {
