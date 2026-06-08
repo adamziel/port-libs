@@ -351,6 +351,7 @@ final class PdfTextBlockConverter
         }
 
         $sanitized = [];
+        $seenCoordinateReferences = [];
         foreach ($refs as $index => $ref) {
             if (!is_array($ref)) {
                 throw new InvalidArgumentException("pdftext refs[{$index}] must be a dictionary.");
@@ -407,11 +408,45 @@ final class PdfTextBlockConverter
             }
 
             if ($row !== []) {
+                $coordinateReferenceKey = $this->pdftextCoordinateReferenceKey($row);
+                if ($coordinateReferenceKey !== null) {
+                    if (isset($seenCoordinateReferences[$coordinateReferenceKey])) {
+                        continue;
+                    }
+                    $seenCoordinateReferences[$coordinateReferenceKey] = true;
+                }
                 $sanitized[] = $row;
             }
         }
 
         return $sanitized;
+    }
+
+    /**
+     * Upstream pdftext PageReference.add_ref reuses an existing target-page
+     * coordinate reference instead of emitting duplicate page refs.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function pdftextCoordinateReferenceKey(array $row): ?string
+    {
+        if (
+            !array_key_exists('page', $row)
+            || !array_key_exists('coord', $row)
+            || !is_int($row['page'])
+            || !is_array($row['coord'])
+            || count($row['coord']) !== 2
+        ) {
+            return null;
+        }
+
+        $coord = array_map(
+            static fn (mixed $part): float => abs((float) $part) < 0.000000000001 ? 0.0 : (float) $part,
+            array_values($row['coord'])
+        );
+        $encoded = json_encode([$row['page'], $coord], JSON_PRESERVE_ZERO_FRACTION);
+
+        return is_string($encoded) ? $encoded : null;
     }
 
     private function integerMetadata(mixed $value, string $field): int
