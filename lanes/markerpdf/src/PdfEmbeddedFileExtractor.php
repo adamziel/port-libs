@@ -171,6 +171,7 @@ final class PdfEmbeddedFileExtractor
         if (
             $this->dictionaryHasDuplicateKeys($nodeBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)
             || $this->dictionaryHasTrailingOperandsAfterKeys($nodeBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)
+            || $this->nameTreeNodeHasMalformedLimitsOperand($nodeBody, $objects)
         ) {
             return;
         }
@@ -295,7 +296,10 @@ final class PdfEmbeddedFileExtractor
             return null;
         }
 
-        $items = $this->arrayItemsFromValue($limitsValue, $objects);
+        $items = $this->exactArrayItemsFromValue($limitsValue, $objects);
+        if ($items === null) {
+            return null;
+        }
         if (count($items) < 2) {
             return null;
         }
@@ -315,6 +319,19 @@ final class PdfEmbeddedFileExtractor
             'lower_bytes' => $lower['bytes'],
             'upper_bytes' => $upper['bytes'],
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function nameTreeNodeHasMalformedLimitsOperand(string $nodeBody, array $objects): bool
+    {
+        $limitsValue = $this->dictionaryRawValue($nodeBody, 'Limits');
+        if ($limitsValue === null) {
+            return false;
+        }
+
+        return $this->exactArrayItemsFromValue($limitsValue, $objects) === null;
     }
 
     /**

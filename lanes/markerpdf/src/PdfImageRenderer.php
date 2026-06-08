@@ -4477,6 +4477,10 @@ final class PdfImageRenderer
     private function canonicalInlineImageValue(string $token, ?string $canonicalKey = null): string
     {
         $trimmed = trim($token);
+        if ($canonicalKey === '/Decode') {
+            return $trimmed;
+        }
+
         if (str_starts_with($trimmed, '/')) {
             $name = $this->pdfNameValue($trimmed);
             return $name === null ? $trimmed : '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);

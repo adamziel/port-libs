@@ -43243,6 +43243,10 @@ final class PdfTextExtractor
 
     private function canonicalInlineImageValue(string $token, ?string $canonicalKey = null): string
     {
+        if ($canonicalKey === '/Decode') {
+            return $token;
+        }
+
         if (str_starts_with($token, '/')) {
             $name = $this->decodePdfName(substr($token, 1));
             return '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);

@@ -842,6 +842,7 @@ final class PdfAttachmentExtractor
             && (
                 $this->dictionaryHasDuplicateKeys($nodeDictionaryBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)
                 || $this->dictionaryHasTrailingOperandsAfterKeys($nodeDictionaryBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)
+                || $this->nameTreeNodeHasMalformedLimitsOperand($nodeDictionaryBody, $objects)
             )
         ) {
             return [];
@@ -1006,6 +1007,19 @@ final class PdfAttachmentExtractor
             'lower_bytes' => $lower['bytes'],
             'upper_bytes' => $upper['bytes'],
         ];
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function nameTreeNodeHasMalformedLimitsOperand(string $nodeDictionaryBody, array $objects): bool
+    {
+        $limitsValue = $this->rawDictionaryEntryValue($nodeDictionaryBody, 'Limits');
+        if ($limitsValue === null) {
+            return false;
+        }
+
+        return $this->rawTopLevelArrayItemsFromValue($limitsValue, $objects) === null;
     }
 
     /**
