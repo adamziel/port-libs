@@ -461,7 +461,7 @@ HTML;
         $t->same([0.5], $packet['coverage'][5]['widths'] ?? null);
         $t->same('top', $packet['coverage'][5]['verticalAlignment'] ?? null);
         $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
-        $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup>', $blocks);
+        $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col valign="top" style="width:50%"/></colgroup>', $blocks);
         $t->contains('<thead><tr><th style="text-align:right; vertical-align:bottom">Scope</th><th style="text-align:right; vertical-align:bottom">Items</th><th style="text-align:center; vertical-align:top">State</th></tr></thead>', $blocks);
         $t->contains('<tbody><tr><td style="text-align:right; vertical-align:bottom">Posts</td><td style="text-align:right; vertical-align:bottom">42</td><td style="text-align:center; vertical-align:top">Ready</td></tr><tr><td style="text-align:right; vertical-align:bottom">Media</td><td style="text-align:right; vertical-align:bottom">7</td><td style="text-align:center; vertical-align:top">Review</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
@@ -505,8 +505,8 @@ HTML;
         $html = <<<'HTML'
 <table id="colgroup-provenance-grid" data-source="html-reader">
 <caption>Colgroup provenance review</caption>
-<colgroup data-source="legacy-doc">
-<col span="2" style="width: 25%; text-align: right" data-origin="col-a" />
+<colgroup data-source="legacy-doc" onclick="blocked()">
+<col span="2" style="width: 25%; text-align: right" data-origin="col-a" onclick="blocked()" />
 <col width="50%" align="center" data-origin="col-b" />
 </colgroup>
 <thead>
@@ -562,7 +562,42 @@ HTML;
         $t->same('col-b', $packet['columns'][2]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
         $t->same('col-a', $packet['coverage'][3]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
         $t->same('col-b', $packet['coverage'][5]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
-        $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup>', $blocks);
+        $t->contains('<colgroup data-source="legacy-doc"><col data-origin="col-a" style="width:25%"/><col data-origin="col-a" style="width:25%"/><col data-origin="col-b" style="width:50%"/></colgroup>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick='), 'Unsafe colgroup and col event attributes must not render');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'preserves safe html colgroup and col provenance in wordpress output' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="wordpress-colgroup-source" data-source="html-reader">
+<caption>WordPress colgroup provenance</caption>
+<colgroup id="source-cols" class="audit-cols" data-source="legacy-doc" aria-label="Column provenance" title="review columns" style="width: 100%" onclick="blocked()">
+<col span="2" style="width: 33%; text-align: right" data-origin="scope-columns" title="Scope columns" onclick="blocked()" />
+<col width="34%" data-origin="status-column" aria-label="Status column" valign="top" />
+</colgroup>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same([0.33, 0.33, 0.34], $table->attr('widths'));
+        $t->same(['right', 'right', 'default'], $table->attr('alignments'));
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('source-cols', $packet['columnGroups'][0]['source']['colgroupAttributes']['htmlAttributes']['id'] ?? null);
+        $t->same('legacy-doc', $packet['columnGroups'][0]['source']['colgroupAttributes']['htmlAttributes']['data-source'] ?? null);
+        $t->same('scope-columns', $packet['columnGroups'][0]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same('status-column', $packet['columnGroups'][1]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->contains('<colgroup id="source-cols" class="audit-cols" aria-label="Column provenance" data-source="legacy-doc" title="review columns"><col data-origin="scope-columns" title="Scope columns" style="width:33%"/><col data-origin="scope-columns" title="Scope columns" style="width:33%"/><col aria-label="Status column" data-origin="status-column" valign="top" style="width:34%"/></colgroup>', $blocks);
+        $t->contains('<tbody><tr><td style="text-align:right">Posts</td><td style="text-align:right">42</td><td style="vertical-align:top">Ready</td></tr></tbody>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick='), 'Unsafe colgroup and col event attributes must not render');
+        $t->true(!str_contains($blocks, 'width="34%"'), 'Raw source col width attributes should not override normalized geometry widths');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'groups html colgroup element span runs in table geometry packets' => static function (TestRunner $t): void {
@@ -608,7 +643,7 @@ HTML;
         $t->same('group-span', $packet['coverage'][0]['columnSources'][0]['colgroupAttributes']['htmlAttributes']['data-origin'] ?? null);
         $t->same('single-col', $packet['coverage'][2]['columnSources'][0]['colAttributes']['htmlAttributes']['data-origin'] ?? null);
         $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
-        $t->contains('<colgroup><col style="width:30%"/><col style="width:30%"/><col style="width:40%"/></colgroup>', $blocks);
+        $t->contains('<colgroup data-origin="group-span"><col style="width:30%"/><col style="width:30%"/></colgroup><colgroup data-origin="single-group"><col data-origin="single-col" style="width:40%"/></colgroup>', $blocks);
         $t->contains('<tbody><tr><td style="text-align:right">Posts</td><td style="text-align:right">Media</td><td style="text-align:center">Ready</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
@@ -685,7 +720,7 @@ HTML;
         $t->same([2], $overPacket['diagnostics'][0]['extraColumns'] ?? null);
         $t->same('missing', $overPacket['sections'][1]['rows'][0]['slots'][2]['kind'] ?? null);
         $t->same('declared-extra', $overPacket['columns'][2]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
-        $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/></colgroup>', $overBlocks);
+        $t->contains('<colgroup data-source="legacy-doc"><col data-origin="declared-extra" style="width:25%"/><col data-origin="declared-extra" style="width:25%"/><col data-origin="declared-extra" style="width:25%"/></colgroup>', $overBlocks);
         $t->contains('<tbody><tr><td style="text-align:center">Posts</td><td style="text-align:center">Ready</td></tr></tbody>', $overBlocks);
         json_encode($underPacket, JSON_THROW_ON_ERROR);
         json_encode($overPacket, JSON_THROW_ON_ERROR);

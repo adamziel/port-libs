@@ -602,17 +602,178 @@ final class WordPressBlockWriter
             return '';
         }
 
+        $specs = TableGeometry::columnSpecs($node, count($widths));
         $cols = [];
-        foreach (TableGeometry::columnSpecs($node, count($widths)) as $spec) {
+        $hasColumnSources = false;
+        foreach ($specs as $spec) {
             $width = $spec['width'];
             if ($width === null) {
                 return '';
             }
 
+            $hasColumnSources = $hasColumnSources || is_array($spec['source'] ?? null);
             $cols[] = '<col style="width:' . $this->esc($this->formatTableWidth($width)) . '"/>';
         }
 
+        if ($hasColumnSources && $this->tableColumnSpecsHaveCompleteSources($specs)) {
+            return $this->renderSourceTableColgroups($specs);
+        }
+
         return '<colgroup>' . implode('', $cols) . '</colgroup>';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $specs
+     */
+    private function tableColumnSpecsHaveCompleteSources(array $specs): bool
+    {
+        foreach ($specs as $spec) {
+            if (!is_array($spec['source'] ?? null)) {
+                return false;
+            }
+        }
+
+        return $specs !== [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $specs
+     */
+    private function renderSourceTableColgroups(array $specs): string
+    {
+        $html = '';
+        $currentGroupKey = null;
+
+        foreach ($specs as $spec) {
+            $source = is_array($spec['source'] ?? null) ? $spec['source'] : [];
+            $groupKey = $this->tableColumnSourceColgroupKey($source);
+            if ($groupKey !== $currentGroupKey) {
+                if ($currentGroupKey !== null) {
+                    $html .= '</colgroup>';
+                }
+
+                $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null)
+                    ? $source['colgroupAttributes']
+                    : [];
+                $html .= '<colgroup' . $this->renderSourceAttributeSummaryAttrs($colgroupAttributes, true, ['align', 'span', 'style', 'valign', 'width']) . '>';
+                $currentGroupKey = $groupKey;
+            }
+
+            $colAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
+            $attrs = $this->renderSourceAttributeSummaryAttrs($colAttributes, false, ['align', 'span', 'style', 'width']);
+            $width = isset($spec['width']) && is_numeric($spec['width']) ? (float) $spec['width'] : 0.0;
+            $attrs .= ' style="width:' . $this->esc($this->formatTableWidth($width)) . '"';
+            $html .= '<col' . $attrs . '/>';
+        }
+
+        return $currentGroupKey === null ? '' : $html . '</colgroup>';
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private function tableColumnSourceColgroupKey(array $source): string
+    {
+        if (isset($source['colgroupIndex']) && is_numeric($source['colgroupIndex'])) {
+            return 'index:' . (int) $source['colgroupIndex'];
+        }
+
+        return 'attributes:' . json_encode($source['colgroupAttributes'] ?? [], JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttributes
+     * @param list<string> $skip
+     */
+    private function renderSourceAttributeSummaryAttrs(array $sourceAttributes, bool $includeIdentity, array $skip): string
+    {
+        $attributes = $this->sourceAttributeSummaryMap($sourceAttributes);
+        if ($attributes === []) {
+            return '';
+        }
+
+        $attrs = '';
+        if ($includeIdentity) {
+            $id = trim((string) ($attributes['id'] ?? ''));
+            if ($id !== '') {
+                $attrs .= ' id="' . $this->esc($id) . '"';
+            }
+
+            $class = trim((string) ($attributes['class'] ?? ''));
+            if ($class !== '') {
+                $attrs .= ' class="' . $this->esc($class) . '"';
+            }
+        }
+
+        foreach ($attributes as $name => $value) {
+            $name = strtolower(trim((string) $name));
+            if (
+                $name === ''
+                || $name === 'id'
+                || $name === 'class'
+                || in_array($name, $skip, true)
+                || !$this->isAllowedTableHtmlAttr($name)
+            ) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttributes
+     * @return array<string, string>
+     */
+    private function sourceAttributeSummaryMap(array $sourceAttributes): array
+    {
+        $merged = [];
+        foreach (['htmlAttributes', 'attributes'] as $attributeKey) {
+            $attributes = $sourceAttributes[$attributeKey] ?? [];
+            if (!is_array($attributes)) {
+                continue;
+            }
+
+            foreach ($attributes as $name => $value) {
+                $name = strtolower(trim((string) $name));
+                if ($name === '' || !is_scalar($value) || array_key_exists($name, $merged)) {
+                    continue;
+                }
+
+                $merged[$name] = (string) $value;
+            }
+        }
+
+        if (isset($sourceAttributes['id']) && is_scalar($sourceAttributes['id'])) {
+            $id = trim((string) $sourceAttributes['id']);
+            if ($id !== '') {
+                $merged['id'] = $id;
+            }
+        }
+
+        if (isset($sourceAttributes['classes']) && is_array($sourceAttributes['classes'])) {
+            $classes = [];
+            foreach ($sourceAttributes['classes'] as $class) {
+                if (!is_scalar($class)) {
+                    continue;
+                }
+
+                $class = trim((string) $class);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+
+            if ($classes !== []) {
+                $merged['class'] = implode(' ', array_values(array_unique($classes)));
+            }
+        }
+
+        ksort($merged);
+
+        return $merged;
     }
 
     private function formatTableWidth(float $width): string
