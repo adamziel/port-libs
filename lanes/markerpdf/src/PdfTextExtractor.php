@@ -10318,6 +10318,8 @@ final class PdfTextExtractor
 
         $operand = $this->imageXObjectDecodeParmsOperandFailureKind($value, $objects);
 
+        $details = $this->imageXObjectDctDecodeParmsOperandFailureDetails($value, $objects);
+
         return [
             'type' => 'DCTDecode',
             'color_transform' => null,
@@ -10327,7 +10329,60 @@ final class PdfTextExtractor
                 ? 'unresolved_dctdecode_decodeparms_fail_closed'
                 : 'malformed_dctdecode_decodeparms_fail_closed',
             'decode_parms_operand' => $operand,
+            ...$details,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenReferences
+     * @return array<string, string>
+     */
+    private function imageXObjectDctDecodeParmsOperandFailureDetails(
+        string $value,
+        array $objects,
+        array $seenReferences = []
+    ): array {
+        $trimmed = trim($value);
+        $reference = $this->pdfIndirectReferenceTokenAt($trimmed, 0);
+        if ($reference !== null && $this->skipPdfWhitespace($trimmed, $reference['endOffset']) === strlen($trimmed)) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $key = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seenReferences[$key])) {
+                return [];
+            }
+
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return [];
+            }
+
+            $seenReferences[$key] = true;
+
+            return $this->imageXObjectDctDecodeParmsOperandFailureDetails($body, $objects, $seenReferences);
+        }
+
+        if (!str_starts_with($trimmed, '[')) {
+            return [];
+        }
+
+        $arrayBody = $this->readPdfArrayAt($trimmed, 0);
+        if ($arrayBody === null) {
+            return [
+                'decode_parms_operand_detail' => 'malformed_array_operand',
+                'decode_parms_array_policy' => 'reject_malformed_decodeparms_array',
+            ];
+        }
+
+        if ($this->skipPdfWhitespace($trimmed, strlen($arrayBody) + 2) !== strlen($trimmed)) {
+            return [
+                'decode_parms_operand_detail' => 'array_with_trailing_operands',
+                'decode_parms_array_policy' => 'reject_top_level_decodeparms_array_tail',
+            ];
+        }
+
+        return [];
     }
 
     /**
