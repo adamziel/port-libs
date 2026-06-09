@@ -10,6 +10,7 @@ use PortLibs\Pandoc\OdtReader;
 use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\PandocJsonWriter;
+use PortLibs\Pandoc\PlainWriter;
 use PortLibs\Pandoc\RtfReader;
 use PortLibs\Pandoc\UpstreamRunnerDependencyAudit;
 
@@ -79,6 +80,8 @@ return [
         $t->same(PandocJsonReader::class, $inputSupport['json']['implementation']);
         $t->same(MarkdownWriter::class, $outputSupport['markdown']['implementation']);
         $t->same(PandocJsonWriter::class, $outputSupport['json']['implementation']);
+        $t->same(PlainWriter::class, $outputSupport['plain']['implementation']);
+        $t->contains('wrapping diagnostics', $outputSupport['plain']['notes']);
 
         $t->same(34, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));

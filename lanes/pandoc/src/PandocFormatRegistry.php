@@ -342,8 +342,8 @@ final class PandocFormatRegistry
         ],
         'plain' => [
             'status' => 'partial',
-            'implementation' => MarkdownWriter::class,
-            'notes' => 'Plain text output uses MarkdownWriter variant=plain with template slices.',
+            'implementation' => PlainWriter::class,
+            'notes' => 'PlainWriter maps core shared AST text extraction with bounded display-column wrapping diagnostics; full plain writer parity remains open.',
         ],
     ];
 
