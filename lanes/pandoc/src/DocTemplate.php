@@ -4708,17 +4708,28 @@ CSS;
                     $this->throwTemplateError('Unclosed doctemplate ${...} directive', $template, $index, $sourceName);
                 }
 
-                $this->appendTextToken($tokens, $buffer, $breakableSpaces);
-                $buffer = '';
                 $rawDirective = substr($template, $index + 2, $closing - $index - 2);
                 $directive = trim($rawDirective, " \t");
                 if ($directive === '~') {
+                    $this->appendTextToken($tokens, $buffer, $breakableSpaces);
+                    $buffer = '';
                     $breakableSpaceStart = $breakableSpaces ? null : $index;
                     $breakableSpaces = !$breakableSpaces;
                     $index = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
                     continue;
                 }
 
+                $lineTrailingOffset = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
+                if (
+                    $this->isStandaloneControlDirective($directive)
+                    && $this->offsetIsBeforeLineEndingOrEnd($template, $lineTrailingOffset)
+                    && $this->sourceLinePrefixIsHorizontalWhitespace($template, $index)
+                ) {
+                    $buffer = $this->dropStandaloneControlLinePrefix($buffer);
+                }
+
+                $this->appendTextToken($tokens, $buffer, $breakableSpaces);
+                $buffer = '';
                 $location = $this->sourceLocation($template, $index);
                 $directiveLocation = $this->sourceLocation($template, $index + 2 + strspn($rawDirective, " \t"));
                 $tokens[] = [
@@ -4731,7 +4742,7 @@ CSS;
                     'directiveColumn' => $directiveLocation['column'],
                     'breakable' => $breakableSpaces,
                 ];
-                $index = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
+                $index = $lineTrailingOffset;
                 continue;
             }
 
@@ -4750,17 +4761,28 @@ CSS;
                 $this->throwTemplateError('Unclosed doctemplate $...$ directive', $template, $index, $sourceName);
             }
 
-            $this->appendTextToken($tokens, $buffer, $breakableSpaces);
-            $buffer = '';
             $rawDirective = substr($template, $index + 1, $closing - $index - 1);
             $directive = trim($rawDirective, " \t");
             if ($directive === '~') {
+                $this->appendTextToken($tokens, $buffer, $breakableSpaces);
+                $buffer = '';
                 $breakableSpaceStart = $breakableSpaces ? null : $index;
                 $breakableSpaces = !$breakableSpaces;
                 $index = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
                 continue;
             }
 
+            $lineTrailingOffset = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
+            if (
+                $this->isStandaloneControlDirective($directive)
+                && $this->offsetIsBeforeLineEndingOrEnd($template, $lineTrailingOffset)
+                && $this->sourceLinePrefixIsHorizontalWhitespace($template, $index)
+            ) {
+                $buffer = $this->dropStandaloneControlLinePrefix($buffer);
+            }
+
+            $this->appendTextToken($tokens, $buffer, $breakableSpaces);
+            $buffer = '';
             $location = $this->sourceLocation($template, $index);
             $directiveLocation = $this->sourceLocation($template, $index + 1 + strspn($rawDirective, " \t"));
             $tokens[] = [
@@ -4773,7 +4795,7 @@ CSS;
                 'directiveColumn' => $directiveLocation['column'],
                 'breakable' => $breakableSpaces,
             ];
-            $index = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
+            $index = $lineTrailingOffset;
         }
 
         if ($breakableSpaces !== $initialBreakableSpaces) {
@@ -4803,6 +4825,30 @@ CSS;
         }
 
         return $closingOffset;
+    }
+
+    private function offsetIsBeforeLineEndingOrEnd(string $template, int $offset): bool
+    {
+        if ($offset + 1 >= strlen($template)) {
+            return true;
+        }
+
+        return $template[$offset + 1] === "\r" || $template[$offset + 1] === "\n";
+    }
+
+    private function sourceLinePrefixIsHorizontalWhitespace(string $template, int $offset): bool
+    {
+        $lineStart = 0;
+        for ($index = $offset - 1; $index >= 0; $index--) {
+            if ($template[$index] === "\n" || $template[$index] === "\r") {
+                $lineStart = $index + 1;
+                break;
+            }
+        }
+
+        $prefix = substr($template, $lineStart, max(0, $offset - $lineStart));
+
+        return strspn($prefix, " \t") === strlen($prefix);
     }
 
     private function findBracedDirectiveClosing(string $template, int $start, ?int &$unclosedSeparatorOffset = null, ?int &$unclosedQuoteOffset = null): ?int
@@ -5028,6 +5074,17 @@ CSS;
     private function dropStandaloneCommentLinePrefix(string $buffer): string
     {
         $lineStart = $this->lastLineEndingByteOffset($buffer);
+
+        return $lineStart === null ? '' : substr($buffer, 0, $lineStart + 1);
+    }
+
+    private function dropStandaloneControlLinePrefix(string $buffer): string
+    {
+        $lineStart = $this->lastLineEndingByteOffset($buffer);
+        $linePrefix = $lineStart === null ? $buffer : substr($buffer, $lineStart + 1);
+        if (trim($linePrefix, " \t") !== '') {
+            return $buffer;
+        }
 
         return $lineStart === null ? '' : substr($buffer, 0, $lineStart + 1);
     }
@@ -5898,6 +5955,13 @@ CSS;
     private function endsControlBlock(string $directive): bool
     {
         return $directive === 'endif' || $directive === 'endfor';
+    }
+
+    private function isStandaloneControlDirective(string $directive): bool
+    {
+        return $this->startsControlBlock($directive)
+            || $this->controlVariable($directive, 'elseif') !== null
+            || in_array($directive, ['else', 'endif', 'sep', 'endfor'], true);
     }
 
     /**

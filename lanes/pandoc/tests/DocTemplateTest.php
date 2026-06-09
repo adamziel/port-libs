@@ -575,6 +575,21 @@ TPL, [
         ]), $output);
     },
 
+    'matches upstream pandoc doctemplate indented control lines in nested fixture loops' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+$for(baz)$
+1. $^$Hello
+   $if(it)$
+     $it$
+   $endif$
+$endfor$
+TPL, [
+            'baz' => ['a', 'b'],
+        ]);
+
+        $t->same("1. Hello\n     a\n1. Hello\n     b\n", $output);
+    },
+
     'ends explicit pandoc doctemplate nesting before dedented source lines' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->render(<<<'TPL'
 <section>

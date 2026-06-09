@@ -343,6 +343,25 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $indentedControlReviewPacket = $renderer->render(
+        '$for(reviewItems)$' . "\n"
+            . '1. $^$Review' . "\n"
+            . '   $if(it.note)$' . "\n"
+            . '     $it.note$' . "\n"
+            . '   $endif$' . "\n"
+            . '$endfor$',
+        [
+            'reviewItems' => [
+                ['note' => 'media packet'],
+                ['note' => 'links packet'],
+            ],
+        ],
+    );
+    if ($indentedControlReviewPacket !== "1. Review\n     media packet\n1. Review\n     links packet\n") {
+        fwrite(STDERR, "Unexpected doctemplate indented control line output\n");
+        exit(1);
+    }
+
     $blockPipeReviewPacket = $renderer->render(
         '$source/uppercase/left 8 "| " " | "$$details/left 20 "" "|"$',
         [
