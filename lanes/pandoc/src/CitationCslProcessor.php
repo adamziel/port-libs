@@ -293,14 +293,15 @@ final class CitationCslProcessor
 
         return new AstNode(
             'citation',
-            [
+            array_filter([
                 ...$citation->attrs,
                 'cslStyleClass' => $this->style->styleClass(),
                 'rendered' => $this->renderCitationCluster([$citation]),
+                'cslInlineParts' => $this->citationClusterInlineParts([$citation]) ?: null,
                 'cslLabel' => $this->citationAuthorLabel($item, $citation),
                 'cslYear' => $this->citationYear($item),
                 'cslItem' => $item,
-            ],
+            ], static fn (mixed $value): bool => $value !== null),
             $citation->children
         );
     }
@@ -334,6 +335,10 @@ final class CitationCslProcessor
             ...$group->attrs,
             'rendered' => $this->renderCitationCluster($citations),
         ];
+        $inlineParts = $this->citationClusterInlineParts($citations);
+        if ($inlineParts !== []) {
+            $attrs['cslInlineParts'] = $inlineParts;
+        }
         if ($missing !== []) {
             $attrs['missingCslItems'] = $missing;
         }
@@ -518,6 +523,70 @@ final class CitationCslProcessor
         return $this->style->citationPrefix()
             . implode($this->style->citationDelimiter(), $entries)
             . $this->style->citationSuffix();
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @return list<array{text:string, formatting?:array<string, string>}>
+     */
+    private function citationClusterInlineParts(array $citations): array
+    {
+        $citations = $this->ensureClusterCitationPositions($citations);
+        $citations = $this->sortCitationCluster($citations);
+        $citations = $this->annotateCitationNumbersForCluster($citations);
+        $citations = $this->annotateCitationGivenNameDisambiguationForCluster($citations);
+        $citations = $this->annotateCitationNameDisambiguationForCluster($citations);
+        $citations = $this->annotateCitationYearSuffixesForCluster($citations);
+        $citations = $this->annotateCitationDisambiguationForCluster($citations);
+
+        if ($this->renderCollapsedCitationEntries($citations) !== null) {
+            return [];
+        }
+
+        $entries = [];
+        $hasFormattedPart = false;
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                throw new \InvalidArgumentException('Citation cluster entries must be citation AST nodes');
+            }
+
+            $entryParts = $this->citationEntryInlineParts($citation);
+            if ($entryParts === []) {
+                continue;
+            }
+
+            foreach ($entryParts as $part) {
+                if (isset($part['formatting']) && $part['formatting'] !== []) {
+                    $hasFormattedPart = true;
+                    break;
+                }
+            }
+
+            $entries[] = $entryParts;
+        }
+
+        if ($entries === [] || !$hasFormattedPart) {
+            return [];
+        }
+
+        if (count($entries) === 1 && ((string) $citations[0]->attr('mode', 'normal')) === 'author_in_text') {
+            return $entries[0];
+        }
+
+        $parts = [];
+        $this->appendCitationInlinePart($parts, $this->style->citationPrefix());
+        foreach ($entries as $index => $entryParts) {
+            if ($index > 0) {
+                $this->appendCitationInlinePart($parts, $this->style->citationDelimiter());
+            }
+
+            foreach ($entryParts as $part) {
+                $this->appendCitationInlinePart($parts, $part['text'], $part['formatting'] ?? []);
+            }
+        }
+        $this->appendCitationInlinePart($parts, $this->style->citationSuffix());
+
+        return $parts;
     }
 
     public function renderBibliographyEntry(string $id): string
@@ -5214,6 +5283,110 @@ final class CitationCslProcessor
         }
 
         return $prefix === '' ? $entry : $prefix . ' ' . $entry;
+    }
+
+    /**
+     * @return list<array{text:string, formatting?:array<string, string>}>
+     */
+    private function citationEntryInlineParts(AstNode $citation): array
+    {
+        $id = (string) $citation->attr('id', '');
+        $item = $this->itemsById[$id] ?? null;
+        if ($item === null) {
+            return [['text' => $this->sourceCitationText($citation)]];
+        }
+
+        $item = $this->itemWithCitationContext($item, $citation);
+        $customParts = $this->customCitationEntryInlineParts($citation, $item);
+        if ($customParts !== []) {
+            return $customParts;
+        }
+
+        return [['text' => $this->renderCitationEntry($citation)]];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<array{text:string, formatting?:array<string, string>}>
+     */
+    private function customCitationEntryInlineParts(AstNode $citation, array $item): array
+    {
+        if ((string) $citation->attr('mode', 'normal') !== 'normal') {
+            return [];
+        }
+
+        $elements = $this->style->citationRenderingElements();
+        if (!$this->hasNonNameRenderingElement($elements)) {
+            return [];
+        }
+
+        $entry = $this->renderCustomCitationEntry($citation, $item);
+        if ($entry === null || $entry === '') {
+            return [];
+        }
+
+        $formatting = $this->singleRenderedCitationElementFormatting($elements, $item, $citation);
+        if ($formatting === []) {
+            return [['text' => $entry]];
+        }
+
+        return [[
+            'text' => $entry,
+            'formatting' => $formatting,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param array<string, mixed> $item
+     * @return array<string, string>
+     */
+    private function singleRenderedCitationElementFormatting(array $elements, array $item, AstNode $citation): array
+    {
+        $renderedElements = [];
+        $substitutedVariables = [];
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $bibliographyState = null;
+            $value = $this->renderRenderingElement($element, $item, 'citation', [], $citation, $bibliographyState, $substitutedVariables);
+            if ($value !== '') {
+                $renderedElements[] = $element;
+            }
+        }
+
+        if (count($renderedElements) !== 1) {
+            return [];
+        }
+
+        return $this->renderingFormatting($renderedElements[0]);
+    }
+
+    /**
+     * @param list<array{text:string, formatting?:array<string, string>}> $parts
+     * @param array<string, string> $formatting
+     */
+    private function appendCitationInlinePart(array &$parts, string $text, array $formatting = []): void
+    {
+        if ($text === '') {
+            return;
+        }
+
+        $lastIndex = count($parts) - 1;
+        if ($lastIndex >= 0 && ($parts[$lastIndex]['formatting'] ?? []) === $formatting) {
+            $parts[$lastIndex]['text'] .= $text;
+
+            return;
+        }
+
+        $part = ['text' => $text];
+        if ($formatting !== []) {
+            $part['formatting'] = $formatting;
+        }
+
+        $parts[] = $part;
     }
 
     /**

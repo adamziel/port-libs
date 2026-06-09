@@ -2440,6 +2440,15 @@ return [
         $wordDocumentChild = substr_replace($bytes, $u32(2), $directorySectorOffset + 128 + 76, 4);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($wordDocumentChild));
 
+        $duplicateRootStorageObject = substr_replace($bytes, "\x05", $directorySectorOffset + (2 * 128) + 66, 1);
+        try {
+            CompoundFileBinary::fromBytes($duplicateRootStorageObject);
+
+            throw new RuntimeException('Expected duplicate CFB root storage object preflight to fail');
+        } catch (RuntimeException $exception) {
+            $t->contains('duplicate Root Entry storage', $exception->getMessage());
+        }
+
         $objectPoolSize = substr_replace($bytes, $u64(64), $directorySectorOffset + (2 * 128) + 120, 8);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($objectPoolSize));
     },

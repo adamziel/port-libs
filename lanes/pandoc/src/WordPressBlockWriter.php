@@ -466,7 +466,7 @@ final class WordPressBlockWriter
                 continue;
             }
 
-            [$formatClasses, $style] = $this->cslDisplayPartFormattingAttrs($part['formatting'] ?? []);
+            [$formatClasses, $style] = $this->cslFormattingAttrs($part['formatting'] ?? []);
             $classes = implode(' ', array_merge([$class], $formatClasses));
             $attrs = ' class="' . $this->esc($classes) . '"';
             if ($style !== '') {
@@ -482,7 +482,7 @@ final class WordPressBlockWriter
     /**
      * @return array{0:list<string>, 1:string}
      */
-    private function cslDisplayPartFormattingAttrs(mixed $formatting): array
+    private function cslFormattingAttrs(mixed $formatting): array
     {
         if (!is_array($formatting)) {
             return [[], ''];
@@ -2273,10 +2273,59 @@ final class WordPressBlockWriter
             'link' => '<a' . $this->renderLinkAttrs($node) . '>' . $this->renderInlines($node) . '</a>',
             'image' => $this->renderImageHtml($node),
             'note' => $this->renderNoteReference($node),
-            'citation' => $this->esc((string) $node->attr('rendered', $node->attr('text', ''))),
-            'citation_group' => $this->esc((string) $node->attr('rendered', $node->attr('text', ''))),
+            'citation' => $this->renderCitationInline($node),
+            'citation_group' => $this->renderCitationInline($node),
             default => $this->renderInlines($node),
         };
+    }
+
+    private function renderCitationInline(AstNode $node): string
+    {
+        $parts = $node->attr('cslInlineParts', []);
+        if (is_array($parts) && $parts !== []) {
+            $html = $this->renderCslInlinePartsHtml($parts);
+            if ($html !== '') {
+                return $html;
+            }
+        }
+
+        return $this->esc((string) $node->attr('rendered', $node->attr('text', '')));
+    }
+
+    /**
+     * @param list<mixed> $parts
+     */
+    private function renderCslInlinePartsHtml(array $parts): string
+    {
+        $html = '';
+        foreach ($parts as $part) {
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $text = (string) ($part['text'] ?? '');
+            if ($text === '') {
+                continue;
+            }
+
+            [$classes, $style] = $this->cslFormattingAttrs($part['formatting'] ?? []);
+            if ($classes === [] && $style === '') {
+                $html .= $this->esc($text);
+                continue;
+            }
+
+            $attrs = '';
+            if ($classes !== []) {
+                $attrs .= ' class="' . $this->esc(implode(' ', $classes)) . '"';
+            }
+            if ($style !== '') {
+                $attrs .= ' style="' . $this->esc($style) . '"';
+            }
+
+            $html .= '<span' . $attrs . '>' . $this->esc($text) . '</span>';
+        }
+
+        return $html;
     }
 
     private function renderNoteReference(AstNode $node): string

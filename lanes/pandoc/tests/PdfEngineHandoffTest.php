@@ -8275,6 +8275,127 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfSignatureLockPolicies']);
     },
 
+    'fake runner cross checks pdf field mdp transforms against signature field locks' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/field-mdp-locks.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R 6 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.approval) /V 9 0 R /Lock 12 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.editor) /V 10 0 R /Lock << /Type /SigFieldLock /Action /Exclude /Fields [(review.total)] >> >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.orphan) /V 11 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 5 0 R 6 0 R] /SigFlags 3 >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Sig /Filter /Adobe.PPKLite /Reference [<< /TransformMethod /FieldMDP /TransformParams << /Action /Include /Fields [(approved) (reviewer.name)] >> >>] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Sig /Filter /Adobe.PPKLite /Reference [<< /TransformMethod /FieldMDP /TransformParams << /Action /Include /Fields [(review.total) (review.extra)] >> >>] >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /Sig /Filter /Adobe.PPKLite /Reference [<< /TransformMethod /FieldMDP /TransformParams << /Action /Include /Fields [(missing.lock)] >> >>] >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /SigFieldLock /Action /Include /Fields [(reviewer.name) (approved)] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/field-mdp-locks.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/field-mdp-locks.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'source' => 'signature',
+                'permission' => null,
+                'fieldName' => 'review.approval',
+                'fieldObject' => '4 0 R',
+                'signatureObject' => '9 0 R',
+                'transformAction' => 'Include',
+                'transformFields' => ['approved', 'reviewer.name'],
+                'fieldLockObject' => '12 0 R',
+                'fieldLockAction' => 'Include',
+                'fieldLockFields' => ['reviewer.name', 'approved'],
+                'matchedFieldLock' => true,
+                'reviewStatus' => 'ok',
+                'issues' => [],
+            ],
+            [
+                'source' => 'signature',
+                'permission' => null,
+                'fieldName' => 'review.editor',
+                'fieldObject' => '5 0 R',
+                'signatureObject' => '10 0 R',
+                'transformAction' => 'Include',
+                'transformFields' => ['review.total', 'review.extra'],
+                'fieldLockObject' => 'inline',
+                'fieldLockAction' => 'Exclude',
+                'fieldLockFields' => ['review.total'],
+                'matchedFieldLock' => true,
+                'reviewStatus' => 'review',
+                'issues' => ['field-mdp-field-lock-action-mismatch', 'field-mdp-field-lock-fields-mismatch'],
+            ],
+            [
+                'source' => 'signature',
+                'permission' => null,
+                'fieldName' => 'review.orphan',
+                'fieldObject' => '6 0 R',
+                'signatureObject' => '11 0 R',
+                'transformAction' => 'Include',
+                'transformFields' => ['missing.lock'],
+                'fieldLockObject' => null,
+                'fieldLockAction' => null,
+                'fieldLockFields' => [],
+                'matchedFieldLock' => false,
+                'reviewStatus' => 'review',
+                'issues' => ['field-mdp-missing-field-lock'],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfSignatureFieldMdpPolicies']);
+        $t->contains('pdf-byte-signature-field-mdp-policies:3', $diagnostics);
+        $t->contains('pdf-byte-signature-field-mdp-transform-action:Include:3', $diagnostics);
+        $t->contains('pdf-byte-signature-field-mdp-transform-fields:5', $diagnostics);
+        $t->contains('pdf-byte-signature-field-mdp-lock-fields:3', $diagnostics);
+        $t->contains('pdf-byte-signature-field-mdp-matched-locks:2', $diagnostics);
+        $t->contains('pdf-byte-signature-field-mdp-status:ok:1', $diagnostics);
+        $t->contains('pdf-byte-signature-field-mdp-status:review:2', $diagnostics);
+        $t->contains('pdf-byte-signature-field-mdp-issue:field-mdp-field-lock-action-mismatch:1', $diagnostics);
+        $t->contains('pdf-byte-signature-field-mdp-issue:field-mdp-field-lock-fields-mismatch:1', $diagnostics);
+        $t->contains('pdf-byte-signature-field-mdp-issue:field-mdp-missing-field-lock:1', $diagnostics);
+        $t->same($expected, $sequence['finalPdfSignatureFieldMdpPolicies']);
+    },
+
     'fake runner summarizes bounded pdf signature byte range policy from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signed-byte-ranges.pdf']);

@@ -9679,7 +9679,7 @@ XML
       <names variable="author"><name name-as-sort-order="sideways"/></names>
     </layout>
   </citation>
-            </style>
+</style>
 XML
         ));
     },
@@ -15041,9 +15041,86 @@ XML
       <text variable="title" font-weight="heavy"/>
     </layout>
   </citation>
-</style>
+            </style>
 XML
         ));
+    },
+    'surfaces bounded csl rendering formatting on citation inline parts' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'format-source',
+                'type' => 'report',
+                'title' => 'Formatted Source Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Vera'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'escaped-source',
+                'type' => 'report',
+                'title' => 'Escaped Source Packet',
+                'author' => [
+                    ['family' => 'Ng & Sons', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Citation Inline Formatting Style</title>
+    <id>https://example.test/styles/bounded-citation-inline-formatting</id>
+    <updated>2026-06-09T02:55:45+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" " font-style="italic">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+      <date variable="issued"><date-part name="year"/></date>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Citation Inline Formatting Style', $summary['title'] ?? null);
+        $t->same(['fontStyle' => 'italic'], $summary['citationRendering'][0]['formatting'] ?? null);
+        $t->same('(Vale 2026; Ng & Sons 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'format-source', 'text' => '[@format-source]']),
+            new AstNode('citation', ['id' => 'escaped-source', 'text' => '[@escaped-source]']),
+        ]));
+
+        $document = (new MarkdownReader())->read('Review cites [@format-source; @escaped-source] before import.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $paragraph = $processed->children[0];
+        $cluster = $paragraph->children[1];
+        $t->same('citation_group', $cluster->type);
+        $t->same('(Vale 2026; Ng & Sons 2025)', $cluster->attr('rendered'));
+        $t->same([
+            ['text' => '('],
+            ['text' => 'Vale 2026', 'formatting' => ['fontStyle' => 'italic']],
+            ['text' => '; '],
+            ['text' => 'Ng & Sons 2025', 'formatting' => ['fontStyle' => 'italic']],
+            ['text' => ')'],
+        ], $cluster->attr('cslInlineParts'));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites (Vale 2026; Ng & Sons 2025) before import.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (<span class="csl-font-style-italic" style="font-style:italic">Vale 2026</span>; <span class="csl-font-style-italic" style="font-style:italic">Ng &amp; Sons 2025</span>) before import.</p>', $blocks);
+        $t->contains('<dt>Ng &amp; Sons 2025</dt><dd>Ng &amp; Sons, Nia. Escaped Source Packet. 2025.</dd>', $blocks);
     },
     'surfaces nested csl bibliography display parts from macros and choose branches' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([

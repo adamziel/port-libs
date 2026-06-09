@@ -807,6 +807,9 @@ final class CompoundFileBinary
         if ($type === 1 && self::isRegularSector($startSector)) {
             throw new \RuntimeException('CFB storage directory entry must not reference stream sectors: ' . $name);
         }
+        if ($type === 5 && (int) ($entry['directoryId'] ?? -1) !== 0) {
+            throw new \RuntimeException('CFB directory contains a duplicate Root Entry storage: ' . $name);
+        }
         if ($type === 5 && ((int) $entry['leftSiblingId'] !== self::FREESECT || (int) $entry['rightSiblingId'] !== self::FREESECT)) {
             throw new \RuntimeException('CFB root directory entry must not reference sibling entries');
         }

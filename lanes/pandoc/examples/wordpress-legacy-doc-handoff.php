@@ -3081,6 +3081,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'CFB stream storage state bits' => substr_replace($docBytes, $u32(0x00000010), $directoryFieldOffset($wordDocumentDirectoryId, 96), 4),
         'CFB stream storage creation time' => substr_replace($docBytes, $filetime('2024-01-01T00:00:00Z'), $directoryFieldOffset($wordDocumentDirectoryId, 100), 8),
         'CFB stream storage modification time' => substr_replace($docBytes, $filetime('2024-01-02T00:00:00Z'), $directoryFieldOffset($wordDocumentDirectoryId, 108), 8),
+        'duplicate CFB root storage object' => substr_replace($docBytes, "\x05", $directoryFieldOffset($objectPoolDirectoryId, 66), 1),
         'CFB storage stream-data bytes' => substr_replace($docBytes, $u64(64), $directoryFieldOffset($objectPoolDirectoryId, 120), 8),
         'CFB storage start-sector reference' => substr_replace($docBytes, $u32($rootMiniStart), $directoryFieldOffset($objectPoolDirectoryId, 116), 4),
         'CFB zero-length stream start-sector reference' => substr_replace($docBytes, $u64(0), $directoryFieldOffset($wordDocumentDirectoryId, 120), 8),

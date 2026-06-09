@@ -355,6 +355,8 @@ final class PdfEngineHandoff
      *     pdfSignatureByteRangePolicy: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
      *     pdfSignatureRevisionMetadata: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, signingTime:string|null, byteRangeEnd:int|null, revision:int|null, revisionStartXref:int|null, revisionPrev:int|null, revisionRoot:string|null, revisionInfo:string|null, revisionEncrypt:string|null, revisionByteEnd:int|null, coversRevisionEnd:bool|null, latestRevision:int|null, laterRevisions:int, reviewStatus:string}>,
      *     pdfSignatureSeedValues: list<array<string, mixed>>,
+     *     pdfSignatureLockPolicies: list<array<string, mixed>>,
+     *     pdfSignatureFieldMdpPolicies: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}>,
      *     pdfDocumentSecurityStore: array<string, mixed>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
@@ -818,6 +820,7 @@ final class PdfEngineHandoff
         $pdfSignatureRevisionMetadata = [];
         $pdfSignatureSeedValues = [];
         $pdfSignatureLockPolicies = [];
+        $pdfSignatureFieldMdpPolicies = [];
         $pdfDocumentSecurityStore = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
@@ -939,6 +942,7 @@ final class PdfEngineHandoff
                 $pdfSignatureRevisionMetadata = $pdfInspection['signatureRevisionMetadata'];
                 $pdfSignatureSeedValues = $pdfInspection['signatureSeedValues'];
                 $pdfSignatureLockPolicies = $pdfInspection['signatureLockPolicies'];
+                $pdfSignatureFieldMdpPolicies = $pdfInspection['signatureFieldMdpPolicies'];
                 $pdfDocumentSecurityStore = $pdfInspection['documentSecurityStore'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
@@ -2613,6 +2617,64 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-signature-lock-policy-issue:' . $issue . ':' . $issueCount;
                     }
                 }
+                if ($pdfSignatureFieldMdpPolicies !== []) {
+                    $diagnostics[] = 'pdf-byte-signature-field-mdp-policies:' . count($pdfSignatureFieldMdpPolicies);
+                    $actionCounts = [];
+                    $statusCounts = [];
+                    $issueCounts = [];
+                    $transformFieldCount = 0;
+                    $fieldLockFieldCount = 0;
+                    $matchedLockCount = 0;
+                    foreach ($pdfSignatureFieldMdpPolicies as $policy) {
+                        $action = is_string($policy['transformAction'] ?? null) && $policy['transformAction'] !== ''
+                            ? $policy['transformAction']
+                            : 'missing';
+                        $actionCounts[$action] = ($actionCounts[$action] ?? 0) + 1;
+
+                        if (isset($policy['transformFields']) && is_array($policy['transformFields'])) {
+                            $transformFieldCount += count($policy['transformFields']);
+                        }
+                        if (isset($policy['fieldLockFields']) && is_array($policy['fieldLockFields'])) {
+                            $fieldLockFieldCount += count($policy['fieldLockFields']);
+                        }
+                        if (($policy['matchedFieldLock'] ?? false) === true) {
+                            $matchedLockCount++;
+                        }
+
+                        $reviewStatus = is_string($policy['reviewStatus'] ?? null) && $policy['reviewStatus'] !== ''
+                            ? $policy['reviewStatus']
+                            : 'unknown';
+                        $statusCounts[$reviewStatus] = ($statusCounts[$reviewStatus] ?? 0) + 1;
+
+                        foreach (($policy['issues'] ?? []) as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                    }
+
+                    ksort($actionCounts);
+                    foreach ($actionCounts as $action => $actionCount) {
+                        $diagnostics[] = 'pdf-byte-signature-field-mdp-transform-action:' . $action . ':' . $actionCount;
+                    }
+                    if ($transformFieldCount > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-field-mdp-transform-fields:' . $transformFieldCount;
+                    }
+                    if ($fieldLockFieldCount > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-field-mdp-lock-fields:' . $fieldLockFieldCount;
+                    }
+                    if ($matchedLockCount > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-field-mdp-matched-locks:' . $matchedLockCount;
+                    }
+                    ksort($statusCounts);
+                    foreach ($statusCounts as $policyStatus => $statusCount) {
+                        $diagnostics[] = 'pdf-byte-signature-field-mdp-status:' . $policyStatus . ':' . $statusCount;
+                    }
+                    ksort($issueCounts);
+                    foreach ($issueCounts as $issue => $issueCount) {
+                        $diagnostics[] = 'pdf-byte-signature-field-mdp-issue:' . $issue . ':' . $issueCount;
+                    }
+                }
                 if ($pdfSignatureByteRangePolicy !== []) {
                     $diagnostics[] = 'pdf-byte-signature-byte-range-policy:' . count($pdfSignatureByteRangePolicy);
                     $statusCounts = [];
@@ -3246,6 +3308,7 @@ final class PdfEngineHandoff
             'pdfSignatureRevisionMetadata' => $pdfSignatureRevisionMetadata,
             'pdfSignatureSeedValues' => $pdfSignatureSeedValues,
             'pdfSignatureLockPolicies' => $pdfSignatureLockPolicies,
+            'pdfSignatureFieldMdpPolicies' => $pdfSignatureFieldMdpPolicies,
             'pdfDocumentSecurityStore' => $pdfDocumentSecurityStore,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
@@ -3385,7 +3448,10 @@ final class PdfEngineHandoff
      *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatureSubFilters: array<string, int>,
      *     finalPdfSignatureByteRangePolicy: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
+     *     finalPdfSignatureRevisionMetadata: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, signingTime:string|null, byteRangeEnd:int|null, revision:int|null, revisionStartXref:int|null, revisionPrev:int|null, revisionRoot:string|null, revisionInfo:string|null, revisionEncrypt:string|null, revisionByteEnd:int|null, coversRevisionEnd:bool|null, latestRevision:int|null, laterRevisions:int, reviewStatus:string}>,
      *     finalPdfSignatureSeedValues: list<array<string, mixed>>,
+     *     finalPdfSignatureLockPolicies: list<array<string, mixed>>,
+     *     finalPdfSignatureFieldMdpPolicies: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}>,
      *     finalPdfDocumentSecurityStore: array<string, mixed>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
@@ -3642,6 +3708,7 @@ final class PdfEngineHandoff
             'finalPdfSignatureRevisionMetadata' => is_array($finalRun) && is_array($finalRun['pdfSignatureRevisionMetadata'] ?? null) ? $finalRun['pdfSignatureRevisionMetadata'] : [],
             'finalPdfSignatureSeedValues' => is_array($finalRun) && is_array($finalRun['pdfSignatureSeedValues'] ?? null) ? $finalRun['pdfSignatureSeedValues'] : [],
             'finalPdfSignatureLockPolicies' => is_array($finalRun) && is_array($finalRun['pdfSignatureLockPolicies'] ?? null) ? $finalRun['pdfSignatureLockPolicies'] : [],
+            'finalPdfSignatureFieldMdpPolicies' => is_array($finalRun) && is_array($finalRun['pdfSignatureFieldMdpPolicies'] ?? null) ? $finalRun['pdfSignatureFieldMdpPolicies'] : [],
             'finalPdfDocumentSecurityStore' => is_array($finalRun) && is_array($finalRun['pdfDocumentSecurityStore'] ?? null) ? $finalRun['pdfDocumentSecurityStore'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
@@ -4768,6 +4835,8 @@ final class PdfEngineHandoff
      *     signatureByteRangePolicy:list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
      *     signatureRevisionMetadata:list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, signingTime:string|null, byteRangeEnd:int|null, revision:int|null, revisionStartXref:int|null, revisionPrev:int|null, revisionRoot:string|null, revisionInfo:string|null, revisionEncrypt:string|null, revisionByteEnd:int|null, coversRevisionEnd:bool|null, latestRevision:int|null, laterRevisions:int, reviewStatus:string}>,
      *     signatureSeedValues:list<array<string, mixed>>,
+     *     signatureLockPolicies:list<array<string, mixed>>,
+     *     signatureFieldMdpPolicies:list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}>,
      *     documentSecurityStore:array<string, mixed>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
@@ -4830,6 +4899,7 @@ final class PdfEngineHandoff
         $signatureSeedValues = $this->extractPdfSignatureSeedValues($pdfBytes, $catalog);
         $signatureLockPolicies = $this->extractPdfSignatureLockPolicies($pdfBytes, $catalog);
         $catalogPermissions = $this->extractPdfCatalogPermissions($pdfBytes, $catalog);
+        $signatureFieldMdpPolicies = $this->summarizePdfSignatureFieldMdpPolicies($signatures, $catalogPermissions, $signatureLockPolicies);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
         $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
         $annotationAppearances = $this->extractPdfAnnotationAppearances($pdfBytes, $catalog);
@@ -4948,6 +5018,7 @@ final class PdfEngineHandoff
             'signatureRevisionMetadata' => $this->summarizePdfSignatureRevisionMetadata($signatures, $catalogPermissions, $trailerRevisions, $pdfBytes),
             'signatureSeedValues' => $signatureSeedValues,
             'signatureLockPolicies' => $signatureLockPolicies,
+            'signatureFieldMdpPolicies' => $signatureFieldMdpPolicies,
             'documentSecurityStore' => $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
@@ -13168,6 +13239,210 @@ final class PdfEngineHandoff
         }
 
         return $issues;
+    }
+
+    /**
+     * @param list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}> $signatures
+     * @param list<array{permission:string, signatureObject:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}> $catalogPermissions
+     * @param list<array<string, mixed>> $signatureLockPolicies
+     * @return list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}>
+     */
+    private function summarizePdfSignatureFieldMdpPolicies(array $signatures, array $catalogPermissions, array $signatureLockPolicies): array
+    {
+        $locksByFieldObject = [];
+        $locksByFieldName = [];
+        foreach ($signatureLockPolicies as $policy) {
+            if (is_string($policy['fieldObject'] ?? null) && $policy['fieldObject'] !== '') {
+                $locksByFieldObject[$policy['fieldObject']] = $policy;
+            }
+            if (is_string($policy['fieldName'] ?? null) && $policy['fieldName'] !== '') {
+                $locksByFieldName[$policy['fieldName']] = $policy;
+            }
+        }
+
+        $policies = [];
+        $signatureFieldMdpObjects = [];
+        foreach ($signatures as $signature) {
+            $fieldName = is_string($signature['fieldName'] ?? null) && $signature['fieldName'] !== '' ? $signature['fieldName'] : null;
+            $fieldObject = is_string($signature['fieldObject'] ?? null) && $signature['fieldObject'] !== '' ? $signature['fieldObject'] : null;
+            $signatureObject = is_string($signature['signatureObject'] ?? null) && $signature['signatureObject'] !== '' ? $signature['signatureObject'] : null;
+            $lockPolicy = null;
+            if ($fieldObject !== null && isset($locksByFieldObject[$fieldObject])) {
+                $lockPolicy = $locksByFieldObject[$fieldObject];
+            } elseif ($fieldName !== null && isset($locksByFieldName[$fieldName])) {
+                $lockPolicy = $locksByFieldName[$fieldName];
+            }
+
+            foreach (($signature['referenceTransforms'] ?? []) as $transform) {
+                if (!is_array($transform) || ($transform['transformMethod'] ?? null) !== 'FieldMDP') {
+                    continue;
+                }
+                if ($signatureObject !== null) {
+                    $signatureFieldMdpObjects[$signatureObject] = true;
+                }
+
+                $policies[] = $this->summarizePdfSignatureFieldMdpPolicyEntry(
+                    'signature',
+                    null,
+                    $fieldName,
+                    $fieldObject,
+                    $signatureObject,
+                    $transform,
+                    $lockPolicy
+                );
+            }
+        }
+
+        foreach ($catalogPermissions as $permission) {
+            $signatureObject = is_string($permission['signatureObject'] ?? null) && $permission['signatureObject'] !== '' ? $permission['signatureObject'] : null;
+            foreach (($permission['referenceTransforms'] ?? []) as $transform) {
+                if (!is_array($transform) || ($transform['transformMethod'] ?? null) !== 'FieldMDP') {
+                    continue;
+                }
+                if ($signatureObject !== null && isset($signatureFieldMdpObjects[$signatureObject])) {
+                    continue;
+                }
+
+                $policies[] = $this->summarizePdfSignatureFieldMdpPolicyEntry(
+                    'catalog-permission',
+                    is_string($permission['permission'] ?? null) && $permission['permission'] !== '' ? $permission['permission'] : null,
+                    null,
+                    null,
+                    $signatureObject,
+                    $transform,
+                    null
+                );
+            }
+        }
+
+        usort(
+            $policies,
+            static fn (array $a, array $b): int => [
+                $a['source'],
+                $a['permission'] ?? '',
+                $a['fieldName'] ?? '',
+                $a['fieldObject'] ?? '',
+                $a['signatureObject'] ?? '',
+                $a['transformAction'] ?? '',
+            ] <=> [
+                $b['source'],
+                $b['permission'] ?? '',
+                $b['fieldName'] ?? '',
+                $b['fieldObject'] ?? '',
+                $b['signatureObject'] ?? '',
+                $b['transformAction'] ?? '',
+            ]
+        );
+
+        return $policies;
+    }
+
+    /**
+     * @param array{action?:string|null, fields?:list<string>} $transform
+     * @param array<string, mixed>|null $lockPolicy
+     * @return array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}
+     */
+    private function summarizePdfSignatureFieldMdpPolicyEntry(
+        string $source,
+        ?string $permission,
+        ?string $fieldName,
+        ?string $fieldObject,
+        ?string $signatureObject,
+        array $transform,
+        ?array $lockPolicy
+    ): array {
+        $transformAction = is_string($transform['action'] ?? null) && $transform['action'] !== '' ? $transform['action'] : null;
+        $transformFields = [];
+        foreach (($transform['fields'] ?? []) as $field) {
+            if (is_string($field) && $field !== '') {
+                $transformFields[] = $field;
+            }
+        }
+
+        $fieldLockFields = [];
+        if (is_array($lockPolicy)) {
+            foreach (($lockPolicy['fieldLockFields'] ?? []) as $field) {
+                if (is_string($field) && $field !== '') {
+                    $fieldLockFields[] = $field;
+                }
+            }
+        }
+
+        $issues = $this->pdfSignatureFieldMdpPolicyIssues($transformAction, $transformFields, $lockPolicy, $fieldLockFields);
+
+        return [
+            'source' => $source,
+            'permission' => $permission,
+            'fieldName' => $fieldName,
+            'fieldObject' => $fieldObject,
+            'signatureObject' => $signatureObject,
+            'transformAction' => $transformAction,
+            'transformFields' => $transformFields,
+            'fieldLockObject' => is_array($lockPolicy) && is_string($lockPolicy['fieldLockObject'] ?? null) && $lockPolicy['fieldLockObject'] !== '' ? $lockPolicy['fieldLockObject'] : null,
+            'fieldLockAction' => is_array($lockPolicy) && is_string($lockPolicy['fieldLockAction'] ?? null) && $lockPolicy['fieldLockAction'] !== '' ? $lockPolicy['fieldLockAction'] : null,
+            'fieldLockFields' => $fieldLockFields,
+            'matchedFieldLock' => is_array($lockPolicy),
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param list<string> $transformFields
+     * @param array<string, mixed>|null $lockPolicy
+     * @param list<string> $fieldLockFields
+     * @return list<string>
+     */
+    private function pdfSignatureFieldMdpPolicyIssues(?string $transformAction, array $transformFields, ?array $lockPolicy, array $fieldLockFields): array
+    {
+        $issues = [];
+        if ($transformAction === null) {
+            $issues[] = 'field-mdp-missing-transform-action';
+        } elseif (!in_array($transformAction, ['All', 'Include', 'Exclude'], true)) {
+            $issues[] = 'field-mdp-unknown-transform-action';
+        }
+        if (($transformAction === 'Include' || $transformAction === 'Exclude') && $transformFields === []) {
+            $issues[] = 'field-mdp-missing-transform-fields';
+        }
+        if ($transformAction === 'All' && $transformFields !== []) {
+            $issues[] = 'field-mdp-all-transform-has-fields';
+        }
+
+        if ($lockPolicy === null) {
+            $issues[] = 'field-mdp-missing-field-lock';
+
+            return $issues;
+        }
+
+        $fieldLockAction = is_string($lockPolicy['fieldLockAction'] ?? null) && $lockPolicy['fieldLockAction'] !== '' ? $lockPolicy['fieldLockAction'] : null;
+        if ($transformAction !== null && $fieldLockAction !== $transformAction) {
+            $issues[] = 'field-mdp-field-lock-action-mismatch';
+        }
+
+        if ($this->canonicalPdfFieldNames($fieldLockFields) !== $this->canonicalPdfFieldNames($transformFields)) {
+            $issues[] = 'field-mdp-field-lock-fields-mismatch';
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param list<string> $fields
+     * @return list<string>
+     */
+    private function canonicalPdfFieldNames(array $fields): array
+    {
+        $canonical = [];
+        foreach ($fields as $field) {
+            if ($field !== '') {
+                $canonical[$field] = true;
+            }
+        }
+
+        $names = array_keys($canonical);
+        sort($names, SORT_STRING);
+
+        return $names;
     }
 
     /**
