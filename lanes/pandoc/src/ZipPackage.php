@@ -4915,6 +4915,13 @@ final class ZipPackage
      *     extraScannedEntryCount:int,
      *     missingDeclaredEntryCount:int,
      *     entryCountMismatchKind:?string,
+     *     hasDuplicateEntryNames:bool,
+     *     duplicateEntryNameGroupCount:int,
+     *     duplicateEntryNameEntryCount:int,
+     *     duplicateEntryRawNameGroupCount:int,
+     *     duplicateEntryRawNameEntryCount:int,
+     *     duplicateEntryNameGroups:list<array{name:string,count:int,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>,localHeaderOffsets:list<int>}>,
+     *     duplicateEntryRawNameGroups:list<array{rawName:string,count:int,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>,localHeaderOffsets:list<int>}>,
      *     hasCentralDirectorySignature:bool,
      *     centralDirectorySignature:?array{offset:int, dataLength:int, endOffset:int, location:string},
      *     isSupportedByBoundedReader:bool,
@@ -5042,9 +5049,17 @@ final class ZipPackage
         } elseif ($entryCountDelta < 0) {
             $entryCountMismatchKind = 'declared-too-high';
         }
+        $duplicateEntryNameGroups = self::centralDirectoryDuplicateEntryGroups($entries, 'name', 'name');
+        $duplicateEntryRawNameGroups = self::centralDirectoryDuplicateEntryGroups($entries, 'rawName', 'rawName');
+        $duplicateEntryNameEntryCount = self::duplicateCentralDirectoryEntryCount($duplicateEntryNameGroups);
+        $duplicateEntryRawNameEntryCount = self::duplicateCentralDirectoryEntryCount($duplicateEntryRawNameGroups);
+        $hasDuplicateEntryNames = $duplicateEntryNameGroups !== [];
 
         if ($entryCountMismatch) {
             $issues[] = 'central-directory-entry-count-mismatch';
+        }
+        if ($duplicateEntryNameGroups !== []) {
+            $issues[] = 'duplicate-central-directory-entry-names';
         }
         if (!$archive['isSingleDisk']) {
             $issues[] = 'split-archive-eocd';
@@ -5092,6 +5107,13 @@ final class ZipPackage
             'extraScannedEntryCount' => $extraScannedEntryCount,
             'missingDeclaredEntryCount' => $missingDeclaredEntryCount,
             'entryCountMismatchKind' => $entryCountMismatchKind,
+            'hasDuplicateEntryNames' => $hasDuplicateEntryNames,
+            'duplicateEntryNameGroupCount' => count($duplicateEntryNameGroups),
+            'duplicateEntryNameEntryCount' => $duplicateEntryNameEntryCount,
+            'duplicateEntryRawNameGroupCount' => count($duplicateEntryRawNameGroups),
+            'duplicateEntryRawNameEntryCount' => $duplicateEntryRawNameEntryCount,
+            'duplicateEntryNameGroups' => $duplicateEntryNameGroups,
+            'duplicateEntryRawNameGroups' => $duplicateEntryRawNameGroups,
             'hasCentralDirectorySignature' => $centralDirectorySignature !== null,
             'centralDirectorySignature' => $centralDirectorySignature,
             'isSupportedByBoundedReader' => $issues === [],
@@ -9384,6 +9406,55 @@ final class ZipPackage
         }
 
         return $duplicates;
+    }
+
+    /**
+     * @param list<array{name:string, rawName:string, centralDirectoryIndex:int, offset:int, localHeaderOffset:int}> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function centralDirectoryDuplicateEntryGroups(array $entries, string $entryKey, string $outputKey): array
+    {
+        $groups = [];
+        foreach ($entries as $entry) {
+            $value = $entry[$entryKey] ?? null;
+            if (!is_string($value)) {
+                continue;
+            }
+
+            if (!isset($groups[$value])) {
+                $groups[$value] = [
+                    $outputKey => $value,
+                    'count' => 0,
+                    'centralDirectoryIndexes' => [],
+                    'centralDirectoryOffsets' => [],
+                    'localHeaderOffsets' => [],
+                ];
+            }
+
+            $groups[$value]['count']++;
+            $groups[$value]['centralDirectoryIndexes'][] = $entry['centralDirectoryIndex'];
+            $groups[$value]['centralDirectoryOffsets'][] = $entry['offset'];
+            $groups[$value]['localHeaderOffsets'][] = $entry['localHeaderOffset'];
+        }
+
+        return array_values(array_filter(
+            $groups,
+            static fn (array $group): bool => $group['count'] > 1
+        ));
+    }
+
+    /**
+     * @param list<array{count:int}> $groups
+     */
+    private static function duplicateCentralDirectoryEntryCount(array $groups): int
+    {
+        $count = 0;
+        foreach ($groups as $group) {
+            $count += $group['count'];
+        }
+
+        return $count;
     }
 
     /**

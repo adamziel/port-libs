@@ -1771,6 +1771,76 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe semantic metadata URLs to be stripped');
         $t->true(!str_contains($html, 'bad&lt;tag'), 'Expected malformed semantic term tokens to be stripped');
     },
+    'adds source line metadata to semantic metadata diagnostics before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<article itemscope itemtype=\"./types/Local javascript:alert(1)\" itemid=\"./articles/42\" itemref=\"headline bad<tag\">\n"
+            . "<h1 itemprop=\"headline bad<tag\">Title</h1>\n"
+            . "<a property=\"schema:url bad<>\" about=\" ./article&#10;\" resource=\"java&#10;script:alert(1)\" prefix=\"schema: ./schema bad: javascript:alert(1)\" href=\"./canonical.html\">Canonical</a>\n"
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/semantic-metadata-lines-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $semanticAttributes = [
+            'about' => true,
+            'itemid' => true,
+            'itemprop' => true,
+            'itemref' => true,
+            'itemscope' => true,
+            'itemtype' => true,
+            'prefix' => true,
+            'property' => true,
+            'resource' => true,
+        ];
+        $semanticDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static function (array $diagnostic) use ($semanticAttributes): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $attribute = (string) ($diagnostic['attribute'] ?? '');
+
+                return in_array($code, ['semantic-metadata-review', 'unsafe-attribute', 'unsafe-url', 'normalized-url'], true)
+                    && isset($semanticAttributes[$attribute]);
+            }
+        ));
+        $astSemanticDiagnostics = array_values(array_filter(
+            $document->children[0]->attr('diagnostics'),
+            static function (array $diagnostic) use ($semanticAttributes): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $attribute = (string) ($diagnostic['attribute'] ?? '');
+
+                return in_array($code, ['semantic-metadata-review', 'unsafe-attribute', 'unsafe-url', 'normalized-url'], true)
+                    && isset($semanticAttributes[$attribute]);
+            }
+        ));
+
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline">' . "\n"
+            . '<h1 data-pandoc-microdata-property="headline">Title</h1>' . "\n"
+            . '<a data-pandoc-rdfa-property="schema:url" data-pandoc-rdfa-about="https://source.example.test/import/posts/article" data-pandoc-rdfa-prefix="schema: https://source.example.test/import/posts/schema" href="https://source.example.test/import/posts/canonical.html">Canonical</a>' . "\n"
+            . '</article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('/migration/semantic-metadata-lines-review.html', $document->children[0]->attr('part'));
+        $t->same(14, count($semanticDiagnostics));
+        $t->same(
+            ['itemscope', 'itemtype', 'itemid', 'itemref', 'itemref', 'itemprop', 'itemprop', 'property', 'property', 'about', 'about', 'resource', 'prefix', 'prefix'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $semanticDiagnostics)
+        );
+        $t->same(
+            ['semantic-metadata-review', 'unsafe-url', 'semantic-metadata-review', 'unsafe-attribute', 'semantic-metadata-review', 'unsafe-attribute', 'semantic-metadata-review', 'unsafe-attribute', 'semantic-metadata-review', 'normalized-url', 'semantic-metadata-review', 'unsafe-url', 'unsafe-url', 'semantic-metadata-review'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $semanticDiagnostics)
+        );
+        $t->same([1, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $semanticDiagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $semanticDiagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astSemanticDiagnostics)
+        );
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe semantic URLs to stay diagnostic-only');
+        $t->true(!str_contains($html, 'bad&lt;'), 'Expected malformed semantic terms to stay diagnostic-only');
+    },
     'converts time datetime attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article><p>'

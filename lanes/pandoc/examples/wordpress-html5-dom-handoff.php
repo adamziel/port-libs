@@ -51,6 +51,13 @@ $duplicateBaseFragment = Html5DomFragment::fromHtml(
     . '<base href="https://spoof.example.test/assets/" target="_blank">'
     . '<a href="./doc.html">doc</a><img src="cover.png" alt="Cover">',
 );
+$semanticMetadataLineFragment = Html5DomFragment::fromHtml(
+    "<article itemscope itemtype=\"./types/Local javascript:alert(1)\" itemid=\"./articles/42\" itemref=\"headline bad<tag\">\n"
+    . "<h1 itemprop=\"headline bad<tag\">Title</h1>\n"
+    . "<a property=\"schema:url bad<>\" about=\" ./article&#10;\" resource=\"java&#10;script:alert(1)\" prefix=\"schema: ./schema bad: javascript:alert(1)\" href=\"./canonical.html\">Canonical</a>\n"
+    . '</article>',
+    'https://source.example.test/import/posts/post.html'
+);
 $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
     $fragment->toRawHtmlAst(['part' => '/migration/review-fragment.html']),
 ]);
@@ -141,6 +148,27 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('HTML5 DOM handoff self-test did not keep duplicate base metadata diagnostic-only');
     }
 
+    $semanticLineHtml = $semanticMetadataLineFragment->serialize();
+    $semanticLineDiagnostics = array_values(array_filter(
+        $semanticMetadataLineFragment->diagnostics(),
+        static function (array $diagnostic): bool {
+            $code = (string) ($diagnostic['code'] ?? '');
+            $attribute = (string) ($diagnostic['attribute'] ?? '');
+
+            return in_array($code, ['semantic-metadata-review', 'unsafe-attribute', 'unsafe-url', 'normalized-url'], true)
+                && in_array($attribute, ['itemscope', 'itemtype', 'itemid', 'itemref', 'itemprop', 'property', 'about', 'resource', 'prefix'], true);
+        }
+    ));
+    if (!str_contains($semanticLineHtml, 'data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42"')) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not preserve semantic metadata after source-line diagnostics');
+    }
+    if (array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $semanticLineDiagnostics) !== [1, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3]) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not carry source lines on semantic metadata diagnostics');
+    }
+    if (str_contains($semanticLineHtml, 'javascript:') || str_contains($semanticLineHtml, 'bad&lt;')) {
+        throw new RuntimeException('HTML5 DOM handoff self-test leaked unsafe semantic metadata source values');
+    }
+
     if ($fragment->summary()['blockedTags'] !== ['applet', 'area', 'button', 'canvas', 'embed', 'form', 'iframe', 'input', 'map', 'noscript', 'object', 'optgroup', 'option', 'param', 'plaintext', 'script', 'select', 'template', 'textarea', 'xmp']) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/embed/noscript/template/script/plaintext tags');
     }
@@ -203,3 +231,4 @@ echo $blocks . "\n";
 echo "controlBaseReview:\n" . $controlBaseFragment->serialize() . "\n";
 echo "unsafeBaseReview:\n" . $unsafeBaseFragment->serialize() . "\n";
 echo "duplicateBaseReview:\n" . $duplicateBaseFragment->serialize() . "\n";
+echo "semanticMetadataLineReview:\n" . $semanticMetadataLineFragment->serialize() . "\n";

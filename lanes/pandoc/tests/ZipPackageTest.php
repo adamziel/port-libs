@@ -4125,6 +4125,52 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($declaredTooHigh));
     },
 
+    'preflights duplicate zip central directory names before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "first review media bytes\n",
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "second spoofed review media bytes\n",
+                'method' => 0,
+            ],
+        ]);
+        $summary = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 100.0, 1024);
+        $group = $summary['duplicateEntryNameGroups'][0];
+        $rawGroup = $summary['duplicateEntryRawNameGroups'][0];
+
+        $t->same(2, $summary['declaredEntryCount']);
+        $t->same(2, $summary['scannedEntryCount']);
+        $t->same(false, $summary['hasEntryCountMismatch']);
+        $t->same(true, $summary['hasDuplicateEntryNames']);
+        $t->same(1, $summary['duplicateEntryNameGroupCount']);
+        $t->same(2, $summary['duplicateEntryNameEntryCount']);
+        $t->same(1, $summary['duplicateEntryRawNameGroupCount']);
+        $t->same(2, $summary['duplicateEntryRawNameEntryCount']);
+        $t->same('word/media/review.txt', $group['name']);
+        $t->same(2, $group['count']);
+        $t->same([0, 1], $group['centralDirectoryIndexes']);
+        $t->same(true, $group['localHeaderOffsets'][0] < $group['localHeaderOffsets'][1]);
+        $t->same('word/media/review.txt', $rawGroup['rawName']);
+        $t->same($group['centralDirectoryIndexes'], $rawGroup['centralDirectoryIndexes']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['duplicate-central-directory-entry-names'], $summary['issues']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(2, $rawStrict['entryCount']);
+        $t->same($summary, $rawStrict['centralDirectoryInventory']);
+        $t->same(0, $rawStrict['localHeaderSpans']['issueEntryCount']);
+        $t->contains('central-directory-inventory-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('duplicate-central-directory-entry-names', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'preflights zip central directory recovery metadata before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [

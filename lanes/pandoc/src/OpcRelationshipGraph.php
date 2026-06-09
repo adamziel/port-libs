@@ -4980,6 +4980,12 @@ final class OpcRelationshipGraph
             ];
         }
 
+        foreach (self::wordprocessingUnscopedRelationshipRoles() as $relationshipType => $role) {
+            $definitions[$relationshipType] = [
+                'role' => $role,
+            ];
+        }
+
         foreach (self::drawingMlRelationshipRoles() as $relationshipType => $role) {
             $definitions[$relationshipType] = [
                 'role' => $role,
@@ -5007,6 +5013,16 @@ final class OpcRelationshipGraph
             self::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE => 'custom-xml-properties',
             self::WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE => 'comments-extended',
             self::WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE => 'glossary-document',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function wordprocessingUnscopedRelationshipRoles(): array
+    {
+        return [
+            self::WORDPROCESSING_ALTERNATIVE_FORMAT_IMPORT_RELATIONSHIP_TYPE => 'alternative-format-import',
         ];
     }
 

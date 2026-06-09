@@ -4866,6 +4866,7 @@ final class Html5DomFragment
                     $name,
                     $value,
                     $tagName,
+                    $element,
                     $diagnostics,
                     $baseUrl
                 );
@@ -6700,12 +6701,13 @@ final class Html5DomFragment
         string $name,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics,
         ?string $baseUrl
     ): array {
         $name = strtolower($name);
         if ($name === 'itemscope' || $name === 'inlist') {
-            self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $name);
+            self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $name, $element);
 
             return [
                 $name === 'itemscope' ? 'data-pandoc-microdata-scope' : 'data-pandoc-rdfa-inlist' => 'true',
@@ -6713,33 +6715,33 @@ final class Html5DomFragment
         }
 
         if ($name === 'itemtype') {
-            $tokens = self::normalizeHtmlSemanticUrlTokenList($value, $tagName, $name, $diagnostics, $baseUrl);
+            $tokens = self::normalizeHtmlSemanticUrlTokenList($value, $tagName, $name, $element, $diagnostics, $baseUrl);
 
             return $tokens === null ? [] : ['data-pandoc-microdata-type' => $tokens];
         }
 
         if ($name === 'itemid') {
-            $url = self::normalizeHtmlSemanticUrl($value, $tagName, $name, $diagnostics, $baseUrl);
+            $url = self::normalizeHtmlSemanticUrl($value, $tagName, $name, $element, $diagnostics, $baseUrl);
             if ($url !== null) {
-                self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $name);
+                self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $name, $element);
             }
 
             return $url === null ? [] : ['data-pandoc-microdata-id' => $url];
         }
 
         if ($name === 'about' || $name === 'resource' || $name === 'vocab') {
-            $url = self::normalizeHtmlSemanticUrl($value, $tagName, $name, $diagnostics, $baseUrl);
+            $url = self::normalizeHtmlSemanticUrl($value, $tagName, $name, $element, $diagnostics, $baseUrl);
             if ($url === null) {
                 return [];
             }
 
-            self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $name);
+            self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $name, $element);
 
             return ['data-pandoc-rdfa-' . $name => $url];
         }
 
         if ($name === 'prefix') {
-            $prefixes = self::normalizeHtmlRdfaPrefixMap($value, $tagName, $diagnostics, $baseUrl);
+            $prefixes = self::normalizeHtmlRdfaPrefixMap($value, $tagName, $element, $diagnostics, $baseUrl);
 
             return $prefixes === null ? [] : ['data-pandoc-rdfa-prefix' => $prefixes];
         }
@@ -6756,7 +6758,7 @@ final class Html5DomFragment
             return [];
         }
 
-        $tokens = self::normalizeHtmlSemanticTermTokenList($value, $tagName, $name, $diagnostics);
+        $tokens = self::normalizeHtmlSemanticTermTokenList($value, $tagName, $name, $element, $diagnostics);
 
         return $tokens === null ? [] : [$targetName => $tokens];
     }
@@ -6764,13 +6766,52 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function addSemanticMetadataDiagnostic(array &$diagnostics, string $tagName, string $attributeName): void
-    {
-        $diagnostics[] = [
+    private static function addSemanticMetadataDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        string $attributeName,
+        \DOMElement $element
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'semantic-metadata-review',
             'tag' => $tagName,
             'attribute' => $attributeName,
-        ];
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addSemanticUnsafeAttributeDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        string $attributeName,
+        \DOMElement $element,
+        array $extra = []
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'unsafe-attribute',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            ...$extra,
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addSemanticUrlDiagnostic(
+        array &$diagnostics,
+        string $code,
+        string $tagName,
+        string $attributeName,
+        \DOMElement $element
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => $code,
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+        ], $element);
     }
 
     /**
@@ -6780,26 +6821,20 @@ final class Html5DomFragment
         string $value,
         string $tagName,
         string $attributeName,
+        \DOMElement $element,
         array &$diagnostics,
         ?string $baseUrl
-    ): ?string {
+    ): ?string
+    {
         $normalized = self::normalizeUrlAttributeValue($value);
         if ($normalized === '' || !self::isSafeFetchUrl($normalized)) {
-            $diagnostics[] = [
-                'code' => 'unsafe-url',
-                'tag' => $tagName,
-                'attribute' => $attributeName,
-            ];
+            self::addSemanticUrlDiagnostic($diagnostics, 'unsafe-url', $tagName, $attributeName, $element);
 
             return null;
         }
 
         if ($normalized !== $value) {
-            $diagnostics[] = [
-                'code' => 'normalized-url',
-                'tag' => $tagName,
-                'attribute' => $attributeName,
-            ];
+            self::addSemanticUrlDiagnostic($diagnostics, 'normalized-url', $tagName, $attributeName, $element);
         }
 
         if ($baseUrl !== null) {
@@ -6816,15 +6851,12 @@ final class Html5DomFragment
         string $value,
         string $tagName,
         string $attributeName,
+        \DOMElement $element,
         array &$diagnostics,
         ?string $baseUrl
     ): ?string {
         if (self::hasCompactUnsafeSemanticScheme($value)) {
-            $diagnostics[] = [
-                'code' => 'unsafe-url',
-                'tag' => $tagName,
-                'attribute' => $attributeName,
-            ];
+            self::addSemanticUrlDiagnostic($diagnostics, 'unsafe-url', $tagName, $attributeName, $element);
 
             return null;
         }
@@ -6836,7 +6868,7 @@ final class Html5DomFragment
 
         $normalized = [];
         foreach ($tokens as $token) {
-            $url = self::normalizeHtmlSemanticUrl($token, $tagName, $attributeName, $diagnostics, $baseUrl);
+            $url = self::normalizeHtmlSemanticUrl($token, $tagName, $attributeName, $element, $diagnostics, $baseUrl);
             if ($url === null || in_array($url, $normalized, true)) {
                 continue;
             }
@@ -6848,7 +6880,7 @@ final class Html5DomFragment
             return null;
         }
 
-        self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $attributeName);
+        self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $attributeName, $element);
 
         return implode(' ', $normalized);
     }
@@ -6860,14 +6892,11 @@ final class Html5DomFragment
         string $value,
         string $tagName,
         string $attributeName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?string {
         if (self::hasCompactUnsafeSemanticScheme($value)) {
-            $diagnostics[] = [
-                'code' => 'unsafe-attribute',
-                'tag' => $tagName,
-                'attribute' => $attributeName,
-            ];
+            self::addSemanticUnsafeAttributeDiagnostic($diagnostics, $tagName, $attributeName, $element);
 
             return null;
         }
@@ -6880,12 +6909,9 @@ final class Html5DomFragment
         $normalized = [];
         foreach ($tokens as $token) {
             if (!self::isSafeHtmlSemanticTermToken($token)) {
-                $diagnostics[] = [
-                    'code' => 'unsafe-attribute',
-                    'tag' => $tagName,
-                    'attribute' => $attributeName,
+                self::addSemanticUnsafeAttributeDiagnostic($diagnostics, $tagName, $attributeName, $element, [
                     'token' => $token,
-                ];
+                ]);
                 continue;
             }
 
@@ -6898,7 +6924,7 @@ final class Html5DomFragment
             return null;
         }
 
-        self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $attributeName);
+        self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $attributeName, $element);
 
         return implode(' ', $normalized);
     }
@@ -6955,6 +6981,7 @@ final class Html5DomFragment
     private static function normalizeHtmlRdfaPrefixMap(
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics,
         ?string $baseUrl
     ): ?string {
@@ -6967,7 +6994,7 @@ final class Html5DomFragment
             $prefixes = [];
             foreach ($matches as $match) {
                 $prefix = strtolower((string) $match[1]);
-                $iri = self::normalizeHtmlSemanticUrl((string) $match[2], $tagName, 'prefix', $diagnostics, $baseUrl);
+                $iri = self::normalizeHtmlSemanticUrl((string) $match[2], $tagName, 'prefix', $element, $diagnostics, $baseUrl);
                 if ($iri === null) {
                     continue;
                 }
@@ -6979,16 +7006,12 @@ final class Html5DomFragment
                 return null;
             }
 
-            self::addSemanticMetadataDiagnostic($diagnostics, $tagName, 'prefix');
+            self::addSemanticMetadataDiagnostic($diagnostics, $tagName, 'prefix', $element);
 
             return implode(' ', array_values($prefixes));
         }
 
-        $diagnostics[] = [
-            'code' => 'unsafe-attribute',
-            'tag' => $tagName,
-            'attribute' => 'prefix',
-        ];
+        self::addSemanticUnsafeAttributeDiagnostic($diagnostics, $tagName, 'prefix', $element);
 
         return null;
     }

@@ -6513,6 +6513,106 @@ XML;
         $t->same(false, $policies[$settingsType]['policyValid']);
         $t->same(false, isset($policies[$hyperlinkType]));
     },
+    'classifies WordprocessingML alternative-format imports as unscoped relationship roles' => static function (TestRunner $t): void {
+        $altChunkType = OpcRelationshipGraph::WORDPROCESSING_ALTERNATIVE_FORMAT_IMPORT_RELATIONSHIP_TYPE;
+
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/chunks/review.html" ContentType="text/html"/>
+  <Override PartName="/word/chunks/plain-review.txt" ContentType="text/plain; charset=utf-8"/>
+  <Override PartName="/word/chunks/comment-review.xhtml" ContentType="application/xhtml+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHtmlChunk" Type="{$altChunkType}" Target="chunks/review.html"/>
+  <Relationship Id="rIdPlainTextChunk" Type="{$altChunkType}" Target="chunks/plain-review.txt"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentChunk" Type="{$altChunkType}" Target="chunks/comment-review.xhtml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/chunks/review.html', 'data' => '<p>Imported HTML review</p>'],
+            ['name' => 'word/chunks/plain-review.txt', 'data' => 'Imported plain review'],
+            ['name' => 'word/chunks/comment-review.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Comment review</p></body></html>'],
+        ]));
+
+        $inventory = [];
+        foreach ($graph->relationshipTypeInventory() as $type) {
+            $inventory[$type['type']] = $type;
+        }
+
+        $altChunk = $inventory[$altChunkType] ?? null;
+        $t->same(true, is_array($altChunk));
+        if (!is_array($altChunk)) {
+            return;
+        }
+
+        $t->same('alternative-format-import', $altChunk['knownRole']);
+        $t->same('any-source', $altChunk['sourceScope']);
+        $t->same(null, $altChunk['singletonScope']);
+        $t->same(true, $altChunk['policyValid']);
+        $t->same([], $altChunk['policyIssues']);
+        $t->same(3, $altChunk['relationshipCount']);
+        $t->same(2, $altChunk['sourceCount']);
+        $t->same(['/word/comments.xml', '/word/document.xml'], $altChunk['sources']);
+        $t->same(['rIdCommentChunk'], $altChunk['idsBySource']['/word/comments.xml']);
+        $t->same(['rIdHtmlChunk', 'rIdPlainTextChunk'], $altChunk['idsBySource']['/word/document.xml']);
+        $t->same(3, $altChunk['internalCount']);
+        $t->same(0, $altChunk['externalCount']);
+        $t->same(3, $altChunk['validCount']);
+        $t->same(0, $altChunk['invalidCount']);
+        $t->same([
+            '/word/chunks/comment-review.xhtml',
+            '/word/chunks/plain-review.txt',
+            '/word/chunks/review.html',
+        ], $altChunk['targetParts']);
+        $t->same([
+            'application/xhtml+xml',
+            'text/html',
+            'text/plain; charset=utf-8',
+        ], $altChunk['contentTypes']);
+
+        $documentInventory = [];
+        foreach ($graph->relationshipTypeInventory('/word/document.xml') as $type) {
+            $documentInventory[$type['type']] = $type;
+        }
+        $t->same(2, $documentInventory[$altChunkType]['relationshipCount']);
+        $t->same(null, $documentInventory[$altChunkType]['singletonScope']);
+        $t->same(true, $documentInventory[$altChunkType]['policyValid']);
+
+        $policies = [];
+        foreach ($graph->preflightPackageConsistency()['relationshipTypePolicies'] as $policy) {
+            $policies[$policy['type']] = $policy;
+        }
+        $t->same('alternative-format-import', $policies[$altChunkType]['knownRole'] ?? null);
+        $t->same(true, array_key_exists('singletonScope', $policies[$altChunkType] ?? []));
+        $t->same(null, $policies[$altChunkType]['singletonScope']);
+        $t->same(true, $policies[$altChunkType]['policyValid'] ?? null);
+        $t->same([], $policies[$altChunkType]['policyIssues'] ?? null);
+    },
     'classifies DrawingML relationship roles without source singleton constraints' => static function (TestRunner $t): void {
         $chartType = OpcRelationshipGraph::DRAWINGML_CHART_RELATIONSHIP_TYPE;
         $diagramDataType = OpcRelationshipGraph::DRAWINGML_DIAGRAM_DATA_RELATIONSHIP_TYPE;

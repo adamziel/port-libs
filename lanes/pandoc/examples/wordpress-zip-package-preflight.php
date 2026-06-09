@@ -1417,6 +1417,61 @@ $buildDuplicateLocalOffsetBackedPackage = static function () use ($crc32): strin
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
 };
+$buildDuplicateCentralDirectoryNameBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/review.txt';
+    $parts = [
+        "first duplicate package part bytes\n",
+        "second duplicate package part bytes\n",
+    ];
+    $body = '';
+    $central = '';
+
+    foreach ($parts as $data) {
+        $crc = $crc32($data);
+        $offset = strlen($body);
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($name),
+            0
+        );
+        $body .= $name . $data;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            0x81a40000,
+            $offset
+        );
+        $central .= $name;
+    }
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
+};
 $buildPrefixedZipBackedPackage = static function () use ($crc32): string {
     $prefix = "MZhidden-review-stub\n";
     $name = 'word/document.xml';
@@ -4291,6 +4346,20 @@ try {
 } catch (RuntimeException $exception) {
     $duplicateLocalOffsetRejected = str_contains($exception->getMessage(), 'Duplicate ZIP local header offset');
 }
+$duplicateCentralDirectoryNameBytes = $buildDuplicateCentralDirectoryNameBackedPackage();
+$duplicateCentralDirectoryNameInventory = ZipPackage::centralDirectoryInventoryPreflight($duplicateCentralDirectoryNameBytes);
+$duplicateCentralDirectoryNameRawStrictPreflight = ZipPackage::rawStrictImportPreflight(
+    $duplicateCentralDirectoryNameBytes,
+    4096,
+    100.0,
+    4096
+);
+$duplicateCentralDirectoryNameRejected = false;
+try {
+    ZipPackage::fromString($duplicateCentralDirectoryNameBytes);
+} catch (RuntimeException $exception) {
+    $duplicateCentralDirectoryNameRejected = str_contains($exception->getMessage(), 'Duplicate ZIP package entry');
+}
 $centralDirectorySignaturePackage = ZipPackage::fromString($buildCentralDirectorySignatureBackedPackage());
 $centralDirectorySignaturePreflight = $centralDirectorySignaturePackage->centralDirectorySignaturePreflight();
 $centralDirectorySignatureParsed = ($centralDirectorySignaturePreflight['signatureData'] ?? null) === 'central-signature'
@@ -6166,6 +6235,21 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected duplicate ZIP local header offsets to be rejected before media import');
     }
 
+    if (
+        !$duplicateCentralDirectoryNameRejected
+        || ($duplicateCentralDirectoryNameInventory['hasDuplicateEntryNames'] ?? null) !== true
+        || ($duplicateCentralDirectoryNameInventory['duplicateEntryNameGroupCount'] ?? null) !== 1
+        || ($duplicateCentralDirectoryNameInventory['duplicateEntryNameEntryCount'] ?? null) !== 2
+        || ($duplicateCentralDirectoryNameInventory['duplicateEntryNameGroups'][0]['name'] ?? null) !== 'word/media/review.txt'
+        || ($duplicateCentralDirectoryNameInventory['duplicateEntryNameGroups'][0]['centralDirectoryIndexes'] ?? null) !== [0, 1]
+        || ($duplicateCentralDirectoryNameInventory['isSupportedByBoundedReader'] ?? null) !== false
+        || !in_array('duplicate-central-directory-entry-names', $duplicateCentralDirectoryNameInventory['issues'] ?? [], true)
+        || ($duplicateCentralDirectoryNameRawStrictPreflight['canInstantiate'] ?? true) !== false
+        || !in_array('duplicate-central-directory-entry-names', $duplicateCentralDirectoryNameRawStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected duplicate ZIP central-directory names to stay blocked before media import');
+    }
+
     if (!$centralDirectorySignatureParsed) {
         throw new RuntimeException('Expected ZIP central-directory digital signature metadata to be inspectable before media import');
     }
@@ -6662,6 +6746,9 @@ echo 'zipDosDirectoryAttributePolicy=' . ($dosDirectoryAttributeMismatchRejected
 echo 'zipUnixFileTypeNamePolicy=' . ($unixFileTypeNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateLocalOffsetPolicy=' . ($duplicateLocalOffsetRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipDuplicateCentralDirectoryNamePolicy=' . ($duplicateCentralDirectoryNameRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipDuplicateCentralDirectoryNameGroups=' . $duplicateCentralDirectoryNameInventory['duplicateEntryNameGroupCount'] . "\n";
+echo 'zipDuplicateCentralDirectoryNameRawStrictDiagnostics=' . implode(',', $duplicateCentralDirectoryNameRawStrictPreflight['diagnostics']) . "\n";
 echo 'zipCentralDirectorySignaturePolicy=' . ($centralDirectorySignatureParsed ? 'inspectable' : 'not-inspectable') . "\n";
 echo 'zipCentralDirectorySignatureLength=' . $centralDirectorySignaturePreflight['signatureLength'] . "\n";
 echo 'zipCentralDirectorySignatureVerification=' . $centralDirectorySignaturePreflight['cryptographicVerification'] . "\n";

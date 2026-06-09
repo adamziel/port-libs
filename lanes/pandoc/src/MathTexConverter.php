@@ -790,14 +790,17 @@ final class MathTexConverter
         'Biggm' => ['size' => '3em', 'separator' => true],
     ];
 
-    /** @var array<string, array{open?: string, close?: string, columnalign?: string}> */
+    /** @var array<string, array{open?: string, close?: string, columnalign?: string, displaystyle?: bool}> */
     private const MATRIX_ENVIRONMENTS = [
         'aligned' => ['columnalign' => 'right left'],
         'bmatrix' => ['open' => '[', 'close' => ']'],
         'Bmatrix' => ['open' => '{', 'close' => '}'],
         'cases' => ['open' => '{', 'columnalign' => 'left left'],
+        'dcases' => ['open' => '{', 'columnalign' => 'left left', 'displaystyle' => true],
+        'drcases' => ['close' => '}', 'columnalign' => 'left left', 'displaystyle' => true],
         'matrix' => [],
         'pmatrix' => ['open' => '(', 'close' => ')'],
+        'rcases' => ['close' => '}', 'columnalign' => 'left left'],
         'vmatrix' => ['open' => '|', 'close' => '|'],
         'Vmatrix' => ['open' => '‖', 'close' => '‖'],
     ];
@@ -3323,6 +3326,9 @@ final class MathTexConverter
         $attributes .= $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
         $table = $this->environmentTable($rows, $attributes);
+        if (($spec['displaystyle'] ?? false) === true) {
+            $table = '<mstyle displaystyle="true">' . $table . '</mstyle>';
+        }
 
         if (isset($spec['open']) || isset($spec['close'])) {
             $wrapped = '<mrow>';

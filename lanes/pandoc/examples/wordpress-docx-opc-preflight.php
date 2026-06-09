@@ -610,6 +610,35 @@ $relationshipRecordShapePackage = ZipPackage::fromParts([
     ['name' => 'word/_rels/duplicate-id.xml.rels', 'data' => $relationshipRecordDuplicateIdXml],
 ]);
 
+$alternativeFormatImportPolicyRelationshipType = OpcRelationshipGraph::WORDPROCESSING_ALTERNATIVE_FORMAT_IMPORT_RELATIONSHIP_TYPE;
+$alternativeFormatImportPolicyContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/chunks/review.html" ContentType="text/html"/>
+  <Override PartName="/word/chunks/plain-review.txt" ContentType="text/plain; charset=utf-8"/>
+</Types>
+XML;
+$alternativeFormatImportPolicyRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+$alternativeFormatImportPolicyDocumentRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHtmlChunk" Type="{$alternativeFormatImportPolicyRelationshipType}" Target="chunks/review.html"/>
+  <Relationship Id="rIdPlainTextChunk" Type="{$alternativeFormatImportPolicyRelationshipType}" Target="chunks/plain-review.txt"/>
+</Relationships>
+XML;
+$alternativeFormatImportPolicyPackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $alternativeFormatImportPolicyContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $alternativeFormatImportPolicyRootRelationshipsXml],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/document.xml.rels', 'data' => $alternativeFormatImportPolicyDocumentRelationshipsXml],
+    ['name' => 'word/chunks/review.html', 'data' => '<p>Imported review</p>'],
+    ['name' => 'word/chunks/plain-review.txt', 'data' => 'Imported review'],
+]);
+
 $fixedContentTypesItemContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -1305,6 +1334,28 @@ foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($relationship
         'issues' => $part['issues'],
         'parseError' => $part['parseError'],
     ];
+}
+
+$alternativeFormatImportPolicyGraph = OpcRelationshipGraph::fromPackage($alternativeFormatImportPolicyPackage);
+$alternativeFormatImportPolicyGuard = null;
+foreach ($alternativeFormatImportPolicyGraph->preflightPackageConsistency()['relationshipTypePolicies'] as $policy) {
+    if ($policy['type'] !== $alternativeFormatImportPolicyRelationshipType) {
+        continue;
+    }
+
+    $alternativeFormatImportPolicyGuard = [
+        'type' => $policy['type'],
+        'knownRole' => $policy['knownRole'],
+        'sourceScope' => $policy['sourceScope'],
+        'singletonScope' => $policy['singletonScope'],
+        'policyValid' => $policy['policyValid'],
+        'policyIssues' => $policy['policyIssues'],
+        'relationshipCount' => $policy['relationshipCount'],
+        'sourceCount' => $policy['sourceCount'],
+        'targetParts' => $policy['targetParts'],
+        'contentTypes' => $policy['contentTypes'],
+    ];
+    break;
 }
 
 $fixedContentTypesItemGraph = OpcRelationshipGraph::fromPackage($fixedContentTypesItemPackage);
@@ -2416,6 +2467,7 @@ $summary = [
     'packageRootExternalTargetGuards' => $packageRootExternalTargetGuards,
     'externalTargetPercentGuards' => $externalTargetPercentGuards,
     'relationshipRecordShapeGuards' => $relationshipRecordShapeGuards,
+    'alternativeFormatImportPolicyGuard' => $alternativeFormatImportPolicyGuard,
     'fixedContentTypesItemGuard' => $fixedContentTypesItemGuard,
     'reservedRelationshipContentTypeGuard' => $reservedRelationshipContentTypeGuard,
     'reservedRelationshipDirectoryGuard' => $reservedRelationshipDirectoryGuard,
@@ -2497,6 +2549,7 @@ $summary = [
             array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === true)
         )),
         'externalTargetPercentGuards' => array_values($externalTargetPercentGuards),
+        'alternativeFormatImportPolicy' => $alternativeFormatImportPolicyGuard,
         'digitalSignatureParts' => $digitalSignatureParts,
         'digitalSignatureRoleIssues' => array_values(array_filter(
             $digitalSignatureRelationshipRoles['roles'],
@@ -3316,6 +3369,20 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains((string) ($summary['relationshipRecordShapeGuards']['/word/_rels/invalid-id.xml.rels']['parseError'] ?? ''), 'XML NCName-style identifier')
         || ($summary['relationshipRecordShapeGuards']['/word/_rels/duplicate-id.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'duplicate-relationship-id']
         || !str_contains((string) ($summary['relationshipRecordShapeGuards']['/word/_rels/duplicate-id.xml.rels']['parseError'] ?? ''), 'Duplicate OPC relationship Id: rIdReviewImage')
+        || ($summary['alternativeFormatImportPolicyGuard']['knownRole'] ?? null) !== 'alternative-format-import'
+        || ($summary['alternativeFormatImportPolicyGuard']['sourceScope'] ?? null) !== 'any-source'
+        || !array_key_exists('singletonScope', $summary['alternativeFormatImportPolicyGuard'] ?? [])
+        || $summary['alternativeFormatImportPolicyGuard']['singletonScope'] !== null
+        || ($summary['alternativeFormatImportPolicyGuard']['policyValid'] ?? null) !== true
+        || ($summary['alternativeFormatImportPolicyGuard']['policyIssues'] ?? null) !== []
+        || ($summary['alternativeFormatImportPolicyGuard']['relationshipCount'] ?? null) !== 2
+        || ($summary['alternativeFormatImportPolicyGuard']['sourceCount'] ?? null) !== 1
+        || ($summary['alternativeFormatImportPolicyGuard']['targetParts'] ?? null) !== ['/word/chunks/plain-review.txt', '/word/chunks/review.html']
+        || ($summary['alternativeFormatImportPolicyGuard']['contentTypes'] ?? null) !== ['text/html', 'text/plain; charset=utf-8']
+        || ($summary['wordpressImport']['alternativeFormatImportPolicy']['knownRole'] ?? null) !== 'alternative-format-import'
+        || !array_key_exists('singletonScope', $summary['wordpressImport']['alternativeFormatImportPolicy'] ?? [])
+        || $summary['wordpressImport']['alternativeFormatImportPolicy']['singletonScope'] !== null
+        || ($summary['wordpressImport']['alternativeFormatImportPolicy']['policyValid'] ?? null) !== true
         || ($summary['fixedContentTypesItemGuard']['overridePart'] ?? null) !== '/[Content_Types].xml'
         || ($summary['fixedContentTypesItemGuard']['overrideExists'] ?? null) !== true
         || ($summary['fixedContentTypesItemGuard']['overrideValid'] ?? null) !== false

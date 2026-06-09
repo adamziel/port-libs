@@ -1839,6 +1839,30 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases}</annotation>', $casesMathml);
         $t->contains('<mo fence="true" stretchy="true">{</mo><mtable columnalign="left left"><mtr><mtd><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd><mtd><mi>a</mi><mo>≥</mo><mi>b</mi></mtd></mtr><mtr><mtd><mroot><mi>x</mi><mi>n</mi></mroot></mtd><mtd><mi>a</mi><mo>&lt;</mo><mi>b</mi></mtd></mtr></mtable>', $nestedCasesMathml);
     },
+    'converts bounded tex mathtools cases aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $dcasesMathml = $converter->texToMathMl('\\begin{dcases}p_i & p_i \\in P \\\\ 0 & \\text{otherwise}\\end{dcases}', true);
+        $rcasesMathml = $converter->texToMathMl('\\begin{rcases}q_i & q_i \\in Q \\\\ 0 & \\text{otherwise}\\end{rcases}', true);
+        $drcasesStarMathml = $converter->texToMathMl('\\begin{drcases*}r_i & r_i \\in R \\\\ 0 & \\text{otherwise}\\end{drcases*}', true);
+        $accessibleRcasesMathml = $converter->texToAccessibleMathMl('\\begin{rcases}x & y\\end{rcases}');
+        $combined = $dcasesMathml . $rcasesMathml . $drcasesStarMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $dcasesMathml);
+        $t->contains('<mo fence="true" stretchy="true">{</mo><mstyle displaystyle="true"><mtable columnalign="left left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable></mstyle>', $dcasesMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{dcases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{dcases}</annotation>', $dcasesMathml);
+        $t->contains('<mrow><mtable columnalign="left left"><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><msub><mi>q</mi><mi>i</mi></msub><mo>∈</mo><mi>Q</mi></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable><mo fence="true" stretchy="true">}</mo></mrow>', $rcasesMathml);
+        $t->contains('<mstyle displaystyle="true"><mtable columnalign="left left"><mtr><mtd><msub><mi>r</mi><mi>i</mi></msub></mtd><mtd><msub><mi>r</mi><mi>i</mi></msub><mo>∈</mo><mi>R</mi></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable></mstyle><mo fence="true" stretchy="true">}</mo>', $drcasesStarMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{drcases*}r_i &amp; r_i \\in R \\\\ 0 &amp; \\text{otherwise}\\end{drcases*}</annotation>', $drcasesStarMathml);
+        $t->contains('alttext="table row x, y right brace"', $accessibleRcasesMathml);
+        $t->contains('intent="row(table(row(x,y)),right_brace)"', $accessibleRcasesMathml);
+        $t->true(!str_contains($combined, '<mi>\\dcases</mi>'));
+        $t->true(!str_contains($combined, '<mi>\\rcases</mi>'));
+        $t->true(!str_contains($combined, '<mi>\\drcases</mi>'));
+        $t->true(!str_contains($drcasesStarMathml, '<mo>*</mo>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{dcases}\\end{dcases}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{rcases}x & y\\end{dcases}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{drcases*}x & y\\end{drcases}'));
+    },
     'converts bounded tex starred matrix environment aliases to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $starredMatrixMathml = $converter->texToMathMl('\\begin{pmatrix*}p_i & m_i \\\\ q_i & n_i\\end{pmatrix*}', true);
