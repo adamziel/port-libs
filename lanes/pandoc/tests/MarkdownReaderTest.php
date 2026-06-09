@@ -17422,6 +17422,58 @@ XML;
         $t->true(!str_contains($blocks, 'onfocus'), 'Unsafe inline event handlers should not survive translate attribute handoff');
         $t->true(!str_contains($blocks, 'style='), 'Unsafe style attributes should not survive translate attribute handoff');
     },
+    'writes wordpress html writer attributes for lists and items' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('bullet_list', [
+                'id' => 'review-list',
+                'classes' => ['source-list'],
+                'attributes' => [
+                    'data-pandoc-list' => 'bullet',
+                    'aria-label' => 'Review tasks',
+                    'lang' => 'en',
+                    'onclick' => 'alert(1)',
+                    'style' => 'list-style:none',
+                ],
+            ], [
+                new AstNode('list_item', [
+                    'id' => 'task-one',
+                    'classes' => ['import-task'],
+                    'attributes' => [
+                        'data-item' => 'source',
+                        'title' => 'Check "media"',
+                        'onclick' => 'alert(1)',
+                        'style' => 'display:none',
+                    ],
+                ], [new AstNode('text', ['text' => 'Check media'])]),
+            ]),
+            new AstNode('ordered_list', [
+                'start' => 3,
+                'style' => 'upper_alpha',
+                'id' => 'review-steps',
+                'classes' => ['source-steps'],
+                'attributes' => [
+                    'data-pandoc-list' => 'ordered',
+                    'dir' => 'ltr',
+                    'onfocus' => 'alert(1)',
+                    'style' => 'color:red',
+                ],
+            ], [
+                new AstNode('list_item', [
+                    'classes' => ['step-item'],
+                    'attributes' => [
+                        'data-item' => 'ordered',
+                    ],
+                ], [new AstNode('plain', [], [new AstNode('text', ['text' => 'Approve'])])]),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<ul id="review-list" class="source-list" data-pandoc-list="bullet" aria-label="Review tasks" lang="en"><li id="task-one" class="import-task" data-item="source" title="Check &quot;media&quot;">Check media</li></ul>', $blocks);
+        $t->contains('<ol start="3" type="A" id="review-steps" class="source-steps" data-pandoc-list="ordered" dir="ltr"><li class="step-item" data-item="ordered">Approve</li></ol>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe list event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'onfocus'), 'Unsafe ordered-list focus handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe list style attributes should not survive HTML writer attribute handoff');
+    },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');
         $blocks = (new WordPressBlockWriter())->write($document);

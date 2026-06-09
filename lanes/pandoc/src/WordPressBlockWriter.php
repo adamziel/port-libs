@@ -187,9 +187,7 @@ final class WordPressBlockWriter
 
     private function renderUnorderedListTagAttrs(AstNode $node): string
     {
-        $attrs = $node->attr('taskList') === true ? ' class="task-list"' : '';
-
-        return $attrs . $this->renderOdfListDataAttrs($node);
+        return $this->renderListTagAttrs($node, false);
     }
 
     private function renderListHeaderHtml(AstNode $item): string
@@ -210,28 +208,50 @@ final class WordPressBlockWriter
             $attrs .= ' type="' . $this->esc($type) . '"';
         }
 
-        return $attrs . $this->renderOdfListDataAttrs($node);
+        return $attrs . $this->renderListTagAttrs($node, true);
     }
 
-    private function renderOdfListDataAttrs(AstNode $node): string
+    private function renderListTagAttrs(AstNode $node, bool $ordered): string
     {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
         $attrs = '';
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes)) {
-            return $attrs;
+
+        $id = $htmlAttributes['id'] ?? null;
+        if (is_scalar($id) && (string) $id !== '') {
+            $attrs .= ' id="' . $this->esc((string) $id) . '"';
+        }
+
+        $classes = [];
+        if (!$ordered && $node->attr('taskList') === true) {
+            $classes[] = 'task-list';
+        }
+        $class = $htmlAttributes['class'] ?? null;
+        if (is_scalar($class)) {
+            foreach (preg_split('/\s+/', trim((string) $class), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $className) {
+                $classes[] = $className;
+            }
+        }
+        if ($classes !== []) {
+            $attrs .= ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
         }
 
         foreach ($htmlAttributes as $name => $value) {
-            if (!is_scalar($value)) {
+            $name = strtolower((string) $name);
+            if (
+                $name === 'id'
+                || $name === 'class'
+                || !$this->isAllowedHtmlWriterAttr($name)
+                || !is_scalar($value)
+            ) {
                 continue;
             }
 
-            $name = (string) $name;
-            if (!str_starts_with($name, 'data-odf-list-')) {
+            $value = (string) $value;
+            if ($value === '') {
                 continue;
             }
 
-            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
         }
 
         return $attrs;
@@ -306,7 +326,12 @@ final class WordPressBlockWriter
             $html .= $this->renderInlineNode($child);
         }
 
-        return '<li>' . $html . '</li>';
+        return '<li' . $this->renderListItemAttrs($item) . '>' . $html . '</li>';
+    }
+
+    private function renderListItemAttrs(AstNode $node): string
+    {
+        return $this->renderHtmlWriterAttrs($node, true);
     }
 
     private function renderTaskListLabel(bool $checked, string $html): string
