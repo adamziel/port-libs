@@ -4834,6 +4834,61 @@ XML;
         $t->contains('Calculation settings stay metadata-only.', $markdown);
         $t->contains('<p>Calculation settings stay metadata-only.</p>', $blocksHtml);
     },
+    'maps ODT consolidation declarations into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithConsolidations = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:consolidation
+        table:function="sum"
+        table:source-cell-range-addresses="Review.A2:Review.D12 Archive.A2:Archive.D12"
+        table:target-cell-address="Summary.A2"
+        table:use-labels="column row"
+        table:link-to-source-data="true"/>
+      <table:consolidation
+        table:function="count"
+        table:target-cell-address="Summary.F2"
+        table:link-to-source-data="false"/>
+      <text:p>Consolidations stay metadata-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithConsolidations));
+        $declarations = $result['contentDeclarations'];
+        $consolidations = is_array($declarations['consolidations'] ?? null) ? $declarations['consolidations'] : [];
+        $sum = is_array($consolidations[0] ?? null) ? $consolidations[0] : [];
+        $count = is_array($consolidations[1] ?? null) ? $consolidations[1] : [];
+
+        $t->same(2, $declarations['consolidationCount'] ?? null);
+        $t->same(2, $declarations['consolidationSourceRangeCount'] ?? null);
+        $t->same(2, count($consolidations));
+        $t->same('sum', $sum['function'] ?? null);
+        $t->same('Review.A2:Review.D12 Archive.A2:Archive.D12', $sum['sourceCellRangeAddressesRaw'] ?? null);
+        $t->same(['Review.A2:Review.D12', 'Archive.A2:Archive.D12'], $sum['sourceCellRangeAddresses'] ?? null);
+        $t->same(2, $sum['sourceRangeCount'] ?? null);
+        $t->same('Summary.A2', $sum['targetCellAddress'] ?? null);
+        $t->same('column row', $sum['useLabels'] ?? null);
+        $t->same(true, $sum['linkToSourceData'] ?? null);
+        $t->same('count', $count['function'] ?? null);
+        $t->same('Summary.F2', $count['targetCellAddress'] ?? null);
+        $t->same(false, $count['linkToSourceData'] ?? null);
+        $t->same($declarations, $result['document']->attr('contentDeclarations'));
+        $t->same(2, $result['importReport']['contentDeclarations']['consolidationCount'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['consolidationSourceRangeCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['consolidationCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['consolidationSourceRangeCount'] ?? null);
+        $t->same('Consolidations stay metadata-only.', $result['document']->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Consolidations stay metadata-only.', $markdown);
+        $t->contains('<p>Consolidations stay metadata-only.</p>', $blocksHtml);
+    },
     'maps ODT source metadata fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSourceMetadataFields = <<<'XML'
 <office:document-content

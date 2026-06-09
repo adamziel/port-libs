@@ -53,6 +53,7 @@ $contentXml = <<<'XML'
         <table:label-range table:label-cell-range-address="Review.A2:Review.A12" table:data-cell-range-address="Review.B2:Review.D12" table:orientation="row"/>
       </table:label-ranges>
       <table:calculation-settings table:case-sensitive="true" table:precision-as-shown="false" table:search-criteria-must-apply-to-whole-cell="true" table:automatic-find-labels="true" table:use-regular-expressions="false" table:use-wildcards="true" table:null-year="1930" table:iteration="true" table:iteration-count="75" table:iteration-tolerance="0.0001"/>
+      <table:consolidation table:function="sum" table:source-cell-range-addresses="Review.A2:Review.D12 Archive.A2:Archive.D12" table:target-cell-address="Summary.A2" table:use-labels="column row" table:link-to-source-data="true"/>
       <table:data-pilot-tables>
         <table:data-pilot-table table:name="ReadyPostPivot" table:application-data="wp-import-review" table:target-range-address="Pivot.A1:Pivot.D8" table:buttons="true" table:show-filter-button="true" table:grand-total="both" table:ignore-empty-rows="true" table:identify-categories="false">
           <table:source-cell-range table:cell-range-address="Review.A1:Review.D12"/>
@@ -176,6 +177,21 @@ if (in_array('--self-test', $argv, true)) {
         || ($calculationSettings['iterationCount'] ?? null) !== 75
         || ($calculationSettings['iterationTolerance'] ?? '') !== '0.0001') {
         throw new RuntimeException('Expected ODT calculation settings policy metadata to be preserved');
+    }
+    if (($declarations['consolidationCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT consolidation metadata to be counted in the import report');
+    }
+    if (($declarations['consolidationSourceRangeCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT consolidation source ranges to be counted in the import report');
+    }
+    $consolidations = $result['document']->attr('contentDeclarations')['consolidations'] ?? [];
+    $consolidation = is_array($consolidations[0] ?? null) ? $consolidations[0] : null;
+    if (!is_array($consolidation)
+        || ($consolidation['function'] ?? '') !== 'sum'
+        || ($consolidation['targetCellAddress'] ?? '') !== 'Summary.A2'
+        || ($consolidation['sourceCellRangeAddresses'] ?? []) !== ['Review.A2:Review.D12', 'Archive.A2:Archive.D12']
+        || ($consolidation['linkToSourceData'] ?? null) !== true) {
+        throw new RuntimeException('Expected ODT consolidation source and target metadata to be preserved');
     }
     $namedExpressions = $result['document']->attr('contentDeclarations')['namedExpressionsByName'] ?? [];
     $readyRows = is_array($namedExpressions) ? ($namedExpressions['ReadyPostRows'] ?? null) : null;

@@ -279,6 +279,8 @@ final class OdfReader
                     'contentValidationMessageCount' => (int) ($content['contentDeclarations']['contentValidationMessageCount'] ?? 0),
                     'labelRangeCount' => (int) ($content['contentDeclarations']['labelRangeCount'] ?? 0),
                     'calculationSettingCount' => (int) ($content['contentDeclarations']['calculationSettingCount'] ?? 0),
+                    'consolidationCount' => (int) ($content['contentDeclarations']['consolidationCount'] ?? 0),
+                    'consolidationSourceRangeCount' => (int) ($content['contentDeclarations']['consolidationSourceRangeCount'] ?? 0),
                     'namedExpressionCount' => (int) ($content['contentDeclarations']['namedExpressionCount'] ?? 0),
                     'namedRangeCount' => (int) ($content['contentDeclarations']['namedRangeCount'] ?? 0),
                     'namedFormulaExpressionCount' => (int) ($content['contentDeclarations']['namedFormulaExpressionCount'] ?? 0),
@@ -3722,6 +3724,12 @@ final class OdfReader
         }
         $calculationSettings = $this->calculationSettingsFromText($text);
 
+        $consolidations = $this->consolidationsFromText($text);
+        $consolidationSourceRangeCount = 0;
+        foreach ($consolidations as $consolidation) {
+            $consolidationSourceRangeCount += (int) ($consolidation['sourceRangeCount'] ?? 0);
+        }
+
         $databaseRanges = $this->databaseRangesFromText($text);
         $databaseRangesByName = [];
         $databaseSubtotalRuleCount = 0;
@@ -3830,6 +3838,9 @@ final class OdfReader
             'labelRangeOrientationCounts' => $labelRangeOrientationCounts,
             'calculationSettingCount' => $calculationSettings === [] ? 0 : 1,
             'calculationSettings' => $calculationSettings,
+            'consolidationCount' => count($consolidations),
+            'consolidationSourceRangeCount' => $consolidationSourceRangeCount,
+            'consolidations' => $consolidations,
             'namedExpressionCount' => count($namedExpressions),
             'namedRangeCount' => $namedRangeCount,
             'namedFormulaExpressionCount' => $namedFormulaExpressionCount,
@@ -4091,6 +4102,62 @@ final class OdfReader
             'iterationCount' => self::nullableInt(self::attr($settings, self::TABLE_NS, 'iteration-count')),
             'iterationTolerance' => self::nullable(self::attr($settings, self::TABLE_NS, 'iteration-tolerance')),
         ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function consolidationsFromText(\DOMElement $text): array
+    {
+        $consolidations = [];
+        foreach (self::childElements($text, 'consolidation', self::TABLE_NS) as $consolidation) {
+            $definition = $this->consolidationDefinition($consolidation);
+            if ($definition !== []) {
+                $consolidations[] = $definition;
+            }
+        }
+
+        return $consolidations;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function consolidationDefinition(\DOMElement $consolidation): array
+    {
+        $sourceRangesRaw = self::attr($consolidation, self::TABLE_NS, 'source-cell-range-addresses');
+        $sourceRanges = $this->consolidationSourceRangeAddresses($sourceRangesRaw);
+
+        return self::withoutEmpty([
+            'function' => self::nullable(self::attr($consolidation, self::TABLE_NS, 'function')),
+            'sourceCellRangeAddressesRaw' => self::nullable($sourceRangesRaw),
+            'sourceCellRangeAddresses' => $sourceRanges,
+            'sourceRangeCount' => $sourceRanges === [] ? null : count($sourceRanges),
+            'targetCellAddress' => self::nullable(self::attr($consolidation, self::TABLE_NS, 'target-cell-address')),
+            'useLabels' => self::nullable(self::attr($consolidation, self::TABLE_NS, 'use-labels')),
+            'linkToSourceData' => self::nullableBool(self::attr($consolidation, self::TABLE_NS, 'link-to-source-data')),
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function consolidationSourceRangeAddresses(string $raw): array
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return [];
+        }
+
+        $tokens = preg_split('/\s+/', $raw);
+        if (!is_array($tokens)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (string $token): string => trim($token), $tokens),
+            static fn (string $token): bool => $token !== '',
+        ));
     }
 
     /**
