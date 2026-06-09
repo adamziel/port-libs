@@ -6632,6 +6632,7 @@ final class OdfReader
     private function senderFieldSettingsMetadata(string $fieldType): array
     {
         $settingNamesByField = [
+            'author-initials' => ['Initials'],
             'sender-firstname' => ['FirstName', 'GivenName'],
             'sender-lastname' => ['LastName', 'FamilyName', 'Surname'],
             'sender-initials' => ['Initials'],

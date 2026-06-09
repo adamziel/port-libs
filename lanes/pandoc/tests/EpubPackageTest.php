@@ -510,6 +510,103 @@ return [
         $t->same($metadata['sourceSummary'], $summary['wordpressImport']['metadataDetails']['sourceSummary']);
     },
 
+    'summarizes OPF bibliographic Dublin Core metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithBibliographicMetadata = str_replace(
+            '<dc:language>en-US</dc:language>',
+            '<dc:subject>Data Liberation</dc:subject>
+    <dc:description id="summary" xml:lang="en" dir="ltr">Importer review summary.</dc:description>
+    <dc:publisher id="publisher">Migration Publisher</dc:publisher>
+    <dc:rights id="license" xml:lang="en">Creative Commons Attribution-ShareAlike 4.0</dc:rights>
+    <dc:type id="resource-type" scheme="dcterms:DCMIType">Text</dc:type>
+    <dc:format id="format" scheme="IANA">application/epub+zip</dc:format>
+    <dc:relation id="source-post">https://example.test/posts/42</dc:relation>
+    <dc:coverage id="coverage">Global migration packet</dc:coverage>
+    <dc:language>en-US</dc:language>',
+            $epub3OpfXml
+        );
+        $opfWithBibliographicMetadata = str_replace(
+            '</metadata>',
+            '    <meta refines="#license" property="authority">Creative Commons</meta>
+    <meta refines="#license" property="term">CC-BY-SA-4.0</meta>
+    <meta refines="#resource-type" property="authority">DCMI Type Vocabulary</meta>
+    <meta refines="#resource-type" property="term">Text</meta>
+    <meta refines="#source-post" property="display-seq">1</meta>
+    <meta refines="#source-post" property="file-as">Post 42</meta>
+    <meta refines="#coverage" property="alternate-script" xml:lang="fr">Dossier de migration mondial</meta>
+  </metadata>',
+            $opfWithBibliographicMetadata
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithBibliographicMetadata],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $details = $metadata['bibliographicDetails'];
+        $byKind = $metadata['bibliographicDetailsByKind'];
+        $bibliographicSummary = $metadata['bibliographicSummary'];
+
+        $t->same(['Data Liberation'], $metadata['subjects']);
+        $t->same('Importer review summary.', $metadata['description']);
+        $t->same('Migration Publisher', $metadata['publisher']);
+        $t->same(7, count($details));
+        $t->same(['description', 'publisher', 'rights', 'type', 'format', 'relation', 'coverage'], $bibliographicSummary['kinds']);
+        $t->same(7, $bibliographicSummary['count']);
+        $t->same(7, $bibliographicSummary['kindCount']);
+        $t->same(2, $bibliographicSummary['authorityCount']);
+        $t->same(2, $bibliographicSummary['termCount']);
+        $t->same(0, $bibliographicSummary['linkedResourceCount']);
+        $t->same(1, $bibliographicSummary['kindCounts']['rights']);
+        $t->same([], $bibliographicSummary['diagnostics']);
+
+        $description = $byKind['description'][0];
+        $t->same('summary', $description['id']);
+        $t->same('Importer review summary.', $description['text']);
+        $t->same('en', $description['language']);
+        $t->same('ltr', $description['direction']);
+
+        $rights = $byKind['rights'][0];
+        $t->same('license', $rights['id']);
+        $t->same('Creative Commons Attribution-ShareAlike 4.0', $rights['text']);
+        $t->same('Creative Commons', $rights['authority']);
+        $t->same('CC-BY-SA-4.0', $rights['term']);
+        $t->same('Creative Commons', $rights['authorityEntries'][0]['text']);
+        $t->same('CC-BY-SA-4.0', $rights['termEntries'][0]['value']);
+
+        $type = $byKind['type'][0];
+        $t->same('resource-type', $type['id']);
+        $t->same('dcterms:DCMIType', $type['scheme']);
+        $t->same('DCMI Type Vocabulary', $type['authority']);
+        $t->same('Text', $type['term']);
+
+        $format = $byKind['format'][0];
+        $t->same('IANA', $format['scheme']);
+        $t->same('application/epub+zip', $format['text']);
+
+        $relation = $byKind['relation'][0];
+        $t->same('source-post', $relation['id']);
+        $t->same('https://example.test/posts/42', $relation['text']);
+        $t->same('1', $relation['displaySeq']);
+        $t->same('Post 42', $relation['fileAs']);
+
+        $coverage = $byKind['coverage'][0];
+        $t->same('Global migration packet', $coverage['text']);
+        $t->same('Dossier de migration mondial', $coverage['alternateScripts'][0]['text']);
+        $t->same('fr', $coverage['alternateScripts'][0]['language']);
+
+        $t->same($details, $summary['wordpressImport']['metadataDetails']['bibliographicDetails']);
+        $t->same($byKind, $summary['wordpressImport']['metadataDetails']['bibliographicDetailsByKind']);
+        $t->same($bibliographicSummary, $summary['wordpressImport']['metadataDetails']['bibliographicSummary']);
+    },
+
     'preserves OPF guide references and XHTML nav sections for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithGuide = str_replace(
             '</spine>',

@@ -5950,6 +5950,59 @@ XML;
         $t->contains('<span class="odf-field odf-field-sender-firstname" data-odf-field-type="sender-firstname" data-odf-field-string-value="Maya" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="FirstName">Maya</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-sender-email" data-odf-field-type="sender-email" data-odf-field-string-value="desk@example.test" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="EMail">desk@example.test</span>', $blocksHtml);
     },
+    'maps empty ODT author initials from settings XML into review spans' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $contentWithEmptyAuthorInitials = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Reviewed by <text:author-initials/> from package user settings.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <office:settings>
+    <config:config-item-set config:name="ooo:user-settings">
+      <config:config-item config:name="Initials" config:type="string">ME</config:config-item>
+    </config:config-item-set>
+  </office:settings>
+</office:document-settings>
+XML;
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithEmptyAuthorInitials, $manifestWithSettings, null, null, [
+            ['name' => 'settings.xml', 'data' => $settingsXml],
+        ]));
+        $paragraph = $result['document']->children[0];
+        $initials = $paragraph->children[1];
+
+        $t->same('Reviewed by ME from package user settings.', $paragraph->attr('text'));
+        $t->same('author-initials', $initials->attr('fieldType'));
+        $t->same('ME', $initials->attr('fieldMetadata')['stringValue']);
+        $t->same('settings.xml', $initials->attr('fieldMetadata')['settingsSource']);
+        $t->same('ooo:user-settings', $initials->attr('fieldMetadata')['settingsSet']);
+        $t->same('Initials', $initials->attr('fieldMetadata')['settingsName']);
+        $t->same('ME', $initials->children[0]->attr('text'));
+        $t->same('ME', $initials->attr('attributes')['data-odf-field-string-value']);
+        $t->same('settings.xml', $initials->attr('attributes')['data-odf-field-settings-source']);
+        $t->same('ooo:user-settings', $initials->attr('attributes')['data-odf-field-settings-set']);
+        $t->same('Initials', $initials->attr('attributes')['data-odf-field-settings-name']);
+        $t->same(1, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[ME]{.odf-field .odf-field-author-initials data-odf-field-type="author-initials" data-odf-field-string-value="ME" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="Initials"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-author-initials" data-odf-field-type="author-initials" data-odf-field-string-value="ME" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="Initials">ME</span>', $blocksHtml);
+    },
     'maps ODT field number date and time format metadata into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithFormattedFields = <<<'XML'
 <office:document-content
