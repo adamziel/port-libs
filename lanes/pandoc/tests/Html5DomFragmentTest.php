@@ -4538,6 +4538,35 @@ return [
         $t->true(!str_contains($html, 'viewBox="html attr"'), 'Expected SVG desc fallback attributes to stay in HTML casing');
         $t->true(!str_contains($html, '<textPath>'), 'Expected SVG desc fallback children to stay in HTML casing');
     },
+    'treats svg title descendants as html integration point content before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<svg><title><p viewBox="html attr"><textPath>Title fallback</textPath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></p></title></svg>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/svg-title-html-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<svg><title><p viewbox="html attr"><textpath>Title fallback</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></p></title></svg>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same(['linearGradient', 'p', 'svg', 'textpath', 'title'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same('svg', $nodes[0]['name']);
+        $t->same('title', $nodes[0]['children'][0]['name']);
+        $t->same('p', $nodes[0]['children'][0]['children'][0]['name']);
+        $t->same(['viewbox' => 'html attr'], $nodes[0]['children'][0]['children'][0]['attrs']);
+        $t->same('textpath', $nodes[0]['children'][0]['children'][0]['children'][0]['name']);
+        $t->same(['viewBox' => '0 0 1 1'], $nodes[0]['children'][0]['children'][0]['children'][1]['attrs']);
+        $t->same('/migration/svg-title-html-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, 'viewBox="html attr"'), 'Expected SVG title fallback attributes to stay in HTML casing');
+        $t->true(!str_contains($html, '<textPath>'), 'Expected SVG title fallback children to stay in HTML casing');
+        $t->true(!str_contains($html, '&lt;p viewBox'), 'Expected SVG title fallback markup to stay parsed instead of escaped as RCDATA');
+    },
     'adds source line metadata to html fragment sanitizer diagnostics' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             "<article>\n"

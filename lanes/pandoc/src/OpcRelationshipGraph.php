@@ -340,6 +340,94 @@ final class OpcRelationshipGraph
         return $preflight;
     }
 
+    /**
+     * @return array{valid:bool, relationshipPartCount:int, loadedCount:int, skippedCount:int, validCount:int, invalidCount:int, relationshipCount:int, loadedPartNames:list<string>, skippedPartNames:list<string>, loadedSources:list<string>, skippedSources:list<string>, loadActionCounts:array<string, int>, loadReasonCounts:array<string, int>, partNamesByLoadReason:array<string, list<string>>, issueCounts:array<string, int>, partNamesByIssue:array<string, list<string>>, issues:list<string>}
+     */
+    public static function relationshipPartLoadSummary(ZipPackage $package): array
+    {
+        $summary = [
+            'valid' => true,
+            'relationshipPartCount' => 0,
+            'loadedCount' => 0,
+            'skippedCount' => 0,
+            'validCount' => 0,
+            'invalidCount' => 0,
+            'relationshipCount' => 0,
+            'loadedPartNames' => [],
+            'skippedPartNames' => [],
+            'loadedSources' => [],
+            'skippedSources' => [],
+            'loadActionCounts' => [],
+            'loadReasonCounts' => [],
+            'partNamesByLoadReason' => [],
+            'issueCounts' => [],
+            'partNamesByIssue' => [],
+            'issues' => [],
+        ];
+
+        foreach (self::preflightRelationshipPartsInPackage($package) as $part) {
+            $summary['relationshipPartCount']++;
+            $summary['loadActionCounts'][$part['loadAction']] = ($summary['loadActionCounts'][$part['loadAction']] ?? 0) + 1;
+            $summary['loadReasonCounts'][$part['loadReason']] = ($summary['loadReasonCounts'][$part['loadReason']] ?? 0) + 1;
+            $summary['partNamesByLoadReason'][$part['loadReason']][] = $part['partName'];
+
+            if ($part['loaded']) {
+                $summary['loadedCount']++;
+                $summary['loadedPartNames'][] = $part['partName'];
+                $summary['relationshipCount'] += $part['relationshipCount'] ?? 0;
+                if ($part['relationshipSource'] !== null) {
+                    self::appendUniqueString($summary['loadedSources'], $part['relationshipSource']);
+                }
+            } else {
+                $summary['skippedCount']++;
+                $summary['skippedPartNames'][] = $part['partName'];
+                if ($part['relationshipSource'] !== null) {
+                    self::appendUniqueString($summary['skippedSources'], $part['relationshipSource']);
+                }
+            }
+
+            if ($part['valid']) {
+                $summary['validCount']++;
+            } else {
+                $summary['invalidCount']++;
+                $summary['valid'] = false;
+            }
+
+            foreach ($part['issues'] as $issue) {
+                self::appendUniqueString($summary['issues'], $issue);
+                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                $summary['partNamesByIssue'][$issue][] = $part['partName'];
+            }
+        }
+
+        foreach ([
+            'loadedPartNames',
+            'skippedPartNames',
+            'loadedSources',
+            'skippedSources',
+            'issues',
+        ] as $listKey) {
+            sort($summary[$listKey], SORT_STRING);
+        }
+
+        ksort($summary['loadActionCounts'], SORT_STRING);
+        ksort($summary['loadReasonCounts'], SORT_STRING);
+        ksort($summary['partNamesByLoadReason'], SORT_STRING);
+        foreach ($summary['partNamesByLoadReason'] as &$partNames) {
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+
+        ksort($summary['issueCounts'], SORT_STRING);
+        ksort($summary['partNamesByIssue'], SORT_STRING);
+        foreach ($summary['partNamesByIssue'] as &$partNames) {
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+
+        return $summary;
+    }
+
     public function package(): ZipPackage
     {
         return $this->package;

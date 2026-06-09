@@ -1409,6 +1409,7 @@ foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as 
         'parseError' => $part['parseError'],
     ];
 }
+$relationshipPartLoadSummary = OpcRelationshipGraph::relationshipPartLoadSummary($package);
 
 $directRelationshipContentTypeGuard = [
     'source' => '/word/draft.xml',
@@ -2192,6 +2193,7 @@ $summary = [
         'relationshipTypePolicies' => $packageConsistencyRelationshipTypePolicies,
     ],
     'relationshipPartLoads' => $relationshipPartLoads,
+    'relationshipPartLoadSummary' => $relationshipPartLoadSummary,
     'directRelationshipContentTypeGuard' => $directRelationshipContentTypeGuard,
     'packageParts' => $packagePartPreflight,
     'relationshipSources' => $graph->sourcePartNames(),
@@ -2302,6 +2304,16 @@ $summary = [
             ],
             $relationshipSourceInventory
         )),
+        'relationshipPartLoadSummary' => [
+            'relationshipPartCount' => $relationshipPartLoadSummary['relationshipPartCount'],
+            'loadedCount' => $relationshipPartLoadSummary['loadedCount'],
+            'skippedCount' => $relationshipPartLoadSummary['skippedCount'],
+            'invalidCount' => $relationshipPartLoadSummary['invalidCount'],
+            'relationshipCount' => $relationshipPartLoadSummary['relationshipCount'],
+            'loadReasonCounts' => $relationshipPartLoadSummary['loadReasonCounts'],
+            'issueCounts' => $relationshipPartLoadSummary['issueCounts'],
+            'issues' => $relationshipPartLoadSummary['issues'],
+        ],
         'relationshipClosureReview' => [
             'source' => $relationshipSourceClosureSummary['source'],
             'expandedSourceCount' => $relationshipSourceClosureSummary['expandedSourceCount'],
@@ -2951,6 +2963,25 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['loadReason'] ?? null) !== 'invalid-relationship-content-type'
         || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['relationshipCount'] ?? null) !== null
         || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
+        || ($summary['relationshipPartLoadSummary']['valid'] ?? null) !== false
+        || ($summary['relationshipPartLoadSummary']['relationshipPartCount'] ?? null) !== 6
+        || ($summary['relationshipPartLoadSummary']['loadedCount'] ?? null) !== 5
+        || ($summary['relationshipPartLoadSummary']['skippedCount'] ?? null) !== 1
+        || ($summary['relationshipPartLoadSummary']['validCount'] ?? null) !== 5
+        || ($summary['relationshipPartLoadSummary']['invalidCount'] ?? null) !== 1
+        || ($summary['relationshipPartLoadSummary']['relationshipCount'] ?? null) !== 26
+        || ($summary['relationshipPartLoadSummary']['loadActionCounts'] ?? null) !== ['loaded' => 5, 'skipped' => 1]
+        || ($summary['relationshipPartLoadSummary']['loadReasonCounts'] ?? null) !== ['invalid-relationship-content-type' => 1, 'loaded' => 5]
+        || ($summary['relationshipPartLoadSummary']['issueCounts'] ?? null) !== ['invalid-relationship-content-type' => 1]
+        || ($summary['relationshipPartLoadSummary']['partNamesByIssue']['invalid-relationship-content-type'] ?? null) !== ['/word/_rels/draft.xml.rels']
+        || ($summary['wordpressImport']['relationshipPartLoadSummary']['relationshipPartCount'] ?? null) !== 6
+        || ($summary['wordpressImport']['relationshipPartLoadSummary']['loadedCount'] ?? null) !== 5
+        || ($summary['wordpressImport']['relationshipPartLoadSummary']['skippedCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['relationshipPartLoadSummary']['invalidCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['relationshipPartLoadSummary']['relationshipCount'] ?? null) !== 26
+        || ($summary['wordpressImport']['relationshipPartLoadSummary']['loadReasonCounts'] ?? null) !== ['invalid-relationship-content-type' => 1, 'loaded' => 5]
+        || ($summary['wordpressImport']['relationshipPartLoadSummary']['issueCounts'] ?? null) !== ['invalid-relationship-content-type' => 1]
+        || ($summary['wordpressImport']['relationshipPartLoadSummary']['issues'] ?? null) !== ['invalid-relationship-content-type']
         || ($summary['directRelationshipContentTypeGuard']['source'] ?? null) !== '/word/draft.xml'
         || ($summary['directRelationshipContentTypeGuard']['relationshipPartName'] ?? null) !== '/word/_rels/draft.xml.rels'
         || ($summary['directRelationshipContentTypeGuard']['hasRelationshipsForSource'] ?? null) !== false

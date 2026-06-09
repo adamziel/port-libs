@@ -213,6 +213,26 @@ return [
         $t->true($nestedGradient instanceof DOMElement, 'Expected nested SVG descendant to re-enter foreign-content casing');
         $t->same('<svg><desc><p viewbox="html attr"><textpath>HTML fallback</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></p></desc></svg>', $serialized);
     },
+    'treats svg title descendants as html integration point content' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<svg><title><p viewBox="html attr"><textPath>Title fallback</textPath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></p></title></svg>'
+        );
+        $svg = Html5Dom::firstChildElement($body, 'svg');
+        $title = $svg instanceof DOMElement ? Html5Dom::firstChildElement($svg, 'title') : null;
+        $paragraph = $title instanceof DOMElement ? Html5Dom::firstChildElement($title, 'p') : null;
+        $textPath = $paragraph instanceof DOMElement ? Html5Dom::firstChildElement($paragraph, 'textpath') : null;
+        $nestedSvg = $paragraph instanceof DOMElement ? Html5Dom::firstChildElement($paragraph, 'svg') : null;
+        $nestedGradient = $nestedSvg instanceof DOMElement ? Html5Dom::firstChildElement($nestedSvg, 'linearGradient') : null;
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($title instanceof DOMElement, 'Expected SVG title integration point to survive parsing');
+        $t->true($paragraph instanceof DOMElement, 'Expected HTML paragraph descendant inside SVG title');
+        $t->same(['viewbox' => 'html attr'], $paragraph instanceof DOMElement ? Html5Dom::attributes($paragraph) : []);
+        $t->true($textPath instanceof DOMElement, 'Expected SVG-style textPath token inside title to stay HTML lowercase');
+        $t->true($nestedGradient instanceof DOMElement, 'Expected nested SVG descendant to re-enter foreign-content casing');
+        $t->same('<svg><title><p viewbox="html attr"><textpath>Title fallback</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></p></title></svg>', $serialized);
+        $t->true(!str_contains($serialized, '&lt;p viewBox'), 'Expected SVG title fallback markup to stay parsed instead of escaped as RCDATA');
+    },
     'treats mathml token text descendants as html integration points' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<math><mtext><span viewBox="html attr"><textPath>HTML text</textPath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></span></mtext>'

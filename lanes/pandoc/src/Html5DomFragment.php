@@ -505,7 +505,7 @@ final class Html5DomFragment
             return self::normalizeHtmlMetaElement($node, $diagnostics, $baseUrl);
         }
 
-        if ($mode === 'html' && $name === 'title') {
+        if ($mode === 'html' && $elementForeignContext === null && $name === 'title') {
             return self::normalizeHtmlTitleElement($node, $diagnostics);
         }
 
@@ -2888,7 +2888,7 @@ final class Html5DomFragment
 
     private static function isSvgHtmlIntegrationPointName(string $name): bool
     {
-        return in_array($name, ['foreignobject', 'desc'], true);
+        return in_array($name, ['foreignobject', 'desc', 'title'], true);
     }
 
     private static function isMathMlTextIntegrationPointName(string $name): bool

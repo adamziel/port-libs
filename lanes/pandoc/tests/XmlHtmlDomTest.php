@@ -237,6 +237,31 @@ return [
         $t->same('linearGradient', $nestedSvg['children'][0]['name']);
         $t->same('<svg><desc><p viewbox="html attr"><textpath>HTML fallback</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></p></desc></svg>', $html);
     },
+    'treats svg title descendants as html integration point content' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<svg><title><p viewBox="html attr"><textPath>Title fallback</textPath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></p></title></svg>',
+            'svg title integration-point fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $svg = $summary[0];
+        $title = $svg['children'][0];
+        $paragraph = $title['children'][0];
+        $textPath = $paragraph['children'][0];
+        $nestedSvg = $paragraph['children'][1];
+
+        $t->same('svg', $svg['name']);
+        $t->same('title', $title['name']);
+        $t->same('p', $paragraph['name']);
+        $t->same(['viewbox' => 'html attr'], $paragraph['attributes']);
+        $t->same('textpath', $textPath['name']);
+        $t->same('svg', $nestedSvg['name']);
+        $t->same(['viewBox' => '0 0 1 1'], $nestedSvg['attributes']);
+        $t->same('linearGradient', $nestedSvg['children'][0]['name']);
+        $t->same('<svg><title><p viewbox="html attr"><textpath>Title fallback</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></p></title></svg>', $html);
+        $t->true(!str_contains($html, '&lt;p viewBox'), 'Expected SVG title fallback markup to stay parsed instead of escaped as RCDATA');
+    },
     'keeps mathml token text integration descendants in html casing' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<math><mtext><span viewBox="html attr"><textPath>HTML text</textPath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></span></mtext>'

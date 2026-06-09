@@ -395,6 +395,11 @@ final class XmlHtmlDom
                 self::protectHtmlCdataSections(substr($html, $offset, $startOffset - $offset))
             ) . $startTag;
 
+            if ($name === 'title' && self::isHtmlTitleStartInSvgContext($html, $startOffset)) {
+                $offset = $contentStart;
+                continue;
+            }
+
             if ($name === 'plaintext') {
                 $protected .= self::escapeHtmlRawTextContent(substr($html, $contentStart)) . '</plaintext>';
 
@@ -425,6 +430,69 @@ final class XmlHtmlDom
         return $protected . self::normalizeHtml5NamedCharacterReferences(
             self::protectHtmlCdataSections(substr($html, $offset))
         );
+    }
+
+    private static function isHtmlTitleStartInSvgContext(string $html, int $startOffset): bool
+    {
+        $prefix = substr($html, 0, $startOffset);
+        if ($prefix === '') {
+            return false;
+        }
+
+        $tagCount = preg_match_all(
+            '~<\s*(/?)\s*([A-Za-z][A-Za-z0-9:-]*)(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is',
+            $prefix,
+            $matches,
+            PREG_SET_ORDER
+        );
+        if ($tagCount === false || $tagCount === 0) {
+            return false;
+        }
+
+        $stack = [];
+        foreach ($matches as $match) {
+            $fullTag = (string) $match[0];
+            $isClosing = (string) $match[1] === '/';
+            $name = strtolower((string) $match[2]);
+            $name = str_contains($name, ':') ? substr($name, (int) strrpos($name, ':') + 1) : $name;
+
+            if ($isClosing) {
+                for ($index = count($stack) - 1; $index >= 0; --$index) {
+                    if ($stack[$index] === $name) {
+                        array_splice($stack, $index, 1);
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            if (str_ends_with(rtrim($fullTag), '/>') || isset(self::HTML5_VOID_ELEMENTS[$name])) {
+                continue;
+            }
+
+            $stack[] = $name;
+        }
+
+        $lastSvgIndex = null;
+        for ($index = count($stack) - 1; $index >= 0; --$index) {
+            if ($stack[$index] === 'svg') {
+                $lastSvgIndex = $index;
+                break;
+            }
+        }
+
+        if ($lastSvgIndex === null) {
+            return false;
+        }
+
+        $htmlIntegrationAncestors = ['foreignobject' => true, 'desc' => true, 'title' => true];
+        foreach (array_slice($stack, $lastSvgIndex + 1) as $ancestor) {
+            if (isset($htmlIntegrationAncestors[$ancestor])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static function normalizedText(\DOMNode $node): string
@@ -844,7 +912,7 @@ final class XmlHtmlDom
 
     private static function isSvgHtmlIntegrationPointName(string $name): bool
     {
-        return in_array($name, ['foreignobject', 'desc'], true);
+        return in_array($name, ['foreignobject', 'desc', 'title'], true);
     }
 
     private static function isMathMlTextIntegrationPointName(string $name): bool

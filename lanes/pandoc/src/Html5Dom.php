@@ -389,7 +389,7 @@ final class Html5Dom
 
     private static function isSvgHtmlIntegrationPointName(string $name): bool
     {
-        return in_array($name, ['foreignobject', 'desc'], true);
+        return in_array($name, ['foreignobject', 'desc', 'title'], true);
     }
 
     private static function isMathMlTextIntegrationPointName(string $name): bool

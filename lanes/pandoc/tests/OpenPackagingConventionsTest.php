@@ -8397,7 +8397,134 @@ XML;
         $t->same('relationship-part-source', $loads['/word/_rels/_rels/document.xml.rels.rels']['loadReason']);
         $t->same(['relationship-part-source'], $loads['/word/_rels/_rels/document.xml.rels.rels']['issues']);
 
+        $summary = OpcRelationshipGraph::relationshipPartLoadSummary($package);
+        $t->same(false, $summary['valid']);
+        $t->same(8, $summary['relationshipPartCount']);
+        $t->same(2, $summary['loadedCount']);
+        $t->same(6, $summary['skippedCount']);
+        $t->same(2, $summary['validCount']);
+        $t->same(6, $summary['invalidCount']);
+        $t->same(4, $summary['relationshipCount']);
+        $t->same([
+            '/_rels/.rels',
+            '/word/_rels/document.xml.rels',
+        ], $summary['loadedPartNames']);
+        $t->same([
+            '/word/_rels/_rels/document.xml.rels.rels',
+            '/word/_rels/comments.xml.rels',
+            '/word/_rels/malformed.xml.rels',
+            '/word/_rels/media/document.xml.rels',
+            '/word/_rels/missing.xml.rels',
+            '/word/_rels/targetmode.xml.rels',
+        ], $summary['skippedPartNames']);
+        $t->same(['/', '/word/document.xml'], $summary['loadedSources']);
+        $t->same([
+            '/word/_rels/document.xml.rels',
+            '/word/comments.xml',
+            '/word/malformed.xml',
+            '/word/missing.xml',
+            '/word/targetmode.xml',
+        ], $summary['skippedSources']);
+        $t->same(['loaded' => 2, 'skipped' => 6], $summary['loadActionCounts']);
+        $t->same([
+            'invalid-relationship-content-type' => 1,
+            'invalid-relationship-part-name' => 1,
+            'loaded' => 2,
+            'malformed-relationship-xml' => 2,
+            'orphan-relationship-part' => 1,
+            'relationship-part-source' => 1,
+        ], $summary['loadReasonCounts']);
+        $t->same([
+            '/word/_rels/malformed.xml.rels',
+            '/word/_rels/targetmode.xml.rels',
+        ], $summary['partNamesByLoadReason']['malformed-relationship-xml']);
+        $t->same([
+            'invalid-relationship-content-type' => 1,
+            'invalid-relationship-part-name' => 1,
+            'invalid-relationship-target-mode' => 1,
+            'malformed-relationship-xml' => 2,
+            'orphan-relationship-part' => 1,
+            'relationship-part-source' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            '/word/_rels/targetmode.xml.rels',
+        ], $summary['partNamesByIssue']['invalid-relationship-target-mode']);
+        $t->same([
+            'invalid-relationship-content-type',
+            'invalid-relationship-part-name',
+            'invalid-relationship-target-mode',
+            'malformed-relationship-xml',
+            'orphan-relationship-part',
+            'relationship-part-source',
+        ], $summary['issues']);
+
         $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage($package));
+    },
+    'summarizes OPC relationship part load counts by action reason and issue' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/_rels/comments.xml.rels" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
+</Relationships>
+XML;
+
+        $summary = OpcRelationshipGraph::relationshipPartLoadSummary(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/_rels/missing.xml.rels', 'data' => $commentsRelationshipsXml],
+        ]));
+
+        $t->same(false, $summary['valid']);
+        $t->same(4, $summary['relationshipPartCount']);
+        $t->same(2, $summary['loadedCount']);
+        $t->same(2, $summary['skippedCount']);
+        $t->same(2, $summary['validCount']);
+        $t->same(2, $summary['invalidCount']);
+        $t->same(2, $summary['relationshipCount']);
+        $t->same(['loaded' => 2, 'skipped' => 2], $summary['loadActionCounts']);
+        $t->same([
+            'invalid-relationship-content-type' => 1,
+            'loaded' => 2,
+            'orphan-relationship-part' => 1,
+        ], $summary['loadReasonCounts']);
+        $t->same([
+            'invalid-relationship-content-type' => 1,
+            'orphan-relationship-part' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            '/_rels/.rels',
+            '/word/_rels/document.xml.rels',
+        ], $summary['partNamesByLoadReason']['loaded']);
+        $t->same(['/word/_rels/comments.xml.rels'], $summary['partNamesByIssue']['invalid-relationship-content-type']);
+        $t->same(['/word/_rels/missing.xml.rels'], $summary['partNamesByIssue']['orphan-relationship-part']);
+        $t->same([
+            'invalid-relationship-content-type',
+            'orphan-relationship-part',
+        ], $summary['issues']);
     },
     'classifies malformed OPC relationship records by required attribute and id issues' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
