@@ -4598,6 +4598,9 @@ final class Html5DomFragment
      */
     private static function htmlBaseTargetMetadataNodes(\DOMElement $wrapper, array &$diagnostics): array
     {
+        $metadataNodes = [];
+        $hasActiveTarget = false;
+
         foreach ($wrapper->getElementsByTagName('base') as $baseElement) {
             if (!$baseElement instanceof \DOMElement || !$baseElement->hasAttribute('target')) {
                 continue;
@@ -4606,11 +4609,17 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($hasActiveTarget) {
+                $diagnostics[] = self::duplicateHtmlBaseDiagnostic($baseElement, 'target');
+                continue;
+            }
+
             $target = self::normalizeHtmlBaseTargetValue($baseElement->getAttribute('target'), $diagnostics);
             if ($target === null) {
                 continue;
             }
 
+            $hasActiveTarget = true;
             $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'base-target-review',
                 'tag' => 'base',
@@ -4619,7 +4628,7 @@ final class Html5DomFragment
                 'reason' => 'base-target-preserved-as-metadata',
             ], $baseElement);
 
-            return [[
+            $metadataNodes[] = [
                 'type' => 'element',
                 'name' => 'span',
                 'attrs' => [
@@ -4631,10 +4640,10 @@ final class Html5DomFragment
                     'type' => 'text',
                     'text' => 'Base target: ' . $target,
                 ]],
-            ]];
+            ];
         }
 
-        return [];
+        return $metadataNodes;
     }
 
     /**
@@ -7923,6 +7932,8 @@ final class Html5DomFragment
     private static function resolveFragmentBaseUrl(\DOMElement $wrapper, ?string $callerBaseUrl, array &$diagnostics): ?string
     {
         $documentBaseUrl = self::normalizeCallerBaseUrl($callerBaseUrl);
+        $resolvedBaseUrl = null;
+        $hasActiveHref = false;
 
         foreach ($wrapper->getElementsByTagName('base') as $baseElement) {
             if (!$baseElement instanceof \DOMElement || !$baseElement->hasAttribute('href')) {
@@ -7937,10 +7948,16 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($hasActiveHref) {
+                $diagnostics[] = self::duplicateHtmlBaseDiagnostic($baseElement, 'href');
+                continue;
+            }
+
             $normalizedHref = self::normalizeUrlAttributeValue($href);
             if ($normalizedHref === '') {
                 continue;
             }
+            $hasActiveHref = true;
             if ($normalizedHref !== $href) {
                 $diagnostics[] = [
                     'code' => 'normalized-url',
@@ -7951,13 +7968,24 @@ final class Html5DomFragment
 
             $resolved = self::resolveBaseHref($normalizedHref, $documentBaseUrl, $diagnostics);
             if ($resolved !== null) {
-                return $resolved;
+                $resolvedBaseUrl = $resolved;
             }
-
-            break;
         }
 
-        return $documentBaseUrl;
+        return $resolvedBaseUrl ?? $documentBaseUrl;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function duplicateHtmlBaseDiagnostic(\DOMElement $element, string $attribute): array
+    {
+        return self::diagnosticWithSourceLine([
+            'code' => 'duplicate-base-ignored',
+            'tag' => 'base',
+            'attribute' => $attribute,
+            'reason' => 'first-active-base-' . $attribute . '-already-used',
+        ], $element);
     }
 
     private static function isInactiveFragmentBaseElement(\DOMElement $element): bool

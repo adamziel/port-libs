@@ -46,6 +46,11 @@ $unsafeBaseFragment = Html5DomFragment::fromHtml(
     '<base href="java&#10;script:alert(1)"><a href="./doc.html">doc</a>',
     'https://source.example.test/import/posts/post.html'
 );
+$duplicateBaseFragment = Html5DomFragment::fromHtml(
+    '<base href="https://source.example.test/import/posts/post.html" target="review-frame">'
+    . '<base href="https://spoof.example.test/assets/" target="_blank">'
+    . '<a href="./doc.html">doc</a><img src="cover.png" alt="Cover">',
+);
 $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
     $fragment->toRawHtmlAst(['part' => '/migration/review-fragment.html']),
 ]);
@@ -118,6 +123,24 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('HTML5 DOM handoff self-test did not reject unsafe control-separated base URL metadata');
     }
 
+    $duplicateBaseHtml = $duplicateBaseFragment->serialize();
+    $duplicateBaseDiagnostics = array_values(array_filter(
+        $duplicateBaseFragment->diagnosticCodes(),
+        static fn (string $code): bool => $code === 'duplicate-base-ignored'
+    ));
+    if ($duplicateBaseFragment->baseUrl() !== 'https://source.example.test/import/posts/post.html') {
+        throw new RuntimeException('HTML5 DOM handoff self-test let duplicate base href override first base metadata');
+    }
+    if (!str_contains($duplicateBaseHtml, '<span data-pandoc-meta-name="base-target" data-pandoc-meta-source="base" data-pandoc-meta-content="review-frame">Base target: review-frame</span>')) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not preserve first base target metadata');
+    }
+    if (!str_contains($duplicateBaseHtml, '<a href="https://source.example.test/import/posts/doc.html">doc</a>')) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not resolve links from the first duplicate-base href');
+    }
+    if (count($duplicateBaseDiagnostics) !== 2 || str_contains($duplicateBaseHtml, 'spoof.example.test') || str_contains($duplicateBaseHtml, 'target=')) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not keep duplicate base metadata diagnostic-only');
+    }
+
     if ($fragment->summary()['blockedTags'] !== ['applet', 'area', 'button', 'canvas', 'embed', 'form', 'iframe', 'input', 'map', 'noscript', 'object', 'optgroup', 'option', 'param', 'plaintext', 'script', 'select', 'template', 'textarea', 'xmp']) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/embed/noscript/template/script/plaintext tags');
     }
@@ -179,3 +202,4 @@ if (($argv[1] ?? '') === '--self-test') {
 echo $blocks . "\n";
 echo "controlBaseReview:\n" . $controlBaseFragment->serialize() . "\n";
 echo "unsafeBaseReview:\n" . $unsafeBaseFragment->serialize() . "\n";
+echo "duplicateBaseReview:\n" . $duplicateBaseFragment->serialize() . "\n";

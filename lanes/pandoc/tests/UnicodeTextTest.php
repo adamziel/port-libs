@@ -1420,6 +1420,34 @@ return [
         $t->same("A\u{FFFD}B", $malformedEscape['text']);
         $t->same(1, $malformedEscape['repairs']);
     },
+    'decodes iso 2022 jp jis0212 plane two escape state into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# ISO2022 JIS0212\n\nPlane2 "
+            . "\x1B\x24\x28\x44\x29\x21\x29\x2D\x1B\x28\x42; "
+            . "\x1B\x24\x28\x44\x27\x44\x27\x74\x1B\x28\x42; "
+            . "\x1B\x24\x28\x44\x26\x71\x26\x77\x1B\x28\x42.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-2022-jp');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csiso2022jp');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $badLead = UnicodeText::decodeBytes("\x1B\x24\x28\x44\x7F\x1B\x28\x42A", 'iso-2022-jp');
+        $badTrail = UnicodeText::decodeBytes("\x1B\x24\x28\x44\x29 A", 'iso-2022-jp');
+        $unmappedPair = UnicodeText::decodeBytes("\x1B\x24\x28\x44\x22\x21\x1B\x28\x42A", 'iso-2022-jp');
+
+        $t->same('iso-2022-jp', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# ISO2022 JIS0212\n\nPlane2 ÆŒ; Єє; άό.", $decoded['text']);
+        $t->same(['encoding' => 'iso-2022-jp', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('ISO2022 JIS0212', $document->children[0]->attr('text'));
+        $t->same('Plane2 ÆŒ; Єє; άό.', $document->children[1]->attr('text'));
+        $t->same(18, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="iso2022-jis0212">ISO2022 JIS0212</h1>', $blocks);
+        $t->contains('<p>Plane2 ÆŒ; Єє; άό.</p>', $blocks);
+        $t->same("\u{FFFD}A", $badLead['text']);
+        $t->same(1, $badLead['repairs']);
+        $t->same("\u{FFFD} A", $badTrail['text']);
+        $t->same(1, $badTrail['repairs']);
+        $t->same("\u{FFFD}A", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+    },
     'repairs iso 2022 jp sources that end before returning to ascii state' => static function (TestRunner $t): void {
         $bytes = "# \x1B\$B\x37\x57\x32\x68\x1B(B\n\n\x1B\$B\x4B\x5C\x4A\x38";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-2022-jp');

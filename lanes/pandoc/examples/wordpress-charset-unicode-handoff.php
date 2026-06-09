@@ -195,6 +195,12 @@ $eucJpText = (string) $eucJpSource->children[1]->attr('text');
 $eucJpPlane2Bytes = "# JIS0212\n\nPlane2 \x8F\xA9\xA1\x8F\xA9\xAD; \x8F\xA7\xC4\x8F\xA7\xF4; \x8F\xA6\xF1\x8F\xA6\xF7.";
 $eucJpPlane2Source = (new MarkdownReader())->readBytes($eucJpPlane2Bytes, 'euc-jp');
 $eucJpPlane2Text = (string) $eucJpPlane2Source->children[1]->attr('text');
+$iso2022JpPlane2Bytes = "# ISO2022 JIS0212\n\nPlane2 "
+    . "\x1B\x24\x28\x44\x29\x21\x29\x2D\x1B\x28\x42; "
+    . "\x1B\x24\x28\x44\x27\x44\x27\x74\x1B\x28\x42; "
+    . "\x1B\x24\x28\x44\x26\x71\x26\x77\x1B\x28\x42.";
+$iso2022JpPlane2Source = (new MarkdownReader())->readBytes($iso2022JpPlane2Bytes, 'iso-2022-jp');
+$iso2022JpPlane2Text = (string) $iso2022JpPlane2Source->children[1]->attr('text');
 $iso2022JpBytes = "# \x1B\$B\x37\x57\x32\x68\x1B(B\n\n"
     . "\x1B\$B\x4B\x5C\x4A\x38\x24\x48\x48\x3E\x33\x51\x1B(I\x36\x40\x36\x45"
     . "\x1B\$B\x21\x22\x34\x5D\x2D\x21\x47\x48\x21\x41\x3A\x6A\x21\x23"
@@ -858,6 +864,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucJpPlane2Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucJpPlane2Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ISO-2022-JP JIS0212 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $iso2022JpPlane2Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso2022JpPlane2Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso2022JpPlane2Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ISO-2022-JP source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $iso2022JpText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso2022JpSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso2022JpText) . '/' . UnicodeText::displayWidth($iso2022JpText, 'wide')])]),
@@ -1424,6 +1435,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>EUC-JP JIS0212 source</td><td>Plane2 ÆŒ; Єє; άό.</td><td>euc-jp:18</td>')) {
         throw new RuntimeException('charset handoff self-test missing EUC-JP JIS0212 decode audit row');
+    }
+    if (($iso2022JpPlane2Source->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-2022-jp') {
+        throw new RuntimeException('charset handoff self-test missing ISO-2022-JP JIS0212 source encoding');
+    }
+    if (!str_contains($blocks, '<td>ISO-2022-JP JIS0212 source</td><td>Plane2 ÆŒ; Єє; άό.</td><td>iso-2022-jp:18</td>')) {
+        throw new RuntimeException('charset handoff self-test missing ISO-2022-JP JIS0212 decode audit row');
     }
     if (($iso2022JpSource->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-2022-jp') {
         throw new RuntimeException('charset handoff self-test missing ISO-2022-JP source encoding');

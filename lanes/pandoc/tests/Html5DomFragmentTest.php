@@ -2935,6 +2935,62 @@ return [
         $t->same(['normalized-url', 'unsafe-url', 'blocked-tag'], $unsafeBase->diagnosticCodes());
         $t->true(!str_contains($unsafeHtml, 'javascript:'), 'Expected control-separated unsafe base scheme to be rejected');
     },
+    'ignores duplicate active base href and target metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html" target="review-frame">'
+            . '<base href="https://spoof.example.test/assets/" target="_blank">'
+            . '<base href="../ignored/" target="side-frame">'
+            . '<article><a href="./doc.html">doc</a><img src="cover.png" alt="Cover"></article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/duplicate-base-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') !== 'libxml-repair'
+        ));
+
+        $expected = '<span data-pandoc-meta-name="base-target" data-pandoc-meta-source="base" data-pandoc-meta-content="review-frame">Base target: review-frame</span>'
+            . '<article><a href="https://source.example.test/import/posts/doc.html">doc</a><img src="https://source.example.test/import/posts/cover.png" alt="Cover"></article>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Base target: review-framedoc', $fragment->textContent());
+        $t->same(['a', 'article', 'img', 'span'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same([
+            'duplicate-base-ignored',
+            'duplicate-base-ignored',
+            'base-target-review',
+            'duplicate-base-ignored',
+            'duplicate-base-ignored',
+            'blocked-tag',
+            'blocked-tag',
+            'blocked-tag',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $policyDiagnostics));
+        $t->same(['href', 'href', 'target', 'target'], array_column(array_slice($policyDiagnostics, 0, 4), 'attribute'));
+        $t->same([1, 1, 1, 1], array_map(static fn (array $diagnostic): int => (int) ($diagnostic['line'] ?? 0), array_slice($policyDiagnostics, 0, 4)));
+        $t->same('span', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-meta-name' => 'base-target',
+            'data-pandoc-meta-source' => 'base',
+            'data-pandoc-meta-content' => 'review-frame',
+        ], $nodes[0]['attrs']);
+        $t->same('article', $nodes[1]['name']);
+        $t->same('https://source.example.test/import/posts/doc.html', $nodes[1]['children'][0]['attrs']['href']);
+        $t->same('https://source.example.test/import/posts/cover.png', $nodes[1]['children'][1]['attrs']['src']);
+        $t->same('/migration/duplicate-base-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach (['spoof.example.test', 'side-frame', '../ignored/', '_blank', '<base', 'target='] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected duplicate base metadata to stay diagnostic-only: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to omit duplicate base metadata: ' . $blocked);
+        }
+    },
     'converts safe meta refresh targets into reviewer links before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
@@ -4402,7 +4458,7 @@ return [
         $t->same(['a', 'article', 'span'], $summary['elementNames']);
         $t->same(['base', 'template'], $summary['blockedTags']);
         $t->same([], $summary['filteredAttributes']);
-        $t->same(['base-target-review', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $policyDiagnostics);
+        $t->same(['base-target-review', 'duplicate-base-ignored', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $policyDiagnostics);
         $t->same('span', $nodes[0]['name']);
         $t->same([
             'data-pandoc-meta-name' => 'base-target',

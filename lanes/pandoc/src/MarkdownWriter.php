@@ -27,6 +27,9 @@ final class MarkdownWriter
     /** @var array<string, list<string>> */
     private array $yamlMetadataStandaloneCommentsByPath = [];
 
+    /** @var array<string, list<string>> */
+    private array $yamlMetadataTrailingCommentsByPath = [];
+
     private int $nextNoteNumber = 1;
 
     private int $lastReferenceIndex = 0;
@@ -51,6 +54,7 @@ final class MarkdownWriter
         $this->referenceTargetLabels = [];
         $this->yamlMetadataExplicitCollectionTags = [];
         $this->yamlMetadataStandaloneCommentsByPath = [];
+        $this->yamlMetadataTrailingCommentsByPath = [];
         $this->nextNoteNumber = 1;
         $this->lastReferenceIndex = 0;
 
@@ -60,6 +64,9 @@ final class MarkdownWriter
                 $document->attr('yamlMetadataCollectionProvenance', [])
             );
             $this->yamlMetadataStandaloneCommentsByPath = $this->yamlMetadataStandaloneCommentsByPath(
+                $document->attr('yamlMetadataCommentProvenance', [])
+            );
+            $this->yamlMetadataTrailingCommentsByPath = $this->yamlMetadataTrailingCommentsByPath(
                 $document->attr('yamlMetadataCommentProvenance', [])
             );
             $metadataBlock = $this->renderYamlMetadataBlock($document->attr('meta', []));
@@ -186,6 +193,43 @@ final class MarkdownWriter
         return $comments;
     }
 
+    /**
+     * @return array<string, list<string>>
+     */
+    private function yamlMetadataTrailingCommentsByPath(mixed $provenance): array
+    {
+        if (!is_array($provenance)) {
+            return [];
+        }
+
+        $comments = [];
+        foreach ($provenance as $entry) {
+            if (
+                !is_array($entry)
+                || ($entry['type'] ?? '') !== 'yaml-comment'
+                || ($entry['context'] ?? '') !== 'trailing'
+            ) {
+                continue;
+            }
+
+            $path = $entry['path'] ?? null;
+            $comment = $entry['comment'] ?? null;
+            if (!is_string($path) || $path === '' || !is_string($comment)) {
+                continue;
+            }
+
+            $comment = trim($comment);
+            if (!$this->isWritableYamlMetadataComment($comment)) {
+                continue;
+            }
+
+            $comments[$path] ??= [];
+            $comments[$path][] = $comment;
+        }
+
+        return $comments;
+    }
+
     private function isWritableYamlMetadataComment(string $comment): bool
     {
         return $comment !== ''
@@ -200,6 +244,14 @@ final class MarkdownWriter
         foreach ($this->yamlMetadataStandaloneCommentsByPath[$path] ?? [] as $comment) {
             $lines[] = str_repeat(' ', $indent) . '# ' . $comment;
         }
+    }
+
+    private function yamlMetadataTrailingCommentSuffix(string $path): string
+    {
+        $comments = $this->yamlMetadataTrailingCommentsByPath[$path] ?? [];
+        $comment = $comments === [] ? null : $comments[count($comments) - 1];
+
+        return is_string($comment) ? ' # ' . $comment : '';
     }
 
     /**
@@ -266,7 +318,7 @@ final class MarkdownWriter
         $prefix = str_repeat(' ', $indent) . $this->formatYamlMetadataKey($key);
         if (!$this->isYamlMetadataCollection($value)) {
             $this->appendYamlMetadataStandaloneComments($lines, $path, $indent);
-            $this->appendYamlMetadataScalarMappingLines($lines, $prefix . ':', $value, $indent + 2);
+            $this->appendYamlMetadataScalarMappingLines($lines, $prefix . ':', $value, $indent + 2, $path);
             return;
         }
 
@@ -303,7 +355,7 @@ final class MarkdownWriter
     private function appendYamlMetadataValueLines(array &$lines, mixed $value, int $indent, string $path): void
     {
         if (!$this->isYamlMetadataCollection($value)) {
-            $this->appendYamlMetadataScalarValueLines($lines, $value, $indent);
+            $this->appendYamlMetadataScalarValueLines($lines, $value, $indent, $path);
             return;
         }
 
@@ -338,7 +390,7 @@ final class MarkdownWriter
             $itemPath = $this->yamlMetadataPathWithSegment($path, $index);
             if (!$this->isYamlMetadataCollection($item)) {
                 $this->appendYamlMetadataStandaloneComments($lines, $itemPath, $indent);
-                $this->appendYamlMetadataScalarListItemLines($lines, $item, $indent);
+                $this->appendYamlMetadataScalarListItemLines($lines, $item, $indent, $itemPath);
                 continue;
             }
 
@@ -392,7 +444,8 @@ final class MarkdownWriter
                     $lines,
                     $prefix . ($first ? '- ' : '  ') . $field . ':',
                     $value,
-                    $indent + 4
+                    $indent + 4,
+                    $itemPath
                 );
                 $first = false;
                 continue;
@@ -446,7 +499,7 @@ final class MarkdownWriter
 
             if (!$this->isYamlMetadataCollection($value)) {
                 $this->appendYamlMetadataStandaloneComments($lines, $valuePath, $indent);
-                $this->appendYamlMetadataScalarMappingLines($lines, $prefix, $value, $indent + 4);
+                $this->appendYamlMetadataScalarMappingLines($lines, $prefix, $value, $indent + 4, $valuePath);
                 continue;
             }
 
@@ -551,7 +604,7 @@ final class MarkdownWriter
     /**
      * @param list<string> $lines
      */
-    private function appendYamlMetadataScalarValueLines(array &$lines, mixed $value, int $indent): void
+    private function appendYamlMetadataScalarValueLines(array &$lines, mixed $value, int $indent, string $path): void
     {
         if (is_string($value)) {
             $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
@@ -562,13 +615,14 @@ final class MarkdownWriter
             }
         }
 
-        $lines[] = str_repeat(' ', $indent) . $this->formatYamlMetadataScalar($value);
+        $lines[] = str_repeat(' ', $indent) . $this->formatYamlMetadataScalar($value)
+            . $this->yamlMetadataTrailingCommentSuffix($path);
     }
 
     /**
      * @param list<string> $lines
      */
-    private function appendYamlMetadataScalarListItemLines(array &$lines, mixed $value, int $indent): void
+    private function appendYamlMetadataScalarListItemLines(array &$lines, mixed $value, int $indent, string $path): void
     {
         $prefix = str_repeat(' ', $indent);
         if (is_string($value)) {
@@ -580,13 +634,20 @@ final class MarkdownWriter
             }
         }
 
-        $lines[] = $prefix . '- ' . $this->formatYamlMetadataScalar($value);
+        $lines[] = $prefix . '- ' . $this->formatYamlMetadataScalar($value)
+            . $this->yamlMetadataTrailingCommentSuffix($path);
     }
 
     /**
      * @param list<string> $lines
      */
-    private function appendYamlMetadataScalarMappingLines(array &$lines, string $mappingPrefix, mixed $value, int $blockIndent): void
+    private function appendYamlMetadataScalarMappingLines(
+        array &$lines,
+        string $mappingPrefix,
+        mixed $value,
+        int $blockIndent,
+        string $path
+    ): void
     {
         if (is_string($value)) {
             $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
@@ -597,7 +658,8 @@ final class MarkdownWriter
             }
         }
 
-        $lines[] = $mappingPrefix . ' ' . $this->formatYamlMetadataScalar($value);
+        $lines[] = $mappingPrefix . ' ' . $this->formatYamlMetadataScalar($value)
+            . $this->yamlMetadataTrailingCommentSuffix($path);
     }
 
     private function formatYamlMetadataKey(string $key): string

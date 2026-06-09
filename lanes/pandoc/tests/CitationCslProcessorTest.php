@@ -20288,6 +20288,75 @@ XML);
         $t->contains('<dt>Review Board v. Archive Desk 2025</dt><dd>Review Board v. Archive Desk :: Migration Review Court; Appeals Board :: Migration Review Court; Appeals Board</dd>', $blocks);
         $t->contains('<dt>Plain Source 2024</dt><dd>Plain Source</dd>', $blocks);
     },
+    'renders bounded csl static ordered authority names in scalar handoff' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'static-authority',
+                'type' => 'legislation',
+                'title' => 'Static Authority Packet',
+                'authority' => [
+                    ['family' => 'Yamada', 'given' => 'Taro', 'static-ordering' => true],
+                    ['family' => 'Sato', 'given' => 'Mei', 'static-ordering' => true, 'suffix' => 'Reporter', 'comma-suffix' => true],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'compact-authority',
+                'type' => 'legal_case',
+                'title' => 'Compact Authority Packet',
+                'authority' => [
+                    ['family' => '山田', 'given' => '太郎'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Static Ordered Authority Review Style</title>
+    <id>https://example.test/styles/bounded-static-ordered-authority-review</id>
+    <updated>2026-06-09T04:43:30+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="authority"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="authority" prefix="authority: "/>
+      <names variable="authority" prefix="names: " delimiter="; ">
+        <name initialize="false" name-as-sort-order="all"/>
+      </names>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Static Ordered Authority Review Style', $summary['title'] ?? null);
+        $t->same('authority', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same('Yamada Taro; Sato Mei, Reporter', $processor->item('static-authority')['authority'] ?? null);
+        $t->same(true, $processor->item('static-authority')['authorities'][0]['staticOrdering'] ?? null);
+        $t->same('山田太郎', $processor->item('compact-authority')['authority'] ?? null);
+
+        $t->same('(Static Authority Packet | Yamada Taro; Sato Mei, Reporter; Compact Authority Packet | 山田太郎)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'static-authority', 'text' => '[@static-authority]']),
+            new AstNode('citation', ['id' => 'compact-authority', 'text' => '[@compact-authority]']),
+        ]));
+        $t->same('Static Authority Packet :: authority: Yamada Taro; Sato Mei, Reporter :: names: Yamada Taro; Sato Mei, Reporter', $processor->renderBibliographyEntry('static-authority'));
+        $t->same('Compact Authority Packet :: authority: 山田太郎 :: names: 山田太郎', $processor->renderBibliographyEntry('compact-authority'));
+
+        $document = (new MarkdownReader())->read('Legal static-order review [@static-authority; @compact-authority] keeps source-order authority names visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legal static-order review (Static Authority Packet | Yamada Taro; Sato Mei, Reporter; Compact Authority Packet | 山田太郎) keeps source-order authority names visible.</p>', $blocks);
+        $t->contains('<dt>Static Authority Packet 2026</dt><dd>Static Authority Packet :: authority: Yamada Taro; Sato Mei, Reporter :: names: Yamada Taro; Sato Mei, Reporter</dd>', $blocks);
+        $t->contains('<dt>Compact Authority Packet 2025</dt><dd>Compact Authority Packet :: authority: 山田太郎 :: names: 山田太郎</dd>', $blocks);
+    },
     'renders bounded csl printing and supplement number variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

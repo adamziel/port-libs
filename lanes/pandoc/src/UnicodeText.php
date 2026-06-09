@@ -6704,7 +6704,7 @@ final class UnicodeText
                 }
 
                 $state = $escape['state'];
-                $offset += 2;
+                $offset += $escape['length'] - 1;
                 continue;
             }
 
@@ -6766,6 +6766,20 @@ final class UnicodeText
                 } else {
                     $state = 'ascii';
                 }
+                continue;
+            }
+
+            if ($state === 'jis0212') {
+                $pair = (($byte + 0x80) << 8) | ($trail + 0x80);
+                if (!isset(self::JIS0212_PAIRS[$pair])) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    $offset++;
+                    continue;
+                }
+
+                $out .= self::fromCodepoint(self::JIS0212_PAIRS[$pair]);
+                $offset++;
                 continue;
             }
 
@@ -7277,7 +7291,7 @@ final class UnicodeText
     }
 
     /**
-     * @return array{state:string}|null
+     * @return array{state:string, length:int}|null
      */
     private static function iso2022JpEscapeState(string $bytes, int $offset): ?array
     {
@@ -7289,16 +7303,25 @@ final class UnicodeText
         $second = ord($bytes[$offset + 2]);
 
         if ($first === 0x24 && ($second === 0x40 || $second === 0x42)) {
-            return ['state' => 'jis0208'];
+            return ['state' => 'jis0208', 'length' => 3];
+        }
+        if ($first === 0x24 && $second === 0x28) {
+            if ($offset + 3 >= strlen($bytes)) {
+                return null;
+            }
+
+            return ord($bytes[$offset + 3]) === 0x44
+                ? ['state' => 'jis0212', 'length' => 4]
+                : null;
         }
         if ($first !== 0x28) {
             return null;
         }
 
         return match ($second) {
-            0x42 => ['state' => 'ascii'],
-            0x49 => ['state' => 'katakana'],
-            0x4a => ['state' => 'roman'],
+            0x42 => ['state' => 'ascii', 'length' => 3],
+            0x49 => ['state' => 'katakana', 'length' => 3],
+            0x4a => ['state' => 'roman', 'length' => 3],
             default => null,
         };
     }

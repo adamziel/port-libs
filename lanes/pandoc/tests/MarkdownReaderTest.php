@@ -8062,6 +8062,80 @@ MD;
         $t->same('comment-writer-body', $roundTripped->children[0]->attr('id'));
         $t->contains('<h1 id="comment-writer-body">Comment writer body</h1>', $blocks);
     },
+    'writes pandoc yaml trailing scalar comments from reader provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Trailing comment writer **Packet** # title reviewer comment',
+            'review:',
+            '  status: queued # review status comment',
+            '  priority: 3 # review priority comment',
+            '  ready: true # ready flag comment',
+            '  source-uri: https://example.test/export#not-comment # source uri comment',
+            '  optional: # optional null comment',
+            'references:',
+            '  - id: trailing-comment-ref # reference id comment',
+            '    metadata:',
+            '      source: wp-export.xml # source file comment',
+            '      approved: false # approval comment',
+            '...',
+            '',
+            '# Trailing comment writer body',
+        ]));
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $comments = $document->attr('yamlMetadataCommentProvenance', []);
+        $roundTripComments = $roundTripped->attr('yamlMetadataCommentProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+        $overrideDocument = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Old Packet # old title comment',
+            '...',
+            '---',
+            'title: New Packet # new title comment',
+            '...',
+            '',
+            '# Trailing override body',
+        ]));
+        $overrideMarkdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($overrideDocument);
+
+        $trailingComments = array_values(array_filter(
+            $comments,
+            static fn (array $entry): bool => ($entry['context'] ?? '') === 'trailing'
+        ));
+        $roundTripTrailingComments = array_values(array_filter(
+            $roundTripComments,
+            static fn (array $entry): bool => ($entry['context'] ?? '') === 'trailing'
+        ));
+
+        $t->same(9, count($trailingComments));
+        $t->contains('title: "Trailing comment writer **Packet**" # title reviewer comment', $markdown);
+        $t->contains('  status: queued # review status comment', $markdown);
+        $t->contains('  priority: 3 # review priority comment', $markdown);
+        $t->contains('  ready: true # ready flag comment', $markdown);
+        $t->contains('  source-uri: https://example.test/export#not-comment # source uri comment', $markdown);
+        $t->contains('  optional: null # optional null comment', $markdown);
+        $t->contains('  - id: trailing-comment-ref # reference id comment', $markdown);
+        $t->contains('      source: wp-export.xml # source file comment', $markdown);
+        $t->contains('      approved: false # approval comment', $markdown);
+        $t->same('Trailing comment writer **Packet**', $meta['title']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(3, $meta['review']['priority']);
+        $t->same(true, $meta['review']['ready']);
+        $t->same('https://example.test/export#not-comment', $meta['review']['source-uri']);
+        $t->true(array_key_exists('optional', $meta['review']) && $meta['review']['optional'] === null);
+        $t->same('trailing-comment-ref', $meta['references'][0]['id']);
+        $t->same('wp-export.xml', $meta['references'][0]['metadata']['source']);
+        $t->same(false, $meta['references'][0]['metadata']['approved']);
+        $t->same(false, array_key_exists('__yamlMetadataCommentProvenance', $meta));
+        $t->same(array_column($trailingComments, 'comment'), array_column($roundTripTrailingComments, 'comment'));
+        $t->same(array_column($trailingComments, 'path'), array_column($roundTripTrailingComments, 'path'));
+        $t->contains('title: "New Packet" # new title comment', $overrideMarkdown);
+        $t->same(false, str_contains($overrideMarkdown, 'old title comment'));
+        $t->same('trailing-comment-writer-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="trailing-comment-writer-body">Trailing comment writer body</h1>', $blocks);
+    },
     'writes pandoc yaml multiline metadata as block scalars' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [

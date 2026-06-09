@@ -412,7 +412,7 @@ sequence-explicit-null-review-items:
   - ? {owner: desk, ticket: 7}
   - ? !wpd!key tagged-source
     status: queued
-source label: Migration review
+source label: Migration review # writer scalar trailing source label
 writer-hashtag-label: "#needs-review"
 writer-hashtag-labels:
   - "#migration"
@@ -2307,6 +2307,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($metadataMarkdown, "  # sequence explicit owner key reviewer comment\n  - \"{owner: desk, ticket: 7}\": approved")
     ) {
         throw new RuntimeException('YAML metadata self-test did not preserve standalone source comments in writer metadata');
+    }
+    if (!str_contains($metadataMarkdown, "\"source label\": \"Migration review\" # writer scalar trailing source label")) {
+        throw new RuntimeException('YAML metadata self-test did not preserve trailing scalar source comments in writer metadata');
     }
     if (str_contains($metadataMarkdown, "reviewer-pairs:\n    - key: owner")) {
         throw new RuntimeException('YAML metadata self-test flattened ordered pair metadata into key/value records');

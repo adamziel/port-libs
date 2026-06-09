@@ -2261,12 +2261,21 @@ final class CitationCslProcessor
             return $literal;
         }
 
-        $family = trim(implode(' ', array_values(array_filter([
-            trim((string) ($name['nonDroppingParticle'] ?? '')),
-            trim((string) ($name['family'] ?? '')),
-        ], static fn (string $part): bool => $part !== ''))));
         $given = trim((string) ($name['given'] ?? ''));
-        $display = trim($given . ($given !== '' && $family !== '' ? ' ' : '') . $family);
+        if (self::nameUsesFamilyGivenDisplayOrder($name)) {
+            $family = trim((string) ($name['family'] ?? ''));
+            $separator = self::nameUsesCompactFamilyGivenScript($name) ? '' : ' ';
+            $display = implode($separator, array_values(array_filter(
+                [$family, $given],
+                static fn (string $part): bool => $part !== ''
+            )));
+        } else {
+            $family = trim(implode(' ', array_values(array_filter([
+                trim((string) ($name['nonDroppingParticle'] ?? '')),
+                trim((string) ($name['family'] ?? '')),
+            ], static fn (string $part): bool => $part !== ''))));
+            $display = trim($given . ($given !== '' && $family !== '' ? ' ' : '') . $family);
+        }
         $suffix = trim((string) ($name['suffix'] ?? ''));
 
         return $suffix !== '' && $display !== '' ? $display . ', ' . $suffix : $display;
@@ -10069,21 +10078,21 @@ final class CitationCslProcessor
 
         $nonDroppingParticle = (string) $name['nonDroppingParticle'];
         if (strtolower(trim((string) ($options['form'] ?? 'long'))) === 'short') {
-            $family = $this->nameUsesFamilyGivenDisplayOrder($name)
+            $family = self::nameUsesFamilyGivenDisplayOrder($name)
                 ? trim((string) $name['family'])
                 : trim($nonDroppingParticle . ' ' . (string) $name['family']);
             if ($family !== '') {
                 return $this->formatNamePart('family', $family, $options);
             }
 
-            $given = $this->nameUsesFamilyGivenDisplayOrder($name)
+            $given = self::nameUsesFamilyGivenDisplayOrder($name)
                 ? (string) $name['given']
                 : $this->renderGivenName((string) $name['given'], $options);
 
             return $this->formatNamePart('given', $given, $options);
         }
 
-        if ($this->nameUsesFamilyGivenDisplayOrder($name)) {
+        if (self::nameUsesFamilyGivenDisplayOrder($name)) {
             return $this->renderFamilyGivenBibliographyName($name, $options);
         }
 
@@ -10212,7 +10221,7 @@ final class CitationCslProcessor
     {
         $family = $this->formatNamePart('family', trim((string) ($name['family'] ?? '')), $options);
         $given = $this->formatNamePart('given', trim((string) ($name['given'] ?? '')), $options);
-        $separator = $this->nameUsesCompactFamilyGivenScript($name) ? '' : ' ';
+        $separator = self::nameUsesCompactFamilyGivenScript($name) ? '' : ' ';
         $parts = array_values(array_filter([$family, $given], static fn (string $part): bool => $part !== ''));
         $entry = implode($separator, $parts);
 
@@ -10227,19 +10236,19 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $name
      */
-    private function nameUsesFamilyGivenDisplayOrder(array $name): bool
+    private static function nameUsesFamilyGivenDisplayOrder(array $name): bool
     {
         if (($name['staticOrdering'] ?? false) === true) {
             return true;
         }
 
-        return $this->nameUsesCompactFamilyGivenScript($name);
+        return self::nameUsesCompactFamilyGivenScript($name);
     }
 
     /**
      * @param array<string, mixed> $name
      */
-    private function nameUsesCompactFamilyGivenScript(array $name): bool
+    private static function nameUsesCompactFamilyGivenScript(array $name): bool
     {
         $text = trim(implode('', [
             (string) ($name['family'] ?? ''),
