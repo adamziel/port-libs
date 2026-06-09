@@ -67,6 +67,26 @@ return [
         $t->same('Triple === stays literal.', (new MarkdownReader())->read('Triple === stays literal.')->children[0]->attr('text'));
         $t->same('Escaped ==source== stays literal.', (new MarkdownReader())->read('Escaped \==source== stays literal.')->children[0]->attr('text'));
     },
+    'maps upstream markdown smallcaps underline extension spans through writer and wordpress handoff' => static function (TestRunner $t): void {
+        $markdown = 'Editorial [review **label**]{.smallcaps} and [inserted note]{.underline data-source="batch-55"}.';
+        $document = (new MarkdownReader())->read($markdown);
+        $paragraph = $document->children[0];
+        $smallCaps = $paragraph->children[1] ?? new AstNode('missing');
+        $underline = $paragraph->children[3] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('small_caps', $smallCaps->type);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $smallCaps->children));
+        $t->same('review ', $smallCaps->children[0]->attr('text'));
+        $t->same('label', $smallCaps->children[1]->children[0]->attr('text'));
+        $t->same('underline', $underline->type);
+        $t->same(['data-source' => 'batch-55'], $underline->attr('attributes'));
+        $t->same('inserted note', $underline->children[0]->attr('text'));
+        $t->contains('<span style="font-variant:small-caps">review <strong>label</strong></span>', $blocks);
+        $t->contains('<u>inserted note</u>', $blocks);
+        $t->same($markdown, (new MarkdownWriter())->write($document));
+        $t->same('span', (new MarkdownReader())->read('[ordinary]{.review .smallcaps}')->children[0]->children[0]->type);
+    },
     'maps upstream testsuite underscore emphasis strong and nested strong emphasis' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             'This is *emphasized*, and so _is this_.',

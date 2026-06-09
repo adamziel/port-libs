@@ -15438,6 +15438,14 @@ final class MarkdownReader
             return null;
         }
 
+        $semanticSpan = $this->markdownSemanticSpanNode($id, $classes, $attributes, $label['text']);
+        if ($semanticSpan !== null) {
+            return [
+                'node' => $semanticSpan,
+                'next' => $end + 1,
+            ];
+        }
+
         return [
             'node' => new AstNode(
                 'span',
@@ -15446,6 +15454,29 @@ final class MarkdownReader
             ),
             'next' => $end + 1,
         ];
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function markdownSemanticSpanNode(?string $id, array $classes, array $attributes, string $content): ?AstNode
+    {
+        $semanticClass = $classes[0] ?? null;
+        $type = match ($semanticClass) {
+            'smallcaps' => 'small_caps',
+            'underline' => 'underline',
+            default => null,
+        };
+        if ($type === null) {
+            return null;
+        }
+
+        return new AstNode(
+            $type,
+            $this->markdownAttributeAstAttrs($id, array_slice($classes, 1), $attributes),
+            $this->parseInlines($content)
+        );
     }
 
     /**
