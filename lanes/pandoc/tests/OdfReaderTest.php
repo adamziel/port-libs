@@ -1537,7 +1537,7 @@ XML;
     <style:style style:name="BaseProtectedCell" style:family="table-cell">
       <style:table-cell-properties style:cell-protect="protected" style:print-content="false"/>
     </style:style>
-    <style:style style:name="ReviewStatusCell" style:family="table-cell" style:parent-style-name="BaseProtectedCell">
+    <style:style style:name="ReviewStatusCell" style:family="table-cell" style:parent-style-name="BaseProtectedCell" style:data-style-name="ReviewCurrencyFormat">
       <style:table-cell-properties
         fo:background-color="#fff4cc"
         fo:border="0.5pt solid #999999"
@@ -1577,6 +1577,8 @@ XML;
 
         $t->same('ReviewStatusCell', $cell->attr('styleName'));
         $t->same('BaseProtectedCell', $cell->attr('style')['parentName']);
+        $t->same('ReviewCurrencyFormat', $cell->attr('style')['dataStyleName']);
+        $t->same('ReviewCurrencyFormat', $cell->attr('odfCellDataStyleName'));
         $t->same('protected', $cell->attr('style')['tableCellProperties']['cellProtect']);
         $t->same('#fff4cc', $cell->attr('odfCellStyleProperties')['backgroundColor']);
         $t->same('middle', $cell->attr('odfCellStyleProperties')['verticalAlign']);
@@ -1585,10 +1587,11 @@ XML;
         $t->same(false, $cell->attr('odfCellStyleProperties')['repeatContent']);
         $t->same(true, $cell->attr('odfCellStyleProperties')['shrinkToFit']);
         $t->same(
-            ['odf-table-cell-style', 'odf-table-cell-background', 'odf-table-cell-protected', 'odf-table-cell-print-hidden', 'odf-table-cell-vertical-align-middle'],
+            ['odf-table-cell-style', 'odf-table-cell-background', 'odf-table-cell-protected', 'odf-table-cell-print-hidden', 'odf-table-cell-vertical-align-middle', 'odf-table-cell-data-style'],
             $cell->attr('classes')
         );
         $t->same('ReviewStatusCell', $cell->attr('htmlAttributes')['data-odf-cell-style-name']);
+        $t->same('ReviewCurrencyFormat', $cell->attr('htmlAttributes')['data-odf-cell-data-style-name']);
         $t->same('#fff4cc', $cell->attr('htmlAttributes')['data-odf-cell-background-color']);
         $t->same('middle', $cell->attr('htmlAttributes')['data-odf-cell-vertical-align']);
         $t->same('tb-rl', $cell->attr('htmlAttributes')['data-odf-cell-writing-mode']);
@@ -1597,13 +1600,15 @@ XML;
         $t->same('background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt', $cell->attr('htmlAttributes')['style']);
         $t->same(null, $plainCell->attr('odfCellStyleProperties'));
         $t->same(1, $result['importReport']['content']['tableStyledCellCount']);
+        $t->same(1, $result['importReport']['content']['tableDataStyledCellCount']);
         $t->same(1, $result['importReport']['content']['tableProtectedCellCount']);
         $t->same(1, $result['importReport']['content']['tablePrintHiddenCellCount']);
         $t->same('ReviewStatusCell', $coverage[0]['sourceAttributes']['htmlAttributes']['data-odf-cell-style-name'] ?? null);
+        $t->same('ReviewCurrencyFormat', $coverage[0]['sourceAttributes']['htmlAttributes']['data-odf-cell-data-style-name'] ?? null);
         $t->same('background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt', $coverage[0]['sourceAttributes']['htmlAttributes']['style'] ?? null);
 
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('<td class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle" data-odf-cell-style-name="ReviewStatusCell" data-odf-cell-background-color="#fff4cc" data-odf-cell-vertical-align="middle" data-odf-cell-writing-mode="tb-rl" data-odf-cell-protect="protected" data-odf-cell-print-content="false" data-odf-cell-repeat-content="false" data-odf-cell-shrink-to-fit="true" style="background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt"><p>Source note</p></td>', $blocksHtml);
+        $t->contains('<td class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle odf-table-cell-data-style" data-odf-cell-style-name="ReviewStatusCell" data-odf-cell-background-color="#fff4cc" data-odf-cell-vertical-align="middle" data-odf-cell-writing-mode="tb-rl" data-odf-cell-protect="protected" data-odf-cell-print-content="false" data-odf-cell-repeat-content="false" data-odf-cell-shrink-to-fit="true" data-odf-cell-data-style-name="ReviewCurrencyFormat" style="background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt"><p>Source note</p></td>', $blocksHtml);
     },
     'applies ODT row and column default cell styles before table review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithDefaultCellStyles = <<<'XML'

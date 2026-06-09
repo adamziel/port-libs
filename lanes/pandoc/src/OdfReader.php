@@ -270,6 +270,7 @@ final class OdfReader
                     'tableCellDetectiveHighlightCount' => $contentStats['tableCellDetectiveHighlightCount'],
                     'tableCellDetectiveOperationCount' => $contentStats['tableCellDetectiveOperationCount'],
                     'tableStyledCellCount' => $contentStats['tableStyledCellCount'],
+                    'tableDataStyledCellCount' => $contentStats['tableDataStyledCellCount'],
                     'tableProtectedCellCount' => $contentStats['tableProtectedCellCount'],
                     'tablePrintHiddenCellCount' => $contentStats['tablePrintHiddenCellCount'],
                     'frameCaptionCount' => $contentStats['frameCaptionCount'],
@@ -2690,6 +2691,12 @@ final class OdfReader
                 $htmlAttributes['data-odf-cell-default-style-source'] = (string) $defaultStyle['source'];
             }
             array_push($classes, ...$this->tableCellStyleClasses($styleProperties));
+        }
+        $dataStyleName = is_string($style['dataStyleName'] ?? null) ? (string) $style['dataStyleName'] : '';
+        if ($dataStyleName !== '') {
+            $attrs['odfCellDataStyleName'] = $dataStyleName;
+            $htmlAttributes['data-odf-cell-data-style-name'] = $dataStyleName;
+            $classes[] = 'odf-table-cell-data-style';
         }
         $styleMaps = is_array($style['styleMaps'] ?? null) ? $style['styleMaps'] : [];
         if ($styleMaps !== []) {
@@ -8432,6 +8439,7 @@ final class OdfReader
             'parentName' => self::nullable(self::attr($style, self::STYLE_NS, 'parent-style-name')),
             'listStyleName' => self::nullable(self::attr($style, self::STYLE_NS, 'list-style-name')),
             'masterPageName' => self::nullable(self::attr($style, self::STYLE_NS, 'master-page-name')),
+            'dataStyleName' => self::nullable(self::attr($style, self::STYLE_NS, 'data-style-name')),
             'headingLevel' => self::nullableInt(self::attr($style, self::STYLE_NS, 'default-outline-level')),
             'textProperties' => [],
             'paragraphProperties' => [],
@@ -9261,6 +9269,7 @@ final class OdfReader
             'tableCellDetectiveHighlightCount' => 0,
             'tableCellDetectiveOperationCount' => 0,
             'tableStyledCellCount' => 0,
+            'tableDataStyledCellCount' => 0,
             'tableProtectedCellCount' => 0,
             'tablePrintHiddenCellCount' => 0,
             'frameLayerReferenceCount' => 0,
@@ -9363,6 +9372,9 @@ final class OdfReader
                 if (is_array($properties) && ($properties['printContent'] ?? null) === false) {
                     $stats['tablePrintHiddenCellCount']++;
                 }
+            }
+            if ($node->type === 'table_cell' && (string) $node->attr('odfCellDataStyleName', '') !== '') {
+                $stats['tableDataStyledCellCount']++;
             }
             $cellAnnotations = $node->attr('odfCellAnnotations', []);
             if ($node->type === 'table_cell' && is_array($cellAnnotations)) {

@@ -64,7 +64,7 @@ $stylesXml = <<<'XML'
     <style:style style:name="BaseProtectedCell" style:family="table-cell">
       <style:table-cell-properties style:cell-protect="protected" style:print-content="false"/>
     </style:style>
-    <style:style style:name="ReviewStatusCell" style:family="table-cell" style:parent-style-name="BaseProtectedCell">
+    <style:style style:name="ReviewStatusCell" style:family="table-cell" style:parent-style-name="BaseProtectedCell" style:data-style-name="ReviewCurrencyFormat">
       <style:table-cell-properties fo:background-color="#fff4cc" fo:border="0.5pt solid #999999" fo:padding-left="3pt" style:vertical-align="middle" style:writing-mode="tb-rl" style:repeat-content="false" style:shrink-to-fit="true"/>
       <style:map style:condition="cell-content()=&quot;Status&quot;" style:apply-style-name="ReadyCell" style:base-cell-address="Review.B1"/>
     </style:style>
@@ -1082,6 +1082,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Expected ODT table-cell annotations to stay review metadata outside visible WordPress cell text');
     }
     if (($result['importReport']['content']['tableStyledCellCount'] ?? 0) !== 2
+        || ($result['importReport']['content']['tableDataStyledCellCount'] ?? 0) !== 1
         || ($result['importReport']['content']['tableProtectedCellCount'] ?? 0) !== 1
         || ($result['importReport']['content']['tablePrintHiddenCellCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT styled/protected/print-hidden table cell metadata to be counted in the import report');
@@ -1091,6 +1092,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['styles']['ReviewStatusCell']['tableCellProperties']['backgroundColor'] ?? '') !== '#fff4cc') {
         throw new RuntimeException('Expected ODT table-cell background style to survive style parsing');
+    }
+    if (($result['styles']['ReviewStatusCell']['dataStyleName'] ?? '') !== 'ReviewCurrencyFormat') {
+        throw new RuntimeException('Expected ODT table-cell data-style-name metadata to survive style parsing');
     }
     $reviewTable = null;
     foreach ($result['document']->children as $block) {
@@ -1116,6 +1120,7 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     $statusCellAttributes = $reviewCoverage[1]['sourceAttributes']['htmlAttributes'] ?? [];
     if (($statusCellAttributes['data-odf-cell-style-name'] ?? '') !== 'ReviewStatusCell'
+        || ($statusCellAttributes['data-odf-cell-data-style-name'] ?? '') !== 'ReviewCurrencyFormat'
         || ($statusCellAttributes['data-odf-cell-background-color'] ?? '') !== '#fff4cc'
         || ($statusCellAttributes['data-odf-cell-protect'] ?? '') !== 'protected'
         || ($statusCellAttributes['data-odf-cell-style-map-1-apply-style-name'] ?? '') !== 'ReadyCell') {
@@ -1148,7 +1153,8 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, 'data-odf-table-scenario-count="1" data-odf-table-active-scenario-count="1" data-odf-table-scenario-names="ReadyImport" data-odf-table-scenario-ranges="Review.A1:Review.B2;Review.D1:Review.D4"')) {
         throw new RuntimeException('Expected ODT table scenario metadata to render in WordPress blocks');
     }
-    if (!str_contains($blocks, 'class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle odf-table-cell-style-map"')
+    if (!str_contains($blocks, 'class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle odf-table-cell-data-style odf-table-cell-style-map"')
+        || !str_contains($blocks, 'data-odf-cell-data-style-name="ReviewCurrencyFormat"')
         || !str_contains($blocks, 'data-odf-cell-style-map-count="1"')
         || !str_contains($blocks, 'data-odf-cell-style-map-1-condition="cell-content()=&quot;Status&quot;"')
         || !str_contains($blocks, 'data-odf-cell-style-map-1-apply-style-name="ReadyCell"')
