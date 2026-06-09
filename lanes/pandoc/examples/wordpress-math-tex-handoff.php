@@ -74,7 +74,7 @@ Negated relation audit $p_i \not\in P + a \not= b + x \not\leq y + A \not\subset
 
 Braced negated relation audit $x \not{\in} S + y \not{=} z + q \not{\leqslant} r + u \not\geqslant v$ stays canonical.
 
-Prime audit $f'(x) + g''_i + h_i''' + \partial^\prime f + y^\backprime$ stays semantic.
+Prime audit $f'(x) + g''_i + h_i''' + r'''' + s'''''_j + \partial^\prime f + y^\backprime$ stays semantic.
 
 Accent alias audit $\acute{x} + \grave{y} + \breve{z} + \check{a} + \mathring{A}_0 + \widetilde{mn}$ stays semantic.
 
@@ -259,7 +259,7 @@ $summary = [
     'arrayMulticolumnMathml' => $converter->texToMathMl('\\begin{array}{lcr}p_i & \\multicolumn{2}{|c|}{m_i + q_i} \\\\ a & b & c\\end{array}'),
     'notRelationMathml' => $converter->texToMathMl('p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + \\not\\alpha_i'),
     'bracedNotRelationMathml' => $converter->texToMathMl('x \\not{\\in} S + y \\not{=} z + q \\not{\\leqslant} r + u \\not\\geqslant v'),
-    'primeMathml' => $converter->texToMathMl("f'(x) + g''_i + h_i''' + \\partial^\\prime f + y^\\backprime"),
+    'primeMathml' => $converter->texToMathMl("f'(x) + g''_i + h_i''' + r'''' + s'''''_j + \\partial^\\prime f + y^\\backprime"),
     'accentAliasMathml' => $converter->texToMathMl('\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}'),
     'aboveBelowMathml' => $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}'),
     'tokenBraceWrapperMathml' => $converter->texToMathMl('\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0'),
@@ -643,7 +643,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\begin{array}{&gt;{\\text{src}}l&lt;{\\hspace{.25em}}@{\\,}c}p_i &amp; m_i \\\\ q_i &amp; n_i\\end{array}\\)</span>',
         '<span class="math inline">\\(\\begin{array}{lcr}p_i &amp; \\multicolumn{2}{|c|}{m_i + q_i} \\\\ a &amp; b &amp; c\\end{array}\\)</span>',
         '<span class="math inline">\\(p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + \\not\\alpha_i\\)</span>',
-        '<span class="math inline">\\(f&#039;(x) + g&#039;&#039;_i + h_i&#039;&#039;&#039; + \\partial^\\prime f + y^\\backprime\\)</span>',
+        '<span class="math inline">\\(f&#039;(x) + g&#039;&#039;_i + h_i&#039;&#039;&#039; + r&#039;&#039;&#039;&#039; + s&#039;&#039;&#039;&#039;&#039;_j + \\partial^\\prime f + y^\\backprime\\)</span>',
+        '<msup><mi>r</mi><mo>⁗</mo></msup>',
+        '<msubsup><mi>s</mi><mi>j</mi><mrow><mo>⁗</mo><mo>′</mo></mrow></msubsup>',
         '<span class="math inline">\\(\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}\\)</span>',
         '<span class="math inline">\\(\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}\\)</span>',
         '<span class="math inline">\\(\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0\\)</span>',

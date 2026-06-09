@@ -2616,6 +2616,48 @@ final class MarkdownReader
         $sourceLines ??= array_fill(0, count($lines), null);
         $items = [];
         $count = count($lines);
+        $pendingStandaloneComments = [];
+        $recordPendingStandaloneComments = function (?string $itemPath = null, int|string|null $field = null) use (&$pendingStandaloneComments): void {
+            if ($pendingStandaloneComments === []) {
+                return;
+            }
+
+            $record = function () use (&$pendingStandaloneComments): void {
+                foreach ($pendingStandaloneComments as [$comment, $sourceLine]) {
+                    $this->withYamlMetadataSourceLine(
+                        $sourceLine,
+                        fn (): mixed => $this->recordYamlStandaloneCommentProvenance($comment)
+                    );
+                }
+                $pendingStandaloneComments = [];
+            };
+
+            if ($itemPath !== null && $field !== null) {
+                $this->withYamlMetadataPathSegment(
+                    $itemPath,
+                    fn (): mixed => $this->withYamlMetadataPathSegment((string) $field, $record)
+                );
+                return;
+            }
+
+            $record();
+        };
+        $nextSequenceItemIsExplicitMappingKey = function (int $commentIndex) use ($lines, $count): bool {
+            for ($cursor = $commentIndex + 1; $cursor < $count; $cursor++) {
+                $trimmed = trim($lines[$cursor]);
+                if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                    continue;
+                }
+
+                if (preg_match('/^-[ \t]?(.*)$/', $lines[$cursor], $m) !== 1) {
+                    return false;
+                }
+
+                return $this->isYamlExplicitMappingKeyLine(trim($this->stripYamlTrailingComment(rtrim($m[1]))));
+            }
+
+            return false;
+        };
         for ($index = 0; $index < $count;) {
             $line = $lines[$index];
             if (trim($line) === '') {
@@ -2624,15 +2666,20 @@ final class MarkdownReader
             }
 
             if (str_starts_with(trim($line), '#')) {
-                $this->withYamlMetadataSourceLine(
-                    $sourceLines[$index] ?? null,
-                    fn (): mixed => $this->recordYamlStandaloneCommentProvenance(trim($line))
-                );
+                if ($nextSequenceItemIsExplicitMappingKey($index)) {
+                    $pendingStandaloneComments[] = [trim($line), $sourceLines[$index] ?? null];
+                } else {
+                    $this->withYamlMetadataSourceLine(
+                        $sourceLines[$index] ?? null,
+                        fn (): mixed => $this->recordYamlStandaloneCommentProvenance(trim($line))
+                    );
+                }
                 $index++;
                 continue;
             }
 
             if (preg_match('/^-[ \t]?(.*)$/', $line, $m) !== 1) {
+                $recordPendingStandaloneComments();
                 $index++;
                 continue;
             }
@@ -2680,6 +2727,7 @@ final class MarkdownReader
                         $this->rememberYamlAnchor($anchorName, $value);
                     }
                 );
+                $recordPendingStandaloneComments();
                 $items[] = $value;
                 continue;
             }
@@ -2698,6 +2746,7 @@ final class MarkdownReader
                         $this->rememberYamlAnchor($anchorName, $value);
                     }
                 );
+                $recordPendingStandaloneComments();
                 $items[] = $value;
                 continue;
             }
@@ -2724,6 +2773,7 @@ final class MarkdownReader
                         $this->rememberYamlAnchor($anchorName, $multilineFlow);
                     }
                 );
+                $recordPendingStandaloneComments();
                 $items[] = $multilineFlow;
                 continue;
             }
@@ -2758,6 +2808,7 @@ final class MarkdownReader
                         $this->rememberYamlAnchor($anchorName, $value);
                     }
                 );
+                $recordPendingStandaloneComments();
                 $items[] = $value;
                 continue;
             }
@@ -2794,6 +2845,7 @@ final class MarkdownReader
                         $this->rememberYamlAnchor($anchorName, $multiline);
                     }
                 );
+                $recordPendingStandaloneComments();
                 $items[] = $multiline;
                 continue;
             }
@@ -2813,6 +2865,7 @@ final class MarkdownReader
                             $this->rememberYamlAnchor($anchorName, $explicitScalarChildValue);
                         }
                     );
+                    $recordPendingStandaloneComments();
                     $items[] = $explicitScalarChildValue;
                     continue;
                 }
@@ -2828,6 +2881,7 @@ final class MarkdownReader
                         $this->rememberYamlAnchor($anchorName, $value);
                     }
                 );
+                $recordPendingStandaloneComments();
                 $items[] = $value;
                 continue;
             }
@@ -2848,6 +2902,7 @@ final class MarkdownReader
                         $this->rememberYamlAnchor($anchorName, $value);
                     }
                 );
+                $recordPendingStandaloneComments();
                 $items[] = $value;
                 continue;
             }
@@ -2868,6 +2923,7 @@ final class MarkdownReader
                         $this->rememberYamlAnchor($anchorName, $value);
                     }
                 );
+                $recordPendingStandaloneComments();
                 $items[] = $value;
                 continue;
             }
@@ -2891,6 +2947,7 @@ final class MarkdownReader
                         $this->rememberYamlAnchor($anchorName, $value);
                     }
                 );
+                $recordPendingStandaloneComments($itemPath, is_array($value) && $value !== [] ? array_key_first($value) : null);
                 $items[] = $value;
                 continue;
             }
@@ -2915,6 +2972,7 @@ final class MarkdownReader
                         $this->rememberYamlAnchor($anchorName, $value);
                     }
                 );
+                $recordPendingStandaloneComments();
                 $items[] = $value;
                 continue;
             }
@@ -2932,8 +2990,11 @@ final class MarkdownReader
                     $this->rememberYamlAnchor($anchorName, $value);
                 }
             );
+            $recordPendingStandaloneComments();
             $items[] = $value;
         }
+
+        $recordPendingStandaloneComments();
 
         $this->recordYamlCollectionProvenance(
             'sequence',

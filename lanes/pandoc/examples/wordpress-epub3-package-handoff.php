@@ -862,6 +862,20 @@ XML;
     if (($ncxPageListResult['document']->children[0]->attr('pageBreaks')[0]['contentAttributes']['data-review'] ?? null) !== 'legacy-page-list' || ($ncxPageListResult['document']->children[0]->attr('pageBreaks')[0]['byteLength'] ?? null) !== strlen($chapterXhtml)) {
         throw new RuntimeException('Expected WordPress spine block to expose NCX pageTarget resolved-byte provenance');
     }
+    $xhtmlPageBreakResult = $reader->readPackage(ZipPackage::fromParts($withPackagePartData(
+        $packageParts,
+        'EPUB/nav.xhtml',
+        $navWithoutPageList
+    )));
+    if (($xhtmlPageBreakResult['pageBreaks']['source'] ?? null) !== 'xhtml-semantic-pagebreak' || ($xhtmlPageBreakResult['pageBreaks']['count'] ?? null) !== 1) {
+        throw new RuntimeException('Expected XHTML epub:type pagebreaks to supply page-break metadata when nav and NCX page lists are absent');
+    }
+    if (($xhtmlPageBreakResult['pageBreaks']['items'][0]['label'] ?? null) !== '1' || ($xhtmlPageBreakResult['pageBreaks']['items'][0]['source'] ?? null) !== 'xhtml-semantic') {
+        throw new RuntimeException('Expected XHTML semantic pagebreak label and source to remain visible in the WordPress handoff');
+    }
+    if (($xhtmlPageBreakResult['document']->children[0]->attr('pageBreaks')[0]['fragment'] ?? null) !== 'page-1') {
+        throw new RuntimeException('Expected WordPress spine block to expose XHTML semantic pagebreak fragments');
+    }
     if (($result['guide']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB OPF guide text target to resolve to the source chapter');
     }

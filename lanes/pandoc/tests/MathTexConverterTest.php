@@ -884,6 +884,7 @@ return [
         $converter = new MathTexConverter();
         $sidesetMathml = $converter->texToMathMl('\\sideset{_a^b}{_c^d}\\sum_{i=1}^{n} x_i + \\sideset{_{L}}{}\\prod q', true);
         $primeMathml = $converter->texToMathMl('\\sideset{}{\\prime}\\sum + \\sideset{}{\\prime\\prime}\\prod');
+        $quadruplePrimeMathml = $converter->texToMathMl('\\sideset{}{\\prime\\prime\\prime\\prime}\\sum + \\sideset{}{\\prime\\prime\\prime\\prime\\prime}\\prod');
         $accessibleMathml = $converter->texToAccessibleMathMl('\\sideset{_a^b}{_c^d}\\sum');
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $sidesetMathml);
@@ -892,6 +893,8 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\sideset{_a^b}{_c^d}\\sum_{i=1}^{n} x_i + \\sideset{_{L}}{}\\prod q</annotation>', $sidesetMathml);
         $t->contains('<mmultiscripts><mo>∑</mo><none/><mo>′</mo></mmultiscripts><mo>+</mo><mmultiscripts><mo>∏</mo><none/><mo>″</mo></mmultiscripts>', $primeMathml);
         $t->contains('<annotation encoding="application/x-tex">\\sideset{}{\\prime}\\sum + \\sideset{}{\\prime\\prime}\\prod</annotation>', $primeMathml);
+        $t->contains('<mmultiscripts><mo>∑</mo><none/><mo>⁗</mo></mmultiscripts><mo>+</mo><mmultiscripts><mo>∏</mo><none/><mrow><mo>⁗</mo><mo>′</mo></mrow></mmultiscripts>', $quadruplePrimeMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\sideset{}{\\prime\\prime\\prime\\prime}\\sum + \\sideset{}{\\prime\\prime\\prime\\prime\\prime}\\prod</annotation>', $quadruplePrimeMathml);
         $t->contains('alttext="sum post-sub c post-sup d pre-sub a pre-sup b"', $accessibleMathml);
         $t->contains('intent="multiscripts(sum,postsub(c),postsup(d),presub(a),presup(b))"', $accessibleMathml);
         $t->true(!str_contains($sidesetMathml, '<mi>\\sideset</mi>'));
@@ -1523,19 +1526,21 @@ return [
     },
     'converts bounded tex prime shorthand and prime commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
-        $primeMathml = $converter->texToMathMl("f'(x) + g''_i + h_i''' + x^{2}'", true);
+        $primeMathml = $converter->texToMathMl("f'(x) + g''_i + h_i''' + x^{2}' + r'''' + s'''''_j", true);
         $commandMathml = $converter->texToMathMl('\\partial^\\prime f + y^\\backprime + z^{\\prime\\prime}');
-        $accessibleMathml = $converter->texToAccessibleMathMl("f'(x) + g''_i");
+        $accessibleMathml = $converter->texToAccessibleMathMl("f'(x) + g''_i + r''''");
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $primeMathml);
         $t->contains('<msup><mi>f</mi><mo>′</mo></msup><mo>(</mo><mi>x</mi><mo>)</mo>', $primeMathml);
         $t->contains('<msubsup><mi>g</mi><mi>i</mi><mo>″</mo></msubsup>', $primeMathml);
         $t->contains('<msubsup><mi>h</mi><mi>i</mi><mo>‴</mo></msubsup>', $primeMathml);
         $t->contains('<msup><mi>x</mi><mrow><mn>2</mn><mo>′</mo></mrow></msup>', $primeMathml);
-        $t->contains('<annotation encoding="application/x-tex">f&#039;(x) + g&#039;&#039;_i + h_i&#039;&#039;&#039; + x^{2}&#039;</annotation>', $primeMathml);
+        $t->contains('<msup><mi>r</mi><mo>⁗</mo></msup>', $primeMathml);
+        $t->contains('<msubsup><mi>s</mi><mi>j</mi><mrow><mo>⁗</mo><mo>′</mo></mrow></msubsup>', $primeMathml);
+        $t->contains('<annotation encoding="application/x-tex">f&#039;(x) + g&#039;&#039;_i + h_i&#039;&#039;&#039; + x^{2}&#039; + r&#039;&#039;&#039;&#039; + s&#039;&#039;&#039;&#039;&#039;_j</annotation>', $primeMathml);
         $t->contains('<msup><mo>∂</mo><mo>′</mo></msup><mi>f</mi><mo>+</mo><msup><mi>y</mi><mo>‵</mo></msup><mo>+</mo><msup><mi>z</mi><mrow><mo>′</mo><mo>′</mo></mrow></msup>', $commandMathml);
-        $t->contains('alttext="f superscript prime left parenthesis x right parenthesis plus g sub i superscript double prime"', $accessibleMathml);
-        $t->contains('intent="row(superscript(f,prime),left_parenthesis,x,right_parenthesis,plus,subsup(g,i,double_prime))"', $accessibleMathml);
+        $t->contains('alttext="f superscript prime left parenthesis x right parenthesis plus g sub i superscript double prime plus r superscript quadruple prime"', $accessibleMathml);
+        $t->contains('intent="row(superscript(f,prime),left_parenthesis,x,right_parenthesis,plus,subsup(g,i,double_prime),plus,superscript(r,quadruple_prime))"', $accessibleMathml);
     },
     'converts bounded tex accents overlines and underlines to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

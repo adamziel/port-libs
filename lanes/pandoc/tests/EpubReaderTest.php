@@ -2670,6 +2670,85 @@ XML;
         $t->same('ncx', $result['document']->children[0]->attr('pageBreaks')[0]['source']);
         $t->same('1', $result['document']->children[0]->attr('pageBreaks')[0]['label']);
     },
+    'builds EPUB page-break report from XHTML semantic pagebreaks when nav page lists are absent' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $tocOnlyNavXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="text/semantic-pages.xhtml#source">Source pages</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+        $semanticPagesXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en">
+  <body>
+    <section id="source" epub:type="bodymatter chapter">
+      <h1>Source pages</h1>
+      <span id="page-10" class="print-page" epub:type="pagebreak" title="10"></span>
+      <span id="page-11" epub:type="pagebreak" aria-label="Page eleven">11</span>
+    </section>
+  </body>
+</html>
+XML;
+        $opfWithSemanticPages = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="semantic-pages" href="text/semantic-pages.xhtml" media-type="application/xhtml+xml"/>',
+            $opfXml
+        );
+        $opfWithSemanticPages = str_replace(
+            '</spine>',
+            '<itemref idref="semantic-pages"/></spine>',
+            $opfWithSemanticPages
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithSemanticPages,
+            null,
+            [
+                ['name' => 'OEBPS/text/semantic-pages.xhtml', 'data' => $semanticPagesXhtml],
+            ],
+            $tocOnlyNavXhtml
+        ));
+
+        $pageBreaks = $result['pageBreaks'];
+        $t->same(true, $pageBreaks['present']);
+        $t->same('xhtml-semantic-pagebreak', $pageBreaks['source']);
+        $t->same(2, $pageBreaks['count']);
+        $t->same(0, $pageBreaks['cfiPageBreakCount']);
+        $t->same(0, $pageBreaks['mediaFragmentPageBreakCount']);
+        $t->same($pageBreaks, $result['importReport']['pageBreaks']);
+        $t->same($pageBreaks, $result['document']->attr('pageBreaks'));
+
+        $first = $pageBreaks['items'][0];
+        $t->same('xhtml-semantic', $first['source']);
+        $t->same('page-10', $first['id']);
+        $t->same('10', $first['label']);
+        $t->same('/OEBPS/text/semantic-pages.xhtml#page-10', $first['target']);
+        $t->same('/OEBPS/text/semantic-pages.xhtml', $first['part']);
+        $t->same('page-10', $first['fragment']);
+        $t->same('id', $first['fragmentKind']);
+        $t->same('semantic-pages', $first['spineIdref']);
+        $t->same('semantic-pages', $first['manifestId']);
+        $t->same(['pagebreak'], $first['types']);
+        $t->same(['print-page'], $first['classes']);
+        $t->same('span', $first['labelElement']);
+        $t->same('10', $first['attributes']['title']);
+        $t->same([], $first['diagnostics']);
+
+        $second = $pageBreaks['items'][1];
+        $t->same('11', $second['label']);
+        $t->same('page-11', $second['fragment']);
+        $t->same('Page eleven', $second['attributes']['aria-label']);
+        $t->same(2, count($pageBreaks['itemsByPart']['/OEBPS/text/semantic-pages.xhtml']));
+
+        $semanticBlock = $result['document']->children[2];
+        $t->same(2, $semanticBlock->attr('pageBreakCount'));
+        $t->same('xhtml-semantic', $semanticBlock->attr('pageBreaks')[0]['source']);
+        $t->same('page-11', $semanticBlock->attr('pageBreaks')[1]['fragment']);
+    },
     'parses OPF guide references and collection review metadata' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage());
 

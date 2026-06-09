@@ -4772,6 +4772,59 @@ return [
         $t->same('sequence-explicit-item-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="sequence-explicit-item-yaml-body">Sequence explicit item YAML body</h1>', $blocks);
     },
+    'records pandoc yaml comments before explicit sequence mapping keys as review provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Sequence explicit comment **Packet**',
+            'review-items:',
+            '  # source URI key selected by migration reviewer',
+            '  - ? [source, uri]',
+            '    : https://example.test/import#sequence-comment',
+            '    status: queued',
+            '  # owner desk key selected by migration reviewer',
+            '  - ? {owner: desk, ticket: 7}',
+            '    : approved',
+            'references:',
+            '  - id: sequence-explicit-comment-ref',
+            '    review-links:',
+            '      # nested source key selected by reviewer',
+            '      - ? [source, key]',
+            '        : metadata value',
+            '        status: kept',
+            '...',
+            '',
+            '# Sequence explicit comment YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $comments = $document->attr('yamlMetadataCommentProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Sequence explicit comment **Packet**', $meta['title']);
+        $t->same('https://example.test/import#sequence-comment', $meta['review-items'][0]['[source, uri]']);
+        $t->same('queued', $meta['review-items'][0]['status']);
+        $t->same('approved', $meta['review-items'][1]['{owner: desk, ticket: 7}']);
+        $t->same('sequence-explicit-comment-ref', $meta['references'][0]['id']);
+        $t->same('metadata value', $meta['references'][0]['review-links'][0]['[source, key]']);
+        $t->same('kept', $meta['references'][0]['review-links'][0]['status']);
+        $t->same(false, array_key_exists('__yamlMetadataCommentProvenance', $meta));
+        $t->same(3, count($comments));
+        $t->same(array_fill(0, 3, 'yaml-comment'), array_column($comments, 'type'));
+        $t->same(array_fill(0, 3, 'standalone'), array_column($comments, 'context'));
+        $t->same([
+            'source URI key selected by migration reviewer',
+            'owner desk key selected by migration reviewer',
+            'nested source key selected by reviewer',
+        ], array_column($comments, 'comment'));
+        $t->same([
+            '/review-items/0/[source, uri]',
+            '/review-items/1/{owner: desk, ticket: 7}',
+            '/references/0/review-links/0/[source, key]',
+        ], array_column($comments, 'path'));
+        $t->same(['4', '8', '14'], array_column($comments, 'sourceLine'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('sequence-explicit-comment-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="sequence-explicit-comment-yaml-body">Sequence explicit comment YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit null keys in sequence metadata items' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

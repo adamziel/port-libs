@@ -584,9 +584,9 @@ final class EpubReader
         $nav = $nav === null ? null : self::navWithPrimaryNavigationTargetPolicy($nav, $spine);
         $ncx = $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem, $manifestByPart);
         $navigation = self::navigationReport($nav, $ncx, $spine);
-        $pageBreaks = self::pageBreakReport($nav, $ncx, $spine);
         $xhtmlAssets = $this->xhtmlAssets($package, $manifest, $manifestByPart);
         $xhtmlResourceReport = self::xhtmlResourceReport($xhtmlAssets);
+        $pageBreaks = self::pageBreakReport($nav, $ncx, $spine, $xhtmlResourceReport);
         $cssResourceReport = $this->cssResourceReport($package, $manifest, $manifestByPart);
         $remoteResources = self::remoteResourceReport($manifest, $xhtmlAssets, $xhtmlResourceReport, $cssResourceReport);
 
@@ -8893,6 +8893,7 @@ final class EpubReader
      * @param ?array<string, mixed> $nav
      * @param ?array<string, mixed> $ncx
      * @param list<array<string, mixed>> $spine
+     * @param array<string, mixed> $xhtmlResourceReport
      *
      * @return array{
      *     present:bool,
@@ -8903,7 +8904,7 @@ final class EpubReader
      *     diagnostics:list<array<string, mixed>>
      * }
      */
-    private static function pageBreakReport(?array $nav, ?array $ncx, array $spine): array
+    private static function pageBreakReport(?array $nav, ?array $ncx, array $spine, array $xhtmlResourceReport = []): array
     {
         $navPageList = is_array($nav) && is_array($nav['pageList'] ?? null)
             ? $nav['pageList']
@@ -8920,31 +8921,14 @@ final class EpubReader
             $itemSource = 'ncx';
         }
 
+        $spineByContentPart = self::spineByContentPart($spine);
         if ($pageList === []) {
-            return [
-                'present' => false,
-                'source' => 'nav-page-list',
-                'count' => 0,
-                'cfiPageBreakCount' => 0,
-                'cfiPageBreaks' => [],
-                'mediaFragmentPageBreakCount' => 0,
-                'mediaFragmentPageBreaks' => [],
-                'items' => [],
-                'itemsByPart' => [],
-                'diagnostics' => [],
-            ];
-        }
-
-        $spineByContentPart = [];
-        foreach ($spine as $spineItem) {
-            $contentPart = is_string($spineItem['contentPart'] ?? null)
-                ? $spineItem['contentPart']
-                : (is_string($spineItem['part'] ?? null) ? $spineItem['part'] : null);
-            if ($contentPart === null || $contentPart === '' || isset($spineByContentPart[$contentPart])) {
-                continue;
+            $semanticPageBreaks = self::xhtmlSemanticPageBreakReport($xhtmlResourceReport, $spineByContentPart);
+            if (($semanticPageBreaks['present'] ?? false) === true) {
+                return $semanticPageBreaks;
             }
 
-            $spineByContentPart[$contentPart] = $spineItem;
+            return self::emptyPageBreakReport('nav-page-list');
         }
 
         $items = [];
@@ -9079,6 +9063,231 @@ final class EpubReader
             'itemsByPart' => $itemsByPart,
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function spineByContentPart(array $spine): array
+    {
+        $spineByContentPart = [];
+        foreach ($spine as $spineItem) {
+            $contentPart = is_string($spineItem['contentPart'] ?? null)
+                ? $spineItem['contentPart']
+                : (is_string($spineItem['part'] ?? null) ? $spineItem['part'] : null);
+            if ($contentPart === null || $contentPart === '' || isset($spineByContentPart[$contentPart])) {
+                continue;
+            }
+
+            $spineByContentPart[$contentPart] = $spineItem;
+        }
+
+        return $spineByContentPart;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyPageBreakReport(string $source): array
+    {
+        return [
+            'present' => false,
+            'source' => $source,
+            'count' => 0,
+            'cfiPageBreakCount' => 0,
+            'cfiPageBreaks' => [],
+            'mediaFragmentPageBreakCount' => 0,
+            'mediaFragmentPageBreaks' => [],
+            'items' => [],
+            'itemsByPart' => [],
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $xhtmlResourceReport
+     * @param array<string, array<string, mixed>> $spineByContentPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function xhtmlSemanticPageBreakReport(array $xhtmlResourceReport, array $spineByContentPart): array
+    {
+        $semanticItems = is_array($xhtmlResourceReport['semanticItemsByType']['pagebreak'] ?? null)
+            ? array_values($xhtmlResourceReport['semanticItemsByType']['pagebreak'])
+            : [];
+        if ($semanticItems === []) {
+            return self::emptyPageBreakReport('xhtml-semantic-pagebreak');
+        }
+
+        $items = [];
+        $diagnostics = [];
+        foreach ($semanticItems as $semantic) {
+            if (!is_array($semantic)) {
+                continue;
+            }
+
+            $index = count($items);
+            $sourcePart = is_string($semantic['sourcePart'] ?? null) ? $semantic['sourcePart'] : null;
+            $id = is_string($semantic['id'] ?? null) && $semantic['id'] !== '' ? $semantic['id'] : null;
+            $target = is_string($semantic['target'] ?? null) ? $semantic['target'] : null;
+            $part = is_string($semantic['part'] ?? null) ? $semantic['part'] : null;
+            if ($target === null && $sourcePart !== null && $id !== null) {
+                $target = $sourcePart . '#' . $id;
+                $part = $sourcePart;
+            }
+            if ($part === null) {
+                $part = $sourcePart;
+            }
+
+            $spineItem = $part !== null ? ($spineByContentPart[$part] ?? null) : null;
+            $fragmentFields = self::targetFragmentFields($target);
+            $fragment = is_string($semantic['fragment'] ?? null)
+                ? $semantic['fragment']
+                : ($fragmentFields['fragment'] ?? ($id !== null ? $id : null));
+            $fragmentKind = is_string($semantic['fragmentKind'] ?? null)
+                ? $semantic['fragmentKind']
+                : ($fragmentFields['fragmentKind'] ?? ($fragment !== null ? 'id' : null));
+            $sourceDiagnostics = is_array($semantic['diagnostics'] ?? null) ? array_values($semantic['diagnostics']) : [];
+            $itemDiagnostics = [];
+
+            if (($semantic['external'] ?? false) === true) {
+                $itemDiagnostics[] = [
+                    'type' => 'external-xhtml-semantic-pagebreak',
+                    'target' => $target,
+                    'message' => 'EPUB XHTML semantic pagebreak points outside the package and was not fetched',
+                ];
+            } elseif ($target === null) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-xhtml-semantic-pagebreak-target',
+                    'sourcePart' => $sourcePart,
+                    'message' => 'EPUB XHTML semantic pagebreak does not carry an id or resolvable href target',
+                ];
+            } elseif (($semantic['exists'] ?? true) !== true) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-xhtml-semantic-pagebreak-reference',
+                    'part' => $part,
+                    'message' => 'EPUB XHTML semantic pagebreak target is missing from the package',
+                ];
+            } elseif (!is_array($spineItem)) {
+                $itemDiagnostics[] = [
+                    'type' => 'xhtml-semantic-pagebreak-outside-spine',
+                    'part' => $part,
+                    'message' => 'EPUB XHTML semantic pagebreak target exists in the package but is not part of the resolved spine handoff',
+                ];
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+
+            $items[] = [
+                'index' => $index,
+                'source' => 'xhtml-semantic',
+                'id' => $id,
+                'depth' => 0,
+                'label' => self::xhtmlSemanticPageBreakLabel($semantic),
+                'href' => is_string($semantic['href'] ?? null) ? $semantic['href'] : null,
+                'target' => $target,
+                'part' => $part,
+                'fragment' => $fragment,
+                'fragmentKind' => $fragmentKind,
+                'epubCfi' => is_array($semantic['epubCfi'] ?? null) ? $semantic['epubCfi'] : $fragmentFields['epubCfi'],
+                'mediaFragment' => is_array($semantic['mediaFragment'] ?? null) ? $semantic['mediaFragment'] : $fragmentFields['mediaFragment'],
+                'external' => (bool) ($semantic['external'] ?? false),
+                'exists' => (bool) ($semantic['exists'] ?? true),
+                'type' => is_string($semantic['primaryType'] ?? null) ? $semantic['primaryType'] : 'pagebreak',
+                'types' => is_array($semantic['types'] ?? null) ? array_values($semantic['types']) : ['pagebreak'],
+                'itemTypes' => is_array($semantic['types'] ?? null) ? array_values($semantic['types']) : ['pagebreak'],
+                'labelTypes' => [],
+                'typeSource' => 'xhtml',
+                'typeSources' => [[
+                    'type' => 'pagebreak',
+                    'source' => 'xhtml',
+                    'element' => is_string($semantic['element'] ?? null) ? $semantic['element'] : null,
+                ]],
+                'itemId' => null,
+                'labelId' => $id,
+                'labelElement' => is_string($semantic['element'] ?? null) ? $semantic['element'] : null,
+                'classes' => is_array($semantic['classes'] ?? null) ? array_values($semantic['classes']) : [],
+                'language' => is_string($semantic['language'] ?? null) ? $semantic['language'] : null,
+                'direction' => is_string($semantic['direction'] ?? null) ? $semantic['direction'] : null,
+                'hidden' => false,
+                'attributes' => is_array($semantic['attributes'] ?? null) ? $semantic['attributes'] : [],
+                'labelAttributes' => is_array($semantic['attributes'] ?? null) ? $semantic['attributes'] : [],
+                'labelTextAttributes' => [],
+                'contentAttributes' => [],
+                'byteLength' => is_int($semantic['byteLength'] ?? null) ? $semantic['byteLength'] : null,
+                'crc32' => is_string($semantic['crc32'] ?? null) ? $semantic['crc32'] : null,
+                'manifestId' => is_array($spineItem) ? (string) ($spineItem['idref'] ?? '') : (is_string($semantic['manifestId'] ?? null) ? $semantic['manifestId'] : null),
+                'mediaType' => is_array($spineItem) ? (string) ($spineItem['contentMediaType'] ?? $spineItem['mediaType'] ?? '') : (is_string($semantic['mediaType'] ?? null) ? $semantic['mediaType'] : null),
+                'encrypted' => (bool) ($semantic['encrypted'] ?? false),
+                'canExposeBytes' => (bool) ($semantic['canExposeBytes'] ?? true),
+                'value' => self::xhtmlSemanticPageBreakLabel($semantic),
+                'playOrder' => null,
+                'class' => is_string($semantic['class'] ?? null) ? $semantic['class'] : null,
+                'spineIndex' => is_array($spineItem) ? (int) ($spineItem['index'] ?? 0) : null,
+                'spineIdref' => is_array($spineItem) ? (string) ($spineItem['idref'] ?? '') : null,
+                'spinePart' => is_array($spineItem) ? (string) ($spineItem['part'] ?? '') : null,
+                'contentPart' => is_array($spineItem) ? (string) ($spineItem['contentPart'] ?? $spineItem['part'] ?? '') : null,
+                'linear' => is_array($spineItem) ? (bool) ($spineItem['linear'] ?? true) : null,
+                'pageSpread' => is_array($spineItem) ? ($spineItem['pageSpread'] ?? null) : null,
+                'sourceDiagnostics' => $sourceDiagnostics,
+                'navDiagnostics' => $sourceDiagnostics,
+                'diagnostics' => $itemDiagnostics,
+            ];
+        }
+
+        $itemsByPart = [];
+        foreach ($items as $item) {
+            if (!is_string($item['part'] ?? null) || $item['part'] === '') {
+                continue;
+            }
+
+            $itemsByPart[$item['part']][] = $item;
+        }
+        $cfiItems = array_values(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['fragmentKind'] ?? null) === 'epub-cfi',
+        ));
+        $mediaFragmentItems = array_values(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['fragmentKind'] ?? null) === 'media-fragment',
+        ));
+
+        return [
+            'present' => $items !== [],
+            'source' => 'xhtml-semantic-pagebreak',
+            'count' => count($items),
+            'cfiPageBreakCount' => count($cfiItems),
+            'cfiPageBreaks' => $cfiItems,
+            'mediaFragmentPageBreakCount' => count($mediaFragmentItems),
+            'mediaFragmentPageBreaks' => $mediaFragmentItems,
+            'items' => $items,
+            'itemsByPart' => $itemsByPart,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $semantic
+     */
+    private static function xhtmlSemanticPageBreakLabel(array $semantic): string
+    {
+        $text = is_string($semantic['text'] ?? null) ? trim($semantic['text']) : '';
+        if ($text !== '') {
+            return $text;
+        }
+
+        $attributes = is_array($semantic['attributes'] ?? null) ? $semantic['attributes'] : [];
+        foreach (['title', 'aria-label', 'data-label'] as $attribute) {
+            if (is_string($attributes[$attribute] ?? null) && trim($attributes[$attribute]) !== '') {
+                return trim($attributes[$attribute]);
+            }
+        }
+
+        return is_string($semantic['id'] ?? null) ? $semantic['id'] : '';
     }
 
     /**
@@ -16157,6 +16366,7 @@ final class EpubReader
             'classes' => self::spaceDelimited($element->getAttribute('class')),
             'types' => $types,
             'primaryType' => $types[0] ?? null,
+            'text' => self::normalizedText($element),
             'language' => self::xmlLang($element),
             'direction' => self::direction($element),
             'href' => $href,

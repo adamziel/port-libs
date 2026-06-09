@@ -389,12 +389,14 @@ block-explicit-null-reference:
     ? {type: review}
     state: kept
 sequence-explicit-review-items:
+  # sequence explicit source key reviewer comment
   - ? [source, uri]
     : https://example.test/exports/packet#sequence-explicit-item
     status: queued
     labels:
       - migration
       - wordpress
+  # sequence explicit owner key reviewer comment
   - ? {owner: desk, ticket: 7}
     : approved
     source note: Reviewed by structured key
@@ -2058,6 +2060,8 @@ if (($argv[1] ?? '') === '--self-test') {
         "/flow-comment-review\0reviewer import tag",
         "/plain-continuation-review/steps\0collect source packet sequence comment",
         "/plain-continuation-review/steps\0approve source packet sequence comment",
+        "/sequence-explicit-review-items/0/[source, uri]\0sequence explicit source key reviewer comment",
+        "/sequence-explicit-review-items/1/{owner: desk, ticket: 7}\0sequence explicit owner key reviewer comment",
         "/source-summary\0folded source note for reviewer queue",
         "/source-review-log\0folded reviewer log with preserved nested lines",
         "/summary\0later metadata block overrides the first review status",

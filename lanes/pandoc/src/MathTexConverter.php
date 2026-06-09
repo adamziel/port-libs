@@ -1057,6 +1057,7 @@ final class MathTexConverter
         '′' => 'prime',
         '″' => 'double prime',
         '‴' => 'triple prime',
+        '⁗' => 'quadruple prime',
         '‵' => 'back prime',
         '‾' => 'overline',
         '`' => 'grave',
@@ -6670,8 +6671,27 @@ final class MathTexConverter
             1 => '<mo>′</mo>',
             2 => '<mo>″</mo>',
             3 => '<mo>‴</mo>',
-            default => $this->row(array_fill(0, $count, '<mo>′</mo>')),
+            4 => '<mo>⁗</mo>',
+            default => $this->row($this->primeRunMathMlParts($count)),
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function primeRunMathMlParts(int $count): array
+    {
+        $parts = [];
+        while ($count >= 4) {
+            $parts[] = '<mo>⁗</mo>';
+            $count -= 4;
+        }
+
+        if ($count > 0) {
+            $parts[] = $this->primeMathMl($count);
+        }
+
+        return $parts;
     }
 
     private function readScriptPlacementCommand(string $source, int &$offset): ?string
