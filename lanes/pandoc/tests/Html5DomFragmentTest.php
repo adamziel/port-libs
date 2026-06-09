@@ -390,13 +390,13 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->same('<p>Name <span data-pandoc-button-type="submit">Send review</span></p><p>DraftFinal</p>Visible reviewer note<p>after</p>', $html);
-        $t->same('Name Send reviewDraftFinalVisible reviewer noteafter', $fragment->textContent());
+        $t->same('<p>Name <span data-pandoc-button-type="submit">Send review</span></p><p><span data-pandoc-select-name="status" data-pandoc-select-selected="Draft">Select: Draft</span>DraftFinal</p>Visible reviewer note<p>after</p>', $html);
+        $t->same('Name Send reviewSelect: DraftDraftFinalVisible reviewer noteafter', $fragment->textContent());
         $t->same(['p', 'span'], $summary['elementNames']);
         $t->same(['button', 'form', 'input', 'option', 'select', 'textarea'], $summary['blockedTags']);
-        $t->same(['formaction', 'type'], $summary['filteredAttributes']);
-        $t->same(9, $summary['diagnostics']);
-        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'button-metadata-review', 'unsafe-url', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
+        $t->same(['formaction', 'name', 'selected', 'type'], $summary['filteredAttributes']);
+        $t->same(11, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'button-metadata-review', 'unsafe-url', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'select-metadata-review', 'select-metadata-review', 'blocked-tag'], $fragment->diagnosticCodes());
         $t->contains('Visible reviewer note', $blocks);
         $t->same('/migration/form-review-fragment.html', $document->children[0]->attr('part'));
         $t->true(!str_contains($html, '<form'), 'Expected form wrapper to be stripped');
@@ -523,20 +523,26 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<p>Publication statusDraft reviewFinalNeeds copyedit</p><p>after</p>';
+        $expected = '<p><span data-pandoc-select-name="status" data-pandoc-select-selected="Final">Select: Final</span>Publication statusDraft reviewFinalNeeds copyedit</p><p>after</p>';
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
-        $t->same('Publication statusDraft reviewFinalNeeds copyeditafter', $fragment->textContent());
-        $t->same(['p'], $summary['elementNames']);
+        $t->same('Select: FinalPublication statusDraft reviewFinalNeeds copyeditafter', $fragment->textContent());
+        $t->same(['p', 'span'], $summary['elementNames']);
         $t->same(['form', 'optgroup', 'option', 'select'], $summary['blockedTags']);
-        $t->same([], $summary['filteredAttributes']);
-        $t->same(7, $summary['diagnostics']);
-        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
+        $t->same(['name', 'selected'], $summary['filteredAttributes']);
+        $t->same(9, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'select-metadata-review', 'select-metadata-review'], $fragment->diagnosticCodes());
         $t->same('p', $nodes[0]['name']);
-        $t->same('Publication status', $nodes[0]['children'][0]['text']);
-        $t->same('Draft review', $nodes[0]['children'][1]['text']);
-        $t->same('Final', $nodes[0]['children'][2]['text']);
-        $t->same('Needs copyedit', $nodes[0]['children'][3]['text']);
+        $t->same('span', $nodes[0]['children'][0]['name']);
+        $t->same([
+            'data-pandoc-select-name' => 'status',
+            'data-pandoc-select-selected' => 'Final',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same('Select: Final', $nodes[0]['children'][0]['children'][0]['text']);
+        $t->same('Publication status', $nodes[0]['children'][1]['text']);
+        $t->same('Draft review', $nodes[0]['children'][2]['text']);
+        $t->same('Final', $nodes[0]['children'][3]['text']);
+        $t->same('Needs copyedit', $nodes[0]['children'][4]['text']);
         $t->same('p', $nodes[1]['name']);
         $t->same('/migration/select-label-review.html', $document->children[0]->attr('part'));
         $t->true(!str_contains($html, '<select'), 'Expected select wrapper to be stripped');
@@ -544,6 +550,62 @@ return [
         $t->true(!str_contains($html, '<option'), 'Expected option wrapper to be stripped');
         $t->true(!str_contains($html, 'Submission value'), 'Expected option label to take precedence over child submission text');
         $t->true(!str_contains($html, 'private'), 'Expected option value to stay hidden from review text');
+    },
+    'converts select state metadata into inert reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<form action="/submit">'
+            . '<p><select name=" publish-status " form="review-form" multiple required disabled size="03" data-pandoc-select-name="source-spoof">'
+            . '<option label="Draft review" selected value="draft-token"></option>'
+            . '<option selected>Ready for import</option>'
+            . '<option value="private-default">Private default</option></select></p>'
+            . '<p><select name="category"><option>News</option><option>Updates</option></select></p>'
+            . '<p><select name="bad&lt;tag" form="bad id" size="0"><option selected>Bad select</option></select></p>'
+            . '</form>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/select-state-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $diagnosticCounts = array_count_values($fragment->diagnosticCodes());
+
+        $expected = '<p><span data-pandoc-select-name="publish-status" data-pandoc-select-form="review-form" data-pandoc-select-multiple="true" data-pandoc-select-required="true" data-pandoc-select-disabled="true" data-pandoc-select-size="3" data-pandoc-select-selected="Draft review | Ready for import">Select: Draft review; Ready for import</span>Draft reviewReady for importPrivate default</p>'
+            . '<p><span data-pandoc-select-name="category" data-pandoc-select-selected="News">Select: News</span>NewsUpdates</p>'
+            . '<p><span data-pandoc-select-selected="Bad select">Select: Bad select</span>Bad select</p>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Select: Draft review; Ready for importDraft reviewReady for importPrivate defaultSelect: NewsNewsUpdatesSelect: Bad selectBad select', $fragment->textContent());
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['form', 'option', 'select'], $summary['blockedTags']);
+        $t->same(['data-pandoc-select-name', 'disabled', 'form', 'multiple', 'name', 'required', 'selected', 'size'], $summary['filteredAttributes']);
+        $t->same(24, $summary['diagnostics']);
+        $t->same(10, $diagnosticCounts['blocked-tag'] ?? 0);
+        $t->same(4, $diagnosticCounts['unsafe-attribute'] ?? 0);
+        $t->same(10, $diagnosticCounts['select-metadata-review'] ?? 0);
+        $t->same('span', $nodes[0]['children'][0]['name']);
+        $t->same([
+            'data-pandoc-select-name' => 'publish-status',
+            'data-pandoc-select-form' => 'review-form',
+            'data-pandoc-select-multiple' => 'true',
+            'data-pandoc-select-required' => 'true',
+            'data-pandoc-select-disabled' => 'true',
+            'data-pandoc-select-size' => '3',
+            'data-pandoc-select-selected' => 'Draft review | Ready for import',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same('Select: Draft review; Ready for import', $nodes[0]['children'][0]['children'][0]['text']);
+        $t->same([
+            'data-pandoc-select-name' => 'category',
+            'data-pandoc-select-selected' => 'News',
+        ], $nodes[1]['children'][0]['attrs']);
+        $t->same(['data-pandoc-select-selected' => 'Bad select'], $nodes[2]['children'][0]['attrs']);
+        $t->same('/migration/select-state-review.html', $document->children[0]->attr('part'));
+        foreach (['<form', '<select', '<option', ' multiple', ' required', ' disabled', ' size=', ' name=', ' form=', 'value=', 'draft-token', 'private-default', 'source-spoof', 'bad id', 'bad&lt;tag', 'bad<tag'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected select metadata handoff to strip live or unsafe source content: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to strip live or unsafe source content: ' . $blocked);
+        }
     },
     'converts datalist suggestions into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(

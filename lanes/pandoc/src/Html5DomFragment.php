@@ -246,7 +246,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -498,6 +498,12 @@ final class Html5DomFragment
                 $datalistMetadata = self::htmlDatalistReviewMetadataNode($node, $diagnostics);
 
                 return $datalistMetadata === null ? $children : [$datalistMetadata];
+            }
+
+            if ($name === 'select') {
+                $selectMetadata = self::htmlSelectReviewMetadataNode($node, $diagnostics);
+
+                return $selectMetadata === null ? $children : [$selectMetadata, ...$children];
             }
 
             return self::withVisibleFormChoiceLabel($node, $name, $children);
@@ -1775,6 +1781,270 @@ final class Html5DomFragment
             'attribute' => $attributeName,
             'metadataAttribute' => $metadataAttribute,
             'reason' => 'datalist-suggestions-preserved-as-review-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>|null
+     */
+    private static function htmlSelectReviewMetadataNode(
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?array {
+        foreach ($element->attributes as $attribute) {
+            $attributeName = strtolower($attribute->name);
+            if (!str_starts_with($attributeName, 'data-pandoc-select-')) {
+                continue;
+            }
+
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'select',
+                'attribute' => $attributeName,
+                'reason' => 'reserved-review-metadata-source-spoof',
+            ], $element);
+        }
+
+        $attrs = [];
+        foreach ([
+            'name' => 'data-pandoc-select-name',
+            'form' => 'data-pandoc-select-form',
+        ] as $sourceAttribute => $metadataAttribute) {
+            if (!$element->hasAttribute($sourceAttribute)) {
+                continue;
+            }
+
+            $value = self::normalizeHtmlSelectTextMetadataAttribute(
+                $sourceAttribute,
+                $element->getAttribute($sourceAttribute),
+                $diagnostics,
+                $element
+            );
+            if ($value === null) {
+                continue;
+            }
+
+            $attrs[$metadataAttribute] = $value;
+            self::addHtmlSelectMetadataDiagnostic($diagnostics, $element, $sourceAttribute, $metadataAttribute);
+        }
+
+        foreach ([
+            'multiple' => 'data-pandoc-select-multiple',
+            'required' => 'data-pandoc-select-required',
+            'disabled' => 'data-pandoc-select-disabled',
+        ] as $sourceAttribute => $metadataAttribute) {
+            if (!$element->hasAttribute($sourceAttribute)) {
+                continue;
+            }
+
+            $attrs[$metadataAttribute] = 'true';
+            self::addHtmlSelectMetadataDiagnostic($diagnostics, $element, $sourceAttribute, $metadataAttribute);
+        }
+
+        if ($element->hasAttribute('size')) {
+            $size = self::normalizeHtmlSelectSizeAttribute($element->getAttribute('size'));
+            if ($size === null) {
+                self::addHtmlInvalidSelectMetadataDiagnostic($diagnostics, $element, 'size');
+            } else {
+                $attrs['data-pandoc-select-size'] = $size;
+                self::addHtmlSelectMetadataDiagnostic($diagnostics, $element, 'size', 'data-pandoc-select-size');
+            }
+        }
+
+        $selectedLabels = self::htmlSelectSelectedOptionLabels($element, $diagnostics);
+        if ($selectedLabels !== []) {
+            $attrs['data-pandoc-select-selected'] = implode(' | ', $selectedLabels);
+            self::addHtmlSelectMetadataDiagnostic($diagnostics, $element, 'selected', 'data-pandoc-select-selected');
+        }
+
+        if ($attrs === []) {
+            return null;
+        }
+
+        $label = $selectedLabels === []
+            ? 'Select field' . (isset($attrs['data-pandoc-select-name']) ? ': ' . $attrs['data-pandoc-select-name'] : '')
+            : 'Select: ' . implode('; ', $selectedLabels);
+
+        return self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => $label,
+            ]],
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlSelectTextMetadataAttribute(
+        string $attribute,
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
+        $cleaned = self::cleanHtmlMetadataAttribute($value);
+        if ($cleaned === '' || strlen($cleaned) > 128) {
+            self::addHtmlInvalidSelectMetadataDiagnostic($diagnostics, $element, $attribute);
+
+            return null;
+        }
+
+        if ($attribute === 'form') {
+            if (!self::isSafeHtmlAriaIdToken($cleaned)) {
+                self::addHtmlInvalidSelectMetadataDiagnostic($diagnostics, $element, $attribute);
+
+                return null;
+            }
+
+            return $cleaned;
+        }
+
+        if (preg_match('/[<>"\'`{}]/u', $cleaned) === 1) {
+            self::addHtmlInvalidSelectMetadataDiagnostic($diagnostics, $element, $attribute);
+
+            return null;
+        }
+
+        return $cleaned;
+    }
+
+    private static function normalizeHtmlSelectSizeAttribute(string $value): ?string
+    {
+        $size = self::cleanHtmlMetadataAttribute($value);
+        if ($size === '' || preg_match('/^[0-9]+$/', $size) !== 1) {
+            return null;
+        }
+
+        $integer = (int) $size;
+        if ($integer < 1 || $integer > 999) {
+            return null;
+        }
+
+        return (string) $integer;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<string>
+     */
+    private static function htmlSelectSelectedOptionLabels(\DOMElement $element, array &$diagnostics): array
+    {
+        $labels = [];
+        $options = [];
+        $hasExplicitSelected = false;
+        foreach ($element->getElementsByTagName('option') as $option) {
+            if (!$option instanceof \DOMElement) {
+                continue;
+            }
+
+            $options[] = $option;
+            if ($option->hasAttribute('selected')) {
+                $hasExplicitSelected = true;
+            }
+        }
+
+        foreach ($options as $index => $option) {
+            $isSelected = $option->hasAttribute('selected');
+            if (!$isSelected && ($hasExplicitSelected || $index !== 0 || $element->hasAttribute('multiple'))) {
+                continue;
+            }
+
+            $label = self::htmlSelectOptionLabel($option, $diagnostics);
+            if ($label === null) {
+                continue;
+            }
+
+            if (!in_array($label, $labels, true)) {
+                $labels[] = $label;
+            }
+            if (count($labels) >= 20) {
+                break;
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function htmlSelectOptionLabel(\DOMElement $option, array &$diagnostics): ?string
+    {
+        $source = null;
+        $sourceAttribute = null;
+        if ($option->hasAttribute('label')) {
+            $source = $option->getAttribute('label');
+            $sourceAttribute = 'label';
+        } elseif (trim($option->textContent) !== '') {
+            $source = $option->textContent;
+        }
+
+        if ($source === null) {
+            return null;
+        }
+
+        $label = self::normalizeHtmlSelectOptionLabel($source);
+        if ($label !== null) {
+            return $label;
+        }
+
+        if ($sourceAttribute !== null) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'option',
+                'attribute' => $sourceAttribute,
+                'reason' => 'invalid-select-option-label',
+            ], $option);
+        }
+
+        return null;
+    }
+
+    private static function normalizeHtmlSelectOptionLabel(string $value): ?string
+    {
+        $label = self::cleanHtmlMetadataAttribute($value);
+        if ($label === '' || strlen($label) > 128 || preg_match('/[<>{}`]/u', $label) === 1) {
+            return null;
+        }
+
+        return $label;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlSelectMetadataDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attributeName,
+        string $metadataAttribute
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'select-metadata-review',
+            'tag' => 'select',
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'select-state-preserved-as-review-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlInvalidSelectMetadataDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attributeName
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'unsafe-attribute',
+            'tag' => 'select',
+            'attribute' => $attributeName,
+            'reason' => 'invalid-select-metadata',
         ], $element);
     }
 
