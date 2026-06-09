@@ -925,6 +925,13 @@ $numberingRelationshipDocumentRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$numberingRelationshipQueryFragmentDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdReviewNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="lists/review-numbering.xml?review=ready#numbering-defs"/>
+</Relationships>
+XML;
+
 $stylesXml = <<<'XML'
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:styleId="Heading2">
@@ -4589,6 +4596,24 @@ $buildNumberingRelationshipPackage = static function () use (
     ]);
 };
 
+$buildNumberingRelationshipQueryFragmentPackage = static function () use (
+    $numberingRelationshipContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $numberingRelationshipQueryFragmentDocumentRelationshipsXml,
+    $stylesNumberingDocumentXml,
+    $stylesXml,
+    $relationshipNumberingXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $numberingRelationshipContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $stylesNumberingDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $numberingRelationshipQueryFragmentDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $stylesXml],
+        ['name' => 'word/lists/review-numbering.xml', 'data' => $relationshipNumberingXml],
+    ]);
+};
+
 $buildNumberingRelationshipWrongContentTypePackage = static function () use (
     $numberingRelationshipContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -6912,6 +6937,34 @@ return [
         $t->contains("- Confirm media map\n- Preserve footnotes", $markdown);
         $t->contains('vi) Legal review', $markdown);
         $t->contains('<ul><li>Confirm media map</li><li>Preserve footnotes</li></ul>', $blocks);
+        $t->contains('<ol start="6" type="i"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
+    },
+    'reports DOCX numbering relationship query and fragment metadata while loading the path-only part' => static function (TestRunner $t) use ($buildNumberingRelationshipQueryFragmentPackage): void {
+        $result = (new DocxReader())->readPackage($buildNumberingRelationshipQueryFragmentPackage());
+        $document = $result['document'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('bullet_list', $document->children[1]->type);
+        $t->same('ordered_list', $document->children[2]->type);
+        $t->same('lower_roman', $document->children[2]->attr('style'));
+        $t->same(6, $document->children[2]->attr('start'));
+
+        $numbering = $result['metadata']['docxNumbering'];
+        $relationship = $numbering['relationship'];
+        $t->same('rIdReviewNumbering', $relationship['id']);
+        $t->same('lists/review-numbering.xml?review=ready#numbering-defs', $relationship['target']);
+        $t->same('/word/lists/review-numbering.xml?review=ready#numbering-defs', $relationship['resolvedTarget']);
+        $t->same('/word/lists/review-numbering.xml', $relationship['targetPart']);
+        $t->same('review=ready', $relationship['targetQuery']);
+        $t->same('numbering-defs', $relationship['targetFragment']);
+        $t->same(true, $relationship['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $relationship['contentType']);
+        $t->same([], $relationship['issues']);
+        $t->same(2, $numbering['definitionCount']);
+        $t->same(2, $numbering['levelCount']);
+        $t->same($numbering, $result['importReport']['numbering']);
+
         $t->contains('<ol start="6" type="i"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
     },
     'reports DOCX numbering relationship content type mismatches for review' => static function (TestRunner $t) use ($buildNumberingRelationshipWrongContentTypePackage): void {

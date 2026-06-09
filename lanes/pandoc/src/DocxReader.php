@@ -14497,7 +14497,7 @@ final class DocxReader
 
     /**
      * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>> $numbering
-     * @return array{relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, definitionCount:int, levelCount:int, styleLinkedLevelCount:int}|array{}
+     * @return array{relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, definitionCount:int, levelCount:int, styleLinkedLevelCount:int}|array{}
      */
     private function numberingImportSummary(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart, array $numbering): array
     {
@@ -14513,6 +14513,7 @@ final class DocxReader
 
         $resolvedTarget = $relationships->resolveTarget($relationship);
         $targetPart = null;
+        $targetSuffix = ['query' => null, 'fragment' => null];
         $exists = null;
         $contentType = null;
         $issues = [];
@@ -14520,6 +14521,7 @@ final class DocxReader
         if ($relationship->isExternal()) {
             $issues[] = 'external-numbering-relationship';
         } else {
+            $targetSuffix = self::relationshipTargetQueryAndFragment($resolvedTarget);
             $targetPart = OpcPackagePath::stripQueryAndFragment(
                 $graph->firstTargetOfType(self::REL_TYPE_NUMBERING, $documentPart) ?? $resolvedTarget
             );
@@ -14555,6 +14557,8 @@ final class DocxReader
                 'targetMode' => $relationship->targetMode,
                 'resolvedTarget' => $resolvedTarget,
                 'targetPart' => $targetPart,
+                'targetQuery' => $targetSuffix['query'],
+                'targetFragment' => $targetSuffix['fragment'],
                 'exists' => $exists,
                 'contentType' => $contentType,
                 'expectedContentType' => self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE,
@@ -14564,6 +14568,33 @@ final class DocxReader
             'levelCount' => $levelCount,
             'styleLinkedLevelCount' => $styleLinkedLevelCount,
         ];
+    }
+
+    /**
+     * @return array{query:?string, fragment:?string}
+     */
+    private static function relationshipTargetQueryAndFragment(string $target): array
+    {
+        $suffixOffset = strcspn($target, '?#');
+        $suffix = substr($target, $suffixOffset);
+        if ($suffix === '') {
+            return ['query' => null, 'fragment' => null];
+        }
+
+        $query = null;
+        $fragment = null;
+        $queryPosition = strpos($suffix, '?');
+        $fragmentPosition = strpos($suffix, '#');
+        if ($queryPosition !== false) {
+            $queryStart = $queryPosition + 1;
+            $queryEnd = $fragmentPosition === false ? strlen($suffix) : $fragmentPosition;
+            $query = substr($suffix, $queryStart, $queryEnd - $queryStart);
+        }
+        if ($fragmentPosition !== false) {
+            $fragment = substr($suffix, $fragmentPosition + 1);
+        }
+
+        return ['query' => $query, 'fragment' => $fragment];
     }
 
     /**
