@@ -16896,6 +16896,38 @@ XML;
         $t->true(!str_contains($blocks, 'onmouseover'), 'Unsafe quote event handlers should not survive HTML writer attribute handoff');
         $t->true(!str_contains($blocks, 'style="color:red"') && !str_contains($blocks, 'style="border:0"'), 'Unsafe style attributes should not survive paragraph or quote handoff');
     },
+    'writes wordpress html writer attributes for figures' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('figure', [
+                'id' => 'figure-attrs',
+                'classes' => ['source-figure'],
+                'caption' => 'Reviewer figure',
+                'attributes' => [
+                    'data-pandoc-source' => 'writer.html5',
+                    'xml:lang' => 'fr-CA',
+                    'title' => 'Escaped "figure" title',
+                    'latex-placement' => 'htbp',
+                    'onclick' => 'alert(1)',
+                    'style' => 'display:none',
+                ],
+            ], [
+                new AstNode('image', [
+                    'url' => 'media/review.png',
+                    'alt' => 'Reviewer figure',
+                ]),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains(
+            '<figure class="wp-block-image source-figure" id="figure-attrs" data-pandoc-source="writer.html5" xml:lang="fr-CA" title="Escaped &quot;figure&quot; title" data-pandoc-latex-placement="htbp">',
+            $blocks
+        );
+        $t->contains('<img src="media/review.png" alt="Reviewer figure"/>', $blocks);
+        $t->contains('<figcaption>Reviewer figure</figcaption>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers should not survive figure attribute handoff');
+        $t->true(!str_contains($blocks, 'style="display:none"'), 'Unsafe figure style attributes should not survive figure attribute handoff');
+    },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');
         $blocks = (new WordPressBlockWriter())->write($document);

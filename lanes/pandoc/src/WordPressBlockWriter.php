@@ -2338,35 +2338,38 @@ final class WordPressBlockWriter
 
     private function renderImageFigureAttrs(AstNode $node): string
     {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
         $classes = ['wp-block-image'];
-        $extraClasses = $node->attr('classes', []);
-        if (is_array($extraClasses)) {
-            foreach ($extraClasses as $class) {
-                $classes[] = (string) $class;
+        if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
+            foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+                $classes[] = $class;
             }
         }
 
         $attrs = ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
-        $id = (string) $node->attr('id', '');
-        if ($id !== '') {
-            $attrs .= ' id="' . $this->esc($id) . '"';
+        $rendered = ['class' => true];
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'class' || !$this->isAllowedHtmlWriterAttr($name) || !is_scalar($value)) {
+                continue;
+            }
+
+            $value = (string) $value;
+            if ($value === '') {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+            $rendered[$name] = true;
         }
 
         $attributes = $node->attr('attributes', []);
-        if (is_array($attributes)) {
-            foreach ($attributes as $name => $value) {
-                $name = strtolower(trim((string) $name));
-                if (
-                    !preg_match('/\Adata-(?:docx-caption|odf-frame-caption)-[a-z0-9._:-]+\z/', $name)
-                    || !is_scalar($value)
-                ) {
-                    continue;
-                }
-
-                $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
-            }
-        }
-        if (is_array($attributes) && isset($attributes['latex-placement'])) {
+        if (
+            is_array($attributes)
+            && isset($attributes['latex-placement'])
+            && is_scalar($attributes['latex-placement'])
+            && !isset($rendered['data-pandoc-latex-placement'])
+        ) {
             $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $attributes['latex-placement']) . '"';
         }
 
