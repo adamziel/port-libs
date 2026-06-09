@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 11:59:11 UTC",
-    "sourceCommit": "126b8b9066e2a269936d2b7483f9d6b947fabaf0",
-    "sourceCommitShort": "126b8b9066e2",
+    "generated": "2026-06-09 12:02:37 UTC",
+    "sourceCommit": "263539ba3d73b56b4272022ad65c63907f61136b",
+    "sourceCommitShort": "263539ba3d73",
     "sourceBranch": "unknown",
-    "dashboardCommit": "126b8b9066e2a269936d2b7483f9d6b947fabaf0",
-    "dashboardCommitShort": "126b8b9066e2",
+    "dashboardCommit": "263539ba3d73b56b4272022ad65c63907f61136b",
+    "dashboardCommitShort": "263539ba3d73",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,936 / 2,276 (129.0%)",
             "mapPercent": "129.0%",
             "unmapped": "0",
-            "php": "2,738 pass / 0 fail",
-            "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "updated 2026-06-09: opc-package-path-control-bytes current-base slice...",
-            "currentWork": "OPC package path/content-type handling now rejects control-byte package part names af...",
-            "nextTarget": "Extend Pandoc JSON support only with a bounded non-overlappin...",
-            "remainingGate": "No local blocker",
+            "php": "2,740 pass / 0 fail",
+            "phase": "native PHP Pandoc DOCX generated-field metadata",
+            "audit": "2026-06-09 UTC current-base DOCX generated-field slice: preserve TOA...",
+            "currentWork": "DOCX generated-field reader now classifies TOA table-of-authorities fields and preser...",
+            "nextTarget": "Continue non-overlapping native conversion support under OPC...",
+            "remainingGate": "No Word, Pandoc, model, or GPU path used.",
             "commit": "pending fast ba..."
         },
         {

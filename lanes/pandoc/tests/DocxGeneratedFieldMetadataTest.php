@@ -84,6 +84,13 @@ $generatedFieldDocumentXml = <<<'XML'
       </w:fldSimple>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Table of authorities </w:t></w:r>
+      <w:fldSimple w:instr=' TOA \c "2" \b LegalAuthorities \e ", " \p " - " \h '>
+        <w:r><w:t>Cases - Source Authority</w:t></w:r>
+      </w:fldSimple>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
   </w:body>
 </w:document>
 XML;
@@ -379,5 +386,45 @@ return [
         $t->contains('data-docx-field-sequence="Figure"', $blocks);
         $t->contains('data-docx-field-page-number-separator=" - "', $blocks);
         $t->true(!str_contains($blocks, 'data-docx-field-columns="Figure"'), 'WordPress output should not label TOC \\c as columns');
+    },
+    'preserves DOCX table of authorities generated field category provenance' => static function (TestRunner $t) use ($buildGeneratedFieldPackage): void {
+        $document = (new DocxReader())->readDocument($buildGeneratedFieldPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[6];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Table of authorities ', $paragraph->children[0]->attr('text'));
+
+        $authorities = $paragraph->children[1];
+        $t->same('span', $authorities->type);
+        $t->same([
+            'docx-field',
+            'docx-field-toa',
+            'docx-generated-field',
+            'docx-generated-field-toa',
+            'docx-field-hyperlink',
+        ], $authorities->attr('classes'));
+        $attrs = $authorities->attr('attributes');
+        $t->same('toa', $attrs['data-docx-field']);
+        $t->same('TOA \c "2" \b LegalAuthorities \e ", " \p " - " \h', $attrs['data-docx-field-instruction']);
+        $t->same('table-of-authorities', $attrs['data-docx-generated-field-type']);
+        $t->same('2', $attrs['data-docx-field-category']);
+        $t->same('LegalAuthorities', $attrs['data-docx-field-bookmark']);
+        $t->same(', ', $attrs['data-docx-field-entry-separator']);
+        $t->same(' - ', $attrs['data-docx-field-page-number-separator']);
+        $t->same('true', $attrs['data-docx-field-hyperlink']);
+        $t->true(!isset($attrs['data-docx-field-target']), 'TOA switch values should not be reported as a field target');
+        $t->same('Cases - Source Authority', $authorities->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('[Cases - Source Authority]{.docx-field .docx-field-toa .docx-generated-field .docx-generated-field-toa .docx-field-hyperlink', $markdown);
+        $t->contains('data-docx-generated-field-type="table-of-authorities"', $markdown);
+        $t->contains('data-docx-field-category="2"', $markdown);
+        $t->contains('data-docx-field-bookmark="LegalAuthorities"', $markdown);
+
+        $t->contains('<span class="docx-field docx-field-toa docx-generated-field docx-generated-field-toa docx-field-hyperlink"', $blocks);
+        $t->contains('data-docx-field-category="2"', $blocks);
+        $t->contains('data-docx-field-page-number-separator=" - "', $blocks);
     },
 ];

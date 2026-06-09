@@ -1030,18 +1030,20 @@ final class CslStyle
      */
     private static function globalNameRenderingOverrides(\DOMElement $style): array
     {
+        $overrides = [];
         $demote = trim($style->getAttribute('demote-non-dropping-particle'));
-        if ($demote === '') {
-            return [];
-        }
-
-        if (!in_array($demote, ['never', 'sort-only', 'display-and-sort'], true)) {
+        if ($demote !== '' && !in_array($demote, ['never', 'sort-only', 'display-and-sort'], true)) {
             throw new \InvalidArgumentException('CSL style demote-non-dropping-particle must be never, sort-only, or display-and-sort');
         }
+        if ($demote !== '') {
+            $overrides['demoteNonDroppingParticle'] = $demote;
+        }
 
-        return [
-            'demoteNonDroppingParticle' => $demote,
-        ];
+        if ($style->hasAttribute('initialize-with-hyphen')) {
+            $overrides['initializeWithHyphen'] = self::booleanAttribute($style, 'initialize-with-hyphen', true, 'style');
+        }
+
+        return $overrides;
     }
 
     /**

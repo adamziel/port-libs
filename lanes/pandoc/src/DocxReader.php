@@ -7424,6 +7424,7 @@ final class DocxReader
         $generatedFieldNames = [
             'TOC' => ['field' => 'toc', 'type' => 'table-of-contents'],
             'INDEX' => ['field' => 'index', 'type' => 'document-index'],
+            'TOA' => ['field' => 'toa', 'type' => 'table-of-authorities'],
             'BIBLIOGRAPHY' => ['field' => 'bibliography', 'type' => 'bibliography'],
             'CITATION' => ['field' => 'citation', 'type' => 'citation'],
         ];
@@ -7732,6 +7733,8 @@ final class DocxReader
             $switchAttributes['c'] = 'sequence';
         } elseif ($fieldKey === 'index') {
             $switchAttributes['c'] = 'columns';
+        } elseif ($fieldKey === 'toa') {
+            $switchAttributes['c'] = 'category';
         }
 
         foreach ($switchAttributes as $switch => $attributeSuffix) {

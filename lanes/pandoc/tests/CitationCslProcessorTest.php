@@ -11098,6 +11098,76 @@ XML
 XML
         ));
     },
+    'applies bounded csl global initialize with hyphen option' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'global-hyphen-given-source',
+                'type' => 'report',
+                'title' => 'Global Hyphen Given Packet',
+                'author' => [
+                    ['given' => 'Jean-Luc'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'global-hyphen-family-source',
+                'type' => 'report',
+                'title' => 'Global Hyphen Family Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana-Maria'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" initialize-with-hyphen="false">
+  <info>
+    <title>Bounded Global Initialize With Hyphen Review Style</title>
+    <id>https://example.test/styles/bounded-global-initialize-with-hyphen-review</id>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author">
+          <name initialize-with=". "/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Global Initialize With Hyphen Review Style', $summary['title'] ?? null);
+        $t->same(false, $summary['nameRendering']['citation']['initializeWithHyphen'] ?? null);
+        $t->same(false, $summary['nameRendering']['bibliography']['initializeWithHyphen'] ?? null);
+        $t->same('(J. L. 2026; Cruz 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'global-hyphen-given-source', 'text' => '[@global-hyphen-given-source]']),
+            new AstNode('citation', ['id' => 'global-hyphen-family-source', 'text' => '[@global-hyphen-family-source]']),
+        ]));
+        $t->same('J. L. Global Hyphen Given Packet.', $processor->renderBibliographyEntry('global-hyphen-given-source'));
+        $t->same('Cruz, A. M. Global Hyphen Family Packet.', $processor->renderBibliographyEntry('global-hyphen-family-source'));
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" initialize-with-hyphen="maybe">
+  <citation><layout><names variable="author"><name initialize-with=". "/></names></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl initialize false for full given names' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
