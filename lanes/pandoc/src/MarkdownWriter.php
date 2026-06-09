@@ -24,6 +24,9 @@ final class MarkdownWriter
     /** @var array<string, string> */
     private array $yamlMetadataExplicitCollectionTags = [];
 
+    /** @var array<string, string> */
+    private array $yamlMetadataExplicitScalarTags = [];
+
     /** @var array<string, list<string>> */
     private array $yamlMetadataStandaloneCommentsByPath = [];
 
@@ -53,6 +56,7 @@ final class MarkdownWriter
         $this->referenceUsedLabels = [];
         $this->referenceTargetLabels = [];
         $this->yamlMetadataExplicitCollectionTags = [];
+        $this->yamlMetadataExplicitScalarTags = [];
         $this->yamlMetadataStandaloneCommentsByPath = [];
         $this->yamlMetadataTrailingCommentsByPath = [];
         $this->nextNoteNumber = 1;
@@ -62,6 +66,9 @@ final class MarkdownWriter
         if ((bool) ($this->options['yamlMetadata'] ?? false)) {
             $this->yamlMetadataExplicitCollectionTags = $this->yamlMetadataExplicitCollectionTags(
                 $document->attr('yamlMetadataCollectionProvenance', [])
+            );
+            $this->yamlMetadataExplicitScalarTags = $this->yamlMetadataExplicitScalarTags(
+                $document->attr('yamlMetadataScalarProvenance', [])
             );
             $this->yamlMetadataStandaloneCommentsByPath = $this->yamlMetadataStandaloneCommentsByPath(
                 $document->attr('yamlMetadataCommentProvenance', [])
@@ -151,6 +158,38 @@ final class MarkdownWriter
             if ($tag === 'set' && ($entry['kind'] ?? '') === 'mapping') {
                 $tags[$path] = $tag;
             }
+        }
+
+        return $tags;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function yamlMetadataExplicitScalarTags(mixed $provenance): array
+    {
+        if (!is_array($provenance)) {
+            return [];
+        }
+
+        $tags = [];
+        foreach ($provenance as $entry) {
+            if (!is_array($entry) || ($entry['type'] ?? '') !== 'yaml-typed-scalar') {
+                continue;
+            }
+
+            $path = $entry['path'] ?? null;
+            if (
+                !is_string($path)
+                || $path === ''
+                || ($entry['explicitTag'] ?? '') !== 'binary'
+                || ($entry['scalarType'] ?? '') !== 'binary'
+                || ($entry['valueKind'] ?? '') !== 'scalar'
+            ) {
+                continue;
+            }
+
+            $tags[$path] = 'binary';
         }
 
         return $tags;
@@ -606,6 +645,13 @@ final class MarkdownWriter
      */
     private function appendYamlMetadataScalarValueLines(array &$lines, mixed $value, int $indent, string $path): void
     {
+        $binaryScalar = is_string($value) ? $this->formatYamlMetadataExplicitBinaryScalar($value, $path) : null;
+        if ($binaryScalar !== null) {
+            $lines[] = str_repeat(' ', $indent) . $binaryScalar
+                . $this->yamlMetadataTrailingCommentSuffix($path);
+            return;
+        }
+
         if (is_string($value)) {
             $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
             if ($blockHeader !== null) {
@@ -626,6 +672,13 @@ final class MarkdownWriter
     private function appendYamlMetadataScalarListItemLines(array &$lines, mixed $value, int $indent, string $path): void
     {
         $prefix = str_repeat(' ', $indent);
+        $binaryScalar = is_string($value) ? $this->formatYamlMetadataExplicitBinaryScalar($value, $path) : null;
+        if ($binaryScalar !== null) {
+            $lines[] = $prefix . '- ' . $binaryScalar
+                . $this->yamlMetadataTrailingCommentSuffix($path);
+            return;
+        }
+
         if (is_string($value)) {
             $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
             if ($blockHeader !== null) {
@@ -651,6 +704,13 @@ final class MarkdownWriter
         string $path
     ): void
     {
+        $binaryScalar = is_string($value) ? $this->formatYamlMetadataExplicitBinaryScalar($value, $path) : null;
+        if ($binaryScalar !== null) {
+            $lines[] = $mappingPrefix . ' ' . $binaryScalar
+                . $this->yamlMetadataTrailingCommentSuffix($path);
+            return;
+        }
+
         if (is_string($value)) {
             $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
             if ($blockHeader !== null) {
@@ -663,6 +723,15 @@ final class MarkdownWriter
 
         $lines[] = $mappingPrefix . ' ' . $this->formatYamlMetadataScalar($value)
             . $this->yamlMetadataTrailingCommentSuffix($path);
+    }
+
+    private function formatYamlMetadataExplicitBinaryScalar(string $value, string $path): ?string
+    {
+        if (($this->yamlMetadataExplicitScalarTags[$path] ?? null) !== 'binary') {
+            return null;
+        }
+
+        return '!!binary ' . $this->doubleQuoteYamlMetadataString(base64_encode($value));
     }
 
     private function formatYamlMetadataKey(string $key): string

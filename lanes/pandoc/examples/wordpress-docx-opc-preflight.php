@@ -1850,6 +1850,10 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.
     ];
 }
 $signatureRelationshipTransformSummary = $graph->signatureRelationshipTransformSummary('/_xmlsignatures/sig1.xml');
+$signedRelationshipPolicySummary = $graph->signedRelationshipPolicySummary('/_xmlsignatures/sig1.xml', [
+    OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE,
+    OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE,
+]);
 $signatureRelationshipTransformGuards = [];
 foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-selector-shape.xml') as $transform) {
     $signatureRelationshipTransformGuards[] = [
@@ -2503,6 +2507,7 @@ $summary = [
     ],
     'signatureRelationshipTransforms' => $signatureRelationshipTransforms,
     'signatureRelationshipTransformSummary' => $signatureRelationshipTransformSummary,
+    'signedRelationshipPolicySummary' => $signedRelationshipPolicySummary,
     'digitalSignatureDigestPolicySummary' => $digitalSignatureDigestPolicySummary,
     'signatureRelationshipTransformGuards' => $signatureRelationshipTransformGuards,
     'signatureMissingRelationshipPartGuards' => $signatureMissingRelationshipPartGuards,
@@ -2616,6 +2621,24 @@ $summary = [
             'selectedExternalTargets' => $signatureRelationshipTransformSummary['selectedExternalTargets'],
             'relationshipXmlSha256s' => $signatureRelationshipTransformSummary['relationshipXmlSha256s'],
             'issues' => $signatureRelationshipTransformSummary['issues'],
+        ],
+        'signedRelationshipPolicy' => [
+            'valid' => $signedRelationshipPolicySummary['valid'],
+            'allowedRelationshipTypes' => $signedRelationshipPolicySummary['allowedRelationshipTypes'],
+            'selectedRelationshipCount' => $signedRelationshipPolicySummary['selectedRelationshipCount'],
+            'allowedRelationshipCount' => $signedRelationshipPolicySummary['allowedRelationshipCount'],
+            'disallowedRelationshipCount' => $signedRelationshipPolicySummary['disallowedRelationshipCount'],
+            'externalRelationshipCount' => $signedRelationshipPolicySummary['externalRelationshipCount'],
+            'internalRelationshipCount' => $signedRelationshipPolicySummary['internalRelationshipCount'],
+            'invalidRelationshipCount' => $signedRelationshipPolicySummary['invalidRelationshipCount'],
+            'selectedRelationshipIds' => $signedRelationshipPolicySummary['selectedRelationshipIds'],
+            'selectedRelationshipTypes' => $signedRelationshipPolicySummary['selectedRelationshipTypes'],
+            'disallowedRelationshipTypes' => $signedRelationshipPolicySummary['disallowedRelationshipTypes'],
+            'selectedInternalTargetParts' => $signedRelationshipPolicySummary['selectedInternalTargetParts'],
+            'selectedExternalTargets' => $signedRelationshipPolicySummary['selectedExternalTargets'],
+            'issueCounts' => $signedRelationshipPolicySummary['issueCounts'],
+            'issues' => $signedRelationshipPolicySummary['issues'],
+            'disallowedRelationships' => $signedRelationshipPolicySummary['disallowedRelationships'],
         ],
         'digitalSignatureDigestPolicy' => [
             'valid' => $digitalSignatureDigestPolicySummary['valid'],
@@ -4071,6 +4094,51 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['selectedExternalTargets'] ?? null) !== ['https://example.test/wp-admin/post.php?post=42&action=edit']
         || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['relationshipXmlSha256s'] ?? null) !== [$signatureRelationshipTransformXmlSha256]
         || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['issues'] ?? null) !== []
+        || ($summary['signedRelationshipPolicySummary']['valid'] ?? null) !== false
+        || ($summary['signedRelationshipPolicySummary']['allowedRelationshipTypes'] ?? null) !== [
+            OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE,
+        ]
+        || ($summary['signedRelationshipPolicySummary']['selectedRelationshipCount'] ?? null) !== 3
+        || ($summary['signedRelationshipPolicySummary']['allowedRelationshipCount'] ?? null) !== 2
+        || ($summary['signedRelationshipPolicySummary']['disallowedRelationshipCount'] ?? null) !== 1
+        || ($summary['signedRelationshipPolicySummary']['externalRelationshipCount'] ?? null) !== 1
+        || ($summary['signedRelationshipPolicySummary']['internalRelationshipCount'] ?? null) !== 2
+        || ($summary['signedRelationshipPolicySummary']['invalidRelationshipCount'] ?? null) !== 0
+        || ($summary['signedRelationshipPolicySummary']['selectedRelationshipIds'] ?? null) !== ['rIdEmbeddedWorkbook', 'rIdHero', 'rIdReviewer']
+        || ($summary['signedRelationshipPolicySummary']['selectedRelationshipTypes'] ?? null) !== [
+            OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE,
+        ]
+        || ($summary['signedRelationshipPolicySummary']['disallowedRelationshipTypes'] ?? null) !== [OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE]
+        || ($summary['signedRelationshipPolicySummary']['selectedInternalTargetParts'] ?? null) !== ['/word/embeddings/source workbook.xlsx', '/word/media/hero image.PNG']
+        || ($summary['signedRelationshipPolicySummary']['selectedExternalTargets'] ?? null) !== ['https://example.test/wp-admin/post.php?post=42&action=edit']
+        || ($summary['signedRelationshipPolicySummary']['issueCounts'] ?? null) !== [
+            'external-signed-relationship' => 1,
+            'signed-relationship-type-not-allowed' => 1,
+        ]
+        || ($summary['signedRelationshipPolicySummary']['issues'] ?? null) !== [
+            'external-signed-relationship',
+            'signed-relationship-type-not-allowed',
+        ]
+        || count($summary['signedRelationshipPolicySummary']['disallowedRelationships'] ?? []) !== 1
+        || ($summary['signedRelationshipPolicySummary']['disallowedRelationships'][0]['id'] ?? null) !== 'rIdReviewer'
+        || ($summary['signedRelationshipPolicySummary']['disallowedRelationships'][0]['target'] ?? null) !== 'https://example.test/wp-admin/post.php?post=42&action=edit'
+        || ($summary['signedRelationshipPolicySummary']['disallowedRelationships'][0]['policyIssues'] ?? null) !== [
+            'external-signed-relationship',
+            'signed-relationship-type-not-allowed',
+        ]
+        || ($summary['wordpressImport']['signedRelationshipPolicy']['valid'] ?? null) !== false
+        || ($summary['wordpressImport']['signedRelationshipPolicy']['selectedRelationshipCount'] ?? null) !== 3
+        || ($summary['wordpressImport']['signedRelationshipPolicy']['allowedRelationshipCount'] ?? null) !== 2
+        || ($summary['wordpressImport']['signedRelationshipPolicy']['disallowedRelationshipCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['signedRelationshipPolicy']['disallowedRelationshipTypes'] ?? null) !== [OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE]
+        || ($summary['wordpressImport']['signedRelationshipPolicy']['issueCounts'] ?? null) !== [
+            'external-signed-relationship' => 1,
+            'signed-relationship-type-not-allowed' => 1,
+        ]
+        || ($summary['wordpressImport']['signedRelationshipPolicy']['disallowedRelationships'][0]['id'] ?? null) !== 'rIdReviewer'
         || ($summary['digitalSignatureDigestPolicySummary']['valid'] ?? null) !== false
         || ($summary['digitalSignatureDigestPolicySummary']['referenceCount'] ?? null) !== 5
         || ($summary['digitalSignatureDigestPolicySummary']['signedInfoReferenceCount'] ?? null) !== 2

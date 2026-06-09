@@ -656,6 +656,7 @@ $metadataMarkdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($docum
 $metadataRoundTripDocument = (new MarkdownReader())->read($metadataMarkdown);
 $metadataRoundTripMeta = $metadataRoundTripDocument->attr('meta', []);
 $metadataRoundTripCollectionProvenance = $metadataRoundTripDocument->attr('yamlMetadataCollectionProvenance', []);
+$metadataRoundTripScalarProvenance = $metadataRoundTripDocument->attr('yamlMetadataScalarProvenance', []);
 
 $implicitOpeningMarkdown = <<<'MARKDOWN'
 title: "Implicit **Packet**"
@@ -2585,6 +2586,19 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($metadataMarkdown, "review-notes:\n  - |-\n    Preserve original front matter.")) {
         throw new RuntimeException('YAML metadata self-test did not write sequence multiline note as a YAML block scalar');
     }
+    if (
+        !str_contains($metadataMarkdown, 'note-bytes: !!binary "UmV2aWV3IG1ldGFkYXRh"')
+        || !str_contains($metadataMarkdown, 'digest-bytes: !!binary "U291cmNlIFBhY2tldA=="')
+    ) {
+        throw new RuntimeException('YAML metadata self-test did not preserve valid binary scalar tags in writer metadata');
+    }
+    if (
+        str_contains($metadataMarkdown, 'note-bytes: "Review metadata"')
+        || str_contains($metadataMarkdown, 'digest-bytes: "Source Packet"')
+        || !str_contains($metadataMarkdown, 'invalid-bytes: "not base64!"')
+    ) {
+        throw new RuntimeException('YAML metadata self-test confused valid and invalid binary scalar writer metadata');
+    }
     if (!str_contains($metadataMarkdown, "  reviewer-pairs: !!pairs\n    - owner: \"Import Desk\"\n    - owner: \"QA Desk\"")) {
         throw new RuntimeException('YAML metadata self-test did not preserve ordered pair tag in nested writer metadata');
     }
@@ -2689,6 +2703,26 @@ if (($argv[1] ?? '') === '--self-test') {
         if (($metadataRoundTripCollectionTags[$expectedPath] ?? null) !== $expectedTag) {
             throw new RuntimeException('YAML metadata self-test lost writer explicit collection tag at ' . $expectedPath);
         }
+    }
+    $metadataRoundTripScalarTags = [];
+    foreach ($metadataRoundTripScalarProvenance as $entry) {
+        if (($entry['type'] ?? '') === 'yaml-typed-scalar' && isset($entry['explicitTag'])) {
+            $metadataRoundTripScalarTags[$entry['path'] ?? ''] = $entry;
+        }
+    }
+    foreach ([
+        '/review-binary/note-bytes',
+        '/review-binary/digest-bytes',
+    ] as $expectedPath) {
+        if (($metadataRoundTripScalarTags[$expectedPath]['explicitTag'] ?? null) !== 'binary') {
+            throw new RuntimeException('YAML metadata self-test lost writer explicit binary scalar tag at ' . $expectedPath);
+        }
+        if (($metadataRoundTripScalarTags[$expectedPath]['scalarType'] ?? null) !== 'binary') {
+            throw new RuntimeException('YAML metadata self-test lost writer binary scalar type at ' . $expectedPath);
+        }
+    }
+    if (isset($metadataRoundTripScalarTags['/review-binary/invalid-bytes'])) {
+        throw new RuntimeException('YAML metadata self-test promoted invalid binary scalar during writer round trip');
     }
     if (($metadataRoundTripMeta['source-uri'] ?? '') !== '/exports/packet#front-matter') {
         throw new RuntimeException('YAML metadata self-test lost quoted writer source URI during round trip');

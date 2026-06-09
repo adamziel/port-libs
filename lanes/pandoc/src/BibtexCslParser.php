@@ -2483,29 +2483,43 @@ final class BibtexCslParser
             return self::dateWithTimeParts(['literal' => $year], $fields, $timeFields, $partFields[0]);
         }
 
-        $dateParts = [self::datePartListFromSplitFields($fields, $partFields, true)];
-        if ($hasEndPartField) {
-            $endParts = self::datePartListFromSplitFields($fields, $endPartFields, false);
-            if ($endParts === null) {
-                throw new \InvalidArgumentException('BibTeX split date range fields require ' . ($endPartFields[0] ?? 'endyear') . ' to be present');
-            }
-
-            $dateParts[] = $endParts;
+        $startDatePart = self::datePartInfoFromSplitFields($fields, $partFields, true);
+        if ($startDatePart === null) {
+            throw new \InvalidArgumentException('BibTeX split date fields require ' . ($partFields[0] ?? 'year') . ' to be present');
         }
 
-        return self::dateWithTimeParts(['date-parts' => $dateParts], $fields, $timeFields, $partFields[0]);
+        $dateParts = [$startDatePart['parts']];
+        $season = $startDatePart['season'];
+        if ($hasEndPartField) {
+            $endDatePart = self::datePartInfoFromSplitFields($fields, $endPartFields, false);
+            if ($endDatePart === null) {
+                throw new \InvalidArgumentException('BibTeX split date range fields require ' . ($endPartFields[0] ?? 'endyear') . ' to be present');
+            }
+            if ($season !== null || $endDatePart['season'] !== null) {
+                throw new \InvalidArgumentException('BibTeX split date range fields do not support season month codes');
+            }
+
+            $dateParts[] = $endDatePart['parts'];
+        }
+
+        $date = ['date-parts' => $dateParts];
+        if ($season !== null) {
+            $date['season'] = $season;
+        }
+
+        return self::dateWithTimeParts($date, $fields, $timeFields, $partFields[0]);
     }
 
     /**
      * @param array<string, string> $fields
      * @param list<string> $partFields
-     * @return list<int>|null
+     * @return array{parts:list<int>, season:int|null}|null
      */
-    private static function datePartListFromSplitFields(array $fields, array $partFields, bool $required): ?array
+    private static function datePartInfoFromSplitFields(array $fields, array $partFields, bool $required): ?array
     {
         $yearField = $partFields[0] ?? null;
         if ($yearField === null || !isset($fields[$yearField]) || trim($fields[$yearField]) === '') {
-            return $required ? [] : null;
+            return $required ? ['parts' => [], 'season' => null] : null;
         }
 
         $year = self::cleanBibtexText($fields[$yearField]);
@@ -2514,8 +2528,19 @@ final class BibtexCslParser
         }
 
         $parts = [(int) $year];
+        $season = null;
         if (isset($partFields[1], $fields[$partFields[1]]) && trim($fields[$partFields[1]]) !== '') {
-            $parts[] = self::monthNumber(self::cleanBibtexText($fields[$partFields[1]]), $partFields[1]);
+            $month = self::monthNumber(self::cleanBibtexText($fields[$partFields[1]]), $partFields[1], true);
+            $season = self::seasonFromBiblatexDateMonthCode($month);
+            if ($season !== null) {
+                if (isset($partFields[2], $fields[$partFields[2]]) && trim($fields[$partFields[2]]) !== '') {
+                    throw new \InvalidArgumentException('BibTeX ' . $partFields[1] . ' season date must not include a day');
+                }
+
+                return ['parts' => $parts, 'season' => $season];
+            }
+
+            $parts[] = $month;
         }
 
         if (isset($partFields[2], $fields[$partFields[2]]) && trim($fields[$partFields[2]]) !== '') {
@@ -2527,7 +2552,7 @@ final class BibtexCslParser
             $parts[] = (int) $day;
         }
 
-        return $parts;
+        return ['parts' => $parts, 'season' => $season];
     }
 
     /**
@@ -2845,7 +2870,7 @@ final class BibtexCslParser
         };
     }
 
-    private static function monthNumber(string $value, string $field): int
+    private static function monthNumber(string $value, string $field, bool $allowSeasonCode = false): int
     {
         $lookup = strtolower(substr($value, 0, 3));
         $months = [
@@ -2871,11 +2896,15 @@ final class BibtexCslParser
             throw new \InvalidArgumentException('BibTeX ' . $field . ' field must be a month name or number');
         }
 
-        if ($month < 1 || $month > 12) {
-            throw new \InvalidArgumentException('BibTeX ' . $field . ' month must be between 1 and 12');
+        if ($month >= 1 && $month <= 12) {
+            return $month;
+        }
+        if ($allowSeasonCode && self::seasonFromBiblatexDateMonthCode($month) !== null) {
+            return $month;
         }
 
-        return $month;
+        $range = $allowSeasonCode ? 'between 1 and 12 or a BibLaTeX season code 21 through 24' : 'between 1 and 12';
+        throw new \InvalidArgumentException('BibTeX ' . $field . ' month must be ' . $range);
     }
 
     private static function normalizePages(string $pages): string

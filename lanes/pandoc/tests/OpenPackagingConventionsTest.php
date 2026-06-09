@@ -4583,6 +4583,178 @@ XML;
             ],
         ], $summary['transforms']);
     },
+    'summarizes OPC signed relationship type policy for importer review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/sig-signed-relationships.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/>
+  <Relationship Id="rIdUnsafeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-workbook.xlsx"/>
+  <Relationship Id="rIdMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
+  <Relationship Id="rIdDraft" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="draft.xml"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:opc="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <opc:RelationshipReference SourceId="rIdHero"/>
+          <opc:RelationshipReference SourceId="rIdReviewer"/>
+          <opc:RelationshipReference SourceId="rIdUnsafeReviewer"/>
+          <opc:RelationshipReference SourceId="rIdMissingImage"/>
+          <opc:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/source-workbook.xlsx', 'data' => 'PK'],
+            ['name' => '_xmlsignatures/sig-signed-relationships.xml', 'data' => $signatureXml],
+        ]));
+
+        $summary = $graph->signedRelationshipPolicySummary('/_xmlsignatures/sig-signed-relationships.xml', [
+            OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE,
+        ]);
+
+        $t->same('/_xmlsignatures/sig-signed-relationships.xml', $summary['signaturePart']);
+        $t->same(false, $summary['valid']);
+        $t->same([
+            OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE,
+        ], $summary['allowedRelationshipTypes']);
+        $t->same(1, $summary['transformCount']);
+        $t->same(5, $summary['selectedRelationshipCount']);
+        $t->same(3, $summary['allowedRelationshipCount']);
+        $t->same(2, $summary['disallowedRelationshipCount']);
+        $t->same(2, $summary['externalRelationshipCount']);
+        $t->same(3, $summary['internalRelationshipCount']);
+        $t->same(2, $summary['invalidRelationshipCount']);
+        $t->same(1, $summary['unsafeExternalRelationshipCount']);
+        $t->same(1, $summary['missingTargetRelationshipCount']);
+        $t->same([
+            'rIdEmbeddedWorkbook',
+            'rIdHero',
+            'rIdMissingImage',
+            'rIdReviewer',
+            'rIdUnsafeReviewer',
+        ], $summary['selectedRelationshipIds']);
+        $t->same([
+            OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE,
+        ], $summary['selectedRelationshipTypes']);
+        $t->same([OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE], $summary['disallowedRelationshipTypes']);
+        $t->same(['/word/embeddings/source-workbook.xlsx', '/word/media/hero.png', '/word/media/missing.png'], $summary['selectedInternalTargetParts']);
+        $t->same(['https://example.test/review', 'javascript:alert(1)'], $summary['selectedExternalTargets']);
+        $t->same([
+            'external-signed-relationship' => 2,
+            'missing-in-package' => 1,
+            'selected-relationship-target-issues' => 1,
+            'signed-relationship-type-not-allowed' => 2,
+            'unsafe-external-signed-relationship' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'external-signed-relationship',
+            'missing-in-package',
+            'selected-relationship-target-issues',
+            'signed-relationship-type-not-allowed',
+            'unsafe-external-signed-relationship',
+        ], $summary['issues']);
+        $t->same([
+            [
+                'source' => '/word/document.xml',
+                'id' => 'rIdReviewer',
+                'type' => OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE,
+                'target' => 'https://example.test/review',
+                'targetPart' => null,
+                'contentType' => null,
+                'external' => true,
+                'selectedBySourceId' => true,
+                'selectedBySourceType' => false,
+                'allowedType' => false,
+                'externalTargetAllowed' => true,
+                'valid' => true,
+                'issues' => [],
+                'policyIssues' => [
+                    'external-signed-relationship',
+                    'signed-relationship-type-not-allowed',
+                ],
+            ],
+            [
+                'source' => '/word/document.xml',
+                'id' => 'rIdUnsafeReviewer',
+                'type' => OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE,
+                'target' => 'javascript:alert(1)',
+                'targetPart' => null,
+                'contentType' => null,
+                'external' => true,
+                'selectedBySourceId' => true,
+                'selectedBySourceType' => false,
+                'allowedType' => false,
+                'externalTargetAllowed' => false,
+                'valid' => false,
+                'issues' => ['external-target-unsafe-scheme'],
+                'policyIssues' => [
+                    'external-signed-relationship',
+                    'signed-relationship-type-not-allowed',
+                    'unsafe-external-signed-relationship',
+                ],
+            ],
+        ], $summary['disallowedRelationships']);
+        $t->same('rIdMissingImage', $summary['invalidRelationships'][0]['id']);
+        $t->same(['missing-in-package'], $summary['invalidRelationships'][0]['issues']);
+        $t->same('rIdUnsafeReviewer', $summary['invalidRelationships'][1]['id']);
+        $t->same(['external-target-unsafe-scheme'], $summary['invalidRelationships'][1]['issues']);
+        $t->same([
+            [
+                'referenceIndex' => 0,
+                'referenceUri' => '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml',
+                'relationshipPartName' => '/word/_rels/document.xml.rels',
+                'source' => '/word/document.xml',
+                'selectedRelationshipCount' => 5,
+                'disallowedRelationshipCount' => 2,
+                'invalidRelationshipCount' => 2,
+                'valid' => false,
+                'issues' => [
+                    'external-signed-relationship',
+                    'missing-in-package',
+                    'selected-relationship-target-issues',
+                    'signed-relationship-type-not-allowed',
+                    'unsafe-external-signed-relationship',
+                ],
+            ],
+        ], $summary['transforms']);
+    },
     'omits internal TargetMode attributes from OPC relationship transform XML' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

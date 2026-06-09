@@ -8480,6 +8480,76 @@ MD;
         $t->same('yaml-writer-timestamp-body', $roundTripped->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-writer-timestamp-body">YAML writer timestamp body</h1>', $blocks);
     },
+    'writes pandoc yaml binary metadata using reader scalar provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Binary writer **Packet**',
+            'review:',
+            '  note-bytes: !!binary "UmV2aWV3IG1ldGFkYXRh"',
+            '  digest-bytes: !!binary |',
+            '    U291cmNl',
+            '    IFBhY2tldA==',
+            '  invalid-bytes: !!binary "not base64!"',
+            'attachments:',
+            '  - name: front-matter.bin',
+            '    payload: !!binary "AAECAw=="',
+            '  - !!binary "V29yZFByZXNz"',
+            'flow-review: {payload: !!binary "SGVsbG8=", invalid: !!binary "bad base64!"}',
+            '...',
+            '',
+            '# Binary writer body',
+        ]));
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $provenance = $roundTripped->attr('yamlMetadataScalarProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $t->contains('note-bytes: !!binary "UmV2aWV3IG1ldGFkYXRh"', $markdown);
+        $t->contains('digest-bytes: !!binary "U291cmNlIFBhY2tldA=="', $markdown);
+        $t->contains('payload: !!binary "AAECAw=="', $markdown);
+        $t->contains('- !!binary "V29yZFByZXNz"', $markdown);
+        $t->contains('payload: !!binary "SGVsbG8="', $markdown);
+        $t->contains('invalid-bytes: "not base64!"', $markdown);
+        $t->contains('invalid: "bad base64!"', $markdown);
+        $t->same(false, str_contains($markdown, 'note-bytes: "Review metadata"'));
+        $t->same(false, str_contains($markdown, 'digest-bytes: "Source Packet"'));
+        $t->same('Binary writer **Packet**', $meta['title']);
+        $t->same('Review metadata', $meta['review']['note-bytes']);
+        $t->same('Source Packet', $meta['review']['digest-bytes']);
+        $t->same('not base64!', $meta['review']['invalid-bytes']);
+        $t->same("front-matter.bin", $meta['attachments'][0]['name']);
+        $t->same("\x00\x01\x02\x03", $meta['attachments'][0]['payload']);
+        $t->same('WordPress', $meta['attachments'][1]);
+        $t->same('Hello', $meta['flow-review']['payload']);
+        $t->same('bad base64!', $meta['flow-review']['invalid']);
+        $t->same(false, array_key_exists('__yamlMetadataScalarProvenance', $meta));
+
+        $typed = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar' && ($entry['explicitTag'] ?? '') === 'binary') {
+                $typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        foreach ([
+            '/review/note-bytes',
+            '/review/digest-bytes',
+            '/attachments/0/payload',
+            '/attachments/1',
+            '/flow-review/payload',
+        ] as $path) {
+            $t->true(isset($typed[$path]), 'missing round-tripped YAML binary scalar provenance ' . $path);
+            $t->same('binary', $typed[$path]['scalarType'] ?? null);
+            $t->same('scalar', $typed[$path]['valueKind'] ?? null);
+        }
+
+        $t->same(false, isset($typed['/review/invalid-bytes']));
+        $t->same(false, isset($typed['/flow-review/invalid']));
+        $t->same('binary-writer-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="binary-writer-body">Binary writer body</h1>', $blocks);
+    },
     'writes pandoc yaml ordered pair metadata using explicit collection provenance' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

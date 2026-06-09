@@ -3902,6 +3902,199 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @param list<string> $allowedRelationshipTypes
+     * @return array{signaturePart:string, valid:bool, allowedRelationshipTypes:list<string>, transformCount:int, selectedRelationshipCount:int, allowedRelationshipCount:int, disallowedRelationshipCount:int, externalRelationshipCount:int, internalRelationshipCount:int, invalidRelationshipCount:int, unsafeExternalRelationshipCount:int, missingTargetRelationshipCount:int, selectedRelationshipIds:list<string>, selectedRelationshipTypes:list<string>, disallowedRelationshipTypes:list<string>, selectedInternalTargetParts:list<string>, selectedExternalTargets:list<string>, issueCounts:array<string, int>, issues:list<string>, disallowedRelationships:list<array{source:string, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, selectedBySourceId:bool, selectedBySourceType:bool, allowedType:bool, externalTargetAllowed:?bool, valid:bool, issues:list<string>, policyIssues:list<string>}>, invalidRelationships:list<array{source:string, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, selectedBySourceId:bool, selectedBySourceType:bool, allowedType:bool, externalTargetAllowed:?bool, valid:bool, issues:list<string>, policyIssues:list<string>}>, transforms:list<array{referenceIndex:int, referenceUri:string, relationshipPartName:?string, source:?string, selectedRelationshipCount:int, disallowedRelationshipCount:int, invalidRelationshipCount:int, valid:bool, issues:list<string>}>}
+     */
+    public function signedRelationshipPolicySummary(string $signaturePartName, array $allowedRelationshipTypes): array
+    {
+        $signaturePartName = OpcPackagePath::canonicalPartName($signaturePartName);
+        $allowedRelationshipTypes = array_values(array_unique(array_map(
+            static function (string $relationshipType): string {
+                return trim($relationshipType);
+            },
+            $allowedRelationshipTypes,
+        )));
+        $allowedRelationshipTypes = array_values(array_filter(
+            $allowedRelationshipTypes,
+            static fn (string $relationshipType): bool => $relationshipType !== '',
+        ));
+
+        $typeRank = static fn (string $relationshipType): array => match ($relationshipType) {
+            self::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE => [0, $relationshipType],
+            self::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE => [1, $relationshipType],
+            self::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE => [2, $relationshipType],
+            default => [3, $relationshipType],
+        };
+        $sortTypes = static function (array &$relationshipTypes) use ($typeRank): void {
+            usort(
+                $relationshipTypes,
+                static fn (string $left, string $right): int => $typeRank($left) <=> $typeRank($right),
+            );
+        };
+        $sortTypes($allowedRelationshipTypes);
+        $allowedRelationshipTypeIndex = array_fill_keys($allowedRelationshipTypes, true);
+
+        $summary = [
+            'signaturePart' => $signaturePartName,
+            'valid' => true,
+            'allowedRelationshipTypes' => $allowedRelationshipTypes,
+            'transformCount' => 0,
+            'selectedRelationshipCount' => 0,
+            'allowedRelationshipCount' => 0,
+            'disallowedRelationshipCount' => 0,
+            'externalRelationshipCount' => 0,
+            'internalRelationshipCount' => 0,
+            'invalidRelationshipCount' => 0,
+            'unsafeExternalRelationshipCount' => 0,
+            'missingTargetRelationshipCount' => 0,
+            'selectedRelationshipIds' => [],
+            'selectedRelationshipTypes' => [],
+            'disallowedRelationshipTypes' => [],
+            'selectedInternalTargetParts' => [],
+            'selectedExternalTargets' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'disallowedRelationships' => [],
+            'invalidRelationships' => [],
+            'transforms' => [],
+        ];
+
+        foreach ($this->preflightSignatureRelationshipTransforms($signaturePartName) as $transform) {
+            $summary['transformCount']++;
+            $transformIssues = [];
+            foreach ($transform['issues'] as $issue) {
+                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                self::appendUniqueString($summary['issues'], $issue);
+                self::appendUniqueString($transformIssues, $issue);
+            }
+
+            $transformDisallowedRelationshipCount = 0;
+            $transformInvalidRelationshipCount = 0;
+            foreach ($transform['relationships'] as $relationship) {
+                self::appendUniqueString($summary['selectedRelationshipIds'], $relationship['id']);
+                self::appendUniqueString($summary['selectedRelationshipTypes'], $relationship['type']);
+
+                $allowedType = $allowedRelationshipTypes === []
+                    || isset($allowedRelationshipTypeIndex[$relationship['type']]);
+                if ($allowedType) {
+                    $summary['allowedRelationshipCount']++;
+                } else {
+                    $summary['disallowedRelationshipCount']++;
+                    $transformDisallowedRelationshipCount++;
+                    self::appendUniqueString($summary['disallowedRelationshipTypes'], $relationship['type']);
+                }
+
+                if ($relationship['external']) {
+                    $summary['externalRelationshipCount']++;
+                    self::appendUniqueString($summary['selectedExternalTargets'], $relationship['target']);
+                } else {
+                    $summary['internalRelationshipCount']++;
+                    if ($relationship['targetPart'] !== null) {
+                        self::appendUniqueString($summary['selectedInternalTargetParts'], $relationship['targetPart']);
+                    }
+                }
+
+                if (!$relationship['valid']) {
+                    $summary['invalidRelationshipCount']++;
+                    $transformInvalidRelationshipCount++;
+                }
+
+                if ($relationship['external'] && $relationship['externalTargetAllowed'] === false) {
+                    $summary['unsafeExternalRelationshipCount']++;
+                }
+                if (in_array('missing-in-package', $relationship['issues'], true)) {
+                    $summary['missingTargetRelationshipCount']++;
+                }
+
+                $policyIssues = [];
+                if ($relationship['external']) {
+                    $policyIssues[] = 'external-signed-relationship';
+                }
+                if (!$allowedType) {
+                    $policyIssues[] = 'signed-relationship-type-not-allowed';
+                }
+                if ($relationship['external'] && $relationship['externalTargetAllowed'] === false) {
+                    $policyIssues[] = 'unsafe-external-signed-relationship';
+                }
+                foreach ($relationship['issues'] as $issue) {
+                    if ($issue === 'external-target-unsafe-scheme') {
+                        continue;
+                    }
+                    self::appendUniqueString($policyIssues, $issue);
+                }
+                sort($policyIssues, SORT_STRING);
+
+                foreach ($policyIssues as $issue) {
+                    $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                    self::appendUniqueString($summary['issues'], $issue);
+                    self::appendUniqueString($transformIssues, $issue);
+                }
+
+                $relationshipRow = [
+                    'source' => $relationship['source'],
+                    'id' => $relationship['id'],
+                    'type' => $relationship['type'],
+                    'target' => $relationship['target'],
+                    'targetPart' => $relationship['targetPart'],
+                    'contentType' => $relationship['contentType'],
+                    'external' => $relationship['external'],
+                    'selectedBySourceId' => $relationship['selectedBySourceId'],
+                    'selectedBySourceType' => $relationship['selectedBySourceType'],
+                    'allowedType' => $allowedType,
+                    'externalTargetAllowed' => $relationship['externalTargetAllowed'],
+                    'valid' => $relationship['valid'],
+                    'issues' => $relationship['issues'],
+                    'policyIssues' => $policyIssues,
+                ];
+                if (!$allowedType) {
+                    $summary['disallowedRelationships'][] = $relationshipRow;
+                }
+                if (!$relationship['valid']) {
+                    $summary['invalidRelationships'][] = $relationshipRow;
+                }
+            }
+
+            sort($transformIssues, SORT_STRING);
+            $summary['transforms'][] = [
+                'referenceIndex' => $transform['referenceIndex'],
+                'referenceUri' => $transform['referenceUri'],
+                'relationshipPartName' => $transform['relationshipPartName'],
+                'source' => $transform['source'],
+                'selectedRelationshipCount' => count($transform['relationships']),
+                'disallowedRelationshipCount' => $transformDisallowedRelationshipCount,
+                'invalidRelationshipCount' => $transformInvalidRelationshipCount,
+                'valid' => $transformIssues === [],
+                'issues' => $transformIssues,
+            ];
+        }
+
+        foreach ([
+            'selectedRelationshipIds',
+            'selectedInternalTargetParts',
+            'selectedExternalTargets',
+            'disallowedRelationshipTypes',
+            'issues',
+        ] as $listKey) {
+            sort($summary[$listKey], SORT_STRING);
+        }
+        $sortTypes($summary['selectedRelationshipTypes']);
+        $sortTypes($summary['disallowedRelationshipTypes']);
+        foreach (['disallowedRelationships', 'invalidRelationships'] as $rowListKey) {
+            usort(
+                $summary[$rowListKey],
+                static fn (array $left, array $right): int => [$left['source'], $left['id']]
+                    <=> [$right['source'], $right['id']],
+            );
+        }
+        ksort($summary['issueCounts'], SORT_STRING);
+
+        $summary['selectedRelationshipCount'] = count($summary['selectedRelationshipIds']);
+        $summary['valid'] = $summary['issues'] === [];
+
+        return $summary;
+    }
+
+    /**
      * @return array{signaturePart:string, valid:bool, referenceCount:int, signedInfoReferenceCount:int, manifestReferenceCount:int, validDigestPolicyCount:int, invalidDigestPolicyCount:int, knownDigestAlgorithmCount:int, unknownDigestAlgorithmCount:int, missingDigestMethodCount:int, missingDigestValueCount:int, invalidDigestValueBase64Count:int, digestValueLengthMismatchCount:int, algorithmCounts:array<string, int>, profileCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, invalidReferences:list<array{section:string, referenceIndex:int, manifestId:?string, uri:?string, targetPart:?string, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>}>, references:list<array{section:string, referenceIndex:int, manifestId:?string, uri:?string, targetPart:?string, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>}>}
      */
     public function digitalSignatureDigestPolicySummary(string $signaturePartName): array

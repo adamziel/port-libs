@@ -2887,6 +2887,112 @@ BIB));
 }
 BIB));
     },
+    'maps bounded biblatex split season month fields into csl date metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{split-season-source,
+  author    = {{Split Season Desk}},
+  title     = {Split Season Packet},
+  year      = {2026},
+  month     = {21},
+  origyear  = {1999},
+  origmonth = {23},
+  publisher = {Review Press},
+  url       = {https://example.test/split-season-source},
+  urlyear   = {2026},
+  urlmonth  = {24}
+}
+
+@inproceedings{split-season-event,
+  author     = {Ng, Nia},
+  title      = {Split Season Event Packet},
+  booktitle  = {Migration Conference},
+  eventyear  = {2025},
+  eventmonth = {22},
+  year       = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same(['date-parts' => [[2026]], 'season' => 1], $items[0]['issued']);
+        $t->same(['date-parts' => [[1999]], 'season' => 3], $items[0]['original-date']);
+        $t->same(['date-parts' => [[2026]], 'season' => 4], $items[0]['accessed']);
+        $t->same(['date-parts' => [[2025]], 'season' => 2], $items[1]['event-date']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $source = $processor->item('split-season-source');
+        $event = $processor->item('split-season-event');
+        $t->same('Spring 2026', $source['issuedDate']['display'] ?? null);
+        $t->same(1, $source['issuedDate']['season'] ?? null);
+        $t->same('Spring', $source['issuedDate']['seasonName'] ?? null);
+        $t->same('Autumn 1999', $source['originalDate']['display'] ?? null);
+        $t->same('Autumn', $source['originalDate']['seasonName'] ?? null);
+        $t->same('Winter 2026', $source['accessedDate']['display'] ?? null);
+        $t->same('Date seasons: issued Spring; accessed Winter; original-date Autumn', $source['dateSeasonSummary'] ?? null);
+        $t->same('Summer 2025', $event['eventDate']['display'] ?? null);
+        $t->same('Date seasons: event-date Summer', $event['dateSeasonSummary'] ?? null);
+        $t->same('(Split Season Desk 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('split-season-source', '[@split-season-source]'),
+            $citation('split-season-event', '[@split-season-event]'),
+        ]));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="issued" form="text"/>
+        <text variable="issued-season-name"/>
+        <date variable="accessed" form="text"/>
+        <date variable="original-date" form="text"/>
+        <date variable="event-date" form="text"/>
+        <text variable="date-season-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued" form="text"/>
+      <text variable="issued-season-name"/>
+      <date variable="accessed" form="text"/>
+      <date variable="original-date" form="text"/>
+      <date variable="event-date" form="text"/>
+      <text variable="date-season-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Split Season Desk | Spring 2026 | Spring | Winter 2026 | Autumn 1999 | Date seasons: issued Spring; accessed Winter; original-date Autumn; Ng | 2025 | Summer 2025 | Date seasons: event-date Summer]', $styled->renderCitationCluster([
+            $citation('split-season-source', '[@split-season-source]'),
+            $citation('split-season-event', '[@split-season-event]'),
+        ]));
+        $t->same('Split Season Packet :: Spring 2026 :: Spring :: Winter 2026 :: Autumn 1999 :: Date seasons: issued Spring; accessed Winter; original-date Autumn', $styled->renderBibliographyEntry('split-season-source'));
+        $t->same('Split Season Event Packet :: 2025 :: Summer 2025 :: Date seasons: event-date Summer', $styled->renderBibliographyEntry('split-season-event'));
+
+        $document = (new MarkdownReader())->read('Split season fields @split-season-source and [@split-season-event] keep CSL season labels.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Split season fields Split Season Desk (2026) and (Ng 2025) keep CSL season labels.</p>', $blocks);
+        $t->contains('<dt>Split Season Desk 2026</dt><dd>Split Season Desk. Split Season Packet. Review Press, 2026. Date seasons: issued Spring; accessed Winter; original-date Autumn. Original work published Autumn 1999. https://example.test/split-season-source. Accessed Winter 2026.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): array => CitationCslProcessor::bibtexItems(<<<'BIB'
+@book{bad-split-season-day,
+  title = {Bad Split Season Day},
+  year  = {2026},
+  month = {21},
+  day   = {4}
+}
+BIB));
+        $t->throws(InvalidArgumentException::class, static fn (): array => CitationCslProcessor::bibtexItems(<<<'BIB'
+@book{bad-split-season-month,
+  title = {Bad Split Season Month},
+  year  = {2026},
+  month = {25}
+}
+BIB));
+    },
     'maps open ended biblatex date ranges into csl date metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{open-ended-manual,
