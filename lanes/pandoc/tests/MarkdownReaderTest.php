@@ -13861,6 +13861,35 @@ XML;
         $t->contains('<p>Before <select data-source="batch-42" id="import-state" name="state">', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before Draft copyPublish after media checkHold after.'), 'HTML document select should not collapse option labels into plain paragraph text');
     },
+    'maps upstream html reader iframe controls as raw review markup' => static function (TestRunner $t): void {
+        $iframe = '<iframe id="source-frame" src="https://example.test/imports/embed.html" title="Source preview" loading="lazy"></iframe>';
+        $blockDocument = (new MarkdownReader())->read($iframe . "\n\nAfter the embedded source frame.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($iframe, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the embedded source frame.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $iframe, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;iframe'), 'Standalone iframe source should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . $iframe
+            . ' after.</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineIframe = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<iframe id="source-frame" loading="lazy" src="https://example.test/imports/embed.html" title="Source preview"></iframe>', $inlineIframe->attr('html'));
+        $t->contains('<p>Before <iframe id="source-frame" loading="lazy" src="https://example.test/imports/embed.html" title="Source preview"></iframe> after.</p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before  after.'), 'HTML document iframe should not be dropped from the paragraph');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
