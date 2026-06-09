@@ -4855,6 +4855,28 @@ TPL;
         );
     },
 
+    'reports unclosed pandoc doctemplate pipe quote diagnostics at quote locations' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render("Intro\nBox: " . '$title/left 8 "[$', [
+                'title' => 'Review',
+            ]),
+            'Unclosed doctemplate pipe quoted string at <template>:2:20',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->renderResource('review-packets/broken.html', [
+                'review-packets/broken.html' => "Intro\n<p>" . '${ title/center 8 "<" " }',
+            ], [
+                'title' => 'Review',
+            ]),
+            'Unclosed doctemplate pipe quoted string at review-packets/broken.html:2:26',
+        );
+    },
+
     'rejects pandoc doctemplate conditional branches after else' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
         $renderer = new DocTemplate();
 

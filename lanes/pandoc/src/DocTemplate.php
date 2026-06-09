@@ -4510,10 +4510,15 @@ CSS;
 
             if (($template[$index + 1] ?? '') === '{') {
                 $unclosedSeparatorOffset = null;
-                $closing = $this->findBracedDirectiveClosing($template, $index + 2, $unclosedSeparatorOffset);
+                $unclosedQuoteOffset = null;
+                $closing = $this->findBracedDirectiveClosing($template, $index + 2, $unclosedSeparatorOffset, $unclosedQuoteOffset);
                 if ($closing === null) {
                     if ($unclosedSeparatorOffset !== null) {
                         $this->throwTemplateError('Unclosed doctemplate separator', $template, $unclosedSeparatorOffset, $sourceName);
+                    }
+
+                    if ($unclosedQuoteOffset !== null) {
+                        $this->throwTemplateError('Unclosed doctemplate pipe quoted string', $template, $unclosedQuoteOffset, $sourceName);
                     }
 
                     $this->throwTemplateError('Unclosed doctemplate ${...} directive', $template, $index, $sourceName);
@@ -4543,10 +4548,15 @@ CSS;
             }
 
             $unclosedSeparatorOffset = null;
-            $closing = $this->findDollarDirectiveClosing($template, $index + 1, $unclosedSeparatorOffset);
+            $unclosedQuoteOffset = null;
+            $closing = $this->findDollarDirectiveClosing($template, $index + 1, $unclosedSeparatorOffset, $unclosedQuoteOffset);
             if ($closing === null) {
                 if ($unclosedSeparatorOffset !== null) {
                     $this->throwTemplateError('Unclosed doctemplate separator', $template, $unclosedSeparatorOffset, $sourceName);
+                }
+
+                if ($unclosedQuoteOffset !== null) {
+                    $this->throwTemplateError('Unclosed doctemplate pipe quoted string', $template, $unclosedQuoteOffset, $sourceName);
                 }
 
                 $this->throwTemplateError('Unclosed doctemplate $...$ directive', $template, $index, $sourceName);
@@ -4603,11 +4613,13 @@ CSS;
         return $closingOffset;
     }
 
-    private function findBracedDirectiveClosing(string $template, int $start, ?int &$unclosedSeparatorOffset = null): ?int
+    private function findBracedDirectiveClosing(string $template, int $start, ?int &$unclosedSeparatorOffset = null, ?int &$unclosedQuoteOffset = null): ?int
     {
         $unclosedSeparatorOffset = null;
+        $unclosedQuoteOffset = null;
         $inQuote = false;
         $escape = false;
+        $quoteOffset = null;
         $length = strlen($template);
 
         for ($index = $start; $index < $length; $index++) {
@@ -4636,6 +4648,7 @@ CSS;
 
             if ($char === '"') {
                 $inQuote = !$inQuote;
+                $quoteOffset = $inQuote ? $index : null;
                 continue;
             }
 
@@ -4644,14 +4657,20 @@ CSS;
             }
         }
 
+        if ($inQuote && $quoteOffset !== null) {
+            $unclosedQuoteOffset = $quoteOffset;
+        }
+
         return null;
     }
 
-    private function findDollarDirectiveClosing(string $template, int $start, ?int &$unclosedSeparatorOffset = null): ?int
+    private function findDollarDirectiveClosing(string $template, int $start, ?int &$unclosedSeparatorOffset = null, ?int &$unclosedQuoteOffset = null): ?int
     {
         $unclosedSeparatorOffset = null;
+        $unclosedQuoteOffset = null;
         $inQuote = false;
         $escape = false;
+        $quoteOffset = null;
         $length = strlen($template);
 
         for ($index = $start; $index < $length; $index++) {
@@ -4668,6 +4687,7 @@ CSS;
 
             if ($char === '"') {
                 $inQuote = !$inQuote;
+                $quoteOffset = $inQuote ? $index : null;
                 continue;
             }
 
@@ -4686,6 +4706,10 @@ CSS;
             if (!$inQuote && $char === '$') {
                 return $index;
             }
+        }
+
+        if ($inQuote && $quoteOffset !== null) {
+            $unclosedQuoteOffset = $quoteOffset;
         }
 
         return null;

@@ -446,6 +446,21 @@ TYPST,
         exit(1);
     }
 
+    $unclosedPipeQuoteDiagnostic = null;
+    try {
+        (new DocTemplate())->renderResource('review-packets/broken.html', [
+            'review-packets/broken.html' => "Intro\n<p>" . '${ title/center 8 "<" " }',
+        ], [
+            'title' => 'Review',
+        ]);
+    } catch (UnexpectedValueException $exception) {
+        $unclosedPipeQuoteDiagnostic = $exception->getMessage();
+    }
+    if ($unclosedPipeQuoteDiagnostic !== 'Unclosed doctemplate pipe quoted string at review-packets/broken.html:2:26') {
+        fwrite(STDERR, "Unexpected doctemplate pipe quote diagnostic: " . (string) $unclosedPipeQuoteDiagnostic . "\n");
+        exit(1);
+    }
+
     $unclosedSeparatorDiagnostic = null;
     try {
         (new DocTemplate())->renderResource('review-packets/broken.html', [
