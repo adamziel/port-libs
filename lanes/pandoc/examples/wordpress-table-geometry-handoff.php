@@ -258,6 +258,24 @@ $rowBorderPresentationTables = array_values(array_filter(
     $rowBorderPresentationDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$sectionPresentationDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="section-presentation-grid" data-source="html-reader">
+<caption>Section presentation review</caption>
+<thead id="section-head" style="background-color: #FFF4CC; border-bottom: 2px solid #336699">
+<tr><th>Source</th><th>Status</th></tr>
+</thead>
+<tbody id="section-body" bgcolor="yellow" style="border-color: #336699; border-style: dashed; border-width: 2px">
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+<tfoot id="section-foot" style="background-color: rgb(230, 255, 237); border-top-width: 3px; border-top-style: dotted; border-top-color: #123">
+<tr><td>Total</td><td>Review</td></tr>
+</tfoot>
+</table>
+HTML);
+$sectionPresentationTables = array_values(array_filter(
+    $sectionPresentationDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $cellBackgroundDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="cell-background-grid" data-source="html-reader">
 <caption>Cell background review</caption>
@@ -1556,6 +1574,7 @@ $document = new AstNode('document', [], [
     ...$cellNoWrapTables,
     ...$rowBackgroundTables,
     ...$rowBorderPresentationTables,
+    ...$sectionPresentationTables,
     ...$cellBackgroundTables,
     ...$cellBorderPresentationTables,
     ...$cellSideBorderPresentationTables,
@@ -3104,6 +3123,65 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($rowBorderPresentationPacket, JSON_THROW_ON_ERROR);
     json_encode($rowBorderPresentationDowngrades, JSON_THROW_ON_ERROR);
+
+    $sectionPresentationTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'section-presentation-grid') {
+            $sectionPresentationTable = $node;
+            break;
+        }
+    }
+    $sectionPresentationPacket = $sectionPresentationTable instanceof AstNode ? $sectionPresentationTable->attr('tableGeometry') : null;
+    $sectionPresentationDowngrades = $sectionPresentationTable instanceof AstNode ? TableGeometry::reviewPacket($sectionPresentationTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $sectionBackgroundDiagnostics = [];
+    $sectionBorderDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $backgroundMatches = array_values(array_filter(
+            $sectionPresentationDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'section-background'
+        ));
+        $borderMatches = array_values(array_filter(
+            $sectionPresentationDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'section-border-presentation'
+        ));
+        $sectionBackgroundDiagnostics[$writer] = $backgroundMatches[0] ?? [];
+        $sectionBorderDiagnostics[$writer] = $borderMatches[0] ?? [];
+    }
+    if (
+        !$sectionPresentationTable instanceof AstNode
+        || !is_array($sectionPresentationPacket)
+        || ($sectionPresentationPacket['summary']['hasSectionBackgrounds'] ?? null) !== true
+        || ($sectionPresentationPacket['summary']['sectionBackgroundCount'] ?? null) !== 3
+        || ($sectionPresentationPacket['summary']['sectionBackgroundSections'] ?? null) !== ['head', 'body', 'foot']
+        || ($sectionPresentationPacket['summary']['sectionBackgroundColors'] ?? null) !== ['#fff4cc', 'yellow', 'rgb(230, 255, 237)']
+        || ($sectionPresentationPacket['summary']['hasSectionBorderPresentations'] ?? null) !== true
+        || ($sectionPresentationPacket['summary']['sectionBorderPresentationCount'] ?? null) !== 3
+        || ($sectionPresentationPacket['summary']['sectionBorderPresentationSections'] ?? null) !== ['head', 'body', 'foot']
+        || ($sectionPresentationPacket['summary']['sectionBorderPresentationEdgeCount'] ?? null) !== 2
+        || ($sectionPresentationPacket['summary']['sectionBorderPresentationEdges'] ?? null) !== ['bottom', 'top']
+        || ($sectionPresentationPacket['sectionBackgrounds'][0]['sourceAttributes']['htmlAttributes']['id'] ?? null) !== 'section-head'
+        || ($sectionPresentationPacket['sectionBackgrounds'][1]['backgroundColorSource'] ?? null) !== 'bgcolor'
+        || ($sectionPresentationPacket['sectionBorderPresentations'][0]['borderEdges'][0]['value'] ?? null) !== '2px solid #336699'
+        || ($sectionPresentationPacket['sectionBorderPresentations'][2]['borderEdges'][0]['borderColor'] ?? null) !== '#112233'
+        || ($sectionBackgroundDiagnostics['markdown']['code'] ?? null) !== 'markdown-section-background-require-raw-html'
+        || ($sectionBorderDiagnostics['markdown']['code'] ?? null) !== 'markdown-section-border-presentation-require-raw-html'
+        || ($sectionBackgroundDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-section-background-review-required'
+        || ($sectionBorderDiagnostics['latex']['code'] ?? null) !== 'latex-section-border-presentation-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML section presentation metadata');
+    }
+    if (
+        !str_contains($blocks, '<thead id="section-head" style="background-color: #FFF4CC; border-bottom: 2px solid #336699">')
+        || !str_contains($blocks, '<tbody id="section-body" bgcolor="yellow" style="border-color: #336699; border-style: dashed; border-width: 2px">')
+        || !str_contains($blocks, '<tfoot id="section-foot" style="background-color: rgb(230, 255, 237); border-top-width: 3px; border-top-style: dotted; border-top-color: #123">')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing WordPress section presentation output');
+    }
+    json_encode($sectionPresentationPacket, JSON_THROW_ON_ERROR);
+    json_encode($sectionPresentationDowngrades, JSON_THROW_ON_ERROR);
 
     $cellBackgroundTable = null;
     foreach ($document->children as $node) {

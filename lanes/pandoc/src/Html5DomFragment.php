@@ -246,7 +246,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'portal-source-review', 'embedded-source-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'portal-source-review', 'embedded-source-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -461,6 +461,12 @@ final class Html5DomFragment
                 $iframeSource = self::normalizeHtmlIframeSourceElement($node, $diagnostics, $baseUrl);
 
                 return $iframeSource === null ? [] : [$iframeSource];
+            }
+
+            if ($name === 'button') {
+                $buttonMetadata = self::htmlButtonReviewMetadataNode($node, $children, $diagnostics, $baseUrl);
+
+                return $buttonMetadata === null ? $children : [$buttonMetadata];
             }
 
             if ($name === 'object') {
@@ -1868,6 +1874,301 @@ final class Html5DomFragment
                 'type' => 'text',
                 'text' => $label,
             ]],
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>|null
+     */
+    private static function htmlButtonReviewMetadataNode(
+        \DOMElement $element,
+        array $children,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?array {
+        foreach ($element->attributes as $attribute) {
+            $attributeName = strtolower($attribute->name);
+            if (!str_starts_with($attributeName, 'data-pandoc-button-')) {
+                continue;
+            }
+
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'button',
+                'attribute' => $attributeName,
+                'reason' => 'reserved-review-metadata-source-spoof',
+            ], $element);
+        }
+
+        $attrs = [];
+        $type = 'submit';
+        if ($element->hasAttribute('type')) {
+            $type = self::normalizeHtmlButtonTypeAttribute($element->getAttribute('type'), $diagnostics, $element) ?? 'submit';
+        }
+        $attrs['data-pandoc-button-type'] = $type;
+        self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'type', 'data-pandoc-button-type');
+
+        foreach ([
+            'name' => 'data-pandoc-button-name',
+            'value' => 'data-pandoc-button-value',
+            'form' => 'data-pandoc-button-form',
+        ] as $sourceAttribute => $metadataAttribute) {
+            if (!$element->hasAttribute($sourceAttribute)) {
+                continue;
+            }
+
+            $value = self::normalizeHtmlButtonTextMetadataAttribute(
+                $sourceAttribute,
+                $element->getAttribute($sourceAttribute),
+                $diagnostics,
+                $element
+            );
+            if ($value === null) {
+                continue;
+            }
+
+            $attrs[$metadataAttribute] = $value;
+            self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, $sourceAttribute, $metadataAttribute);
+        }
+
+        if ($element->hasAttribute('formaction')) {
+            $formAction = self::normalizeHtmlButtonFormActionAttribute(
+                $element->getAttribute('formaction'),
+                $diagnostics,
+                $element,
+                $baseUrl
+            );
+            if ($formAction !== null) {
+                $attrs['data-pandoc-button-formaction'] = $formAction;
+                self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'formaction', 'data-pandoc-button-formaction');
+            }
+        }
+
+        if ($element->hasAttribute('formmethod')) {
+            $formMethod = self::normalizeHtmlButtonFormMethodAttribute($element->getAttribute('formmethod'), $diagnostics, $element);
+            if ($formMethod !== null) {
+                $attrs['data-pandoc-button-formmethod'] = $formMethod;
+                self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'formmethod', 'data-pandoc-button-formmethod');
+            }
+        }
+
+        if ($element->hasAttribute('formenctype')) {
+            $formEnctype = self::normalizeHtmlButtonFormEnctypeAttribute($element->getAttribute('formenctype'), $diagnostics, $element);
+            if ($formEnctype !== null) {
+                $attrs['data-pandoc-button-formenctype'] = $formEnctype;
+                self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'formenctype', 'data-pandoc-button-formenctype');
+            }
+        }
+
+        if ($element->hasAttribute('formtarget')) {
+            $formTarget = self::normalizeHtmlButtonFormTargetAttribute($element->getAttribute('formtarget'), $diagnostics, $element);
+            if ($formTarget !== null) {
+                $attrs['data-pandoc-button-formtarget'] = $formTarget;
+                self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'formtarget', 'data-pandoc-button-formtarget');
+            }
+        }
+
+        foreach ([
+            'formnovalidate' => 'data-pandoc-button-formnovalidate',
+            'disabled' => 'data-pandoc-button-disabled',
+        ] as $sourceAttribute => $metadataAttribute) {
+            if (!$element->hasAttribute($sourceAttribute)) {
+                continue;
+            }
+
+            $attrs[$metadataAttribute] = 'true';
+            self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, $sourceAttribute, $metadataAttribute);
+        }
+
+        if ($children === []) {
+            $children = [[
+                'type' => 'text',
+                'text' => 'Button: ' . $type,
+            ]];
+        }
+
+        return self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => $attrs,
+            'children' => $children,
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlButtonTypeAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
+        $type = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if (in_array($type, ['button', 'reset', 'submit'], true)) {
+            return $type;
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'unsafe-attribute',
+            'tag' => 'button',
+            'attribute' => 'type',
+            'value' => $type,
+            'reason' => 'invalid-button-type-metadata',
+        ], $element);
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlButtonTextMetadataAttribute(
+        string $attribute,
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
+        $cleaned = self::cleanHtmlMetadataAttribute($value);
+        $maxLength = $attribute === 'value' ? 512 : 128;
+        if ($cleaned === '' || strlen($cleaned) > $maxLength) {
+            self::addHtmlInvalidButtonMetadataDiagnostic($diagnostics, $element, $attribute);
+
+            return null;
+        }
+
+        if ($attribute === 'form') {
+            if (!self::isSafeHtmlAriaIdToken($cleaned)) {
+                self::addHtmlInvalidButtonMetadataDiagnostic($diagnostics, $element, $attribute);
+
+                return null;
+            }
+
+            return $cleaned;
+        }
+
+        if (preg_match('/[<>"\'`{}]/u', $cleaned) === 1) {
+            self::addHtmlInvalidButtonMetadataDiagnostic($diagnostics, $element, $attribute);
+
+            return null;
+        }
+
+        return $cleaned;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlButtonFormActionAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element,
+        ?string $baseUrl
+    ): ?string {
+        $action = self::normalizeUrlAttributeValue($value);
+        if ($action === '' || !self::isSafeFetchUrl($action)) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-url',
+                'tag' => 'button',
+                'attribute' => 'formaction',
+            ], $element);
+
+            return null;
+        }
+
+        if ($action !== $value) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'normalized-url',
+                'tag' => 'button',
+                'attribute' => 'formaction',
+            ], $element);
+        }
+
+        return $baseUrl === null ? $action : self::resolveRelativeUrl($baseUrl, $action);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlButtonFormMethodAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
+        $method = self::normalizeHtmlFormMethodAttribute($value);
+        if ($method === null) {
+            self::addHtmlInvalidButtonMetadataDiagnostic($diagnostics, $element, 'formmethod');
+        }
+
+        return $method;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlButtonFormEnctypeAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
+        $enctype = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if (in_array($enctype, ['application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain'], true)) {
+            return $enctype;
+        }
+
+        self::addHtmlInvalidButtonMetadataDiagnostic($diagnostics, $element, 'formenctype');
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlButtonFormTargetAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
+        $target = self::normalizeHtmlFormTargetAttribute($value);
+        if ($target === null) {
+            self::addHtmlInvalidButtonMetadataDiagnostic($diagnostics, $element, 'formtarget');
+        }
+
+        return $target;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlButtonMetadataDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attributeName,
+        string $metadataAttribute
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'button-metadata-review',
+            'tag' => 'button',
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'button-submission-metadata-preserved-as-review-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlInvalidButtonMetadataDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attributeName
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'unsafe-attribute',
+            'tag' => 'button',
+            'attribute' => $attributeName,
+            'reason' => 'invalid-button-submission-metadata',
         ], $element);
     }
 

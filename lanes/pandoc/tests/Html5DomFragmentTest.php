@@ -390,13 +390,13 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->same('<p>Name Send review</p><p>DraftFinal</p>Visible reviewer note<p>after</p>', $html);
+        $t->same('<p>Name <span data-pandoc-button-type="submit">Send review</span></p><p>DraftFinal</p>Visible reviewer note<p>after</p>', $html);
         $t->same('Name Send reviewDraftFinalVisible reviewer noteafter', $fragment->textContent());
-        $t->same(['p'], $summary['elementNames']);
+        $t->same(['p', 'span'], $summary['elementNames']);
         $t->same(['button', 'form', 'input', 'option', 'select', 'textarea'], $summary['blockedTags']);
-        $t->same([], $summary['filteredAttributes']);
-        $t->same(7, $summary['diagnostics']);
-        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
+        $t->same(['formaction', 'type'], $summary['filteredAttributes']);
+        $t->same(9, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'button-metadata-review', 'unsafe-url', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
         $t->contains('Visible reviewer note', $blocks);
         $t->same('/migration/form-review-fragment.html', $document->children[0]->attr('part'));
         $t->true(!str_contains($html, '<form'), 'Expected form wrapper to be stripped');
@@ -631,6 +631,77 @@ return [
         $t->true(!str_contains($html, 'Secret draft'), 'Expected text input values to stay hidden from review text');
         $t->true(!str_contains($html, 'Hidden token'), 'Expected hidden input values to stay hidden from review text');
         $t->true(!str_contains($html, 'javascript:'), 'Expected image input src URL to be stripped with the control');
+    },
+    'converts button submit metadata into inert reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<form action="./default-submit">'
+            . '<p><button name=" publish " value=" yes " form="legacy-form" formaction=" ./publish?step=2 " formmethod="POST" formenctype="multipart/form-data" formtarget=" review-frame " formnovalidate data-pandoc-button-type="source-spoof">Publish <strong>now</strong></button></p>'
+            . '<p><button type="reset" disabled value="clear">Clear draft</button><button type="button" name="preview">Preview only</button></p>'
+            . '<p><button type="bad" formaction="java&#10;script:alert(1)" formmethod="TRACE" formenctype="application/json" formtarget="bad&lt;target" name="bad&lt;name">Bad action</button></p>'
+            . '</form>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/button-submit-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_count_values(array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        )));
+
+        $expected = '<p><span data-pandoc-button-type="submit" data-pandoc-button-name="publish" data-pandoc-button-value="yes" data-pandoc-button-form="legacy-form" data-pandoc-button-formaction="https://source.example.test/import/posts/publish?step=2" data-pandoc-button-formmethod="post" data-pandoc-button-formenctype="multipart/form-data" data-pandoc-button-formtarget="review-frame" data-pandoc-button-formnovalidate="true">Publish <strong>now</strong></span></p>'
+            . '<p><span data-pandoc-button-type="reset" data-pandoc-button-value="clear" data-pandoc-button-disabled="true">Clear draft</span><span data-pandoc-button-type="button" data-pandoc-button-name="preview">Preview only</span></p>'
+            . '<p><span data-pandoc-button-type="submit">Bad action</span></p>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Publish nowClear draftPreview onlyBad action', $fragment->textContent());
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(['p', 'span', 'strong'], $summary['elementNames']);
+        $t->same(['base', 'button', 'form'], $summary['blockedTags']);
+        $t->same(['data-pandoc-button-type', 'disabled', 'form', 'formaction', 'formenctype', 'formmethod', 'formnovalidate', 'formtarget', 'name', 'type', 'value'], $summary['filteredAttributes']);
+        $t->same(29, $summary['diagnostics']);
+        $t->same(1, $policyDiagnostics['unsafe-url'] ?? 0);
+        $t->same(6, $policyDiagnostics['unsafe-attribute'] ?? 0);
+        $t->same(15, $policyDiagnostics['button-metadata-review'] ?? 0);
+        $t->same(6, $policyDiagnostics['blocked-tag'] ?? 0);
+        $t->same(1, $policyDiagnostics['normalized-url'] ?? 0);
+        $t->same('span', $nodes[0]['children'][0]['name']);
+        $t->same([
+            'data-pandoc-button-type' => 'submit',
+            'data-pandoc-button-name' => 'publish',
+            'data-pandoc-button-value' => 'yes',
+            'data-pandoc-button-form' => 'legacy-form',
+            'data-pandoc-button-formaction' => 'https://source.example.test/import/posts/publish?step=2',
+            'data-pandoc-button-formmethod' => 'post',
+            'data-pandoc-button-formenctype' => 'multipart/form-data',
+            'data-pandoc-button-formtarget' => 'review-frame',
+            'data-pandoc-button-formnovalidate' => 'true',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same('Publish ', $nodes[0]['children'][0]['children'][0]['text']);
+        $t->same('strong', $nodes[0]['children'][0]['children'][1]['name']);
+        $t->same([
+            'data-pandoc-button-type' => 'reset',
+            'data-pandoc-button-value' => 'clear',
+            'data-pandoc-button-disabled' => 'true',
+        ], $nodes[1]['children'][0]['attrs']);
+        $t->same([
+            'data-pandoc-button-type' => 'button',
+            'data-pandoc-button-name' => 'preview',
+        ], $nodes[1]['children'][1]['attrs']);
+        $t->same([
+            'data-pandoc-button-type' => 'submit',
+        ], $nodes[2]['children'][0]['attrs']);
+        $t->same('/migration/button-submit-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach (['<button', ' formaction=', ' formmethod=', ' formenctype=', ' formtarget=', ' formnovalidate', ' disabled', 'source-spoof', 'bad&lt;target', 'bad&lt;name', 'javascript:', 'TRACE', 'application/json'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected button metadata handoff to strip live or unsafe source content: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to strip live or unsafe source content: ' . $blocked);
+        }
     },
     'unwraps active embed fallback content while dropping unsafe containers' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
@@ -1631,7 +1702,7 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = 'Open note'
+        $expected = '<span data-pandoc-button-type="submit">Open note</span>'
             . '<aside id="review-pop" data-pandoc-popover-state="auto"><p>Auto <a href="https://source.example.test/import/posts/auto.html">note</a><a>bad</a></p></aside>'
             . '<section id="manual-pop" data-pandoc-popover-state="manual"><p>Manual note</p></section>'
             . '<div id="hint-pop" data-pandoc-popover-state="hint"><p>Hint note</p></div>'
@@ -1646,12 +1717,13 @@ return [
         $t->contains($expected, $blocks);
         $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
         $t->same('Open noteAuto notebadManual noteHint noteInvalid noteControl link', $fragment->textContent());
-        $t->same(['a', 'aside', 'div', 'p', 'section'], $summary['elementNames']);
+        $t->same(['a', 'aside', 'div', 'p', 'section', 'span'], $summary['elementNames']);
         $t->same(['base', 'button'], $summary['blockedTags']);
-        $t->same(['data-pandoc-popover-state', 'href', 'popover', 'popovertarget', 'popovertargetaction'], $summary['filteredAttributes']);
+        $t->same(['data-pandoc-popover-state', 'href', 'popover', 'popovertarget', 'popovertargetaction', 'type'], $summary['filteredAttributes']);
         $t->same([
             'blocked-tag',
             'blocked-tag',
+            'button-metadata-review',
             'popover-review',
             'unsafe-attribute',
             'unsafe-url',
@@ -1662,8 +1734,9 @@ return [
             'unsafe-attribute',
             'unsafe-attribute',
         ], $policyDiagnostics);
-        $t->same('text', $nodes[0]['type']);
-        $t->same('Open note', $nodes[0]['text']);
+        $t->same('span', $nodes[0]['name']);
+        $t->same(['data-pandoc-button-type' => 'submit'], $nodes[0]['attrs']);
+        $t->same('Open note', $nodes[0]['children'][0]['text']);
         $t->same('aside', $nodes[1]['name']);
         $t->same([
             'id' => 'review-pop',

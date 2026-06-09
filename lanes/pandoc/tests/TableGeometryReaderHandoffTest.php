@@ -2666,6 +2666,127 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table section presentation metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="section-presentation-grid" data-source="html-reader">
+<caption>Section presentation review</caption>
+<thead id="section-head" style="background-color: #FFF4CC; border-bottom: 2px solid #336699">
+<tr><th>Source</th><th>Status</th></tr>
+</thead>
+<tbody id="section-body" bgcolor="yellow" style="border-color: #336699; border-style: dashed; border-width: 2px">
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+<tfoot id="section-foot" style="background-color: rgb(230, 255, 237); border-top-width: 3px; border-top-style: dotted; border-top-color: #123">
+<tr><td>Total</td><td>Review</td></tr>
+</tfoot>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $backgroundDiagnostics = [];
+        $borderDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $backgroundMatches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'section-background'
+            ));
+            $borderMatches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'section-border-presentation'
+            ));
+            $backgroundDiagnostics[$writer] = $backgroundMatches[0] ?? [];
+            $borderDiagnostics[$writer] = $borderMatches[0] ?? [];
+        }
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+
+        $backgrounds = is_array($packet['sectionBackgrounds'] ?? null) ? $packet['sectionBackgrounds'] : [];
+        $borders = is_array($packet['sectionBorderPresentations'] ?? null) ? $packet['sectionBorderPresentations'] : [];
+        $t->same(3, count($backgrounds));
+        $t->same(3, count($borders));
+        $t->same(true, $packet['summary']['hasSectionBackgrounds'] ?? null);
+        $t->same(true, $packet['summary']['hasSectionBorderPresentations'] ?? null);
+        $t->same(['head', 'body', 'foot'], $packet['summary']['sectionBackgroundSections'] ?? null);
+        $t->same(['#fff4cc', 'yellow', 'rgb(230, 255, 237)'], $packet['summary']['sectionBackgroundColors'] ?? null);
+        $t->same(['style', 'bgcolor'], $packet['summary']['sectionBackgroundSources'] ?? null);
+        $t->same(['head', 'body', 'foot'], $packet['summary']['sectionBorderPresentationSections'] ?? null);
+        $t->same(['#336699'], $packet['summary']['sectionBorderPresentationColors'] ?? null);
+        $t->same(['dashed'], $packet['summary']['sectionBorderPresentationStyles'] ?? null);
+        $t->same(['2px'], $packet['summary']['sectionBorderPresentationWidths'] ?? null);
+        $t->same(2, $packet['summary']['sectionBorderPresentationEdgeCount'] ?? null);
+        $t->same(['bottom', 'top'], $packet['summary']['sectionBorderPresentationEdges'] ?? null);
+        $t->same(['#336699', '#112233'], $packet['summary']['sectionBorderPresentationEdgeColors'] ?? null);
+        $t->same(['solid', 'dotted'], $packet['summary']['sectionBorderPresentationEdgeStyles'] ?? null);
+        $t->same(['2px', '3px'], $packet['summary']['sectionBorderPresentationEdgeWidths'] ?? null);
+
+        $t->same('head', $backgrounds[0]['section'] ?? null);
+        $t->same([0, 1], $backgrounds[0]['globalRowRange'] ?? null);
+        $t->same('#fff4cc', $backgrounds[0]['backgroundColor'] ?? null);
+        $t->same('style', $backgrounds[0]['backgroundColorSource'] ?? null);
+        $t->same('section-head', $backgrounds[0]['sourceAttributes']['htmlAttributes']['id'] ?? null);
+        $t->same('body', $backgrounds[1]['section'] ?? null);
+        $t->same([1, 2], $backgrounds[1]['globalRowRange'] ?? null);
+        $t->same('yellow', $backgrounds[1]['backgroundColor'] ?? null);
+        $t->same('bgcolor', $backgrounds[1]['backgroundColorSource'] ?? null);
+        $t->same('foot', $backgrounds[2]['section'] ?? null);
+        $t->same([2, 3], $backgrounds[2]['globalRowRange'] ?? null);
+        $t->same('rgb(230, 255, 237)', $backgrounds[2]['backgroundColor'] ?? null);
+
+        $t->same('head', $borders[0]['section'] ?? null);
+        $t->same([0, 1], $borders[0]['globalRowRange'] ?? null);
+        $t->same('bottom', $borders[0]['borderEdges'][0]['edge'] ?? null);
+        $t->same('2px solid #336699', $borders[0]['borderEdges'][0]['value'] ?? null);
+        $t->same('body', $borders[1]['section'] ?? null);
+        $t->same('#336699', $borders[1]['borderColor'] ?? null);
+        $t->same('dashed', $borders[1]['borderStyle'] ?? null);
+        $t->same('2px', $borders[1]['borderWidth'] ?? null);
+        $t->same('foot', $borders[2]['section'] ?? null);
+        $t->same('top', $borders[2]['borderEdges'][0]['edge'] ?? null);
+        $t->same('#112233', $borders[2]['borderEdges'][0]['borderColor'] ?? null);
+
+        $t->same([
+            'markdown-section-background-require-raw-html',
+            'asciidoc-section-background-review-required',
+            'latex-section-background-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $backgroundDiagnostics['markdown'],
+            $backgroundDiagnostics['asciidoc'],
+            $backgroundDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-section-background', $backgroundDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same(3, $backgroundDiagnostics['markdown']['sectionCount'] ?? null);
+        $t->same(['head', 'body', 'foot'], $backgroundDiagnostics['markdown']['sections'] ?? null);
+        $t->same(['#fff4cc', 'yellow', 'rgb(230, 255, 237)'], $backgroundDiagnostics['markdown']['colors'] ?? null);
+
+        $t->same([
+            'markdown-section-border-presentation-require-raw-html',
+            'asciidoc-section-border-presentation-review-required',
+            'latex-section-border-presentation-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $borderDiagnostics['markdown'],
+            $borderDiagnostics['asciidoc'],
+            $borderDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-section-border-presentation', $borderDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same(3, $borderDiagnostics['markdown']['sectionCount'] ?? null);
+        $t->same(2, $borderDiagnostics['markdown']['edgeCount'] ?? null);
+        $t->same(['bottom', 'top'], $borderDiagnostics['markdown']['edges'] ?? null);
+
+        $t->contains('<thead id="section-head" style="background-color: #FFF4CC; border-bottom: 2px solid #336699">', $blocks);
+        $t->contains('<tbody id="section-body" bgcolor="yellow" style="border-color: #336699; border-style: dashed; border-width: 2px">', $blocks);
+        $t->contains('<tfoot id="section-foot" style="background-color: rgb(230, 255, 237); border-top-width: 3px; border-top-style: dotted; border-top-color: #123">', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
     'normalizes html table cell border presentation metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="cell-border-presentation-grid" data-source="html-reader">

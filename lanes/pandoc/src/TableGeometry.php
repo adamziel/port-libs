@@ -1860,6 +1860,8 @@ final class TableGeometry
      *     flatGrid:array{columnCount:int,rows:list<array<string, mixed>>,summary:array<string, mixed>},
      *     flatGridFallbacks:list<array<string, mixed>>,
      *     summary:array<string, mixed>,
+     *     sectionBackgrounds:list<array<string, mixed>>,
+     *     sectionBorderPresentations:list<array<string, mixed>>,
      *     rowBackgrounds:list<array<string, mixed>>,
      *     rowBorderPresentations:list<array<string, mixed>>,
      *     cellBackgrounds:list<array<string, mixed>>,
@@ -1880,6 +1882,8 @@ final class TableGeometry
         $columnDecimalAlignments = self::columnDecimalAlignments($columnGroups);
         $cellDecimalAlignments = self::cellDecimalAlignments($coverageRecords);
         $cellNoWraps = self::cellNoWraps($coverageRecords);
+        $sectionBackgrounds = self::sectionBackgrounds($sections);
+        $sectionBorderPresentations = self::sectionBorderPresentations($sections);
         $rowBackgrounds = self::rowBackgrounds($sections);
         $rowBorderPresentations = self::rowBorderPresentations($sections);
         $cellBackgrounds = self::cellBackgrounds($coverageRecords);
@@ -1923,6 +1927,8 @@ final class TableGeometry
             'columnDecimalAlignments' => $columnDecimalAlignments,
             'cellDecimalAlignments' => $cellDecimalAlignments,
             'cellNoWraps' => $cellNoWraps,
+            'sectionBackgrounds' => $sectionBackgrounds,
+            'sectionBorderPresentations' => $sectionBorderPresentations,
             'rowBackgrounds' => $rowBackgrounds,
             'rowBorderPresentations' => $rowBorderPresentations,
             'cellBackgrounds' => $cellBackgrounds,
@@ -1951,6 +1957,8 @@ final class TableGeometry
                 $columnDecimalAlignments,
                 $cellDecimalAlignments,
                 $cellNoWraps,
+                $sectionBackgrounds,
+                $sectionBorderPresentations,
                 $rowBackgrounds,
                 $rowBorderPresentations,
                 $cellBackgrounds,
@@ -5148,6 +5156,8 @@ final class TableGeometry
      * @param list<array<string, mixed>> $columnDecimalAlignments
      * @param list<array<string, mixed>> $cellDecimalAlignments
      * @param list<array<string, mixed>> $cellNoWraps
+     * @param list<array<string, mixed>> $sectionBackgrounds
+     * @param list<array<string, mixed>> $sectionBorderPresentations
      * @param list<array<string, mixed>> $rowBackgrounds
      * @param list<array<string, mixed>> $rowBorderPresentations
      * @param list<array<string, mixed>> $cellBackgrounds
@@ -5177,6 +5187,8 @@ final class TableGeometry
         array $columnDecimalAlignments,
         array $cellDecimalAlignments,
         array $cellNoWraps,
+        array $sectionBackgrounds,
+        array $sectionBorderPresentations,
         array $rowBackgrounds,
         array $rowBorderPresentations,
         array $cellBackgrounds,
@@ -5532,6 +5544,23 @@ final class TableGeometry
             'hasCellNoWraps' => $cellNoWraps !== [],
             'cellNoWrapColumns' => self::cellNoWrapColumns($cellNoWraps),
             'cellNoWrapSections' => self::cellNoWrapStringValues($cellNoWraps, 'section'),
+            'sectionBackgroundCount' => count($sectionBackgrounds),
+            'hasSectionBackgrounds' => $sectionBackgrounds !== [],
+            'sectionBackgroundSections' => self::rowBackgroundStringValues($sectionBackgrounds, 'section'),
+            'sectionBackgroundColors' => self::rowBackgroundStringValues($sectionBackgrounds, 'backgroundColor'),
+            'sectionBackgroundSources' => self::rowBackgroundStringValues($sectionBackgrounds, 'backgroundColorSource'),
+            'sectionBorderPresentationCount' => count($sectionBorderPresentations),
+            'hasSectionBorderPresentations' => $sectionBorderPresentations !== [],
+            'sectionBorderPresentationSections' => self::rowBorderPresentationStringValues($sectionBorderPresentations, 'section'),
+            'sectionBorderPresentationColors' => self::rowBorderPresentationStringValues($sectionBorderPresentations, 'borderColor'),
+            'sectionBorderPresentationStyles' => self::rowBorderPresentationStringValues($sectionBorderPresentations, 'borderStyle'),
+            'sectionBorderPresentationWidths' => self::rowBorderPresentationStringValues($sectionBorderPresentations, 'borderWidth'),
+            'sectionBorderPresentationEdgeCount' => self::rowBorderPresentationEdgeCount($sectionBorderPresentations),
+            'hasSectionBorderPresentationEdges' => self::rowBorderPresentationEdgeCount($sectionBorderPresentations) > 0,
+            'sectionBorderPresentationEdges' => self::rowBorderPresentationEdgeStringValues($sectionBorderPresentations, 'edge'),
+            'sectionBorderPresentationEdgeColors' => self::rowBorderPresentationEdgeStringValues($sectionBorderPresentations, 'borderColor'),
+            'sectionBorderPresentationEdgeStyles' => self::rowBorderPresentationEdgeStringValues($sectionBorderPresentations, 'borderStyle'),
+            'sectionBorderPresentationEdgeWidths' => self::rowBorderPresentationEdgeStringValues($sectionBorderPresentations, 'borderWidth'),
             'rowBackgroundCount' => count($rowBackgrounds),
             'hasRowBackgrounds' => $rowBackgrounds !== [],
             'rowBackgroundRows' => self::rowBackgroundRows($rowBackgrounds, 'row'),
@@ -5967,6 +5996,8 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::sectionBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
@@ -6054,6 +6085,8 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::sectionBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
@@ -6157,6 +6190,8 @@ final class TableGeometry
             array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::sectionBorderPresentationWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::rowBackgroundWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::rowBorderPresentationWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
@@ -7845,6 +7880,199 @@ final class TableGeometry
             'columns' => self::cellNoWrapColumns($records),
             'sections' => self::cellNoWrapStringValues($records, 'section'),
             'cells' => $records,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     * @return list<array<string, mixed>>
+     */
+    private static function sectionBackgrounds(array $sections): array
+    {
+        $records = [];
+        foreach ($sections as $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            $node = $section['node'] ?? null;
+            $background = self::rowBackgroundFromNode($node);
+            if ($background === []) {
+                continue;
+            }
+
+            $rowEntries = is_array($section['rowEntries'] ?? null) ? $section['rowEntries'] : [];
+            $rowCount = count($rowEntries);
+            $globalRowStart = max(0, (int) ($section['globalRowStart'] ?? 0));
+            $globalRowRange = self::sectionGridRowRange($section, $globalRowStart, $rowCount);
+            $record = [
+                'section' => (string) ($section['section'] ?? ''),
+                'rowCount' => $rowCount,
+                'rowRange' => [0, $rowCount],
+                'globalRowStart' => $globalRowRange[0],
+                'globalRowEnd' => $globalRowRange[1],
+                'globalRowRange' => $globalRowRange,
+                'columnCount' => max(0, (int) ($section['columnCount'] ?? 0)),
+                'source' => 'html-table-section-background',
+                'backgroundColor' => (string) ($background['backgroundColor'] ?? ''),
+                'backgroundColorSource' => (string) ($background['backgroundColorSource'] ?? ''),
+            ];
+
+            foreach (['legacyBackgroundColor', 'cssBackgroundColor'] as $key) {
+                $value = trim((string) ($background[$key] ?? ''));
+                if ($value !== '') {
+                    $record[$key] = $value;
+                }
+            }
+
+            foreach (['attributes', 'sourceAttributes'] as $key) {
+                $attributes = is_array($background[$key] ?? null) ? $background[$key] : [];
+                if ($attributes !== []) {
+                    $record[$key] = $attributes;
+                }
+            }
+
+            $records[] = $record;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function sectionBackgroundWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-section-background-require-raw-html', 'raw-html-section-background'],
+            'asciidoc' => ['asciidoc-section-background-review-required', 'section-background-review'],
+            'latex' => ['latex-section-background-review-required', 'table-section-background-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $records = self::sectionBackgrounds(self::sectionGrids($table));
+        if ($records === []) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'section-background',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-section-background',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'sectionCount' => count($records),
+            'sections' => self::rowBackgroundStringValues($records, 'section'),
+            'colors' => self::rowBackgroundStringValues($records, 'backgroundColor'),
+            'backgroundColorSources' => self::rowBackgroundStringValues($records, 'backgroundColorSource'),
+            'records' => $records,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     * @return list<array<string, mixed>>
+     */
+    private static function sectionBorderPresentations(array $sections): array
+    {
+        $records = [];
+        foreach ($sections as $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            $node = $section['node'] ?? null;
+            $border = self::rowBorderPresentationFromNode($node);
+            if ($border === []) {
+                continue;
+            }
+
+            $rowEntries = is_array($section['rowEntries'] ?? null) ? $section['rowEntries'] : [];
+            $rowCount = count($rowEntries);
+            $globalRowStart = max(0, (int) ($section['globalRowStart'] ?? 0));
+            $globalRowRange = self::sectionGridRowRange($section, $globalRowStart, $rowCount);
+            $record = [
+                'section' => (string) ($section['section'] ?? ''),
+                'rowCount' => $rowCount,
+                'rowRange' => [0, $rowCount],
+                'globalRowStart' => $globalRowRange[0],
+                'globalRowEnd' => $globalRowRange[1],
+                'globalRowRange' => $globalRowRange,
+                'columnCount' => max(0, (int) ($section['columnCount'] ?? 0)),
+                'source' => 'html-table-section-border-presentation',
+            ];
+
+            foreach (['borderColor', 'borderStyle', 'borderWidth'] as $key) {
+                $value = trim((string) ($border[$key] ?? ''));
+                if ($value !== '') {
+                    $record[$key] = $value;
+                }
+            }
+
+            foreach (['attributes', 'sourceAttributes'] as $key) {
+                $attributes = is_array($border[$key] ?? null) ? $border[$key] : [];
+                if ($attributes !== []) {
+                    $record[$key] = $attributes;
+                }
+            }
+
+            $borderEdges = is_array($border['borderEdges'] ?? null) ? $border['borderEdges'] : [];
+            if ($borderEdges !== []) {
+                $record['borderEdges'] = $borderEdges;
+            }
+
+            $records[] = $record;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function sectionBorderPresentationWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-section-border-presentation-require-raw-html', 'raw-html-section-border-presentation'],
+            'asciidoc' => ['asciidoc-section-border-presentation-review-required', 'section-border-presentation-review'],
+            'latex' => ['latex-section-border-presentation-review-required', 'table-section-border-presentation-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $records = self::sectionBorderPresentations(self::sectionGrids($table));
+        if ($records === []) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'section-border-presentation',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-section-border-presentation',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'sectionCount' => count($records),
+            'sections' => self::rowBorderPresentationStringValues($records, 'section'),
+            'colors' => self::rowBorderPresentationStringValues($records, 'borderColor'),
+            'styles' => self::rowBorderPresentationStringValues($records, 'borderStyle'),
+            'widths' => self::rowBorderPresentationStringValues($records, 'borderWidth'),
+            'edgeCount' => self::rowBorderPresentationEdgeCount($records),
+            'edges' => self::rowBorderPresentationEdgeStringValues($records, 'edge'),
+            'edgeColors' => self::rowBorderPresentationEdgeStringValues($records, 'borderColor'),
+            'edgeStyles' => self::rowBorderPresentationEdgeStringValues($records, 'borderStyle'),
+            'edgeWidths' => self::rowBorderPresentationEdgeStringValues($records, 'borderWidth'),
+            'records' => $records,
         ]];
     }
 
