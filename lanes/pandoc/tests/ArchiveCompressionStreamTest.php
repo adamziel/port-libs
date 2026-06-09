@@ -3992,6 +3992,153 @@ return [
         ));
     },
 
+    'preflights lz4 tar record boundaries before package handoff' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $contentBytes = "# LZ4 TAR record boundary\n\nReady for WordPress archive review.\n";
+        $localPaxPayload = $paxPayload([
+            'path' => 'packet/lz4-boundary/content.md',
+            'comment' => 'LZ4 frame boundary review metadata',
+        ]);
+        $tarBytes = $rawTarHeader('PaxHeaders/lz4-boundary', 'x', $localPaxPayload, 0, false)
+            . $rawTarHeader('placeholder-lz4.md', '0', $contentBytes, 1780479103, false)
+            . str_repeat("\0", 1024);
+        $firstSplit = 640;
+        $secondSplit = 1536;
+        $lz4 = Lz4Frame::skippableFrame('lz4 record boundary preflight', 6)
+            . Lz4Frame::build(substr($tarBytes, 0, $firstSplit), [
+                'contentSize' => true,
+                'contentChecksum' => true,
+            ])
+            . Lz4Frame::skippableFrame('between TAR record frames', 7)
+            . Lz4Frame::build(substr($tarBytes, $firstSplit, $secondSplit - $firstSplit), [
+                'contentSize' => true,
+                'contentChecksum' => true,
+            ])
+            . Lz4Frame::build(substr($tarBytes, $secondSplit), [
+                'contentSize' => true,
+                'contentChecksum' => true,
+            ]);
+        $alignedLz4 = Lz4Frame::build(substr($tarBytes, 0, 1024), [
+            'contentSize' => true,
+            'contentChecksum' => true,
+        ]) . Lz4Frame::build(substr($tarBytes, 1024), [
+            'contentSize' => true,
+            'contentChecksum' => true,
+        ]);
+
+        $policy = ArchiveCompressionStream::inspectLz4TarRecordBoundaryPolicy(
+            $lz4,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            strlen($tarBytes),
+            strlen($contentBytes)
+        );
+        $alignedPolicy = ArchiveCompressionStream::inspectLz4TarRecordBoundaryPolicy(
+            $alignedLz4,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            strlen($tarBytes),
+            strlen($contentBytes)
+        );
+        $metadataBoundary = $policy['boundaries'][0];
+        $entryBoundary = $policy['boundaries'][1];
+        $metadataSplitRecord = $metadataBoundary['splitRecords'][0];
+        $entrySplitRecord = $entryBoundary['splitRecords'][0];
+
+        $t->same('archive-lz4-tar-record-boundary-policy', $policy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_LZ4_TAR, $policy['format']);
+        $t->same(strlen($lz4), $policy['compressedSize']);
+        $t->same(strlen($tarBytes), $policy['uncompressedSize']);
+        $t->same(5, $policy['frameCount']);
+        $t->same(3, $policy['dataFrameCount']);
+        $t->same(2, $policy['skippableFrameCount']);
+        $t->same(2, $policy['boundaryCount']);
+        $t->same(0, $policy['alignedBoundaryCount']);
+        $t->same(2, $policy['splitBoundaryCount']);
+        $t->same(2, $policy['splitRecordCount']);
+        $t->same(1, $policy['splitMetadataRecordCount']);
+        $t->same(1, $policy['splitEntryRecordCount']);
+        $t->same(1, $policy['entryCount']);
+        $t->same(1, $policy['metadataLayoutCount']);
+        $t->same('review-before-conversion', $policy['handoffPolicy']);
+        $t->same('lz4-tar-record-boundary-review', $policy['extractionPolicy']);
+        $t->same([
+            'lz4-frame-boundary-splits-tar-record',
+            'lz4-frame-boundary-splits-tar-entry-record',
+            'lz4-frame-boundary-splits-tar-metadata-record',
+        ], $policy['diagnostics']);
+        $t->same('lz4', $policy['stream']['type']);
+        $t->same('lz4 record boundary preflight', $policy['stream']['frames'][0]['data']);
+        $t->same('between TAR record frames', $policy['stream']['frames'][2]['data']);
+
+        $t->same(0, $metadataBoundary['boundaryIndex']);
+        $t->same(1, $metadataBoundary['previousFrameIndex']);
+        $t->same(3, $metadataBoundary['nextFrameIndex']);
+        $t->same(0, $metadataBoundary['previousDataFrameIndex']);
+        $t->same(1, $metadataBoundary['nextDataFrameIndex']);
+        $t->same($firstSplit, $metadataBoundary['decodedBoundaryOffset']);
+        $t->same(1, $metadataBoundary['splitRecordCount']);
+        $t->same(1, $metadataBoundary['splitMetadataRecordCount']);
+        $t->same(0, $metadataBoundary['splitEntryRecordCount']);
+        $t->same('review-before-conversion', $metadataBoundary['policy']);
+        $t->same([
+            'lz4-frame-boundary-splits-tar-record',
+            'lz4-frame-boundary-splits-tar-metadata-record',
+        ], $metadataBoundary['diagnostics']);
+        $t->same('metadata', $metadataSplitRecord['recordKind']);
+        $t->same('PaxHeaders/lz4-boundary', $metadataSplitRecord['name']);
+        $t->same('pax-local', $metadataSplitRecord['role']);
+        $t->same('pax-local', $metadataSplitRecord['metadataKind']);
+        $t->same(['comment', 'path'], $metadataSplitRecord['paxHeaderKeys']);
+        $t->same(0, $metadataSplitRecord['headerOffset']);
+        $t->same(512, $metadataSplitRecord['dataOffset']);
+        $t->same(1024, $metadataSplitRecord['recordEndOffset']);
+        $t->same(1024, $metadataSplitRecord['recordSize']);
+        $t->same($firstSplit, $metadataSplitRecord['splitOffsetInRecord']);
+        $t->same(['lz4-frame-boundary-splits-tar-metadata-record'], $metadataSplitRecord['diagnostics']);
+
+        $t->same(1, $entryBoundary['boundaryIndex']);
+        $t->same(3, $entryBoundary['previousFrameIndex']);
+        $t->same(4, $entryBoundary['nextFrameIndex']);
+        $t->same(1, $entryBoundary['previousDataFrameIndex']);
+        $t->same(2, $entryBoundary['nextDataFrameIndex']);
+        $t->same($secondSplit, $entryBoundary['decodedBoundaryOffset']);
+        $t->same(1, $entryBoundary['splitRecordCount']);
+        $t->same(1, $entryBoundary['splitEntryRecordCount']);
+        $t->same(0, $entryBoundary['splitMetadataRecordCount']);
+        $t->same('review-before-conversion', $entryBoundary['policy']);
+        $t->same([
+            'lz4-frame-boundary-splits-tar-record',
+            'lz4-frame-boundary-splits-tar-entry-record',
+        ], $entryBoundary['diagnostics']);
+        $t->same('entry', $entrySplitRecord['recordKind']);
+        $t->same('packet/lz4-boundary/content.md', $entrySplitRecord['name']);
+        $t->same(TarArchiveEntry::TYPE_FILE, $entrySplitRecord['role']);
+        $t->same(1024, $entrySplitRecord['headerOffset']);
+        $t->same(1536, $entrySplitRecord['dataOffset']);
+        $t->same(2048, $entrySplitRecord['recordEndOffset']);
+        $t->same(1024, $entrySplitRecord['recordSize']);
+        $t->same($secondSplit - 1024, $entrySplitRecord['splitOffsetInRecord']);
+        $t->same(['lz4-frame-boundary-splits-tar-entry-record'], $entrySplitRecord['diagnostics']);
+
+        $t->same(false, isset($policy['tarBytes']));
+        $t->same(false, isset($policy['archive']));
+        $t->same(false, isset($metadataSplitRecord['data']));
+        $t->same(false, isset($entrySplitRecord['data']));
+
+        $t->same('within-thresholds', $alignedPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $alignedPolicy['extractionPolicy']);
+        $t->same([], $alignedPolicy['diagnostics']);
+        $t->same(2, $alignedPolicy['dataFrameCount']);
+        $t->same(1, $alignedPolicy['boundaryCount']);
+        $t->same(1, $alignedPolicy['alignedBoundaryCount']);
+        $t->same(0, $alignedPolicy['splitBoundaryCount']);
+        $t->same(0, $alignedPolicy['splitRecordCount']);
+        $t->same('metadata', $alignedPolicy['boundaries'][0]['policy']);
+        $t->same([], $alignedPolicy['boundaries'][0]['splitRecords']);
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectLz4TarRecordBoundaryPolicy(
+            $lz4,
+            ArchiveCompressionStream::FORMAT_TAR
+        ));
+    },
+
     'inspects tar entry byte layout for package review streams' => static function (TestRunner $t): void {
         $manifestBytes = '{"source":"tar-layout","target":"wordpress"}';
         $documentBytes = '<w:document><w:body><w:p>Layout-aware tar source</w:p></w:body></w:document>';
