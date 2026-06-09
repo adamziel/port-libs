@@ -4351,6 +4351,16 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const CNS11643_PLANE1_PAIRS = [
+        0xa1a1 => 0x4e28,
+        0xa1a2 => 0x4e36,
+        0xa1a3 => 0x4e3f,
+        0xa1b0 => 0x4e46,
+        0xa1b1 => 0x4e8f,
+        0xa1b2 => 0x4ebc,
+    ];
+
+    /** @var array<int, int> */
     private const GBK_PAIRS = [
         0xa1a3 => 0x3002,
         0xa2e3 => 0x20ac,
@@ -4755,6 +4765,7 @@ final class UnicodeText
             || $normalized === 'mac-japan'
             || $normalized === 'big5'
             || $normalized === 'cp950'
+            || $normalized === 'euc-tw'
             || $normalized === 'gbk'
             || $normalized === 'gb12345'
             || $normalized === 'gb18030'
@@ -4771,6 +4782,7 @@ final class UnicodeText
                 'mac-japan' => self::decodeMacJapanese($bytes),
                 'big5' => self::decodeBig5($bytes),
                 'cp950' => self::decodeBig5($bytes, true),
+                'euc-tw' => self::decodeEucTw($bytes),
                 'gbk' => self::decodeGbk($bytes),
                 'gb12345' => self::decodeGb12345($bytes),
                 'gb18030' => self::decodeGb18030($bytes),
@@ -5576,6 +5588,7 @@ final class UnicodeText
             'iso2022jp', 'csiso2022jp' => 'iso-2022-jp',
             'big5', 'big5hkscs', 'big5hk', 'cnbig5', 'csbig5', 'xxbig5' => 'big5',
             'cp950', 'windows950', 'ms950', 'xcp950', 'big5cp950' => 'cp950',
+            'euctw', 'xeuctw', 'cseuctw' => 'euc-tw',
             'gb18030' => 'gb18030',
             'gbk', 'gb2312', 'gb2312:1980', 'csgb2312', 'csiso58gb231280',
             'cp936', 'ms936', 'windows936', 'xgbk', 'xcp936', 'euccn' => 'gbk',
@@ -7045,6 +7058,97 @@ final class UnicodeText
             }
 
             $out .= self::fromCodepoint(self::BIG5_PAIRS[$pair]);
+            $offset++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeEucTw(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte <= 0x7f) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+
+            if ($byte === 0x8e) {
+                if ($offset + 1 >= $length) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $plane = ord($bytes[$offset + 1]);
+                if ($plane < 0xa1 || $plane > 0xb0) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    if ($plane > 0x7f) {
+                        $offset++;
+                    }
+                    continue;
+                }
+
+                if ($offset + 3 >= $length) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    $offset = $length;
+                    continue;
+                }
+
+                $lead = ord($bytes[$offset + 2]);
+                $trail = ord($bytes[$offset + 3]);
+                if ($lead < 0xa1 || $lead > 0xfe || $trail < 0xa1 || $trail > 0xfe) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    $offset++;
+                    if ($lead > 0x7f) {
+                        $offset++;
+                    }
+                    if ($trail > 0x7f) {
+                        $offset++;
+                    }
+                    continue;
+                }
+
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset += 3;
+                continue;
+            }
+
+            if ($byte < 0xa1 || $byte > 0xfe || $offset + 1 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $trail = ord($bytes[$offset + 1]);
+            if ($trail < 0xa1 || $trail > 0xfe) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                if ($trail > 0x7f) {
+                    $offset++;
+                }
+                continue;
+            }
+
+            $pair = ($byte << 8) | $trail;
+            if (!isset(self::CNS11643_PLANE1_PAIRS[$pair])) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint(self::CNS11643_PLANE1_PAIRS[$pair]);
             $offset++;
         }
 

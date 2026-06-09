@@ -1549,6 +1549,35 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes bounded euc tw plane one source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# EUC TW\n\nPlane1 \xA1\xA1\xA1\xA2\xA1\xA3.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'euc-tw');
+        $document = (new MarkdownReader())->readBytes($bytes, 'x-euc-tw');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformedTrail = UnicodeText::decodeBytes("\xA1\"A", 'euctw');
+        $unsupportedPlane = UnicodeText::decodeBytes("\x8E\xA2\xA1\xA1A", 'euc-tw');
+        $truncatedPlane = UnicodeText::decodeBytes("\x8E\xA2\xA1", 'euc-tw');
+        $unmappedPair = UnicodeText::decodeBytes("\xFE\xFEA", 'cseuctw');
+
+        $t->same('euc-tw', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# EUC TW\n\nPlane1 \u{4E28}\u{4E36}\u{4E3F}.", $decoded['text']);
+        $t->same(['encoding' => 'euc-tw', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('EUC TW', $document->children[0]->attr('text'));
+        $t->same("Plane1 \u{4E28}\u{4E36}\u{4E3F}.", $document->children[1]->attr('text'));
+        $t->same(14, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(14, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="euc-tw">EUC TW</h1>', $blocks);
+        $t->contains("<p>Plane1 \u{4E28}\u{4E36}\u{4E3F}.</p>", $blocks);
+        $t->same("\u{FFFD}\"A", $malformedTrail['text']);
+        $t->same(1, $malformedTrail['repairs']);
+        $t->same("\u{FFFD}A", $unsupportedPlane['text']);
+        $t->same(1, $unsupportedPlane['repairs']);
+        $t->same("\u{FFFD}", $truncatedPlane['text']);
+        $t->same(1, $truncatedPlane['repairs']);
+        $t->same("\u{FFFD}A", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+    },
     'decodes bounded gbk simplified chinese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
         $decoded = UnicodeText::decodeBytes($bytes, 'gbk');

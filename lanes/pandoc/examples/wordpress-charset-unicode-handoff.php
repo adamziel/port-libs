@@ -220,6 +220,9 @@ $big5PointerText = UnicodeText::decodeBytes("\x88\x62\x88\x64\x88\xA3\x88\xA5", 
 $cp950Bytes = "# CP950\n\nCP950 Euro \xA3\xE1 glyphs \xF9\xD6\xF9\xD7 box \xF9\xDD\xF9\xDE\xF9\xDF.";
 $cp950Source = (new MarkdownReader())->readBytes($cp950Bytes, 'windows-950');
 $cp950Text = (string) $cp950Source->children[1]->attr('text');
+$eucTwBytes = "# EUC TW\n\nPlane1 \xA1\xA1\xA1\xA2\xA1\xA3.";
+$eucTwSource = (new MarkdownReader())->readBytes($eucTwBytes, 'x-euc-tw');
+$eucTwText = (string) $eucTwSource->children[1]->attr('text');
 $gbkBytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
 $gbkSource = (new MarkdownReader())->readBytes($gbkBytes, 'gbk');
 $gbkText = (string) $gbkSource->children[1]->attr('text');
@@ -932,6 +935,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($cp950Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($cp950Text) . '/' . UnicodeText::displayWidth($cp950Text, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'EUC-TW source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $eucTwText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucTwSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucTwText) . '/' . UnicodeText::displayWidth($eucTwText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'GBK source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $gbkText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gbkSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gbkText)])]),
@@ -1523,6 +1531,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>CP950 source</td><td>CP950 Euro € glyphs 碁銹 box ╔╦╗.</td><td>cp950:33/37</td>")) {
         throw new RuntimeException('charset handoff self-test missing CP950 extension decode audit row');
+    }
+    if (($eucTwSource->attr('sourceEncoding')['encoding'] ?? '') !== 'euc-tw') {
+        throw new RuntimeException('charset handoff self-test missing EUC-TW source encoding');
+    }
+    if (!str_contains($blocks, "<td>EUC-TW source</td><td>Plane1 \u{4E28}\u{4E36}\u{4E3F}.</td><td>euc-tw:14/14</td>")) {
+        throw new RuntimeException('charset handoff self-test missing EUC-TW plane one decode audit row');
     }
     if (($gbkSource->attr('sourceEncoding')['encoding'] ?? '') !== 'gbk') {
         throw new RuntimeException('charset handoff self-test missing GBK source encoding');
