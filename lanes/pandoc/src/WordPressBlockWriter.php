@@ -402,23 +402,15 @@ final class WordPressBlockWriter
 
     private function renderDefinitionListAttrs(AstNode $node): string
     {
-        $attrs = '';
-        $classes = $node->attr('classes', []);
+        $attrs = $this->renderHtmlWriterAttrs($node, true);
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
         $normalizedClasses = [];
-        if (is_array($classes)) {
-            foreach ($classes as $class) {
-                if (!is_scalar($class)) {
-                    continue;
-                }
-
+        if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
+            foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
                 $class = trim((string) $class);
                 if ($class !== '') {
                     $normalizedClasses[] = $class;
                 }
-            }
-
-            if ($normalizedClasses !== []) {
-                $attrs .= ' class="' . $this->esc(implode(' ', array_values(array_unique($normalizedClasses)))) . '"';
             }
         }
 

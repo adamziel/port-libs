@@ -17336,6 +17336,25 @@ MD;
         $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers should not survive figure attribute handoff');
         $t->true(!str_contains($blocks, 'style="display:none"'), 'Unsafe figure style attributes should not survive figure attribute handoff');
     },
+    'writes wordpress html writer attributes for definition lists' => static function (TestRunner $t): void {
+        $source = '<dl id="glossary-attrs" class="review glossary" data-pandoc-source="writer.html5" aria-label="Reviewer glossary" xml:lang="en" onclick="alert(1)" style="color:red">'
+            . '<dt>Source term</dt><dd>Imported definition</dd>'
+            . '</dl>';
+        $document = (new MarkdownReader())->read($source);
+        $list = $document->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('definition_list', $list->type);
+        $t->same('glossary-attrs', $list->attr('id'));
+        $t->same(['review', 'glossary'], $list->attr('classes'));
+        $t->same('writer.html5', $list->attr('htmlAttributes')['data-pandoc-source'] ?? null);
+        $t->contains(
+            '<dl id="glossary-attrs" class="review glossary" data-pandoc-source="writer.html5" aria-label="Reviewer glossary" xml:lang="en"><dt>Source term</dt><dd>Imported definition</dd></dl>',
+            $blocks
+        );
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers should not survive definition-list attribute handoff');
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe style attributes should not survive definition-list attribute handoff');
+    },
     'writes wordpress inline html writer xml lang attributes' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
