@@ -241,6 +241,101 @@ $buildDescriptorBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildDescriptorSlackBackedPackage = static function () use ($crc32): string {
+    $commentsName = 'word/comments.xml';
+    $commentsData = '<w:comments><w:comment>Descriptor slack should stay review-only</w:comment></w:comments>';
+    $commentsCompressed = gzdeflate($commentsData);
+    $commentsCrc = $crc32($commentsData);
+    $commentsFlags = 0x0808;
+    $descriptorSlack = 'hidden-descriptor-tail';
+    $documentName = 'word/document.xml';
+    $documentData = '<w:document><w:p>Descriptor follower</w:p></w:document>';
+    $documentCrc = $crc32($documentData);
+    $commentsOffset = 0;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        $commentsFlags,
+        8,
+        0,
+        0,
+        0,
+        0,
+        0,
+        strlen($commentsName),
+        0
+    );
+    $body .= $commentsName
+        . $commentsCompressed
+        . "PK\x07\x08"
+        . pack('VVV', $commentsCrc, strlen($commentsCompressed), strlen($commentsData))
+        . $descriptorSlack;
+    $documentOffset = strlen($body);
+    $body .= pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $documentCrc,
+        strlen($documentData),
+        strlen($documentData),
+        strlen($documentName),
+        0
+    );
+    $body .= $documentName . $documentData;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        $commentsFlags,
+        8,
+        0,
+        0,
+        $commentsCrc,
+        strlen($commentsCompressed),
+        strlen($commentsData),
+        strlen($commentsName),
+        0,
+        0,
+        0,
+        0,
+        0,
+        $commentsOffset
+    );
+    $central .= $commentsName;
+    $central .= pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $documentCrc,
+        strlen($documentData),
+        strlen($documentData),
+        strlen($documentName),
+        0,
+        0,
+        0,
+        0,
+        0,
+        $documentOffset
+    );
+    $central .= $documentName;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
+};
 $buildStoredFirstDescriptorBackedPackage = static function (string $contents) use ($crc32): string {
     $name = 'mimetype';
     $crc = $crc32($contents);
@@ -3198,6 +3293,15 @@ $rawStrictLocalHeaderOffsetPreflight = ZipPackage::rawStrictImportPreflight(
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $descriptorDataDescriptorPreflight = $descriptorPackage->dataDescriptorPreflight();
+$descriptorSlackBytes = $buildDescriptorSlackBackedPackage();
+$descriptorSlackPreflight = ZipPackage::dataDescriptorIntegrityPreflight($descriptorSlackBytes);
+$descriptorSlackRawStrictPreflight = ZipPackage::rawStrictImportPreflight($descriptorSlackBytes, 4096, 100.0, 4096);
+$descriptorSlackRejected = false;
+try {
+    ZipPackage::fromString($descriptorSlackBytes);
+} catch (RuntimeException $exception) {
+    $descriptorSlackRejected = str_contains($exception->getMessage(), 'unexpected trailing bytes');
+}
 $descriptorPlaceholderRejected = false;
 try {
     ZipPackage::fromString($buildDescriptorPlaceholderMismatchBackedPackage());
@@ -5070,9 +5174,22 @@ if (in_array('--self-test', $argv, true)) {
         || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['name'] ?? null) !== 'word/comments.xml'
         || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['hasSignature'] ?? null) !== true
         || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['descriptorLength'] ?? null) !== 16
+        || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['descriptorSpan'] ?? null) !== 16
+        || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['surplusDescriptorBytes'] ?? null) !== 0
         || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['hasZeroLocalHeaderPlaceholders'] ?? null) !== true
     ) {
         throw new RuntimeException('Expected ZIP data descriptor metadata to be inspectable before comments import');
+    }
+
+    if (
+        !$descriptorSlackRejected
+        || ($descriptorSlackPreflight['descriptorEntryCount'] ?? null) !== 1
+        || ($descriptorSlackPreflight['mismatchedDescriptorEntryCount'] ?? null) !== 1
+        || ($descriptorSlackPreflight['descriptorEntries'][0]['issues'] ?? null) !== ['data-descriptor-length-mismatch']
+        || ($descriptorSlackPreflight['descriptorEntries'][0]['surplusDescriptorBytes'] ?? null) !== strlen('hidden-descriptor-tail')
+        || !in_array('data-descriptor-length-mismatch', $descriptorSlackRawStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected ZIP descriptor boundary slack to stay blocked with byte-range preflight metadata');
     }
 
     if (!$descriptorPlaceholderRejected) {
@@ -5940,7 +6057,11 @@ echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml')
 echo 'descriptor.entryCount=' . $descriptorDataDescriptorPreflight['descriptorEntryCount'] . "\n";
 echo 'descriptor.signedEntryCount=' . $descriptorDataDescriptorPreflight['signedDescriptorEntryCount'] . "\n";
 echo 'descriptor.comments.xml.length=' . ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['descriptorLength'] ?? 'none') . "\n";
+echo 'descriptor.comments.xml.span=' . ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['descriptorSpan'] ?? 'none') . "\n";
 echo 'descriptor.zeroLocalHeaderPlaceholders=' . (($descriptorDataDescriptorPreflight['descriptorEntries'][0]['hasZeroLocalHeaderPlaceholders'] ?? false) ? 'true' : 'false') . "\n";
+echo 'descriptorSlackPolicy=' . ($descriptorSlackRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'descriptorSlackIssues=' . implode(',', $descriptorSlackPreflight['issues']) . "\n";
+echo 'descriptorSlackSurplusBytes=' . ($descriptorSlackPreflight['descriptorEntries'][0]['surplusDescriptorBytes'] ?? 'none') . "\n";
 echo 'zipDescriptorPlaceholderPolicy=' . ($descriptorPlaceholderRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64DescriptorPolicy=' . ($zip64DataDescriptorRejected ? 'rejected' : 'not-rejected') . "\n";
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();

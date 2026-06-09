@@ -7,6 +7,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\Pandoc\OpcContentTypes;
 use PortLibs\Pandoc\OpcMarkupCompatibility;
 use PortLibs\Pandoc\OpcPackagePath;
+use PortLibs\Pandoc\OpcRelationship;
 use PortLibs\Pandoc\OpcRelationshipGraph;
 use PortLibs\Pandoc\OpcRelationships;
 use PortLibs\Pandoc\ZipPackage;
@@ -2075,6 +2076,31 @@ try {
     $markupCompatibilityGuards['coreNamespacePreserveDeclarationRejected'] = true;
 }
 
+$serializedReviewTargetName = "\u{00E9}" . 'preuve.png';
+$serializedRelationships = new OpcRelationships('/word/document.xml');
+$serializedRelationships->add(new OpcRelationship(
+    'rIdSerializedReview',
+    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+    'media/review source ' . $serializedReviewTargetName . '#crop'
+));
+$serializedRelationships->add(new OpcRelationship(
+    'rIdSerializedExternal',
+    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+    'https://example.test/source.html?post=42&action=edit',
+    OpcRelationship::TARGET_MODE_EXTERNAL
+));
+$serializedRelationshipXml = $serializedRelationships->toXml();
+$serializedRelationshipRoundTrip = OpcRelationships::fromXml($serializedRelationshipXml, '/word/document.xml');
+$relationshipSerializationGuard = [
+    'xmlContainsEscapedInternalTarget' => str_contains($serializedRelationshipXml, 'Target="media/review%20source%20%C3%A9preuve.png#crop"'),
+    'xmlOmitsRawInternalSpace' => !str_contains($serializedRelationshipXml, 'Target="media/review source '),
+    'xmlEscapesExternalAmpersand' => str_contains($serializedRelationshipXml, 'Target="https://example.test/source.html?post=42&amp;action=edit"'),
+    'xmlOmitsInternalTargetMode' => !str_contains($serializedRelationshipXml, 'TargetMode="Internal"'),
+    'xmlKeepsExternalTargetMode' => str_contains($serializedRelationshipXml, 'TargetMode="External"'),
+    'roundTripInternalTarget' => $serializedRelationshipRoundTrip->resolveTarget('rIdSerializedReview'),
+    'roundTripExternalTarget' => $serializedRelationshipRoundTrip->resolveTarget('rIdSerializedExternal'),
+];
+
 $summary = [
     'document' => [
         'part' => $documentPart,
@@ -2178,6 +2204,7 @@ $summary = [
         'caseEquivalentSignatureTransforms' => $caseEquivalentSignatureTransforms,
         'caseInsensitiveRoleContentTypes' => $roleCaseContentTypeMatch,
         'internalTargetDiagnostics' => $internalTargetDiagnostics,
+        'relationshipSerializationGuard' => $relationshipSerializationGuard,
         'emptySignatureOriginGuard' => $emptySignatureOriginGuard,
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
@@ -2903,6 +2930,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedDotSegment']['targetPart'] ?? null) !== null
         || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedDotSegment']['valid'] ?? null) !== false
         || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedDotSegment']['issues'] ?? null) !== ['invalid-target', 'internal-target-unsafe-percent-encoded-dot-segment']
+        || ($summary['integrity']['relationshipSerializationGuard']['xmlContainsEscapedInternalTarget'] ?? null) !== true
+        || ($summary['integrity']['relationshipSerializationGuard']['xmlOmitsRawInternalSpace'] ?? null) !== true
+        || ($summary['integrity']['relationshipSerializationGuard']['xmlEscapesExternalAmpersand'] ?? null) !== true
+        || ($summary['integrity']['relationshipSerializationGuard']['xmlOmitsInternalTargetMode'] ?? null) !== true
+        || ($summary['integrity']['relationshipSerializationGuard']['xmlKeepsExternalTargetMode'] ?? null) !== true
+        || ($summary['integrity']['relationshipSerializationGuard']['roundTripInternalTarget'] ?? null) !== "/word/media/review source \u{00E9}preuve.png#crop"
+        || ($summary['integrity']['relationshipSerializationGuard']['roundTripExternalTarget'] ?? null) !== 'https://example.test/source.html?post=42&action=edit'
         || array_keys($summary['relationshipSourceAliasGuards'] ?? []) !== [
             '/word/_rels/review%20source.xml.rels',
             '/word/_rels/review source.xml.rels',

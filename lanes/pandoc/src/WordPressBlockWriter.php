@@ -363,7 +363,7 @@ final class WordPressBlockWriter
 
     private function renderDefinitionListHtml(AstNode $node): string
     {
-        $html = '<dl>';
+        $html = '<dl' . $this->renderDefinitionListAttrs($node) . '>';
         foreach ($node->children as $item) {
             if ($item->type !== 'definition_item') {
                 continue;
@@ -392,6 +392,52 @@ final class WordPressBlockWriter
         $html .= '</dl>';
 
         return $html;
+    }
+
+    private function renderDefinitionListAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        $classes = $node->attr('classes', []);
+        $normalizedClasses = [];
+        if (is_array($classes)) {
+            foreach ($classes as $class) {
+                if (!is_scalar($class)) {
+                    continue;
+                }
+
+                $class = trim((string) $class);
+                if ($class !== '') {
+                    $normalizedClasses[] = $class;
+                }
+            }
+
+            if ($normalizedClasses !== []) {
+                $attrs .= ' class="' . $this->esc(implode(' ', array_values(array_unique($normalizedClasses)))) . '"';
+            }
+        }
+
+        if (!in_array('pandoc-csl-bibliography', $normalizedClasses, true)) {
+            return $attrs;
+        }
+
+        if ($node->attr('hangingIndent') === true) {
+            $attrs .= ' data-csl-hanging-indent="true"';
+        }
+
+        foreach ([
+            'entrySpacing' => 'data-csl-entry-spacing',
+            'lineSpacing' => 'data-csl-line-spacing',
+            'secondFieldAlign' => 'data-csl-second-field-align',
+        ] as $attr => $htmlAttr) {
+            $value = $node->attr($attr, null);
+            if (!is_scalar($value) || (string) $value === '') {
+                continue;
+            }
+
+            $attrs .= ' ' . $htmlAttr . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
     }
 
     /**

@@ -8559,21 +8559,54 @@ XML;
         });
     },
     'serializes OPC relationships with external target modes only when needed' => static function (TestRunner $t): void {
+        $utf8Name = "\u{00E9}" . 'preuve.png';
         $relationships = new OpcRelationships('/word/document.xml');
         $relationships->add(new OpcRelationship('rIdStyles', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles', 'styles.xml'));
+        $relationships->add(new OpcRelationship('rIdReviewImage', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', 'media/review source ' . $utf8Name . '#crop'));
         $relationships->add(new OpcRelationship('rIdSource', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', 'https://example.test/source', OpcRelationship::TARGET_MODE_EXTERNAL));
 
         $xml = $relationships->toXml();
         $t->contains('xmlns="' . OpcRelationships::NAMESPACE_URI . '"', $xml);
         $t->contains('Id="rIdStyles"', $xml);
         $t->contains('Target="styles.xml"', $xml);
+        $t->contains('Target="media/review%20source%20%C3%A9preuve.png#crop"', $xml);
+        $t->same(false, str_contains($xml, 'Target="media/review source '));
         $t->contains('TargetMode="External"', $xml);
         $t->same(false, str_contains($xml, 'TargetMode="Internal"'));
 
         $roundTrip = OpcRelationships::fromXml($xml, '/word/document.xml');
         $t->same('/word/styles.xml', $roundTrip->resolveTarget('rIdStyles'));
+        $t->same('/word/media/review source ' . $utf8Name . '#crop', $roundTrip->resolveTarget('rIdReviewImage'));
         $t->same('https://example.test/source', $roundTrip->resolveTarget('rIdSource'));
         $t->true($roundTrip->byId('rIdSource')?->isExternal() ?? false);
+    },
+    'serializes OPC internal relationship target path bytes as URI escaped XML attributes' => static function (TestRunner $t): void {
+        $utf8Name = "\u{00E9}" . 'preuve.png';
+        $relationships = new OpcRelationships('/word/document.xml');
+        $relationships->add(new OpcRelationship(
+            'rIdReviewImage',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+            'media/raw review ' . $utf8Name . '#crop'
+        ));
+        $relationships->add(new OpcRelationship(
+            'rIdCustomXml',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml',
+            '../customXml/source%20data.xml?state=ready#packet'
+        ));
+
+        $xml = $relationships->toXml();
+        $t->contains('Target="media/raw%20review%20%C3%A9preuve.png#crop"', $xml);
+        $t->contains('Target="../customXml/source%20data.xml?state=ready#packet"', $xml);
+        $t->same(false, str_contains($xml, 'Target="media/raw review '));
+        $t->same(false, str_contains($xml, 'TargetMode="Internal"'));
+
+        $roundTrip = OpcRelationships::fromXml($xml, '/word/document.xml');
+        $t->same('/word/media/raw review ' . $utf8Name . '#crop', $roundTrip->resolveTarget('rIdReviewImage'));
+        $t->same('/customXml/source data.xml?state=ready#packet', $roundTrip->resolveTarget('rIdCustomXml'));
+
+        $bad = new OpcRelationships('/word/document.xml');
+        $bad->add(new OpcRelationship('rIdBadEscape', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', 'media/source%ZZ.png'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $bad->toXml());
     },
     'rejects malformed OPC relationships and unsafe internal targets' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml('<Relationships xmlns="urn:bad"/>'));

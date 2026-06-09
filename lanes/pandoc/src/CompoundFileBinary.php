@@ -795,6 +795,9 @@ final class CompoundFileBinary
         if ($type === 5 && ((int) $entry['leftSiblingId'] !== self::FREESECT || (int) $entry['rightSiblingId'] !== self::FREESECT)) {
             throw new \RuntimeException('CFB root directory entry must not reference sibling entries');
         }
+        if ($type === 5 && ($entry['hasCreationTimeBytes'] ?? false) === true) {
+            throw new \RuntimeException('CFB root directory entry must not declare a creation timestamp');
+        }
         if ($type === 5 && $size === 0 && self::isRegularSector($startSector)) {
             throw new \RuntimeException('CFB root directory entry must not reference a mini stream when its size is zero');
         }

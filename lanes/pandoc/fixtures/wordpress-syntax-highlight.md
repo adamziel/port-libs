@@ -102,6 +102,10 @@ class ReviewPacket:
     title: str | None = None
 
 def normalize_title(packet: ReviewPacket) -> str:
+    payload = Path(packet.source_path).read_bytes()
+    if payload.startswith(b"\xef\xbb\xbf"):
+        payload = payload.removeprefix(b"\xef\xbb\xbf")
+    pattern = rb"legacy-\d+"
     raw = json.loads(Path(packet.source_path).read_text())["title"]
     if raw is None:
         return "Untitled"

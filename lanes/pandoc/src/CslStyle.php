@@ -777,11 +777,16 @@ final class CslStyle
             throw new \InvalidArgumentException('CSL bibliography attribute subsequent-author-substitute-rule must be complete-all, complete-each, partial-each, or partial-first');
         }
 
+        $secondFieldAlign = trim($bibliography->getAttribute('second-field-align'));
+        if ($secondFieldAlign !== '' && !in_array($secondFieldAlign, ['flush', 'margin'], true)) {
+            throw new \InvalidArgumentException('CSL bibliography attribute second-field-align must be flush or margin');
+        }
+
         return [
             'hangingIndent' => self::booleanAttribute($bibliography, 'hanging-indent', false),
             'entrySpacing' => self::integerAttribute($bibliography, 'entry-spacing'),
             'lineSpacing' => self::integerAttribute($bibliography, 'line-spacing'),
-            'secondFieldAlign' => trim($bibliography->getAttribute('second-field-align')),
+            'secondFieldAlign' => $secondFieldAlign,
             'subsequentAuthorSubstitute' => $bibliography->hasAttribute('subsequent-author-substitute') ? $bibliography->getAttribute('subsequent-author-substitute') : '',
             'subsequentAuthorSubstituteRule' => $substituteRule,
         ];

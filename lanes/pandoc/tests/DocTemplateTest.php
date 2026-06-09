@@ -1007,6 +1007,25 @@ TPL;
         ]));
     },
 
+    'renders pandoc doctemplate roman pipe zero as an empty marker' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->same('<> <i> <mmmcmxcix> <4000> <draft>', $renderer->render('<$zero/roman$> <$one/roman$> <$max/roman$> <$overflow/roman$> <$text/roman$>', [
+            'zero' => 0,
+            'one' => 1,
+            'max' => 3999,
+            'overflow' => 4000,
+            'text' => 'draft',
+        ]));
+        $t->same('|I|IV|4000|DRAFT', $renderer->render('$for(priorities/roman/uppercase)$$it$$sep$|$endfor$', [
+            'priorities' => [0, 1, 4, 4000, 'draft'],
+        ]));
+        $t->same('<    > <   I>', $renderer->render('<$zero/roman/uppercase/right 4$> <$one/roman/uppercase/right 4$>', [
+            'zero' => 0,
+            'one' => 1,
+        ]));
+    },
+
     'pads pandoc doctemplate block pipes by unicode display width' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 CJK: <$cjk/left 6 "|" "|"$>

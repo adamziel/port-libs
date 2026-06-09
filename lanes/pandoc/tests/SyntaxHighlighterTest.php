@@ -2679,6 +2679,10 @@ return [
                 '    title: str | None = None',
                 '',
                 'def normalize_title(packet: ReviewPacket) -> str:',
+                '    payload = Path(packet.source_path).read_bytes()',
+                '    if payload.startswith(b"\\xef\\xbb\\xbf"):',
+                '        payload = payload.removeprefix(b"\\xef\\xbb\\xbf")',
+                '    pattern = rb"legacy-\\d+"',
                 '    raw = json.loads(Path(packet.source_path).read_text())["title"]',
                 '    if raw is None:',
                 '        return "Untitled"',
@@ -2705,14 +2709,22 @@ return [
         $t->contains('<span class="va">source_id</span><span class="op">:</span> <span class="dt">int</span>', $highlighted['html']);
         $t->contains('<span class="va">title</span><span class="op">:</span> <span class="dt">str</span> <span class="op">|</span> <span class="cn">None</span>', $highlighted['html']);
         $t->contains('<span class="kw">def</span> <span class="fu">normalize_title</span><span class="op">(</span><span class="va">packet</span><span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">)</span> <span class="op">-&gt;</span> <span class="dt">str</span>', $highlighted['html']);
+        $t->contains('<span class="va">payload</span> <span class="op">=</span> <span class="dt">Path</span><span class="op">(</span><span class="va">packet</span><span class="op">.</span><span class="va">source_path</span><span class="op">).</span><span class="fu">read_bytes</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="va">payload</span><span class="op">.</span><span class="fu">startswith</span><span class="op">(</span><span class="st">b&quot;\\xef\\xbb\\xbf&quot;</span><span class="op">):</span>', $highlighted['html']);
+        $t->contains('<span class="va">payload</span> <span class="op">=</span> <span class="va">payload</span><span class="op">.</span><span class="fu">removeprefix</span><span class="op">(</span><span class="st">b&quot;\\xef\\xbb\\xbf&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="va">pattern</span> <span class="op">=</span> <span class="st">rb&quot;legacy-\\d+&quot;</span>', $highlighted['html']);
         $t->contains('<span class="va">json</span><span class="op">.</span><span class="fu">loads</span><span class="op">(</span><span class="dt">Path</span><span class="op">(</span><span class="va">packet</span><span class="op">.</span><span class="va">source_path</span><span class="op">).</span><span class="fu">read_text</span><span class="op">())[</span><span class="st">&quot;title&quot;</span><span class="op">]</span>', $highlighted['html']);
         $t->contains('<span class="kw">if</span> <span class="va">raw</span> <span class="kw">is</span> <span class="cn">None</span><span class="op">:</span>', $highlighted['html']);
         $t->contains('<span class="kw">return</span> <span class="va">raw</span><span class="op">.</span><span class="fu">strip</span><span class="op">()</span>', $highlighted['html']);
         $t->contains('<style data-pandoc-highlight-style="monochrome">', $wordpressBlock);
+        $t->contains('<span class="st">b&quot;\\xef\\xbb\\xbf&quot;</span>', $wordpressBlock);
+        $t->contains('<span class="st">rb&quot;legacy-\\d+&quot;</span>', $wordpressBlock);
         $t->contains('<span class="ot">@dataclass</span>', $wordpressBlock);
         $t->same('python', $directPython['language']);
         $t->contains('<span class="kw">async</span> <span class="kw">def</span> <span class="fu">load</span>', $directPython['html']);
         $t->contains('<span class="kw">await</span> <span class="fu">fetch</span><span class="op">()</span>', $directPython['html']);
+        $bytesPython = (new SyntaxHighlighter())->highlight('payload = br"data-\d+"; marker = B"WP"', 'py');
+        $t->contains('<span class="va">payload</span> <span class="op">=</span> <span class="st">br&quot;data-\\d+&quot;</span><span class="op">;</span> <span class="va">marker</span> <span class="op">=</span> <span class="st">B&quot;WP&quot;</span>', $bytesPython['html']);
     },
     'highlights c and cpp review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $codeBlock = new AstNode('code_block', [

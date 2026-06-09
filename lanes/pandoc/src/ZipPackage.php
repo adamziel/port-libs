@@ -4854,8 +4854,8 @@ final class ZipPackage
      *     signedDescriptorEntryCount:int,
      *     unsignedDescriptorEntryCount:int,
      *     zip64SizedDescriptorEntryCount:int,
-     *     descriptorEntries:list<array{name:string, usesDataDescriptor:bool, hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, crc32:int, crc32Hex:string, compressedSize:int, uncompressedSize:int, usesZip64SizedDescriptor:bool, localHeaderCrc32:int, localHeaderCompressedSize:int, localHeaderUncompressedSize:int, hasZeroLocalHeaderPlaceholders:bool}>,
-     *     entries:list<array{name:string, usesDataDescriptor:bool, hasSignature:?bool, descriptorOffset:?int, valueOffset:?int, descriptorLength:?int, crc32:?int, crc32Hex:?string, compressedSize:int, uncompressedSize:int, usesZip64SizedDescriptor:bool, localHeaderCrc32:?int, localHeaderCompressedSize:?int, localHeaderUncompressedSize:?int, hasZeroLocalHeaderPlaceholders:?bool}>
+     *     descriptorEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
      * }
      */
     public function dataDescriptorPreflight(): array
@@ -4875,6 +4875,11 @@ final class ZipPackage
                 'descriptorOffset' => null,
                 'valueOffset' => null,
                 'descriptorLength' => null,
+                'nextOffset' => null,
+                'descriptorSpan' => null,
+                'descriptorEnd' => null,
+                'surplusDescriptorBytes' => null,
+                'truncatedDescriptorBytes' => null,
                 'crc32' => null,
                 'crc32Hex' => null,
                 'compressedSize' => $entry->compressedSize,
@@ -7401,7 +7406,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, crc32:int, crc32Hex:string, usesZip64SizedDescriptor:bool}
+     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, nextOffset:?int, descriptorSpan:?int, descriptorEnd:int, surplusDescriptorBytes:?int, truncatedDescriptorBytes:?int, crc32:int, crc32Hex:string, usesZip64SizedDescriptor:bool}
      */
     private function dataDescriptorMetadata(ZipPackageEntry $entry, int $offset, ?int $nextOffset = null): array
     {
@@ -7419,13 +7424,13 @@ final class ZipPackage
         if ($hasSignatureMarker) {
             $signedValues = $this->matchingStandardDataDescriptorValues($entry, $offset + 4);
             if ($signedValues !== null) {
-                return self::standardDataDescriptorSummary($offset, $offset + 4, 16, $signedValues, true);
+                return self::standardDataDescriptorSummary($offset, $offset + 4, 16, $signedValues, true, $nextOffset);
             }
         }
 
         $unsignedValues = $this->matchingStandardDataDescriptorValues($entry, $offset);
         if ($unsignedValues !== null) {
-            return self::standardDataDescriptorSummary($offset, $offset, 12, $unsignedValues, false);
+            return self::standardDataDescriptorSummary($offset, $offset, 12, $unsignedValues, false, $nextOffset);
         }
 
         $valuesOffset = $hasSignatureMarker ? $offset + 4 : $offset;
@@ -7445,12 +7450,19 @@ final class ZipPackage
         if ($compressedSize !== $entry->compressedSize || $uncompressedSize !== $entry->uncompressedSize) {
             throw new \RuntimeException("ZIP data descriptor sizes do not match central directory entry {$entry->name}");
         }
+        $descriptorLength = $hasSignatureMarker ? 16 : 12;
+        $descriptorEnd = $offset + $descriptorLength;
 
         return [
             'hasSignature' => $hasSignatureMarker,
             'descriptorOffset' => $offset,
             'valueOffset' => $valuesOffset,
-            'descriptorLength' => ($hasSignatureMarker ? 16 : 12),
+            'descriptorLength' => $descriptorLength,
+            'nextOffset' => $nextOffset,
+            'descriptorSpan' => $nextOffset === null ? null : $nextOffset - $offset,
+            'descriptorEnd' => $descriptorEnd,
+            'surplusDescriptorBytes' => $nextOffset === null ? null : max(0, $nextOffset - $descriptorEnd),
+            'truncatedDescriptorBytes' => $nextOffset === null ? null : max(0, $descriptorEnd - $nextOffset),
             'crc32' => $crc32,
             'crc32Hex' => sprintf('%08x', $crc32),
             'usesZip64SizedDescriptor' => false,
@@ -7506,20 +7518,28 @@ final class ZipPackage
 
     /**
      * @param array{crc32:int, compressedSize:int, uncompressedSize:int} $values
-     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, crc32:int, crc32Hex:string, usesZip64SizedDescriptor:bool}
+     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, nextOffset:?int, descriptorSpan:?int, descriptorEnd:int, surplusDescriptorBytes:?int, truncatedDescriptorBytes:?int, crc32:int, crc32Hex:string, usesZip64SizedDescriptor:bool}
      */
     private static function standardDataDescriptorSummary(
         int $descriptorOffset,
         int $valueOffset,
         int $descriptorLength,
         array $values,
-        bool $hasSignature
+        bool $hasSignature,
+        ?int $nextOffset = null
     ): array {
+        $descriptorEnd = $descriptorOffset + $descriptorLength;
+
         return [
             'hasSignature' => $hasSignature,
             'descriptorOffset' => $descriptorOffset,
             'valueOffset' => $valueOffset,
             'descriptorLength' => $descriptorLength,
+            'nextOffset' => $nextOffset,
+            'descriptorSpan' => $nextOffset === null ? null : $nextOffset - $descriptorOffset,
+            'descriptorEnd' => $descriptorEnd,
+            'surplusDescriptorBytes' => $nextOffset === null ? null : max(0, $nextOffset - $descriptorEnd),
+            'truncatedDescriptorBytes' => $nextOffset === null ? null : max(0, $descriptorEnd - $nextOffset),
             'crc32' => $values['crc32'],
             'crc32Hex' => sprintf('%08x', $values['crc32']),
             'usesZip64SizedDescriptor' => false,
@@ -7527,7 +7547,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{hasSignature:?bool, descriptorOffset:int, valueOffset:?int, descriptorLength:?int, crc32:?int, crc32Hex:?string, compressedSize:?int, uncompressedSize:?int, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:?bool, issues:list<string>}
+     * @return array{hasSignature:?bool, descriptorOffset:int, valueOffset:?int, descriptorLength:?int, nextOffset:int, descriptorSpan:int, descriptorEnd:?int, surplusDescriptorBytes:?int, truncatedDescriptorBytes:?int, crc32:?int, crc32Hex:?string, compressedSize:?int, uncompressedSize:?int, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:?bool, issues:list<string>}
      */
     private static function dataDescriptorIntegritySummaryFromBytes(
         string $bytes,
@@ -7556,6 +7576,7 @@ final class ZipPackage
                 $centralCrc32,
                 $centralCompressedSize,
                 $centralUncompressedSize,
+                $nextOffset,
                 ['zip64-sized-data-descriptor']
             );
         }
@@ -7574,6 +7595,7 @@ final class ZipPackage
                 $centralCrc32,
                 $centralCompressedSize,
                 $centralUncompressedSize,
+                $nextOffset,
                 ['zip64-sized-data-descriptor']
             );
         }
@@ -7621,6 +7643,11 @@ final class ZipPackage
                 'descriptorOffset' => $descriptorOffset,
                 'valueOffset' => $hasSignatureMarker ? $descriptorOffset + 4 : $descriptorOffset,
                 'descriptorLength' => null,
+                'nextOffset' => $nextOffset,
+                'descriptorSpan' => $descriptorSpan,
+                'descriptorEnd' => null,
+                'surplusDescriptorBytes' => null,
+                'truncatedDescriptorBytes' => null,
                 'crc32' => null,
                 'crc32Hex' => null,
                 'compressedSize' => null,
@@ -7647,6 +7674,7 @@ final class ZipPackage
             $centralCrc32,
             $centralCompressedSize,
             $centralUncompressedSize,
+            $nextOffset,
             $extraIssues
         );
     }
@@ -7654,7 +7682,7 @@ final class ZipPackage
     /**
      * @param array{crc32:int, compressedSize:int, uncompressedSize:int}|null $values
      * @param list<string> $extraIssues
-     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, crc32:?int, crc32Hex:?string, compressedSize:?int, uncompressedSize:?int, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:?bool, issues:list<string>}
+     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, nextOffset:int, descriptorSpan:int, descriptorEnd:int, surplusDescriptorBytes:int, truncatedDescriptorBytes:int, crc32:?int, crc32Hex:?string, compressedSize:?int, uncompressedSize:?int, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:?bool, issues:list<string>}
      */
     private static function dataDescriptorIntegrityResult(
         string $entryName,
@@ -7667,6 +7695,7 @@ final class ZipPackage
         int $centralCrc32,
         int $centralCompressedSize,
         int $centralUncompressedSize,
+        int $nextOffset,
         array $extraIssues = []
     ): array {
         $issues = $extraIssues;
@@ -7674,6 +7703,7 @@ final class ZipPackage
         $crc32 = null;
         $compressedSize = null;
         $uncompressedSize = null;
+        $descriptorEnd = $descriptorOffset + $descriptorLength;
 
         if ($values === null) {
             $issues[] = $usesZip64SizedDescriptor
@@ -7703,6 +7733,11 @@ final class ZipPackage
             'descriptorOffset' => $descriptorOffset,
             'valueOffset' => $valueOffset,
             'descriptorLength' => $descriptorLength,
+            'nextOffset' => $nextOffset,
+            'descriptorSpan' => $nextOffset - $descriptorOffset,
+            'descriptorEnd' => $descriptorEnd,
+            'surplusDescriptorBytes' => max(0, $nextOffset - $descriptorEnd),
+            'truncatedDescriptorBytes' => max(0, $descriptorEnd - $nextOffset),
             'crc32' => $crc32,
             'crc32Hex' => $crc32 === null ? null : sprintf('%08x', $crc32),
             'compressedSize' => $compressedSize,

@@ -7931,6 +7931,91 @@ XML
         $t->contains('<dt>de la Cruz 2026</dt><dd>[de la Cruz, Ana Maria. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>', $blocks);
         $t->contains('<dt>Adams and colleagues no source date</dt><dd>[Adams, Ari; Baker, Bea; Clark, Cy. Undated Packet.]</dd>', $blocks);
     },
+    'applies bounded csl bibliography options to wordpress definition list handoff' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'options-source',
+                'type' => 'report',
+                'title' => 'Options Source Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'options-followup',
+                'type' => 'report',
+                'title' => 'Options Followup Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>WordPress Bibliography Options Review</title>
+    <id>https://example.test/styles/wordpress-bibliography-options-review</id>
+    <updated>2026-06-09T01:19:50+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography hanging-indent="true" entry-spacing="0" line-spacing="2" second-field-align="margin">
+    <sort>
+      <key variable="issued" sort="descending"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same(true, $summary['bibliographyOptions']['hangingIndent'] ?? null);
+        $t->same(0, $summary['bibliographyOptions']['entrySpacing'] ?? null);
+        $t->same(2, $summary['bibliographyOptions']['lineSpacing'] ?? null);
+        $t->same('margin', $summary['bibliographyOptions']['secondFieldAlign'] ?? null);
+
+        $document = (new MarkdownReader())->read('CSL option metadata cites [@options-followup; @options-source].');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $bibliography = $processed->children[2];
+        $t->same('definition_list', $bibliography->type);
+        $t->same(['pandoc-csl-bibliography'], $bibliography->attr('classes'));
+        $t->same(true, $bibliography->attr('hangingIndent'));
+        $t->same(0, $bibliography->attr('entrySpacing'));
+        $t->same(2, $bibliography->attr('lineSpacing'));
+        $t->same('margin', $bibliography->attr('secondFieldAlign'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<dl class="pandoc-csl-bibliography" data-csl-hanging-indent="true" data-csl-entry-spacing="0" data-csl-line-spacing="2" data-csl-second-field-align="margin">', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Options Source Packet :: 2026</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Options Followup Packet :: 2025</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout/>
+  </citation>
+  <bibliography second-field-align="sideways">
+    <layout/>
+  </bibliography>
+</style>
+XML
+        ));
+    },
     'applies bounded csl citation and bibliography sort keys' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

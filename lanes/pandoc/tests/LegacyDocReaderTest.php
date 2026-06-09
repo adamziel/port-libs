@@ -2348,6 +2348,17 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($redRootStorage));
     },
+    'rejects CFB root storage creation timestamps before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $bytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Root creation timestamp guard packet\r"),
+        ], true, [
+            '' => [
+                'createdAt' => '2024-04-05T06:07:08Z',
+            ],
+        ]);
+
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($bytes));
+    },
     'rejects unequal black-height CFB directory sibling trees before stream lookup' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
             'A' => 'a',

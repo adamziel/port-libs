@@ -2937,10 +2937,10 @@ final class SyntaxHighlighter
     {
         return $this->scan($code, [
             ['comment', '/^#[^\\n]*/'],
-            ['string', '/^(?:r|u|f|fr|rf)?"""[\\s\\S]*?"""/i'],
-            ['string', "/^(?:r|u|f|fr|rf)?'''[\\s\\S]*?'''/i"],
-            ['string', '/^(?:r|u|f|fr|rf)?"(?:\\\\.|[^"\\\\])*"/i'],
-            ['string', "/^(?:r|u|f|fr|rf)?'(?:\\\\.|[^'\\\\])*'/i"],
+            ['string', '/^(?:fr|rf|br|rb|r|u|f|b)?"""[\\s\\S]*?"""/i'],
+            ['string', "/^(?:fr|rf|br|rb|r|u|f|b)?'''[\\s\\S]*?'''/i"],
+            ['string', '/^(?:fr|rf|br|rb|r|u|f|b)?"(?:\\\\.|[^"\\\\])*"/i'],
+            ['string', "/^(?:fr|rf|br|rb|r|u|f|b)?'(?:\\\\.|[^'\\\\])*'/i"],
             ['attribute', '/^@[A-Za-z_][A-Za-z0-9_.]*/'],
             ['keyword', '/^\\b(?:and|as|assert|async|await|break|case|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|match|nonlocal|not|or|pass|raise|return|try|while|with|yield)\\b/'],
             ['constant', '/^\\b(?:False|None|True)\\b/'],

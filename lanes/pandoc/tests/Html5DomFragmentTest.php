@@ -2589,6 +2589,62 @@ return [
         $t->true(!str_contains($fragment->serialize(), '</caption><p data-review="loose">'), 'Expected paragraph to move outside table');
         $t->true(!str_contains($fragment->serialize(), '</tr>orphan text<tr>'), 'Expected loose text to move outside table rows');
     },
+    'wraps orphan table rows and cells before sanitized WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article>'
+            . '<tr><td>Loose row</td></tr><td data-review="cell">Loose cell</td><th scope="row">Loose head</th>'
+            . '<table class="legacy"><caption>Source table</caption><td>Direct A</td><td>Direct B</td><tr><td>Kept row</td></tr></table>'
+            . '<p>after</p>'
+            . '</article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/orphan-table-row-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $expected = '<article>'
+            . '<table><tr><td>Loose row</td></tr><tr><td data-review="cell">Loose cell</td><th scope="row">Loose head</th></tr></table>'
+            . '<table class="legacy"><caption>Source table</caption><tr><td>Direct A</td><td>Direct B</td></tr><tr><td>Kept row</td></tr></table>'
+            . '<p>after</p>'
+            . '</article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Loose rowLoose cellLoose headSource tableDirect ADirect BKept rowafter', $fragment->textContent());
+        $t->same(['article', 'caption', 'p', 'table', 'td', 'th', 'tr'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same([
+            'table-orphan-cell-repaired',
+            'table-orphan-cell-repaired',
+            'table-orphan-row-repaired',
+            'table-orphan-cell-repaired',
+            'table-orphan-cell-repaired',
+        ], $policyDiagnostics);
+        $t->same('article', $nodes[0]['name']);
+        $t->same('table', $nodes[0]['children'][0]['name']);
+        $t->same('tr', $nodes[0]['children'][0]['children'][0]['name']);
+        $t->same('Loose row', $nodes[0]['children'][0]['children'][0]['children'][0]['children'][0]['text']);
+        $t->same('tr', $nodes[0]['children'][0]['children'][1]['name']);
+        $t->same(['data-review' => 'cell'], $nodes[0]['children'][0]['children'][1]['children'][0]['attrs']);
+        $t->same(['scope' => 'row'], $nodes[0]['children'][0]['children'][1]['children'][1]['attrs']);
+        $t->same('table', $nodes[0]['children'][1]['name']);
+        $t->same('caption', $nodes[0]['children'][1]['children'][0]['name']);
+        $t->same('tr', $nodes[0]['children'][1]['children'][1]['name']);
+        $t->same('Direct A', $nodes[0]['children'][1]['children'][1]['children'][0]['children'][0]['text']);
+        $t->same('Direct B', $nodes[0]['children'][1]['children'][1]['children'][1]['children'][0]['text']);
+        $t->same('/migration/orphan-table-row-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<article><tr>'), 'Expected orphan rows to be wrapped before WordPress handoff');
+        $t->true(!str_contains($html, '</tr><td data-review="cell">'), 'Expected orphan sibling cells to be wrapped in a generated row');
+        $t->true(!str_contains($html, '</caption><td>'), 'Expected direct table cells to be wrapped in a generated row');
+    },
     'resolves safe relative URLs from trusted HTML base metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://example.test/import/posts/source.html?draft=1">'

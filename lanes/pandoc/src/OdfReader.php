@@ -244,6 +244,7 @@ final class OdfReader
                     'truncatedTableRowRepeatCount' => $contentStats['truncatedTableRowRepeatCount'],
                     'tableCoveredCellCount' => $contentStats['tableCoveredCellCount'],
                     'tableCoveredCellMetadataCount' => $contentStats['tableCoveredCellMetadataCount'],
+                    'tableCellAnnotationCount' => $contentStats['tableCellAnnotationCount'],
                     'tableStyledCellCount' => $contentStats['tableStyledCellCount'],
                     'tableProtectedCellCount' => $contentStats['tableProtectedCellCount'],
                     'tablePrintHiddenCellCount' => $contentStats['tablePrintHiddenCellCount'],
@@ -999,7 +1000,7 @@ final class OdfReader
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
      * @return list<AstNode>
      */
-    private function blockNodes(\DOMElement $parent, ZipPackage $package, array $catalog): array
+    private function blockNodes(\DOMElement $parent, ZipPackage $package, array $catalog, bool $skipDirectAnnotations = false): array
     {
         $blocks = [];
         foreach ($parent->childNodes as $child) {
@@ -1059,6 +1060,9 @@ final class OdfReader
                 continue;
             }
             if ($this->isElement($child, self::OFFICE_NS, 'annotation')) {
+                if ($skipDirectAnnotations) {
+                    continue;
+                }
                 $blocks[] = $this->annotationBlockNode($child, $package, $catalog);
             }
         }
@@ -2489,7 +2493,8 @@ final class OdfReader
      */
     private function tableCellNode(\DOMElement $cell, ZipPackage $package, array $catalog, array $defaultStyles = []): AstNode
     {
-        $blocks = $this->blockNodes($cell, $package, $catalog);
+        $annotations = $this->tableCellAnnotations($cell, $package, $catalog);
+        $blocks = $this->blockNodes($cell, $package, $catalog, $annotations !== []);
         $attrs = [
             'sourceFormat' => 'odt',
             'text' => $this->plainBlockText($blocks),
@@ -2542,6 +2547,15 @@ final class OdfReader
                 );
             }
         }
+        if ($annotations !== []) {
+            $attrs['odfCellAnnotations'] = $annotations;
+            $attrs['annotationCount'] = count($annotations);
+            $htmlAttributes = array_merge(
+                $htmlAttributes,
+                $this->tableCellAnnotationHtmlAttributes($annotations),
+            );
+            $classes[] = 'odf-table-cell-annotation';
+        }
 
         $styleProperties = is_array($style['tableCellProperties'] ?? null) ? $style['tableCellProperties'] : [];
         if ($styleProperties !== []) {
@@ -2574,6 +2588,65 @@ final class OdfReader
         }
 
         return new AstNode('table_cell', $attrs, $blocks);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @return list<array<string, mixed>>
+     */
+    private function tableCellAnnotations(\DOMElement $cell, ZipPackage $package, array $catalog): array
+    {
+        $annotations = [];
+        foreach (self::childElements($cell, 'annotation', self::OFFICE_NS) as $annotation) {
+            $metadata = $this->annotationMetadata($annotation);
+            $blocks = $this->blockNodes($annotation, $package, $catalog);
+            $text = $this->plainBlockText($blocks);
+            $name = self::attr($annotation, self::OFFICE_NS, 'name');
+
+            $entry = self::withoutEmpty([
+                'name' => self::nullable($name),
+                'author' => self::nullable($metadata['author']),
+                'date' => self::nullable($metadata['date']),
+                'text' => self::nullable($text),
+                'blockCount' => $blocks === [] ? null : count($blocks),
+            ]);
+            if ($entry !== []) {
+                $annotations[] = $entry;
+            }
+        }
+
+        return $annotations;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $annotations
+     * @return array<string, string>
+     */
+    private function tableCellAnnotationHtmlAttributes(array $annotations): array
+    {
+        $authors = [];
+        $dates = [];
+        $textCount = 0;
+        foreach ($annotations as $annotation) {
+            $author = (string) ($annotation['author'] ?? '');
+            if ($author !== '') {
+                $authors[] = $author;
+            }
+            $date = (string) ($annotation['date'] ?? '');
+            if ($date !== '') {
+                $dates[] = $date;
+            }
+            if ((string) ($annotation['text'] ?? '') !== '') {
+                $textCount++;
+            }
+        }
+
+        return self::withoutEmpty([
+            'data-odf-cell-annotation-count' => (string) count($annotations),
+            'data-odf-cell-annotation-authors' => $authors === [] ? null : implode(',', array_values(array_unique($authors))),
+            'data-odf-cell-annotation-dates' => $dates === [] ? null : implode(',', array_values(array_unique($dates))),
+            'data-odf-cell-annotation-text-count' => $textCount > 0 ? (string) $textCount : null,
+        ]);
     }
 
     /**
@@ -8083,6 +8156,7 @@ final class OdfReader
             'truncatedTableRowRepeatCount' => 0,
             'tableCoveredCellCount' => 0,
             'tableCoveredCellMetadataCount' => 0,
+            'tableCellAnnotationCount' => 0,
             'tableStyledCellCount' => 0,
             'tableProtectedCellCount' => 0,
             'tablePrintHiddenCellCount' => 0,
@@ -8169,6 +8243,10 @@ final class OdfReader
                 if (is_array($properties) && ($properties['printContent'] ?? null) === false) {
                     $stats['tablePrintHiddenCellCount']++;
                 }
+            }
+            $cellAnnotations = $node->attr('odfCellAnnotations', []);
+            if ($node->type === 'table_cell' && is_array($cellAnnotations)) {
+                $stats['tableCellAnnotationCount'] += count($cellAnnotations);
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-bookmark')) {
                 $stats['bookmarkCount']++;

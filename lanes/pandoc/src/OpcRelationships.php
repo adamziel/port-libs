@@ -215,7 +215,7 @@ final class OpcRelationships
             $element = $dom->createElementNS(self::NAMESPACE_URI, 'Relationship');
             $element->setAttribute('Id', $relationship->id);
             $element->setAttribute('Type', $relationship->type);
-            $element->setAttribute('Target', $relationship->target);
+            $element->setAttribute('Target', self::targetForXmlAttribute($relationship));
             if ($relationship->targetMode !== OpcRelationship::TARGET_MODE_INTERNAL) {
                 $element->setAttribute('TargetMode', $relationship->targetMode);
             }
@@ -440,5 +440,55 @@ final class OpcRelationships
                 throw new \InvalidArgumentException('OPC Relationship record is missing required ' . $attributeName . ' attribute');
             }
         }
+    }
+
+    private static function targetForXmlAttribute(OpcRelationship $relationship): string
+    {
+        if ($relationship->isExternal()) {
+            return $relationship->target;
+        }
+
+        $split = strcspn($relationship->target, '?#');
+        $path = substr($relationship->target, 0, $split);
+        $suffix = substr($relationship->target, $split);
+        if ($path === '') {
+            return $relationship->target;
+        }
+
+        return self::encodeInternalTargetPath($path) . $suffix;
+    }
+
+    private static function encodeInternalTargetPath(string $path): string
+    {
+        $encoded = '';
+        $length = strlen($path);
+        for ($index = 0; $index < $length; $index++) {
+            $byte = ord($path[$index]);
+            $char = $path[$index];
+
+            if ($char === '%') {
+                if ($index + 2 >= $length || !ctype_xdigit($path[$index + 1]) || !ctype_xdigit($path[$index + 2])) {
+                    throw new \InvalidArgumentException('OPC relationship target contains malformed percent escape');
+                }
+
+                $encoded .= '%' . strtoupper(substr($path, $index + 1, 2));
+                $index += 2;
+                continue;
+            }
+
+            if (
+                ($byte >= 0x41 && $byte <= 0x5A)
+                || ($byte >= 0x61 && $byte <= 0x7A)
+                || ($byte >= 0x30 && $byte <= 0x39)
+                || str_contains("-._~!$&'()*+,;=:@/", $char)
+            ) {
+                $encoded .= $char;
+                continue;
+            }
+
+            $encoded .= sprintf('%%%02X', $byte);
+        }
+
+        return $encoded;
     }
 }

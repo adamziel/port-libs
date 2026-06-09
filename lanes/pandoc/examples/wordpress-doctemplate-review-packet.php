@@ -261,6 +261,15 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $zeroPriorityPacket = (new DocTemplate())->render(
+        '<span class="priority">$priority/roman/uppercase/right 4$</span>',
+        ['priority' => 0],
+    );
+    if ($zeroPriorityPacket !== '<span class="priority">    </span>') {
+        fwrite(STDERR, "Unexpected doctemplate zero-priority roman marker output\n");
+        exit(1);
+    }
+
     if (str_contains($output, "\r")) {
         fwrite(STDERR, "Unexpected CR byte from included doctemplate partial final line ending\n");
         exit(1);

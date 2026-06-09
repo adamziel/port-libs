@@ -704,6 +704,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($python['html'], '<span class="kw">def</span> <span class="fu">normalize_title</span>')) {
         throw new RuntimeException('Expected Python function token handoff');
     }
+    if (!str_contains($python['html'], '<span class="st">b&quot;\\xef\\xbb\\xbf&quot;</span>')) {
+        throw new RuntimeException('Expected Python bytes string prefix token handoff');
+    }
+    if (!str_contains($python['html'], '<span class="st">rb&quot;legacy-\\d+&quot;</span>')) {
+        throw new RuntimeException('Expected Python raw bytes string prefix token handoff');
+    }
     if (!str_contains($python['html'], '<span class="va">json</span><span class="op">.</span><span class="fu">loads</span>')) {
         throw new RuntimeException('Expected Python module function token handoff');
     }

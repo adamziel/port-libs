@@ -379,6 +379,10 @@ final class Html5DomFragment
             array_push($nodes, ...$normalized);
         }
 
+        if ($mode === 'html' && $foreignContext === null && !self::isDirectHtmlTableContext($parent)) {
+            $nodes = self::wrapOrphanHtmlTableRowsAndCells($nodes, $diagnostics);
+        }
+
         return $nodes;
     }
 
@@ -2387,8 +2391,41 @@ final class Html5DomFragment
     {
         $fostered = [];
         $cleanChildren = [];
+        $pendingCells = [];
+
+        $flushPendingCells = static function () use (&$pendingCells, &$cleanChildren): void {
+            if ($pendingCells === []) {
+                return;
+            }
+
+            $row = [
+                'type' => 'element',
+                'name' => 'tr',
+                'attrs' => [],
+                'children' => $pendingCells,
+            ];
+            if (isset($pendingCells[0]['line']) && is_int($pendingCells[0]['line'])) {
+                $row['line'] = $pendingCells[0]['line'];
+            }
+
+            $cleanChildren[] = $row;
+            $pendingCells = [];
+        };
 
         foreach ($children as $child) {
+            if (self::isHtmlTableCellNode($child) && self::allowsGeneratedHtmlTableRows($context)) {
+                $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
+                    'code' => 'table-orphan-cell-repaired',
+                    'context' => strtolower($context),
+                    'tag' => (string) ($child['name'] ?? ''),
+                    'reason' => 'table-cell-wrapped-in-generated-row',
+                ], $child);
+                $pendingCells[] = $child;
+                continue;
+            }
+
+            $flushPendingCells();
+
             if (self::isFosteredHtmlTableNode($child, $context)) {
                 $diagnostics[] = self::diagnosticWithNormalizedNodeLine(
                     self::htmlTableFosterDiagnostic($child, $context),
@@ -2408,7 +2445,125 @@ final class Html5DomFragment
             $cleanChildren[] = $child;
         }
 
+        $flushPendingCells();
+
         return [$fostered, $cleanChildren];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function wrapOrphanHtmlTableRowsAndCells(array $nodes, array &$diagnostics): array
+    {
+        $wrapped = [];
+        $pendingRows = [];
+        $pendingCells = [];
+
+        $flushPendingCells = static function () use (&$pendingCells, &$pendingRows): void {
+            if ($pendingCells === []) {
+                return;
+            }
+
+            $row = [
+                'type' => 'element',
+                'name' => 'tr',
+                'attrs' => [],
+                'children' => $pendingCells,
+            ];
+            if (isset($pendingCells[0]['line']) && is_int($pendingCells[0]['line'])) {
+                $row['line'] = $pendingCells[0]['line'];
+            }
+
+            $pendingRows[] = $row;
+            $pendingCells = [];
+        };
+
+        $flushPendingRows = static function () use (&$pendingRows, &$wrapped): void {
+            if ($pendingRows === []) {
+                return;
+            }
+
+            $table = [
+                'type' => 'element',
+                'name' => 'table',
+                'attrs' => [],
+                'children' => $pendingRows,
+            ];
+            if (isset($pendingRows[0]['line']) && is_int($pendingRows[0]['line'])) {
+                $table['line'] = $pendingRows[0]['line'];
+            }
+
+            $wrapped[] = $table;
+            $pendingRows = [];
+        };
+
+        foreach ($nodes as $node) {
+            if (self::isHtmlTableRowNode($node)) {
+                $flushPendingCells();
+                $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
+                    'code' => 'table-orphan-row-repaired',
+                    'context' => 'fragment',
+                    'tag' => 'tr',
+                    'reason' => 'orphan-table-row-wrapped-in-generated-table',
+                ], $node);
+                $pendingRows[] = $node;
+                continue;
+            }
+
+            if (self::isHtmlTableCellNode($node)) {
+                $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
+                    'code' => 'table-orphan-cell-repaired',
+                    'context' => 'fragment',
+                    'tag' => (string) ($node['name'] ?? ''),
+                    'reason' => 'orphan-table-cell-wrapped-in-generated-table-row',
+                ], $node);
+                $pendingCells[] = $node;
+                continue;
+            }
+
+            $flushPendingCells();
+            $flushPendingRows();
+            $wrapped[] = $node;
+        }
+
+        $flushPendingCells();
+        $flushPendingRows();
+
+        return $wrapped;
+    }
+
+    private static function isDirectHtmlTableContext(\DOMNode $parent): bool
+    {
+        return $parent instanceof \DOMElement
+            && self::isHtmlTableModelContext(strtolower($parent->tagName));
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private static function isHtmlTableRowNode(array $node): bool
+    {
+        return ($node['type'] ?? '') === 'element'
+            && strtolower((string) ($node['name'] ?? '')) === 'tr';
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private static function isHtmlTableCellNode(array $node): bool
+    {
+        if (($node['type'] ?? '') !== 'element') {
+            return false;
+        }
+
+        return in_array(strtolower((string) ($node['name'] ?? '')), ['td', 'th'], true);
+    }
+
+    private static function allowsGeneratedHtmlTableRows(string $context): bool
+    {
+        return in_array(strtolower($context), ['table', 'thead', 'tbody', 'tfoot'], true);
     }
 
     /**

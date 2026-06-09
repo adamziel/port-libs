@@ -5644,6 +5644,54 @@ return [
         ])));
     },
 
+    'preflights data descriptor boundary slack before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $commentsXml = '<w:comments><w:comment>descriptor slack review</w:comment></w:comments>';
+        $slack = 'hidden-descriptor-tail';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+                'localSlack' => $slack,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>descriptor follower</w:p></w:document>',
+                'method' => 0,
+            ],
+        ]);
+
+        $summary = ZipPackage::dataDescriptorIntegrityPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 20.0, 1024);
+        $descriptorEntry = $summary['descriptorEntries'][0];
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(1, $summary['descriptorEntryCount']);
+        $t->same(0, $summary['matchedDescriptorEntryCount']);
+        $t->same(1, $summary['mismatchedDescriptorEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['data-descriptor-length-mismatch'], $summary['issues']);
+        $t->same('word/comments.xml', $descriptorEntry['name']);
+        $t->same(true, $descriptorEntry['hasSignature']);
+        $t->same(true, $descriptorEntry['descriptorValuesMatchCentral']);
+        $t->same(16, $descriptorEntry['descriptorLength']);
+        $t->same(16 + strlen($slack), $descriptorEntry['descriptorSpan']);
+        $t->same($descriptorEntry['descriptorOffset'] + 16, $descriptorEntry['descriptorEnd']);
+        $t->same($descriptorEntry['descriptorEnd'] + strlen($slack), $descriptorEntry['nextOffset']);
+        $t->same(strlen($slack), $descriptorEntry['surplusDescriptorBytes']);
+        $t->same(0, $descriptorEntry['truncatedDescriptorBytes']);
+        $t->same(['data-descriptor-length-mismatch'], $descriptorEntry['issues']);
+        $t->same($descriptorEntry, $summary['mismatchedDescriptorEntries'][0]);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same($summary, $rawStrict['dataDescriptors']);
+        $t->contains('data-descriptor-length-mismatch', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'rejects local header flags and methods before exposing package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [

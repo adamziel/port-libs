@@ -6115,6 +6115,10 @@ CSS;
         }
 
         $number = (int) $value;
+        if ($number === 0) {
+            return '';
+        }
+
         if ($number < 1 || $number >= 4000) {
             return $value;
         }

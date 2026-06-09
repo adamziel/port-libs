@@ -1136,6 +1136,59 @@ XML;
         $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="date" data-odf-cell-date-value="2026-06-05"><p>Review date</p></td>', $blocksHtml);
         $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="boolean" data-odf-cell-boolean-value="true"><p>Ready</p></td>', $blocksHtml);
     },
+    'maps ODT table cell annotations into review metadata without polluting cell text' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithAnnotatedCell = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <office:body>
+    <office:text>
+      <table:table table:name="Review annotations">
+        <table:table-row>
+          <table:table-cell>
+            <text:p>Ready</text:p>
+            <office:annotation office:name="cell-review-note">
+              <dc:creator>Sheet Reviewer</dc:creator>
+              <dc:date>2026-06-09T01:11:00Z</dc:date>
+              <text:p>Confirm imported source status.</text:p>
+            </office:annotation>
+          </table:table-cell>
+          <table:table-cell><text:p>Visible neighbor</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithAnnotatedCell));
+        $table = $result['document']->children[0];
+        $cell = $table->children[0]->children[0]->children[0];
+        $annotations = $cell->attr('odfCellAnnotations');
+
+        $t->same('Ready', $cell->attr('text'));
+        $t->same(1, count($cell->children));
+        $t->same(true, is_array($annotations));
+        $t->same(1, count($annotations));
+        $t->same('cell-review-note', $annotations[0]['name']);
+        $t->same('Sheet Reviewer', $annotations[0]['author']);
+        $t->same('2026-06-09T01:11:00Z', $annotations[0]['date']);
+        $t->same('Confirm imported source status.', $annotations[0]['text']);
+        $t->same(1, $cell->attr('annotationCount'));
+        $t->same(['odf-table-cell-annotation'], $cell->attr('classes'));
+        $t->same('1', $cell->attr('htmlAttributes')['data-odf-cell-annotation-count']);
+        $t->same('Sheet Reviewer', $cell->attr('htmlAttributes')['data-odf-cell-annotation-authors']);
+        $t->same('2026-06-09T01:11:00Z', $cell->attr('htmlAttributes')['data-odf-cell-annotation-dates']);
+        $t->same(1, $result['importReport']['content']['tableCellAnnotationCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Ready', $markdown);
+        $t->contains('<td class="odf-table-cell-annotation" data-odf-cell-annotation-count="1" data-odf-cell-annotation-authors="Sheet Reviewer" data-odf-cell-annotation-dates="2026-06-09T01:11:00Z" data-odf-cell-annotation-text-count="1"><p>Ready</p></td>', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, 'Confirm imported source status.'), 'ODT cell annotation comments must remain review metadata, not visible table-cell content');
+    },
     'maps ODT content validations into declarations and table cell metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithContentValidations = <<<'XML'
 <office:document-content

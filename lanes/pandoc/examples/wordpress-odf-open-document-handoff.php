@@ -315,7 +315,14 @@ $contentXml = <<<'XML'
           <table:table-cell table:style-name="ReviewStatusCell"><text:p>Status</text:p></table:table-cell>
         </table:table-row>
         <table:table-row>
-          <table:table-cell table:number-columns-spanned="2" table:formula="of:=COUNT([.A2:.B2])" office:value-type="float" office:value="2"><text:p>Ready for block import review</text:p></table:table-cell>
+          <table:table-cell table:number-columns-spanned="2" table:formula="of:=COUNT([.A2:.B2])" office:value-type="float" office:value="2">
+            <text:p>Ready for block import review</text:p>
+            <office:annotation office:name="cell-review-note">
+              <dc:creator>Sheet Reviewer</dc:creator>
+              <dc:date>2026-06-09T01:11:00Z</dc:date>
+              <text:p>Confirm imported source status.</text:p>
+            </office:annotation>
+          </table:table-cell>
           <table:covered-table-cell table:style-name="CoveredAuditCell" office:value-type="string" office:string-value="draft source"><text:p>Draft state hidden by merge</text:p></table:covered-table-cell>
         </table:table-row>
       </table:table>
@@ -1006,8 +1013,11 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, 'ODT footnote reviewer context.')) {
         throw new RuntimeException('Expected ODT footnote body to render in WordPress footnotes');
     }
-    if (!str_contains($blocks, '<td class="odf-table-cell-value odf-table-cell-formula odf-covered-cell-source" data-odf-cell-formula="of:=COUNT([.A2:.B2])" data-odf-cell-value-type="float" data-odf-cell-value="2" data-odf-covered-cell-count="1" data-odf-covered-cell-source-columns="1" data-odf-covered-cell-style-names="CoveredAuditCell" data-odf-covered-cell-text-count="1" data-odf-covered-cell-value-count="1" colspan="2"><p>Ready for block import review</p></td>')) {
+    if (!str_contains($blocks, '<td class="odf-table-cell-value odf-table-cell-formula odf-table-cell-annotation odf-covered-cell-source" data-odf-cell-formula="of:=COUNT([.A2:.B2])" data-odf-cell-value-type="float" data-odf-cell-value="2" data-odf-cell-annotation-count="1" data-odf-cell-annotation-authors="Sheet Reviewer" data-odf-cell-annotation-dates="2026-06-09T01:11:00Z" data-odf-cell-annotation-text-count="1" data-odf-covered-cell-count="1" data-odf-covered-cell-source-columns="1" data-odf-covered-cell-style-names="CoveredAuditCell" data-odf-covered-cell-text-count="1" data-odf-covered-cell-value-count="1" colspan="2"><p>Ready for block import review</p></td>')) {
         throw new RuntimeException('Expected ODT calculated table colspan and covered-cell metadata to survive WordPress table handoff');
+    }
+    if (($result['importReport']['content']['tableCellAnnotationCount'] ?? 0) !== 1 || str_contains($blocks, 'Confirm imported source status.')) {
+        throw new RuntimeException('Expected ODT table-cell annotations to stay review metadata outside visible WordPress cell text');
     }
     if (($result['importReport']['content']['tableStyledCellCount'] ?? 0) !== 2
         || ($result['importReport']['content']['tableProtectedCellCount'] ?? 0) !== 1
