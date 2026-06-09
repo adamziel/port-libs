@@ -4979,6 +4979,103 @@ return [
         $t->same('explicit-key-scalar-provenance-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="explicit-key-scalar-provenance-body">Explicit key scalar provenance body</h1>', $blocks);
     },
+    'maps pandoc yaml indented block scalar values and explicit scalar keys' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Indented block scalar **Packet**',
+            'review:',
+            '  note:',
+            '    |-',
+            '      Preserve front matter',
+            '      Keep source audit',
+            '  summary:',
+            '    >-',
+            '      Import',
+            '      metadata',
+            '? |-',
+            '  source:key',
+            ': root metadata value',
+            '?',
+            '  >-',
+            '    source',
+            '    label',
+            ': folded key value',
+            '? |-',
+            '  nullable:key',
+            'references:',
+            '  - id: block-key-ref',
+            '    metadata:',
+            '      ? |-',
+            '        source:key',
+            '      : metadata value',
+            '  - id: indented-scalar-ref',
+            '    metadata:',
+            '      note:',
+            '        |-',
+            '          Review source',
+            '          Keep metadata',
+            '...',
+            '',
+            '# Indented block scalar YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataScalarProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Indented block scalar **Packet**', $meta['title']);
+        $t->same("Preserve front matter\nKeep source audit", $meta['review']['note']);
+        $t->same('Import metadata', $meta['review']['summary']);
+        $t->same('root metadata value', $meta['source:key']);
+        $t->same('folded key value', $meta['source label']);
+        $t->true(array_key_exists('nullable:key', $meta) && $meta['nullable:key'] === null);
+        $t->same('metadata value', $meta['references'][0]['metadata']['source:key']);
+        $t->same("Review source\nKeep metadata", $meta['references'][1]['metadata']['note']);
+        $t->same(false, array_key_exists('|-', $meta));
+        $t->same(false, array_key_exists(">-\n  source\n  label", $meta));
+        $t->same(false, array_key_exists('__yamlMetadataScalarProvenance', $meta));
+
+        $blockScalars = [];
+        $keyScalars = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-block-scalar') {
+                $blockScalars[$entry['path'] ?? ''] = $entry;
+            }
+            if (($entry['type'] ?? '') === 'yaml-explicit-key-scalar') {
+                $keyScalars[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        $t->same(3, count($blockScalars));
+        $t->same('literal', $blockScalars['/review/note']['style'] ?? null);
+        $t->same('strip', $blockScalars['/review/note']['chomp'] ?? null);
+        $t->same('5', $blockScalars['/review/note']['sourceLine'] ?? null);
+        $t->same('6', $blockScalars['/review/note']['contentStartLine'] ?? null);
+        $t->same('7', $blockScalars['/review/note']['contentEndLine'] ?? null);
+        $t->same('folded', $blockScalars['/review/summary']['style'] ?? null);
+        $t->same('9', $blockScalars['/review/summary']['sourceLine'] ?? null);
+        $t->same('literal', $blockScalars['/references/1/metadata/note']['style'] ?? null);
+        $t->same('31', $blockScalars['/references/1/metadata/note']['sourceLine'] ?? null);
+
+        $t->same(4, count($keyScalars));
+        $t->same('literal', $keyScalars['/source:key']['style'] ?? null);
+        $t->same('block', $keyScalars['/source:key']['syntax'] ?? null);
+        $t->same('12', $keyScalars['/source:key']['sourceLine'] ?? null);
+        $t->same('13', $keyScalars['/source:key']['contentStartLine'] ?? null);
+        $t->same('source:key', $keyScalars['/source:key']['key'] ?? null);
+        $t->same('folded', $keyScalars['/source label']['style'] ?? null);
+        $t->same('16', $keyScalars['/source label']['sourceLine'] ?? null);
+        $t->same('17', $keyScalars['/source label']['contentStartLine'] ?? null);
+        $t->same('18', $keyScalars['/source label']['contentEndLine'] ?? null);
+        $t->same('literal', $keyScalars['/nullable:key']['style'] ?? null);
+        $t->same('20', $keyScalars['/nullable:key']['sourceLine'] ?? null);
+        $t->same('21', $keyScalars['/nullable:key']['contentStartLine'] ?? null);
+        $t->same('literal', $keyScalars['/references/0/metadata/source:key']['style'] ?? null);
+        $t->same('25', $keyScalars['/references/0/metadata/source:key']['sourceLine'] ?? null);
+        $t->same('26', $keyScalars['/references/0/metadata/source:key']['contentStartLine'] ?? null);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('indented-block-scalar-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="indented-block-scalar-yaml-body">Indented block scalar YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit keys inside flow metadata maps' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

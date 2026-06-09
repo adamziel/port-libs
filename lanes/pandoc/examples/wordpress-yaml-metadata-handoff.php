@@ -822,6 +822,42 @@ $reservedDirectiveMeta = $reservedDirectiveDocument->attr('meta', []);
 $reservedDirectiveDirectives = $reservedDirectiveDocument->attr('yamlMetadataDirectiveProvenance', []);
 $reservedDirectiveBlocks = (new WordPressBlockWriter())->write($reservedDirectiveDocument);
 
+$indentedBlockScalarMarkdown = <<<'MARKDOWN'
+---
+title: Indented block scalar packet
+review:
+  note:
+    |-
+      Preserve front matter
+      Keep source audit
+  summary:
+    >-
+      Import
+      metadata
+? |-
+  source:key
+: root metadata value
+?
+  >-
+    source
+    label
+: folded key value
+references:
+  - id: block-key-ref
+    metadata:
+      ? |-
+        source:key
+      : metadata value
+...
+
+# Indented block scalar body
+MARKDOWN;
+
+$indentedBlockScalarDocument = (new MarkdownReader())->read($indentedBlockScalarMarkdown);
+$indentedBlockScalarMeta = $indentedBlockScalarDocument->attr('meta', []);
+$indentedBlockScalarProvenance = $indentedBlockScalarDocument->attr('yamlMetadataScalarProvenance', []);
+$indentedBlockScalarBlocks = (new WordPressBlockWriter())->write($indentedBlockScalarDocument);
+
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
@@ -937,6 +973,38 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($reservedDirectiveBlocks, '<h1 id="reserved-directive-body">Reserved directive body</h1>')) {
         throw new RuntimeException('YAML metadata self-test missing reserved directive WordPress body handoff');
+    }
+    if (
+        ($indentedBlockScalarMeta['review']['note'] ?? '') !== "Preserve front matter\nKeep source audit"
+        || ($indentedBlockScalarMeta['review']['summary'] ?? '') !== 'Import metadata'
+        || ($indentedBlockScalarMeta['source:key'] ?? '') !== 'root metadata value'
+        || ($indentedBlockScalarMeta['source label'] ?? '') !== 'folded key value'
+        || ($indentedBlockScalarMeta['references'][0]['metadata']['source:key'] ?? '') !== 'metadata value'
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing indented block scalar metadata');
+    }
+    $indentedBlockScalarStyles = [];
+    $indentedExplicitKeyStyles = [];
+    foreach ($indentedBlockScalarProvenance as $entry) {
+        if (($entry['type'] ?? '') === 'yaml-block-scalar') {
+            $indentedBlockScalarStyles[$entry['path'] ?? ''] = $entry['style'] ?? '';
+        }
+        if (($entry['type'] ?? '') === 'yaml-explicit-key-scalar') {
+            $indentedExplicitKeyStyles[$entry['path'] ?? ''] = $entry['style'] ?? '';
+        }
+    }
+    if (($indentedBlockScalarStyles['/review/note'] ?? '') !== 'literal' || ($indentedBlockScalarStyles['/review/summary'] ?? '') !== 'folded') {
+        throw new RuntimeException('YAML metadata self-test missing indented block scalar provenance');
+    }
+    if (
+        ($indentedExplicitKeyStyles['/source:key'] ?? '') !== 'literal'
+        || ($indentedExplicitKeyStyles['/source label'] ?? '') !== 'folded'
+        || ($indentedExplicitKeyStyles['/references/0/metadata/source:key'] ?? '') !== 'literal'
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing block scalar explicit key provenance');
+    }
+    if (!str_contains($indentedBlockScalarBlocks, '<h1 id="indented-block-scalar-body">Indented block scalar body</h1>')) {
+        throw new RuntimeException('YAML metadata self-test missing indented block scalar WordPress body handoff');
     }
     if (
         ($meta['plain-tag-key-review']['source:key'] ?? '') !== 'plain key metadata'
@@ -2765,4 +2833,9 @@ echo 'Plain numeric review: '
     . ($plainNumericMeta['review']['hexadecimal'] ?? '')
     . ' / flow '
     . ($plainNumericMeta['flow-review']['priority'] ?? '')
+    . "\n";
+echo 'Indented block scalar review: '
+    . str_replace("\n", ' | ', $indentedBlockScalarMeta['review']['note'] ?? '')
+    . ' / key '
+    . ($indentedBlockScalarMeta['source:key'] ?? '')
     . "\n";

@@ -1931,23 +1931,52 @@ final class MarkdownReader
 
             $quotedKey = $this->yamlExplicitKeyLinesStartQuoted($keyLines);
             [$keyProvenanceSource, $keyProvenanceSourceLine, $keyProvenanceContentSourceLines] = $this->yamlExplicitKeyScalarProvenanceSourceFromLines($keyLines, $keySourceLines);
-            $keyValue = $this->withYamlMetadataCollectionProvenanceRecording(
+            $keyValue = $this->withYamlMetadataScalarProvenanceRecording(
                 false,
-                fn (): mixed => $this->parseYamlIndentedValue($keyLines, $keySourceLines)
+                fn (): mixed => $this->withYamlMetadataCollectionProvenanceRecording(
+                    false,
+                    fn (): mixed => $this->parseYamlIndentedValue($keyLines, $keySourceLines)
+                )
             );
         } else {
             $quotedKey = $this->yamlExplicitKeySourceStartsQuoted($keySource);
             $keyProvenanceSource = $keySource;
-            $keyValue = $this->parseYamlScalarKeyValue($keySource);
-            while (
-                isset($lines[$cursor])
-                && (trim($lines[$cursor]) === '' || str_starts_with(trim($lines[$cursor]), '#'))
-            ) {
-                $candidate = trim($lines[$cursor]);
-                if (str_starts_with($candidate, '#')) {
-                    $separatorComments[] = [$candidate, $sourceLines[$cursor] ?? null];
+            $keyBlockScalarHeader = $this->parseYamlBlockScalarHeader($keySource);
+            if ($keyBlockScalarHeader !== null) {
+                $keyLines = [];
+                $keySourceLines = [];
+                $count = count($lines);
+                while (
+                    $cursor < $count
+                    && !$this->isYamlExplicitMappingValueLineAtIndent($lines[$cursor], $startIndent)
+                ) {
+                    $keyLines[] = $lines[$cursor];
+                    $keySourceLines[] = $sourceLines[$cursor] ?? null;
+                    $cursor++;
                 }
-                $cursor++;
+                $keyProvenanceSource = $keySource . ($keyLines === [] ? '' : "\n" . implode("\n", $keyLines));
+                $keyProvenanceContentSourceLines = $keySourceLines;
+                if (!$this->yamlBlockScalarIndentationIsValid($keyLines, $keyBlockScalarHeader['indent'])) {
+                    return null;
+                }
+                $keyValue = $this->parseYamlBlockScalar(
+                    $keyLines,
+                    $keyBlockScalarHeader['style'],
+                    $keyBlockScalarHeader['chomp'],
+                    $keyBlockScalarHeader['indent']
+                );
+            } else {
+                $keyValue = $this->parseYamlScalarKeyValue($keySource);
+                while (
+                    isset($lines[$cursor])
+                    && (trim($lines[$cursor]) === '' || str_starts_with(trim($lines[$cursor]), '#'))
+                ) {
+                    $candidate = trim($lines[$cursor]);
+                    if (str_starts_with($candidate, '#')) {
+                        $separatorComments[] = [$candidate, $sourceLines[$cursor] ?? null];
+                    }
+                    $cursor++;
+                }
             }
         }
 
@@ -2056,14 +2085,56 @@ final class MarkdownReader
 
             $quotedKey = $this->yamlExplicitKeyLinesStartQuoted($keyLines);
             [$keyProvenanceSource, $keyProvenanceSourceLine, $keyProvenanceContentSourceLines] = $this->yamlExplicitKeyScalarProvenanceSourceFromLines($keyLines, $keySourceLines);
-            $keyValue = $this->withYamlMetadataCollectionProvenanceRecording(
+            $keyValue = $this->withYamlMetadataScalarProvenanceRecording(
                 false,
-                fn (): mixed => $this->parseYamlIndentedValue($keyLines, $keySourceLines)
+                fn (): mixed => $this->withYamlMetadataCollectionProvenanceRecording(
+                    false,
+                    fn (): mixed => $this->parseYamlIndentedValue($keyLines, $keySourceLines)
+                )
             );
         } else {
             $quotedKey = $this->yamlExplicitKeySourceStartsQuoted($keySource);
             $keyProvenanceSource = $keySource;
-            $keyValue = $this->parseYamlScalarKeyValue($keySource);
+            $keyBlockScalarHeader = $this->parseYamlBlockScalarHeader($keySource);
+            if ($keyBlockScalarHeader !== null) {
+                $keyLines = [];
+                $keySourceLines = [];
+                $count = count($lines);
+                while ($cursor < $count) {
+                    $candidate = trim($lines[$cursor]);
+                    if ($this->isYamlExplicitMappingValueLineAtIndent($lines[$cursor], $startIndent)) {
+                        return null;
+                    }
+
+                    if (
+                        $candidate !== ''
+                        && $this->countIndentColumns($lines[$cursor]) === 0
+                        && (
+                            $this->parseYamlMappingLine($candidate) !== null
+                            || $this->isYamlExplicitMappingKeyLine($candidate)
+                        )
+                    ) {
+                        break;
+                    }
+
+                    $keyLines[] = $lines[$cursor];
+                    $keySourceLines[] = $sourceLines[$cursor] ?? null;
+                    $cursor++;
+                }
+                $keyProvenanceSource = $keySource . ($keyLines === [] ? '' : "\n" . implode("\n", $keyLines));
+                $keyProvenanceContentSourceLines = $keySourceLines;
+                if (!$this->yamlBlockScalarIndentationIsValid($keyLines, $keyBlockScalarHeader['indent'])) {
+                    return null;
+                }
+                $keyValue = $this->parseYamlBlockScalar(
+                    $keyLines,
+                    $keyBlockScalarHeader['style'],
+                    $keyBlockScalarHeader['chomp'],
+                    $keyBlockScalarHeader['indent']
+                );
+            } else {
+                $keyValue = $this->parseYamlScalarKeyValue($keySource);
+            }
         }
 
         $key = $this->normalizeYamlExplicitMappingKey($keyValue);
@@ -2508,6 +2579,10 @@ final class MarkdownReader
      */
     private function recordYamlBlockScalarProvenance(array $header, ?int $sourceLine, array $contentSourceLines): void
     {
+        if (!$this->yamlMetadataRecordScalarProvenance) {
+            return;
+        }
+
         $entry = [
             'type' => 'yaml-block-scalar',
             'style' => $header['style'] === '|' ? 'literal' : 'folded',
@@ -2642,9 +2717,14 @@ final class MarkdownReader
 
         $sourceLine ??= $this->yamlMetadataCurrentSourceLine;
         $sourceLineCount = max(1, substr_count($source, "\n") + 1);
+        $blockScalarAttrs = $this->yamlExplicitKeyBlockScalarProvenanceAttrs(
+            $scalarSource,
+            $sourceLine,
+            $sourceLines
+        );
         $entry = [
             'type' => 'yaml-explicit-key-scalar',
-            'style' => $this->yamlQuotedScalarStyle($scalarSource) ?? 'plain',
+            'style' => $blockScalarAttrs['style'] ?? $this->yamlQuotedScalarStyle($scalarSource) ?? 'plain',
             'source' => $source,
             'sourceLineCount' => (string) $sourceLineCount,
             'multiline' => $sourceLineCount === 1 ? 'false' : 'true',
@@ -2652,6 +2732,9 @@ final class MarkdownReader
             'key' => $normalizedKey,
             'path' => $this->yamlMetadataPathWithSegment($normalizedKey),
         ];
+        if ($blockScalarAttrs !== []) {
+            $entry += $blockScalarAttrs;
+        }
         if ($scalarSource !== $source) {
             $entry['scalarSource'] = $scalarSource;
         }
@@ -2664,16 +2747,62 @@ final class MarkdownReader
             $entry['sourceLine'] = (string) $sourceLine;
         }
 
-        $sourceLineNumbers = array_values(array_filter(
-            array_merge([$sourceLine], $sourceLines),
-            static fn (?int $line): bool => $line !== null
-        ));
-        if ($sourceLineNumbers !== []) {
-            $entry['contentStartLine'] = (string) $sourceLineNumbers[0];
-            $entry['contentEndLine'] = (string) $sourceLineNumbers[count($sourceLineNumbers) - 1];
+        if ($blockScalarAttrs === []) {
+            $sourceLineNumbers = array_values(array_filter(
+                array_merge([$sourceLine], $sourceLines),
+                static fn (?int $line): bool => $line !== null
+            ));
+            if ($sourceLineNumbers !== []) {
+                $entry['contentStartLine'] = (string) $sourceLineNumbers[0];
+                $entry['contentEndLine'] = (string) $sourceLineNumbers[count($sourceLineNumbers) - 1];
+            }
         }
 
         $this->yamlMetadataScalarProvenance[] = $entry;
+    }
+
+    /**
+     * @param list<int|null> $sourceLines
+     * @return array{style?:string, indicator?:string, chomp?:string, contentLineCount?:string, contentStartLine?:string, contentEndLine?:string, explicitIndent?:string}
+     */
+    private function yamlExplicitKeyBlockScalarProvenanceAttrs(string $source, ?int $sourceLine, array $sourceLines): array
+    {
+        $lines = explode("\n", $source);
+        $headerLine = trim((string) array_shift($lines));
+        $header = $this->parseYamlBlockScalarHeader($headerLine);
+        if ($header === null) {
+            return [];
+        }
+
+        $attrs = [
+            'style' => $header['style'] === '|' ? 'literal' : 'folded',
+            'indicator' => $header['style'],
+            'chomp' => match ($header['chomp']) {
+                '+' => 'keep',
+                '-' => 'strip',
+                default => 'clip',
+            },
+            'contentLineCount' => (string) count($lines),
+        ];
+        if ($header['indent'] !== null) {
+            $attrs['explicitIndent'] = (string) $header['indent'];
+        }
+
+        $contentSourceLines = $sourceLines;
+        if ($contentSourceLines !== [] && $sourceLine !== null && $contentSourceLines[0] === $sourceLine) {
+            array_shift($contentSourceLines);
+        }
+
+        $sourceLineNumbers = array_values(array_filter(
+            $contentSourceLines,
+            static fn (?int $line): bool => $line !== null
+        ));
+        if ($sourceLineNumbers !== []) {
+            $attrs['contentStartLine'] = (string) $sourceLineNumbers[0];
+            $attrs['contentEndLine'] = (string) $sourceLineNumbers[count($sourceLineNumbers) - 1];
+        }
+
+        return $attrs;
     }
 
     private function yamlExplicitKeyProvenanceLooksScalar(string $source): bool
@@ -2905,7 +3034,38 @@ final class MarkdownReader
             return null;
         }
 
-        $firstContentLine = $this->firstYamlContentLine($normalized);
+        $firstContentIndex = $this->firstYamlContentLineIndex($normalized);
+        $firstContentLine = $firstContentIndex === null ? null : trim($normalized[$firstContentIndex]);
+        if ($firstContentIndex !== null && $firstContentLine !== null) {
+            $blockScalarHeader = $this->parseYamlBlockScalarHeader($firstContentLine);
+            if ($blockScalarHeader !== null) {
+                $contentLines = array_slice($normalized, $firstContentIndex + 1);
+                $contentSourceLines = array_slice($sourceLines, $firstContentIndex + 1);
+                if (!$this->yamlBlockScalarIndentationIsValid($contentLines, $blockScalarHeader['indent'])) {
+                    $this->yamlMetadataInvalid = true;
+
+                    return null;
+                }
+
+                $headerSourceLine = $sourceLines[$firstContentIndex] ?? null;
+                $this->withYamlMetadataSourceLine(
+                    $headerSourceLine,
+                    fn (): mixed => $this->recordYamlBlockScalarProvenance(
+                        $blockScalarHeader,
+                        $headerSourceLine,
+                        $contentSourceLines
+                    )
+                );
+
+                return $this->parseYamlBlockScalar(
+                    $contentLines,
+                    $blockScalarHeader['style'],
+                    $blockScalarHeader['chomp'],
+                    $blockScalarHeader['indent']
+                );
+            }
+        }
+
         if ($firstContentLine !== null && preg_match('/^-[ \t]?(.*)$/', $firstContentLine) === 1) {
             return $this->parseYamlSequence(
                 $normalized,
@@ -3417,13 +3577,23 @@ final class MarkdownReader
      */
     private function firstYamlContentLine(array $lines): ?string
     {
-        foreach ($lines as $line) {
+        $index = $this->firstYamlContentLineIndex($lines);
+
+        return $index === null ? null : trim($lines[$index]);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function firstYamlContentLineIndex(array $lines): ?int
+    {
+        foreach ($lines as $index => $line) {
             $trimmed = trim($line);
             if ($trimmed === '' || str_starts_with($trimmed, '#')) {
                 continue;
             }
 
-            return $trimmed;
+            return $index;
         }
 
         return null;
