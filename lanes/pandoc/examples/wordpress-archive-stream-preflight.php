@@ -1674,6 +1674,11 @@ if (in_array('--self-test', $argv, true)) {
         'contentCreatedAt' => 1780479062,
         'contentSourceType' => 'gzip-member',
         'contentSourceLabel' => 'wordpress-archive-stream.tar',
+        'tarMetadataLayoutCount' => 1,
+        'tarMetadataLayoutRole' => 'pax-local',
+        'tarMetadataLayoutKeys' => ['LIBARCHIVE.creationtime', 'atime', 'ctime'],
+        'tarMetadataLayoutSourceType' => 'gzip-member',
+        'tarMetadataLayoutSourceLabel' => 'wordpress-archive-stream.tar',
         'legacyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'legacyEntryType' => TarArchiveEntry::TYPE_FILE,
         'legacyContent' => $legacyContentBytes,
@@ -2153,6 +2158,14 @@ if (in_array('--self-test', $argv, true)) {
         || ($inspection['entryLayouts'][2]['decodedSourceSegmentCount'] ?? null) !== 1
         || ($inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceType'] ?? null) !== $expected['contentSourceType']
         || ($inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceLabel'] ?? null) !== $expected['contentSourceLabel']
+        || ($inspection['metadataLayoutCount'] ?? null) !== $expected['tarMetadataLayoutCount']
+        || ($inspection['metadataLayouts'][0]['role'] ?? null) !== $expected['tarMetadataLayoutRole']
+        || ($inspection['metadataLayouts'][0]['metadataKind'] ?? null) !== $expected['tarMetadataLayoutRole']
+        || ($inspection['metadataLayouts'][0]['paxHeaderKeys'] ?? []) !== $expected['tarMetadataLayoutKeys']
+        || ($inspection['metadataLayouts'][0]['decodedSourceSegmentCount'] ?? null) !== 1
+        || ($inspection['metadataLayouts'][0]['decodedSourceSegments'][0]['sourceType'] ?? null) !== $expected['tarMetadataLayoutSourceType']
+        || ($inspection['metadataLayouts'][0]['decodedSourceSegments'][0]['sourceLabel'] ?? null) !== $expected['tarMetadataLayoutSourceLabel']
+        || isset($inspection['metadataLayouts'][0]['metadataValue'])
         || ($inspection['archive']->entry('/packet/content.md')->paxHeaders['LIBARCHIVE.creationtime'] ?? null) !== (string) $expected['contentCreatedAt']
         || $legacyContiguousInspection['format'] !== $expected['legacyFormat']
         || ($legacyContiguousInspection['entryLayouts'][0]['type'] ?? null) !== $expected['legacyEntryType']
@@ -2751,6 +2764,8 @@ echo 'gzipMemberByteLimit.largestMemberUncompressedSize=' . $gzipMemberByteLimit
 echo 'gzipMemberByteLimit.memberPolicies=' . implode(',', array_column($gzipMemberByteLimitInspection['members'], 'policy')) . "\n";
 echo 'tar.layout=' . implode(',', $layoutSummary) . "\n";
 echo 'tar.contentSource=' . $inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceType'] . ':' . $inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceLabel'] . "\n";
+echo 'tar.metadataLayoutCount=' . $inspection['metadataLayoutCount'] . "\n";
+echo 'tar.metadataLayoutSource=' . $inspection['metadataLayouts'][0]['decodedSourceSegments'][0]['sourceType'] . ':' . $inspection['metadataLayouts'][0]['decodedSourceSegments'][0]['sourceLabel'] . "\n";
 echo 'content.md=' . $inspection['archive']->read('/packet/content.md') . "\n";
 echo 'content.createdAt=' . $inspection['entryLayouts'][2]['createdAt'] . "\n";
 echo 'legacyContiguous.format=' . $legacyContiguousInspection['format'] . "\n";

@@ -3706,6 +3706,69 @@ return [
         $t->same($contentBytes, $lz4Inspection['archive']->read('/packet/content.md'));
     },
 
+    'maps tar metadata record layouts to decoded compression stream source segments' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $contentBytes = "# TAR metadata layout\n\nReady for WordPress archive provenance review.\n";
+        $globalPaxPayload = $paxPayload([
+            'comment' => 'global reviewer metadata',
+        ]);
+        $localPaxPayload = $paxPayload([
+            'path' => 'packet/metadata-layout/content.md',
+            'mtime' => '1780479101',
+        ]);
+        $tarBytes = $rawTarHeader('GlobalHead/metadata-layout', 'g', $globalPaxPayload, 0, false)
+            . $rawTarHeader('PaxHeaders/metadata-layout', 'x', $localPaxPayload, 0, false)
+            . $rawTarHeader('placeholder.md', '0', $contentBytes, 1780479100, false)
+            . str_repeat("\0", 1024);
+        $splitOffset = 1536;
+        $gzip = GzipStream::build(substr($tarBytes, 0, $splitOffset), [
+            'filename' => 'metadata-layout-part-1.tar',
+            'comment' => 'global pax and local pax header source',
+        ]) . GzipStream::build(substr($tarBytes, $splitOffset), [
+            'filename' => 'metadata-layout-part-2.tar',
+            'comment' => 'local pax payload tail and content source',
+        ]);
+
+        $inspection = ArchiveCompressionStream::inspectTarStreamAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($contentBytes)
+        );
+        $metadataLayouts = $inspection['metadataLayouts'] ?? [];
+
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same(2, $inspection['metadataLayoutCount'] ?? 0);
+        $t->same(2, count($metadataLayouts));
+        $t->same(['pax-global', 'pax-local'], array_column($metadataLayouts, 'role'));
+        $t->same(['pax-global', 'pax-local'], array_column($metadataLayouts, 'metadataKind'));
+        $t->same(['comment'], $metadataLayouts[0]['paxHeaderKeys']);
+        $t->same(['mtime', 'path'], $metadataLayouts[1]['paxHeaderKeys']);
+        $t->same([0, 1024], array_column($metadataLayouts, 'headerOffset'));
+        $t->same([1024, 2048], array_column($metadataLayouts, 'recordEndOffset'));
+        $t->same([strlen($globalPaxPayload), strlen($localPaxPayload)], array_column($metadataLayouts, 'payloadSize'));
+        $t->same(1, $metadataLayouts[0]['decodedSourceSegmentCount']);
+        $t->same([
+            [
+                'sourceType' => 'gzip-member',
+                'sourceIndex' => 0,
+                'sourceLabel' => 'metadata-layout-part-1.tar',
+                'sourceDecodedOffset' => 0,
+                'sourceDecodedEndOffset' => 1024,
+                'recordOffset' => 0,
+                'recordEndOffset' => 1024,
+            ],
+        ], $metadataLayouts[0]['decodedSourceSegments']);
+        $t->same(2, $metadataLayouts[1]['decodedSourceSegmentCount']);
+        $t->same(['gzip-member', 'gzip-member'], array_column($metadataLayouts[1]['decodedSourceSegments'], 'sourceType'));
+        $t->same(['metadata-layout-part-1.tar', 'metadata-layout-part-2.tar'], array_column($metadataLayouts[1]['decodedSourceSegments'], 'sourceLabel'));
+        $t->same([1024, 1536], array_column($metadataLayouts[1]['decodedSourceSegments'], 'sourceDecodedOffset'));
+        $t->same([1536, 2048], array_column($metadataLayouts[1]['decodedSourceSegments'], 'sourceDecodedEndOffset'));
+        $t->same([0, 512], array_column($metadataLayouts[1]['decodedSourceSegments'], 'recordOffset'));
+        $t->same([512, 1024], array_column($metadataLayouts[1]['decodedSourceSegments'], 'recordEndOffset'));
+        $t->same('packet/metadata-layout/content.md', $inspection['entryLayouts'][0]['name']);
+        $t->same(['comment', 'mtime', 'path'], $inspection['entryLayouts'][0]['paxHeaderKeys']);
+        $t->same($contentBytes, $inspection['archive']->read('/packet/metadata-layout/content.md'));
+    },
+
     'inspects tar entry byte layout for package review streams' => static function (TestRunner $t): void {
         $manifestBytes = '{"source":"tar-layout","target":"wordpress"}';
         $documentBytes = '<w:document><w:body><w:p>Layout-aware tar source</w:p></w:body></w:document>';

@@ -1,0 +1,577 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Pandoc;
+
+final class OpenDocumentPackage
+{
+    public const TEXT_MIMETYPE = 'application/vnd.oasis.opendocument.text';
+    public const MANIFEST_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
+    public const OFFICE_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:office:1.0';
+    public const TEXT_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
+    public const STYLE_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:style:1.0';
+    public const DRAW_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:drawing:1.0';
+    public const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
+    public const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
+    public const META_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
+
+    /** @var array<string, array{path:string, mediaType:string, version:string|null, size:int|null}> */
+    private array $manifestEntriesByPath;
+
+    /**
+     * @param list<array{path:string, mediaType:string, version:string|null, size:int|null}> $manifestEntries
+     * @param array<string, array{name:string, family:string, parent:string|null, displayName:string|null}> $stylesByName
+     * @param array<string, mixed> $metadata
+     */
+    private function __construct(
+        private readonly ZipPackage $package,
+        private readonly array $manifestEntries,
+        array $manifestEntriesByPath,
+        private readonly array $stylesByName,
+        private readonly array $metadata,
+    ) {
+        $this->manifestEntriesByPath = $manifestEntriesByPath;
+    }
+
+    public static function fromPackage(ZipPackage $package): self
+    {
+        self::assertTextPackageMimetype($package);
+
+        if (!$package->has('META-INF/manifest.xml')) {
+            throw new \RuntimeException('ODT package is missing META-INF/manifest.xml');
+        }
+
+        $manifestEntries = self::parseManifest($package->read('META-INF/manifest.xml'));
+        $manifestEntriesByPath = [];
+        foreach ($manifestEntries as $entry) {
+            if (isset($manifestEntriesByPath[$entry['path']])) {
+                throw new \InvalidArgumentException('Duplicate ODF manifest full-path: ' . $entry['path']);
+            }
+            $manifestEntriesByPath[$entry['path']] = $entry;
+        }
+
+        $root = $manifestEntriesByPath['/'] ?? null;
+        if ($root === null || $root['mediaType'] !== self::TEXT_MIMETYPE) {
+            throw new \RuntimeException('ODT manifest root must identify an OpenDocument text package');
+        }
+
+        foreach (['content.xml'] as $requiredPart) {
+            if (!isset($manifestEntriesByPath[$requiredPart])) {
+                throw new \RuntimeException("ODT manifest is missing required part {$requiredPart}");
+            }
+            if (!$package->has($requiredPart)) {
+                throw new \RuntimeException("ODT package is missing manifest-declared part {$requiredPart}");
+            }
+        }
+
+        foreach (['styles.xml', 'meta.xml'] as $optionalPart) {
+            if (isset($manifestEntriesByPath[$optionalPart]) && !$package->has($optionalPart)) {
+                throw new \RuntimeException("ODT package is missing manifest-declared part {$optionalPart}");
+            }
+        }
+
+        $styles = isset($manifestEntriesByPath['styles.xml']) ? self::parseStyles($package->read('styles.xml')) : [];
+        $metadata = isset($manifestEntriesByPath['meta.xml']) ? self::parseMetadata($package->read('meta.xml')) : [];
+
+        return new self($package, $manifestEntries, $manifestEntriesByPath, $styles, $metadata);
+    }
+
+    public function package(): ZipPackage
+    {
+        return $this->package;
+    }
+
+    /**
+     * @return list<array{path:string, mediaType:string, version:string|null, size:int|null}>
+     */
+    public function manifestEntries(): array
+    {
+        return $this->manifestEntries;
+    }
+
+    /**
+     * @return array{path:string, mediaType:string, version:string|null, size:int|null}|null
+     */
+    public function manifestEntry(string $path): ?array
+    {
+        return $this->manifestEntriesByPath[self::normalizeManifestPath($path)] ?? null;
+    }
+
+    public function mediaTypeForPath(string $path): ?string
+    {
+        return $this->manifestEntry($path)['mediaType'] ?? null;
+    }
+
+    /**
+     * @return array<string, array{name:string, family:string, parent:string|null, displayName:string|null}>
+     */
+    public function stylesByName(): array
+    {
+        return $this->stylesByName;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function metadata(): array
+    {
+        return $this->metadata;
+    }
+
+    public function readContentDocument(): AstNode
+    {
+        $dom = self::loadXml($this->package->read('content.xml'), 'ODT content.xml');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !in_array($root->localName, ['document-content', 'document'], true) || $root->namespaceURI !== self::OFFICE_NAMESPACE) {
+            throw new \InvalidArgumentException('ODT content.xml must use an office:document-content or office:document root');
+        }
+
+        $body = self::firstElementByPath($root, [
+            [self::OFFICE_NAMESPACE, 'body'],
+            [self::OFFICE_NAMESPACE, 'text'],
+        ]);
+        if (!$body instanceof \DOMElement) {
+            throw new \InvalidArgumentException('ODT content.xml is missing office:body/office:text');
+        }
+
+        $blocks = [];
+        foreach ($body->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->namespaceURI === self::TEXT_NAMESPACE && $child->localName === 'h') {
+                $blocks[] = new AstNode('heading', [
+                    'level' => self::intAttribute($child, self::TEXT_NAMESPACE, 'outline-level', 1),
+                    'text' => self::plainText($child),
+                    'styleName' => self::namespacedAttribute($child, self::TEXT_NAMESPACE, 'style-name'),
+                ], self::inlineNodes($child));
+                continue;
+            }
+
+            if ($child->namespaceURI === self::TEXT_NAMESPACE && $child->localName === 'p') {
+                $inlines = self::inlineNodes($child);
+                if ($inlines !== []) {
+                    $blocks[] = new AstNode('paragraph', [
+                        'text' => self::plainText($child),
+                        'styleName' => self::namespacedAttribute($child, self::TEXT_NAMESPACE, 'style-name'),
+                    ], $inlines);
+                }
+            }
+        }
+
+        return new AstNode('document', [
+            'format' => 'odt',
+            'metadata' => $this->metadata,
+            'styles' => $this->stylesByName,
+        ], $blocks);
+    }
+
+    /**
+     * @return array{
+     *     mimetype:string,
+     *     manifestVersion:string|null,
+     *     contentXml:bool,
+     *     stylesXml:bool,
+     *     metaXml:bool,
+     *     mediaParts:list<array{path:string, mediaType:string}>,
+     *     metadata:array<string, mixed>,
+     *     styleNames:list<string>,
+     *     contentBlocks:int
+     * }
+     */
+    public function summarize(): array
+    {
+        $mediaParts = [];
+        foreach ($this->manifestEntries as $entry) {
+            if (str_starts_with($entry['mediaType'], 'image/') || str_starts_with($entry['path'], 'Pictures/')) {
+                $mediaParts[] = [
+                    'path' => $entry['path'],
+                    'mediaType' => $entry['mediaType'],
+                ];
+            }
+        }
+
+        return [
+            'mimetype' => self::TEXT_MIMETYPE,
+            'manifestVersion' => $this->manifestEntriesByPath['/']['version'] ?? null,
+            'contentXml' => isset($this->manifestEntriesByPath['content.xml']),
+            'stylesXml' => isset($this->manifestEntriesByPath['styles.xml']),
+            'metaXml' => isset($this->manifestEntriesByPath['meta.xml']),
+            'mediaParts' => $mediaParts,
+            'metadata' => $this->metadata,
+            'styleNames' => array_keys($this->stylesByName),
+            'contentBlocks' => count($this->readContentDocument()->children),
+        ];
+    }
+
+    private static function assertTextPackageMimetype(ZipPackage $package): void
+    {
+        if (!$package->has('mimetype')) {
+            throw new \RuntimeException('ODT package is missing mimetype entry');
+        }
+
+        $entries = $package->entries();
+        $first = $entries[0] ?? null;
+        if (!$first instanceof ZipPackageEntry || $first->name !== 'mimetype' || $first->compressionMethod !== 0) {
+            throw new \RuntimeException('ODT mimetype entry must be first and stored without compression');
+        }
+
+        if ($package->read('mimetype') !== self::TEXT_MIMETYPE) {
+            throw new \RuntimeException('ODT mimetype entry must be application/vnd.oasis.opendocument.text');
+        }
+    }
+
+    /**
+     * @return list<array{path:string, mediaType:string, version:string|null, size:int|null}>
+     */
+    private static function parseManifest(string $xml): array
+    {
+        $dom = self::loadXml($xml, 'ODT manifest.xml');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'manifest' || $root->namespaceURI !== self::MANIFEST_NAMESPACE) {
+            throw new \InvalidArgumentException('ODF manifest XML must use the manifest:manifest root');
+        }
+
+        $entries = [];
+        foreach ($root->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->namespaceURI !== self::MANIFEST_NAMESPACE || $child->localName !== 'file-entry') {
+                throw new \InvalidArgumentException('ODF manifest may only contain manifest:file-entry children');
+            }
+
+            $path = self::normalizeManifestPath(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'full-path') ?? '');
+            $mediaType = self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'media-type') ?? '';
+            if ($mediaType === '') {
+                throw new \InvalidArgumentException('ODF manifest file-entry is missing manifest:media-type for ' . $path);
+            }
+
+            $size = self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'size');
+            $entries[] = [
+                'path' => $path,
+                'mediaType' => $mediaType,
+                'version' => self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'version'),
+                'size' => $size === null || $size === '' ? null : (int) $size,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array<string, array{name:string, family:string, parent:string|null, displayName:string|null}>
+     */
+    private static function parseStyles(string $xml): array
+    {
+        $dom = self::loadXml($xml, 'ODT styles.xml');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !in_array($root->localName, ['document-styles', 'document'], true) || $root->namespaceURI !== self::OFFICE_NAMESPACE) {
+            throw new \InvalidArgumentException('ODT styles.xml must use an office:document-styles or office:document root');
+        }
+
+        $styles = [];
+        foreach ($dom->getElementsByTagNameNS(self::STYLE_NAMESPACE, 'style') as $style) {
+            if (!$style instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = self::namespacedAttribute($style, self::STYLE_NAMESPACE, 'name');
+            $family = self::namespacedAttribute($style, self::STYLE_NAMESPACE, 'family');
+            if ($name === null || $name === '' || $family === null || $family === '') {
+                continue;
+            }
+
+            $styles[$name] = [
+                'name' => $name,
+                'family' => $family,
+                'parent' => self::namespacedAttribute($style, self::STYLE_NAMESPACE, 'parent-style-name'),
+                'displayName' => self::namespacedAttribute($style, self::STYLE_NAMESPACE, 'display-name'),
+            ];
+        }
+
+        return $styles;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function parseMetadata(string $xml): array
+    {
+        $dom = self::loadXml($xml, 'ODT meta.xml');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !in_array($root->localName, ['document-meta', 'document'], true) || $root->namespaceURI !== self::OFFICE_NAMESPACE) {
+            throw new \InvalidArgumentException('ODT meta.xml must use an office:document-meta or office:document root');
+        }
+
+        $meta = self::firstElementByPath($root, [[self::OFFICE_NAMESPACE, 'meta']]);
+        if (!$meta instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        $fields = [
+            'generator' => [self::META_NAMESPACE, 'generator'],
+            'title' => [self::DC_NAMESPACE, 'title'],
+            'description' => [self::DC_NAMESPACE, 'description'],
+            'subject' => [self::DC_NAMESPACE, 'subject'],
+            'language' => [self::DC_NAMESPACE, 'language'],
+            'initialCreator' => [self::META_NAMESPACE, 'initial-creator'],
+            'creator' => [self::DC_NAMESPACE, 'creator'],
+            'creationDate' => [self::META_NAMESPACE, 'creation-date'],
+            'date' => [self::DC_NAMESPACE, 'date'],
+        ];
+
+        foreach ($fields as $key => [$namespace, $localName]) {
+            $value = self::firstChildElementText($meta, $namespace, $localName);
+            if ($value !== null && $value !== '') {
+                $metadata[$key] = $value;
+            }
+        }
+
+        $keywordText = self::firstChildElementText($meta, self::META_NAMESPACE, 'keyword');
+        if ($keywordText !== null && $keywordText !== '') {
+            $metadata['keywords'] = array_values(array_filter(
+                array_map(static fn (string $keyword): string => trim($keyword), explode(',', $keywordText)),
+                static fn (string $keyword): bool => $keyword !== ''
+            ));
+        }
+
+        $userDefined = [];
+        foreach ($meta->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::META_NAMESPACE || $child->localName !== 'user-defined') {
+                continue;
+            }
+
+            $name = self::namespacedAttribute($child, self::META_NAMESPACE, 'name');
+            if ($name === null || $name === '') {
+                continue;
+            }
+
+            $userDefined[$name] = [
+                'value' => trim($child->textContent),
+                'valueType' => self::namespacedAttribute($child, self::META_NAMESPACE, 'value-type') ?? 'string',
+            ];
+        }
+        if ($userDefined !== []) {
+            $metadata['userDefined'] = $userDefined;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private static function inlineNodes(\DOMNode $node): array
+    {
+        $nodes = [];
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                if ($child->nodeValue !== '') {
+                    $nodes[] = new AstNode('text', ['text' => $child->nodeValue]);
+                }
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->namespaceURI === self::TEXT_NAMESPACE && $child->localName === 's') {
+                $nodes[] = new AstNode('text', ['text' => str_repeat(' ', self::intAttribute($child, self::TEXT_NAMESPACE, 'c', 1))]);
+                continue;
+            }
+
+            if ($child->namespaceURI === self::TEXT_NAMESPACE && $child->localName === 'tab') {
+                $nodes[] = new AstNode('text', ['text' => "\t"]);
+                continue;
+            }
+
+            if ($child->namespaceURI === self::TEXT_NAMESPACE && $child->localName === 'line-break') {
+                $nodes[] = new AstNode('linebreak');
+                continue;
+            }
+
+            if ($child->namespaceURI === self::TEXT_NAMESPACE && $child->localName === 'a') {
+                $nodes[] = new AstNode('link', [
+                    'url' => self::namespacedAttribute($child, self::XLINK_NAMESPACE, 'href') ?? '',
+                    'title' => '',
+                ], self::inlineNodes($child));
+                continue;
+            }
+
+            if ($child->namespaceURI === self::DRAW_NAMESPACE && $child->localName === 'frame') {
+                $image = self::firstDescendantElement($child, self::DRAW_NAMESPACE, 'image');
+                if ($image instanceof \DOMElement) {
+                    $href = self::namespacedAttribute($image, self::XLINK_NAMESPACE, 'href') ?? '';
+                    if ($href !== '') {
+                        $nodes[] = new AstNode('image', [
+                            'url' => $href,
+                            'alt' => trim($child->textContent),
+                            'title' => '',
+                            'mediaType' => null,
+                        ]);
+                    }
+                }
+                continue;
+            }
+
+            array_push($nodes, ...self::inlineNodes($child));
+        }
+
+        return self::mergeAdjacentTextNodes($nodes);
+    }
+
+    private static function plainText(\DOMNode $node): string
+    {
+        $text = '';
+        foreach (self::inlineNodes($node) as $inline) {
+            if ($inline->type === 'text') {
+                $text .= (string) $inline->attr('text', '');
+            } elseif ($inline->type === 'linebreak') {
+                $text .= "\n";
+            } else {
+                foreach ($inline->children as $child) {
+                    if ($child->type === 'text') {
+                        $text .= (string) $child->attr('text', '');
+                    }
+                }
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     *
+     * @return list<AstNode>
+     */
+    private static function mergeAdjacentTextNodes(array $nodes): array
+    {
+        $merged = [];
+        foreach ($nodes as $node) {
+            $lastKey = array_key_last($merged);
+            $previous = $lastKey === null ? null : $merged[$lastKey];
+            if ($node->type === 'text' && $previous instanceof AstNode && $previous->type === 'text') {
+                array_pop($merged);
+                $merged[] = new AstNode('text', [
+                    'text' => (string) $previous->attr('text', '') . (string) $node->attr('text', ''),
+                ]);
+                continue;
+            }
+            $merged[] = $node;
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param list<array{0:string, 1:string}> $path
+     */
+    private static function firstElementByPath(\DOMElement $root, array $path): ?\DOMElement
+    {
+        $current = $root;
+        foreach ($path as [$namespace, $localName]) {
+            $next = null;
+            foreach ($current->childNodes as $child) {
+                if ($child instanceof \DOMElement && $child->namespaceURI === $namespace && $child->localName === $localName) {
+                    $next = $child;
+                    break;
+                }
+            }
+            if (!$next instanceof \DOMElement) {
+                return null;
+            }
+            $current = $next;
+        }
+
+        return $current;
+    }
+
+    private static function firstDescendantElement(\DOMElement $root, string $namespace, string $localName): ?\DOMElement
+    {
+        foreach ($root->getElementsByTagNameNS($namespace, $localName) as $element) {
+            if ($element instanceof \DOMElement) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    private static function firstChildElementText(\DOMElement $root, string $namespace, string $localName): ?string
+    {
+        foreach ($root->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === $namespace && $child->localName === $localName) {
+                return trim($child->textContent);
+            }
+        }
+
+        return null;
+    }
+
+    private static function namespacedAttribute(\DOMElement $element, string $namespace, string $localName): ?string
+    {
+        return $element->hasAttributeNS($namespace, $localName) ? $element->getAttributeNS($namespace, $localName) : null;
+    }
+
+    private static function intAttribute(\DOMElement $element, string $namespace, string $localName, int $default): int
+    {
+        $value = self::namespacedAttribute($element, $namespace, $localName);
+        if ($value === null || $value === '' || !preg_match('/^\d+$/', $value)) {
+            return $default;
+        }
+
+        return max(1, (int) $value);
+    }
+
+    private static function normalizeManifestPath(string $path): string
+    {
+        if ($path === '') {
+            throw new \InvalidArgumentException('ODF manifest full-path must not be empty');
+        }
+
+        if ($path === '/') {
+            return '/';
+        }
+
+        if (str_starts_with($path, '/') || str_contains($path, '\\') || str_contains($path, "\0")) {
+            throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
+        }
+
+        $segments = explode('/', $path);
+        foreach ($segments as $index => $segment) {
+            $isTrailingDirectorySegment = $index === count($segments) - 1 && $segment === '';
+            if ($isTrailingDirectorySegment) {
+                continue;
+            }
+
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
+            }
+        }
+
+        return $path;
+    }
+
+    private static function loadXml(string $xml, string $label): \DOMDocument
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $dom->resolveExternals = false;
+        $dom->substituteEntities = false;
+        $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if (!$loaded) {
+            throw new \InvalidArgumentException("Unable to parse {$label}");
+        }
+
+        return $dom;
+    }
+}

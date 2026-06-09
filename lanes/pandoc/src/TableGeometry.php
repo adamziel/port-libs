@@ -5300,6 +5300,12 @@ final class TableGeometry
             'cellBorderPresentationColors' => self::cellBorderPresentationStringValues($cellBorderPresentations, 'borderColor'),
             'cellBorderPresentationStyles' => self::cellBorderPresentationStringValues($cellBorderPresentations, 'borderStyle'),
             'cellBorderPresentationWidths' => self::cellBorderPresentationStringValues($cellBorderPresentations, 'borderWidth'),
+            'cellBorderPresentationEdgeCount' => self::cellBorderPresentationEdgeCount($cellBorderPresentations),
+            'hasCellBorderPresentationEdges' => self::cellBorderPresentationEdgeCount($cellBorderPresentations) > 0,
+            'cellBorderPresentationEdges' => self::cellBorderPresentationEdgeStringValues($cellBorderPresentations, 'edge'),
+            'cellBorderPresentationEdgeColors' => self::cellBorderPresentationEdgeStringValues($cellBorderPresentations, 'borderColor'),
+            'cellBorderPresentationEdgeStyles' => self::cellBorderPresentationEdgeStringValues($cellBorderPresentations, 'borderStyle'),
+            'cellBorderPresentationEdgeWidths' => self::cellBorderPresentationEdgeStringValues($cellBorderPresentations, 'borderWidth'),
             'rowGroupCount' => $rowGroupSummary['rowGroupCount'],
             'bodyGroupCount' => $rowGroupSummary['bodyGroupCount'],
             'hasMultipleBodyGroups' => $rowGroupSummary['hasMultipleBodyGroups'],
@@ -6791,6 +6797,11 @@ final class TableGeometry
                 }
             }
 
+            $borderEdges = is_array($border['borderEdges'] ?? null) ? $border['borderEdges'] : [];
+            if ($borderEdges !== []) {
+                $cell['borderEdges'] = $borderEdges;
+            }
+
             $records[] = $cell;
         }
 
@@ -6827,6 +6838,14 @@ final class TableGeometry
             $attributes['border-width'] = $borderWidth;
         }
 
+        $borderEdges = self::normalizeTableBorderSideStyleAttributes($style);
+        foreach ($borderEdges as $edgeRecord) {
+            $edgeAttributes = is_array($edgeRecord['attributes'] ?? null) ? $edgeRecord['attributes'] : [];
+            foreach ($edgeAttributes as $name => $value) {
+                $attributes[$name] = $value;
+            }
+        }
+
         if ($attributes === []) {
             return [];
         }
@@ -6855,11 +6874,228 @@ final class TableGeometry
         if ($borderWidth !== '') {
             $record['borderWidth'] = $borderWidth;
         }
+        if ($borderEdges !== []) {
+            $record['borderEdges'] = $borderEdges;
+        }
         if ($sourceAttributes !== []) {
             $record['sourceAttributes'] = $sourceAttributes;
         }
 
         return $record;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizeTableBorderSideStyleAttributes(string $style): array
+    {
+        $edges = [];
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            $name = strtolower(trim($name));
+            $value = trim($value);
+            if ($name === '' || $value === '') {
+                continue;
+            }
+
+            if (preg_match('/^border-(top|right|bottom|left)$/', $name, $match) === 1) {
+                $edge = $match[1];
+                $shorthand = self::normalizeTableBorderShorthandAttribute($value);
+                if ($shorthand === []) {
+                    continue;
+                }
+
+                $edges[$edge] = self::mergeTableBorderEdgeRecord(
+                    $edges[$edge] ?? self::emptyTableBorderEdgeRecord($edge),
+                    [
+                        'property' => 'border-' . $edge,
+                        'value' => self::tableBorderEdgeValue($shorthand),
+                        'attributes' => ['border-' . $edge => self::tableBorderEdgeValue($shorthand)],
+                        ...$shorthand,
+                    ]
+                );
+                continue;
+            }
+
+            if (preg_match('/^border-(top|right|bottom|left)-(color|style|width)$/', $name, $match) !== 1) {
+                continue;
+            }
+
+            $edge = $match[1];
+            $kind = $match[2];
+            $normalized = match ($kind) {
+                'color' => self::normalizeTableBackgroundColorAttribute($value),
+                'style' => self::normalizeTableBorderLineStyleAttribute($value),
+                'width' => self::normalizeTableBorderWidthToken(strtolower(trim($value))),
+            };
+            if ($normalized === '') {
+                continue;
+            }
+
+            $field = match ($kind) {
+                'color' => 'borderColor',
+                'style' => 'borderStyle',
+                'width' => 'borderWidth',
+            };
+            $edges[$edge] = self::mergeTableBorderEdgeRecord(
+                $edges[$edge] ?? self::emptyTableBorderEdgeRecord($edge),
+                [
+                    'property' => 'border-' . $edge,
+                    $field => $normalized,
+                    'attributes' => [$name => $normalized],
+                ]
+            );
+        }
+
+        $records = [];
+        foreach ($edges as $edgeRecord) {
+            $attributes = is_array($edgeRecord['attributes'] ?? null) ? $edgeRecord['attributes'] : [];
+            if ($attributes === []) {
+                continue;
+            }
+
+            ksort($attributes);
+            $edgeRecord['attributes'] = $attributes;
+            if (!isset($edgeRecord['value'])) {
+                $value = self::tableBorderEdgeValue($edgeRecord);
+                if ($value !== '') {
+                    $edgeRecord['value'] = $value;
+                }
+            }
+            $records[] = $edgeRecord;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array{edge:string,property:string,attributes:array<string, string>}
+     */
+    private static function emptyTableBorderEdgeRecord(string $edge): array
+    {
+        return [
+            'edge' => $edge,
+            'property' => 'border-' . $edge,
+            'attributes' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $update
+     * @return array<string, mixed>
+     */
+    private static function mergeTableBorderEdgeRecord(array $base, array $update): array
+    {
+        $attributes = is_array($base['attributes'] ?? null) ? $base['attributes'] : [];
+        foreach (is_array($update['attributes'] ?? null) ? $update['attributes'] : [] as $name => $value) {
+            $attributes[(string) $name] = (string) $value;
+        }
+        unset($update['attributes']);
+
+        foreach ($update as $key => $value) {
+            if ($value === '') {
+                continue;
+            }
+
+            $base[(string) $key] = $value;
+        }
+        $base['attributes'] = $attributes;
+
+        return $base;
+    }
+
+    /**
+     * @return array{borderColor?:string,borderStyle?:string,borderWidth?:string}
+     */
+    private static function normalizeTableBorderShorthandAttribute(string $value): array
+    {
+        $tokens = self::cssValueTokens($value);
+        if ($tokens === []) {
+            return [];
+        }
+
+        $record = [];
+        foreach ($tokens as $token) {
+            $normalizedWidth = self::normalizeTableBorderWidthToken(strtolower($token));
+            if ($normalizedWidth !== '' && !isset($record['borderWidth'])) {
+                $record['borderWidth'] = $normalizedWidth;
+                continue;
+            }
+
+            $normalizedStyle = self::normalizeTableBorderLineStyleAttribute($token);
+            if ($normalizedStyle !== '' && !isset($record['borderStyle'])) {
+                $record['borderStyle'] = $normalizedStyle;
+                continue;
+            }
+
+            $normalizedColor = self::normalizeTableBackgroundColorAttribute($token);
+            if ($normalizedColor !== '' && !isset($record['borderColor'])) {
+                $record['borderColor'] = $normalizedColor;
+                continue;
+            }
+
+            return [];
+        }
+
+        return $record;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function cssValueTokens(string $value): array
+    {
+        $tokens = [];
+        $token = '';
+        $depth = 0;
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($char === '(') {
+                $depth++;
+                $token .= $char;
+                continue;
+            }
+
+            if ($char === ')' && $depth > 0) {
+                $depth--;
+                $token .= $char;
+                continue;
+            }
+
+            if ($depth === 0 && ctype_space($char)) {
+                if ($token !== '') {
+                    $tokens[] = $token;
+                    $token = '';
+                }
+                continue;
+            }
+
+            $token .= $char;
+        }
+
+        if ($token !== '') {
+            $tokens[] = $token;
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private static function tableBorderEdgeValue(array $record): string
+    {
+        $values = [];
+        foreach (['borderWidth', 'borderStyle', 'borderColor'] as $key) {
+            $value = trim((string) ($record[$key] ?? ''));
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return implode(' ', $values);
     }
 
     /**
@@ -6904,6 +7140,50 @@ final class TableGeometry
     }
 
     /**
+     * @param list<array<string, mixed>> $records
+     */
+    private static function cellBorderPresentationEdgeCount(array $records): int
+    {
+        $count = 0;
+        foreach ($records as $record) {
+            if (!is_array($record) || !is_array($record['borderEdges'] ?? null)) {
+                continue;
+            }
+
+            $count += count($record['borderEdges']);
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function cellBorderPresentationEdgeStringValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            if (!is_array($record) || !is_array($record['borderEdges'] ?? null)) {
+                continue;
+            }
+
+            foreach ($record['borderEdges'] as $edge) {
+                if (!is_array($edge)) {
+                    continue;
+                }
+
+                $value = trim((string) ($edge[$key] ?? ''));
+                if ($value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private static function cellBorderPresentationWriterDiagnostics(AstNode $table, string $writer): array
@@ -6938,6 +7218,11 @@ final class TableGeometry
             'colors' => self::cellBorderPresentationStringValues($records, 'borderColor'),
             'styles' => self::cellBorderPresentationStringValues($records, 'borderStyle'),
             'widths' => self::cellBorderPresentationStringValues($records, 'borderWidth'),
+            'edgeCount' => self::cellBorderPresentationEdgeCount($records),
+            'edges' => self::cellBorderPresentationEdgeStringValues($records, 'edge'),
+            'edgeColors' => self::cellBorderPresentationEdgeStringValues($records, 'borderColor'),
+            'edgeStyles' => self::cellBorderPresentationEdgeStringValues($records, 'borderStyle'),
+            'edgeWidths' => self::cellBorderPresentationEdgeStringValues($records, 'borderWidth'),
             'cells' => $records,
         ]];
     }

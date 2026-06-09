@@ -1,0 +1,196 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\OpenDocumentPackage;
+use PortLibs\Pandoc\WordPressBlockWriter;
+use PortLibs\Pandoc\ZipPackage;
+
+$manifestXml = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:version="1.3"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="styles.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>
+</manifest:manifest>
+XML;
+
+$contentXml = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+  office:version="1.3">
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="2" text:style-name="Heading_20_2">Migration Packet</text:h>
+      <text:p text:style-name="Text_20_body">Imported <text:a xlink:href="https://example.test/source">source</text:a><text:s text:c="2"/>packet<text:line-break/>continued.</text:p>
+      <text:p text:style-name="Text_20_body"><draw:frame draw:name="hero"><draw:image xlink:href="Pictures/hero.png"><svg:title>Hero image</svg:title></draw:image></draw:frame></text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+$stylesXml = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  office:version="1.3">
+  <office:styles>
+    <style:style style:name="Text_20_body" style:display-name="Text body" style:family="paragraph"/>
+    <style:style style:name="Heading_20_2" style:display-name="Heading 2" style:family="paragraph" style:parent-style-name="Heading"/>
+    <style:style style:name="Emphasis" style:family="text"/>
+  </office:styles>
+</office:document-styles>
+XML;
+
+$metaXml = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
+  office:version="1.3">
+  <office:meta>
+    <meta:generator>Pandoc/3.8-test</meta:generator>
+    <dc:title>Migration Packet</dc:title>
+    <dc:description>Imported ODT for WordPress review</dc:description>
+    <dc:subject>Data Liberation</dc:subject>
+    <meta:keyword>import, odt, review</meta:keyword>
+    <dc:language>en-US</dc:language>
+    <meta:initial-creator>Archivist</meta:initial-creator>
+    <dc:creator>Reviewer</dc:creator>
+    <meta:creation-date>2026-06-03T22:11:51Z</meta:creation-date>
+    <dc:date>2026-06-03T22:12:30Z</dc:date>
+    <meta:user-defined meta:name="source-system" meta:value-type="string">LibreOffice export</meta:user-defined>
+  </office:meta>
+</office:document-meta>
+XML;
+
+$buildOdtPackage = static function (
+    ?string $manifest = null,
+    ?string $content = null,
+    ?string $styles = null,
+    ?string $meta = null,
+    string $mimetype = OpenDocumentPackage::TEXT_MIMETYPE,
+    bool $mimetypeFirst = true,
+    int $mimetypeCompression = 0,
+) use ($manifestXml, $contentXml, $stylesXml, $metaXml): ZipPackage {
+    $parts = [
+        ['name' => 'mimetype', 'data' => $mimetype, 'compressionMethod' => $mimetypeCompression],
+        ['name' => 'META-INF/manifest.xml', 'data' => $manifest ?? $manifestXml],
+        ['name' => 'content.xml', 'data' => $content ?? $contentXml],
+        ['name' => 'styles.xml', 'data' => $styles ?? $stylesXml],
+        ['name' => 'meta.xml', 'data' => $meta ?? $metaXml],
+        ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA'],
+    ];
+
+    if (!$mimetypeFirst) {
+        $parts = [$parts[1], $parts[0], $parts[2], $parts[3], $parts[4], $parts[5]];
+    }
+
+    return ZipPackage::fromParts($parts, 'odt package');
+};
+
+return [
+    'maps ODT manifest root and package parts from a ZIP package' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage());
+        $entries = $odt->manifestEntries();
+        $summary = $odt->summarize();
+
+        $t->same(5, count($entries));
+        $t->same('/', $entries[0]['path']);
+        $t->same(OpenDocumentPackage::TEXT_MIMETYPE, $entries[0]['mediaType']);
+        $t->same('1.3', $entries[0]['version']);
+        $t->same('content.xml', $entries[1]['path']);
+        $t->same('text/xml', $odt->mediaTypeForPath('content.xml'));
+        $t->same('image/png', $odt->mediaTypeForPath('Pictures/hero.png'));
+        $t->same(7, $odt->manifestEntry('Pictures/hero.png')['size']);
+        $t->same(true, $summary['contentXml']);
+        $t->same(true, $summary['stylesXml']);
+        $t->same(true, $summary['metaXml']);
+        $t->same([['path' => 'Pictures/hero.png', 'mediaType' => 'image/png']], $summary['mediaParts']);
+        $t->same(3, $summary['contentBlocks']);
+    },
+    'maps ODT content headings paragraphs links spaces breaks and images into the shared AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
+
+        $t->same('document', $document->type);
+        $t->same('odt', $document->attr('format'));
+        $t->same(3, count($document->children));
+        $t->same('heading', $document->children[0]->type);
+        $t->same(2, $document->children[0]->attr('level'));
+        $t->same('Migration Packet', $document->children[0]->attr('text'));
+        $t->same('Heading_20_2', $document->children[0]->attr('styleName'));
+
+        $paragraph = $document->children[1];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Imported source  packet' . "\n" . 'continued.', $paragraph->attr('text'));
+        $t->same(['text', 'link', 'text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('https://example.test/source', $paragraph->children[1]->attr('url'));
+        $t->same('source', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same('  packet', $paragraph->children[2]->attr('text'));
+
+        $image = $document->children[2]->children[0];
+        $t->same('image', $image->type);
+        $t->same('Pictures/hero.png', $image->attr('url'));
+        $t->same('Hero image', $image->attr('alt'));
+    },
+    'maps ODT meta XML fields and styles XML style names' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage());
+        $metadata = $odt->metadata();
+        $styles = $odt->stylesByName();
+
+        $t->same('Pandoc/3.8-test', $metadata['generator']);
+        $t->same('Migration Packet', $metadata['title']);
+        $t->same('Imported ODT for WordPress review', $metadata['description']);
+        $t->same('Data Liberation', $metadata['subject']);
+        $t->same(['import', 'odt', 'review'], $metadata['keywords']);
+        $t->same('en-US', $metadata['language']);
+        $t->same('Archivist', $metadata['initialCreator']);
+        $t->same('Reviewer', $metadata['creator']);
+        $t->same('2026-06-03T22:11:51Z', $metadata['creationDate']);
+        $t->same('2026-06-03T22:12:30Z', $metadata['date']);
+        $t->same('LibreOffice export', $metadata['userDefined']['source-system']['value']);
+        $t->same('string', $metadata['userDefined']['source-system']['valueType']);
+        $t->same(['Text_20_body', 'Heading_20_2', 'Emphasis'], array_keys($styles));
+        $t->same('paragraph', $styles['Heading_20_2']['family']);
+        $t->same('Heading', $styles['Heading_20_2']['parent']);
+        $t->same('Heading 2', $styles['Heading_20_2']['displayName']);
+    },
+    'renders mapped ODT content through the WordPress block writer' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
+        $t->contains('<h2>Migration Packet</h2>', $blocks);
+        $t->contains('<p>Imported <a href="https://example.test/source">source</a>  packet<br/>continued.</p>', $blocks);
+        $t->contains('<!-- wp:image -->', $blocks);
+        $t->contains('<img src="Pictures/hero.png" alt="Hero image"/>', $blocks);
+    },
+    'rejects malformed or unsafe ODT package inputs' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $t->throws(\RuntimeException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA'],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(mimetype: 'application/vnd.oasis.opendocument.spreadsheet')));
+        $t->throws(\RuntimeException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(mimetypeFirst: false)));
+        $t->throws(\RuntimeException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(mimetypeCompression: 8)));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: '<manifest xmlns="urn:bad"/>')));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: str_replace('manifest:full-path="content.xml"', 'manifest:full-path="../content.xml"', $manifestXml))));
+        $t->throws(\RuntimeException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: str_replace('application/vnd.oasis.opendocument.text', 'application/vnd.oasis.opendocument.presentation', $manifestXml))));
+        $t->throws(\InvalidArgumentException::class, static fn (): AstNode => OpenDocumentPackage::fromPackage($buildOdtPackage(content: '<office:document-content xmlns:office="' . OpenDocumentPackage::OFFICE_NAMESPACE . '"/>'))->readContentDocument());
+        $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(styles: '<office:document-styles xmlns:office="urn:bad"/>')));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(meta: '<office:document-meta xmlns:office="urn:bad"/>')));
+    },
+];

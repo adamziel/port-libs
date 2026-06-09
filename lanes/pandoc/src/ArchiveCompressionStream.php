@@ -1997,6 +1997,8 @@ final class ArchiveCompressionStream
      *             entryRecordEndOffset:int
      *         }>
      *     }>,
+     *     metadataLayoutCount:int,
+     *     metadataLayouts:list<array<string, mixed>>,
      *     stream:array<string, mixed>
      * }
      */
@@ -2066,6 +2068,8 @@ final class ArchiveCompressionStream
      *             entryRecordEndOffset:int
      *         }>
      *     }>,
+     *     metadataLayoutCount:int,
+     *     metadataLayouts:list<array<string, mixed>>,
      *     stream:array<string, mixed>
      * }
      */
@@ -3279,6 +3283,7 @@ final class ArchiveCompressionStream
         $entryNames = $archive->names();
         $endMarkerOffset = self::tarEndMarkerOffset($tarBytes);
         $entryLayouts = self::tarEntryLayouts($archive, $stream);
+        $metadataLayouts = self::tarMetadataLayouts($tarBytes, $stream);
 
         return [
             'format' => $format,
@@ -3299,6 +3304,8 @@ final class ArchiveCompressionStream
             'endMarkerOffset' => $endMarkerOffset,
             'trailingZeroBytes' => strlen($tarBytes) - $endMarkerOffset,
             'entryLayouts' => $entryLayouts,
+            'metadataLayoutCount' => count($metadataLayouts),
+            'metadataLayouts' => $metadataLayouts,
             'stream' => $stream,
         ];
     }
@@ -3592,6 +3599,84 @@ final class ArchiveCompressionStream
 
     /**
      * @return list<array{
+     *     name:string,
+     *     role:string,
+     *     typeFlag:string,
+     *     metadataKind:string,
+     *     metadataValueSize:?int,
+     *     paxHeaderCount:int,
+     *     paxHeaderKeys:list<string>,
+     *     headerOffset:int,
+     *     dataOffset:int,
+     *     dataEndOffset:int,
+     *     recordEndOffset:int,
+     *     payloadSize:int,
+     *     headerPayloadSize:int,
+     *     paddedDataSize:int,
+     *     recordSize:int,
+     *     policy:string,
+     *     diagnostics:list<string>,
+     *     decodedSourceSegmentCount:int,
+     *     decodedSourceSegments:list<array{
+     *         sourceType:string,
+     *         sourceIndex:int,
+     *         sourceLabel:?string,
+     *         sourceDecodedOffset:int,
+     *         sourceDecodedEndOffset:int,
+     *         recordOffset:int,
+     *         recordEndOffset:int
+     *     }>
+     * }>
+     */
+    private static function tarMetadataLayouts(string $tarBytes, array $streamInspection): array
+    {
+        $decodedSourceSegments = self::decodedStreamSourceSegments($streamInspection, strlen($tarBytes));
+        $checksumPolicy = TarArchive::checksumPolicyPreflight($tarBytes);
+        $layouts = [];
+
+        foreach ($checksumPolicy['entries'] as $record) {
+            if (!is_array($record) || !is_string($record['metadataKind'] ?? null)) {
+                continue;
+            }
+
+            $headerOffset = (int) $record['headerOffset'];
+            $dataOffset = (int) $record['dataOffset'];
+            $recordEndOffset = (int) $record['recordEndOffset'];
+            $payloadSize = (int) $record['payloadSize'];
+            $sourceSegments = self::recordDecodedSourceSegments(
+                $headerOffset,
+                $recordEndOffset,
+                $decodedSourceSegments
+            );
+
+            $layouts[] = [
+                'name' => (string) $record['name'],
+                'role' => (string) $record['role'],
+                'typeFlag' => (string) $record['typeFlag'],
+                'metadataKind' => (string) $record['metadataKind'],
+                'metadataValueSize' => $record['metadataValueSize'],
+                'paxHeaderCount' => (int) $record['paxHeaderCount'],
+                'paxHeaderKeys' => array_values($record['paxHeaderKeys']),
+                'headerOffset' => $headerOffset,
+                'dataOffset' => $dataOffset,
+                'dataEndOffset' => $dataOffset + $payloadSize,
+                'recordEndOffset' => $recordEndOffset,
+                'payloadSize' => $payloadSize,
+                'headerPayloadSize' => (int) $record['headerPayloadSize'],
+                'paddedDataSize' => $recordEndOffset - $dataOffset,
+                'recordSize' => $recordEndOffset - $headerOffset,
+                'policy' => (string) $record['policy'],
+                'diagnostics' => array_values($record['diagnostics']),
+                'decodedSourceSegmentCount' => count($sourceSegments),
+                'decodedSourceSegments' => $sourceSegments,
+            ];
+        }
+
+        return $layouts;
+    }
+
+    /**
+     * @return list<array{
      *     sourceType:string,
      *     sourceIndex:int,
      *     sourceLabel:?string,
@@ -3709,6 +3794,50 @@ final class ArchiveCompressionStream
                 'sourceDecodedEndOffset' => $overlapEnd,
                 'entryRecordOffset' => $overlapStart - $recordStart,
                 'entryRecordEndOffset' => $overlapEnd - $recordStart,
+            ];
+        }
+
+        return $segments;
+    }
+
+    /**
+     * @param list<array{
+     *     sourceType:string,
+     *     sourceIndex:int,
+     *     sourceLabel:?string,
+     *     decodedDataOffset:int,
+     *     decodedDataEndOffset:int
+     * }> $sourceSegments
+     * @return list<array{
+     *     sourceType:string,
+     *     sourceIndex:int,
+     *     sourceLabel:?string,
+     *     sourceDecodedOffset:int,
+     *     sourceDecodedEndOffset:int,
+     *     recordOffset:int,
+     *     recordEndOffset:int
+     * }>
+     */
+    private static function recordDecodedSourceSegments(int $recordStart, int $recordEnd, array $sourceSegments): array
+    {
+        $segments = [];
+        foreach ($sourceSegments as $source) {
+            $sourceStart = $source['decodedDataOffset'];
+            $sourceEnd = $source['decodedDataEndOffset'];
+            $overlapStart = max($recordStart, $sourceStart);
+            $overlapEnd = min($recordEnd, $sourceEnd);
+            if ($overlapStart >= $overlapEnd) {
+                continue;
+            }
+
+            $segments[] = [
+                'sourceType' => $source['sourceType'],
+                'sourceIndex' => $source['sourceIndex'],
+                'sourceLabel' => $source['sourceLabel'],
+                'sourceDecodedOffset' => $overlapStart,
+                'sourceDecodedEndOffset' => $overlapEnd,
+                'recordOffset' => $overlapStart - $recordStart,
+                'recordEndOffset' => $overlapEnd - $recordStart,
             ];
         }
 

@@ -4680,6 +4680,118 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfStructureAttributes']);
     },
 
+    'fake runner extracts bounded pdf structure user properties from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/struct-user-properties.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true /UserProperties true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /Figure /P 9 0 R /Pg 3 0 R /K 0 /A [12 0 R << /O /UserProperties /P [<< /N (review-status) /V (ready) /F (Ready for review) /H false >> << /N /confidence /V 0.875 /H true >> << /N (approved) /V true >>] >>] >>',
+            'endobj',
+            '12 0 obj',
+            '<< /O /UserProperties /P [13 0 R << /N (source-id) /V /legacy-packet /F (Legacy packet) >>] >>',
+            'endobj',
+            '13 0 obj',
+            '<< /N (word-count) /V 42 /F (42 words) /H false >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/struct-user-properties.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/struct-user-properties.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'object' => '10 0 R',
+                'type' => 'Figure',
+                'attributeObject' => '12 0 R',
+                'propertyName' => 'source-id',
+                'value' => 'legacy-packet',
+                'valueType' => 'name',
+                'formatted' => 'Legacy packet',
+                'hidden' => null,
+            ],
+            [
+                'object' => '10 0 R',
+                'type' => 'Figure',
+                'attributeObject' => '12 0 R',
+                'propertyName' => 'word-count',
+                'value' => 42,
+                'valueType' => 'integer',
+                'formatted' => '42 words',
+                'hidden' => false,
+            ],
+            [
+                'object' => '10 0 R',
+                'type' => 'Figure',
+                'attributeObject' => 'inline',
+                'propertyName' => 'approved',
+                'value' => true,
+                'valueType' => 'boolean',
+                'formatted' => null,
+                'hidden' => null,
+            ],
+            [
+                'object' => '10 0 R',
+                'type' => 'Figure',
+                'attributeObject' => 'inline',
+                'propertyName' => 'confidence',
+                'value' => 0.875,
+                'valueType' => 'number',
+                'formatted' => null,
+                'hidden' => true,
+            ],
+            [
+                'object' => '10 0 R',
+                'type' => 'Figure',
+                'attributeObject' => 'inline',
+                'propertyName' => 'review-status',
+                'value' => 'ready',
+                'valueType' => 'string',
+                'formatted' => 'Ready for review',
+                'hidden' => false,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureUserProperties']);
+        $t->same([], $result['pdfStructureAttributes']);
+        $t->contains('pdf-byte-structure-user-properties:5', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-user-property-type:boolean:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-user-property-type:integer:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-user-property-type:name:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-user-property-type:number:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-user-property-type:string:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-user-property-hidden:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureUserProperties']);
+    },
+
     'fake runner extracts bounded pdf structure class map metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/struct-class-map.pdf']);

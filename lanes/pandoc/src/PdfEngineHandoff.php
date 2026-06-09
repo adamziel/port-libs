@@ -336,6 +336,7 @@ final class PdfEngineHandoff
      *     pdfStructureIdTree: list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     pdfStructureAttributes: list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
+     *     pdfStructureUserProperties: list<array{object:string, type:string|null, attributeObject:string, propertyName:string, value:string|int|float|bool|null, valueType:string, formatted:string|null, hidden:bool|null}>,
      *     pdfStructureClassMap: list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     pdfStructureClassUsage: list<array{object:string, type:string|null, classNames:list<string>, missingClasses:list<string>, mappedAttributeCounts:array<string, int>}>,
      *     pdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
@@ -796,6 +797,7 @@ final class PdfEngineHandoff
         $pdfStructureIdTree = [];
         $pdfStructureElements = [];
         $pdfStructureAttributes = [];
+        $pdfStructureUserProperties = [];
         $pdfStructureClassMap = [];
         $pdfStructureClassUsage = [];
         $pdfMarkedContentProperties = [];
@@ -914,6 +916,7 @@ final class PdfEngineHandoff
                 $pdfStructureIdTree = $pdfInspection['structureIdTree'];
                 $pdfStructureElements = $pdfInspection['structureElements'];
                 $pdfStructureAttributes = $pdfInspection['structureAttributes'];
+                $pdfStructureUserProperties = $pdfInspection['structureUserProperties'];
                 $pdfStructureClassMap = $pdfInspection['structureClassMap'];
                 $pdfStructureClassUsage = $pdfInspection['structureClassUsage'];
                 $pdfMarkedContentProperties = $pdfInspection['markedContentProperties'];
@@ -2043,6 +2046,27 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-structure-attribute-table-cells:' . $attributeTableCellCount;
                     }
                 }
+                if ($pdfStructureUserProperties !== []) {
+                    $diagnostics[] = 'pdf-byte-structure-user-properties:' . count($pdfStructureUserProperties);
+                    $userPropertyHiddenCount = 0;
+                    $userPropertyValueTypes = [];
+                    foreach ($pdfStructureUserProperties as $property) {
+                        if (($property['hidden'] ?? null) === true) {
+                            $userPropertyHiddenCount++;
+                        }
+                        $valueType = is_string($property['valueType'] ?? null) && $property['valueType'] !== ''
+                            ? $property['valueType']
+                            : 'unknown';
+                        $userPropertyValueTypes[$valueType] = ($userPropertyValueTypes[$valueType] ?? 0) + 1;
+                    }
+                    ksort($userPropertyValueTypes);
+                    foreach ($userPropertyValueTypes as $valueType => $count) {
+                        $diagnostics[] = 'pdf-byte-structure-user-property-type:' . $valueType . ':' . $count;
+                    }
+                    if ($userPropertyHiddenCount > 0) {
+                        $diagnostics[] = 'pdf-byte-structure-user-property-hidden:' . $userPropertyHiddenCount;
+                    }
+                }
                 if ($pdfStructureClassMap !== []) {
                     $diagnostics[] = 'pdf-byte-structure-class-map:' . count($pdfStructureClassMap);
                     $classNames = [];
@@ -3104,6 +3128,7 @@ final class PdfEngineHandoff
             'pdfStructureIdTree' => $pdfStructureIdTree,
             'pdfStructureElements' => $pdfStructureElements,
             'pdfStructureAttributes' => $pdfStructureAttributes,
+            'pdfStructureUserProperties' => $pdfStructureUserProperties,
             'pdfStructureClassMap' => $pdfStructureClassMap,
             'pdfStructureClassUsage' => $pdfStructureClassUsage,
             'pdfMarkedContentProperties' => $pdfMarkedContentProperties,
@@ -3243,6 +3268,7 @@ final class PdfEngineHandoff
      *     finalPdfStructureIdTree: list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     finalPdfStructureAttributes: list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
+     *     finalPdfStructureUserProperties: list<array{object:string, type:string|null, attributeObject:string, propertyName:string, value:string|int|float|bool|null, valueType:string, formatted:string|null, hidden:bool|null}>,
      *     finalPdfStructureClassMap: list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     finalPdfStructureClassUsage: list<array{object:string, type:string|null, classNames:list<string>, missingClasses:list<string>, mappedAttributeCounts:array<string, int>}>,
      *     finalPdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
@@ -3495,6 +3521,7 @@ final class PdfEngineHandoff
             'finalPdfStructureIdTree' => is_array($finalRun) && is_array($finalRun['pdfStructureIdTree'] ?? null) ? $finalRun['pdfStructureIdTree'] : [],
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
             'finalPdfStructureAttributes' => is_array($finalRun) && is_array($finalRun['pdfStructureAttributes'] ?? null) ? $finalRun['pdfStructureAttributes'] : [],
+            'finalPdfStructureUserProperties' => is_array($finalRun) && is_array($finalRun['pdfStructureUserProperties'] ?? null) ? $finalRun['pdfStructureUserProperties'] : [],
             'finalPdfStructureClassMap' => is_array($finalRun) && is_array($finalRun['pdfStructureClassMap'] ?? null) ? $finalRun['pdfStructureClassMap'] : [],
             'finalPdfStructureClassUsage' => is_array($finalRun) && is_array($finalRun['pdfStructureClassUsage'] ?? null) ? $finalRun['pdfStructureClassUsage'] : [],
             'finalPdfMarkedContentProperties' => is_array($finalRun) && is_array($finalRun['pdfMarkedContentProperties'] ?? null) ? $finalRun['pdfMarkedContentProperties'] : [],
@@ -4625,6 +4652,7 @@ final class PdfEngineHandoff
      *     structureIdTree:list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
      *     structureElements:list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     structureAttributes:list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
+     *     structureUserProperties:list<array{object:string, type:string|null, attributeObject:string, propertyName:string, value:string|int|float|bool|null, valueType:string, formatted:string|null, hidden:bool|null}>,
      *     structureClassMap:list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     structureClassUsage:list<array{object:string, type:string|null, classNames:list<string>, missingClasses:list<string>, mappedAttributeCounts:array<string, int>}>,
      *     markedContentProperties:list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
@@ -4796,6 +4824,7 @@ final class PdfEngineHandoff
             'structureIdTree' => $this->extractPdfStructureIdTree($pdfBytes, $catalog),
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
             'structureAttributes' => $this->extractPdfStructureAttributes($pdfBytes),
+            'structureUserProperties' => $this->extractPdfStructureUserProperties($pdfBytes),
             'structureClassMap' => $this->extractPdfStructureClassMap($pdfBytes, $catalog),
             'structureClassUsage' => $this->extractPdfStructureClassUsage($pdfBytes, $catalog),
             'markedContentProperties' => $this->extractPdfMarkedContentProperties($pdfBytes, $catalog),
@@ -11274,6 +11303,11 @@ final class PdfEngineHandoff
      */
     private function summarizePdfStructureAttributeDictionary(string $structureObject, ?string $structureType, string $attributeObject, string $dictionary, array $objects): ?array
     {
+        $owner = $this->extractPdfStringOrNameValue($dictionary, 'O');
+        if ($owner === 'UserProperties') {
+            return null;
+        }
+
         $headers = [];
         foreach ($this->collectPdfReferencesFromValue($this->extractPdfValueForName($dictionary, 'Headers'), $objects, 0) as $reference) {
             $headers[] = $this->pdfReferenceKey($reference) . ' R';
@@ -11283,7 +11317,7 @@ final class PdfEngineHandoff
             'object' => $structureObject,
             'type' => $structureType,
             'attributeObject' => $attributeObject,
-            'owner' => $this->extractPdfStringOrNameValue($dictionary, 'O'),
+            'owner' => $owner,
             'revision' => $this->extractPdfIntegerToken($dictionary, 'R'),
             'placement' => $this->extractPdfStringOrNameValue($dictionary, 'Placement'),
             'writingMode' => $this->extractPdfStringOrNameValue($dictionary, 'WritingMode'),
@@ -11308,6 +11342,150 @@ final class PdfEngineHandoff
         }
 
         return null;
+    }
+
+    /**
+     * @return list<array{object:string, type:string|null, attributeObject:string, propertyName:string, value:string|int|float|bool|null, valueType:string, formatted:string|null, hidden:bool|null}>
+     */
+    private function extractPdfStructureUserProperties(string $pdfBytes): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $properties = [];
+        foreach ($objects as $reference => $body) {
+            if ($this->extractPdfNameToken($body, 'Type') !== 'StructElem') {
+                continue;
+            }
+
+            $value = $this->extractPdfValueForName($body, 'A');
+            if ($value === null) {
+                continue;
+            }
+
+            foreach ($this->summarizePdfStructureUserPropertyAttributeValues(
+                $value,
+                $objects,
+                $reference . ' R',
+                $this->extractPdfNameToken($body, 'S'),
+                0
+            ) as $property) {
+                $properties[] = $property;
+            }
+        }
+
+        usort($properties, static function (array $a, array $b): int {
+            return [$a['object'], $a['attributeObject'], $a['propertyName']] <=> [$b['object'], $b['attributeObject'], $b['propertyName']];
+        });
+
+        return $properties;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return list<array{object:string, type:string|null, attributeObject:string, propertyName:string, value:string|int|float|bool|null, valueType:string, formatted:string|null, hidden:bool|null}>
+     */
+    private function summarizePdfStructureUserPropertyAttributeValues(array $value, array $objects, string $structureObject, ?string $structureType, int $depth): array
+    {
+        if ($depth > 8) {
+            return [];
+        }
+
+        if ($value['kind'] === 'array') {
+            $properties = [];
+            foreach ($this->pdfTopLevelArrayValues($value['value']) as $entry) {
+                foreach ($this->summarizePdfStructureUserPropertyAttributeValues($entry, $objects, $structureObject, $structureType, $depth + 1) as $property) {
+                    $properties[] = $property;
+                }
+            }
+
+            return $properties;
+        }
+
+        if ($value['kind'] !== 'dictionary' && $value['kind'] !== 'reference') {
+            return [];
+        }
+
+        $dictionary = $this->pdfDictionaryForValue($value, $objects);
+        if ($dictionary === null || $this->extractPdfStringOrNameValue($dictionary, 'O') !== 'UserProperties') {
+            return [];
+        }
+
+        $propertyValue = $this->extractPdfValueForName($dictionary, 'P');
+        if ($propertyValue === null) {
+            return [];
+        }
+
+        return $this->summarizePdfStructureUserPropertyValues(
+            $propertyValue,
+            $objects,
+            $structureObject,
+            $structureType,
+            $value['kind'] === 'reference' ? $this->pdfReferenceKey($value['value']) . ' R' : 'inline',
+            0
+        );
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return list<array{object:string, type:string|null, attributeObject:string, propertyName:string, value:string|int|float|bool|null, valueType:string, formatted:string|null, hidden:bool|null}>
+     */
+    private function summarizePdfStructureUserPropertyValues(array $value, array $objects, string $structureObject, ?string $structureType, string $attributeObject, int $depth): array
+    {
+        if ($depth > 8) {
+            return [];
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = trim($objects[$this->pdfReferenceKey($value['value'])] ?? '');
+            if ($body === '') {
+                return [];
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved === null) {
+                return [];
+            }
+
+            return $this->summarizePdfStructureUserPropertyValues($resolved, $objects, $structureObject, $structureType, $attributeObject, $depth + 1);
+        }
+
+        if ($value['kind'] === 'array') {
+            $properties = [];
+            foreach ($this->pdfTopLevelArrayValues($value['value']) as $entry) {
+                foreach ($this->summarizePdfStructureUserPropertyValues($entry, $objects, $structureObject, $structureType, $attributeObject, $depth + 1) as $property) {
+                    $properties[] = $property;
+                }
+            }
+
+            return $properties;
+        }
+
+        if ($value['kind'] !== 'dictionary') {
+            return [];
+        }
+
+        $name = $this->extractPdfStringOrNameValue($value['value'], 'N');
+        if ($name === null || trim($name) === '') {
+            return [];
+        }
+
+        $propertyValue = $this->summarizePdfFileSpecCollectionItemValue(
+            $this->extractPdfValueForName($value['value'], 'V') ?? ['kind' => 'keyword', 'value' => 'null', 'next' => 0],
+            $objects,
+            0
+        ) ?? ['value' => null, 'valueType' => 'null'];
+
+        return [[
+            'object' => $structureObject,
+            'type' => $structureType,
+            'attributeObject' => $attributeObject,
+            'propertyName' => trim($name),
+            'value' => $propertyValue['value'],
+            'valueType' => $propertyValue['valueType'],
+            'formatted' => $this->extractPdfStringOrNameValue($value['value'], 'F'),
+            'hidden' => $this->extractPdfBooleanToken($value['value'], 'H'),
+        ]];
     }
 
     /**
