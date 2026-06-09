@@ -689,6 +689,14 @@ final class CitationCslProcessor
             $parts[] = $this->withTerminalPunctuation($entrySetSummary);
         }
 
+        $missingXdataKeys = $item['missingXdataKeys'] ?? [];
+        $xdataSummary = is_array($missingXdataKeys) && $missingXdataKeys !== []
+            ? $this->xdataSummary($item)
+            : '';
+        if ($xdataSummary !== '') {
+            $parts[] = $this->withTerminalPunctuation($xdataSummary);
+        }
+
         $source = trim((string) ($item['source'] ?? ''));
         if ($source !== '') {
             $parts[] = 'Source: ' . rtrim($source, '.') . '.';
@@ -1021,6 +1029,9 @@ final class CitationCslProcessor
         $biblatexRefsection = self::firstStringField($item, ['biblatexRefsection', 'biblatex-refsection', 'refsection', 'ref-section']);
         $biblatexRefsegment = self::firstStringField($item, ['biblatexRefsegment', 'biblatex-refsegment', 'refsegment', 'ref-segment']);
         $citationAliases = self::stringListFromFirstField($item, ['citation-aliases', 'citationAliases', 'ids']);
+        $xdataKeys = self::stringListFromFirstField($item, ['xdataKeys', 'xdata-keys', 'xdata']);
+        $xdataItems = self::relatedItemSummaries($item['xdataItems'] ?? $item['xdata-items'] ?? [], $id, 'xdataItems');
+        $missingXdataKeys = self::stringListFromFirstField($item, ['missingXdataKeys', 'missing-xdata-keys']);
         $entrySetKeys = self::stringListFromFirstField($item, ['entrySet', 'entry-set', 'entryset']);
         $entrySetItems = self::relatedItemSummaries($item['entrySetItems'] ?? $item['entry-set-items'] ?? [], $id, 'entrySetItems');
         $missingEntrySetKeys = self::stringListFromFirstField($item, ['missingEntrySetKeys', 'missing-entry-set-keys', 'missing-entryset-keys']);
@@ -1144,6 +1155,10 @@ final class CitationCslProcessor
             'keywordSummary' => implode('; ', $keywords),
             'sourceFiles' => $sourceFilePolicy['files'],
             'sourceFileDiagnostics' => $sourceFileDiagnostics,
+            'xdataKeys' => $xdataKeys,
+            'xdataItems' => $xdataItems,
+            'missingXdataKeys' => $missingXdataKeys,
+            'xdataSummary' => self::summarizedReferenceValues($xdataItems, $missingXdataKeys, $xdataKeys),
             'entrySetKeys' => $entrySetKeys,
             'entrySetItems' => $entrySetItems,
             'missingEntrySetKeys' => $missingEntrySetKeys,
@@ -6524,6 +6539,37 @@ final class CitationCslProcessor
         );
     }
 
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function xdataSummary(array $item): string
+    {
+        $values = $this->xdataSummaryValues($item);
+
+        return $values === '' ? '' : 'Xdata packets: ' . $values;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function xdataSummaryValues(array $item): string
+    {
+        $summary = trim((string) ($item['xdataSummary'] ?? ''));
+        if ($summary !== '') {
+            return $summary;
+        }
+
+        $xdataItems = $item['xdataItems'] ?? [];
+        $missing = $item['missingXdataKeys'] ?? [];
+        $keys = $item['xdataKeys'] ?? [];
+
+        return self::summarizedReferenceValues(
+            is_array($xdataItems) ? $xdataItems : [],
+            is_array($missing) ? array_values(array_map('strval', $missing)) : [],
+            is_array($keys) ? array_values(array_map('strval', $keys)) : []
+        );
+    }
+
     private static function defaultRelatedTypeLabel(string $type): string
     {
         return match (strtolower(str_replace('_', '-', trim($type)))) {
@@ -8384,6 +8430,10 @@ final class CitationCslProcessor
             'lista', 'listb', 'listc', 'listd', 'liste', 'listf' => $this->biblatexCustomListValue($item, $normalized),
             'biblatex-custom-names', 'biblatex-custom-name-summary', 'biblatex-custom-names-summary' => (string) ($item['biblatexCustomNameSummary'] ?? ''),
             'namea', 'nameb', 'namec' => $this->biblatexCustomNameValue($item, $normalized),
+            'xdata' => $this->xdataSummaryValues($item),
+            'xdata-summary' => (string) ($item['xdataSummary'] ?? ''),
+            'xdata-keys' => implode(', ', is_array($item['xdataKeys'] ?? null) ? $item['xdataKeys'] : []),
+            'missing-xdata-keys' => implode(', ', is_array($item['missingXdataKeys'] ?? null) ? $item['missingXdataKeys'] : []),
             'entry-set', 'entryset' => $this->entrySetSummaryValues($item),
             'entry-set-summary', 'entryset-summary' => (string) ($item['entrySetSummary'] ?? ''),
             'entry-set-keys', 'entryset-keys' => implode(', ', is_array($item['entrySetKeys'] ?? null) ? $item['entrySetKeys'] : []),

@@ -609,6 +609,112 @@ BIB;
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@xdata{a,xdata={b}} @xdata{b,xdata={a}} @online{site,title={Site},xdata={a}}'));
     },
+    'maps bounded biblatex xdata provenance into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@xdata{shared-review-packet,
+  title     = {Shared Review Packet},
+  publisher = {Migration Desk},
+  date      = {2026-06-05}
+}
+
+@xdata{attachment-review-packet,
+  title = {Attachment Review Packet},
+  file  = {Review PDF:attachments/source-audit.pdf:application/pdf}
+}
+
+@online{xdata-provenance-source,
+  author = {Ng, Nia},
+  title  = {Xdata Provenance Source},
+  url    = {https://example.test/xdata-provenance},
+  xdata  = {shared-review-packet, attachment-review-packet, missing-xdata-packet}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('xdata-provenance-source', $items[0]['id']);
+        $t->same(['shared-review-packet', 'attachment-review-packet', 'missing-xdata-packet'], $items[0]['xdataKeys'] ?? null);
+        $t->same('shared-review-packet', $items[0]['xdataItems'][0]['id'] ?? null);
+        $t->same('Shared Review Packet', $items[0]['xdataItems'][0]['title'] ?? null);
+        $t->same([[2026, 6, 5]], $items[0]['xdataItems'][0]['issued']['date-parts'] ?? null);
+        $t->same('Attachment Review Packet', $items[0]['xdataItems'][1]['title'] ?? null);
+        $t->same(['missing-xdata-packet'], $items[0]['missingXdataKeys'] ?? null);
+        $t->same('shared-review-packet, attachment-review-packet, missing-xdata-packet', $items[0]['rawBibtex']['fields']['xdata'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('xdata-provenance-source');
+        $t->same(['shared-review-packet', 'attachment-review-packet', 'missing-xdata-packet'], $item['xdataKeys'] ?? null);
+        $t->same('Shared Review Packet', $item['xdataItems'][0]['title'] ?? null);
+        $t->same('Attachment Review Packet', $item['xdataItems'][1]['title'] ?? null);
+        $t->same(['missing-xdata-packet'], $item['missingXdataKeys'] ?? null);
+        $t->same('Shared Review Packet (2026-06-05); Attachment Review Packet; missing: missing-xdata-packet', $item['xdataSummary'] ?? null);
+        $t->same(
+            'Ng, Nia. Xdata Provenance Source. Migration Desk, 2026. Xdata packets: Shared Review Packet (2026-06-05); Attachment Review Packet; missing: missing-xdata-packet. https://example.test/xdata-provenance.',
+            $processor->renderBibliographyEntry('xdata-provenance-source')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded BibLaTeX Xdata Provenance Review</title>
+    <id>https://example.test/styles/bounded-biblatex-xdata-provenance-review</id>
+    <updated>2026-06-09T03:36:04+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="xdata-keys"/>
+        <text variable="xdata-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="xdata"/>
+      <text variable="missing-xdata-keys"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('xdata-keys', $citationChildren[1]['variable'] ?? null);
+        $t->same('xdata-summary', $citationChildren[2]['variable'] ?? null);
+        $t->same('(Ng | shared-review-packet, attachment-review-packet, missing-xdata-packet | Shared Review Packet (2026-06-05); Attachment Review Packet; missing: missing-xdata-packet)', $styled->renderCitationCluster([$citation('xdata-provenance-source', '[@xdata-provenance-source]')]));
+        $t->same('Xdata Provenance Source :: Shared Review Packet (2026-06-05); Attachment Review Packet; missing: missing-xdata-packet :: missing-xdata-packet', $styled->renderBibliographyEntry('xdata-provenance-source'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-xdata',
+            'title' => 'Manual Xdata Packet',
+            'xdata-keys' => ['shared-review-packet', 'missing-review-packet'],
+            'xdataItems' => [
+                [
+                    'id' => 'shared-review-packet',
+                    'title' => 'Shared Review Packet',
+                    'issued' => ['date-parts' => [[2026, 6, 5]]],
+                ],
+            ],
+            'missing-xdata-keys' => ['missing-review-packet'],
+        ]]);
+        $directItem = $direct->item('manual-xdata');
+        $t->same(['shared-review-packet', 'missing-review-packet'], $directItem['xdataKeys'] ?? null);
+        $t->same('Shared Review Packet (2026-06-05); missing: missing-review-packet', $directItem['xdataSummary'] ?? null);
+        $t->same('Manual Xdata Packet. Xdata packets: Shared Review Packet (2026-06-05); missing: missing-review-packet.', $direct->renderBibliographyEntry('manual-xdata'));
+
+        $document = (new MarkdownReader())->read('Xdata provenance @xdata-provenance-source keeps inherited packet sources visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Xdata provenance Ng (2026) keeps inherited packet sources visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Xdata Provenance Source. Migration Desk, 2026. Xdata packets: Shared Review Packet (2026-06-05); Attachment Review Packet; missing: missing-xdata-packet. https://example.test/xdata-provenance.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-xdata',
+            'xdataItems' => ['shared-review-packet'],
+        ]]));
+    },
     'applies bounded biblatex source file attachment policy diagnostics' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @xdata{attachment-policy,

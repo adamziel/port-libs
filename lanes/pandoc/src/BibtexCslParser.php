@@ -1094,6 +1094,16 @@ final class BibtexCslParser
      */
     private static function withBiblatexRelationMetadata(array $item, array $fields, array $entriesByKey): array
     {
+        $xdata = self::biblatexKeyList($fields['xdata'] ?? '');
+        if ($xdata !== []) {
+            $item['xdataKeys'] = $xdata;
+            $item['xdataItems'] = self::referencedXdataEntrySummaries($xdata, $entriesByKey);
+            $missing = self::missingXdataReferenceKeys($xdata, $entriesByKey);
+            if ($missing !== []) {
+                $item['missingXdataKeys'] = $missing;
+            }
+        }
+
         $entrySet = self::biblatexKeyList($fields['entryset'] ?? '');
         if ($entrySet !== []) {
             $item['entrySet'] = $entrySet;
@@ -1172,6 +1182,30 @@ final class BibtexCslParser
     /**
      * @param list<string> $keys
      * @param array<string, array{type:string, key:string, fields:array<string, string>}> $entriesByKey
+     * @return list<array<string, mixed>>
+     */
+    private static function referencedXdataEntrySummaries(array $keys, array $entriesByKey): array
+    {
+        $summaries = [];
+        foreach ($keys as $key) {
+            $entry = $entriesByKey[$key] ?? null;
+            if ($entry === null || strtolower($entry['type']) !== 'xdata') {
+                continue;
+            }
+
+            $fields = self::resolveInheritedFields($entry, $entriesByKey);
+            $summary = self::entryToCslItem($entry['type'], $entry['key'], $fields);
+            unset($summary['rawBibtex']);
+            $summary['dataOnly'] = true;
+            $summaries[] = $summary;
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param array<string, array{type:string, key:string, fields:array<string, string>}> $entriesByKey
      * @return list<string>
      */
     private static function missingReferenceKeys(array $keys, array $entriesByKey): array
@@ -1179,6 +1213,19 @@ final class BibtexCslParser
         return array_values(array_filter(
             $keys,
             static fn (string $key): bool => !isset($entriesByKey[$key])
+        ));
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param array<string, array{type:string, key:string, fields:array<string, string>}> $entriesByKey
+     * @return list<string>
+     */
+    private static function missingXdataReferenceKeys(array $keys, array $entriesByKey): array
+    {
+        return array_values(array_filter(
+            $keys,
+            static fn (string $key): bool => !isset($entriesByKey[$key]) || strtolower($entriesByKey[$key]['type']) !== 'xdata'
         ));
     }
 
