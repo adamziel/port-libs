@@ -2480,6 +2480,143 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfPageLabels']);
     },
 
+    'fake runner summarizes bounded pdf page label number tree policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-label-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /PageLabels 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 5 /Kids [3 0 R 4 0 R 5 0 R 6 0 R 7 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Kids [9 0 R 10 0 R 11 0 R 99 0 R] /Limits [0 4] >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Limits [0 2] /Nums [0 << /S /r /P (front-) /St 3 >> 2 << /S /D /P (Chapter ) /St 1 >>] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Limits [2 4] /Nums [4 << /S /A /P (Appendix-) /St 27 >> 3 << /S /D /P (Late ) >>] >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Limits [6 7] /Nums [6 << /S /D /P (Overflow-) >>] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/page-label-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/page-label-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'source' => 'catalog.PageLabels',
+            'object' => '8 0 R',
+            'reviewStatus' => 'review',
+            'pageCount' => 5,
+            'entryCount' => 5,
+            'kidCount' => 4,
+            'limits' => [0, 4, 2, 6, 7],
+            'issues' => [
+                'kid-limits-outside-parent',
+                'kid-limits-overlap-or-unsorted',
+                'kid-reference-missing',
+                'nums-out-of-order',
+                'page-index-out-of-range',
+            ],
+            'nodes' => [
+                [
+                    'source' => 'catalog.PageLabels',
+                    'object' => '8 0 R',
+                    'kind' => 'root',
+                    'entryCount' => 0,
+                    'pageIndexes' => [],
+                    'kidCount' => 4,
+                    'limits' => [0, 4],
+                    'reviewStatus' => 'review',
+                    'issues' => [
+                        'kid-limits-outside-parent',
+                        'kid-limits-overlap-or-unsorted',
+                        'kid-reference-missing',
+                    ],
+                ],
+                [
+                    'source' => 'catalog.PageLabels.Kids.9 0 R',
+                    'object' => '9 0 R',
+                    'kind' => 'kid',
+                    'entryCount' => 2,
+                    'pageIndexes' => [0, 2],
+                    'kidCount' => 0,
+                    'limits' => [0, 2],
+                    'reviewStatus' => 'ok',
+                    'issues' => [],
+                ],
+                [
+                    'source' => 'catalog.PageLabels.Kids.10 0 R',
+                    'object' => '10 0 R',
+                    'kind' => 'kid',
+                    'entryCount' => 2,
+                    'pageIndexes' => [4, 3],
+                    'kidCount' => 0,
+                    'limits' => [2, 4],
+                    'reviewStatus' => 'review',
+                    'issues' => ['nums-out-of-order'],
+                ],
+                [
+                    'source' => 'catalog.PageLabels.Kids.11 0 R',
+                    'object' => '11 0 R',
+                    'kind' => 'kid',
+                    'entryCount' => 1,
+                    'pageIndexes' => [6],
+                    'kidCount' => 0,
+                    'limits' => [6, 7],
+                    'reviewStatus' => 'review',
+                    'issues' => ['page-index-out-of-range'],
+                ],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageLabelPolicy']);
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->contains('pdf-byte-page-label-policy:review', $diagnostics);
+        $t->contains('pdf-byte-page-label-policy-nodes:4', $diagnostics);
+        $t->contains('pdf-byte-page-label-policy-review-nodes:3', $diagnostics);
+        $t->contains('pdf-byte-page-label-policy-issues:5', $diagnostics);
+        $t->contains('pdf-byte-page-label-policy-issue:kid-reference-missing:1', $diagnostics);
+        $t->contains('pdf-byte-page-label-policy-issue:page-index-out-of-range:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageLabelPolicy']);
+    },
+
     'fake runner extracts bounded pdf document info and catalog language metadata' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/metadata.pdf']);

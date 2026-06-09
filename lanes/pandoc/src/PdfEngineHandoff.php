@@ -287,6 +287,7 @@ final class PdfEngineHandoff
      *     pdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
      *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
+     *     pdfPageLabelPolicy: array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{},
      *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     pdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
@@ -752,6 +753,7 @@ final class PdfEngineHandoff
         $pdfPageProductionMetadata = [];
         $pdfPageDisplayMetadata = [];
         $pdfPageLabels = [];
+        $pdfPageLabelPolicy = [];
         $pdfPageTimings = [];
         $pdfPageActions = [];
         $pdfPageViewports = [];
@@ -875,6 +877,7 @@ final class PdfEngineHandoff
                 $pdfPageProductionMetadata = $pdfInspection['pageProductionMetadata'];
                 $pdfPageDisplayMetadata = $pdfInspection['pageDisplayMetadata'];
                 $pdfPageLabels = $pdfInspection['pageLabels'];
+                $pdfPageLabelPolicy = $pdfInspection['pageLabelPolicy'];
                 $pdfPageTimings = $pdfInspection['pageTimings'];
                 $pdfPageActions = $pdfInspection['pageActions'];
                 $pdfPageViewports = $pdfInspection['pageViewports'];
@@ -1081,6 +1084,40 @@ final class PdfEngineHandoff
                 }
                 if ($pdfPageLabels !== []) {
                     $diagnostics[] = 'pdf-byte-page-labels:' . count($pdfPageLabels);
+                }
+                if ($pdfPageLabelPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-page-label-policy:' . $pdfPageLabelPolicy['reviewStatus'];
+                    $nodes = isset($pdfPageLabelPolicy['nodes']) && is_array($pdfPageLabelPolicy['nodes'])
+                        ? $pdfPageLabelPolicy['nodes']
+                        : [];
+                    if ($nodes !== []) {
+                        $diagnostics[] = 'pdf-byte-page-label-policy-nodes:' . count($nodes);
+                    }
+                    $reviewNodes = 0;
+                    $issues = [];
+                    foreach ($nodes as $node) {
+                        if (($node['reviewStatus'] ?? null) === 'review') {
+                            $reviewNodes++;
+                        }
+                        if (!isset($node['issues']) || !is_array($node['issues'])) {
+                            continue;
+                        }
+                        foreach ($node['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issues[$issue] = ($issues[$issue] ?? 0) + 1;
+                            }
+                        }
+                    }
+                    if ($reviewNodes > 0) {
+                        $diagnostics[] = 'pdf-byte-page-label-policy-review-nodes:' . $reviewNodes;
+                    }
+                    if ($issues !== []) {
+                        ksort($issues);
+                        $diagnostics[] = 'pdf-byte-page-label-policy-issues:' . array_sum($issues);
+                        foreach ($issues as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-page-label-policy-issue:' . $issue . ':' . $count;
+                        }
+                    }
                 }
                 if ($pdfPageTimings !== []) {
                     $diagnostics[] = 'pdf-byte-page-timings:' . count($pdfPageTimings);
@@ -3282,6 +3319,7 @@ final class PdfEngineHandoff
             'pdfPageProductionMetadata' => $pdfPageProductionMetadata,
             'pdfPageDisplayMetadata' => $pdfPageDisplayMetadata,
             'pdfPageLabels' => $pdfPageLabels,
+            'pdfPageLabelPolicy' => $pdfPageLabelPolicy,
             'pdfPageTimings' => $pdfPageTimings,
             'pdfPageActions' => $pdfPageActions,
             'pdfPageViewports' => $pdfPageViewports,
@@ -3417,6 +3455,7 @@ final class PdfEngineHandoff
      *     finalPdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
      *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
+     *     finalPdfPageLabelPolicy: array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{},
      *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     finalPdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
@@ -3675,6 +3714,7 @@ final class PdfEngineHandoff
             'finalPdfPageProductionMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageProductionMetadata'] ?? null) ? $finalRun['pdfPageProductionMetadata'] : [],
             'finalPdfPageDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayMetadata'] ?? null) ? $finalRun['pdfPageDisplayMetadata'] : [],
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
+            'finalPdfPageLabelPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageLabelPolicy'] ?? null) ? $finalRun['pdfPageLabelPolicy'] : [],
             'finalPdfPageTimings' => is_array($finalRun) && is_array($finalRun['pdfPageTimings'] ?? null) ? $finalRun['pdfPageTimings'] : [],
             'finalPdfPageActions' => is_array($finalRun) && is_array($finalRun['pdfPageActions'] ?? null) ? $finalRun['pdfPageActions'] : [],
             'finalPdfPageViewports' => is_array($finalRun) && is_array($finalRun['pdfPageViewports'] ?? null) ? $finalRun['pdfPageViewports'] : [],
@@ -4829,6 +4869,7 @@ final class PdfEngineHandoff
      *     pageRotations:array<int, int>,
      *     pageDisplayMetadata:list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pageLabels:list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
+     *     pageLabelPolicy:array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{},
      *     pageTimings:list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     pageViewports:list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pageContentStreams:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
@@ -4995,6 +5036,7 @@ final class PdfEngineHandoff
             'pageProductionMetadata' => $pageProductionMetadata,
             'pageDisplayMetadata' => $pageDisplayMetadata,
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
+            'pageLabelPolicy' => $this->extractPdfPageLabelPolicy($pdfBytes, $catalog),
             'pageTimings' => $pageTimings,
             'pageActions' => $pageActions,
             'pageViewports' => $pageViewports,
@@ -14647,6 +14689,27 @@ final class PdfEngineHandoff
         return $unique;
     }
 
+    /**
+     * @param list<int> $values
+     * @return list<int>
+     */
+    private function uniqueIntegers(array $values): array
+    {
+        $unique = [];
+        $seen = [];
+        foreach ($values as $value) {
+            $key = (string) $value;
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $unique[] = $value;
+        }
+
+        return $unique;
+    }
+
     private function countPdfTopLevelArrayValues(string $array): int
     {
         $cursor = str_starts_with($array, '[') ? 1 : 0;
@@ -18667,6 +18730,251 @@ final class PdfEngineHandoff
         usort($labels, static fn (array $a, array $b): int => [$a['pageIndex'], $a['source']] <=> [$b['pageIndex'], $b['source']]);
 
         return $labels;
+    }
+
+    /**
+     * @return array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{}
+     */
+    private function extractPdfPageLabelPolicy(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/PageLabels')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $pageLabels = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($catalog, 'PageLabels'), $objects);
+        if ($pageLabels['dictionary'] === null) {
+            return [];
+        }
+
+        $nodes = [];
+        $visited = [];
+        $rootObject = null;
+        if (is_string($pageLabels['object']) && $pageLabels['object'] !== 'inline') {
+            $visited[$this->pdfReferenceKey($pageLabels['object'])] = true;
+            $rootObject = $pageLabels['object'];
+        }
+        $pageCount = $this->extractPdfPageCount($pdfBytes);
+
+        $this->collectPdfPageLabelPolicyNodes(
+            $nodes,
+            'catalog.PageLabels',
+            $rootObject,
+            'root',
+            $pageLabels['dictionary'],
+            $objects,
+            $visited,
+            $pageCount,
+            0
+        );
+
+        $entryCount = 0;
+        $kidCount = 0;
+        $limits = [];
+        $issues = [];
+        foreach ($nodes as $node) {
+            $entryCount += $node['entryCount'];
+            $kidCount += $node['kidCount'];
+            foreach ($node['limits'] as $limit) {
+                $limits[] = $limit;
+            }
+            foreach ($node['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        $issues = $this->uniqueStrings($issues);
+        sort($issues);
+
+        return [
+            'source' => 'catalog.PageLabels',
+            'object' => $rootObject,
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'pageCount' => $pageCount,
+            'entryCount' => $entryCount,
+            'kidCount' => $kidCount,
+            'limits' => $this->uniqueIntegers($limits),
+            'issues' => $issues,
+            'nodes' => $nodes,
+        ];
+    }
+
+    /**
+     * @param list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}> $nodes
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfPageLabelPolicyNodes(
+        array &$nodes,
+        string $source,
+        ?string $object,
+        string $kind,
+        string $dictionary,
+        array $objects,
+        array &$visited,
+        ?int $pageCount,
+        int $depth
+    ): void {
+        if ($depth > 16) {
+            return;
+        }
+
+        $pageIndexes = $this->extractPdfPageLabelIndexKeys($dictionary);
+        $limits = $this->extractPdfPageLabelLimitValues($dictionary);
+        $limitValues = $limits ?? [];
+        $kids = $this->extractPdfReferenceArray($dictionary, 'Kids');
+        $issues = $this->pdfPageLabelNodeIssues($pageIndexes, $limits, $pageCount);
+        $parentLimitsValid = count($limitValues) === 2
+            && $limitValues[0] <= $limitValues[1];
+
+        $previousKidUpper = null;
+        foreach ($kids as $kidReference) {
+            $kidDictionary = $objects[$kidReference] ?? null;
+            if ($kidDictionary === null) {
+                $issues[] = 'kid-reference-missing';
+                continue;
+            }
+
+            $kidLimits = $this->extractPdfPageLabelLimitValues($kidDictionary);
+            if ($kidLimits === null || count($kidLimits) !== 2) {
+                $issues[] = 'kid-limits-missing';
+            } elseif ($kidLimits[0] > $kidLimits[1]) {
+                $issues[] = 'kid-limits-out-of-order';
+            } else {
+                if (
+                    $parentLimitsValid
+                    && ($kidLimits[0] < $limitValues[0] || $kidLimits[1] > $limitValues[1])
+                ) {
+                    $issues[] = 'kid-limits-outside-parent';
+                }
+                if ($previousKidUpper !== null && $previousKidUpper >= $kidLimits[0]) {
+                    $issues[] = 'kid-limits-overlap-or-unsorted';
+                }
+                $previousKidUpper = $kidLimits[1];
+            }
+        }
+
+        $issues = $this->uniqueStrings($issues);
+        sort($issues);
+
+        $nodes[] = [
+            'source' => $source,
+            'object' => $object,
+            'kind' => $kind,
+            'entryCount' => count($pageIndexes),
+            'pageIndexes' => array_slice($pageIndexes, 0, 128),
+            'kidCount' => count($kids),
+            'limits' => $limitValues,
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'issues' => $issues,
+        ];
+
+        foreach ($kids as $kidReference) {
+            if (isset($visited[$kidReference]) || !isset($objects[$kidReference])) {
+                continue;
+            }
+
+            $visited[$kidReference] = true;
+            $this->collectPdfPageLabelPolicyNodes(
+                $nodes,
+                $source . '.Kids.' . $this->formatPdfIndirectReference($kidReference),
+                $this->formatPdfIndirectReference($kidReference),
+                'kid',
+                $objects[$kidReference],
+                $objects,
+                $visited,
+                $pageCount,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function extractPdfPageLabelIndexKeys(string $dictionary): array
+    {
+        $array = $this->extractPdfArrayValue($dictionary, 'Nums');
+        if ($array === null) {
+            return [];
+        }
+
+        $indexes = [];
+        $values = $this->pdfTopLevelArrayValues($array);
+        for ($index = 0; $index + 1 < count($values); $index += 2) {
+            $pageIndex = $values[$index];
+            if ($pageIndex['kind'] !== 'number') {
+                continue;
+            }
+            $indexes[] = (int) $pageIndex['value'];
+        }
+
+        return $indexes;
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private function extractPdfPageLabelLimitValues(string $dictionary): ?array
+    {
+        $array = $this->extractPdfArrayValue($dictionary, 'Limits');
+        if ($array === null) {
+            return null;
+        }
+
+        $limits = [];
+        foreach ($this->pdfTopLevelArrayValues($array) as $value) {
+            if ($value['kind'] === 'number') {
+                $limits[] = (int) $value['value'];
+            }
+        }
+
+        return $limits;
+    }
+
+    /**
+     * @param list<int>|null $limits
+     * @return list<string>
+     */
+    private function pdfPageLabelNodeIssues(array $pageIndexes, ?array $limits, ?int $pageCount): array
+    {
+        $issues = [];
+        if ($limits !== null) {
+            if (count($limits) !== 2) {
+                $issues[] = 'invalid-limits';
+            } elseif ($limits[0] > $limits[1]) {
+                $issues[] = 'limits-out-of-order';
+            }
+        }
+
+        $previous = null;
+        foreach ($pageIndexes as $pageIndex) {
+            if ($pageIndex < 0) {
+                $issues[] = 'negative-page-index';
+            }
+            if ($pageCount !== null && $pageIndex >= $pageCount) {
+                $issues[] = 'page-index-out-of-range';
+            }
+            if ($previous !== null && $previous >= $pageIndex) {
+                $issues[] = 'nums-out-of-order';
+            }
+            $previous = $pageIndex;
+        }
+
+        if ($limits !== null && count($limits) === 2 && $limits[0] <= $limits[1] && $pageIndexes !== []) {
+            $sortedIndexes = $pageIndexes;
+            sort($sortedIndexes, SORT_NUMERIC);
+            $firstIndex = $sortedIndexes[0];
+            $lastIndex = $sortedIndexes[count($sortedIndexes) - 1];
+            if ($firstIndex < $limits[0] || $lastIndex > $limits[1]) {
+                $issues[] = 'nums-outside-limits';
+            }
+        }
+
+        $issues = $this->uniqueStrings($issues);
+        sort($issues);
+
+        return $issues;
     }
 
     /**
