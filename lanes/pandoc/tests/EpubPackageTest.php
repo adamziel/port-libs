@@ -1515,6 +1515,7 @@ XML;
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
   <body>
     <nav epub:type="toc">
+      <h1>Navigation target diagnostics</h1>
       <ol>
         <li><a href="chapter.xhtml">Start</a></li>
         <li><a href="missing.xhtml">Missing appendix</a></li>
@@ -1649,6 +1650,71 @@ XML;
         $t->same(['hidden-toc', 'visible-toc'], $documentDiagnostics['diagnostics'][6]['sectionIds']);
 
         $t->same($validation, $summary['wordpressImport']['packageValidation']);
+        $t->same($documentDiagnostics, $summary['wordpressImport']['navDocumentDiagnostics']);
+    },
+
+    'reports compact EPUB nav heading diagnostics for validation handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithNavHeadingDiagnostics = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:nav-heading-diagnostics</dc:identifier>
+    <dc:title>Navigation heading diagnostics</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-09T20:40:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter1"/>
+  </spine>
+</package>
+XML;
+        $navWithMissingHeading = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="main-toc" epub:type="toc">
+      <ol>
+        <li><a href="chapter1.xhtml">Imported packet</a></li>
+      </ol>
+    </nav>
+    <nav id="print-pages" epub:type="page-list">
+      <h2>Print page list</h2>
+      <ol>
+        <li><a href="chapter1.xhtml#page-1">1</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithNavHeadingDiagnostics],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navWithMissingHeading],
+            ['name' => 'EPUB/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter 1</h1><span id="page-1"></span></body></html>'],
+        ]));
+        $validation = $epub->validationReport();
+        $navigation = $validation['navigation'];
+        $documentDiagnostics = $navigation['documentDiagnostics'];
+        $summary = $epub->summary();
+
+        $t->same(false, $validation['valid']);
+        $t->same(['missing-primary-nav-section-heading'], array_column($validation['diagnostics'], 'type'));
+        $t->same(1, $navigation['diagnosticCount']);
+        $t->same(1, $navigation['documentDiagnosticCount']);
+        $t->same(2, $navigation['entryCount']);
+        $t->same(2, $navigation['localTargetCount']);
+        $t->same(0, $navigation['missingTargetCount']);
+        $t->same(true, $documentDiagnostics['present']);
+        $t->same('/EPUB/nav.xhtml', $documentDiagnostics['part']);
+        $t->same(2, $documentDiagnostics['primarySectionCount']);
+        $t->same(1, $documentDiagnostics['missingHeadingSectionCount']);
+        $t->same(0, $documentDiagnostics['missingOrderedListSectionCount']);
+        $t->same('main-toc', $documentDiagnostics['diagnostics'][0]['sectionId']);
+        $t->same(['toc'], $documentDiagnostics['diagnostics'][0]['sectionTypes']);
         $t->same($documentDiagnostics, $summary['wordpressImport']['navDocumentDiagnostics']);
     },
 

@@ -8997,6 +8997,7 @@ final class EpubReader
         $diagnostics = [];
         $emptySectionCount = 0;
         $hiddenPrimarySectionCount = 0;
+        $missingHeadingSectionCount = 0;
         $missingOrderedListSectionCount = 0;
         $untypedSectionCount = 0;
 
@@ -9060,6 +9061,18 @@ final class EpubReader
                     'sectionId' => $sectionId,
                     'sectionTypes' => $primarySectionTypes,
                     'message' => 'EPUB primary navigation section is hidden and may not be visible to readers',
+                ];
+            }
+
+            if ($primarySectionTypes !== [] && $sectionTitle === '') {
+                ++$missingHeadingSectionCount;
+                $diagnostics[] = [
+                    'type' => 'missing-primary-nav-section-heading',
+                    'part' => $part,
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $sectionId,
+                    'sectionTypes' => $primarySectionTypes,
+                    'message' => 'EPUB primary navigation section has no heading label for review handoff',
                 ];
             }
 
@@ -9128,6 +9141,7 @@ final class EpubReader
             'duplicatePrimaryTypeCount' => $duplicatePrimaryTypeCount,
             'emptySectionCount' => $emptySectionCount,
             'hiddenPrimarySectionCount' => $hiddenPrimarySectionCount,
+            'missingHeadingSectionCount' => $missingHeadingSectionCount,
             'missingOrderedListSectionCount' => $missingOrderedListSectionCount,
             'untypedSectionCount' => $untypedSectionCount,
             'diagnosticCount' => count($diagnostics),
