@@ -2386,11 +2386,16 @@ final class WordPressBlockWriter
         }
         foreach ($this->imageHtmlAttributes($node) as $name => $value) {
             $name = strtolower((string) $name);
-            if (in_array($name, ['src', 'alt', 'title'], true) || !$this->isAllowedImageHtmlAttr($name)) {
+            if (in_array($name, ['src', 'alt', 'title'], true) || !$this->isAllowedImageHtmlAttr($name) || !is_scalar($value)) {
                 continue;
             }
 
-            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+            $value = (string) $value;
+            if ($value === '') {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
         }
 
         return '<img' . $attrs . '/>';
@@ -2748,11 +2753,16 @@ final class WordPressBlockWriter
 
         foreach ($htmlAttributes as $name => $value) {
             $name = strtolower((string) $name);
-            if ($name === 'href' || ($name === 'title' && $title !== '') || !$this->isAllowedInlineHtmlAttr($name)) {
+            if ($name === 'href' || ($name === 'title' && $title !== '') || !$this->isAllowedInlineHtmlAttr($name) || !is_scalar($value)) {
                 continue;
             }
 
-            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+            $value = (string) $value;
+            if ($value === '') {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
         }
 
         return $attrs;
@@ -2763,11 +2773,16 @@ final class WordPressBlockWriter
         $attrs = '';
         foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
             $name = strtolower((string) $name);
-            if (!$this->isAllowedInlineHtmlAttr($name)) {
+            if (!$this->isAllowedInlineHtmlAttr($name) || !is_scalar($value)) {
                 continue;
             }
 
-            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+            $value = (string) $value;
+            if ($value === '') {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
         }
 
         return $attrs;
@@ -2823,7 +2838,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title'], true);
+            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title', 'xml:lang'], true);
     }
 
     private function renderHtmlWriterAttrs(AstNode $node, bool $includeIdentity): string

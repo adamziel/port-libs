@@ -17065,6 +17065,67 @@ XML;
         $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers should not survive figure attribute handoff');
         $t->true(!str_contains($blocks, 'style="display:none"'), 'Unsafe figure style attributes should not survive figure attribute handoff');
     },
+    'writes wordpress inline html writer xml lang attributes' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('span', [
+                    'id' => 'span-source',
+                    'classes' => ['review-span'],
+                    'attributes' => [
+                        'data-inline' => 'span',
+                        'xml:lang' => 'es',
+                        'onclick' => 'alert(1)',
+                        'style' => 'color:red',
+                    ],
+                ], [new AstNode('text', ['text' => 'span text'])]),
+                new AstNode('space'),
+                new AstNode('code', [
+                    'id' => 'code-source',
+                    'classes' => ['php'],
+                    'attributes' => [
+                        'data-inline' => 'code',
+                        'xml:lang' => 'en',
+                        'onfocus' => 'alert(1)',
+                    ],
+                    'text' => 'wp_title()',
+                ]),
+                new AstNode('space'),
+                new AstNode('link', [
+                    'url' => '/source',
+                    'title' => 'Link title',
+                    'id' => 'link-source',
+                    'classes' => ['review-link'],
+                    'attributes' => [
+                        'data-inline' => 'link',
+                        'xml:lang' => 'de',
+                        'style' => 'text-decoration:none',
+                    ],
+                ], [new AstNode('text', ['text' => 'source'])]),
+                new AstNode('space'),
+                new AstNode('image', [
+                    'url' => 'media/icon.png',
+                    'alt' => 'Icon',
+                    'title' => 'Icon title',
+                    'id' => 'image-source',
+                    'classes' => ['review-image'],
+                    'attributes' => [
+                        'data-inline' => 'image',
+                        'xml:lang' => 'fr',
+                        'onclick' => 'alert(1)',
+                    ],
+                ]),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<span id="span-source" class="review-span" data-inline="span" xml:lang="es">span text</span>', $blocks);
+        $t->contains('<code id="code-source" class="php" data-inline="code" xml:lang="en">wp_title()</code>', $blocks);
+        $t->contains('<a href="/source" title="Link title" id="link-source" class="review-link" data-inline="link" xml:lang="de">source</a>', $blocks);
+        $t->contains('<img src="media/icon.png" alt="Icon" title="Icon title" id="image-source" class="review-image" data-inline="image" xml:lang="fr"/>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe inline event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'onfocus'), 'Unsafe inline focus handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe inline style attributes should not survive HTML writer attribute handoff');
+    },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');
         $blocks = (new WordPressBlockWriter())->write($document);
