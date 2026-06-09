@@ -3554,13 +3554,63 @@ final class MathTexConverter
 
     private function parseTextModeCommand(string $source, int &$offset, string $command): string
     {
-        $text = '<mtext>' . $this->esc($this->normalizeTextModeContent($this->readRequiredGroupText($source, $offset))) . '</mtext>';
+        $text = '<mtext>' . $this->esc($this->readTextModeCommandContent($source, $offset, $command)) . '</mtext>';
         $variant = self::TEXT_MODE_COMMANDS[$command];
         if ($variant === null) {
             return $text;
         }
 
         return '<mstyle mathvariant="' . $this->esc($variant) . '">' . $text . '</mstyle>';
+    }
+
+    private function readTextModeCommandContent(string $source, int &$offset, string $command): string
+    {
+        $this->skipWhitespace($source, $offset);
+        if (($source[$offset] ?? '') === '{') {
+            return $this->normalizeTextModeContent($this->readRequiredGroupText($source, $offset));
+        }
+
+        return $this->readTextModeTokenContent($source, $offset, $command);
+    }
+
+    private function readTextModeTokenContent(string $source, int &$offset, string $command): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $start = $offset;
+        $char = $source[$offset] ?? '';
+        if ($char === '' || $char === "\n" || $char === "\t" || $char === "\r" || $char === '{' || $char === '}' || $char === '_' || $char === '^') {
+            throw new \InvalidArgumentException('Expected TeX ' . $command . ' text token at offset ' . $offset);
+        }
+
+        if ($char === '\\') {
+            $offset++;
+            $tokenCommandOffset = $offset;
+            $tokenCommand = $this->readCommandName($source, $offset);
+
+            return $this->normalizeTextModeTokenCommand($tokenCommand, $tokenCommandOffset);
+        }
+
+        $remaining = substr($source, $offset);
+        if (preg_match('/\A./us', $remaining, $m) === 1) {
+            $offset += strlen($m[0]);
+
+            return $m[0];
+        }
+
+        throw new \InvalidArgumentException('Expected TeX ' . $command . ' text token at offset ' . $start);
+    }
+
+    private function normalizeTextModeTokenCommand(string $command, int $offset): string
+    {
+        return match ($command) {
+            '&', '%', '$', '#', '_', '{', '}' => $command,
+            ' ' => ' ',
+            'LaTeX' => 'LaTeX',
+            'TeX' => 'TeX',
+            'dots', 'ldots' => '…',
+            'textbackslash' => '\\',
+            default => throw new \InvalidArgumentException('Unsupported TeX text token command \\' . $command . ' at offset ' . $offset),
+        };
     }
 
     private function normalizeTextModeContent(string $text): string

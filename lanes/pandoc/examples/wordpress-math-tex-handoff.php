@@ -43,6 +43,8 @@ Paired delimiter prefix-suffix audit $\wprelated{p_i}{m_i} + \wprelated[\Big]{q_
 
 Text alias audit $\mbox{review mode} + \textrm{media label} + \textbf{draft} + \textit{review} + \texttt{code_1} + \textsf{sans group}$ stays semantic.
 
+Unbraced text token audit $\textbf x_i + \textit\% + \mbox~ + \texttt\& + \textnormal\TeX + \textsf\ldots$ stays semantic.
+
 Dot and named symbol alias audit $\ldots + \cdots + \ddots + \aleph + \ell + \Re + \Im + \wp + a \cong b + c \simeq d + x \propto y + u \parallel v + r \perp s + \angle x + \nabla f + \top + \bot$ stays semantic.
 
 Operator relation alias audit $a \oplus b + c \ominus d + x \asymp y + p \vdash q + u \bowtie v$ stays semantic.
@@ -252,6 +254,7 @@ $summary = [
     'declaredPairedDelimiterXMathml' => $converter->texToMathMl('\\wpbetween{p_i}{m_i} + \\wpbetween[\\Big]{q_i}{r_i}', false, $converter->macroDefinitionsFromDocument($document)),
     'declaredPairedDelimiterXppMathml' => $converter->texToMathMl('\\wprelated{p_i}{m_i} + \\wprelated[\\Big]{q_i}{r_i}', false, $converter->macroDefinitionsFromDocument($document)),
     'textAliasMathml' => $converter->texToMathMl('\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}'),
+    'textTokenAliasMathml' => $converter->texToMathMl('\\textbf x_i + \\textit\\% + \\mbox~ + \\texttt\\& + \\textnormal\\TeX + \\textsf\\ldots'),
     'dotRelationSymbolAliasMathml' => $converter->texToMathMl('\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot'),
     'operatorRelationAliasMathml' => $converter->texToMathMl('a \\oplus b + c \\ominus d + x \\asymp y + p \\vdash q + u \\bowtie v'),
     'generatedSymbolAliasMathml' => $converter->texToMathMl('a \\dotplus b + c \\boxplus d + e \\boxminus f + A \\sqsubset B + C \\sqsupseteq D + x \\lesssim y + r \\gtrapprox s + p \\Bumpeq q + x \\rightsquigarrow y + m \\nleq n'),
@@ -403,6 +406,16 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['declaredPairedDelimiterXppMathml'], '<mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">]</mo><mspace width="0.1667em"></mspace><mi>ω</mi>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test left declared paired delimiter XPP prefix/suffix syntax unexpanded');
+    }
+
+    if (
+        str_contains($summary['textTokenAliasMathml'], '<mi>\\textbf</mi>')
+        || str_contains($summary['textTokenAliasMathml'], '<mi>\\mbox</mi>')
+        || !str_contains($summary['textTokenAliasMathml'], '<msub><mstyle mathvariant="bold"><mtext>x</mtext></mstyle><mi>i</mi></msub>')
+        || !str_contains($summary['textTokenAliasMathml'], '<mstyle mathvariant="italic"><mtext>%</mtext></mstyle><mo>+</mo><mtext>~</mtext><mo>+</mo><mstyle mathvariant="monospace"><mtext>&amp;</mtext></mstyle>')
+        || !str_contains($summary['textTokenAliasMathml'], '<mstyle mathvariant="normal"><mtext>TeX</mtext></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mtext>…</mtext></mstyle>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map unbraced text-mode token arguments');
     }
 
     if (str_contains($summary['allowBreakMathml'], '<mi>\\allowbreak</mi>')) {

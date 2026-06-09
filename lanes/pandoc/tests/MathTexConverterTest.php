@@ -307,6 +307,25 @@ return [
         $t->contains('<mtext>posts &amp; media % draft</mtext><mo>+</mo><mstyle mathvariant="normal"><mtext>plain</mtext></mstyle><mo>+</mo><mstyle mathvariant="italic"><mtext>note</mtext></mstyle>', $escapedTextMathml);
         $t->contains('<annotation encoding="application/x-tex">\\text{posts \\&amp; media \\% draft} + \\textnormal{plain} + \\emph{note}</annotation>', $escapedTextMathml);
     },
+    'converts bounded tex text mode token arguments to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $tokenTextMathml = $converter->texToMathMl('\\textbf x_i + \\textit\\% + \\mbox~ + \\texttt\\& + \\textnormal\\TeX + \\textsf\\ldots', true);
+        $escapedTokenMathml = $converter->texToMathMl('\\textrm\\textbackslash + \\textup\\LaTeX + \\emph z');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\textbf x_i + \\mbox\\#');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $tokenTextMathml);
+        $t->contains('<msub><mstyle mathvariant="bold"><mtext>x</mtext></mstyle><mi>i</mi></msub>', $tokenTextMathml);
+        $t->contains('<mstyle mathvariant="italic"><mtext>%</mtext></mstyle><mo>+</mo><mtext>~</mtext><mo>+</mo><mstyle mathvariant="monospace"><mtext>&amp;</mtext></mstyle>', $tokenTextMathml);
+        $t->contains('<mstyle mathvariant="normal"><mtext>TeX</mtext></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mtext>…</mtext></mstyle>', $tokenTextMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\textbf x_i + \\textit\\% + \\mbox~ + \\texttt\\&amp; + \\textnormal\\TeX + \\textsf\\ldots</annotation>', $tokenTextMathml);
+        $t->contains('<mstyle mathvariant="normal"><mtext>\\</mtext></mstyle><mo>+</mo><mstyle mathvariant="normal"><mtext>LaTeX</mtext></mstyle><mo>+</mo><mstyle mathvariant="italic"><mtext>z</mtext></mstyle>', $escapedTokenMathml);
+        $t->contains('alttext="x sub i plus #"', $accessibleMathml);
+        $t->contains('intent="row(subscript(x,i),plus,token)"', $accessibleMathml);
+        $t->true(!str_contains($tokenTextMathml . $escapedTokenMathml, '<mi>\\textbf</mi>'));
+        $t->true(!str_contains($tokenTextMathml . $escapedTokenMathml, '<mi>\\mbox</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textbf\\unknown'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textbf_1'));
+    },
     'adds bounded mathml accessibility text and intent annotations' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $accessible = $converter->texToAccessibleMathMl('\\frac{a_1}{\\sqrt{b^2}} + \\alpha', true);
