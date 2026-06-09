@@ -4488,8 +4488,8 @@ CSS;
                 continue;
             }
 
-            $closing = strpos($template, '$', $index + 1);
-            if ($closing === false) {
+            $closing = $this->findDollarDirectiveClosing($template, $index + 1);
+            if ($closing === null) {
                 $this->throwTemplateError('Unclosed doctemplate $...$ directive', $template, $index, $sourceName);
             }
 
@@ -4578,6 +4578,47 @@ CSS;
             }
 
             if (!$inQuote && $char === '}') {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function findDollarDirectiveClosing(string $template, int $start): ?int
+    {
+        $inQuote = false;
+        $escape = false;
+        $length = strlen($template);
+
+        for ($index = $start; $index < $length; $index++) {
+            $char = $template[$index];
+            if ($escape) {
+                $escape = false;
+                continue;
+            }
+
+            if ($inQuote && $char === '\\') {
+                $escape = true;
+                continue;
+            }
+
+            if ($char === '"') {
+                $inQuote = !$inQuote;
+                continue;
+            }
+
+            if (!$inQuote && $char === '[') {
+                $separatorClosing = strpos($template, ']', $index + 1);
+                if ($separatorClosing === false) {
+                    return null;
+                }
+
+                $index = $separatorClosing;
+                continue;
+            }
+
+            if (!$inQuote && $char === '$') {
                 return $index;
             }
         }

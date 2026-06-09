@@ -1565,6 +1565,15 @@ HTML);
         exit(1);
     }
 
+    $dollarSeparatedSources = (new DocTemplate())->render(
+        'Sources: $reviewSources/uppercase[ $ ]$ / Ticket: $reviewMeta.review-id/left 8 "$" " USD"$',
+        $context,
+    );
+    if ($dollarSeparatedSources !== 'Sources: MEDIA $ LINKS $ LAYOUT / Ticket: $PR-42    USD') {
+        fwrite(STDERR, "Missing expected doctemplate dollar separator and border output\n");
+        exit(1);
+    }
+
     try {
         (new DocTemplate())->render('Broken: $reviewSources[ / ]/uppercase$', $context);
         fwrite(STDERR, "Expected doctemplate variable separator order rejection\n");

@@ -954,6 +954,44 @@ if ($commentReferenceOffset === false) {
     throw new RuntimeException('Unable to locate legacy DOC comment reference fixture character');
 }
 $commentReferenceCp = $firstPieceCharacters + $characterLength(substr($secondPieceText, 0, $commentReferenceOffset));
+$firstInlinePictureOffset = strpos($secondPieceText, "\x01");
+$secondInlinePictureOffset = is_int($firstInlinePictureOffset)
+    ? strpos($secondPieceText, "\x01", $firstInlinePictureOffset + 1)
+    : false;
+if ($secondInlinePictureOffset === false) {
+    throw new RuntimeException('Unable to locate legacy DOC inline picture fixture character');
+}
+$inlinePictureCp = $firstPieceCharacters + $characterLength(substr($secondPieceText, 0, $secondInlinePictureOffset));
+$inlinePictureFc = $secondPieceStart + (($inlinePictureCp - $firstPieceCharacters) * 2);
+$pictureDataStreamOffset = 8;
+$pictureDataStream = 'padding!' . str_repeat('P', 12) . 'inline-picture-bytes-not-exposed';
+$pictureGrpprl = $u16(0x0855) . "\x01"
+    . $u16(0x6a03) . $u32($pictureDataStreamOffset)
+    . $u16(0x0806) . "\x01";
+$chpxPictureRecordOffset = 120;
+$wordDocument = substr_replace(
+    $wordDocument,
+    $u32($firstPieceStart)
+        . $u32($secondPieceStart)
+        . $u32($inlinePictureFc)
+        . $u32($inlinePictureFc + 2)
+        . $u32($mainTextByteEnd),
+    $chpxRevisionOffset,
+    20
+);
+$wordDocument = substr_replace(
+    $wordDocument,
+    chr(intdiv($chpxRevisionRecordOffset, 2)) . "\0" . chr(intdiv($chpxPictureRecordOffset, 2)) . "\0",
+    $chpxRevisionOffset + 20,
+    4
+);
+$wordDocument = substr_replace(
+    $wordDocument,
+    chr(strlen($pictureGrpprl)) . $pictureGrpprl,
+    $chpxRevisionOffset + $chpxPictureRecordOffset,
+    1 + strlen($pictureGrpprl)
+);
+$wordDocument = substr_replace($wordDocument, chr(4), $chpxRevisionOffset + 511, 1);
 $commentInitialsBytes = $utf16le('MR');
 $commentDescriptor = $u16(2)
     . $commentInitialsBytes
@@ -985,7 +1023,11 @@ $plcBtePapx = $u32($firstPieceStart)
     . $u32($papxFkpPage);
 $plcBteChpx = $u32($firstPieceStart)
     . $u32($secondPieceStart)
+    . $u32($inlinePictureFc)
+    . $u32($inlinePictureFc + 2)
     . $u32($mainTextByteEnd)
+    . $u32($chpxFkpPage)
+    . $u32($chpxFkpPage)
     . $u32($chpxFkpPage)
     . $u32($chpxFkpPage);
 $stsh = $styleSheet([
@@ -1211,6 +1253,7 @@ $unicodeReviewStreamBytes = 'unicode CFB review packet';
 $streams = [
     'WordDocument' => $wordDocument,
     '1Table' => $tableStream,
+    'Data' => $pictureDataStream,
     $unicodeReviewStreamPath => $unicodeReviewStreamBytes,
     "\x05SummaryInformation" => $typedPropertySet([
         2 => $typedLpstr('Legacy DOC import packet'),
@@ -2031,10 +2074,10 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['styles'][1]['basedOnIstd'] ?? null) !== 15 || ($summary['styles'][2]['type'] ?? '') !== 'character') {
         throw new RuntimeException('Legacy DOC handoff self-test missing stylesheet relationship/type metadata');
     }
-    if (($summary['metadata']['formattingRunCount'] ?? null) !== 3 || ($summary['metadata']['paragraphFormattingRunCount'] ?? null) !== 1) {
+    if (($summary['metadata']['formattingRunCount'] ?? null) !== 5 || ($summary['metadata']['paragraphFormattingRunCount'] ?? null) !== 1) {
         throw new RuntimeException('Legacy DOC handoff self-test missing formatting table run counts');
     }
-    if (($summary['metadata']['characterFormattingRunCount'] ?? null) !== 2 || ($summary['formattingRuns'][0]['table'] ?? '') !== 'PlcBtePapx') {
+    if (($summary['metadata']['characterFormattingRunCount'] ?? null) !== 4 || ($summary['formattingRuns'][0]['table'] ?? '') !== 'PlcBtePapx') {
         throw new RuntimeException('Legacy DOC handoff self-test missing character/paragraph formatting table split');
     }
     if (($summary['formattingRuns'][0]['startFc'] ?? null) !== $firstPieceStart || ($summary['formattingRuns'][0]['endFc'] ?? null) !== $mainTextByteEnd) {
@@ -2046,8 +2089,11 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['formattingRuns'][1]['table'] ?? '') !== 'PlcBteChpx' || ($summary['formattingRuns'][1]['endFc'] ?? null) !== $secondPieceStart) {
         throw new RuntimeException('Legacy DOC handoff self-test missing character formatting first-piece range');
     }
-    if (($summary['formattingRuns'][2]['startFc'] ?? null) !== $secondPieceStart || ($summary['formattingRuns'][2]['fkpRunCount'] ?? null) !== 3) {
+    if (($summary['formattingRuns'][2]['startFc'] ?? null) !== $secondPieceStart || ($summary['formattingRuns'][2]['endFc'] ?? null) !== $inlinePictureFc) {
         throw new RuntimeException('Legacy DOC handoff self-test missing character formatting second-piece range');
+    }
+    if (($summary['formattingRuns'][3]['startFc'] ?? null) !== $inlinePictureFc || ($summary['formattingRuns'][3]['endFc'] ?? null) !== $inlinePictureFc + 2 || ($summary['formattingRuns'][3]['fkpRunCount'] ?? null) !== 4) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing character formatting picture range');
     }
     if (($summary['formattingRuns'][0]['canApplyFormatting'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test should keep full SPRM formatting expansion disabled');
@@ -2089,7 +2135,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['listFormats'][0]['levels'][0]['canApplyNumbering'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test should keep legacy numbering application disabled');
     }
-    if (($summary['metadata']['cfbStreamCount'] ?? null) !== 15 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
+    if (($summary['metadata']['cfbStreamCount'] ?? null) !== 16 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing CFB directory counts');
     }
     $compoundFile = CompoundFileBinary::fromBytes($docBytes);
@@ -2341,10 +2387,17 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['pictureReferences'][0]['pictureIndex'] ?? null) !== 1
         || ($summary['pictureReferences'][0]['characterCode'] ?? null) !== 1
         || ($summary['pictureReferences'][0]['canExposeBytes'] ?? null) !== false
-        || ($summary['pictureReferences'][0]['source'] ?? '') !== 'fib-has-pictures'
+        || ($summary['pictureReferences'][0]['source'] ?? '') !== 'chpx-data-stream'
         || ($summary['pictureReferences'][0]['extractionPolicy'] ?? '') !== 'metadata-only-native-review'
+        || ($summary['pictureReferences'][0]['dataStreamOffset'] ?? null) !== $pictureDataStreamOffset
+        || ($summary['pictureReferences'][0]['availableDataBytes'] ?? null) !== strlen($pictureDataStream) - $pictureDataStreamOffset
+        || ($summary['pictureReferences'][0]['sourceSprms'] ?? []) !== ['sprmCFSpec', 'sprmCPicLocation', 'sprmCFData']
+        || ($summary['pictureReferences'][0]['dataStreamKind'] ?? '') !== 'binary-data'
     ) {
         throw new RuntimeException('Legacy DOC handoff self-test missing inline picture reference provenance');
+    }
+    if (($summary['metadata']['pictureDataFormattingRunCount'] ?? null) !== 1 || ($summary['formattingRuns'][3]['pictureData'][0]['dataStreamOffset'] ?? null) !== $pictureDataStreamOffset) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing CHPX picture Data-stream formatting metadata');
     }
     if (($summary['metadata']['pictureExtractionPolicy'] ?? '') !== 'metadata-only-native-review' || ($summary['metadata']['pictureReferences'] ?? []) !== ($summary['pictureReferences'] ?? [])) {
         throw new RuntimeException('Legacy DOC handoff self-test exposed an unsafe picture extraction policy');
@@ -2568,7 +2621,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonumlgl" data-legacy-doc-field="autonumlgl" data-legacy-doc-field-instruction="AUTONUMLGL" data-legacy-doc-numbering-field-type="auto-number-legal" data-legacy-doc-numbering-field-list-policy="metadata-only-native-review" data-legacy-doc-numbering-field-list-match-count="1" data-legacy-doc-numbering-field-list-ilfo="1" data-legacy-doc-numbering-field-list-lsid="1001" data-legacy-doc-numbering-field-list-first-paragraph-cp="0" data-legacy-doc-numbering-field-list-index="1" data-legacy-doc-numbering-field-list-template-code="2001" data-legacy-doc-numbering-field-list-simple="true" data-legacy-doc-numbering-field-list-level="0" data-legacy-doc-numbering-field-list-start-at="3" data-legacy-doc-numbering-field-list-number-format="decimal" data-legacy-doc-numbering-field-list-text-template="%1." data-legacy-doc-numbering-field-list-follow="space" data-legacy-doc-numbering-field-list-override-level="0" data-legacy-doc-numbering-field-list-override-start-at="7">2.1</span>',
         '<a href="https://example.test/audit#page" title="Nested page link">nested p. <span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">9</span></a>',
         '<span class="legacy-doc-object-ref" data-legacy-doc-object-ref="1" data-legacy-doc-object-reference-cp="' . (string) ($summary['embeddedObjectReferences'][0]['referenceCp'] ?? '') . '" data-legacy-doc-object-character-code="1" data-legacy-doc-object-can-expose-bytes="false" data-legacy-doc-object-storage="ObjectPool/_42" data-legacy-doc-object-id="_42" data-legacy-doc-object-label="legacy-data.xlsx" data-legacy-doc-object-native-data-bytes="' . strlen($embeddedNativeData) . '" data-legacy-doc-object-transmission-format="unicode-text" data-legacy-doc-object-has-native-data="true" data-legacy-doc-object-has-presentation-data="true">embedded object: legacy-data.xlsx</span>',
-        '<span class="legacy-doc-picture-ref" data-legacy-doc-picture-ref="1" data-legacy-doc-picture-reference-cp="' . (string) ($summary['pictureReferences'][0]['referenceCp'] ?? '') . '" data-legacy-doc-picture-character-code="1" data-legacy-doc-picture-can-expose-bytes="false" data-legacy-doc-picture-source="fib-has-pictures" data-legacy-doc-picture-policy="metadata-only-native-review">inline picture</span>',
+        '<span class="legacy-doc-picture-ref" data-legacy-doc-picture-ref="1" data-legacy-doc-picture-reference-cp="' . (string) ($summary['pictureReferences'][0]['referenceCp'] ?? '') . '" data-legacy-doc-picture-character-code="1" data-legacy-doc-picture-can-expose-bytes="false" data-legacy-doc-picture-source="chpx-data-stream" data-legacy-doc-picture-policy="metadata-only-native-review" data-legacy-doc-picture-data-stream-offset="' . (string) $pictureDataStreamOffset . '" data-legacy-doc-picture-data-stream-available-bytes="' . (string) (strlen($pictureDataStream) - $pictureDataStreamOffset) . '" data-legacy-doc-picture-source-sprms="sprmCFSpec sprmCPicLocation sprmCFData" data-legacy-doc-picture-data-stream-kind="binary-data">inline picture</span>',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);

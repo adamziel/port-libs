@@ -77,6 +77,9 @@ final class LegacyDocReader
     private const FIB_LCB_PLF_LFO = 0x02ee;
     private const SPRM_CFR_MARK_DEL = 0x0800;
     private const SPRM_CFR_MARK_INS = 0x0801;
+    private const SPRM_C_PIC_LOCATION = 0x6a03;
+    private const SPRM_CF_DATA = 0x0806;
+    private const SPRM_CF_SPEC = 0x0855;
     private const SPRM_CIBST_RMARK = 0x4804;
     private const SPRM_CDTTM_RMARK = 0x6805;
     private const SPRM_CIBST_RMARK_DEL = 0x4863;
@@ -208,6 +211,9 @@ final class LegacyDocReader
             $tableStreamName = '1Table';
             $tableStream = $compoundFile->readStream('1Table');
         }
+        $dataStream = $compoundFile->hasStream('Data')
+            ? $compoundFile->readStream('Data')
+            : null;
 
         $textResult = $this->extractText($wordDocument, $tableStream, $fib);
         $subdocuments = is_array($textResult['subdocuments'] ?? null) ? $textResult['subdocuments'] : [];
@@ -353,6 +359,14 @@ final class LegacyDocReader
                 $metadata['revisionMarkedFormattingRunCount'] = $revisionMarkedFormattingRunCount;
                 $metadata['formattingRevisionPolicy'] = 'metadata-only-native-review';
             }
+            $pictureDataFormattingRunCount = count(array_filter(
+                $formattingRuns,
+                static fn (array $run): bool => isset($run['pictureData']) && is_array($run['pictureData']) && $run['pictureData'] !== []
+            ));
+            if ($pictureDataFormattingRunCount > 0) {
+                $metadata['pictureDataFormattingRunCount'] = $pictureDataFormattingRunCount;
+                $metadata['pictureDataExtractionPolicy'] = 'metadata-only-native-review';
+            }
             $metadata['formattingRuns'] = $formattingRuns;
         }
         $listTable = $this->listTableReport($wordDocument, $tableStream);
@@ -442,7 +456,10 @@ final class LegacyDocReader
         $pictureReferences = $this->pictureReferenceReport(
             $textResult['text'],
             ($fib['hasPictures'] ?? false) === true,
-            $embeddedObjectReferences
+            $embeddedObjectReferences,
+            $formattingRuns,
+            $dataStream,
+            $this->textFileCharacterRanges($textResult, $fib)
         );
         if ($pictureReferences !== []) {
             $metadata['pictureReferenceCount'] = count($pictureReferences);
@@ -963,7 +980,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{text:string,source:string,fullText?:string,subdocuments?:list<array<string,mixed>>}
+     * @return array{text:string,source:string,fullText?:string,subdocuments?:list<array<string,mixed>>,fileCharacterRanges?:list<array<string,int>>}
      */
     private function extractText(string $wordDocument, ?string $tableStream, ?array $fib = null): array
     {
@@ -999,18 +1016,34 @@ final class LegacyDocReader
             return [
                 'text' => $this->decodeUtf16Le($bytes),
                 'source' => 'fib-text-range',
+                'fileCharacterRanges' => [[
+                    'cpStart' => 0,
+                    'cpEnd' => intdiv(strlen($bytes), 2),
+                    'fcStart' => $fcMin,
+                    'fcEnd' => $fcMac,
+                    'bytesPerCharacter' => 2,
+                ]],
             ];
         }
 
+        $isUtf16Le = $this->looksLikeUtf16Le($bytes);
+
         return [
-            'text' => $this->looksLikeUtf16Le($bytes) ? $this->decodeUtf16Le($bytes) : $this->decodeWindows1252($bytes),
+            'text' => $isUtf16Le ? $this->decodeUtf16Le($bytes) : $this->decodeWindows1252($bytes),
             'source' => 'fib-text-range',
+            'fileCharacterRanges' => [[
+                'cpStart' => 0,
+                'cpEnd' => $isUtf16Le ? intdiv(strlen($bytes), 2) : strlen($bytes),
+                'fcStart' => $fcMin,
+                'fcEnd' => $fcMac,
+                'bytesPerCharacter' => $isUtf16Le ? 2 : 1,
+            ]],
         ];
     }
 
     /**
      * @param array<string,mixed> $fibRgLw97
-     * @return array{text:string,fullText:string,subdocuments:list<array<string,mixed>>}|null
+     * @return array{text:string,fullText:string,subdocuments:list<array<string,mixed>>,fileCharacterRanges:list<array<string,int>>}|null
      */
     private function extractPieceTableText(string $wordDocument, string $tableStream, array $fibRgLw97): ?array
     {
@@ -1036,7 +1069,7 @@ final class LegacyDocReader
 
     /**
      * @param array<string,mixed> $fibRgLw97
-     * @return array{text:string,fullText:string,subdocuments:list<array<string,mixed>>}
+     * @return array{text:string,fullText:string,subdocuments:list<array<string,mixed>>,fileCharacterRanges:list<array<string,int>>}
      */
     private function parseClx(string $clx, string $wordDocument, array $fibRgLw97): array
     {
@@ -1116,6 +1149,7 @@ final class LegacyDocReader
         $pcdOffset = ($pieceCount + 1) * 4;
         $text = '';
         $fullText = '';
+        $fileCharacterRanges = [];
         for ($index = 0; $index < $pieceCount; $index++) {
             $characters = $cpOffsets[$index + 1] - $cpOffsets[$index];
             if ($characters <= 0) {
@@ -1143,6 +1177,13 @@ final class LegacyDocReader
                 if ($start + $characters > strlen($wordDocument)) {
                     throw new \RuntimeException('Legacy DOC compressed text piece points outside WordDocument');
                 }
+                $fileCharacterRanges[] = [
+                    'cpStart' => $cpOffsets[$index],
+                    'cpEnd' => $cpOffsets[$index + 1],
+                    'fcStart' => $start,
+                    'fcEnd' => $start + $characters,
+                    'bytesPerCharacter' => 1,
+                ];
                 $pieceText = $this->decodeCompressedPiece(substr($wordDocument, $start, $characters));
                 $this->assertNoParagraphLastPieceIsValid($pcdFlags, $pieceText);
                 $fullText .= $pieceText;
@@ -1158,6 +1199,13 @@ final class LegacyDocReader
             if ($fc + $byteLength > strlen($wordDocument)) {
                 throw new \RuntimeException('Legacy DOC Unicode text piece points outside WordDocument');
             }
+            $fileCharacterRanges[] = [
+                'cpStart' => $cpOffsets[$index],
+                'cpEnd' => $cpOffsets[$index + 1],
+                'fcStart' => $fc,
+                'fcEnd' => $fc + $byteLength,
+                'bytesPerCharacter' => 2,
+            ];
             $pieceText = $this->decodeUtf16Le(substr($wordDocument, $fc, $byteLength));
             $this->assertNoParagraphLastPieceIsValid($pcdFlags, $pieceText);
             $fullText .= $pieceText;
@@ -1176,6 +1224,7 @@ final class LegacyDocReader
             'text' => $text,
             'fullText' => $fullText,
             'subdocuments' => $this->pieceTableSubdocumentTextReport($fullText, $fibRgLw97),
+            'fileCharacterRanges' => $fileCharacterRanges,
         ];
     }
 
@@ -3318,7 +3367,14 @@ final class LegacyDocReader
      * @param list<array<string,mixed>> $embeddedObjectReferences
      * @return list<array<string,mixed>>
      */
-    private function pictureReferenceReport(string $text, bool $hasPictures, array $embeddedObjectReferences): array
+    private function pictureReferenceReport(
+        string $text,
+        bool $hasPictures,
+        array $embeddedObjectReferences,
+        array $formattingRuns = [],
+        ?string $dataStream = null,
+        array $fileCharacterRanges = []
+    ): array
     {
         if (!$hasPictures || !str_contains($text, "\x01")) {
             return [];
@@ -3337,7 +3393,7 @@ final class LegacyDocReader
                 continue;
             }
 
-            $references[] = [
+            $record = [
                 'type' => 'inline-picture',
                 'referenceCp' => $cp,
                 'characterCode' => 0x01,
@@ -3347,9 +3403,134 @@ final class LegacyDocReader
                 'canAnchor' => true,
                 'canExposeBytes' => false,
             ];
+            $pictureData = $this->pictureDataForReferenceCp($formattingRuns, $fileCharacterRanges, $cp);
+            if ($pictureData !== null) {
+                if ($dataStream === null) {
+                    throw new \RuntimeException('Legacy DOC inline picture CHPX metadata references a missing Data stream');
+                }
+                $dataStreamOffset = (int) ($pictureData['dataStreamOffset'] ?? -1);
+                if ($dataStreamOffset < 0 || $dataStreamOffset > strlen($dataStream)) {
+                    throw new \RuntimeException('Legacy DOC inline picture CHPX metadata points outside the Data stream');
+                }
+
+                $record['source'] = 'chpx-data-stream';
+                $record['sourceSprms'] = is_array($pictureData['sourceSprms'] ?? null)
+                    ? array_values(array_map(static fn (mixed $value): string => (string) $value, $pictureData['sourceSprms']))
+                    : [];
+                $record['dataStreamOffset'] = $dataStreamOffset;
+                $record['availableDataBytes'] = strlen($dataStream) - $dataStreamOffset;
+                $record['hasSpecialCharacterFormatting'] = ($pictureData['hasSpecialCharacterFormatting'] ?? false) === true;
+                $record['isBinaryData'] = ($pictureData['isBinaryData'] ?? false) === true;
+                $record['dataStreamKind'] = (string) ($pictureData['dataStreamKind'] ?? 'picture');
+            }
+
+            $references[] = $record;
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<string,mixed> $textResult
+     * @param array<string,mixed> $fib
+     * @return list<array<string,int>>
+     */
+    private function textFileCharacterRanges(array $textResult, array $fib): array
+    {
+        if (is_array($textResult['fileCharacterRanges'] ?? null)) {
+            $ranges = [];
+            foreach ($textResult['fileCharacterRanges'] as $range) {
+                if (!is_array($range)) {
+                    continue;
+                }
+                $ranges[] = [
+                    'cpStart' => (int) ($range['cpStart'] ?? 0),
+                    'cpEnd' => (int) ($range['cpEnd'] ?? 0),
+                    'fcStart' => (int) ($range['fcStart'] ?? 0),
+                    'fcEnd' => (int) ($range['fcEnd'] ?? 0),
+                    'bytesPerCharacter' => max(1, (int) ($range['bytesPerCharacter'] ?? 1)),
+                ];
+            }
+
+            return $ranges;
+        }
+
+        $text = (string) ($textResult['text'] ?? '');
+        $characterCount = count($this->unicodeCharacters($text));
+        if ($characterCount === 0) {
+            return [];
+        }
+
+        $fcMin = (int) ($fib['fcMin'] ?? 0);
+        $fcMac = (int) ($fib['fcMac'] ?? $fcMin);
+        $byteLength = max(0, $fcMac - $fcMin);
+        $bytesPerCharacter = $characterCount > 0 && $byteLength === $characterCount * 2 ? 2 : 1;
+
+        return [[
+            'cpStart' => 0,
+            'cpEnd' => $characterCount,
+            'fcStart' => $fcMin,
+            'fcEnd' => $fcMac,
+            'bytesPerCharacter' => $bytesPerCharacter,
+        ]];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $formattingRuns
+     * @param list<array<string,int>> $fileCharacterRanges
+     * @return array<string,mixed>|null
+     */
+    private function pictureDataForReferenceCp(array $formattingRuns, array $fileCharacterRanges, int $referenceCp): ?array
+    {
+        foreach ($formattingRuns as $run) {
+            if (($run['kind'] ?? null) !== 'character' || !is_array($run['pictureData'] ?? null) || $run['pictureData'] === []) {
+                continue;
+            }
+
+            $cpRange = $this->characterRangeForFileOffsets(
+                (int) ($run['startFc'] ?? -1),
+                (int) ($run['endFc'] ?? -1),
+                $fileCharacterRanges
+            );
+            if ($cpRange === null) {
+                continue;
+            }
+            if ($referenceCp < $cpRange['cpStart'] || $referenceCp >= $cpRange['cpEnd']) {
+                continue;
+            }
+
+            $pictureData = $run['pictureData'][0] ?? null;
+            return is_array($pictureData) ? $pictureData : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string,int>> $fileCharacterRanges
+     * @return array{cpStart:int,cpEnd:int}|null
+     */
+    private function characterRangeForFileOffsets(int $startFc, int $endFc, array $fileCharacterRanges): ?array
+    {
+        if ($startFc < 0 || $endFc <= $startFc) {
+            return null;
+        }
+
+        foreach ($fileCharacterRanges as $range) {
+            $fcStart = (int) ($range['fcStart'] ?? 0);
+            $fcEnd = (int) ($range['fcEnd'] ?? 0);
+            $bytesPerCharacter = max(1, (int) ($range['bytesPerCharacter'] ?? 1));
+            if ($startFc < $fcStart || $endFc > $fcEnd) {
+                continue;
+            }
+
+            return [
+                'cpStart' => (int) ($range['cpStart'] ?? 0) + intdiv($startFc - $fcStart, $bytesPerCharacter),
+                'cpEnd' => (int) ($range['cpStart'] ?? 0) + intdiv($endFc - $fcStart + $bytesPerCharacter - 1, $bytesPerCharacter),
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -3476,16 +3657,33 @@ final class LegacyDocReader
      */
     private function pictureReferenceSpanAttrs(array $reference): array
     {
+        $attributes = [
+            'data-legacy-doc-picture-ref' => (string) ((int) ($reference['pictureIndex'] ?? 0)),
+            'data-legacy-doc-picture-reference-cp' => (string) ((int) ($reference['referenceCp'] ?? 0)),
+            'data-legacy-doc-picture-character-code' => (string) ((int) ($reference['characterCode'] ?? 0)),
+            'data-legacy-doc-picture-can-expose-bytes' => 'false',
+            'data-legacy-doc-picture-source' => (string) ($reference['source'] ?? 'fib-has-pictures'),
+            'data-legacy-doc-picture-policy' => (string) ($reference['extractionPolicy'] ?? 'metadata-only-native-review'),
+        ];
+        if (isset($reference['dataStreamOffset'])) {
+            $attributes['data-legacy-doc-picture-data-stream-offset'] = (string) ((int) $reference['dataStreamOffset']);
+        }
+        if (isset($reference['availableDataBytes'])) {
+            $attributes['data-legacy-doc-picture-data-stream-available-bytes'] = (string) ((int) $reference['availableDataBytes']);
+        }
+        if (is_array($reference['sourceSprms'] ?? null) && $reference['sourceSprms'] !== []) {
+            $attributes['data-legacy-doc-picture-source-sprms'] = implode(' ', array_map(
+                static fn (mixed $value): string => (string) $value,
+                $reference['sourceSprms']
+            ));
+        }
+        if (isset($reference['dataStreamKind'])) {
+            $attributes['data-legacy-doc-picture-data-stream-kind'] = (string) $reference['dataStreamKind'];
+        }
+
         return [
             'classes' => ['legacy-doc-picture-ref'],
-            'attributes' => [
-                'data-legacy-doc-picture-ref' => (string) ((int) ($reference['pictureIndex'] ?? 0)),
-                'data-legacy-doc-picture-reference-cp' => (string) ((int) ($reference['referenceCp'] ?? 0)),
-                'data-legacy-doc-picture-character-code' => (string) ((int) ($reference['characterCode'] ?? 0)),
-                'data-legacy-doc-picture-can-expose-bytes' => 'false',
-                'data-legacy-doc-picture-source' => (string) ($reference['source'] ?? 'fib-has-pictures'),
-                'data-legacy-doc-picture-policy' => (string) ($reference['extractionPolicy'] ?? 'metadata-only-native-review'),
-            ],
+            'attributes' => $attributes,
         ];
     }
 
@@ -8146,17 +8344,25 @@ final class LegacyDocReader
                 $run['unusedPnFkpBits'] = $unusedBits;
             }
             if ($kind === 'character') {
-                $revisionMarks = $this->chpxRevisionMarksForRun(
+                $grpprl = $this->chpxGrpprlForRun(
                     $wordDocument,
                     $fkpByteOffset,
                     $fcs[$index],
-                    $fcs[$index + 1],
-                    $revisionAuthors
+                    $fcs[$index + 1]
                 );
-                if ($revisionMarks !== []) {
-                    $run['revisionMarks'] = $revisionMarks;
-                    $run['revisionMarkCount'] = count($revisionMarks);
-                    $run['revisionExtractionPolicy'] = 'metadata-only-native-review';
+                if ($grpprl !== null) {
+                    $revisionMarks = $this->parseChpxRevisionMarks($grpprl, $revisionAuthors);
+                    if ($revisionMarks !== []) {
+                        $run['revisionMarks'] = $revisionMarks;
+                        $run['revisionMarkCount'] = count($revisionMarks);
+                        $run['revisionExtractionPolicy'] = 'metadata-only-native-review';
+                    }
+                    $pictureData = $this->parseChpxPictureData($grpprl);
+                    if ($pictureData !== []) {
+                        $run['pictureData'] = $pictureData;
+                        $run['pictureDataCount'] = count($pictureData);
+                        $run['pictureDataExtractionPolicy'] = 'metadata-only-native-review';
+                    }
                 }
             }
 
@@ -8167,28 +8373,26 @@ final class LegacyDocReader
     }
 
     /**
-     * @param list<array<string,mixed>> $revisionAuthors
-     * @return list<array<string,mixed>>
+     * @return string|null
      */
-    private function chpxRevisionMarksForRun(
+    private function chpxGrpprlForRun(
         string $wordDocument,
         int $fkpByteOffset,
         int $startFc,
-        int $endFc,
-        array $revisionAuthors
-    ): array {
+        int $endFc
+    ): ?string {
         $page = substr($wordDocument, $fkpByteOffset, 512);
         $runCount = ord($page[511]);
         if ($runCount === 0) {
-            return [];
+            return null;
         }
         if ($runCount > 0x65) {
-            throw new \RuntimeException('Legacy DOC ChpxFkp revision metadata has too many runs');
+            throw new \RuntimeException('Legacy DOC ChpxFkp formatting metadata has too many runs');
         }
 
         $rgbOffset = ($runCount + 1) * 4;
         if ($rgbOffset + $runCount > 511) {
-            throw new \RuntimeException('Legacy DOC ChpxFkp revision metadata has an invalid rgb offset');
+            throw new \RuntimeException('Legacy DOC ChpxFkp formatting metadata has an invalid rgb offset');
         }
 
         for ($index = 0; $index < $runCount; $index++) {
@@ -8203,21 +8407,18 @@ final class LegacyDocReader
                 continue;
             }
             if ($chpxByteOffset < $rgbOffset + $runCount || $chpxByteOffset >= 511) {
-                throw new \RuntimeException('Legacy DOC ChpxFkp revision metadata points outside its CHPX area');
+                throw new \RuntimeException('Legacy DOC ChpxFkp formatting metadata points outside its CHPX area');
             }
 
             $grpprlLength = ord($page[$chpxByteOffset]);
             if ($chpxByteOffset + 1 + $grpprlLength > 511) {
-                throw new \RuntimeException('Legacy DOC ChpxFkp revision metadata CHPX points outside the FKP page');
+                throw new \RuntimeException('Legacy DOC ChpxFkp formatting metadata CHPX points outside the FKP page');
             }
 
-            return $this->parseChpxRevisionMarks(
-                substr($page, $chpxByteOffset + 1, $grpprlLength),
-                $revisionAuthors
-            );
+            return substr($page, $chpxByteOffset + 1, $grpprlLength);
         }
 
-        return [];
+        return null;
     }
 
     /**
@@ -8326,6 +8527,78 @@ final class LegacyDocReader
         }
 
         return $marks;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parseChpxPictureData(string $grpprl): array
+    {
+        $length = strlen($grpprl);
+        $cursor = 0;
+        $sourceSprms = [];
+        $hasSpecialCharacterFormatting = null;
+        $dataStreamOffset = null;
+        $isBinaryData = null;
+
+        while ($cursor < $length) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC CHPX picture metadata contains a truncated SPRM');
+            }
+
+            $sprm = self::u16($grpprl, $cursor);
+            $cursor += 2;
+            $operandByteCount = $this->sprmOperandByteCount($sprm, $grpprl, $cursor);
+            if ($cursor + $operandByteCount > $length) {
+                throw new \RuntimeException('Legacy DOC CHPX picture metadata contains a truncated SPRM operand');
+            }
+
+            $operandOffset = $cursor;
+            $cursor += $operandByteCount;
+
+            switch ($sprm) {
+                case self::SPRM_CF_SPEC:
+                    $hasSpecialCharacterFormatting = ord($grpprl[$operandOffset]) === 1;
+                    $sourceSprms[] = 'sprmCFSpec';
+                    break;
+                case self::SPRM_C_PIC_LOCATION:
+                    $dataStreamOffset = self::signed32(self::u32($grpprl, $operandOffset));
+                    $sourceSprms[] = 'sprmCPicLocation';
+                    break;
+                case self::SPRM_CF_DATA:
+                    $isBinaryData = ord($grpprl[$operandOffset]) === 1;
+                    $sourceSprms[] = 'sprmCFData';
+                    break;
+            }
+        }
+
+        if ($dataStreamOffset === null) {
+            if ($isBinaryData === true) {
+                throw new \RuntimeException('Legacy DOC CHPX picture metadata marks binary data without sprmCPicLocation');
+            }
+
+            return [];
+        }
+        if ($dataStreamOffset < 0) {
+            throw new \RuntimeException('Legacy DOC CHPX picture metadata contains a negative Data stream offset');
+        }
+
+        $sourceSprms = array_values(array_unique($sourceSprms));
+        $record = [
+            'source' => 'ChpxFkp',
+            'sourceSprms' => $sourceSprms,
+            'dataStreamOffset' => $dataStreamOffset,
+            'hasSpecialCharacterFormatting' => $hasSpecialCharacterFormatting === true,
+            'isBinaryData' => $isBinaryData === true,
+            'dataStreamKind' => $isBinaryData === true ? 'binary-data' : 'picture',
+            'canExposeBytes' => false,
+            'extractionPolicy' => 'metadata-only-native-review',
+        ];
+        if ($hasSpecialCharacterFormatting !== true) {
+            $record['missingSpecialCharacterFormatting'] = true;
+        }
+
+        return [$record];
     }
 
     private function sprmOperandByteCount(int $sprm, string $grpprl, int $operandOffset): int

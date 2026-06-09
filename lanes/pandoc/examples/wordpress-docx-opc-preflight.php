@@ -100,7 +100,7 @@ $signatureOriginRelationshipsXml = <<<'XML'
 XML;
 
 $signatureXml = <<<'XML'
-<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+<ds:Signature Id="idPackageSignature" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
   <ds:SignedInfo>
     <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
       <ds:Transforms>
@@ -2230,6 +2230,25 @@ $summary = [
         )),
         'digitalSignatureCertificateCount' => $digitalSignatureMetadata['certificateCount'],
         'digitalSignatureTime' => $digitalSignatureMetadata['objects'][0]['signatureTimeValue'] ?? null,
+        'digitalSignatureObjectPolicy' => [
+            'objectIds' => $digitalSignatureMetadata['objectIds'],
+            'duplicateObjectIds' => $digitalSignatureMetadata['duplicateObjectIds'],
+            'signaturePropertyTargets' => array_values(array_map(
+                static fn (array $target): array => [
+                    'target' => $target['target'],
+                    'targetKind' => $target['targetKind'],
+                    'targetFragment' => $target['targetFragment'],
+                    'targetMatched' => $target['targetMatched'],
+                    'targetMatchedElementNames' => $target['targetMatchedElementNames'],
+                    'valid' => $target['valid'],
+                    'issues' => $target['issues'],
+                ],
+                $digitalSignatureMetadata['objects'][0]['signaturePropertyTargets'] ?? []
+            )),
+            'manifestIds' => $digitalSignatureMetadata['objects'][0]['manifestIds'] ?? [],
+            'duplicateManifestIds' => $digitalSignatureMetadata['objects'][0]['duplicateManifestIds'] ?? [],
+            'missingManifestIdCount' => $digitalSignatureMetadata['objects'][0]['missingManifestIdCount'] ?? 0,
+        ],
         'digitalSignatureManifestReferences' => array_values(array_map(
             static fn (array $reference): array => [
                 'manifestId' => $reference['manifestId'],
@@ -2505,15 +2524,35 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatureRelationshipRoles']['roles'][1]['valid'] ?? null) !== true
         || ($summary['digitalSignatureMetadata']['signaturePart'] ?? null) !== '/_xmlsignatures/sig1.xml'
         || ($summary['digitalSignatureMetadata']['objectCount'] ?? null) !== 1
+        || ($summary['digitalSignatureMetadata']['objectIds'] ?? null) !== ['idPackageSignatureObject']
+        || ($summary['digitalSignatureMetadata']['duplicateObjectIds'] ?? null) !== []
         || ($summary['digitalSignatureMetadata']['certificateCount'] ?? null) !== 1
         || ($summary['digitalSignatureMetadata']['valid'] ?? null) !== true
         || ($summary['digitalSignatureMetadata']['issues'] ?? null) !== []
         || ($summary['digitalSignatureMetadata']['objects'][0]['id'] ?? null) !== 'idPackageSignatureObject'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['idDuplicate'] ?? null) !== false
+        || ($summary['digitalSignatureMetadata']['objects'][0]['idOccurrenceCount'] ?? null) !== 1
         || ($summary['digitalSignatureMetadata']['objects'][0]['signatureTimeValue'] ?? null) !== '2026-06-06T22:33:48Z'
         || ($summary['digitalSignatureMetadata']['objects'][0]['signatureTimeValid'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['objects'][0]['signaturePropertyCount'] ?? null) !== 1
+        || ($summary['digitalSignatureMetadata']['objects'][0]['signaturePropertyTargetCount'] ?? null) !== 1
+        || ($summary['digitalSignatureMetadata']['objects'][0]['signaturePropertyTargets'][0]['target'] ?? null) !== '#idPackageSignature'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['signaturePropertyTargets'][0]['targetMatched'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['objects'][0]['signaturePropertyTargets'][0]['targetMatchedElementNames'] ?? null) !== ['Signature']
+        || ($summary['digitalSignatureMetadata']['objects'][0]['signaturePropertyTargets'][0]['valid'] ?? null) !== true
         || ($summary['digitalSignatureMetadata']['objects'][0]['packageSignatureElements'] ?? null) !== ['SignatureTime', 'Format', 'Value']
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestCount'] ?? null) !== 1
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestIds'] ?? null) !== ['manifestPackageParts']
+        || ($summary['digitalSignatureMetadata']['objects'][0]['duplicateManifestIds'] ?? null) !== []
+        || ($summary['digitalSignatureMetadata']['objects'][0]['missingManifestIdCount'] ?? null) !== 0
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferenceCount'] ?? null) !== 3
+        || ($summary['wordpressImport']['digitalSignatureObjectPolicy']['objectIds'] ?? null) !== ['idPackageSignatureObject']
+        || ($summary['wordpressImport']['digitalSignatureObjectPolicy']['duplicateObjectIds'] ?? null) !== []
+        || ($summary['wordpressImport']['digitalSignatureObjectPolicy']['signaturePropertyTargets'][0]['targetFragment'] ?? null) !== 'idPackageSignature'
+        || ($summary['wordpressImport']['digitalSignatureObjectPolicy']['signaturePropertyTargets'][0]['targetMatchedElementNames'] ?? null) !== ['Signature']
+        || ($summary['wordpressImport']['digitalSignatureObjectPolicy']['manifestIds'] ?? null) !== ['manifestPackageParts']
+        || ($summary['wordpressImport']['digitalSignatureObjectPolicy']['duplicateManifestIds'] ?? null) !== []
+        || ($summary['wordpressImport']['digitalSignatureObjectPolicy']['missingManifestIdCount'] ?? null) !== 0
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['manifestId'] ?? null) !== 'manifestPackageParts'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['uri'] ?? null) !== '/word/document.xml'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['targetPart'] ?? null) !== '/word/document.xml'

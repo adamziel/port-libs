@@ -2129,7 +2129,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{signaturePart:string, contentType:?string, expectedContentType:string, objectCount:int, certificateCount:int, valid:bool, issues:list<string>, objects:list<array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, manifestCount:int, manifestReferenceCount:int, manifestReferences:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipTransformTargetMatched:bool, relationshipTransformTargetMatchCount:int, relationshipTransformTargetMatches:list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>, valid:bool, issues:list<string>}>, certificates:list<array{index:int, base64Length:int, decodedBytes:?int, sha256:?string, valid:bool, issues:list<string>}>}
+     * @return array{signaturePart:string, contentType:?string, expectedContentType:string, objectCount:int, objectIds:list<string>, duplicateObjectIds:list<string>, certificateCount:int, valid:bool, issues:list<string>, objects:list<array<string, mixed>>, certificates:list<array{index:int, base64Length:int, decodedBytes:?int, sha256:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightDigitalSignatureMetadata(string $signaturePartName): array
     {
@@ -2158,6 +2158,19 @@ final class OpcRelationshipGraph
         $relationshipTransformTargetIndex = $root instanceof \DOMElement
             ? self::signatureRelationshipTransformTargetIndex($this->preflightSignatureRelationshipTransforms($signaturePartName))
             : [];
+        $sameDocumentIdIndex = $root instanceof \DOMElement
+            ? self::xmlSignatureSameDocumentIdIndex($root)
+            : [];
+        $signatureObjectIdCounts = $root instanceof \DOMElement
+            ? self::directXmlSignatureObjectIdCounts($root)
+            : [];
+        $objectIds = array_keys($signatureObjectIdCounts);
+        sort($objectIds, SORT_STRING);
+        $duplicateObjectIds = array_keys(array_filter(
+            $signatureObjectIdCounts,
+            static fn (int $count): bool => $count > 1,
+        ));
+        sort($duplicateObjectIds, SORT_STRING);
         if ($root instanceof \DOMElement) {
             foreach ($root->childNodes as $child) {
                 if (
@@ -2171,6 +2184,8 @@ final class OpcRelationshipGraph
                         $this->package,
                         $this->contentTypes,
                         $relationshipTransformTargetIndex,
+                        $sameDocumentIdIndex,
+                        $signatureObjectIdCounts,
                     );
                     foreach ($objectMetadata['issues'] as $issue) {
                         self::appendUniqueString($issues, $issue);
@@ -2200,6 +2215,8 @@ final class OpcRelationshipGraph
             'contentType' => $contentType,
             'expectedContentType' => self::DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE,
             'objectCount' => count($objects),
+            'objectIds' => $objectIds,
+            'duplicateObjectIds' => $duplicateObjectIds,
             'certificateCount' => count($certificates),
             'valid' => $issues === [],
             'issues' => array_values(array_unique($issues)),
@@ -2960,8 +2977,10 @@ final class OpcRelationshipGraph
 
     /**
      * @param array<string, list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>> $relationshipTransformTargetIndex
+     * @param array<string, list<string>> $sameDocumentIdIndex
+     * @param array<string, int> $signatureObjectIdCounts
      *
-     * @return array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, manifestCount:int, manifestReferenceCount:int, manifestReferences:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipTransformTargetMatched:bool, relationshipTransformTargetMatchCount:int, relationshipTransformTargetMatches:list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>, valid:bool, issues:list<string>}
+     * @return array<string, mixed>
      */
     private static function digitalSignatureObjectMetadata(
         \DOMElement $object,
@@ -2969,12 +2988,19 @@ final class OpcRelationshipGraph
         ZipPackage $package,
         OpcContentTypes $contentTypes,
         array $relationshipTransformTargetIndex,
+        array $sameDocumentIdIndex,
+        array $signatureObjectIdCounts,
     ): array
     {
         $issues = [];
         $id = self::optionalElementAttribute($object, 'Id');
         if ($id === null) {
             $issues[] = 'missing-signature-object-id';
+        }
+        $idOccurrenceCount = $id === null ? 0 : ($signatureObjectIdCounts[$id] ?? 0);
+        $idDuplicate = $idOccurrenceCount > 1;
+        if ($idDuplicate) {
+            $issues[] = 'duplicate-signature-object-id';
         }
 
         $signatureTime = self::firstDescendantElementByNamespace($object, self::DIGITAL_SIGNATURE_NAMESPACE_URI, 'SignatureTime');
@@ -2995,6 +3021,13 @@ final class OpcRelationshipGraph
             }
         }
 
+        $signatureProperties = self::digitalSignatureObjectSignaturePropertyTargets($object, $sameDocumentIdIndex);
+        foreach ($signatureProperties['targets'] as $signaturePropertyTarget) {
+            foreach ($signaturePropertyTarget['issues'] as $issue) {
+                self::appendUniqueString($issues, $issue);
+            }
+        }
+
         $manifestPreflight = self::digitalSignatureObjectManifestReferences(
             $object,
             $signaturePartName,
@@ -3007,16 +3040,27 @@ final class OpcRelationshipGraph
                 self::appendUniqueString($issues, $issue);
             }
         }
+        foreach ($manifestPreflight['issues'] as $issue) {
+            self::appendUniqueString($issues, $issue);
+        }
 
         return [
             'id' => $id,
+            'idDuplicate' => $idDuplicate,
+            'idOccurrenceCount' => $idOccurrenceCount,
             'mimeType' => self::optionalElementAttribute($object, 'MimeType'),
             'encoding' => self::optionalElementAttribute($object, 'Encoding'),
             'signatureTimeFormat' => $signatureTimeFormat,
             'signatureTimeValue' => $signatureTimeValue,
             'signatureTimeValid' => $signatureTimeValid,
+            'signaturePropertyCount' => $signatureProperties['propertyCount'],
+            'signaturePropertyTargetCount' => $signatureProperties['targetCount'],
+            'signaturePropertyTargets' => $signatureProperties['targets'],
             'packageSignatureElements' => self::descendantElementLocalNamesByNamespace($object, self::DIGITAL_SIGNATURE_NAMESPACE_URI),
             'manifestCount' => $manifestPreflight['manifestCount'],
+            'manifestIds' => $manifestPreflight['manifestIds'],
+            'duplicateManifestIds' => $manifestPreflight['duplicateManifestIds'],
+            'missingManifestIdCount' => $manifestPreflight['missingManifestIdCount'],
             'manifestReferenceCount' => count($manifestPreflight['references']),
             'manifestReferences' => $manifestPreflight['references'],
             'valid' => $issues === [],
@@ -3027,7 +3071,7 @@ final class OpcRelationshipGraph
     /**
      * @param array<string, list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>> $relationshipTransformTargetIndex
      *
-     * @return array{manifestCount:int, references:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipTransformTargetMatched:bool, relationshipTransformTargetMatchCount:int, relationshipTransformTargetMatches:list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>}
+     * @return array{manifestCount:int, manifestIds:list<string>, duplicateManifestIds:list<string>, missingManifestIdCount:int, issues:list<string>, references:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipTransformTargetMatched:bool, relationshipTransformTargetMatchCount:int, relationshipTransformTargetMatches:list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     private static function digitalSignatureObjectManifestReferences(
         \DOMElement $object,
@@ -3038,8 +3082,17 @@ final class OpcRelationshipGraph
     ): array {
         $references = [];
         $manifests = self::descendantElementsByNamespace($object, self::XML_SIGNATURE_NAMESPACE_URI, 'Manifest');
+        $manifestIds = [];
+        $manifestIdCounts = [];
+        $missingManifestIdCount = 0;
         foreach ($manifests as $manifest) {
             $manifestId = self::optionalElementAttribute($manifest, 'Id');
+            if ($manifestId === null) {
+                $missingManifestIdCount++;
+            } else {
+                $manifestIds[] = $manifestId;
+                $manifestIdCounts[$manifestId] = ($manifestIdCounts[$manifestId] ?? 0) + 1;
+            }
             foreach ($manifest->childNodes as $child) {
                 if (
                     !$child instanceof \DOMElement
@@ -3060,11 +3113,145 @@ final class OpcRelationshipGraph
                 );
             }
         }
+        $duplicateManifestIds = array_keys(array_filter(
+            $manifestIdCounts,
+            static fn (int $count): bool => $count > 1,
+        ));
+        sort($duplicateManifestIds, SORT_STRING);
 
         return [
             'manifestCount' => count($manifests),
+            'manifestIds' => $manifestIds,
+            'duplicateManifestIds' => $duplicateManifestIds,
+            'missingManifestIdCount' => $missingManifestIdCount,
+            'issues' => $duplicateManifestIds === [] ? [] : ['duplicate-manifest-id'],
             'references' => $references,
         ];
+    }
+
+    /**
+     * @param array<string, list<string>> $sameDocumentIdIndex
+     * @return array{propertyCount:int, targetCount:int, targets:list<array{propertyIndex:int, target:?string, targetKind:?string, targetFragment:?string, targetMatched:bool, targetMatchedElementNames:list<string>, valid:bool, issues:list<string>}>}
+     */
+    private static function digitalSignatureObjectSignaturePropertyTargets(\DOMElement $object, array $sameDocumentIdIndex): array
+    {
+        $targets = [];
+        $propertyIndex = 0;
+        $targetCount = 0;
+        foreach (self::descendantElementsByNamespace($object, self::XML_SIGNATURE_NAMESPACE_URI, 'SignatureProperty') as $property) {
+            $target = self::optionalElementAttribute($property, 'Target');
+            $targetKind = null;
+            $targetFragment = null;
+            $targetMatched = false;
+            $targetMatchedElementNames = [];
+            $issues = [];
+
+            if ($target === null) {
+                $issues[] = 'missing-signature-property-target';
+            } else {
+                $targetCount++;
+                if (str_starts_with($target, '#')) {
+                    $targetKind = 'same-document-fragment';
+                    $targetFragment = substr($target, 1);
+                    if ($targetFragment === '') {
+                        $issues[] = 'invalid-signature-property-target';
+                    } else {
+                        $targetMatchedElementNames = $sameDocumentIdIndex[$targetFragment] ?? [];
+                        $targetMatched = $targetMatchedElementNames !== [];
+                        if (!$targetMatched) {
+                            $issues[] = 'unmatched-signature-property-target';
+                        } elseif (count($targetMatchedElementNames) > 1) {
+                            $issues[] = 'ambiguous-signature-property-target';
+                        }
+                    }
+                } elseif (
+                    preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $target) === 1
+                    || str_starts_with($target, '//')
+                ) {
+                    $targetKind = 'external-uri';
+                    $issues[] = 'signature-property-target-not-same-document';
+                } else {
+                    $targetKind = 'relative-reference';
+                    $issues[] = 'signature-property-target-not-same-document';
+                }
+            }
+
+            $targets[] = [
+                'propertyIndex' => $propertyIndex,
+                'target' => $target,
+                'targetKind' => $targetKind,
+                'targetFragment' => $targetFragment,
+                'targetMatched' => $targetMatched,
+                'targetMatchedElementNames' => $targetMatchedElementNames,
+                'valid' => $issues === [],
+                'issues' => $issues,
+            ];
+            $propertyIndex++;
+        }
+
+        return [
+            'propertyCount' => $propertyIndex,
+            'targetCount' => $targetCount,
+            'targets' => $targets,
+        ];
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private static function xmlSignatureSameDocumentIdIndex(\DOMElement $root): array
+    {
+        $index = [];
+        self::indexXmlSignatureSameDocumentIds($root, $index);
+        foreach ($index as &$elementNames) {
+            sort($elementNames, SORT_STRING);
+        }
+        unset($elementNames);
+        ksort($index, SORT_STRING);
+
+        return $index;
+    }
+
+    /**
+     * @param array<string, list<string>> $index
+     */
+    private static function indexXmlSignatureSameDocumentIds(\DOMElement $element, array &$index): void
+    {
+        $id = self::optionalElementAttribute($element, 'Id');
+        if ($id !== null) {
+            $index[$id][] = $element->localName;
+        }
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                self::indexXmlSignatureSameDocumentIds($child, $index);
+            }
+        }
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private static function directXmlSignatureObjectIdCounts(\DOMElement $root): array
+    {
+        $counts = [];
+        foreach ($root->childNodes as $child) {
+            if (
+                !$child instanceof \DOMElement
+                || $child->namespaceURI !== self::XML_SIGNATURE_NAMESPACE_URI
+                || $child->localName !== 'Object'
+            ) {
+                continue;
+            }
+
+            $id = self::optionalElementAttribute($child, 'Id');
+            if ($id !== null) {
+                $counts[$id] = ($counts[$id] ?? 0) + 1;
+            }
+        }
+        ksort($counts, SORT_STRING);
+
+        return $counts;
     }
 
     /**

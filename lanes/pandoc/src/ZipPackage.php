@@ -1161,6 +1161,63 @@ final class ZipPackage
         $entries = [];
         $issueEntries = [];
         foreach ($centralEntries as $centralEntry) {
+            $offsetIssue = self::localHeaderOffsetIssue(
+                $bytes,
+                $archive,
+                $centralEntry['localHeaderOffset'],
+                $centralEntry['centralDirectoryIndex']
+            );
+            if ($offsetIssue !== null) {
+                $entryIssues = [$offsetIssue['issue']];
+                if (($localHeaderOffsetCounts[$centralEntry['localHeaderOffset']] ?? 0) > 1) {
+                    $entryIssues[] = 'duplicate-local-header-offset';
+                }
+                $entryIssues = array_values(array_unique($entryIssues));
+                foreach ($entryIssues as $issue) {
+                    if (!in_array($issue, $issues, true)) {
+                        $issues[] = $issue;
+                    }
+                }
+
+                $summary = [
+                    'name' => $centralEntry['name'],
+                    'rawName' => $centralEntry['rawName'],
+                    'nameEncoding' => $centralEntry['nameEncoding'],
+                    'centralDirectoryIndex' => $centralEntry['centralDirectoryIndex'],
+                    'centralDirectoryOffset' => $centralEntry['centralDirectoryOffset'],
+                    'localHeaderOffset' => $centralEntry['localHeaderOffset'],
+                    'localHeaderOffsetLocation' => $offsetIssue['location'],
+                    'localHeaderOffsetError' => $offsetIssue['error'],
+                    'localHeaderAvailable' => false,
+                    'localHeaderLength' => null,
+                    'localNameLength' => null,
+                    'localExtraFieldLength' => null,
+                    'dataStart' => null,
+                    'compressedSize' => $centralEntry['compressedSize'],
+                    'compressedDataEnd' => null,
+                    'usesDataDescriptor' => ($centralEntry['generalPurposeFlags'] & 0x0008) !== 0,
+                    'descriptorOffset' => null,
+                    'descriptorLength' => null,
+                    'recordEnd' => null,
+                    'nextOffset' => self::nextEntryOrCentralDirectoryOffsetForScannedEntries(
+                        $centralEntries,
+                        $centralEntry['localHeaderOffset'],
+                        $archive['centralDirectoryOffset']
+                    ),
+                    'unclaimedBytes' => 0,
+                    'unclaimedBytesStartWithLocalHeader' => false,
+                    'isContiguousWithNext' => false,
+                    'compressionMethod' => $centralEntry['compressionMethod'],
+                    'generalPurposeFlags' => $centralEntry['generalPurposeFlags'],
+                    'hasSpanIssue' => true,
+                    'issues' => $entryIssues,
+                ];
+                $entries[] = $summary;
+                $issueEntries[] = $summary;
+
+                continue;
+            }
+
             $localHeader = self::readLocalHeaderNameMetadata(
                 $bytes,
                 $centralEntry['localHeaderOffset'],
@@ -1290,6 +1347,63 @@ final class ZipPackage
             'issueEntries' => $issueEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $archive
+     * @return array{issue:string, location:string, error:string}|null
+     */
+    private static function localHeaderOffsetIssue(
+        string $bytes,
+        array $archive,
+        int $localHeaderOffset,
+        int $centralDirectoryIndex
+    ): ?array {
+        $archiveLength = strlen($bytes);
+        if ($localHeaderOffset >= $archiveLength) {
+            return [
+                'issue' => 'local-header-offset-beyond-archive',
+                'location' => 'beyond-archive',
+                'error' => "ZIP central directory entry {$centralDirectoryIndex} points to local header offset {$localHeaderOffset} beyond archive length {$archiveLength}",
+            ];
+        }
+
+        if (
+            $localHeaderOffset >= $archive['centralDirectoryOffset']
+            && $localHeaderOffset < $archive['centralDirectoryEnd']
+        ) {
+            return [
+                'issue' => 'local-header-offset-inside-central-directory',
+                'location' => 'inside-central-directory',
+                'error' => "ZIP central directory entry {$centralDirectoryIndex} points to local header offset {$localHeaderOffset} inside the central directory",
+            ];
+        }
+
+        if ($localHeaderOffset >= $archive['centralDirectoryEnd']) {
+            return [
+                'issue' => 'local-header-offset-after-central-directory',
+                'location' => 'after-central-directory',
+                'error' => "ZIP central directory entry {$centralDirectoryIndex} points to local header offset {$localHeaderOffset} after the central directory",
+            ];
+        }
+
+        if ($localHeaderOffset + 30 > $archiveLength) {
+            return [
+                'issue' => 'local-header-offset-truncated',
+                'location' => 'truncated-local-header',
+                'error' => "ZIP central directory entry {$centralDirectoryIndex} points to a truncated local header at offset {$localHeaderOffset}",
+            ];
+        }
+
+        if (substr($bytes, $localHeaderOffset, 4) !== self::LOCAL_FILE_SIGNATURE) {
+            return [
+                'issue' => 'local-header-offset-not-local-header',
+                'location' => 'non-local-header',
+                'error' => "ZIP central directory entry {$centralDirectoryIndex} points to offset {$localHeaderOffset}, which is not a local file header",
+            ];
+        }
+
+        return null;
     }
 
     /**

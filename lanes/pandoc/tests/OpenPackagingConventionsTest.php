@@ -220,7 +220,7 @@ XML;
 XML;
 
         $signatureXml = <<<'XML'
-<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+<ds:Signature Id="idPackageSignature" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
   <ds:SignedInfo>
     <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=Application/Vnd.OpenXMLFormats-Package.Relationships+XML">
       <ds:Transforms>
@@ -326,7 +326,7 @@ XML;
 XML;
 
         $signatureXml = <<<'XML'
-<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+<ds:Signature Id="idPackageSignature" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
   <ds:SignedInfo>
     <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
       <ds:Transforms>
@@ -1975,7 +1975,7 @@ XML;
 XML;
 
         $signatureXml = <<<'XML'
-<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+<ds:Signature Id="idPackageSignature" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
   <ds:SignedInfo>
     <ds:Reference URI="/word/document.xml"/>
   </ds:SignedInfo>
@@ -2016,6 +2016,8 @@ XML;
 
         $t->same('/_xmlsignatures/sig-metadata.xml', $metadata['signaturePart']);
         $t->same(2, $metadata['objectCount']);
+        $t->same(['idPackageSignatureObject'], $metadata['objectIds']);
+        $t->same([], $metadata['duplicateObjectIds']);
         $t->same(2, $metadata['certificateCount']);
         $t->same(false, $metadata['valid']);
         $t->same([
@@ -2025,20 +2027,38 @@ XML;
         ], $metadata['issues']);
 
         $t->same('idPackageSignatureObject', $metadata['objects'][0]['id']);
+        $t->same(false, $metadata['objects'][0]['idDuplicate']);
+        $t->same(1, $metadata['objects'][0]['idOccurrenceCount']);
         $t->same('text/xml', $metadata['objects'][0]['mimeType']);
         $t->same(null, $metadata['objects'][0]['encoding']);
         $t->same('YYYY-MM-DDThh:mm:ssTZD', $metadata['objects'][0]['signatureTimeFormat']);
         $t->same('2026-06-06T22:33:48Z', $metadata['objects'][0]['signatureTimeValue']);
         $t->same(true, $metadata['objects'][0]['signatureTimeValid']);
+        $t->same(1, $metadata['objects'][0]['signaturePropertyCount']);
+        $t->same(1, $metadata['objects'][0]['signaturePropertyTargetCount']);
+        $t->same('#idPackageSignature', $metadata['objects'][0]['signaturePropertyTargets'][0]['target']);
+        $t->same('same-document-fragment', $metadata['objects'][0]['signaturePropertyTargets'][0]['targetKind']);
+        $t->same('idPackageSignature', $metadata['objects'][0]['signaturePropertyTargets'][0]['targetFragment']);
+        $t->same(true, $metadata['objects'][0]['signaturePropertyTargets'][0]['targetMatched']);
+        $t->same(['Signature'], $metadata['objects'][0]['signaturePropertyTargets'][0]['targetMatchedElementNames']);
+        $t->same(true, $metadata['objects'][0]['signaturePropertyTargets'][0]['valid']);
+        $t->same([], $metadata['objects'][0]['signaturePropertyTargets'][0]['issues']);
         $t->same(['SignatureTime', 'Format', 'Value'], $metadata['objects'][0]['packageSignatureElements']);
+        $t->same([], $metadata['objects'][0]['manifestIds']);
+        $t->same([], $metadata['objects'][0]['duplicateManifestIds']);
+        $t->same(0, $metadata['objects'][0]['missingManifestIdCount']);
         $t->same(true, $metadata['objects'][0]['valid']);
         $t->same([], $metadata['objects'][0]['issues']);
 
         $t->same(null, $metadata['objects'][1]['id']);
+        $t->same(false, $metadata['objects'][1]['idDuplicate']);
+        $t->same(0, $metadata['objects'][1]['idOccurrenceCount']);
         $t->same('text/xml', $metadata['objects'][1]['mimeType']);
         $t->same(null, $metadata['objects'][1]['signatureTimeFormat']);
         $t->same('2026-02-30T22:33:48Z', $metadata['objects'][1]['signatureTimeValue']);
         $t->same(false, $metadata['objects'][1]['signatureTimeValid']);
+        $t->same(0, $metadata['objects'][1]['signaturePropertyCount']);
+        $t->same(0, $metadata['objects'][1]['signaturePropertyTargetCount']);
         $t->same(false, $metadata['objects'][1]['valid']);
         $t->same(['missing-signature-object-id', 'invalid-signature-time-value'], $metadata['objects'][1]['issues']);
 
@@ -2057,6 +2077,126 @@ XML;
         $t->same(['invalid-x509-certificate-base64'], $metadata['certificates'][1]['issues']);
 
         $t->throws(\RuntimeException::class, static fn (): array => $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/missing.xml'));
+    },
+    'preflights OPC package signature object id and signature property policy metadata' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
+  <Override PartName="/_xmlsignatures/sig-object-policy.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+</Relationships>
+XML;
+
+        $signatureOriginRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSignaturePolicy" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig-object-policy.xml"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature Id="idPackageSignature" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo/>
+  <ds:Object Id="duplicateObject" MimeType="text/xml">
+    <ds:Manifest Id="manifestPrimary"/>
+    <ds:SignatureProperties>
+      <ds:SignatureProperty Target="#idPackageSignature">
+        <mdssi:SignatureTime>
+          <mdssi:Value>2026-06-08T23:46:43Z</mdssi:Value>
+        </mdssi:SignatureTime>
+      </ds:SignatureProperty>
+    </ds:SignatureProperties>
+  </ds:Object>
+  <ds:Object Id="duplicateObject" MimeType="text/xml">
+    <ds:Manifest Id="manifestDuplicate"/>
+    <ds:Manifest Id="manifestDuplicate"/>
+    <ds:SignatureProperties>
+      <ds:SignatureProperty Target="#missingSignatureTarget"/>
+      <ds:SignatureProperty/>
+      <ds:SignatureProperty Target="https://example.test/signature-property"/>
+    </ds:SignatureProperties>
+  </ds:Object>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+            ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
+            ['name' => '_xmlsignatures/sig-object-policy.xml', 'data' => $signatureXml],
+        ]));
+
+        $metadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig-object-policy.xml');
+        $validObject = $metadata['objects'][0];
+        $invalidObject = $metadata['objects'][1];
+
+        $t->same('/_xmlsignatures/sig-object-policy.xml', $metadata['signaturePart']);
+        $t->same(2, $metadata['objectCount']);
+        $t->same(['duplicateObject'], $metadata['objectIds']);
+        $t->same(['duplicateObject'], $metadata['duplicateObjectIds']);
+        $t->same(false, $metadata['valid']);
+        $t->same([
+            'duplicate-signature-object-id',
+            'unmatched-signature-property-target',
+            'missing-signature-property-target',
+            'signature-property-target-not-same-document',
+            'duplicate-manifest-id',
+        ], $metadata['issues']);
+
+        $t->same('duplicateObject', $validObject['id']);
+        $t->same(true, $validObject['idDuplicate']);
+        $t->same(2, $validObject['idOccurrenceCount']);
+        $t->same(1, $validObject['signaturePropertyCount']);
+        $t->same(1, $validObject['signaturePropertyTargetCount']);
+        $t->same('#idPackageSignature', $validObject['signaturePropertyTargets'][0]['target']);
+        $t->same('same-document-fragment', $validObject['signaturePropertyTargets'][0]['targetKind']);
+        $t->same('idPackageSignature', $validObject['signaturePropertyTargets'][0]['targetFragment']);
+        $t->same(true, $validObject['signaturePropertyTargets'][0]['targetMatched']);
+        $t->same(['Signature'], $validObject['signaturePropertyTargets'][0]['targetMatchedElementNames']);
+        $t->same(true, $validObject['signaturePropertyTargets'][0]['valid']);
+        $t->same([], $validObject['signaturePropertyTargets'][0]['issues']);
+        $t->same(['manifestPrimary'], $validObject['manifestIds']);
+        $t->same([], $validObject['duplicateManifestIds']);
+        $t->same(0, $validObject['missingManifestIdCount']);
+        $t->same(false, $validObject['valid']);
+        $t->same(['duplicate-signature-object-id'], $validObject['issues']);
+
+        $t->same('duplicateObject', $invalidObject['id']);
+        $t->same(true, $invalidObject['idDuplicate']);
+        $t->same(2, $invalidObject['idOccurrenceCount']);
+        $t->same(3, $invalidObject['signaturePropertyCount']);
+        $t->same(2, $invalidObject['signaturePropertyTargetCount']);
+        $t->same('#missingSignatureTarget', $invalidObject['signaturePropertyTargets'][0]['target']);
+        $t->same('same-document-fragment', $invalidObject['signaturePropertyTargets'][0]['targetKind']);
+        $t->same('missingSignatureTarget', $invalidObject['signaturePropertyTargets'][0]['targetFragment']);
+        $t->same(false, $invalidObject['signaturePropertyTargets'][0]['targetMatched']);
+        $t->same(false, $invalidObject['signaturePropertyTargets'][0]['valid']);
+        $t->same(['unmatched-signature-property-target'], $invalidObject['signaturePropertyTargets'][0]['issues']);
+        $t->same(null, $invalidObject['signaturePropertyTargets'][1]['target']);
+        $t->same(false, $invalidObject['signaturePropertyTargets'][1]['valid']);
+        $t->same(['missing-signature-property-target'], $invalidObject['signaturePropertyTargets'][1]['issues']);
+        $t->same('https://example.test/signature-property', $invalidObject['signaturePropertyTargets'][2]['target']);
+        $t->same('external-uri', $invalidObject['signaturePropertyTargets'][2]['targetKind']);
+        $t->same(false, $invalidObject['signaturePropertyTargets'][2]['targetMatched']);
+        $t->same(['signature-property-target-not-same-document'], $invalidObject['signaturePropertyTargets'][2]['issues']);
+        $t->same(['manifestDuplicate', 'manifestDuplicate'], $invalidObject['manifestIds']);
+        $t->same(['manifestDuplicate'], $invalidObject['duplicateManifestIds']);
+        $t->same(0, $invalidObject['missingManifestIdCount']);
+        $t->same(false, $invalidObject['valid']);
+        $t->same([
+            'duplicate-signature-object-id',
+            'unmatched-signature-property-target',
+            'missing-signature-property-target',
+            'signature-property-target-not-same-document',
+            'duplicate-manifest-id',
+        ], $invalidObject['issues']);
     },
     'preflights OPC package signature object manifest references' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
@@ -2085,7 +2225,7 @@ XML;
 XML;
 
         $signatureXml = <<<'XML'
-<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+<ds:Signature Id="idPackageSignature" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
   <ds:SignedInfo>
     <ds:Reference URI="/word/document.xml"/>
   </ds:SignedInfo>
@@ -2150,7 +2290,12 @@ XML;
             'manifest-reference-fragment-uri',
         ], $metadata['issues']);
         $t->same(1, $object['manifestCount']);
+        $t->same(['manifestPackageParts'], $object['manifestIds']);
+        $t->same([], $object['duplicateManifestIds']);
+        $t->same(0, $object['missingManifestIdCount']);
         $t->same(5, $object['manifestReferenceCount']);
+        $t->same(1, $object['signaturePropertyCount']);
+        $t->same(1, $object['signaturePropertyTargetCount']);
         $t->same(['SignatureTime', 'Value'], $object['packageSignatureElements']);
         $t->same(false, $object['valid']);
 

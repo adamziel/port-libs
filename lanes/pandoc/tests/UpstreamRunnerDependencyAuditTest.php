@@ -154,6 +154,10 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
         'tested-with: GHC == 9.6.7, GHC == 9.8.4, GHC == 9.10.3, GHC == 9.12.2',
         'data-files:',
         '  ' . implode(",\n  ", UpstreamRunnerDependencyAudit::expectedPackageDataFiles()['pandoc.cabal']),
+        'extra-doc-files:',
+        '  ' . implode(",\n  ", UpstreamRunnerDependencyAudit::expectedPackageExtraDocFiles()['pandoc.cabal']),
+        'extra-source-files:',
+        '  ' . implode(",\n  ", UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles()['pandoc.cabal']),
         '',
         'flag embed_data_files',
         '  description: Embed data files in the built executable',
@@ -191,6 +195,8 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
         'name: pandoc-lua-engine',
         'version: 0.5.2',
         'build-type: Simple',
+        'extra-source-files:',
+        '  ' . implode(",\n  ", UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles()['pandoc-lua-engine/pandoc-lua-engine.cabal']),
         '',
         'common test-options',
         '  build-depends: ' . implode(', ', $formatRunnerDependencies('test:test-pandoc-lua-engine', $commonDependencies)),
@@ -262,6 +268,8 @@ $cliCabal = static function (): string {
         'name: pandoc-cli',
         'version: 3.9.0.2',
         'build-type: Simple',
+        'extra-source-files:',
+        '  ' . implode(",\n  ", UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles()['pandoc-cli/pandoc-cli.cabal']),
         '',
         'flag lua',
         '  description: Support custom modifications and conversions with the pandoc Lua scripting engine.',
@@ -667,6 +675,20 @@ return [
         $t->same([], $audit['packageDataFileClosure']['presentDataFiles']['pandoc-cli/pandoc-cli.cabal']);
         $t->same([], $audit['packageDataFileClosure']['missingDataFiles']);
         $t->same([], $audit['packageDataFileClosure']['unexpectedDataFiles']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageExtraDocFiles(), $audit['packageExtraFileClosure']['expectedExtraDocFiles']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageExtraDocFiles()['pandoc.cabal'], $audit['packageExtraFileClosure']['presentExtraDocFiles']['pandoc.cabal']);
+        $t->same([], $audit['packageExtraFileClosure']['presentExtraDocFiles']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same([], $audit['packageExtraFileClosure']['presentExtraDocFiles']['pandoc-server/pandoc-server.cabal']);
+        $t->same([], $audit['packageExtraFileClosure']['presentExtraDocFiles']['pandoc-cli/pandoc-cli.cabal']);
+        $t->same([], $audit['packageExtraFileClosure']['missingExtraDocFiles']);
+        $t->same([], $audit['packageExtraFileClosure']['unexpectedExtraDocFiles']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles(), $audit['packageExtraFileClosure']['expectedExtraSourceFiles']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles()['pandoc.cabal'], $audit['packageExtraFileClosure']['presentExtraSourceFiles']['pandoc.cabal']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles()['pandoc-lua-engine/pandoc-lua-engine.cabal'], $audit['packageExtraFileClosure']['presentExtraSourceFiles']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same([], $audit['packageExtraFileClosure']['presentExtraSourceFiles']['pandoc-server/pandoc-server.cabal']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles()['pandoc-cli/pandoc-cli.cabal'], $audit['packageExtraFileClosure']['presentExtraSourceFiles']['pandoc-cli/pandoc-cli.cabal']);
+        $t->same([], $audit['packageExtraFileClosure']['missingExtraSourceFiles']);
+        $t->same([], $audit['packageExtraFileClosure']['unexpectedExtraSourceFiles']);
         $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $audit['runnerTargets']);
         $t->same('pandoc.cabal', $audit['runnerEntryPoints']['test:test-pandoc']['packageFile']);
         $t->same('exitcode-stdio-1.0', $audit['runnerEntryPoints']['test:test-pandoc']['type']);
@@ -830,6 +852,7 @@ return [
         $t->contains('non-mutating solver/build plan', $audit['activationGate']);
         $t->contains('record Cabal package identity/version headers', $audit['nonMutatingPlan'][0]);
         $t->contains('package flag definitions for cabal.project flags', $audit['nonMutatingPlan'][0]);
+        $t->contains('exact package-level extra-doc-files and extra-source-files closure', $audit['nonMutatingPlan'][0]);
         $t->contains('pandoc.cabal tested-with GHC matrix', $audit['nonMutatingPlan'][0]);
         $t->contains('cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
@@ -5582,8 +5605,8 @@ return [
             $files['pandoc.cabal']
         );
         $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
-            "build-type: Simple\n\ncommon test-options",
-            "build-type: Simple\ndata-files: data/lua/generated-runner.json\n\ncommon test-options",
+            "build-type: Simple\nextra-source-files:",
+            "build-type: Simple\ndata-files: data/lua/generated-runner.json\nextra-source-files:",
             $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
         );
 
@@ -5608,6 +5631,46 @@ return [
         $t->contains('unexpected Cabal package data-files: pandoc.cabal (data/generated-template-cache/*.json)', $blocked);
         $t->contains('pandoc-lua-engine/pandoc-lua-engine.cabal (data/lua/generated-runner.json)', $blocked);
         $t->contains('package-level data-files', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks package-level cabal extra file glob drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = preg_replace('/^\s*BUGS,?$/m', '  RUNNER_AUDIT.md', $files['pandoc.cabal'], 1) ?? $files['pandoc.cabal'];
+        $files['pandoc.cabal'] = preg_replace('/^\s*test\/bodybg\.gif,?$/m', '  test/generated-audit-fixture.md', $files['pandoc.cabal'], 1) ?? $files['pandoc.cabal'];
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = preg_replace('/^\s*test\/sample\.lua,?$/m', '  test/generated-runner.lua', $files['pandoc-lua-engine/pandoc-lua-engine.cabal'], 1) ?? $files['pandoc-lua-engine/pandoc-lua-engine.cabal'];
+        $files['pandoc-cli/pandoc-cli.cabal'] = preg_replace('/^\s*man\/pandoc-server\.1,?$/m', '  man/generated-runner.1', $files['pandoc-cli/pandoc-cli.cabal'], 1) ?? $files['pandoc-cli/pandoc-cli.cabal'];
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same(['BUGS'], $audit['packageExtraFileClosure']['missingExtraDocFiles']['pandoc.cabal']);
+        $t->same(['RUNNER_AUDIT.md'], $audit['packageExtraFileClosure']['unexpectedExtraDocFiles']['pandoc.cabal']);
+        $t->same(['test/bodybg.gif'], $audit['packageExtraFileClosure']['missingExtraSourceFiles']['pandoc.cabal']);
+        $t->same(['test/generated-audit-fixture.md'], $audit['packageExtraFileClosure']['unexpectedExtraSourceFiles']['pandoc.cabal']);
+        $t->same(['test/sample.lua'], $audit['packageExtraFileClosure']['missingExtraSourceFiles']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same(['test/generated-runner.lua'], $audit['packageExtraFileClosure']['unexpectedExtraSourceFiles']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same([], $audit['packageExtraFileClosure']['missingExtraSourceFiles']['pandoc-server/pandoc-server.cabal'] ?? []);
+        $t->same([], $audit['packageExtraFileClosure']['unexpectedExtraSourceFiles']['pandoc-server/pandoc-server.cabal'] ?? []);
+        $t->same(['man/pandoc-server.1'], $audit['packageExtraFileClosure']['missingExtraSourceFiles']['pandoc-cli/pandoc-cli.cabal']);
+        $t->same(['man/generated-runner.1'], $audit['packageExtraFileClosure']['unexpectedExtraSourceFiles']['pandoc-cli/pandoc-cli.cabal']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing Cabal package extra-doc-files: pandoc.cabal (BUGS)', $blocked);
+        $t->contains('unexpected Cabal package extra-doc-files: pandoc.cabal (RUNNER_AUDIT.md)', $blocked);
+        $t->contains('missing Cabal package extra-source-files: pandoc.cabal (test/bodybg.gif)', $blocked);
+        $t->contains('pandoc-lua-engine/pandoc-lua-engine.cabal (test/sample.lua)', $blocked);
+        $t->contains('pandoc-cli/pandoc-cli.cabal (man/pandoc-server.1)', $blocked);
+        $t->contains('unexpected Cabal package extra-source-files: pandoc.cabal (test/generated-audit-fixture.md)', $blocked);
+        $t->contains('pandoc-lua-engine/pandoc-lua-engine.cabal (test/generated-runner.lua)', $blocked);
+        $t->contains('pandoc-cli/pandoc-cli.cabal (man/generated-runner.1)', $blocked);
+        $t->contains('exact package-level extra-doc-files and extra-source-files closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
 ];

@@ -518,6 +518,19 @@ $rewriteEndOfCentralDirectory = static function (string $zip, array $fields): st
 
     return $zip;
 };
+$rewriteFirstCentralLocalHeaderOffset = static function (string $zip, int $localHeaderOffset): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('EOCD fixture not found');
+    }
+
+    $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4))['value'];
+    if (substr($zip, $centralDirectoryOffset, 4) !== "PK\x01\x02") {
+        throw new RuntimeException('Central directory fixture not found');
+    }
+
+    return substr_replace($zip, pack('V', $localHeaderOffset), $centralDirectoryOffset + 42, 4);
+};
 $corruptZipEntryPayload = static function (string $zip, string $entryName, int $byteOffset = 0): string {
     $cursor = 0;
     $length = strlen($zip);
@@ -797,6 +810,72 @@ return [
         $t->contains('local-header-span-issues', implode(',', $rawPreflight['diagnostics']));
         $t->contains('local-entry-unclaimed-bytes', implode(',', $rawPreflight['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $rawPreflight['diagnostics']));
+    },
+
+    'preflights central directory local header offsets before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $rewriteFirstCentralLocalHeaderOffset): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>central offset review</w:p></w:document>',
+                'method' => 0,
+            ],
+        ]);
+        $archive = ZipPackage::endOfCentralDirectoryPreflight($zip);
+        $insideCentralZip = $rewriteFirstCentralLocalHeaderOffset($zip, $archive['centralDirectoryOffset']);
+        $beyondArchiveZip = $rewriteFirstCentralLocalHeaderOffset($zip, strlen($zip) + 32);
+
+        $insideCentralSpanPreflight = ZipPackage::localHeaderSpanPreflight($insideCentralZip);
+        $insideCentralEntry = $insideCentralSpanPreflight['issueEntries'][0];
+        $insideCentralRawPreflight = ZipPackage::rawStrictImportPreflight($insideCentralZip, 512, 20.0, 512);
+        $insideCentralRejected = false;
+        try {
+            ZipPackage::fromString($insideCentralZip);
+        } catch (RuntimeException $exception) {
+            $insideCentralRejected = true;
+        }
+
+        $t->same(true, $insideCentralRejected);
+        $t->same(1, $insideCentralSpanPreflight['entryCount']);
+        $t->same(1, $insideCentralSpanPreflight['issueEntryCount']);
+        $t->same(false, $insideCentralSpanPreflight['isSupportedByBoundedReader']);
+        $t->same([
+            'local-header-prefix-bytes',
+            'local-header-offset-inside-central-directory',
+        ], $insideCentralSpanPreflight['issues']);
+        $t->same('word/document.xml', $insideCentralEntry['name']);
+        $t->same($archive['centralDirectoryOffset'], $insideCentralEntry['localHeaderOffset']);
+        $t->same('inside-central-directory', $insideCentralEntry['localHeaderOffsetLocation']);
+        $t->contains('inside the central directory', $insideCentralEntry['localHeaderOffsetError']);
+        $t->same(false, $insideCentralEntry['localHeaderAvailable']);
+        $t->same(null, $insideCentralEntry['localHeaderLength']);
+        $t->same(null, $insideCentralEntry['dataStart']);
+        $t->same(null, $insideCentralEntry['recordEnd']);
+        $t->same(true, $insideCentralEntry['hasSpanIssue']);
+        $t->same(['local-header-offset-inside-central-directory'], $insideCentralEntry['issues']);
+
+        $t->same(false, $insideCentralRawPreflight['isValid']);
+        $t->same(false, $insideCentralRawPreflight['canInstantiate']);
+        $t->same($insideCentralSpanPreflight, $insideCentralRawPreflight['localHeaderSpans']);
+        $t->contains('local-header-span-issues', implode(',', $insideCentralRawPreflight['diagnostics']));
+        $t->contains('local-header-offset-inside-central-directory', implode(',', $insideCentralRawPreflight['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $insideCentralRawPreflight['diagnostics']));
+
+        $beyondArchiveSpanPreflight = ZipPackage::localHeaderSpanPreflight($beyondArchiveZip);
+        $beyondArchiveEntry = $beyondArchiveSpanPreflight['issueEntries'][0];
+        $beyondArchiveRawPreflight = ZipPackage::rawStrictImportPreflight($beyondArchiveZip, 512, 20.0, 512);
+
+        $t->same(1, $beyondArchiveSpanPreflight['issueEntryCount']);
+        $t->same(false, $beyondArchiveSpanPreflight['isSupportedByBoundedReader']);
+        $t->contains('local-header-offset-beyond-archive', implode(',', $beyondArchiveSpanPreflight['issues']));
+        $t->same(strlen($zip) + 32, $beyondArchiveEntry['localHeaderOffset']);
+        $t->same('beyond-archive', $beyondArchiveEntry['localHeaderOffsetLocation']);
+        $t->contains('beyond archive length', $beyondArchiveEntry['localHeaderOffsetError']);
+        $t->same(false, $beyondArchiveEntry['localHeaderAvailable']);
+        $t->same(['local-header-offset-beyond-archive'], $beyondArchiveEntry['issues']);
+        $t->same(false, $beyondArchiveRawPreflight['isValid']);
+        $t->same(false, $beyondArchiveRawPreflight['canInstantiate']);
+        $t->same($beyondArchiveSpanPreflight, $beyondArchiveRawPreflight['localHeaderSpans']);
+        $t->contains('local-header-offset-beyond-archive', implode(',', $beyondArchiveRawPreflight['diagnostics']));
     },
 
     'preflights zip central directory order against local header order before package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {

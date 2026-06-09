@@ -2121,6 +2121,19 @@ $rewriteZipEndOfCentralDirectory = static function (string $zip, array $fields):
 
     return $zip;
 };
+$rewriteFirstCentralLocalHeaderOffset = static function (string $zip, int $localHeaderOffset): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('ZIP end-of-central-directory fixture was not found');
+    }
+
+    $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4))['value'];
+    if (substr($zip, $centralDirectoryOffset, 4) !== "PK\x01\x02") {
+        throw new RuntimeException('ZIP central directory fixture was not found');
+    }
+
+    return substr_replace($zip, pack('V', $localHeaderOffset), $centralDirectoryOffset + 42, 4);
+};
 $buildArchiveExtraDataRecordBackedPackage = static function (string $zip): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -3160,6 +3173,12 @@ $rawStrictZip64EocdMismatchPreflight = ZipPackage::rawStrictImportPreflight($zip
 $rawStrictZip64SmallRecordPreflight = ZipPackage::rawStrictImportPreflight($zip64SmallRecordBytes, 4096, 100.0, 4096);
 $rawStrictLocalHeaderNamePreflight = ZipPackage::rawStrictImportPreflight($buildLocalHeaderNameMismatchBackedPackage(), 4096, 100.0, 4096);
 $rawStrictLocalHeaderSpanPreflight = ZipPackage::rawStrictImportPreflight($buildUnclaimedLocalHeaderBackedPackage(), 4096, 100.0, 4096);
+$rawStrictLocalHeaderOffsetPreflight = ZipPackage::rawStrictImportPreflight(
+    $rewriteFirstCentralLocalHeaderOffset($package->bytes(), $package->centralDirectoryOffset()),
+    4096,
+    100.0,
+    4096
+);
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $descriptorDataDescriptorPreflight = $descriptorPackage->dataDescriptorPreflight();
@@ -5587,6 +5606,19 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected raw strict ZIP preflight to report unclaimed local header spans');
     }
 
+    if (
+        ($rawStrictLocalHeaderOffsetPreflight['isValid'] ?? null) !== false
+        || ($rawStrictLocalHeaderOffsetPreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issueEntryCount'] ?? null) !== 1
+        || ($rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issueEntries'][0]['localHeaderOffsetLocation'] ?? null) !== 'inside-central-directory'
+        || ($rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issueEntries'][0]['localHeaderAvailable'] ?? null) !== false
+        || !in_array('local-header-span-issues', $rawStrictLocalHeaderOffsetPreflight['diagnostics'] ?? [], true)
+        || !in_array('local-header-offset-inside-central-directory', $rawStrictLocalHeaderOffsetPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawStrictLocalHeaderOffsetPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP preflight to report central-directory local header offsets');
+    }
+
     if (!$localEntrySlackRejected) {
         throw new RuntimeException('Expected hidden ZIP local entry bytes to be rejected before media import');
     }
@@ -5788,6 +5820,9 @@ echo 'zipRawStrictLocalHeaderNameMismatchCount=' . ($rawStrictLocalHeaderNamePre
 echo 'zipRawStrictLocalHeaderSpanPolicy=' . ($rawStrictLocalHeaderSpanPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictLocalHeaderSpanIssues=' . implode(',', $rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issues'] ?? []) . "\n";
 echo 'zipRawStrictLocalHeaderSpanUnclaimedBytes=' . ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytes'] ?? 0) . "\n";
+echo 'zipRawStrictLocalHeaderOffsetPolicy=' . ($rawStrictLocalHeaderOffsetPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictLocalHeaderOffsetIssues=' . implode(',', $rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issues'] ?? []) . "\n";
+echo 'zipRawStrictLocalHeaderOffsetLocation=' . ($rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issueEntries'][0]['localHeaderOffsetLocation'] ?? 'none') . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPreflight['diagnostics']) . "\n";
 echo 'zipCommentControlBytePolicy=' . ($strictCommentControlImportRejected ? 'rejected' : 'not-rejected') . "\n";

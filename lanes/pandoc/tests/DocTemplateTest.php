@@ -884,6 +884,38 @@ TPL;
         ]), $output);
     },
 
+    'renders unbraced pandoc doctemplate dollar separators and pipe borders' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Cost: $title/left 8 "$" " USD"$
+Sources: $sources/uppercase[ $ ]$
+Bracket: $sources[[ ]$
+Rows: $rows:row()[ $ ]$
+Partial: $badge()/center 8 "$" "$"$
+Escaped: $title/right 6 "\$" "$"$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'title' => '42',
+            'sources' => ['media', 'links', 'layout'],
+            'rows' => [
+                ['source' => 'docx', 'message' => 'Imported heading'],
+                ['source' => 'odt', 'message' => 'Styled paragraph'],
+            ],
+        ], [
+            'row' => '$it.source$=$it.message$',
+            'badge' => 'OK',
+        ]);
+
+        $t->same(implode("\n", [
+            'Cost: $42       USD',
+            'Sources: MEDIA $ LINKS $ LAYOUT',
+            'Bracket: media[ links[ layout',
+            'Rows: docx=Imported heading $ odt=Styled paragraph',
+            'Partial: $   OK   $',
+            'Escaped: $    42$',
+        ]), $output);
+    },
+
     'renders braced pandoc doctemplate separators containing closing braces' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Sources: ${ sources/uppercase[} ] }

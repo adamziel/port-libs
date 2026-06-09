@@ -1606,6 +1606,61 @@ $buildRevisionMarkedFormattingDocStreams = static function (int $insertedAuthorI
     ];
 };
 
+$buildPictureDataFormattingDocStreams = static function (int $picLocation = 8) use ($buildSimpleWordDocument, $u16, $u32): array {
+    $text = "Inline picture \x01 keeps Data stream provenance\r";
+    $pictureCp = strpos($text, "\x01");
+    if (!is_int($pictureCp)) {
+        throw new RuntimeException('Unable to locate legacy DOC picture placeholder fixture character');
+    }
+
+    $wordDocument = $buildSimpleWordDocument($text, 0x0008);
+    $textStartFc = 512;
+    $pictureStartFc = $textStartFc + $pictureCp;
+    $pictureEndFc = $pictureStartFc + 1;
+    $textEndFc = $textStartFc + strlen($text);
+
+    $chpxFkpPage = intdiv(strlen($wordDocument) + 511, 512);
+    $chpxFkpOffset = $chpxFkpPage * 512;
+    $pictureGrpprl = $u16(0x0855) . "\x01"
+        . $u16(0x6a03) . $u32($picLocation)
+        . $u16(0x0806) . "\x01";
+    $pictureChpxOffset = 64;
+    $chpxFkp = str_repeat("\0", 512);
+    $chpxFkp = substr_replace(
+        $chpxFkp,
+        $u32($textStartFc) . $u32($pictureStartFc) . $u32($pictureEndFc) . $u32($textEndFc),
+        0,
+        16
+    );
+    $chpxFkp = substr_replace(
+        $chpxFkp,
+        "\0" . chr(intdiv($pictureChpxOffset, 2)) . "\0",
+        16,
+        3
+    );
+    $chpxFkp = substr_replace($chpxFkp, chr(strlen($pictureGrpprl)) . $pictureGrpprl, $pictureChpxOffset, 1 + strlen($pictureGrpprl));
+    $chpxFkp = substr_replace($chpxFkp, chr(3), 511, 1);
+    $wordDocument = str_pad($wordDocument, $chpxFkpOffset, "\0") . $chpxFkp;
+
+    $plcBteChpx = $u32($textStartFc)
+        . $u32($pictureStartFc)
+        . $u32($pictureEndFc)
+        . $u32($textEndFc)
+        . $u32($chpxFkpPage)
+        . $u32($chpxFkpPage)
+        . $u32($chpxFkpPage);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x00fa, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBteChpx)), 0x00fe, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $plcBteChpx,
+        'Data' => 'padding!' . str_repeat('P', 12) . 'native-picture-bytes-not-exposed',
+        'pictureCp' => $pictureCp,
+        'picLocation' => $picLocation,
+    ];
+};
+
 $listLevel = static function (
     int $level,
     int $startAt,
@@ -3928,6 +3983,62 @@ return [
         $t->contains('<span class="legacy-doc-picture-ref" data-legacy-doc-picture-ref="1" data-legacy-doc-picture-reference-cp="' . (string) $firstPictureCp . '"', $blocks);
         $t->contains('data-legacy-doc-picture-policy="metadata-only-native-review">inline picture</span>', $blocks);
         $t->true(!str_contains($blocks, "\x01"), 'Legacy DOC picture placeholder control characters should not render to WordPress blocks');
+    },
+    'links legacy DOC inline picture placeholders to CHPX Data stream metadata without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildPictureDataFormattingDocStreams): void {
+        $fixture = $buildPictureDataFormattingDocStreams();
+        $docBytes = $buildCfb([
+            'WordDocument' => $fixture['WordDocument'],
+            '0Table' => $fixture['0Table'],
+            'Data' => $fixture['Data'],
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $document = $result['document'];
+        $metadata = $result['metadata'];
+        $runs = $result['formattingRuns'];
+        $pictureReferences = $result['pictureReferences'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $pictureRuns = array_values(array_filter(
+            $runs,
+            static fn (array $run): bool => isset($run['pictureData'])
+        ));
+        $t->same(1, count($pictureRuns));
+        $t->same(1, $pictureRuns[0]['pictureDataCount'] ?? null);
+        $t->same('ChpxFkp', $pictureRuns[0]['pictureData'][0]['source'] ?? null);
+        $t->same(['sprmCFSpec', 'sprmCPicLocation', 'sprmCFData'], $pictureRuns[0]['pictureData'][0]['sourceSprms'] ?? null);
+        $t->same($fixture['picLocation'], $pictureRuns[0]['pictureData'][0]['dataStreamOffset'] ?? null);
+        $t->same(true, $pictureRuns[0]['pictureData'][0]['hasSpecialCharacterFormatting'] ?? null);
+        $t->same(true, $pictureRuns[0]['pictureData'][0]['isBinaryData'] ?? null);
+        $t->same(false, $pictureRuns[0]['pictureData'][0]['canExposeBytes'] ?? null);
+
+        $t->same(1, count($pictureReferences));
+        $t->same($fixture['pictureCp'], $pictureReferences[0]['referenceCp']);
+        $t->same('chpx-data-stream', $pictureReferences[0]['source']);
+        $t->same($fixture['picLocation'], $pictureReferences[0]['dataStreamOffset']);
+        $t->same(strlen((string) $fixture['Data']) - (int) $fixture['picLocation'], $pictureReferences[0]['availableDataBytes']);
+        $t->same(['sprmCFSpec', 'sprmCPicLocation', 'sprmCFData'], $pictureReferences[0]['sourceSprms']);
+        $t->same('metadata-only-native-review', $pictureReferences[0]['extractionPolicy']);
+        $t->same(false, $pictureReferences[0]['canExposeBytes']);
+        $t->same($pictureReferences, $metadata['pictureReferences'] ?? null);
+        $t->same($pictureReferences, $document->attr('pictureReferences'));
+
+        $picture = $document->children[0]->children[1];
+        $attributes = $picture->attr('attributes');
+        $t->same('chpx-data-stream', $attributes['data-legacy-doc-picture-source']);
+        $t->same((string) $fixture['picLocation'], $attributes['data-legacy-doc-picture-data-stream-offset']);
+        $t->same((string) (strlen((string) $fixture['Data']) - (int) $fixture['picLocation']), $attributes['data-legacy-doc-picture-data-stream-available-bytes']);
+        $t->same('sprmCFSpec sprmCPicLocation sprmCFData', $attributes['data-legacy-doc-picture-source-sprms']);
+        $t->contains('data-legacy-doc-picture-source="chpx-data-stream"', $blocks);
+        $t->contains('data-legacy-doc-picture-data-stream-offset="' . (string) $fixture['picLocation'] . '"', $blocks);
+        $t->true(!str_contains($blocks, 'native-picture-bytes-not-exposed'), 'Legacy DOC picture Data stream bytes should not render to WordPress blocks');
+
+        $badFixture = $buildPictureDataFormattingDocStreams(strlen((string) $fixture['Data']) + 1);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $badFixture['WordDocument'],
+            '0Table' => $badFixture['0Table'],
+            'Data' => $badFixture['Data'],
+        ])));
     },
     'reports legacy DOC ObjectPool embedded OLE object streams without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $objectInfo, $ole10NativeStream, $compObjStream): void {
         $nativeData = 'embedded spreadsheet bytes';
