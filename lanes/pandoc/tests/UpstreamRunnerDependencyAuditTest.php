@@ -1411,6 +1411,40 @@ return [
         $t->same(strlen($freeze), $pinned['planStabilityClosure']['present']['cabal.project.freeze']['bytes']);
         $t->contains('stable cabal.project and cabal.project.freeze provenance', $pinned['activationGate']);
     },
+    'records invalid cabal project freeze contents as unpinned plan risk before solver planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $freeze = implode("\n", [
+            '-- stale placeholder produced before dependency resolution',
+            'packages: . pandoc-cli',
+            'constraints:',
+            '  -- no pinned package versions',
+            '',
+        ]);
+        $files['cabal.project.freeze'] = $freeze;
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => '9.10.3'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(true, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['planStabilityClosure']['missing']);
+        $t->same([], $audit['planStabilityClosure']['wrongType']);
+        $t->same([], $audit['planStabilityClosure']['emptyFiles']);
+        $t->same([
+            'cabal.project.freeze' => 'missing pinned constraints',
+        ], $audit['planStabilityClosure']['invalidFiles']);
+        $t->same(true, $audit['planStabilityClosure']['unpinnedPlanRisk']);
+        $t->same(hash('sha256', $freeze), $audit['planStabilityClosure']['present']['cabal.project.freeze']['sha256']);
+        $t->same(strlen($freeze), $audit['planStabilityClosure']['present']['cabal.project.freeze']['bytes']);
+        $t->contains('cabal.project.freeze absence or invalidity', $audit['activationGate']);
+        $t->contains('capture stable Cabal plan file provenance', $audit['nonMutatingPlan'][4]);
+    },
     'records runner and benchmark artifact provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $root = $makeTree($files);

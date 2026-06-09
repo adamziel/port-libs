@@ -1683,7 +1683,7 @@ CABAL,
      *   requiredFileProvenance:array{expected:list<string>, present:array<string, array{sha256:string, bytes:int}>, missing:list<string>},
      *   tools:array<string, array{available:bool, version:string|null}>,
      *   missingTools:list<string>,
-     *   planStabilityClosure:array{expectedStablePlanFiles:list<string>, present:array<string, array{sha256:string, bytes:int}>, missing:list<string>, wrongType:array<string, string>, emptyFiles:list<string>, unpinnedPlanRisk:bool},
+     *   planStabilityClosure:array{expectedStablePlanFiles:list<string>, present:array<string, array{sha256:string, bytes:int}>, missing:list<string>, wrongType:array<string, string>, emptyFiles:list<string>, invalidFiles:array<string, string>, unpinnedPlanRisk:bool},
      *   compilerTestedWithClosure:array{packageFile:string, expectedGhcVersions:list<string>, presentGhcVersions:list<string>, missingGhcVersions:list<string>, toolGhcVersion:string|null, toolGhcVersionSupported:bool},
      *   packageIdentityClosure:array{expected:array<string, array{name:string, version:string, cabalVersion:string, buildType:string}>, present:array<string, array{name:string|null, version:string|null, cabalVersion:string|null, buildType:string|null}>, missingHeaders:array<string, list<string>>, mismatchedHeaders:array<string, array<string, array{expected:string, actual:string|null}>>},
      *   packageSetupClosure:array{expectedSetupDependencies:array<string, list<string>>, present:array<string, array{customSetup:bool, setupDepends:list<string>, dependencyConstraints:array<string, string>}>, unexpectedCustomSetupStanzas:array<string, list<string>>, unexpectedSetupDependencies:array<string, list<string>>},
@@ -6630,7 +6630,7 @@ CABAL,
     }
 
     /**
-     * @return array{expectedStablePlanFiles:list<string>, present:array<string, array{sha256:string, bytes:int}>, missing:list<string>, wrongType:array<string, string>, emptyFiles:list<string>, unpinnedPlanRisk:bool}
+     * @return array{expectedStablePlanFiles:list<string>, present:array<string, array{sha256:string, bytes:int}>, missing:list<string>, wrongType:array<string, string>, emptyFiles:list<string>, invalidFiles:array<string, string>, unpinnedPlanRisk:bool}
      */
     private static function auditPlanStabilityClosure(string $root): array
     {
@@ -6638,6 +6638,7 @@ CABAL,
         $missing = [];
         $wrongType = [];
         $emptyFiles = [];
+        $invalidFiles = [];
 
         foreach (self::STABLE_PLAN_FILES as $relativePath) {
             $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
@@ -6662,6 +6663,10 @@ CABAL,
                 $emptyFiles[] = $relativePath;
             }
 
+            if ($relativePath === 'cabal.project.freeze' && $contents !== '' && !self::isCabalProjectFreezeFile($contents)) {
+                $invalidFiles[$relativePath] = 'missing pinned constraints';
+            }
+
             $present[$relativePath] = [
                 'sha256' => hash('sha256', $contents),
                 'bytes' => strlen($contents),
@@ -6674,10 +6679,44 @@ CABAL,
             'missing' => $missing,
             'wrongType' => $wrongType,
             'emptyFiles' => $emptyFiles,
+            'invalidFiles' => $invalidFiles,
             'unpinnedPlanRisk' => !array_key_exists('cabal.project.freeze', $present)
                 || in_array('cabal.project.freeze', $emptyFiles, true)
+                || array_key_exists('cabal.project.freeze', $invalidFiles)
                 || array_key_exists('cabal.project.freeze', $wrongType),
         ];
+    }
+
+    private static function isCabalProjectFreezeFile(string $contents): bool
+    {
+        $contents = self::stripCabalLineComments($contents);
+        $rawConstraints = '';
+        $capturing = false;
+
+        foreach (preg_split('/\R/', $contents) ?: [] as $line) {
+            if (preg_match('/^\s*constraints\s*:\s*(.*?)\s*$/', $line, $match) === 1) {
+                $rawConstraints .= ' ' . $match[1];
+                $capturing = true;
+                continue;
+            }
+
+            if (!$capturing) {
+                continue;
+            }
+
+            if (trim($line) === '') {
+                continue;
+            }
+
+            if (preg_match('/^\s+(.+?)\s*$/', $line, $match) === 1) {
+                $rawConstraints .= ' ' . trim($match[1]);
+                continue;
+            }
+
+            $capturing = false;
+        }
+
+        return preg_match('/(?:^|[,\s])(?:any\.)?[A-Za-z][A-Za-z0-9_-]*\s*==\s*[0-9][A-Za-z0-9_.+-]*/', $rawConstraints) === 1;
     }
 
     /**
@@ -8071,7 +8110,7 @@ CABAL,
     /**
      * @param list<string> $missingFiles
      * @param list<string> $missingTools
-     * @param array{expectedStablePlanFiles:list<string>, present:array<string, array{sha256:string, bytes:int}>, missing:list<string>, wrongType:array<string, string>, emptyFiles:list<string>, unpinnedPlanRisk:bool} $planStabilityClosure
+     * @param array{expectedStablePlanFiles:list<string>, present:array<string, array{sha256:string, bytes:int}>, missing:list<string>, wrongType:array<string, string>, emptyFiles:list<string>, invalidFiles:array<string, string>, unpinnedPlanRisk:bool} $planStabilityClosure
      * @param array{missingGhcVersions:list<string>, toolGhcVersionSupported:bool} $compilerTestedWithClosure
      * @param array{missingHeaders:array<string, list<string>>, mismatchedHeaders:array<string, array<string, array{expected:string, actual:string|null}>>} $packageIdentityClosure
      * @param array{unexpectedCustomSetupStanzas:array<string, list<string>>, unexpectedSetupDependencies:array<string, list<string>>} $packageSetupClosure
