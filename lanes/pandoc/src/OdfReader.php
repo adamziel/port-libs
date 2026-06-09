@@ -284,6 +284,8 @@ final class OdfReader
                     'namedExpressionCount' => (int) ($content['contentDeclarations']['namedExpressionCount'] ?? 0),
                     'namedRangeCount' => (int) ($content['contentDeclarations']['namedRangeCount'] ?? 0),
                     'namedFormulaExpressionCount' => (int) ($content['contentDeclarations']['namedFormulaExpressionCount'] ?? 0),
+                    'namedExpressionDuplicateNameCount' => (int) ($content['contentDeclarations']['namedExpressionDuplicateNameCount'] ?? 0),
+                    'namedExpressionDuplicateEntryCount' => (int) ($content['contentDeclarations']['namedExpressionDuplicateEntryCount'] ?? 0),
                     'databaseRangeCount' => (int) ($content['contentDeclarations']['databaseRangeCount'] ?? 0),
                     'databaseSubtotalRuleCount' => (int) ($content['contentDeclarations']['databaseSubtotalRuleCount'] ?? 0),
                     'databaseSubtotalFieldCount' => (int) ($content['contentDeclarations']['databaseSubtotalFieldCount'] ?? 0),
@@ -3693,6 +3695,7 @@ final class OdfReader
                 $namedFormulaExpressionCount++;
             }
         }
+        $namedExpressionNameSummary = $this->namedDeclarationDuplicateSummary($namedExpressions, 'name');
 
         $contentValidations = $this->contentValidationsFromText($text);
         $contentValidationsByName = [];
@@ -3846,6 +3849,10 @@ final class OdfReader
             'namedFormulaExpressionCount' => $namedFormulaExpressionCount,
             'namedExpressions' => $namedExpressions,
             'namedExpressionsByName' => $namedExpressionsByName,
+            'namedExpressionNameOccurrences' => $namedExpressionNameSummary['occurrences'],
+            'namedExpressionDuplicateNameCount' => count($namedExpressionNameSummary['duplicateNames']),
+            'namedExpressionDuplicateEntryCount' => $namedExpressionNameSummary['duplicateEntryCount'],
+            'namedExpressionDuplicateNames' => $namedExpressionNameSummary['duplicateNames'],
             'databaseRangeCount' => count($databaseRanges),
             'databaseRanges' => $databaseRanges,
             'databaseRangesByName' => $databaseRangesByName,
@@ -4253,6 +4260,47 @@ final class OdfReader
             'expression' => self::nullable(self::attr($expression, self::TABLE_NS, 'expression')),
             'baseCellAddress' => self::nullable(self::attr($expression, self::TABLE_NS, 'base-cell-address')),
         ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $declarations
+     * @return array{occurrences:array<string, int>, duplicateNames:list<string>, duplicateEntryCount:int}
+     */
+    private function namedDeclarationDuplicateSummary(array $declarations, string $key): array
+    {
+        $occurrences = [];
+        foreach ($declarations as $declaration) {
+            $name = $declaration[$key] ?? null;
+            if (!is_scalar($name)) {
+                continue;
+            }
+
+            $name = (string) $name;
+            if ($name === '') {
+                continue;
+            }
+
+            $occurrences[$name] = ($occurrences[$name] ?? 0) + 1;
+        }
+
+        ksort($occurrences);
+
+        $duplicateNames = [];
+        $duplicateEntryCount = 0;
+        foreach ($occurrences as $name => $count) {
+            if ($count <= 1) {
+                continue;
+            }
+
+            $duplicateNames[] = $name;
+            $duplicateEntryCount += $count - 1;
+        }
+
+        return [
+            'occurrences' => $occurrences,
+            'duplicateNames' => $duplicateNames,
+            'duplicateEntryCount' => $duplicateEntryCount,
+        ];
     }
 
     /**

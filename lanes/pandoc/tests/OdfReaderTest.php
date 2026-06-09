@@ -4739,6 +4739,52 @@ XML;
         $t->contains('Named expressions stay metadata-only.', $markdown);
         $t->contains('<p>Named expressions stay metadata-only.</p>', $blocksHtml);
     },
+    'reports duplicate ODT named range names without hiding source declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithDuplicateNamedExpressions = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:named-expressions>
+        <table:named-range table:name="ReviewRows" table:cell-range-address="Review.A2:Review.D42" table:base-cell-address="Review.A1" table:range-usable-as="filter"/>
+        <table:named-expression table:name="ReviewRows" table:expression="of:=COUNTIF([.B2:.B42];&quot;ready&quot;)" table:base-cell-address="Review.A1"/>
+        <table:named-expression table:name="ReviewTotal" table:expression="of:=SUM([.D2:.D42])" table:base-cell-address="Review.A1"/>
+        <table:named-range table:name="ReviewRows" table:cell-range-address="Archive.A2:Archive.D8" table:base-cell-address="Archive.A1"/>
+      </table:named-expressions>
+      <text:p>Duplicate named expressions stay reviewable.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDuplicateNamedExpressions));
+        $declarations = $result['contentDeclarations'];
+        $byName = is_array($declarations['namedExpressionsByName'] ?? null) ? $declarations['namedExpressionsByName'] : [];
+
+        $t->same(4, $declarations['namedExpressionCount'] ?? null);
+        $t->same(2, $declarations['namedRangeCount'] ?? null);
+        $t->same(2, $declarations['namedFormulaExpressionCount'] ?? null);
+        $t->same(['ReviewRows', 'ReviewRows', 'ReviewTotal', 'ReviewRows'], array_column($declarations['namedExpressions'], 'name'));
+        $t->same('Archive.A2:Archive.D8', $byName['ReviewRows']['cellRangeAddress'] ?? null);
+        $t->same(['ReviewRows' => 3, 'ReviewTotal' => 1], $declarations['namedExpressionNameOccurrences'] ?? null);
+        $t->same(1, $declarations['namedExpressionDuplicateNameCount'] ?? null);
+        $t->same(2, $declarations['namedExpressionDuplicateEntryCount'] ?? null);
+        $t->same(['ReviewRows'], $declarations['namedExpressionDuplicateNames'] ?? null);
+        $t->same(1, $result['importReport']['contentDeclarations']['namedExpressionDuplicateNameCount'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['namedExpressionDuplicateEntryCount'] ?? null);
+        $t->same(['ReviewRows'], $result['importReport']['contentDeclarations']['namedExpressionDuplicateNames'] ?? null);
+        $t->same(1, $result['importReport']['content']['namedExpressionDuplicateNameCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['namedExpressionDuplicateEntryCount'] ?? null);
+        $t->same($declarations, $result['document']->attr('contentDeclarations'));
+        $t->same('Duplicate named expressions stay reviewable.', $result['document']->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Duplicate named expressions stay reviewable.', $markdown);
+        $t->contains('<p>Duplicate named expressions stay reviewable.</p>', $blocksHtml);
+    },
     'maps ODT label ranges into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLabelRanges = <<<'XML'
 <office:document-content

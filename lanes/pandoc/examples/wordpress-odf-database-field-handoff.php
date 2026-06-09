@@ -47,6 +47,7 @@ $contentXml = <<<'XML'
       <table:named-expressions>
         <table:named-range table:name="ReadyPostRows" table:cell-range-address="Review.A2:Review.D12" table:base-cell-address="Review.A1" table:range-usable-as="filter"/>
         <table:named-expression table:name="ReadyPostCount" table:expression="of:=COUNTIF([.B2:.B12];&quot;ready&quot;)" table:base-cell-address="Review.A1"/>
+        <table:named-range table:name="ReadyPostRows" table:cell-range-address="Archive.A2:Archive.D12" table:base-cell-address="Archive.A1"/>
       </table:named-expressions>
       <table:label-ranges>
         <table:label-range table:label-cell-range-address="Review.A1:Review.D1" table:data-cell-range-address="Review.A2:Review.D12" table:orientation="column"/>
@@ -140,14 +141,23 @@ if (in_array('--self-test', $argv, true)) {
     if (($declarations['databaseSubtotalFieldCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT subtotal fields to be counted in the import report');
     }
-    if (($declarations['namedExpressionCount'] ?? 0) !== 2) {
+    if (($declarations['namedExpressionCount'] ?? 0) !== 3) {
         throw new RuntimeException('Expected ODT named ranges and expressions to be counted in the import report');
     }
-    if (($declarations['namedRangeCount'] ?? 0) !== 1) {
+    if (($declarations['namedRangeCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT named range count to be preserved');
     }
     if (($declarations['namedFormulaExpressionCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT named formula expression count to be preserved');
+    }
+    if (($declarations['namedExpressionDuplicateNameCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT duplicate named-expression names to be counted');
+    }
+    if (($declarations['namedExpressionDuplicateEntryCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT duplicate named-expression entries to be counted');
+    }
+    if (($declarations['namedExpressionDuplicateNames'] ?? []) !== ['ReadyPostRows']) {
+        throw new RuntimeException('Expected ODT duplicate named-expression name list to be preserved');
     }
     if (($declarations['labelRangeCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT label ranges to be counted in the import report');
@@ -196,7 +206,7 @@ if (in_array('--self-test', $argv, true)) {
     $namedExpressions = $result['document']->attr('contentDeclarations')['namedExpressionsByName'] ?? [];
     $readyRows = is_array($namedExpressions) ? ($namedExpressions['ReadyPostRows'] ?? null) : null;
     $readyCount = is_array($namedExpressions) ? ($namedExpressions['ReadyPostCount'] ?? null) : null;
-    if (!is_array($readyRows) || ($readyRows['cellRangeAddress'] ?? '') !== 'Review.A2:Review.D12') {
+    if (!is_array($readyRows) || ($readyRows['cellRangeAddress'] ?? '') !== 'Archive.A2:Archive.D12') {
         throw new RuntimeException('Expected ODT named range cell address metadata to be preserved');
     }
     if (!is_array($readyCount) || ($readyCount['expression'] ?? '') !== 'of:=COUNTIF([.B2:.B12];"ready")') {
