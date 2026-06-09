@@ -222,6 +222,78 @@ final class PandocFormatRegistry
         ],
     ];
 
+    /**
+     * @var array<string, array{module:string, function:string, registry:string}>
+     */
+    private const WIKI_INPUT_SOURCE_PROVENANCE = [
+        'creole' => [
+            'module' => 'Text.Pandoc.Readers.Creole',
+            'function' => 'readCreole',
+            'registry' => '("creole"       , TextReader readCreole)',
+        ],
+        'dokuwiki' => [
+            'module' => 'Text.Pandoc.Readers.DokuWiki',
+            'function' => 'readDokuWiki',
+            'registry' => '("dokuwiki"     , TextReader readDokuWiki)',
+        ],
+        'jira' => [
+            'module' => 'Text.Pandoc.Readers.Jira',
+            'function' => 'readJira',
+            'registry' => '("jira"         , TextReader readJira)',
+        ],
+        'mediawiki' => [
+            'module' => 'Text.Pandoc.Readers.MediaWiki',
+            'function' => 'readMediaWiki',
+            'registry' => '("mediawiki"    , TextReader readMediaWiki)',
+        ],
+        'tikiwiki' => [
+            'module' => 'Text.Pandoc.Readers.TikiWiki',
+            'function' => 'readTikiWiki',
+            'registry' => '("tikiwiki"     , TextReader readTikiWiki)',
+        ],
+        'twiki' => [
+            'module' => 'Text.Pandoc.Readers.TWiki',
+            'function' => 'readTWiki',
+            'registry' => '("twiki"        , TextReader readTWiki)',
+        ],
+        'vimwiki' => [
+            'module' => 'Text.Pandoc.Readers.Vimwiki',
+            'function' => 'readVimwiki',
+            'registry' => '("vimwiki"      , TextReader readVimwiki)',
+        ],
+    ];
+
+    /**
+     * @var array<string, array{module:string, function:string, registry:string}>
+     */
+    private const WIKI_OUTPUT_SOURCE_PROVENANCE = [
+        'dokuwiki' => [
+            'module' => 'Text.Pandoc.Writers.DokuWiki',
+            'function' => 'writeDokuWiki',
+            'registry' => '("dokuwiki"     , TextWriter writeDokuWiki)',
+        ],
+        'jira' => [
+            'module' => 'Text.Pandoc.Writers.Jira',
+            'function' => 'writeJira',
+            'registry' => '("jira"         , TextWriter writeJira)',
+        ],
+        'mediawiki' => [
+            'module' => 'Text.Pandoc.Writers.MediaWiki',
+            'function' => 'writeMediaWiki',
+            'registry' => '("mediawiki"    , TextWriter writeMediaWiki)',
+        ],
+        'xwiki' => [
+            'module' => 'Text.Pandoc.Writers.XWiki',
+            'function' => 'writeXWiki',
+            'registry' => '("xwiki"        , TextWriter writeXWiki)',
+        ],
+        'zimwiki' => [
+            'module' => 'Text.Pandoc.Writers.ZimWiki',
+            'function' => 'writeZimWiki',
+            'registry' => '("zimwiki"      , TextWriter writeZimWiki)',
+        ],
+    ];
+
     /** @var list<string> */
     private const ROFF_MANUAL_INPUT_FORMATS = [
         'man',
@@ -720,6 +792,40 @@ final class PandocFormatRegistry
         }
 
         return $sources;
+    }
+
+    /**
+     * @return array<string, array{module:string, function:string, registry:string}>
+     */
+    public static function wikiInputSourceProvenance(): array
+    {
+        return self::WIKI_INPUT_SOURCE_PROVENANCE;
+    }
+
+    /**
+     * @return array<string, array{module:string, function:string, registry:string}>
+     */
+    public static function wikiOutputSourceProvenance(): array
+    {
+        return self::WIKI_OUTPUT_SOURCE_PROVENANCE;
+    }
+
+    /**
+     * @return array<string, array{input:array{module:string, function:string, registry:string}|null, output:array{module:string, function:string, registry:string}|null}>
+     */
+    public static function wikiFormatSourceProvenance(): array
+    {
+        $formats = array_values(array_unique(array_merge(self::WIKI_INPUT_FORMATS, self::WIKI_OUTPUT_FORMATS)));
+        $provenance = [];
+
+        foreach ($formats as $format) {
+            $provenance[$format] = [
+                'input' => self::WIKI_INPUT_SOURCE_PROVENANCE[$format] ?? null,
+                'output' => self::WIKI_OUTPUT_SOURCE_PROVENANCE[$format] ?? null,
+            ];
+        }
+
+        return $provenance;
     }
 
     /**

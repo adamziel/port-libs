@@ -1277,4 +1277,127 @@ return [
             $t->same('', $evidence['outputImplementation'], "Wiki evidence packet {$format} must not register an output implementation");
         }
     },
+    'tracks wiki upstream reader writer source provenance without direct parity claims' => static function (TestRunner $t): void {
+        $inputProvenance = PandocFormatRegistry::wikiInputSourceProvenance();
+        $outputProvenance = PandocFormatRegistry::wikiOutputSourceProvenance();
+        $combinedProvenance = PandocFormatRegistry::wikiFormatSourceProvenance();
+        $directions = PandocFormatRegistry::wikiFormatDirections();
+        $inputSupport = PandocFormatRegistry::wikiInputSupport();
+        $outputSupport = PandocFormatRegistry::wikiOutputSupport();
+
+        $t->same([
+            'creole',
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+        ], array_keys($inputProvenance));
+        $t->same([
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'xwiki',
+            'zimwiki',
+        ], array_keys($outputProvenance));
+        $t->same([
+            'creole',
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+            'xwiki',
+            'zimwiki',
+        ], array_keys($combinedProvenance));
+
+        $t->same([
+            'module' => 'Text.Pandoc.Readers.Creole',
+            'function' => 'readCreole',
+            'registry' => '("creole"       , TextReader readCreole)',
+        ], $inputProvenance['creole']);
+        $t->same([
+            'module' => 'Text.Pandoc.Readers.DokuWiki',
+            'function' => 'readDokuWiki',
+            'registry' => '("dokuwiki"     , TextReader readDokuWiki)',
+        ], $inputProvenance['dokuwiki']);
+        $t->same([
+            'module' => 'Text.Pandoc.Readers.Jira',
+            'function' => 'readJira',
+            'registry' => '("jira"         , TextReader readJira)',
+        ], $inputProvenance['jira']);
+        $t->same([
+            'module' => 'Text.Pandoc.Readers.MediaWiki',
+            'function' => 'readMediaWiki',
+            'registry' => '("mediawiki"    , TextReader readMediaWiki)',
+        ], $inputProvenance['mediawiki']);
+        $t->same([
+            'module' => 'Text.Pandoc.Readers.TikiWiki',
+            'function' => 'readTikiWiki',
+            'registry' => '("tikiwiki"     , TextReader readTikiWiki)',
+        ], $inputProvenance['tikiwiki']);
+        $t->same([
+            'module' => 'Text.Pandoc.Readers.TWiki',
+            'function' => 'readTWiki',
+            'registry' => '("twiki"        , TextReader readTWiki)',
+        ], $inputProvenance['twiki']);
+        $t->same([
+            'module' => 'Text.Pandoc.Readers.Vimwiki',
+            'function' => 'readVimwiki',
+            'registry' => '("vimwiki"      , TextReader readVimwiki)',
+        ], $inputProvenance['vimwiki']);
+
+        $t->same([
+            'module' => 'Text.Pandoc.Writers.DokuWiki',
+            'function' => 'writeDokuWiki',
+            'registry' => '("dokuwiki"     , TextWriter writeDokuWiki)',
+        ], $outputProvenance['dokuwiki']);
+        $t->same([
+            'module' => 'Text.Pandoc.Writers.Jira',
+            'function' => 'writeJira',
+            'registry' => '("jira"         , TextWriter writeJira)',
+        ], $outputProvenance['jira']);
+        $t->same([
+            'module' => 'Text.Pandoc.Writers.MediaWiki',
+            'function' => 'writeMediaWiki',
+            'registry' => '("mediawiki"    , TextWriter writeMediaWiki)',
+        ], $outputProvenance['mediawiki']);
+        $t->same([
+            'module' => 'Text.Pandoc.Writers.XWiki',
+            'function' => 'writeXWiki',
+            'registry' => '("xwiki"        , TextWriter writeXWiki)',
+        ], $outputProvenance['xwiki']);
+        $t->same([
+            'module' => 'Text.Pandoc.Writers.ZimWiki',
+            'function' => 'writeZimWiki',
+            'registry' => '("zimwiki"      , TextWriter writeZimWiki)',
+        ], $outputProvenance['zimwiki']);
+
+        foreach ($combinedProvenance as $format => $source) {
+            $direction = $directions[$format];
+
+            $t->same($direction['input'], $source['input'] !== null, "Wiki source provenance {$format} input presence mismatch");
+            $t->same($direction['output'], $source['output'] !== null, "Wiki source provenance {$format} output presence mismatch");
+
+            if ($source['input'] !== null) {
+                $t->same('unsupported', $inputSupport[$format]['status'], "Wiki source provenance {$format} input must not claim PHP reader parity");
+                $t->contains('Text.Pandoc.Readers.', $source['input']['module']);
+                $t->contains('TextReader', $source['input']['registry']);
+                $t->same(true, str_starts_with($source['input']['function'], 'read'));
+            }
+
+            if ($source['output'] !== null) {
+                $t->same('unsupported', $outputSupport[$format]['status'], "Wiki source provenance {$format} output must not claim PHP writer parity");
+                $t->contains('Text.Pandoc.Writers.', $source['output']['module']);
+                $t->contains('TextWriter', $source['output']['registry']);
+                $t->same(true, str_starts_with($source['output']['function'], 'write'));
+            }
+        }
+
+        $t->same(null, $combinedProvenance['creole']['output']);
+        $t->same(null, $combinedProvenance['xwiki']['input']);
+        $t->same(null, $combinedProvenance['zimwiki']['input']);
+    },
 ];
