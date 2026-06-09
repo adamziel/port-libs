@@ -16,6 +16,7 @@ final class DocxOpenXmlReader
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const OFFICE_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
 
     public function readFile(string $path): AstNode
     {
@@ -63,7 +64,8 @@ final class DocxOpenXmlReader
 
         $documentRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($documentPart));
         $styles = $this->readStyles($parts['word/styles.xml'] ?? '');
-        $numbering = $this->readNumbering($parts['word/numbering.xml'] ?? '');
+        $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
+        $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName']);
         $meta = $this->readCoreProperties($parts['docProps/core.xml'] ?? '');
         $media = $this->mediaMetadata($parts, $contentTypes);
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering);
@@ -75,10 +77,21 @@ final class DocxOpenXmlReader
                 'rootRelationships' => $rootRelationships,
                 'documentRelationships' => $documentRelationships,
                 'styles' => $styles,
+                'numberingPart' => $numberingPart['partName'],
                 'numbering' => $numbering,
                 'media' => $media,
             ],
         ];
+        if ($numberingPart['relationship'] !== null) {
+            $attrs['docx']['numberingRelationship'] = $this->relationshipSummary(
+                $numberingPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $numberingPart['partName'],
+                $numberingPart['exists'],
+                $contentTypes,
+            );
+        }
         if ($meta !== []) {
             $attrs['meta'] = $meta;
         }
@@ -221,15 +234,68 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @return array{partName:string, xml:string, relationship:array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null, exists:bool}
+     */
+    private function numberingPart(array $parts, array $relationships, string $documentPart): array
+    {
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::NUMBERING_REL || $relationship['targetMode'] === 'External') {
+                continue;
+            }
+
+            $partName = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+
+            return [
+                'partName' => $partName,
+                'xml' => $parts[$partName] ?? '',
+                'relationship' => $relationship,
+                'exists' => isset($parts[$partName]),
+            ];
+        }
+
+        $partName = $this->documentSiblingPart($documentPart, 'numbering.xml');
+
+        return [
+            'partName' => $partName,
+            'xml' => $parts[$partName] ?? '',
+            'relationship' => null,
+            'exists' => isset($parts[$partName]),
+        ];
+    }
+
+    /**
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:string, exists:bool, contentType:string}
+     */
+    private function relationshipSummary(array $relationship, string $sourcePart, string $relationshipsPart, string $targetPart, bool $exists, array $contentTypes): array
+    {
+        return [
+            'id' => $relationship['id'],
+            'type' => $relationship['type'],
+            'sourcePart' => $sourcePart,
+            'relationshipsPart' => $relationshipsPart,
+            'target' => $relationship['target'],
+            'targetMode' => $relationship['targetMode'],
+            'resolvedTarget' => $relationship['resolvedTarget'],
+            'targetPart' => $targetPart,
+            'exists' => $exists,
+            'contentType' => $this->contentTypeFor($targetPart, $contentTypes),
+        ];
+    }
+
+    /**
      * @return array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}>
      */
-    private function readNumbering(string $xml): array
+    private function readNumbering(string $xml, string $partName): array
     {
         if ($xml === '') {
             return [];
         }
 
-        $dom = $this->loadXml($xml, 'word/numbering.xml');
+        $dom = $this->loadXml($xml, $partName);
         $xpath = $this->xpath($dom);
         $abstracts = [];
         foreach ($this->elements($xpath, '/w:numbering/w:abstractNum') as $abstract) {
@@ -878,6 +944,13 @@ final class DocxOpenXmlReader
         return ($directory === '.' ? '' : $directory . '/') . '_rels/' . $baseName . '.rels';
     }
 
+    private function documentSiblingPart(string $documentPart, string $fileName): string
+    {
+        $directory = dirname($this->normalizePartName($documentPart));
+
+        return ($directory === '.' || $directory === '' ? '' : $directory . '/') . $fileName;
+    }
+
     private function resolveRelationshipTarget(string $relsPartName, string $target, string $targetMode): string
     {
         if ($targetMode === 'External' || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $target) === 1) {
@@ -925,6 +998,13 @@ final class DocxOpenXmlReader
         }
 
         return implode('/', $segments);
+    }
+
+    private function stripQueryAndFragment(string $partName): string
+    {
+        $partName = preg_replace('/[#?].*$/', '', $partName) ?? $partName;
+
+        return $this->normalizePartName($partName);
     }
 
     private function loadXml(string $xml, string $partName): \DOMDocument

@@ -24,6 +24,8 @@ return [
         $t->same(['Migration Editor'], $meta['authors']);
         $t->same('word/document.xml', $docx['documentPart']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $docx['contentTypes']['overrides']['word/document.xml']);
+        $t->same('word/numbering.xml', $docx['numberingPart']);
+        $t->true(!isset($docx['numberingRelationship']), 'conventional DOCX numbering fallback should not invent relationship metadata');
         $t->same('image/png', $docx['media']['word/media/review.png']['contentType']);
         $t->same(strlen('fake png bytes'), $docx['media']['word/media/review.png']['size']);
 
@@ -59,6 +61,54 @@ return [
         $t->same('table', $table->type);
         $t->same('Reviewer', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same(2, $table->children[0]->children[0]->children[1]->attr('colspan'));
+    },
+    'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/review-numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="review-numbering.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/review-numbering.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="30">
+    <w:lvl w:ilvl="0"><w:start w:val="4"/><w:numFmt w:val="upperLetter"/><w:lvlText w:val="%1."/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="40">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="-"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="30"/></w:num>
+  <w:num w:numId="8"><w:abstractNumId w:val="40"/></w:num>
+</w:numbering>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $ordered = $document->children[2];
+        $bullet = $document->children[3];
+
+        $t->same('word/review-numbering.xml', $docx['numberingPart']);
+        $t->same('rNumbering', $docx['numberingRelationship']['id']);
+        $t->same('word/document.xml', $docx['numberingRelationship']['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $docx['numberingRelationship']['relationshipsPart']);
+        $t->same('review-numbering.xml', $docx['numberingRelationship']['target']);
+        $t->same('word/review-numbering.xml', $docx['numberingRelationship']['targetPart']);
+        $t->same(true, $docx['numberingRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $docx['numberingRelationship']['contentType']);
+        $t->same('ordered_list', $ordered->type);
+        $t->same(4, $ordered->attr('start'));
+        $t->same('upper_alpha', $ordered->attr('style'));
+        $t->same('period', $ordered->attr('delimiter'));
+        $t->same('bullet_list', $bullet->type);
+        $t->same('-', $bullet->attr('bulletChar'));
     },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
