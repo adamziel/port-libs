@@ -557,6 +557,11 @@ final class OpcRelationshipGraph
                     'relationshipTypeIssues' => $typePreflight['issues'],
                     'target' => $relationship->target,
                     'contentType' => null,
+                    'contentTypeSource' => null,
+                    'contentTypeDefaultExtension' => null,
+                    'contentTypeOverridePartName' => null,
+                    'contentTypeOverridePartNameExactMatch' => null,
+                    'contentTypeOverridePartNameEquivalentMatch' => null,
                     'external' => true,
                     'exists' => null,
                     'relationshipPartTarget' => false,
@@ -589,6 +594,11 @@ final class OpcRelationshipGraph
                     'relationshipTypeIssues' => $typePreflight['issues'],
                     'target' => $relationship->target,
                     'contentType' => null,
+                    'contentTypeSource' => null,
+                    'contentTypeDefaultExtension' => null,
+                    'contentTypeOverridePartName' => null,
+                    'contentTypeOverridePartNameExactMatch' => null,
+                    'contentTypeOverridePartNameEquivalentMatch' => null,
                     'external' => false,
                     'exists' => null,
                     'relationshipPartTarget' => false,
@@ -608,7 +618,8 @@ final class OpcRelationshipGraph
             $target = $this->packageEquivalentTarget($target);
             $targetPartName = OpcPackagePath::stripQueryAndFragment($target);
             $exists = $this->packagePartNameForEquivalent($targetPartName) !== null;
-            $contentType = $this->contentTypes->contentTypeForPart($targetPartName);
+            $contentTypeResolution = $this->contentTypes->contentTypeResolutionForPart($targetPartName);
+            $contentType = $contentTypeResolution['contentType'];
             $relationshipPartTarget = self::isRelationshipPartName($targetPartName);
             $reservedRelationshipDirectoryTarget = !$relationshipPartTarget
                 && self::isReservedRelationshipDirectoryPartName($targetPartName);
@@ -651,6 +662,11 @@ final class OpcRelationshipGraph
                 'relationshipTypeIssues' => $typePreflight['issues'],
                 'target' => $target,
                 'contentType' => $contentType,
+                'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
+                'contentTypeDefaultExtension' => $contentTypeResolution['defaultExtension'],
+                'contentTypeOverridePartName' => $contentTypeResolution['overridePartName'],
+                'contentTypeOverridePartNameExactMatch' => $contentTypeResolution['overridePartNameExactMatch'],
+                'contentTypeOverridePartNameEquivalentMatch' => $contentTypeResolution['overridePartNameEquivalentMatch'],
                 'external' => false,
                 'exists' => $exists,
                 'relationshipPartTarget' => $relationshipPartTarget,
@@ -680,7 +696,8 @@ final class OpcRelationshipGraph
             }
 
             $partName = OpcPackagePath::canonicalPartName($name);
-            $contentType = $this->contentTypes->contentTypeForPart($partName);
+            $contentTypeResolution = $this->contentTypes->contentTypeResolutionForPart($partName);
+            $contentType = $contentTypeResolution['contentType'];
             $relationshipPart = self::isRelationshipPartName($partName);
             $reservedRelationshipDirectoryPart = !$relationshipPart
                 && self::isReservedRelationshipDirectoryPartName($partName);
@@ -738,6 +755,11 @@ final class OpcRelationshipGraph
             $preflight[] = [
                 'partName' => $partName,
                 'contentType' => $contentType,
+                'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
+                'contentTypeDefaultExtension' => $contentTypeResolution['defaultExtension'],
+                'contentTypeOverridePartName' => $contentTypeResolution['overridePartName'],
+                'contentTypeOverridePartNameExactMatch' => $contentTypeResolution['overridePartNameExactMatch'],
+                'contentTypeOverridePartNameEquivalentMatch' => $contentTypeResolution['overridePartNameEquivalentMatch'],
                 'relationshipPart' => $relationshipPart,
                 'relationshipSource' => $relationshipSource,
                 'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
@@ -851,6 +873,11 @@ final class OpcRelationshipGraph
                     'target' => $target['target'],
                     'targetPart' => self::targetPartFromPreflightTarget($target),
                     'contentType' => $target['contentType'],
+                    'contentTypeSource' => $target['contentTypeSource'],
+                    'contentTypeDefaultExtension' => $target['contentTypeDefaultExtension'],
+                    'contentTypeOverridePartName' => $target['contentTypeOverridePartName'],
+                    'contentTypeOverridePartNameExactMatch' => $target['contentTypeOverridePartNameExactMatch'],
+                    'contentTypeOverridePartNameEquivalentMatch' => $target['contentTypeOverridePartNameEquivalentMatch'],
                     'external' => $target['external'],
                     'exists' => $target['exists'],
                     'relationshipPartTarget' => $target['relationshipPartTarget'],

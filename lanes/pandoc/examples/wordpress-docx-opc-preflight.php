@@ -1491,6 +1491,11 @@ foreach ($graph->preflightPackageParts() as $part) {
     $packagePartPreflight[$part['partName']] = [
         'partName' => $part['partName'],
         'contentType' => $part['contentType'],
+        'contentTypeSource' => $part['contentTypeSource'],
+        'contentTypeDefaultExtension' => $part['contentTypeDefaultExtension'],
+        'contentTypeOverridePartName' => $part['contentTypeOverridePartName'],
+        'contentTypeOverridePartNameExactMatch' => $part['contentTypeOverridePartNameExactMatch'],
+        'contentTypeOverridePartNameEquivalentMatch' => $part['contentTypeOverridePartNameEquivalentMatch'],
         'relationshipPart' => $part['relationshipPart'],
         'relationshipSource' => $part['relationshipSource'],
         'relationshipSourceIsRelationshipPart' => $part['relationshipSourceIsRelationshipPart'],
@@ -1618,6 +1623,11 @@ foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
             ? null
             : OpcPackagePath::stripQueryAndFragment($target['target']),
         'contentType' => $target['contentType'],
+        'contentTypeSource' => $target['contentTypeSource'],
+        'contentTypeDefaultExtension' => $target['contentTypeDefaultExtension'],
+        'contentTypeOverridePartName' => $target['contentTypeOverridePartName'],
+        'contentTypeOverridePartNameExactMatch' => $target['contentTypeOverridePartNameExactMatch'],
+        'contentTypeOverridePartNameEquivalentMatch' => $target['contentTypeOverridePartNameEquivalentMatch'],
         'relationshipTypeKind' => $target['relationshipTypeKind'],
         'relationshipTypeScheme' => $target['relationshipTypeScheme'],
         'relationshipTypeValid' => $target['relationshipTypeValid'],
@@ -3008,8 +3018,12 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdCore']['targetPart'] ?? null) !== '/docProps/core.xml'
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdThumbnail']['targetPart'] ?? null) !== '/docProps/thumbnail.png'
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdThumbnail']['contentType'] ?? null) !== 'image/png'
+        || ($summary['packageConsistency']['relationshipTargets']['/:rIdThumbnail']['contentTypeSource'] ?? null) !== 'override'
+        || ($summary['packageConsistency']['relationshipTargets']['/:rIdThumbnail']['contentTypeOverridePartName'] ?? null) !== '/docProps/thumbnail.png'
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdThumbnail']['issues'] ?? null) !== []
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdSignatureOrigin']['targetPart'] ?? null) !== '/_xmlsignatures/origin.sigs'
+        || ($summary['packageConsistency']['relationshipTargets']['/word/document.xml:rIdHero']['contentTypeSource'] ?? null) !== 'default'
+        || ($summary['packageConsistency']['relationshipTargets']['/word/document.xml:rIdHero']['contentTypeDefaultExtension'] ?? null) !== 'png'
         || ($summary['packageConsistency']['relationshipTargets']['/word/review source.xml:rIdReviewSourceProperties']['targetPart'] ?? null) !== '/customXml/itemProps1.xml'
         || ($summary['packageConsistency']['relationshipTargets']['/word/review source.xml:rIdReviewSourceProperties']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml'
         || ($summary['packageConsistency']['relationshipTargets']['/word/review source.xml:rIdReviewSourceProperties']['issues'] ?? null) !== []
@@ -3422,7 +3436,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSource'] !== '/word/document.xml'
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSourceIsRelationshipPart'] !== false
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSourceLoaded'] !== true
+        || $summary['packageParts']['/word/_rels/document.xml.rels']['contentTypeSource'] !== 'default'
+        || $summary['packageParts']['/word/_rels/document.xml.rels']['contentTypeDefaultExtension'] !== 'rels'
+        || $summary['packageParts']['/word/document.xml']['contentTypeSource'] !== 'override'
+        || $summary['packageParts']['/word/document.xml']['contentTypeOverridePartName'] !== '/word/document.xml'
         || $summary['packageParts']['/word/media/hero image.PNG']['contentType'] !== 'image/png'
+        || $summary['packageParts']['/word/media/hero image.PNG']['contentTypeSource'] !== 'default'
+        || $summary['packageParts']['/word/media/hero image.PNG']['contentTypeDefaultExtension'] !== 'png'
         || ($summary['wordpressImport']['mediaParts'][3] ?? null) !== '/word/media/review source.png'
         || ($summary['wordpressImport']['relationshipSourceReview'][2]['source'] ?? null) !== '/word/document.xml'
         || ($summary['wordpressImport']['relationshipSourceReview'][2]['valid'] ?? null) !== false

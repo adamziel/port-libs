@@ -91,25 +91,61 @@ final class OpcContentTypes
 
     public function contentTypeForPart(string $partName): ?string
     {
+        return $this->contentTypeResolutionForPart($partName)['contentType'];
+    }
+
+    /**
+     * @return array{partName:string, contentType:?string, contentTypeSource:string, defaultExtension:?string, overridePartName:?string, overridePartNameExactMatch:bool, overridePartNameEquivalentMatch:bool}
+     */
+    public function contentTypeResolutionForPart(string $partName): array
+    {
         $partName = OpcPackagePath::canonicalPartNameFromUri(OpcPackagePath::stripQueryAndFragment($partName));
         if (isset($this->overrides[$partName])) {
-            return $this->overrides[$partName];
+            return [
+                'partName' => $partName,
+                'contentType' => $this->overrides[$partName],
+                'contentTypeSource' => 'override',
+                'defaultExtension' => null,
+                'overridePartName' => $partName,
+                'overridePartNameExactMatch' => true,
+                'overridePartNameEquivalentMatch' => false,
+            ];
         }
 
         $overridePartName = $this->overridePartNamesByEquivalenceKey[self::partNameEquivalenceKey($partName)] ?? null;
         if ($overridePartName !== null) {
-            return $this->overrides[$overridePartName];
+            return [
+                'partName' => $partName,
+                'contentType' => $this->overrides[$overridePartName],
+                'contentTypeSource' => 'override',
+                'defaultExtension' => null,
+                'overridePartName' => $overridePartName,
+                'overridePartNameExactMatch' => false,
+                'overridePartNameEquivalentMatch' => true,
+            ];
         }
 
         $basename = basename($partName);
         $dot = strrpos($basename, '.');
         if ($dot === false || $dot === strlen($basename) - 1) {
-            return null;
+            return self::missingResolution($partName);
         }
 
         $extension = strtolower(substr($basename, $dot + 1));
+        $default = $this->defaults[$extension] ?? null;
+        if ($default !== null) {
+            return [
+                'partName' => $partName,
+                'contentType' => $default['contentType'],
+                'contentTypeSource' => 'default',
+                'defaultExtension' => $default['extension'],
+                'overridePartName' => null,
+                'overridePartNameExactMatch' => false,
+                'overridePartNameEquivalentMatch' => false,
+            ];
+        }
 
-        return $this->defaults[$extension]['contentType'] ?? null;
+        return self::missingResolution($partName);
     }
 
     /**
@@ -244,6 +280,22 @@ final class OpcContentTypes
     private static function partNameEquivalenceKey(string $partName): string
     {
         return strtolower($partName);
+    }
+
+    /**
+     * @return array{partName:string, contentType:null, contentTypeSource:string, defaultExtension:null, overridePartName:null, overridePartNameExactMatch:bool, overridePartNameEquivalentMatch:bool}
+     */
+    private static function missingResolution(string $partName): array
+    {
+        return [
+            'partName' => $partName,
+            'contentType' => null,
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'overridePartNameExactMatch' => false,
+            'overridePartNameEquivalentMatch' => false,
+        ];
     }
 
     public static function isValidContentType(string $contentType): bool

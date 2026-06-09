@@ -1730,6 +1730,23 @@ return [
         $t->contains('alttext="x over acute plus y over grave plus A over ring"', $accessibleMathml);
         $t->contains('intent="row(over(x,acute),plus,over(y,grave),plus,over(a,ring))"', $accessibleMathml);
     },
+    'converts bounded tex dot and under tilde accent aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $dotAccentMathml = $converter->texToMathMl('\\dddot{x_i} + \\ddddot{y} + \\DDDot z', true);
+        $underTildeMathml = $converter->texToMathMl('\\utilde{x_i} + \\wideutilde{mn}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\dddot{x} + \\utilde{y}', true);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $dotAccentMathml);
+        $t->contains('<mover accent="true"><msub><mi>x</mi><mi>i</mi></msub><mo>⃛</mo></mover><mo>+</mo><mover accent="true"><mi>y</mi><mo>⃜</mo></mover><mo>+</mo><mover accent="true"><mi>z</mi><mo>⃛</mo></mover>', $dotAccentMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\dddot{x_i} + \\ddddot{y} + \\DDDot z</annotation>', $dotAccentMathml);
+        $t->contains('<munder accentunder="true"><msub><mi>x</mi><mi>i</mi></msub><mo>̰</mo></munder><mo>+</mo><munder accentunder="true"><mrow><mi>m</mi><mi>n</mi></mrow><mo>̰</mo></munder>', $underTildeMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\utilde{x_i} + \\wideutilde{mn}</annotation>', $underTildeMathml);
+        $t->contains('alttext="x over triple dot plus y under tilde below"', $accessibleMathml);
+        $t->contains('intent="row(over(x,triple_dot),plus,under(y,tilde_below))"', $accessibleMathml);
+        $t->true(!str_contains($dotAccentMathml . $underTildeMathml, '<mi>\\dddot</mi>'));
+        $t->true(!str_contains($dotAccentMathml . $underTildeMathml, '<mi>\\ddddot</mi>'));
+        $t->true(!str_contains($dotAccentMathml . $underTildeMathml, '<mi>\\utilde</mi>'));
+    },
     'converts bounded tex extensible arrows to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $xArrowMathml = $converter->texToMathMl('\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i', true);

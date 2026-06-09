@@ -66,6 +66,71 @@ return [
         $t->same('application/vnd.openxmlformats-package.relationships+xml', $types->contentTypeForPart('/word/_rels/document.xml.rels'));
         $t->same(null, $types->contentTypeForPart('/word/media/no-extension'));
     },
+    'reports OPC content type resolution provenance for default and override matches' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml): void {
+        $types = OpcContentTypes::fromXml($contentTypesXml);
+
+        $imageResolution = $types->contentTypeResolutionForPart('/word/media/review-image.PNG?crop=hero#source');
+        $t->same('/word/media/review-image.PNG', $imageResolution['partName']);
+        $t->same('image/png', $imageResolution['contentType']);
+        $t->same('default', $imageResolution['contentTypeSource']);
+        $t->same('png', $imageResolution['defaultExtension']);
+        $t->same(null, $imageResolution['overridePartName']);
+
+        $documentResolution = $types->contentTypeResolutionForPart('/word/document.xml');
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $documentResolution['contentType']);
+        $t->same('override', $documentResolution['contentTypeSource']);
+        $t->same('/word/document.xml', $documentResolution['overridePartName']);
+        $t->same(true, $documentResolution['overridePartNameExactMatch']);
+        $t->same(false, $documentResolution['overridePartNameEquivalentMatch']);
+        $t->same(null, $documentResolution['defaultExtension']);
+
+        $missingResolution = $types->contentTypeResolutionForPart('/word/media/source');
+        $t->same(null, $missingResolution['contentType']);
+        $t->same('missing', $missingResolution['contentTypeSource']);
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $targets = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $targets[$target['id']] = $target;
+        }
+
+        $t->same('default', $targets['rIdImage']['contentTypeSource']);
+        $t->same('png', $targets['rIdImage']['contentTypeDefaultExtension']);
+        $t->same(null, $targets['rIdImage']['contentTypeOverridePartName']);
+        $t->same('override', $targets['rIdStyles']['contentTypeSource']);
+        $t->same('/word/styles.xml', $targets['rIdStyles']['contentTypeOverridePartName']);
+        $t->same('default', $targets['rIdCustomXml']['contentTypeSource']);
+        $t->same('xml', $targets['rIdCustomXml']['contentTypeDefaultExtension']);
+
+        $packageParts = [];
+        foreach ($graph->preflightPackageParts() as $part) {
+            $packageParts[$part['partName']] = $part;
+        }
+
+        $t->same('default', $packageParts['/word/media/review-image.PNG']['contentTypeSource']);
+        $t->same('png', $packageParts['/word/media/review-image.PNG']['contentTypeDefaultExtension']);
+        $t->same('default', $packageParts['/word/_rels/document.xml.rels']['contentTypeSource']);
+        $t->same('rels', $packageParts['/word/_rels/document.xml.rels']['contentTypeDefaultExtension']);
+
+        $consistencyTargets = [];
+        foreach ($graph->preflightPackageConsistency()['relationshipTargets'] as $target) {
+            $consistencyTargets[$target['source'] . ':' . $target['id']] = $target;
+        }
+
+        $t->same('default', $consistencyTargets['/word/document.xml:rIdImage']['contentTypeSource']);
+        $t->same('png', $consistencyTargets['/word/document.xml:rIdImage']['contentTypeDefaultExtension']);
+    },
     'serializes OPC content types with namespace and round trip lookup' => static function (TestRunner $t): void {
         $types = new OpcContentTypes();
         $types->addDefault('.xml', 'application/xml');

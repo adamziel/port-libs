@@ -610,6 +610,9 @@ final class MathTexConverter
         'bar' => '¯',
         'breve' => '˘',
         'check' => 'ˇ',
+        'DDDot' => "\u{20DB}",
+        'ddddot' => "\u{20DC}",
+        'dddot' => "\u{20DB}",
         'ddot' => '¨',
         'dot' => '˙',
         'grave' => '`',
@@ -627,6 +630,8 @@ final class MathTexConverter
     private const UNDER_ACCENT_COMMANDS = [
         'underbar' => "\u{0331}",
         'underline' => '_',
+        'utilde' => "\u{0330}",
+        'wideutilde' => "\u{0330}",
     ];
 
     /** @var array<string, string> */
@@ -1112,6 +1117,7 @@ final class MathTexConverter
         '𝜍' => 'sigma',
         '𝜚' => 'rho',
         "\u{0331}" => 'underbar',
+        "\u{0330}" => 'tilde below',
         '_' => 'underbar',
         '∖' => 'set minus',
         '∼' => 'similar to',
@@ -1183,6 +1189,8 @@ final class MathTexConverter
         '`' => 'grave',
         '˙' => 'dot',
         '¨' => 'double dot',
+        "\u{20DB}" => 'triple dot',
+        "\u{20DC}" => 'quadruple dot',
         '˘' => 'breve',
         'ˇ' => 'check',
         '˚' => 'ring',

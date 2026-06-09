@@ -86,6 +86,8 @@ Prime audit $f'(x) + g''_i + h_i''' + r'''' + s'''''_j + \partial^\prime f + y^\
 
 Accent alias audit $\acute{x} + \grave{y} + \breve{z} + \check{a} + \mathring{A}_0 + \widetilde{mn}$ stays semantic.
 
+Extended accent alias audit $\dddot{x_i} + \ddddot{y} + \DDDot z + \utilde{x_i} + \wideutilde{mn}$ stays semantic.
+
 Above and below audit $\overset{\text{new}}{p_i} + \underset{0}{\lim}_{n \to \infty} a_n + \overbrace{x + y}^{\text{sum}} + \underbrace{m_i}_{\text{media}} + \displaystyle \frac{q}{r}$ stays semantic.
 
 Unbraced brace audit $\overbrace x_i^n + \underbrace y_j + \overbracket x^2 + \underbracket y_0$ keeps texToken bases semantic.
@@ -284,6 +286,7 @@ $summary = [
     'bracedNotRelationMathml' => $converter->texToMathMl('x \\not{\\in} S + y \\not{=} z + q \\not{\\leqslant} r + u \\not\\geqslant v'),
     'primeMathml' => $converter->texToMathMl("f'(x) + g''_i + h_i''' + r'''' + s'''''_j + \\partial^\\prime f + y^\\backprime"),
     'accentAliasMathml' => $converter->texToMathMl('\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}'),
+    'extendedAccentAliasMathml' => $converter->texToMathMl('\\dddot{x_i} + \\ddddot{y} + \\DDDot z + \\utilde{x_i} + \\wideutilde{mn}'),
     'aboveBelowMathml' => $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}'),
     'tokenBraceWrapperMathml' => $converter->texToMathMl('\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0'),
     'buildrelMathml' => $converter->texToMathMl('\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B'),
@@ -675,6 +678,20 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['extendedAccentAliasMathml'], '<mi>\\dddot</mi>')
+        || str_contains($summary['extendedAccentAliasMathml'], '<mi>\\ddddot</mi>')
+        || str_contains($summary['extendedAccentAliasMathml'], '<mi>\\DDDot</mi>')
+        || str_contains($summary['extendedAccentAliasMathml'], '<mi>\\utilde</mi>')
+        || str_contains($summary['extendedAccentAliasMathml'], '<mi>\\wideutilde</mi>')
+        || !str_contains($summary['extendedAccentAliasMathml'], '<mover accent="true"><msub><mi>x</mi><mi>i</mi></msub><mo>⃛</mo></mover>')
+        || !str_contains($summary['extendedAccentAliasMathml'], '<mover accent="true"><mi>y</mi><mo>⃜</mo></mover>')
+        || !str_contains($summary['extendedAccentAliasMathml'], '<munder accentunder="true"><msub><mi>x</mi><mi>i</mi></msub><mo>̰</mo></munder>')
+        || !str_contains($summary['extendedAccentAliasMathml'], '<munder accentunder="true"><mrow><mi>m</mi><mi>n</mi></mrow><mo>̰</mo></munder>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map extended dot and undertilde accent aliases');
+    }
+
+    if (
         str_contains($summary['largeOperatorAliasMathml'], '<mi>\\bigcup</mi>')
         || str_contains($summary['largeOperatorAliasMathml'], '<mi>\\iint</mi>')
         || !str_contains($summary['largeOperatorAliasMathml'], '<msubsup><mo>⋃</mo>')
@@ -760,6 +777,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '<msup><mi>r</mi><mo>⁗</mo></msup>',
         '<msubsup><mi>s</mi><mi>j</mi><mrow><mo>⁗</mo><mo>′</mo></mrow></msubsup>',
         '<span class="math inline">\\(\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}\\)</span>',
+        '<span class="math inline">\\(\\dddot{x_i} + \\ddddot{y} + \\DDDot z + \\utilde{x_i} + \\wideutilde{mn}\\)</span>',
+        '<mover accent="true"><msub><mi>x</mi><mi>i</mi></msub><mo>⃛</mo></mover><mo>+</mo><mover accent="true"><mi>y</mi><mo>⃜</mo></mover><mo>+</mo><mover accent="true"><mi>z</mi><mo>⃛</mo></mover>',
+        '<munder accentunder="true"><msub><mi>x</mi><mi>i</mi></msub><mo>̰</mo></munder><mo>+</mo><munder accentunder="true"><mrow><mi>m</mi><mi>n</mi></mrow><mo>̰</mo></munder>',
+        '<annotation encoding="application/x-tex">\\dddot{x_i} + \\ddddot{y} + \\DDDot z + \\utilde{x_i} + \\wideutilde{mn}</annotation>',
         '<span class="math inline">\\(\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}\\)</span>',
         '<span class="math inline">\\(\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0\\)</span>',
         '<annotation encoding="application/x-tex">\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0</annotation>',
