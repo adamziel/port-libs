@@ -219,6 +219,7 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
                 $body .= pack('VVV', $crc32, strlen($payload), strlen($data));
             }
         }
+        $body .= (string) ($entry['localSlack'] ?? '');
 
         $centralDirectory .= pack(
             'VvvvvvvVVVvvvvvVV',
@@ -1188,6 +1189,54 @@ try {
 } catch (RuntimeException) {
     $localHeaderMetadataExtractionBlocked = true;
 }
+$localHeaderSpanDocumentXml = '<w:document><w:body><w:p>Local header span archive stream review</w:p></w:body></w:document>';
+$localHeaderSpanOrphanName = 'word/media/orphan.bin';
+$localHeaderSpanOrphanData = "unlisted local media bytes stay review-only\n";
+$localHeaderSpanOrphanBytes = pack(
+    'VvvvvvVVVvv',
+    0x04034b50,
+    20,
+    0x0800,
+    0,
+    0,
+    0,
+    (int) sprintf('%u', crc32($localHeaderSpanOrphanData)),
+    strlen($localHeaderSpanOrphanData),
+    strlen($localHeaderSpanOrphanData),
+    strlen($localHeaderSpanOrphanName),
+    0
+) . $localHeaderSpanOrphanName . $localHeaderSpanOrphanData;
+$localHeaderSpanZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+        'flags' => 0x0800,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => $localHeaderSpanDocumentXml,
+        'compressionMethod' => 8,
+        'flags' => 0x0800,
+        'localSlack' => $localHeaderSpanOrphanBytes,
+    ],
+], 'local header span stream review fixture');
+$localHeaderSpanZipGzip = GzipStream::build($localHeaderSpanZipBytes, [
+    'filename' => 'wordpress-local-header-span-gap.zip',
+    'comment' => 'ZIP local header span preflight fixture',
+    'headerCrc' => true,
+]);
+$localHeaderSpanInspection = ArchiveCompressionStream::inspectZipLocalHeaderSpanPolicy(
+    $localHeaderSpanZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($localHeaderSpanZipBytes)
+);
+$localHeaderSpanExtractionBlocked = false;
+try {
+    ZipPackage::fromString($localHeaderSpanZipBytes);
+} catch (RuntimeException) {
+    $localHeaderSpanExtractionBlocked = true;
+}
 $generalPurposeZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -2012,6 +2061,16 @@ if (in_array('--self-test', $argv, true)) {
         'zipLocalHeaderMetadataLocalMethod' => 0,
         'zipLocalHeaderMetadataDescriptorPlaceholder' => false,
         'zipLocalHeaderMetadataGzipFilename' => 'wordpress-local-header-metadata-mismatch.zip',
+        'zipLocalHeaderSpanFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipLocalHeaderSpanEntryCount' => 2,
+        'zipLocalHeaderSpanIssueCount' => 1,
+        'zipLocalHeaderSpanSupportedByBoundedReader' => false,
+        'zipLocalHeaderSpanIssues' => ['local-entry-unclaimed-bytes'],
+        'zipLocalHeaderSpanIssueName' => 'word/document.xml',
+        'zipLocalHeaderSpanEntryNames' => ['[Content_Types].xml', 'word/document.xml'],
+        'zipLocalHeaderSpanUnclaimedBytes' => strlen($localHeaderSpanOrphanBytes),
+        'zipLocalHeaderSpanStartsWithLocalHeader' => true,
+        'zipLocalHeaderSpanGzipFilename' => 'wordpress-local-header-span-gap.zip',
         'zipGeneralPurposeFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipGeneralPurposeEntryCount' => 4,
         'zipGeneralPurposeSupportedCount' => 4,
@@ -2665,6 +2724,24 @@ if (in_array('--self-test', $argv, true)) {
         || ($localHeaderMetadataInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipLocalHeaderMetadataGzipFilename']
         || isset($localHeaderMetadataInspection['package'])
         || !$localHeaderMetadataExtractionBlocked
+        || $localHeaderSpanInspection['format'] !== $expected['zipLocalHeaderSpanFormat']
+        || $localHeaderSpanInspection['zipBytes'] !== $localHeaderSpanZipBytes
+        || $localHeaderSpanInspection['packageByteSize'] !== strlen($localHeaderSpanZipBytes)
+        || $localHeaderSpanInspection['entryCount'] !== $expected['zipLocalHeaderSpanEntryCount']
+        || $localHeaderSpanInspection['totalEntryCount'] !== $expected['zipLocalHeaderSpanEntryCount']
+        || $localHeaderSpanInspection['issueEntryCount'] !== $expected['zipLocalHeaderSpanIssueCount']
+        || $localHeaderSpanInspection['isSupportedByBoundedReader'] !== $expected['zipLocalHeaderSpanSupportedByBoundedReader']
+        || $localHeaderSpanInspection['issues'] !== $expected['zipLocalHeaderSpanIssues']
+        || array_column($localHeaderSpanInspection['entries'], 'name') !== $expected['zipLocalHeaderSpanEntryNames']
+        || array_column($localHeaderSpanInspection['issueEntries'], 'name') !== [$expected['zipLocalHeaderSpanIssueName']]
+        || ($localHeaderSpanInspection['issueEntries'][0]['unclaimedBytes'] ?? null) !== $expected['zipLocalHeaderSpanUnclaimedBytes']
+        || ($localHeaderSpanInspection['issueEntries'][0]['unclaimedBytesStartWithLocalHeader'] ?? null) !== $expected['zipLocalHeaderSpanStartsWithLocalHeader']
+        || ($localHeaderSpanInspection['issueEntries'][0]['hasSpanIssue'] ?? null) !== true
+        || ($localHeaderSpanInspection['issueEntries'][0]['issues'] ?? []) !== $expected['zipLocalHeaderSpanIssues']
+        || ($localHeaderSpanInspection['issueEntries'][0]['isContiguousWithNext'] ?? null) !== false
+        || ($localHeaderSpanInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipLocalHeaderSpanGzipFilename']
+        || isset($localHeaderSpanInspection['package'])
+        || !$localHeaderSpanExtractionBlocked
         || $generalPurposeZipInspection['format'] !== $expected['zipGeneralPurposeFormat']
         || $generalPurposeZipInspection['zipBytes'] !== $generalPurposeZipBytes
         || $generalPurposeZipInspection['packageByteSize'] !== strlen($generalPurposeZipBytes)
@@ -3131,6 +3208,13 @@ echo 'zipLocalHeaderMetadata.names=' . implode(',', array_column($localHeaderMet
 echo 'zipLocalHeaderMetadata.issues=' . implode(',', $localHeaderMetadataInspection['issues']) . "\n";
 echo 'zipLocalHeaderMetadata.gzipFilename=' . $localHeaderMetadataInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipLocalHeaderMetadata.extractionBlocked=' . ($localHeaderMetadataExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zipLocalHeaderSpan.format=' . $localHeaderSpanInspection['format'] . "\n";
+echo 'zipLocalHeaderSpan.entryCount=' . $localHeaderSpanInspection['entryCount'] . "\n";
+echo 'zipLocalHeaderSpan.issueCount=' . $localHeaderSpanInspection['issueEntryCount'] . "\n";
+echo 'zipLocalHeaderSpan.issueName=' . $localHeaderSpanInspection['issueEntries'][0]['name'] . "\n";
+echo 'zipLocalHeaderSpan.issues=' . implode(',', $localHeaderSpanInspection['issues']) . "\n";
+echo 'zipLocalHeaderSpan.gzipFilename=' . $localHeaderSpanInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipLocalHeaderSpan.extractionBlocked=' . ($localHeaderSpanExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'zipGeneralPurpose.format=' . $generalPurposeZipInspection['format'] . "\n";
 echo 'zipGeneralPurpose.entryCount=' . $generalPurposeZipInspection['entryCount'] . "\n";
 echo 'zipGeneralPurpose.supportedCount=' . $generalPurposeZipInspection['supportedEntryCount'] . "\n";

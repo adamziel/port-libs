@@ -263,6 +263,7 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
                 );
             }
         }
+        $body .= (string) ($entry['localSlack'] ?? '');
 
         $centralDirectory .= pack(
             'VvvvvvvVVVvvvvvVV',
@@ -5596,6 +5597,117 @@ return [
         $t->throws(
             \RuntimeException::class,
             static fn (): array => ArchiveCompressionStream::inspectZipLocalHeaderMetadataPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
+    'preflights zip local header span gaps across archive streams' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $documentXml = '<w:document><w:body><w:p>Local header span stream policy</w:p></w:body></w:document>';
+        $orphanName = 'word/media/orphan.bin';
+        $orphanData = "unlisted local media bytes should stay review-only\n";
+        $orphanBytes = pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            (int) sprintf('%u', crc32($orphanData)),
+            strlen($orphanData),
+            strlen($orphanData),
+            strlen($orphanName),
+            0
+        ) . $orphanName . $orphanData;
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+                'flags' => 0x0800,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'compressionMethod' => 8,
+                'flags' => 0x0800,
+                'localSlack' => $orphanBytes,
+            ],
+        ], 'local header span stream fixture');
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-local-header-span-gap.zip',
+                'comment' => 'ZIP local header span preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('local header span reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipLocalHeaderSpanPolicy($bytes, $format, strlen($zipBytes));
+            $issueEntry = $inspection['issueEntries'][0];
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(2, $inspection['entryCount']);
+            $t->same(2, $inspection['totalEntryCount']);
+            $t->same(1, $inspection['issueEntryCount']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same(['local-entry-unclaimed-bytes'], $inspection['issues']);
+            $t->same(['[Content_Types].xml', 'word/document.xml'], array_column($inspection['entries'], 'name'));
+            $t->same(['word/document.xml'], array_column($inspection['issueEntries'], 'name'));
+            $t->same('word/document.xml', $issueEntry['name']);
+            $t->same(strlen($orphanBytes), $issueEntry['unclaimedBytes']);
+            $t->same(true, $issueEntry['unclaimedBytesStartWithLocalHeader']);
+            $t->same(false, $issueEntry['isContiguousWithNext']);
+            $t->same(true, $issueEntry['hasSpanIssue']);
+            $t->same(['local-entry-unclaimed-bytes'], $issueEntry['issues']);
+            $t->same(8, $issueEntry['compressionMethod']);
+            $t->same(0x0800, $issueEntry['generalPurposeFlags']);
+            $t->same(strlen(gzdeflate($documentXml)), $issueEntry['compressedSize']);
+            $t->true(($issueEntry['recordEnd'] ?? 0) < ($issueEntry['nextOffset'] ?? 0));
+            $t->same(false, array_key_exists('package', $inspection));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipLocalHeaderSpanPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipLocalHeaderSpanPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-local-header-span-gap.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('ZIP local header span preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('local header span reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zipBytes));
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipLocalHeaderSpanPolicy(
                 $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
                 ArchiveCompressionStream::FORMAT_GZIP_TAR,
                 strlen($zipBytes)
