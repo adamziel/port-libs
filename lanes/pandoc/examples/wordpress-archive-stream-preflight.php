@@ -764,6 +764,37 @@ $filesystemAttributeInspection = ArchiveCompressionStream::inspectTarFilesystemA
     ArchiveCompressionStream::FORMAT_GZIP_TAR,
     strlen($filesystemAttributeArchive->bytes())
 );
+$tarNameCollisionPrecomposedName = "packet/media/Caf\u{00e9}.PNG";
+$tarNameCollisionDecomposedName = "packet/media/cafe\u{0301}.png";
+$tarNameCollisionArchive = TarArchive::fromEntries([
+    [
+        'name' => 'packet/manifest.json',
+        'data' => '{"source":"tar-name-collision","target":"wordpress"}',
+    ],
+    [
+        'name' => $tarNameCollisionPrecomposedName,
+        'data' => 'precomposed media',
+    ],
+    [
+        'name' => $tarNameCollisionDecomposedName,
+        'data' => 'decomposed media',
+    ],
+]);
+$tarNameCollisionGzip = GzipStream::build($tarNameCollisionArchive->bytes(), [
+    'filename' => 'wordpress-tar-name-collision.tar',
+    'comment' => 'TAR name collision policy preflight',
+]);
+$tarNameCollisionInspection = ArchiveCompressionStream::inspectTarCaseInsensitiveNamePolicy(
+    $tarNameCollisionGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($tarNameCollisionArchive->bytes())
+);
+$tarNameCollisionBlocked = false;
+try {
+    $tarNameCollisionArchive->assertNoCaseInsensitiveNameCollisions();
+} catch (RuntimeException) {
+    $tarNameCollisionBlocked = true;
+}
 $descriptorZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -1567,6 +1598,17 @@ if (in_array('--self-test', $argv, true)) {
             ['non-root-uid', 'non-root-gid', 'user-name', 'group-name'],
         ],
         'filesystemAttributeDiagnostics' => ['tar-filesystem-attributes-not-applied'],
+        'tarNameCollisionFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'tarNameCollisionType' => 'tar-case-insensitive-name-policy',
+        'tarNameCollisionPolicy' => 'review-before-conversion',
+        'tarNameCollisionExtractionPolicy' => 'metadata-only-no-extraction',
+        'tarNameCollisionEntryCount' => 3,
+        'tarNameCollisionGroupCount' => 1,
+        'tarNameCollisionCollisionEntryCount' => 2,
+        'tarNameCollisionCaseFoldKey' => "packet/media/caf\u{00e9}.png",
+        'tarNameCollisionNames' => [$tarNameCollisionPrecomposedName, $tarNameCollisionDecomposedName],
+        'tarNameCollisionDiagnostics' => ['tar-case-insensitive-name-collision'],
+        'tarNameCollisionIssues' => ['case-insensitive-name-collision'],
         'zipDescriptorFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipDescriptorEntryCount' => 3,
         'zipDescriptorDescriptorCount' => 2,
@@ -2018,6 +2060,21 @@ if (in_array('--self-test', $argv, true)) {
         || ($filesystemAttributeInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-tar-filesystem-attributes.tar'
         || isset($filesystemAttributeInspection['archive'])
         || isset($filesystemAttributeInspection['entries'][0]['data'])
+        || $tarNameCollisionInspection['format'] !== $expected['tarNameCollisionFormat']
+        || $tarNameCollisionInspection['type'] !== $expected['tarNameCollisionType']
+        || $tarNameCollisionInspection['handoffPolicy'] !== $expected['tarNameCollisionPolicy']
+        || $tarNameCollisionInspection['extractionPolicy'] !== $expected['tarNameCollisionExtractionPolicy']
+        || $tarNameCollisionInspection['entryCount'] !== $expected['tarNameCollisionEntryCount']
+        || $tarNameCollisionInspection['collisionGroupCount'] !== $expected['tarNameCollisionGroupCount']
+        || $tarNameCollisionInspection['collisionEntryCount'] !== $expected['tarNameCollisionCollisionEntryCount']
+        || $tarNameCollisionInspection['diagnostics'] !== $expected['tarNameCollisionDiagnostics']
+        || ($tarNameCollisionInspection['collisionGroups'][0]['caseFoldKey'] ?? null) !== $expected['tarNameCollisionCaseFoldKey']
+        || ($tarNameCollisionInspection['collisionGroups'][0]['entryNames'] ?? []) !== $expected['tarNameCollisionNames']
+        || ($tarNameCollisionInspection['collisionEntries'][0]['issues'] ?? []) !== $expected['tarNameCollisionIssues']
+        || ($tarNameCollisionInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-tar-name-collision.tar'
+        || isset($tarNameCollisionInspection['archive'])
+        || isset($tarNameCollisionInspection['entries'][0]['data'])
+        || !$tarNameCollisionBlocked
         || $descriptorZipInspection['format'] !== $expected['zipDescriptorFormat']
         || $descriptorZipInspection['entryCount'] !== $expected['zipDescriptorEntryCount']
         || $descriptorZipInspection['descriptorEntryCount'] !== $expected['zipDescriptorDescriptorCount']
@@ -2485,6 +2542,11 @@ echo 'filesystemAttribute.modeFlags=' . implode('|', array_map(
     static fn (array $flags): string => implode('+', $flags),
     array_column($filesystemAttributeInspection['entries'], 'modeFlags')
 )) . "\n";
+echo 'tarNameCollision.format=' . $tarNameCollisionInspection['format'] . "\n";
+echo 'tarNameCollision.handoffPolicy=' . $tarNameCollisionInspection['handoffPolicy'] . "\n";
+echo 'tarNameCollision.collisionEntryCount=' . $tarNameCollisionInspection['collisionEntryCount'] . "\n";
+echo 'tarNameCollision.caseFoldKey=' . $tarNameCollisionInspection['collisionGroups'][0]['caseFoldKey'] . "\n";
+echo 'tarNameCollision.blocked=' . ($tarNameCollisionBlocked ? 'yes' : 'no') . "\n";
 echo 'zipDescriptor.format=' . $descriptorZipInspection['format'] . "\n";
 echo 'zipDescriptor.entryCount=' . $descriptorZipInspection['entryCount'] . "\n";
 echo 'zipDescriptor.descriptorEntryCount=' . $descriptorZipInspection['descriptorEntryCount'] . "\n";

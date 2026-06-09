@@ -27,6 +27,12 @@ final class TarArchive
     private const PAX_HDRCHARSET_BINARY = 'BINARY';
     private const PAX_HDRCHARSET_UTF8 = 'ISO-IR 10646 2000 UTF-8';
     private const PAX_HDRCHARSET_UTF8_SHORT = 'UTF-8';
+    private const BOUNDED_UNICODE_CASE_FOLD_FALLBACKS = [
+        "\u{00C9}" => "\u{00E9}",
+    ];
+    private const BOUNDED_LATIN_COMPOSITION_FALLBACKS = [
+        "e\u{0301}" => "\u{00E9}",
+    ];
 
     /**
      * @param array<string, TarArchiveEntry> $entriesByName
@@ -2442,6 +2448,130 @@ final class TarArchive
         }
 
         return substr($this->bytes, $entry->dataOffset, $entry->size);
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     entryCount:int,
+     *     collisionGroupCount:int,
+     *     collisionEntryCount:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     collisionGroups:list<array{caseFoldKey:string, entryNames:list<string>}>,
+     *     collisionEntries:list<array{name:string, caseFoldKey:string, equivalentEntryNames:list<string>, hasCaseInsensitiveNameCollision:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, caseFoldKey:string, equivalentEntryNames:list<string>, hasCaseInsensitiveNameCollision:bool, issues:list<string>}>
+     * }
+     */
+    public function caseInsensitiveNamePreflight(): array
+    {
+        $entryNamesByCaseFoldKey = [];
+        foreach ($this->entries as $entry) {
+            $entryNamesByCaseFoldKey[self::caseFoldTarEntryName($entry->name)][] = $entry->name;
+        }
+
+        $collisionGroups = [];
+        foreach ($entryNamesByCaseFoldKey as $caseFoldKey => $entryNames) {
+            if (count($entryNames) > 1) {
+                $collisionGroups[] = [
+                    'caseFoldKey' => $caseFoldKey,
+                    'entryNames' => $entryNames,
+                ];
+            }
+        }
+
+        $entries = [];
+        $collisionEntries = [];
+        foreach ($this->entries as $entry) {
+            $caseFoldKey = self::caseFoldTarEntryName($entry->name);
+            $equivalentEntryNames = $entryNamesByCaseFoldKey[$caseFoldKey] ?? [];
+            $hasCollision = count($equivalentEntryNames) > 1;
+            $issues = $hasCollision ? ['case-insensitive-name-collision'] : [];
+            $summary = [
+                'name' => $entry->name,
+                'caseFoldKey' => $caseFoldKey,
+                'equivalentEntryNames' => $equivalentEntryNames,
+                'hasCaseInsensitiveNameCollision' => $hasCollision,
+                'issues' => $issues,
+            ];
+            $entries[] = $summary;
+            if ($hasCollision) {
+                $collisionEntries[] = $summary;
+            }
+        }
+
+        return [
+            'type' => 'tar-case-insensitive-name-policy',
+            'entryCount' => count($this->entries),
+            'collisionGroupCount' => count($collisionGroups),
+            'collisionEntryCount' => count($collisionEntries),
+            'handoffPolicy' => $collisionEntries === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'diagnostics' => $collisionEntries === [] ? [] : ['tar-case-insensitive-name-collision'],
+            'collisionGroups' => $collisionGroups,
+            'collisionEntries' => $collisionEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     entryCount:int,
+     *     collisionGroupCount:int,
+     *     collisionEntryCount:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     collisionGroups:list<array{caseFoldKey:string, entryNames:list<string>}>,
+     *     collisionEntries:list<array{name:string, caseFoldKey:string, equivalentEntryNames:list<string>, hasCaseInsensitiveNameCollision:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, caseFoldKey:string, equivalentEntryNames:list<string>, hasCaseInsensitiveNameCollision:bool, issues:list<string>}>
+     * }
+     */
+    public function assertNoCaseInsensitiveNameCollisions(): array
+    {
+        $summary = $this->caseInsensitiveNamePreflight();
+        if ($summary['collisionEntryCount'] > 0) {
+            $groups = implode(
+                ', ',
+                array_map(
+                    static fn (array $group): string => $group['caseFoldKey'] . ' (' . implode(', ', $group['entryNames']) . ')',
+                    $summary['collisionGroups']
+                )
+            );
+
+            throw new \RuntimeException(
+                'TAR archive contains case-insensitive entry name collisions that require explicit import review: '
+                . $groups
+            );
+        }
+
+        return $summary;
+    }
+
+    private static function caseFoldTarEntryName(string $name): string
+    {
+        $name = self::normalizeTarEntryNameForCollisionKey($name);
+        if (function_exists('mb_strtolower')) {
+            $name = mb_strtolower($name, 'UTF-8');
+        } else {
+            $name = strtr(strtolower($name), self::BOUNDED_UNICODE_CASE_FOLD_FALLBACKS);
+        }
+
+        return self::normalizeTarEntryNameForCollisionKey($name);
+    }
+
+    private static function normalizeTarEntryNameForCollisionKey(string $name): string
+    {
+        if (class_exists(\Normalizer::class)) {
+            $normalized = \Normalizer::normalize($name, \Normalizer::FORM_C);
+            if (is_string($normalized)) {
+                return $normalized;
+            }
+        }
+
+        return strtr($name, self::BOUNDED_LATIN_COMPOSITION_FALLBACKS);
     }
 
     /**

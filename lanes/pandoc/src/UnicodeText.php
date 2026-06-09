@@ -2971,6 +2971,16 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const MAC_ICELAND_REPLACEMENTS = [
+        0xa0 => 0x00dd,
+        0xdc => 0x00d0,
+        0xdd => 0x00f0,
+        0xde => 0x00de,
+        0xdf => 0x00fe,
+        0xe0 => 0x00fd,
+    ];
+
+    /** @var array<int, int> */
     private const MAC_CYRILLIC_REPLACEMENTS = [
         0x80 => 0x0410,
         0x81 => 0x0411,
@@ -3631,6 +3641,7 @@ final class UnicodeText
             || $normalized === 'iso-8859-15'
             || $normalized === 'macintosh'
             || $normalized === 'mac-turkish'
+            || $normalized === 'mac-iceland'
             || $normalized === 'mac-cyrillic'
             || $normalized === 'mac-greek'
             || $normalized === 'x-user-defined'
@@ -4276,6 +4287,8 @@ final class UnicodeText
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
             'macturkish', 'mac-turkish', 'xmacturkish', 'x-mac-turkish', 'xmac-turkish', 'turkishmac',
             'turkish-mac', 'csmacturkish' => 'mac-turkish',
+            'maciceland', 'mac-iceland', 'xmaciceland', 'x-mac-iceland',
+            'macicelandic', 'mac-icelandic', 'xmacicelandic', 'x-mac-icelandic' => 'mac-iceland',
             'maccyrillic', 'mac-cyrillic', 'xmaccyrillic', 'x-mac-cyrillic',
             'macukrainian', 'mac-ukrainian', 'xmacukrainian', 'x-mac-ukrainian' => 'mac-cyrillic',
             'macgreek', 'mac-greek', 'xmacgreek', 'x-mac-greek' => 'mac-greek',
@@ -5102,6 +5115,10 @@ final class UnicodeText
             }
             if ($encoding === 'mac-turkish' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::MAC_TURKISH_REPLACEMENTS[$byte] ?? self::MAC_ROMAN_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'mac-iceland' && $byte >= 0x80) {
+                $out .= self::fromCodepoint(self::MAC_ICELAND_REPLACEMENTS[$byte] ?? self::MAC_ROMAN_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'mac-cyrillic' && $byte >= 0x80) {

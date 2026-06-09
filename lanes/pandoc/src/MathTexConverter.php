@@ -1686,6 +1686,11 @@ final class MathTexConverter
             return $declaredOperator;
         }
 
+        $pairedDelimiterX = $this->readRawTexDeclaredPairedDelimiterX($source);
+        if ($pairedDelimiterX !== null) {
+            return $pairedDelimiterX;
+        }
+
         $pairedDelimiter = $this->readRawTexDeclaredPairedDelimiter($source);
         if ($pairedDelimiter !== null) {
             return $pairedDelimiter;
@@ -1828,6 +1833,66 @@ final class MathTexConverter
         ];
     }
 
+    /**
+     * @return array{name:string, arity:int, template:string}|null
+     */
+    private function readRawTexDeclaredPairedDelimiterX(string $source): ?array
+    {
+        if (preg_match('/^\\\\DeclarePairedDelimiterX(?![A-Za-z])/', $source, $m) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($m[0]);
+        $name = $this->readRawTexMacroNameReference($source, $offset, 'paired delimiter X');
+
+        $declaredArity = null;
+        $this->skipWhitespace($source, $offset);
+        $arityArgument = $this->readTexBracketArgument($source, $offset);
+        if ($arityArgument !== null) {
+            if (preg_match('/^[1-9]$/', trim($arityArgument['value'])) !== 1) {
+                throw new \InvalidArgumentException('Expected TeX paired delimiter X arity from 1 through 9 at offset ' . $offset);
+            }
+
+            $declaredArity = (int) trim($arityArgument['value']);
+            $offset = $arityArgument['next'];
+        }
+
+        $this->skipWhitespace($source, $offset);
+        $openDelimiter = $this->readTexBraceArgument($source, $offset);
+        if ($openDelimiter === null) {
+            throw new \InvalidArgumentException('Expected TeX paired delimiter X opening delimiter at offset ' . $offset);
+        }
+        $offset = $openDelimiter['next'];
+
+        $this->skipWhitespace($source, $offset);
+        $closeDelimiter = $this->readTexBraceArgument($source, $offset);
+        if ($closeDelimiter === null) {
+            throw new \InvalidArgumentException('Expected TeX paired delimiter X closing delimiter at offset ' . $offset);
+        }
+        $offset = $closeDelimiter['next'];
+
+        $this->skipWhitespace($source, $offset);
+        $body = $this->readTexBraceArgument($source, $offset);
+        if ($body === null) {
+            throw new \InvalidArgumentException('Expected TeX paired delimiter X body template at offset ' . $offset);
+        }
+        $offset = $body['next'];
+
+        $this->skipWhitespace($source, $offset);
+        if ($offset !== strlen($source)) {
+            throw new \InvalidArgumentException('Unexpected TeX paired delimiter X trailing content at offset ' . $offset);
+        }
+
+        $normalizedBody = $this->normalizePairedDelimiterBodyTemplate($body['value'], $declaredArity, $name);
+
+        return [
+            'name' => $name,
+            'arity' => $normalizedBody['arity'],
+            'template' => '\\left' . $this->normalizePairedDelimiterSource($openDelimiter['value'], 'opening')
+                . ' ' . $normalizedBody['template'] . ' \\right' . $this->normalizePairedDelimiterSource($closeDelimiter['value'], 'closing'),
+        ];
+    }
+
     private function readRawTexMacroNameReference(string $source, int &$offset, string $label): string
     {
         $this->skipWhitespace($source, $offset);
@@ -1880,6 +1945,40 @@ final class MathTexConverter
         }
 
         throw new \InvalidArgumentException('Unsupported TeX paired delimiter ' . $side . ' delimiter ' . $delimiter);
+    }
+
+    /**
+     * @return array{arity:int, template:string}
+     */
+    private function normalizePairedDelimiterBodyTemplate(string $template, ?int $declaredArity, string $name): array
+    {
+        $template = trim($template);
+        if ($template === '') {
+            throw new \InvalidArgumentException('Expected non-empty TeX paired delimiter X body for \\' . $name);
+        }
+
+        if (preg_match('/[\x00-\x1F\x7F]/', $template) === 1) {
+            throw new \InvalidArgumentException('Unsupported TeX paired delimiter X body control character for \\' . $name);
+        }
+
+        if (preg_match('/#(?:$|0|[^1-9])/', $template) === 1) {
+            throw new \InvalidArgumentException('Unsupported TeX paired delimiter X placeholder for \\' . $name);
+        }
+
+        $maxPlaceholder = $this->inferMacroArity($template);
+        if ($maxPlaceholder < 1) {
+            throw new \InvalidArgumentException('Expected TeX paired delimiter X body placeholder for \\' . $name);
+        }
+
+        $arity = $declaredArity ?? $maxPlaceholder;
+        if ($arity < $maxPlaceholder) {
+            throw new \InvalidArgumentException('TeX paired delimiter X body references argument #' . $maxPlaceholder . ' beyond declared arity for \\' . $name);
+        }
+
+        return [
+            'arity' => $arity,
+            'template' => $template,
+        ];
     }
 
     private function normalizeMathOperatorNameText(string $text): string
@@ -2092,11 +2191,11 @@ final class MathTexConverter
 
     /**
      * @param array{arity:int, template:string, optionalDefault?: string} $macro
-     * @return array{open:string, close:string}|null
+     * @return array{open:string, close:string, bodyTemplate:string}|null
      */
     private function pairedDelimiterMacroDelimiters(array $macro): ?array
     {
-        if ($macro['arity'] !== 1 || array_key_exists('optionalDefault', $macro)) {
+        if ($macro['arity'] < 1 || array_key_exists('optionalDefault', $macro)) {
             return null;
         }
 
@@ -2112,15 +2211,18 @@ final class MathTexConverter
         }
 
         $this->skipWhitespace($template, $offset);
-        if (substr($template, $offset, 2) !== '#1') {
+        $bodyOffset = $offset;
+        $rightOffset = $this->findPairedDelimiterRightCommand($template, $bodyOffset);
+        if ($rightOffset === null) {
             return null;
         }
-        $offset += 2;
 
-        $this->skipWhitespace($template, $offset);
-        if (substr($template, $offset, strlen('\\right')) !== '\\right') {
+        $bodyTemplate = trim(substr($template, $bodyOffset, $rightOffset - $bodyOffset));
+        if ($bodyTemplate === '') {
             return null;
         }
+
+        $offset = $rightOffset;
         $offset += strlen('\\right');
 
         $close = $this->readPairedDelimiterTemplateToken($template, $offset);
@@ -2136,7 +2238,45 @@ final class MathTexConverter
         return [
             'open' => $open,
             'close' => $close,
+            'bodyTemplate' => $bodyTemplate,
         ];
+    }
+
+    private function findPairedDelimiterRightCommand(string $template, int $offset): ?int
+    {
+        $length = strlen($template);
+        $depth = 0;
+        while ($offset < $length) {
+            $char = $template[$offset];
+            if ($char === '\\') {
+                $commandOffset = $offset + 1;
+                $command = $this->readCommandName($template, $commandOffset);
+                if ($depth === 0 && $command === 'right') {
+                    return $offset;
+                }
+
+                $offset = $commandOffset;
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+                $offset++;
+                continue;
+            }
+
+            if ($char === '}') {
+                if ($depth > 0) {
+                    $depth--;
+                }
+                $offset++;
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return null;
     }
 
     private function readPairedDelimiterTemplateToken(string $template, int &$offset): ?string
@@ -2168,7 +2308,7 @@ final class MathTexConverter
 
     /**
      * @param array{arity:int, template:string, optionalDefault?: string} $macro
-     * @param array{open:string, close:string} $delimiters
+     * @param array{open:string, close:string, bodyTemplate:string} $delimiters
      * @return array{tex:string, next:int}|null
      */
     private function expandPairedDelimiterMacroInvocation(string $math, int $cursor, string $name, array $macro, array $delimiters): ?array
@@ -2199,23 +2339,31 @@ final class MathTexConverter
             return null;
         }
 
-        $this->skipWhitespace($math, $cursor);
-        $argument = $this->readTexBraceArgument($math, $cursor);
-        if ($argument === null) {
-            throw new \InvalidArgumentException('Expected TeX paired delimiter argument for \\' . $name . ' at offset ' . $cursor);
+        $arguments = [];
+        for ($argument = 0; $argument < $macro['arity']; $argument++) {
+            $this->skipWhitespace($math, $cursor);
+            $parsed = $this->readTexBraceArgument($math, $cursor);
+            if ($parsed === null) {
+                throw new \InvalidArgumentException('Expected TeX paired delimiter argument ' . ($argument + 1) . ' for \\' . $name . ' at offset ' . $cursor);
+            }
+
+            $arguments[] = $parsed['value'];
+            $cursor = $parsed['next'];
         }
 
         if ($sizeCommand === null) {
             return [
-                'tex' => $this->renderRawTexMacroTemplate($macro['template'], [$argument['value']]),
-                'next' => $argument['next'],
+                'tex' => $this->renderRawTexMacroTemplate($macro['template'], $arguments),
+                'next' => $cursor,
             ];
         }
 
+        $body = $this->renderRawTexMacroTemplate($delimiters['bodyTemplate'], $arguments);
+
         return [
             'tex' => '\\' . $sizeCommand . 'l' . $delimiters['open']
-                . ' ' . $argument['value'] . ' \\' . $sizeCommand . 'r' . $delimiters['close'],
-            'next' => $argument['next'],
+                . ' ' . $body . ' \\' . $sizeCommand . 'r' . $delimiters['close'],
+            'next' => $cursor,
         ];
     }
 

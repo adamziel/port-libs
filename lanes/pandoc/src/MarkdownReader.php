@@ -9635,6 +9635,23 @@ final class MarkdownReader
 
         if (
             preg_match(
+                '/^ {0,3}\\\\(DeclarePairedDelimiterX)(?:\{\\\\([A-Za-z]+)\}|\\\\([A-Za-z]+))(?:\[(\d+)])?\{((?:\\\\.|[^{}])*)\}\{((?:\\\\.|[^{}])*)\}\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
+                $line,
+                $m
+            ) === 1
+        ) {
+            $name = ($m[2] ?? '') !== '' ? $m[2] : $m[3];
+
+            return [
+                'command' => $m[1],
+                'name' => $name,
+                'arity' => isset($m[4]) && $m[4] !== '' ? (int) $m[4] : $this->inferRawTexMacroArity($m[7]),
+                'template' => '\\left' . trim($m[5]) . ' ' . trim($m[7]) . ' \\right' . trim($m[6]),
+            ];
+        }
+
+        if (
+            preg_match(
                 '/^ {0,3}\\\\(DeclarePairedDelimiter)(?:\{\\\\([A-Za-z]+)\}|\\\\([A-Za-z]+))\{((?:\\\\.|[^{}])*)\}\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
                 $line,
                 $m
@@ -9666,6 +9683,15 @@ final class MarkdownReader
             'arity' => isset($m[3]) && $m[3] !== '' ? (int) $m[3] : 0,
             'template' => $m[4],
         ];
+    }
+
+    private function inferRawTexMacroArity(string $template): int
+    {
+        if (preg_match_all('/#([1-9])/', $template, $m) !== false && $m[1] !== []) {
+            return max(array_map('intval', $m[1]));
+        }
+
+        return 0;
     }
 
     /**

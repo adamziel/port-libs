@@ -4310,6 +4310,7 @@ final class EpubReader
      *     items:list<array<string, mixed>>,
      *     encryptedParts:list<string>,
      *     obfuscatedFonts:list<array<string, mixed>>,
+     *     exposure:array<string, mixed>,
      *     diagnostics:list<array<string, mixed>>
      * }
      */
@@ -4323,6 +4324,7 @@ final class EpubReader
                 'items' => [],
                 'encryptedParts' => [],
                 'obfuscatedFonts' => [],
+                'exposure' => self::encryptionExposureReport([]),
                 'diagnostics' => [],
             ];
         }
@@ -4368,20 +4370,28 @@ final class EpubReader
 
             $manifestItem = $manifestByPart[$part] ?? null;
             $mediaType = is_array($manifestItem) ? (string) $manifestItem['mediaType'] : null;
+            $properties = is_array($manifestItem) && is_array($manifestItem['properties'] ?? null)
+                ? array_values($manifestItem['properties'])
+                : [];
+            $algorithm = $method instanceof \DOMElement ? self::nullableAttribute($method, 'Algorithm') : null;
+            $obfuscatedFont = self::isObfuscatedFont($algorithm, $mediaType, $part);
+            $role = self::encryptedResourceRole($mediaType, $part, $properties);
+            $isCoverImage = in_array('cover-image', $properties, true);
+            $attachmentCandidateBlocked = self::isAttachmentCandidate($mediaType, $part, $isCoverImage);
             $item = [
                 'index' => $index,
                 'uri' => $uri,
                 'part' => $part,
-                'algorithm' => $method instanceof \DOMElement ? self::nullableAttribute($method, 'Algorithm') : null,
+                'algorithm' => $algorithm,
                 'manifestId' => is_array($manifestItem) ? (string) $manifestItem['id'] : null,
                 'mediaType' => $mediaType,
+                'role' => $role,
                 'exists' => $package->has($part),
-                'obfuscatedFont' => self::isObfuscatedFont(
-                    $method instanceof \DOMElement ? self::nullableAttribute($method, 'Algorithm') : null,
-                    $mediaType,
-                    $part
-                ),
+                'obfuscatedFont' => $obfuscatedFont,
                 'canExposeBytes' => false,
+                'reviewPolicy' => $obfuscatedFont ? 'obfuscated-font-review' : 'encrypted-resource-review',
+                'byteExposurePolicy' => $obfuscatedFont ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked',
+                'attachmentCandidateBlocked' => $attachmentCandidateBlocked,
             ];
 
             if (!is_array($manifestItem)) {
@@ -4413,7 +4423,87 @@ final class EpubReader
                 $items,
                 static fn (array $item): bool => $item['obfuscatedFont'] === true,
             )),
+            'exposure' => self::encryptionExposureReport($items),
             'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return array<string, mixed>
+     */
+    private static function encryptionExposureReport(array $items): array
+    {
+        $reportItems = [];
+        $roleCounts = [];
+        $obfuscatedFontParts = [];
+        $nonObfuscatedEncryptedParts = [];
+        $blockedByteExposureCount = 0;
+        $attachmentCandidateBlockedCount = 0;
+
+        foreach ($items as $item) {
+            $part = is_string($item['part'] ?? null) ? $item['part'] : null;
+            $role = is_string($item['role'] ?? null) ? $item['role'] : 'asset';
+            $obfuscatedFont = ($item['obfuscatedFont'] ?? false) === true;
+            $canExposeBytes = ($item['canExposeBytes'] ?? false) === true;
+            $attachmentCandidateBlocked = ($item['attachmentCandidateBlocked'] ?? false) === true;
+
+            $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            if (!$canExposeBytes) {
+                ++$blockedByteExposureCount;
+            }
+            if ($attachmentCandidateBlocked) {
+                ++$attachmentCandidateBlockedCount;
+            }
+            if ($part !== null && $part !== '') {
+                if ($obfuscatedFont) {
+                    $obfuscatedFontParts[] = $part;
+                } else {
+                    $nonObfuscatedEncryptedParts[] = $part;
+                }
+            }
+
+            $reportItems[] = [
+                'index' => (int) ($item['index'] ?? 0),
+                'uri' => is_string($item['uri'] ?? null) ? $item['uri'] : null,
+                'part' => $part,
+                'manifestId' => is_string($item['manifestId'] ?? null) ? $item['manifestId'] : null,
+                'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                'role' => $role,
+                'algorithm' => is_string($item['algorithm'] ?? null) ? $item['algorithm'] : null,
+                'exists' => ($item['exists'] ?? false) === true,
+                'obfuscatedFont' => $obfuscatedFont,
+                'canExposeBytes' => $canExposeBytes,
+                'reviewPolicy' => is_string($item['reviewPolicy'] ?? null)
+                    ? $item['reviewPolicy']
+                    : ($obfuscatedFont ? 'obfuscated-font-review' : 'encrypted-resource-review'),
+                'byteExposurePolicy' => is_string($item['byteExposurePolicy'] ?? null)
+                    ? $item['byteExposurePolicy']
+                    : ($obfuscatedFont ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked'),
+                'attachmentCandidateBlocked' => $attachmentCandidateBlocked,
+            ];
+        }
+
+        ksort($roleCounts);
+        $obfuscatedFontParts = array_values(array_unique($obfuscatedFontParts));
+        $nonObfuscatedEncryptedParts = array_values(array_unique($nonObfuscatedEncryptedParts));
+        sort($obfuscatedFontParts, SORT_STRING);
+        sort($nonObfuscatedEncryptedParts, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'blockedByteExposureCount' => $blockedByteExposureCount,
+            'obfuscatedFontCount' => count($obfuscatedFontParts),
+            'nonObfuscatedEncryptedCount' => count($nonObfuscatedEncryptedParts),
+            'attachmentCandidateBlockedCount' => $attachmentCandidateBlockedCount,
+            'roles' => array_keys($roleCounts),
+            'roleCounts' => $roleCounts,
+            'items' => $reportItems,
+            'obfuscatedFontParts' => $obfuscatedFontParts,
+            'nonObfuscatedEncryptedParts' => $nonObfuscatedEncryptedParts,
+            'diagnostics' => [],
         ];
     }
 
@@ -5363,8 +5453,19 @@ final class EpubReader
             $manifestById[$id]['encryption'] = [
                 'items' => $entries,
                 'algorithm' => $entries[0]['algorithm'] ?? null,
+                'role' => $entries[0]['role'] ?? self::encryptedResourceRole(
+                    is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                    (string) $item['part'],
+                    is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
+                ),
                 'obfuscatedFont' => self::containsObfuscatedFont($entries),
                 'canExposeBytes' => false,
+                'reviewPolicy' => self::containsObfuscatedFont($entries) ? 'obfuscated-font-review' : 'encrypted-resource-review',
+                'byteExposurePolicy' => self::containsObfuscatedFont($entries) ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked',
+                'attachmentCandidateBlocked' => count(array_filter(
+                    $entries,
+                    static fn (array $entry): bool => ($entry['attachmentCandidateBlocked'] ?? false) === true,
+                )) > 0,
             ];
         }
 
@@ -16513,6 +16614,48 @@ final class EpubReader
         }
 
         return self::isFontResource($mediaType, $part);
+    }
+
+    /**
+     * @param list<string> $properties
+     */
+    private static function encryptedResourceRole(?string $mediaType, string $part, array $properties = []): string
+    {
+        if (in_array('cover-image', $properties, true)) {
+            return 'cover-image';
+        }
+
+        $normalizedMediaType = strtolower(trim((string) ($mediaType ?? '')));
+        if ($normalizedMediaType === '') {
+            $normalizedMediaType = (string) (self::mediaTypeFromPart($part) ?? '');
+        }
+
+        if ($normalizedMediaType === self::XHTML_MEDIA_TYPE) {
+            return 'xhtml';
+        }
+        if ($normalizedMediaType === self::NCX_MEDIA_TYPE) {
+            return 'navigation';
+        }
+        if ($normalizedMediaType === self::SMIL_MEDIA_TYPE) {
+            return 'media-overlay';
+        }
+        if ($normalizedMediaType === 'text/css') {
+            return 'stylesheet';
+        }
+        if (str_starts_with($normalizedMediaType, 'image/')) {
+            return 'image';
+        }
+        if (str_starts_with($normalizedMediaType, 'audio/')) {
+            return 'audio';
+        }
+        if (str_starts_with($normalizedMediaType, 'video/')) {
+            return 'video';
+        }
+        if (self::isFontResource($normalizedMediaType, $part)) {
+            return 'font';
+        }
+
+        return 'asset';
     }
 
     private static function isFontResource(?string $mediaType, string $part): bool

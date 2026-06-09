@@ -430,6 +430,29 @@ return [
         $t->contains('<h1 id="ελλάδα">Ελλάδα</h1>', $blocks);
         $t->contains("<p>Συντάκτης “πηγή” ― © 20; ΌΏ ΐΰ; \u{F8A0}.</p>", $blocks);
     },
+    'decodes mac icelandic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Mac Iceland\n\nRitstj\x97ri \xD2\x92sland\xD3 \xD1 \xDB20; \xDEorn og \xDDa\xE0; \xDC/\xDD, \xA0/\xE0; \xD5.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-icelandic');
+        $document = (new MarkdownReader())->readBytes($bytes, 'maciceland');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA0\xD5\xDB\xDC\xDD\xDE\xDF\xE0\xF0", 'mac-iceland');
+        $macRomanComparison = UnicodeText::decodeBytes("\xA0\xD5\xDC\xDD\xDE\xDF\xE0", 'macintosh');
+
+        $t->same('mac-iceland', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Mac Iceland\n\nRitstjóri “ísland” — €20; Þorn og ðaý; Ð/ð, Ý/ý; ’.", $decoded['text']);
+        $t->same("Ý’€ÐðÞþý\u{F8FF}", $specials['text']);
+        $t->same('†’‹›ﬁﬂ‡', $macRomanComparison['text']);
+        $t->same('mac-iceland', $specials['encoding']);
+        $t->same(0, $specials['repairs']);
+        $t->same(['encoding' => 'mac-iceland', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Mac Iceland', $document->children[0]->attr('text'));
+        $t->same('Ritstjóri “ísland” — €20; Þorn og ðaý; Ð/ð, Ý/ý; ’.', $document->children[1]->attr('text'));
+        $t->same(51, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(62, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="mac-iceland">Mac Iceland</h1>', $blocks);
+        $t->contains('<p>Ritstjóri “ísland” — €20; Þorn og ðaý; Ð/ð, Ý/ý; ’.</p>', $blocks);
+    },
     'decodes ibm866 dos cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \x88\xAC\xAF\xAE\xE0\xE2\n\n\x90\xA5\xA4\xA0\xAA\xE2\xAE\xE0 \xAF\xE0\xA8\xA2\xA5\xE2; \xF0\xAB\xAA\xA0 \xFC 7; \xB3\xC4\xDA.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp866');

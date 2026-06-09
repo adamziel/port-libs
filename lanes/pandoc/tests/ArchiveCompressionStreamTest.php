@@ -1050,6 +1050,104 @@ return [
         $t->same(1002, $roundTrip->entry('/packet/bin/import.sh')->gid);
     },
 
+    'preflights tar case-insensitive name collisions before package handoff' => static function (TestRunner $t): void {
+        $asciiArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"tar-name-collision","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/media/Review.PNG',
+                'data' => 'upper-case media',
+            ],
+            [
+                'name' => 'packet/media/review.png',
+                'data' => 'lower-case media',
+            ],
+        ]);
+        $unicodePrecomposedName = "packet/media/Caf\u{00e9}.PNG";
+        $unicodeDecomposedName = "packet/media/cafe\u{0301}.png";
+        $unicodeArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"tar-unicode-name-collision","target":"wordpress"}',
+            ],
+            [
+                'name' => $unicodePrecomposedName,
+                'data' => 'precomposed media',
+            ],
+            [
+                'name' => $unicodeDecomposedName,
+                'data' => 'decomposed media',
+            ],
+        ]);
+        $gzip = GzipStream::build($unicodeArchive->bytes(), [
+            'filename' => 'wordpress-tar-name-collision.tar',
+            'comment' => 'TAR name collision policy preflight',
+        ]);
+
+        $asciiPolicy = $asciiArchive->caseInsensitiveNamePreflight();
+        $unicodePolicy = $unicodeArchive->caseInsensitiveNamePreflight();
+        $streamPolicy = ArchiveCompressionStream::inspectTarCaseInsensitiveNamePolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($unicodeArchive->bytes())
+        );
+        $safePolicy = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{}',
+            ],
+            [
+                'name' => 'packet/media/review.png',
+                'data' => 'safe media',
+            ],
+        ])->assertNoCaseInsensitiveNameCollisions();
+
+        $t->same(3, $asciiPolicy['entryCount']);
+        $t->same(1, $asciiPolicy['collisionGroupCount']);
+        $t->same(2, $asciiPolicy['collisionEntryCount']);
+        $t->same('packet/media/review.png', $asciiPolicy['collisionGroups'][0]['caseFoldKey']);
+        $t->same(['packet/media/Review.PNG', 'packet/media/review.png'], $asciiPolicy['collisionGroups'][0]['entryNames']);
+        $t->same(['case-insensitive-name-collision'], $asciiPolicy['collisionEntries'][0]['issues']);
+        $t->same(['packet/media/Review.PNG', 'packet/media/review.png'], $asciiPolicy['collisionEntries'][0]['equivalentEntryNames']);
+        $t->same('upper-case media', $asciiArchive->read('/packet/media/Review.PNG'));
+        $t->same('lower-case media', $asciiArchive->read('/packet/media/review.png'));
+
+        $t->same(1, $unicodePolicy['collisionGroupCount']);
+        $t->same(2, $unicodePolicy['collisionEntryCount']);
+        $t->same("packet/media/caf\u{00e9}.png", $unicodePolicy['collisionGroups'][0]['caseFoldKey']);
+        $t->same([$unicodePrecomposedName, $unicodeDecomposedName], $unicodePolicy['collisionGroups'][0]['entryNames']);
+        $t->same(true, $unicodePolicy['collisionEntries'][1]['hasCaseInsensitiveNameCollision']);
+        $t->same(['case-insensitive-name-collision'], $unicodePolicy['collisionEntries'][1]['issues']);
+        $t->same('precomposed media', $unicodeArchive->read('/' . $unicodePrecomposedName));
+        $t->same('decomposed media', $unicodeArchive->read('/' . $unicodeDecomposedName));
+
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $streamPolicy['format']);
+        $t->same(strlen($unicodeArchive->bytes()), $streamPolicy['uncompressedSize']);
+        $t->same('tar-case-insensitive-name-policy', $streamPolicy['type']);
+        $t->same('review-before-conversion', $streamPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $streamPolicy['extractionPolicy']);
+        $t->same(['tar-case-insensitive-name-collision'], $streamPolicy['diagnostics']);
+        $t->same(1, $streamPolicy['collisionGroupCount']);
+        $t->same(2, $streamPolicy['collisionEntryCount']);
+        $t->same($unicodePolicy['entries'], $streamPolicy['entries']);
+        $t->same('gzip', $streamPolicy['stream']['type']);
+        $t->same('wordpress-tar-name-collision.tar', $streamPolicy['stream']['members'][0]['filename']);
+        $t->same('TAR name collision policy preflight', $streamPolicy['stream']['members'][0]['comment']);
+        $t->same(false, isset($streamPolicy['archive']));
+        $t->same(false, isset($streamPolicy['entries'][0]['data']));
+
+        $t->same(0, $safePolicy['collisionEntryCount']);
+        $t->same([], $safePolicy['diagnostics']);
+        $t->throws(\RuntimeException::class, static fn (): array => $asciiArchive->assertNoCaseInsensitiveNameCollisions());
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarCaseInsensitiveNamePolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($unicodeArchive->bytes()) - 1
+        ));
+    },
+
     'enforces pax header charset policy before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $documentBytes = "# PAX header charset packet\n\nReady for WordPress archive review.\n";
         $archive = $rawTarHeader('GlobalHead/charset', 'g', $paxPayload([

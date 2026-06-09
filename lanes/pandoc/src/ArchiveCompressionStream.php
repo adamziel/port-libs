@@ -2317,6 +2317,46 @@ final class ArchiveCompressionStream
     /**
      * @return array{
      *     format:string,
+     *     tarBytes:string,
+     *     uncompressedSize:int,
+     *     type:string,
+     *     entryCount:int,
+     *     collisionGroupCount:int,
+     *     collisionEntryCount:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     collisionGroups:list<array{caseFoldKey:string, entryNames:list<string>}>,
+     *     collisionEntries:list<array{name:string, caseFoldKey:string, equivalentEntryNames:list<string>, hasCaseInsensitiveNameCollision:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, caseFoldKey:string, equivalentEntryNames:list<string>, hasCaseInsensitiveNameCollision:bool, issues:list<string>}>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectTarCaseInsensitiveNamePolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+
+        $tarBytes = self::decodeTarBytes($bytes, $format, $maxUncompressedBytes);
+        $archive = TarArchive::fromString($tarBytes, $maxUnpackedBytes);
+        $policy = $archive->caseInsensitiveNamePreflight();
+
+        return [
+            'format' => $format,
+            'tarBytes' => $tarBytes,
+            'uncompressedSize' => strlen($tarBytes),
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
      *     zipBytes:string,
      *     package:ZipPackage,
      *     entryNames:list<string>,

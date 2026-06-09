@@ -1353,6 +1353,27 @@ XML;
     if (($result['encryption']['obfuscatedFonts'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
         throw new RuntimeException('Expected EPUB obfuscated font preflight to identify the package font');
     }
+    if (($result['encryption']['exposure']['present'] ?? null) !== true || ($result['encryption']['exposure']['itemCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB encryption exposure summary to report the protected font resource');
+    }
+    if (($result['encryption']['exposure']['blockedByteExposureCount'] ?? null) !== 1 || ($result['encryption']['exposure']['obfuscatedFontCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB encryption exposure summary to block obfuscated font bytes');
+    }
+    if (($result['encryption']['exposure']['roles'] ?? null) !== ['font'] || ($result['encryption']['exposure']['roleCounts']['font'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB encryption exposure summary to classify the protected resource role');
+    }
+    if (($result['encryption']['exposure']['items'][0]['reviewPolicy'] ?? null) !== 'obfuscated-font-review') {
+        throw new RuntimeException('Expected EPUB encryption exposure item to carry obfuscated font review policy');
+    }
+    if (($result['encryption']['exposure']['items'][0]['byteExposurePolicy'] ?? null) !== 'obfuscated-font-bytes-blocked') {
+        throw new RuntimeException('Expected EPUB encryption exposure item to carry byte-blocking policy');
+    }
+    if (($result['encryption']['exposure']['items'][0]['attachmentCandidateBlocked'] ?? null) !== true) {
+        throw new RuntimeException('Expected EPUB encrypted font to be blocked as an attachment candidate');
+    }
+    if (($result['importReport']['encryption']['exposure'] ?? null) !== $result['encryption']['exposure']) {
+        throw new RuntimeException('Expected EPUB import report to expose encryption exposure policy');
+    }
     if (($result['ocf']['sidecarCount'] ?? null) !== 4 || ($result['ocf']['externalReferenceCount'] ?? null) !== 3) {
         throw new RuntimeException('Expected EPUB OCF manifest/metadata/rights/signatures sidecars to report review references without fetching remote resources');
     }
@@ -1724,6 +1745,8 @@ echo 'bindings=' . count($result['bindings']['items'] ?? []) . "\n";
 echo 'bindingHandler=' . ($result['bindings']['items'][0]['handlerId'] ?? '') . "\n";
 echo 'bindingDiagnostics=' . count($result['bindings']['diagnostics'] ?? []) . "\n";
 echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
+echo 'encryptedExposureBlocked=' . ($result['encryption']['exposure']['blockedByteExposureCount'] ?? 0) . "\n";
+echo 'encryptedExposureRoles=' . implode(',', $result['encryption']['exposure']['roles'] ?? []) . "\n";
 echo 'ocfSidecars=' . ($result['ocf']['sidecarCount'] ?? 0) . "\n";
 echo 'ocfManifestItems=' . ($result['ocf']['manifest']['itemCount'] ?? 0) . "\n";
 echo 'ocfManifestDeclaredParts=' . ($result['ocf']['manifest']['declaredPartCount'] ?? 0) . "\n";

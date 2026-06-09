@@ -475,6 +475,54 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wpabs[\\small]{x}', false, $macros));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wpabs*', false, $macros));
     },
+    'captures bounded declared paired delimiter x templates from markdown for mathml handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '\\DeclarePairedDelimiterX{\\wpnorm}[1]{\\lVert}{\\rVert}{#1}',
+            '\\DeclarePairedDelimiterX\\wpinner[2]{\\langle}{\\rangle}{#1 , #2}',
+            '',
+            '$\\wpnorm{p_i + m_i} + \\wpinner{q_i}{r_i}$',
+        ]));
+        $firstDeclaration = $document->children[0];
+        $secondDeclaration = $document->children[1];
+        $math = $document->children[2]->children[0];
+        $macros = $converter->macroDefinitionsFromDocument($document);
+        $mathml = $converter->texToMathMl('\\wpnorm*{p_i + m_i} + \\wpinner[\\Big]{q_i}{r_i}', true, $macros);
+        $readerMathml = $converter->mathMlFor($math);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\wpnorm{x_i}', false, $macros);
+
+        $t->same('raw_tex', $firstDeclaration->type);
+        $t->same('DeclarePairedDelimiterX', $firstDeclaration->attr('command'));
+        $t->same('\\DeclarePairedDelimiterX{\\wpnorm}[1]{\\lVert}{\\rVert}{#1}', $firstDeclaration->attr('tex'));
+        $t->same('raw_tex', $secondDeclaration->type);
+        $t->same('DeclarePairedDelimiterX', $secondDeclaration->attr('command'));
+        $t->same('\\DeclarePairedDelimiterX\\wpinner[2]{\\langle}{\\rangle}{#1 , #2}', $secondDeclaration->attr('tex'));
+        $t->same([
+            'wpnorm' => ['arity' => 1, 'template' => '\\left\\lVert #1 \\right\\rVert'],
+            'wpinner' => ['arity' => 2, 'template' => '\\left\\langle #1 , #2 \\right\\rangle'],
+        ], $macros);
+        $t->same('\\left\\lVert p_i + m_i \\right\\rVert + \\left\\langle q_i , r_i \\right\\rangle', $math->attr('text'));
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+        $t->contains('<mo fence="true" stretchy="true">‖</mo><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo fence="true" stretchy="true">‖</mo>', $mathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">⟨</mo><msub><mi>q</mi><mi>i</mi></msub><mo>,</mo><msub><mi>r</mi><mi>i</mi></msub><mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">⟩</mo>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">\\wpnorm*{p_i + m_i} + \\wpinner[\\Big]{q_i}{r_i}</annotation>', $mathml);
+        $t->contains('<mo fence="true" stretchy="true">‖</mo><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo fence="true" stretchy="true">‖</mo>', $readerMathml);
+        $t->contains('<mo fence="true" stretchy="true">⟨</mo><msub><mi>q</mi><mi>i</mi></msub><mo>,</mo><msub><mi>r</mi><mi>i</mi></msub><mo fence="true" stretchy="true">⟩</mo>', $readerMathml);
+        $t->contains('alttext="double vertical bar x sub i double vertical bar"', $accessibleMathml);
+        $t->true(!str_contains($mathml . $readerMathml, '<mi>\\wpnorm</mi>') && !str_contains($mathml . $readerMathml, '<mi>\\wpinner</mi>'));
+        $t->true(!str_contains($mathml, '<mo>*</mo>') && !str_contains($mathml, '<mo>[</mo>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiterX{\\bad}[1]{\\input{secret}}{\\rvert}{#1}']),
+        ])));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiterX{\\bad}[1]{\\lvert}{\\rvert}{#2}']),
+        ])));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiterX{\\bad}[1]{\\lvert}{\\rvert}{#1 #}']),
+        ])));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wpinner[\\small]{x}{y}', false, $macros));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wpinner*{x}', false, $macros));
+    },
     'rejects unsupported bounded tex macro definitions before mathml conversion' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 

@@ -5850,6 +5850,100 @@ XML;
         $t->same(2, count($result['document']->children));
         $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
     },
+    'reports encrypted EPUB resource exposure policy by package resource role' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithEncryptedResources = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/book.css" media-type="text/css"/>'
+                . '<item id="locked-style" href="styles/locked.css" media-type="text/css"/>'
+                . '<item id="locked-audio" href="audio/locked.mp3" media-type="audio/mpeg"/>'
+                . '<item id="locked-image" href="images/locked.png" media-type="image/png"/>'
+                . '<item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>',
+            $opfXml
+        );
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="OEBPS/styles/locked.css"/></CipherData>
+  </EncryptedData>
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="OEBPS/audio/locked.mp3"/></CipherData>
+  </EncryptedData>
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="OEBPS/images/locked.png"/></CipherData>
+  </EncryptedData>
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData><CipherReference URI="OEBPS/fonts/source.otf"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithEncryptedResources,
+            null,
+            [
+                ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+                ['name' => 'OEBPS/styles/locked.css', 'data' => 'body { color: red; }'],
+                ['name' => 'OEBPS/audio/locked.mp3', 'data' => 'LOCKED-MP3'],
+                ['name' => 'OEBPS/images/locked.png', 'data' => 'LOCKED-PNG'],
+                ['name' => 'OEBPS/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
+            ]
+        ));
+
+        $encryption = $result['encryption'];
+        $exposure = $encryption['exposure'];
+        $t->same(true, $exposure['present']);
+        $t->same(4, $exposure['itemCount']);
+        $t->same(4, $exposure['blockedByteExposureCount']);
+        $t->same(1, $exposure['obfuscatedFontCount']);
+        $t->same(3, $exposure['nonObfuscatedEncryptedCount']);
+        $t->same(3, $exposure['attachmentCandidateBlockedCount']);
+        $t->same(['audio', 'font', 'image', 'stylesheet'], $exposure['roles']);
+        $t->same([
+            'audio' => 1,
+            'font' => 1,
+            'image' => 1,
+            'stylesheet' => 1,
+        ], $exposure['roleCounts']);
+        $t->same([
+            '/OEBPS/audio/locked.mp3',
+            '/OEBPS/images/locked.png',
+            '/OEBPS/styles/locked.css',
+        ], $exposure['nonObfuscatedEncryptedParts']);
+        $t->same(['/OEBPS/fonts/source.otf'], $exposure['obfuscatedFontParts']);
+
+        $itemsByPart = [];
+        foreach ($exposure['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+        $t->same('stylesheet', $itemsByPart['/OEBPS/styles/locked.css']['role']);
+        $t->same('encrypted-resource-review', $itemsByPart['/OEBPS/styles/locked.css']['reviewPolicy']);
+        $t->same('encrypted-resource-bytes-blocked', $itemsByPart['/OEBPS/styles/locked.css']['byteExposurePolicy']);
+        $t->same(false, $itemsByPart['/OEBPS/styles/locked.css']['attachmentCandidateBlocked']);
+        $t->same('audio', $itemsByPart['/OEBPS/audio/locked.mp3']['role']);
+        $t->same(true, $itemsByPart['/OEBPS/audio/locked.mp3']['attachmentCandidateBlocked']);
+        $t->same('image', $itemsByPart['/OEBPS/images/locked.png']['role']);
+        $t->same(true, $itemsByPart['/OEBPS/images/locked.png']['attachmentCandidateBlocked']);
+        $t->same('font', $itemsByPart['/OEBPS/fonts/source.otf']['role']);
+        $t->same('obfuscated-font-review', $itemsByPart['/OEBPS/fonts/source.otf']['reviewPolicy']);
+        $t->same('obfuscated-font-bytes-blocked', $itemsByPart['/OEBPS/fonts/source.otf']['byteExposurePolicy']);
+        $t->same(true, $itemsByPart['/OEBPS/fonts/source.otf']['attachmentCandidateBlocked']);
+        $t->same([], $exposure['diagnostics']);
+
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+        $t->same('stylesheet', $manifestById['locked-style']['encryption']['role']);
+        $t->same('encrypted-resource-review', $manifestById['locked-style']['encryption']['reviewPolicy']);
+        $t->same('audio', $manifestById['locked-audio']['encryption']['role']);
+        $t->same('font', $manifestById['font-main']['encryption']['role']);
+        $t->same('obfuscated-font-review', $manifestById['font-main']['encryption']['reviewPolicy']);
+        $t->same($exposure, $result['importReport']['encryption']['exposure']);
+    },
     'reports OCF metadata sidecar records for container-level review' => static function (TestRunner $t) use ($buildEpubPackage, $metadataXml): void {
         $sourceBytes = '{"source":"wordpress-import","review":true}';
         $result = (new EpubReader())->readPackage($buildEpubPackage(
