@@ -4307,6 +4307,16 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const JIS0212_PAIRS = [
+        0xa6f1 => 0x03ac,
+        0xa6f7 => 0x03cc,
+        0xa7c4 => 0x0404,
+        0xa7f4 => 0x0454,
+        0xa9a1 => 0x00c6,
+        0xa9ad => 0x0152,
+    ];
+
+    /** @var array<int, int> */
     private const BIG5_PAIRS = [
         0xa141 => 0xff0c,
         0xa143 => 0x3002,
@@ -6586,6 +6596,53 @@ final class UnicodeText
 
                 $out .= self::fromCodepoint(0xff61 + $trail - 0xa1);
                 $offset++;
+                continue;
+            }
+            if ($byte === 0x8f) {
+                if ($offset + 1 >= $length) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $lead = ord($bytes[$offset + 1]);
+                if ($lead < 0xa1 || $lead > 0xfe) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    if ($lead > 0x7f) {
+                        $offset++;
+                    }
+                    continue;
+                }
+
+                if ($offset + 2 >= $length) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    $offset++;
+                    continue;
+                }
+
+                $trail = ord($bytes[$offset + 2]);
+                if ($trail < 0xa1 || $trail > 0xfe) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    $offset++;
+                    if ($trail > 0x7f) {
+                        $offset++;
+                    }
+                    continue;
+                }
+
+                $pair = ($lead << 8) | $trail;
+                if (!isset(self::JIS0212_PAIRS[$pair])) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    $offset += 2;
+                    continue;
+                }
+
+                $out .= self::fromCodepoint(self::JIS0212_PAIRS[$pair]);
+                $offset += 2;
                 continue;
             }
             if ($byte >= 0xa1 && $byte <= 0xfe) {

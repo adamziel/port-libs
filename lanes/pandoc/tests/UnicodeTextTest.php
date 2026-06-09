@@ -1366,6 +1366,34 @@ return [
         $t->same("\u{FFFD}\"A", $malformedJis0208['text']);
         $t->same(1, $malformedJis0208['repairs']);
     },
+    'decodes euc jp jis0212 plane two source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# JIS0212\n\nPlane2 \x8F\xA9\xA1\x8F\xA9\xAD; \x8F\xA7\xC4\x8F\xA7\xF4; \x8F\xA6\xF1\x8F\xA6\xF7.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'euc-jp');
+        $document = (new MarkdownReader())->readBytes($bytes, 'x-euc-jp');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $badLead = UnicodeText::decodeBytes("\x8F A", 'euc-jp');
+        $badTrail = UnicodeText::decodeBytes("\x8F\xA9\"A", 'euc-jp');
+        $missingTrail = UnicodeText::decodeBytes("\x8F\xA9", 'euc-jp');
+        $unmappedPair = UnicodeText::decodeBytes("\x8F\xA2\xA1A", 'euc-jp');
+
+        $t->same('euc-jp', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# JIS0212\n\nPlane2 ÆŒ; Єє; άό.", $decoded['text']);
+        $t->same(['encoding' => 'euc-jp', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('JIS0212', $document->children[0]->attr('text'));
+        $t->same('Plane2 ÆŒ; Єє; άό.', $document->children[1]->attr('text'));
+        $t->same(18, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="jis0212">JIS0212</h1>', $blocks);
+        $t->contains('<p>Plane2 ÆŒ; Єє; άό.</p>', $blocks);
+        $t->same("\u{FFFD} A", $badLead['text']);
+        $t->same(1, $badLead['repairs']);
+        $t->same("\u{FFFD}\"A", $badTrail['text']);
+        $t->same(1, $badTrail['repairs']);
+        $t->same("\u{FFFD}", $missingTrail['text']);
+        $t->same(1, $missingTrail['repairs']);
+        $t->same("\u{FFFD}A", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+    },
     'decodes iso 2022 jp escape states into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \x1B\$B\x37\x57\x32\x68\x1B(B\n\n"
             . "\x1B\$B\x4B\x5C\x4A\x38\x24\x48\x48\x3E\x33\x51\x1B(I\x36\x40\x36\x45"
