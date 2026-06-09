@@ -1624,6 +1624,53 @@ return [
         $t->contains('no unexpected cabal.project solver constraints', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks unexpected cabal project package stanza fields before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $project = str_replace(
+            '  flags: +embed_data_files +http',
+            implode("\n", [
+                '  flags: +embed_data_files +http',
+                '  constraints: pandoc == 3.9.0.2',
+                '  ghc-options: -O0 -fplugin=RunnerAudit',
+                '  tests: False',
+            ]),
+            $pinnedProject()
+        );
+
+        $root = $makeTree($requiredFiles($project));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectPackageClosure']['unexpectedPackages']);
+        $t->same([], $audit['projectPackageClosure']['missingFlags']);
+        $t->same([], $audit['projectPackageClosure']['mismatchedFlags']);
+        $t->same([], $audit['projectPackageClosure']['unexpectedFlags']);
+        $t->same(['flags'], $audit['projectPackageClosure']['expectedPackageFields']['pandoc']);
+        $t->same([
+            'constraints' => 'pandoc == 3.9.0.2',
+            'flags' => '+embed_data_files +http',
+            'ghc-options' => '-O0 -fplugin=RunnerAudit',
+            'tests' => 'False',
+        ], $audit['projectPackageClosure']['presentPackageFields']['pandoc']);
+        $t->same([
+            'constraints: pandoc == 3.9.0.2',
+            'ghc-options: -O0 -fplugin=RunnerAudit',
+            'tests: False',
+        ], $audit['projectPackageClosure']['unexpectedPackageFields']['pandoc']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected cabal.project package stanza fields: pandoc (constraints: pandoc == 3.9.0.2, ghc-options: -O0 -fplugin=RunnerAudit, tests: False)', $blocked);
+        $t->contains('no unexpected cabal.project package stanza fields', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'blocks unexpected cabal project unconditional plan fields before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $project = $pinnedProject() . "\n" . implode("\n", [
             'allow-newer: all:base, all:text',
