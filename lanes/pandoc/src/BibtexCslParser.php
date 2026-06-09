@@ -700,6 +700,7 @@ final class BibtexCslParser
             $eventPlace = self::firstField($fields, ['venue', 'eventvenue', 'eventlocation', 'eventplace']);
         }
         $archive = self::firstField($fields, ['archiveprefix', 'eprinttype', 'archive']);
+        $archiveCollection = self::firstField($fields, ['archivecollection', 'archive-collection', 'archive_collection']);
         $archivePlace = self::firstField($fields, ['eprintclass', 'archiveplace', 'archive-place']);
         $archiveLocation = self::firstField($fields, ['eprint', 'archive_location', 'archive-location']);
         $patentType = self::patentType($type, $fields);
@@ -794,9 +795,10 @@ final class BibtexCslParser
             'PMID' => self::firstField($fields, ['pmid']),
             'PMCID' => self::firstField($fields, ['pmcid']),
             'archive' => $archive,
+            'archive-collection' => $archiveCollection,
             'archive-place' => $archivePlace,
             'archive_location' => $archiveLocation,
-            'archive-summary' => self::archiveSummary($archive, $archivePlace, $archiveLocation),
+            'archive-summary' => self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation),
             'call-number' => self::firstField($fields, ['callnumber', 'call-number', 'library']),
             'language' => self::literalListDisplay($languageList) ?: self::firstField($fields, ['langid', 'hyphenation']),
             'abstract' => self::firstField($fields, ['abstract', 'annote', 'annotation']),
@@ -1760,8 +1762,17 @@ final class BibtexCslParser
         return implode('; ', $values);
     }
 
-    private static function archiveSummary(string $archive, string $archivePlace, string $archiveLocation): string
+    private static function archiveSummary(string $archive, string $archiveCollection, string $archivePlace, string $archiveLocation): string
     {
+        if ($archiveCollection !== '') {
+            $summary = implode(':', array_values(array_filter(
+                [$archive, $archiveCollection, $archiveLocation],
+                static fn (string $value): bool => $value !== ''
+            )));
+
+            return $summary . ($archivePlace !== '' ? ' [' . $archivePlace . ']' : '');
+        }
+
         if ($archive !== '' && $archiveLocation !== '') {
             return $archive . ':' . $archiveLocation . ($archivePlace !== '' ? ' [' . $archivePlace . ']' : '');
         }
