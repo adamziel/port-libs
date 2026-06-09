@@ -31,6 +31,9 @@ final class PlainWriter
      *     maxOutputDisplayWidth:int,
      *     hardBreakCount:int,
      *     softBreakOpportunityCount:int,
+     *     zeroWidthSpaceBreakOpportunityCount:int,
+     *     softHyphenBreakOpportunityCount:int,
+     *     visibleBreakAfterOpportunityCount:int,
      *     protectedSeparatorCount:int,
      *     lineEndingNormalizationCount:int,
      *     blocks:list<array{
@@ -41,6 +44,9 @@ final class PlainWriter
      *       maxSourceDisplayWidth:int,
      *       maxOutputDisplayWidth:int,
      *       wrapped:bool,
+     *       zeroWidthSpaceBreakOpportunityCount:int,
+     *       softHyphenBreakOpportunityCount:int,
+     *       visibleBreakAfterOpportunityCount:int,
      *       protectedSeparatorCount:int,
      *       lineEndingNormalizationCount:int
      *     }>
@@ -63,6 +69,9 @@ final class PlainWriter
         $maxOutputDisplayWidth = 0;
         $hardBreakCount = 0;
         $softBreakOpportunityCount = 0;
+        $zeroWidthSpaceBreakOpportunityCount = 0;
+        $softHyphenBreakOpportunityCount = 0;
+        $visibleBreakAfterOpportunityCount = 0;
         $protectedSeparatorCount = 0;
         $lineEndingNormalizationCount = 0;
 
@@ -95,8 +104,12 @@ final class PlainWriter
             $outputLineCount += $this->nonEmptyLineCount($wrappedLines);
 
             $opportunities = UnicodeText::lineBreakOpportunities($source, $ambiguousWidth);
+            $typeCounts = $this->lineBreakOpportunityTypeCounts($opportunities['opportunities']);
             $hardBreakCount += $opportunities['hardBreakCount'];
             $softBreakOpportunityCount += $opportunities['softBreakCount'];
+            $zeroWidthSpaceBreakOpportunityCount += $typeCounts['zeroWidthSpace'];
+            $softHyphenBreakOpportunityCount += $typeCounts['softHyphen'];
+            $visibleBreakAfterOpportunityCount += $typeCounts['visibleBreakAfter'];
             $protectedSeparatorCount += $opportunities['protectedSeparatorCount'];
             $lineEndingNormalizationCount += $lineEndings['conversions'];
 
@@ -108,6 +121,9 @@ final class PlainWriter
                 'maxSourceDisplayWidth' => $sourceMax,
                 'maxOutputDisplayWidth' => $outputMax,
                 'wrapped' => $wrapped,
+                'zeroWidthSpaceBreakOpportunityCount' => $typeCounts['zeroWidthSpace'],
+                'softHyphenBreakOpportunityCount' => $typeCounts['softHyphen'],
+                'visibleBreakAfterOpportunityCount' => $typeCounts['visibleBreakAfter'],
                 'protectedSeparatorCount' => $opportunities['protectedSeparatorCount'],
                 'lineEndingNormalizationCount' => $lineEndings['conversions'],
             ];
@@ -125,6 +141,9 @@ final class PlainWriter
                 'maxOutputDisplayWidth' => $maxOutputDisplayWidth,
                 'hardBreakCount' => $hardBreakCount,
                 'softBreakOpportunityCount' => $softBreakOpportunityCount,
+                'zeroWidthSpaceBreakOpportunityCount' => $zeroWidthSpaceBreakOpportunityCount,
+                'softHyphenBreakOpportunityCount' => $softHyphenBreakOpportunityCount,
+                'visibleBreakAfterOpportunityCount' => $visibleBreakAfterOpportunityCount,
                 'protectedSeparatorCount' => $protectedSeparatorCount,
                 'lineEndingNormalizationCount' => $lineEndingNormalizationCount,
                 'blocks' => $blockDiagnostics,
@@ -156,6 +175,33 @@ final class PlainWriter
         }
 
         return UnicodeText::wrapByDisplayWidth($text, $columns, '', $ambiguousWidth);
+    }
+
+    /**
+     * @param list<array{type:string}> $opportunities
+     * @return array{zeroWidthSpace:int, softHyphen:int, visibleBreakAfter:int}
+     */
+    private function lineBreakOpportunityTypeCounts(array $opportunities): array
+    {
+        $counts = [
+            'zeroWidthSpace' => 0,
+            'softHyphen' => 0,
+            'visibleBreakAfter' => 0,
+        ];
+
+        foreach ($opportunities as $opportunity) {
+            $key = match ($opportunity['type']) {
+                'zero-width-space' => 'zeroWidthSpace',
+                'soft-hyphen' => 'softHyphen',
+                'visible-break-after' => 'visibleBreakAfter',
+                default => null,
+            };
+            if ($key !== null) {
+                ++$counts[$key];
+            }
+        }
+
+        return $counts;
     }
 
     private function renderBlock(AstNode $node): string

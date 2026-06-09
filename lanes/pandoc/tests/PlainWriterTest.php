@@ -40,6 +40,9 @@ return [
         $t->same(22, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
         $t->same(9, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['zeroWidthSpaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['softHyphenBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['visibleBreakAfterOpportunityCount']);
         $t->same(0, $result['diagnostics']['protectedSeparatorCount']);
         $t->same(0, $result['diagnostics']['lineEndingNormalizationCount']);
         $t->same([
@@ -50,6 +53,9 @@ return [
             'maxSourceDisplayWidth' => 51,
             'maxOutputDisplayWidth' => 22,
             'wrapped' => true,
+            'zeroWidthSpaceBreakOpportunityCount' => 0,
+            'softHyphenBreakOpportunityCount' => 0,
+            'visibleBreakAfterOpportunityCount' => 0,
             'protectedSeparatorCount' => 0,
             'lineEndingNormalizationCount' => 0,
         ], $result['diagnostics']['blocks'][0]);
@@ -84,6 +90,9 @@ return [
         $t->same(13, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
         $t->same(2, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['zeroWidthSpaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['softHyphenBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['visibleBreakAfterOpportunityCount']);
         $t->same(1, $result['diagnostics']['protectedSeparatorCount']);
         $t->same(1, $result['diagnostics']['lineEndingNormalizationCount']);
         $t->same([
@@ -94,8 +103,48 @@ return [
             'maxSourceDisplayWidth' => 18,
             'maxOutputDisplayWidth' => 13,
             'wrapped' => true,
+            'zeroWidthSpaceBreakOpportunityCount' => 0,
+            'softHyphenBreakOpportunityCount' => 0,
+            'visibleBreakAfterOpportunityCount' => 0,
             'protectedSeparatorCount' => 1,
             'lineEndingNormalizationCount' => 1,
+        ], $result['diagnostics']['blocks'][0]);
+    },
+    'reports wrap control break opportunities in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "Alpha\u{00AD}Beta Gamma\u{200B}Delta Tibetan\u{0F0B}mark"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 8]))->writeWithDiagnostics($document);
+
+        $t->same(implode("\n", [
+            'Alpha-',
+            'Beta',
+            'Gamma',
+            'Delta',
+            "Tibetan\u{0F0B}",
+            'mark',
+        ]), $result['text']);
+        $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(6, $result['diagnostics']['outputLineCount']);
+        $t->same(8, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(5, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['zeroWidthSpaceBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['softHyphenBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['visibleBreakAfterOpportunityCount']);
+        $t->same([
+            'blockIndex' => 0,
+            'blockType' => 'code_block',
+            'sourceLineCount' => 1,
+            'outputLineCount' => 6,
+            'maxSourceDisplayWidth' => 33,
+            'maxOutputDisplayWidth' => 8,
+            'wrapped' => true,
+            'zeroWidthSpaceBreakOpportunityCount' => 1,
+            'softHyphenBreakOpportunityCount' => 1,
+            'visibleBreakAfterOpportunityCount' => 1,
+            'protectedSeparatorCount' => 0,
+            'lineEndingNormalizationCount' => 0,
         ], $result['diagnostics']['blocks'][0]);
     },
 ];
