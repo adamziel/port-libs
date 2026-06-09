@@ -5547,6 +5547,134 @@ return [
         );
     },
 
+    'preflights duplicate zip central directory names across archive streams' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "first reviewer media bytes\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "second spoofed reviewer media bytes\n",
+                'compressionMethod' => 0,
+            ],
+        ], 'duplicate entry name review fixture');
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-duplicate-entry-package.zip',
+                'comment' => 'duplicate zip central directory name fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('duplicate zip central directory reviewer metadata', 13)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipDuplicateEntryNamePolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same('zip-duplicate-entry-name-policy', $inspection['type']);
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(3, $inspection['declaredEntryCount']);
+            $t->same(3, $inspection['scannedEntryCount']);
+            $t->same(3, $inspection['entryCount']);
+            $t->same(false, $inspection['hasEntryCountMismatch']);
+            $t->same(true, $inspection['hasDuplicateEntryNames']);
+            $t->same(1, $inspection['duplicateEntryNameGroupCount']);
+            $t->same(2, $inspection['duplicateEntryNameEntryCount']);
+            $t->same(1, $inspection['duplicateEntryRawNameGroupCount']);
+            $t->same(2, $inspection['duplicateEntryRawNameEntryCount']);
+            $t->same('word/media/review.txt', $inspection['duplicateEntryNameGroups'][0]['name']);
+            $t->same(2, $inspection['duplicateEntryNameGroups'][0]['count']);
+            $t->same([1, 2], $inspection['duplicateEntryNameGroups'][0]['centralDirectoryIndexes']);
+            $t->same('word/media/review.txt', $inspection['duplicateEntryRawNameGroups'][0]['rawName']);
+            $t->same($inspection['duplicateEntryNameGroups'][0]['centralDirectoryIndexes'], $inspection['duplicateEntryRawNameGroups'][0]['centralDirectoryIndexes']);
+            $t->same(['duplicate-central-directory-entry-names'], $inspection['issues']);
+            $t->same(['duplicate-central-directory-entry-names'], $inspection['diagnostics']);
+            $t->same('review-before-conversion', $inspection['handoffPolicy']);
+            $t->same('zip-duplicate-entry-name-review', $inspection['extractionPolicy']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same([
+                '[Content_Types].xml',
+                'word/media/review.txt',
+                'word/media/review.txt',
+            ], array_column($inspection['entries'], 'name'));
+            $t->same([0, 1, 2], array_column($inspection['entries'], 'centralDirectoryIndex'));
+            $t->same(false, isset($inspection['package']));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipDuplicateEntryNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $zlibInspection = ArchiveCompressionStream::inspectZipDuplicateEntryNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_ZLIB_ZIP],
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP,
+            strlen($zipBytes)
+        );
+        $rawInspection = ArchiveCompressionStream::inspectZipDuplicateEntryNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP],
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipDuplicateEntryNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+        $cleanInspection = ArchiveCompressionStream::inspectZipDuplicateEntryNamePolicy(
+            $zipFixtureBytes([
+                [
+                    'name' => 'word/document.xml',
+                    'data' => '<w:document><w:body><w:p>No duplicate central names</w:p></w:body></w:document>',
+                    'compressionMethod' => 8,
+                ],
+            ]),
+            ArchiveCompressionStream::FORMAT_ZIP
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-duplicate-entry-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('duplicate zip central directory name fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('zlib-deflate', $zlibInspection['stream']['type']);
+        $t->same('raw-deflate', $rawInspection['stream']['type']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same('duplicate zip central directory reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->same(false, $cleanInspection['hasDuplicateEntryNames']);
+        $t->same(0, $cleanInspection['duplicateEntryNameGroupCount']);
+        $t->same(0, $cleanInspection['duplicateEntryRawNameGroupCount']);
+        $t->same([], $cleanInspection['diagnostics']);
+        $t->same('within-thresholds', $cleanInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $cleanInspection['extractionPolicy']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zipBytes));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectZipDuplicateEntryNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($zipBytes)
+        ));
+    },
+
     'preflights split zip disk markers across archive streams without exposing package entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
         $documentXml = '<w:document><w:body><w:p>Split ZIP document.xml</w:p></w:body></w:document>';
         $mediaBytes = "split archive media placeholder\n";

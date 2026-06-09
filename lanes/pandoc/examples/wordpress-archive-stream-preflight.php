@@ -1125,6 +1125,39 @@ $centralDirectoryInspection = ArchiveCompressionStream::inspectZipCentralDirecto
     ArchiveCompressionStream::FORMAT_GZIP_ZIP,
     strlen($centralDirectoryZipBytes)
 );
+$duplicateZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/review.txt',
+        'data' => "first reviewer media bytes\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/review.txt',
+        'data' => "second spoofed reviewer media bytes\n",
+        'compressionMethod' => 0,
+    ],
+], 'duplicate zip entry name review fixture');
+$duplicateZipGzip = GzipStream::build($duplicateZipBytes, [
+    'filename' => 'wordpress-duplicate-entry-package.zip',
+    'comment' => 'duplicate zip central directory name fixture',
+    'headerCrc' => true,
+]);
+$duplicateZipInspection = ArchiveCompressionStream::inspectZipDuplicateEntryNamePolicy(
+    $duplicateZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($duplicateZipBytes)
+);
+$duplicateZipExtractionBlocked = false;
+try {
+    ZipPackage::fromString($duplicateZipBytes);
+} catch (RuntimeException) {
+    $duplicateZipExtractionBlocked = true;
+}
 $splitZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -2330,6 +2363,19 @@ if (in_array('--self-test', $argv, true)) {
         'zipCentralDirectorySignatureLocation' => 'between-central-directory-and-eocd',
         'zipCentralDirectoryEntryNames' => ['[Content_Types].xml', 'word/document.xml'],
         'zipCentralDirectoryGzipFilename' => 'wordpress-central-directory-package.zip',
+        'zipDuplicateEntryFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipDuplicateEntryType' => 'zip-duplicate-entry-name-policy',
+        'zipDuplicateEntryCount' => 3,
+        'zipDuplicateEntryGroupCount' => 1,
+        'zipDuplicateEntryNameEntryCount' => 2,
+        'zipDuplicateEntryRawGroupCount' => 1,
+        'zipDuplicateEntryRawEntryCount' => 2,
+        'zipDuplicateEntryNames' => ['[Content_Types].xml', 'word/media/review.txt', 'word/media/review.txt'],
+        'zipDuplicateEntryCentralIndexes' => [1, 2],
+        'zipDuplicateEntryIssues' => ['duplicate-central-directory-entry-names'],
+        'zipDuplicateEntryPolicy' => 'review-before-conversion',
+        'zipDuplicateEntryExtractionPolicy' => 'zip-duplicate-entry-name-review',
+        'zipDuplicateEntryGzipFilename' => 'wordpress-duplicate-entry-package.zip',
         'zipSplitFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipSplitEntryCount' => 3,
         'zipSplitDiskNumber' => 1,
@@ -3097,6 +3143,28 @@ if (in_array('--self-test', $argv, true)) {
         || array_column($centralDirectoryInspection['entries'], 'name') !== $expected['zipCentralDirectoryEntryNames']
         || ($centralDirectoryInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipCentralDirectoryGzipFilename']
         || isset($centralDirectoryInspection['package'])
+        || $duplicateZipInspection['format'] !== $expected['zipDuplicateEntryFormat']
+        || $duplicateZipInspection['type'] !== $expected['zipDuplicateEntryType']
+        || $duplicateZipInspection['zipBytes'] !== $duplicateZipBytes
+        || $duplicateZipInspection['packageByteSize'] !== strlen($duplicateZipBytes)
+        || $duplicateZipInspection['declaredEntryCount'] !== $expected['zipDuplicateEntryCount']
+        || $duplicateZipInspection['scannedEntryCount'] !== $expected['zipDuplicateEntryCount']
+        || $duplicateZipInspection['entryCount'] !== $expected['zipDuplicateEntryCount']
+        || $duplicateZipInspection['hasDuplicateEntryNames'] !== true
+        || $duplicateZipInspection['duplicateEntryNameGroupCount'] !== $expected['zipDuplicateEntryGroupCount']
+        || $duplicateZipInspection['duplicateEntryNameEntryCount'] !== $expected['zipDuplicateEntryNameEntryCount']
+        || $duplicateZipInspection['duplicateEntryRawNameGroupCount'] !== $expected['zipDuplicateEntryRawGroupCount']
+        || $duplicateZipInspection['duplicateEntryRawNameEntryCount'] !== $expected['zipDuplicateEntryRawEntryCount']
+        || array_column($duplicateZipInspection['entries'], 'name') !== $expected['zipDuplicateEntryNames']
+        || ($duplicateZipInspection['duplicateEntryNameGroups'][0]['centralDirectoryIndexes'] ?? []) !== $expected['zipDuplicateEntryCentralIndexes']
+        || ($duplicateZipInspection['duplicateEntryRawNameGroups'][0]['centralDirectoryIndexes'] ?? []) !== $expected['zipDuplicateEntryCentralIndexes']
+        || $duplicateZipInspection['issues'] !== $expected['zipDuplicateEntryIssues']
+        || $duplicateZipInspection['diagnostics'] !== $expected['zipDuplicateEntryIssues']
+        || $duplicateZipInspection['handoffPolicy'] !== $expected['zipDuplicateEntryPolicy']
+        || $duplicateZipInspection['extractionPolicy'] !== $expected['zipDuplicateEntryExtractionPolicy']
+        || ($duplicateZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipDuplicateEntryGzipFilename']
+        || isset($duplicateZipInspection['package'])
+        || !$duplicateZipExtractionBlocked
         || $splitZipInspection['format'] !== $expected['zipSplitFormat']
         || $splitZipInspection['zipBytes'] !== $splitZipBytes
         || $splitZipInspection['packageByteSize'] !== strlen($splitZipBytes)
@@ -3747,6 +3815,12 @@ echo 'zipCentralDirectory.verification=' . $centralDirectoryInspection['centralD
 echo 'zipCentralDirectory.handoffPolicy=' . $centralDirectoryInspection['handoffPolicy'] . "\n";
 echo 'zipCentralDirectory.diagnostics=' . implode(',', $centralDirectoryInspection['diagnostics']) . "\n";
 echo 'zipCentralDirectory.gzipFilename=' . $centralDirectoryInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipDuplicateEntry.format=' . $duplicateZipInspection['format'] . "\n";
+echo 'zipDuplicateEntry.entryCount=' . $duplicateZipInspection['entryCount'] . "\n";
+echo 'zipDuplicateEntry.groupCount=' . $duplicateZipInspection['duplicateEntryNameGroupCount'] . "\n";
+echo 'zipDuplicateEntry.issues=' . implode(',', $duplicateZipInspection['issues']) . "\n";
+echo 'zipDuplicateEntry.gzipFilename=' . $duplicateZipInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipDuplicateEntry.extractionBlocked=' . ($duplicateZipExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'zipSplit.format=' . $splitZipInspection['format'] . "\n";
 echo 'zipSplit.entryCount=' . $splitZipInspection['entryCount'] . "\n";
 echo 'zipSplit.issues=' . implode(',', $splitZipInspection['issues']) . "\n";
