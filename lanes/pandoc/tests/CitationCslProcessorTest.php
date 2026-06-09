@@ -9064,6 +9064,139 @@ XML
 XML
         ));
     },
+    'applies bounded csl sort key name-list overrides' => static function (TestRunner $t): void {
+        $items = [
+            [
+                'id' => 'smith-zed-alpha',
+                'type' => 'report',
+                'title' => 'First Cited Name Sort Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['family' => 'Zed', 'given' => 'Zoe'],
+                    ['family' => 'Alpha', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'smith-adams-zulu',
+                'type' => 'report',
+                'title' => 'Second Cited Name Sort Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['family' => 'Adams', 'given' => 'Ari'],
+                    ['family' => 'Zulu', 'given' => 'Zoe'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'ng-chen-beta',
+                'type' => 'report',
+                'title' => 'Leading Ng Name Sort Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Chen', 'given' => 'Kai'],
+                    ['family' => 'Beta', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+        ];
+        $processor = CitationCslProcessor::fromItems($items)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Sort Key Name Override Review</title>
+    <id>https://example.test/styles/bounded-sort-key-name-override-review</id>
+    <updated>2026-06-09T05:41:34+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="author" names-min="3" names-use-first="1"/>
+    </sort>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"><name form="short"/></names>
+        <text variable="title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="author" names-min="3" names-use-first="1" names-use-last="true"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="author"><name form="short"/></names>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('author', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same(3, $summary['citationSort'][0]['namesMin'] ?? null);
+        $t->same(1, $summary['citationSort'][0]['namesUseFirst'] ?? null);
+        $t->same('author', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same(3, $summary['bibliographySort'][0]['namesMin'] ?? null);
+        $t->same(1, $summary['bibliographySort'][0]['namesUseFirst'] ?? null);
+        $t->same(true, $summary['bibliographySort'][0]['namesUseLast'] ?? null);
+
+        $cluster = $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'smith-zed-alpha', 'text' => '[@smith-zed-alpha]']),
+            new AstNode('citation', ['id' => 'smith-adams-zulu', 'text' => '[@smith-adams-zulu]']),
+            new AstNode('citation', ['id' => 'ng-chen-beta', 'text' => '[@ng-chen-beta]']),
+        ]);
+        $t->same('(Ng et al. | Leading Ng Name Sort Packet; Smith et al. | First Cited Name Sort Packet; Smith et al. | Second Cited Name Sort Packet)', $cluster);
+
+        $document = (new MarkdownReader())->read('Sort override review [@smith-zed-alpha; @smith-adams-zulu; @ng-chen-beta] stays stable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $ngPosition = strpos($markdown, 'Leading Ng Name Sort Packet ::');
+        $firstSmithPosition = strpos($markdown, 'First Cited Name Sort Packet ::');
+        $secondSmithPosition = strpos($markdown, 'Second Cited Name Sort Packet ::');
+        $t->true(is_int($ngPosition) && is_int($firstSmithPosition) && is_int($secondSmithPosition), 'CSL names sort override entries were not rendered');
+        $t->true($ngPosition < $firstSmithPosition && $firstSmithPosition < $secondSmithPosition, 'Bibliography should apply names-use-last sort override after truncating first names');
+
+        $macroProcessor = CitationCslProcessor::fromItems($items)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Macro Sort Key Name Override Review</title>
+    <id>https://example.test/styles/bounded-macro-sort-key-name-override-review</id>
+    <updated>2026-06-09T05:41:34+00:00</updated>
+  </info>
+  <macro name="creator-sort">
+    <names variable="author"><name form="short"/></names>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <text variable="title"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key macro="creator-sort" names-min="3" names-use-first="1"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text macro="creator-sort"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $macroSummary = $macroProcessor->cslStyleSummary();
+        $t->same('creator-sort', $macroSummary['bibliographySort'][0]['macro'] ?? null);
+        $t->same(3, $macroSummary['bibliographySort'][0]['namesMin'] ?? null);
+        $t->same(1, $macroSummary['bibliographySort'][0]['namesUseFirst'] ?? null);
+
+        $macroProcessed = $macroProcessor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($macroProcessed);
+        $t->contains('<p>Sort override review (First Cited Name Sort Packet; Second Cited Name Sort Packet; Leading Ng Name Sort Packet) stays stable.</p>', $blocks);
+        $macroNgPosition = strpos($blocks, '<dt>Ng et al. 2024</dt><dd>Leading Ng Name Sort Packet ::');
+        $macroFirstSmithPosition = strpos($blocks, '<dt>Smith et al. 2026</dt><dd>First Cited Name Sort Packet ::');
+        $macroSecondSmithPosition = strpos($blocks, '<dt>Smith et al. 2025</dt><dd>Second Cited Name Sort Packet ::');
+        $t->true(is_int($macroNgPosition) && is_int($macroFirstSmithPosition) && is_int($macroSecondSmithPosition), 'CSL macro names sort override entries were not rendered');
+        $t->true($macroNgPosition < $macroFirstSmithPosition && $macroFirstSmithPosition < $macroSecondSmithPosition, 'Macro sort key should apply names-min and names-use-first overrides before comparing author names');
+    },
     'applies bounded csl macro sort keys using rendered macro output' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

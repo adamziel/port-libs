@@ -289,6 +289,7 @@ final class PdfEngineHandoff
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pdfPageLabelPolicy: array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{},
      *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     pdfPageTimingPolicy: array{reviewStatus:string, pageCount:int, timingCount:int, durationCount:int, transitionCount:int, pagesWithTiming:list<int>, durationPages:list<int>, transitionPages:list<int>, transitionTypes:array<string, int>, directionLabels:array<string, int>, maxDuration:float|null, maxTransitionDuration:float|null, issues:list<string>}|array{},
      *     pdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
@@ -762,6 +763,7 @@ final class PdfEngineHandoff
         $pdfPageLabels = [];
         $pdfPageLabelPolicy = [];
         $pdfPageTimings = [];
+        $pdfPageTimingPolicy = [];
         $pdfPageActions = [];
         $pdfPageViewports = [];
         $pdfPageContentStreams = [];
@@ -893,6 +895,7 @@ final class PdfEngineHandoff
                 $pdfPageLabels = $pdfInspection['pageLabels'];
                 $pdfPageLabelPolicy = $pdfInspection['pageLabelPolicy'];
                 $pdfPageTimings = $pdfInspection['pageTimings'];
+                $pdfPageTimingPolicy = $pdfInspection['pageTimingPolicy'];
                 $pdfPageActions = $pdfInspection['pageActions'];
                 $pdfPageViewports = $pdfInspection['pageViewports'];
                 $pdfPageContentStreams = $pdfInspection['pageContentStreams'];
@@ -1163,6 +1166,40 @@ final class PdfEngineHandoff
                     }
                     foreach ($this->summarizePdfPageTransitionDirectionLabels($pdfPageTimings) as $directionLabel => $directionCount) {
                         $diagnostics[] = 'pdf-byte-page-transition-direction:' . $directionLabel . ':' . $directionCount;
+                    }
+                }
+                if ($pdfPageTimingPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-page-timing-policy:' . $pdfPageTimingPolicy['reviewStatus'];
+                    foreach ([
+                        'durationCount' => 'durations',
+                        'transitionCount' => 'transitions',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageTimingPolicy[$policyKey]) && is_int($pdfPageTimingPolicy[$policyKey]) && $pdfPageTimingPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-page-timing-policy-' . $diagnosticName . ':' . $pdfPageTimingPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfPageTimingPolicy['transitionTypes']) && is_array($pdfPageTimingPolicy['transitionTypes'])) {
+                        foreach ($pdfPageTimingPolicy['transitionTypes'] as $transitionType => $transitionCount) {
+                            $diagnostics[] = 'pdf-byte-page-timing-policy-transition-type:' . $transitionType . ':' . $transitionCount;
+                        }
+                    }
+                    if (isset($pdfPageTimingPolicy['directionLabels']) && is_array($pdfPageTimingPolicy['directionLabels'])) {
+                        foreach ($pdfPageTimingPolicy['directionLabels'] as $directionLabel => $directionCount) {
+                            $diagnostics[] = 'pdf-byte-page-timing-policy-direction:' . $directionLabel . ':' . $directionCount;
+                        }
+                    }
+                    if (isset($pdfPageTimingPolicy['issues']) && is_array($pdfPageTimingPolicy['issues']) && $pdfPageTimingPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-page-timing-policy-issues:' . count($pdfPageTimingPolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfPageTimingPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-page-timing-policy-issue:' . $issue . ':' . $count;
+                        }
                     }
                 }
                 if ($pdfPageActions !== []) {
@@ -3600,6 +3637,7 @@ final class PdfEngineHandoff
             'pdfPageLabels' => $pdfPageLabels,
             'pdfPageLabelPolicy' => $pdfPageLabelPolicy,
             'pdfPageTimings' => $pdfPageTimings,
+            'pdfPageTimingPolicy' => $pdfPageTimingPolicy,
             'pdfPageActions' => $pdfPageActions,
             'pdfPageViewports' => $pdfPageViewports,
             'pdfPageContentStreams' => $pdfPageContentStreams,
@@ -3743,6 +3781,7 @@ final class PdfEngineHandoff
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     finalPdfPageLabelPolicy: array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{},
      *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     finalPdfPageTimingPolicy: array{reviewStatus:string, pageCount:int, timingCount:int, durationCount:int, transitionCount:int, pagesWithTiming:list<int>, durationPages:list<int>, transitionPages:list<int>, transitionTypes:array<string, int>, directionLabels:array<string, int>, maxDuration:float|null, maxTransitionDuration:float|null, issues:list<string>}|array{},
      *     finalPdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     finalPdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
@@ -4009,6 +4048,7 @@ final class PdfEngineHandoff
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
             'finalPdfPageLabelPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageLabelPolicy'] ?? null) ? $finalRun['pdfPageLabelPolicy'] : [],
             'finalPdfPageTimings' => is_array($finalRun) && is_array($finalRun['pdfPageTimings'] ?? null) ? $finalRun['pdfPageTimings'] : [],
+            'finalPdfPageTimingPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageTimingPolicy'] ?? null) ? $finalRun['pdfPageTimingPolicy'] : [],
             'finalPdfPageActions' => is_array($finalRun) && is_array($finalRun['pdfPageActions'] ?? null) ? $finalRun['pdfPageActions'] : [],
             'finalPdfPageViewports' => is_array($finalRun) && is_array($finalRun['pdfPageViewports'] ?? null) ? $finalRun['pdfPageViewports'] : [],
             'finalPdfPageContentStreams' => is_array($finalRun) && is_array($finalRun['pdfPageContentStreams'] ?? null) ? $finalRun['pdfPageContentStreams'] : [],
@@ -5171,6 +5211,7 @@ final class PdfEngineHandoff
      *     pageLabels:list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pageLabelPolicy:array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{},
      *     pageTimings:list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     pageTimingPolicy:array{reviewStatus:string, pageCount:int, timingCount:int, durationCount:int, transitionCount:int, pagesWithTiming:list<int>, durationPages:list<int>, transitionPages:list<int>, transitionTypes:array<string, int>, directionLabels:array<string, int>, maxDuration:float|null, maxTransitionDuration:float|null, issues:list<string>}|array{},
      *     pageViewports:list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pageContentStreams:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pageContentResourceUsage:array<string, int>,
@@ -5362,6 +5403,7 @@ final class PdfEngineHandoff
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
             'pageLabelPolicy' => $this->extractPdfPageLabelPolicy($pdfBytes, $catalog),
             'pageTimings' => $pageTimings,
+            'pageTimingPolicy' => $this->summarizePdfPageTimingPolicy($pageTimings, $this->extractPdfPageCount($pdfBytes)),
             'pageActions' => $pageActions,
             'pageViewports' => $pageViewports,
             'pageContentStreams' => $pageContentStreams,
@@ -17630,6 +17672,103 @@ final class PdfEngineHandoff
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}> $pageTimings
+     * @return array{reviewStatus:string, pageCount:int, timingCount:int, durationCount:int, transitionCount:int, pagesWithTiming:list<int>, durationPages:list<int>, transitionPages:list<int>, transitionTypes:array<string, int>, directionLabels:array<string, int>, maxDuration:float|null, maxTransitionDuration:float|null, issues:list<string>}|array{}
+     */
+    private function summarizePdfPageTimingPolicy(array $pageTimings, ?int $pageCount): array
+    {
+        if ($pageTimings === []) {
+            return [];
+        }
+
+        $pagesWithTiming = [];
+        $durationPages = [];
+        $transitionPages = [];
+        $maxDuration = null;
+        $maxTransitionDuration = null;
+        $hasDirection = false;
+        $hasMotion = false;
+        $hasScale = false;
+        $hasBackground = false;
+
+        foreach ($pageTimings as $timing) {
+            $page = isset($timing['page']) && is_int($timing['page']) ? $timing['page'] : null;
+            if ($page !== null) {
+                $pagesWithTiming[$page] = true;
+            }
+
+            $duration = $timing['duration'] ?? null;
+            if (is_int($duration) || is_float($duration)) {
+                if ($page !== null) {
+                    $durationPages[$page] = true;
+                }
+                $maxDuration = $maxDuration === null ? (float) $duration : max($maxDuration, (float) $duration);
+            }
+
+            if ($this->pdfPageTimingHasTransition($timing)) {
+                if ($page !== null) {
+                    $transitionPages[$page] = true;
+                }
+                $transitionDuration = $timing['transitionDuration'] ?? null;
+                if (is_int($transitionDuration) || is_float($transitionDuration)) {
+                    $maxTransitionDuration = $maxTransitionDuration === null
+                        ? (float) $transitionDuration
+                        : max($maxTransitionDuration, (float) $transitionDuration);
+                }
+            }
+
+            $hasDirection = $hasDirection || is_string($timing['directionLabel'] ?? null);
+            $hasMotion = $hasMotion || is_string($timing['dimension'] ?? null) || is_string($timing['motion'] ?? null);
+            $hasScale = $hasScale || is_int($timing['scale'] ?? null) || is_float($timing['scale'] ?? null);
+            $hasBackground = $hasBackground || ($timing['background'] ?? null) === true;
+        }
+
+        $issues = [];
+        if ($durationPages !== []) {
+            $issues[] = 'auto-advance-duration';
+        }
+        if ($transitionPages !== []) {
+            $issues[] = 'page-transition-effects';
+        }
+        if ($hasDirection) {
+            $issues[] = 'transition-direction-overrides';
+        }
+        if ($hasMotion) {
+            $issues[] = 'transition-motion-overrides';
+        }
+        if ($hasScale) {
+            $issues[] = 'transition-scale-overrides';
+        }
+        if ($hasBackground) {
+            $issues[] = 'transition-background-fill';
+        }
+        sort($issues);
+
+        $pageList = array_keys($pagesWithTiming);
+        $durationPageList = array_keys($durationPages);
+        $transitionPageList = array_keys($transitionPages);
+        sort($pageList);
+        sort($durationPageList);
+        sort($transitionPageList);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'pageCount' => $pageCount ?? 0,
+            'timingCount' => count($pageTimings),
+            'durationCount' => count($durationPageList),
+            'transitionCount' => count($transitionPageList),
+            'pagesWithTiming' => $pageList,
+            'durationPages' => $durationPageList,
+            'transitionPages' => $transitionPageList,
+            'transitionTypes' => $this->summarizePdfPageTransitionTypes($pageTimings),
+            'directionLabels' => $this->summarizePdfPageTransitionDirectionLabels($pageTimings),
+            'maxDuration' => $maxDuration,
+            'maxTransitionDuration' => $maxTransitionDuration,
+            'issues' => $issues,
+        ];
     }
 
     /**

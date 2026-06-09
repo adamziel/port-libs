@@ -125,6 +125,18 @@ return [
         $t->true(!str_contains($dotAndNamedMathml . $relationMathml, '<mi>\\cong</mi>'));
         $t->true(!str_contains($dotAndNamedMathml . $relationMathml, '<mi>\\nabla</mi>'));
     },
+    'converts bounded texmath negative approximate relation aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $relationMathml = $converter->texToMathMl('x \\approxeq y + a \\napprox b + c \\ncong d', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('x \\approxeq y + a \\napprox b + c \\ncong d');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $relationMathml);
+        $t->contains('<mi>x</mi><mo>≊</mo><mi>y</mi><mo>+</mo><mi>a</mi><mo>≉</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>≇</mo><mi>d</mi>', $relationMathml);
+        $t->contains('<annotation encoding="application/x-tex">x \\approxeq y + a \\napprox b + c \\ncong d</annotation>', $relationMathml);
+        $t->contains('alttext="x approximately equal or equal to y plus a not approximately equal to b plus c not congruent to d"', $accessibleMathml);
+        $t->contains('intent="row(x,approximately_equal_or_equal_to,y,plus,a,not_approximately_equal_to,b,plus,c,not_congruent_to,d)"', $accessibleMathml);
+        $t->true(!str_contains($relationMathml, '<mi>\\approxeq</mi>') && !str_contains($relationMathml, '<mi>\\napprox</mi>') && !str_contains($relationMathml, '<mi>\\ncong</mi>'));
+    },
     'unwraps bounded tex hyperref wrappers for mathml handoff' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $mathml = $converter->texToMathMl('\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}', true);

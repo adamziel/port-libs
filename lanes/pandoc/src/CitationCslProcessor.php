@@ -20,6 +20,9 @@ final class CitationCslProcessor
 
     private CslStyle $style;
 
+    /** @var array{etAlMin?:int, etAlUseFirst?:int, etAlUseLast?:bool}|null */
+    private ?array $sortKeyNameRenderingOverrides = null;
+
     /**
      * @param array<string, array<string, mixed>> $itemsById
      * @param list<string> $primaryIds
@@ -4547,7 +4550,7 @@ final class CitationCslProcessor
     /**
      * @param array{index:int, item:array<string, mixed>|null, fallback:string} $left
      * @param array{index:int, item:array<string, mixed>|null, fallback:string} $right
-     * @param list<array{sort:string, variable?:string, macro?:string}> $sortKeys
+     * @param list<array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool}> $sortKeys
      */
     private function compareSortEntries(array $left, array $right, array $sortKeys, string $scope): int
     {
@@ -4575,13 +4578,13 @@ final class CitationCslProcessor
 
     /**
      * @param array<string, mixed> $item
-     * @param array{sort:string, variable?:string, macro?:string} $key
+     * @param array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool} $key
      */
     private function sortValue(array $item, array $key, string $fallback, string $scope): string
     {
         $macro = trim((string) ($key['macro'] ?? ''));
         if ($macro !== '') {
-            return $this->sortMacroValue($item, $macro, $scope);
+            return $this->sortMacroValue($item, $macro, $scope, $key);
         }
 
         $variable = $this->sortVariable($key);
@@ -4594,9 +4597,9 @@ final class CitationCslProcessor
             'sort-year' => $this->sortYearSortValue($item),
             'sort-initial', 'sortinit', 'sortinitial' => $this->normalizeSortText((string) ($item['sortInitial'] ?? '')),
             'sort-initial-hash', 'sortinithash' => $this->normalizeSortText((string) ($item['sortInitialHash'] ?? '')),
-            'author' => $this->normalizeSortText($this->sortNameValue($item) !== '' ? $this->sortNameValue($item) : $this->namesSortValue($item['authors'] ?? [], $item['editors'] ?? [])),
-            'editor' => $this->normalizeSortText($this->sortNameValue($item) !== '' ? $this->sortNameValue($item) : $this->namesSortValue($item['editors'] ?? [], [])),
-            'container-author' => $this->normalizeSortText($this->namesSortValue($item['containerAuthors'] ?? [], [])),
+            'author' => $this->normalizeSortText($this->sortNameValue($item) !== '' ? $this->sortNameValue($item) : $this->namesSortValue($item['authors'] ?? [], $item['editors'] ?? [], $key)),
+            'editor' => $this->normalizeSortText($this->sortNameValue($item) !== '' ? $this->sortNameValue($item) : $this->namesSortValue($item['editors'] ?? [], [], $key)),
+            'container-author' => $this->normalizeSortText($this->namesSortValue($item['containerAuthors'] ?? [], [], $key)),
             'issued', 'date' => $this->sortYearSortValue($item) !== '' ? $this->sortYearSortValue($item) : $this->issuedSortValue($item),
             'accessed' => $this->dateSortValue($item, 'accessed'),
             'available-date' => $this->dateSortValue($item, 'available-date'),
@@ -4654,8 +4657,9 @@ final class CitationCslProcessor
 
     /**
      * @param array<string, mixed> $item
+     * @param array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool} $key
      */
-    private function sortMacroValue(array $item, string $macro, string $scope): string
+    private function sortMacroValue(array $item, string $macro, string $scope, array $key): string
     {
         $elements = $this->style->macroRenderingElements($macro);
         if ($elements === null) {
@@ -4664,22 +4668,61 @@ final class CitationCslProcessor
 
         $bibliographyState = null;
         $substitutedVariables = [];
-        $value = $this->renderRenderingElementsWithMacroStack(
-            $elements,
-            $item,
-            $scope === 'bibliography' ? 'bibliography' : 'citation',
-            '',
-            [$macro],
-            null,
-            $bibliographyState,
-            $substitutedVariables
-        );
+        $previousSortKeyNameRenderingOverrides = $this->sortKeyNameRenderingOverrides;
+        $this->sortKeyNameRenderingOverrides = $this->nameRenderingOverridesForSortKey($key);
+        try {
+            $value = $this->renderRenderingElementsWithMacroStack(
+                $elements,
+                $item,
+                $scope === 'bibliography' ? 'bibliography' : 'citation',
+                '',
+                [$macro],
+                null,
+                $bibliographyState,
+                $substitutedVariables
+            );
+        } finally {
+            $this->sortKeyNameRenderingOverrides = $previousSortKeyNameRenderingOverrides;
+        }
 
         return $this->normalizeSortText($value);
     }
 
     /**
-     * @param array{sort:string, variable?:string, macro?:string} $key
+     * @param array{sort?:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool} $key
+     * @return array{etAlMin?:int, etAlUseFirst?:int, etAlUseLast?:bool}|null
+     */
+    private function nameRenderingOverridesForSortKey(array $key): ?array
+    {
+        $overrides = [];
+        if (is_int($key['namesMin'] ?? null)) {
+            $overrides['etAlMin'] = $key['namesMin'];
+        }
+        if (is_int($key['namesUseFirst'] ?? null)) {
+            $overrides['etAlUseFirst'] = $key['namesUseFirst'];
+        }
+        if (is_bool($key['namesUseLast'] ?? null)) {
+            $overrides['etAlUseLast'] = $key['namesUseLast'];
+        }
+
+        return $overrides === [] ? null : $overrides;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function nameRenderingOptionsWithSortKeyOverrides(array $options): array
+    {
+        if ($this->sortKeyNameRenderingOverrides === null) {
+            return $options;
+        }
+
+        return [...$options, ...$this->sortKeyNameRenderingOverrides];
+    }
+
+    /**
+     * @param array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool} $key
      */
     private function sortVariable(array $key): string
     {
@@ -4705,13 +4748,16 @@ final class CitationCslProcessor
     /**
      * @param mixed $primary
      * @param mixed $fallback
+     * @param array{sort?:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool} $key
      */
-    private function namesSortValue(mixed $primary, mixed $fallback): string
+    private function namesSortValue(mixed $primary, mixed $fallback, array $key = []): string
     {
         $names = is_array($primary) && $primary !== [] ? $primary : $fallback;
         if (!is_array($names) || $names === []) {
             return '';
         }
+
+        $names = $this->sortKeyVisibleNames($names, $key);
 
         $parts = [];
         foreach ($names as $name) {
@@ -4732,6 +4778,60 @@ final class CitationCslProcessor
         }
 
         return implode(' ', $parts);
+    }
+
+    /**
+     * @param list<mixed> $names
+     * @param array{sort?:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool} $key
+     * @return list<mixed>
+     */
+    private function sortKeyVisibleNames(array $names, array $key): array
+    {
+        $renderableNames = [];
+        foreach ($names as $name) {
+            if (!is_array($name) || ($name['etAl'] ?? false) === true) {
+                continue;
+            }
+
+            $renderableNames[] = $name;
+        }
+
+        if ($renderableNames === []) {
+            return [];
+        }
+
+        $namesMin = $key['namesMin'] ?? null;
+        $namesUseFirst = $key['namesUseFirst'] ?? null;
+        $count = count($renderableNames);
+        if (!is_int($namesMin) || !is_int($namesUseFirst) || $count < $namesMin) {
+            return $renderableNames;
+        }
+
+        $visibleCount = max(1, min($namesUseFirst, $count));
+        $visible = array_slice($renderableNames, 0, $visibleCount);
+        if ($this->sortKeyUsesLastName($key, $visibleCount, $count)) {
+            $visible[] = $renderableNames[$count - 1];
+        }
+
+        return $visible;
+    }
+
+    /**
+     * @param array{sort?:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool} $key
+     */
+    private function sortKeyUsesLastName(array $key, int $visibleCount, int $count): bool
+    {
+        if (($key['namesUseLast'] ?? false) !== true) {
+            return false;
+        }
+
+        $namesMin = $key['namesMin'] ?? null;
+        $namesUseFirst = $key['namesUseFirst'] ?? null;
+        if (!is_int($namesMin) || !is_int($namesUseFirst) || $namesUseFirst > $namesMin - 2) {
+            return false;
+        }
+
+        return $visibleCount + 1 < $count;
     }
 
     /**
@@ -7680,6 +7780,7 @@ final class CitationCslProcessor
         $options = is_array($elementOptions)
             ? $this->normalizedNameRenderingOptions($elementOptions, $scope)
             : ($scope === 'bibliography' ? $this->style->bibliographyNameRendering() : $this->style->citationNameRendering());
+        $options = $this->nameRenderingOptionsWithSortKeyOverrides($options);
 
         if ($this->rendersCombinedEditorTranslatorNameGroup($variable, $nameGroups)) {
             $names = $nameGroups[0]['names'];

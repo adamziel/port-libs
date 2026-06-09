@@ -1524,19 +1524,57 @@ MARKDOWN);
                 'background' => true,
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 2,
+            'timingCount' => 2,
+            'durationCount' => 1,
+            'transitionCount' => 2,
+            'pagesWithTiming' => [1, 2],
+            'durationPages' => [1],
+            'transitionPages' => [1, 2],
+            'transitionTypes' => [
+                'Fade' => 1,
+                'Wipe' => 1,
+            ],
+            'directionLabels' => [
+                'bottom-to-top' => 1,
+            ],
+            'maxDuration' => 6.5,
+            'maxTransitionDuration' => 1.25,
+            'issues' => [
+                'auto-advance-duration',
+                'page-transition-effects',
+                'transition-background-fill',
+                'transition-direction-overrides',
+                'transition-motion-overrides',
+                'transition-scale-overrides',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
 
         $t->same(true, $result['ok']);
         $t->same('FullScreen', $result['pdfPageMode']);
         $t->same($expected, $result['pdfPageTimings']);
-        $t->contains('pdf-byte-page-mode:FullScreen', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-page-timings:2', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-page-durations:1', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-page-transitions:2', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-page-transition-type:Fade:1', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-page-transition-type:Wipe:1', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-page-transition-direction:bottom-to-top:1', implode(',', $result['diagnostics']));
+        $t->same($expectedPolicy, $result['pdfPageTimingPolicy']);
+        $t->contains('pdf-byte-page-mode:FullScreen', $diagnostics);
+        $t->contains('pdf-byte-page-timings:2', $diagnostics);
+        $t->contains('pdf-byte-page-durations:1', $diagnostics);
+        $t->contains('pdf-byte-page-transitions:2', $diagnostics);
+        $t->contains('pdf-byte-page-transition-type:Fade:1', $diagnostics);
+        $t->contains('pdf-byte-page-transition-type:Wipe:1', $diagnostics);
+        $t->contains('pdf-byte-page-transition-direction:bottom-to-top:1', $diagnostics);
+        $t->contains('pdf-byte-page-timing-policy:review', $diagnostics);
+        $t->contains('pdf-byte-page-timing-policy-durations:1', $diagnostics);
+        $t->contains('pdf-byte-page-timing-policy-transitions:2', $diagnostics);
+        $t->contains('pdf-byte-page-timing-policy-transition-type:Fade:1', $diagnostics);
+        $t->contains('pdf-byte-page-timing-policy-direction:bottom-to-top:1', $diagnostics);
+        $t->contains('pdf-byte-page-timing-policy-issues:6', $diagnostics);
+        $t->contains('pdf-byte-page-timing-policy-issue:auto-advance-duration:1', $diagnostics);
+        $t->contains('pdf-byte-page-timing-policy-issue:transition-scale-overrides:1', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageTimings']);
+        $t->same($expectedPolicy, $sequence['finalPdfPageTimingPolicy']);
     },
 
     'fake runner labels bounded pdf page transition directions from produced bytes' => static function (TestRunner $t) use ($document): void {

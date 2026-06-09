@@ -310,8 +310,8 @@ final class CslStyle
      * @param array{prefix:string, suffix:string, delimiter:string} $bibliographyLayout
      * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string} $bibliographyOptions
      * @param array{disambiguateAddYearSuffix:bool, disambiguateAddNames:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int, citeGroupDelimiter:string, yearSuffixDelimiter:string, afterCollapseDelimiter:string|null} $citationOptions
-     * @param list<array{sort:string, variable?:string, macro?:string}> $citationSortKeys
-     * @param list<array{sort:string, variable?:string, macro?:string}> $bibliographySortKeys
+     * @param list<array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool}> $citationSortKeys
+     * @param list<array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool}> $bibliographySortKeys
      * @param list<array<string, mixed>> $citationRenderingElements
      * @param list<array<string, mixed>> $bibliographyRenderingElements
      * @param array<string, list<array<string, mixed>>> $macros
@@ -556,7 +556,7 @@ final class CslStyle
     }
 
     /**
-     * @return list<array{sort:string, variable?:string, macro?:string}>
+     * @return list<array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool}>
      */
     public function citationSortKeys(): array
     {
@@ -564,7 +564,7 @@ final class CslStyle
     }
 
     /**
-     * @return list<array{sort:string, variable?:string, macro?:string}>
+     * @return list<array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool}>
      */
     public function bibliographySortKeys(): array
     {
@@ -645,7 +645,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, pageRangeFormat:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, disambiguateAddNames:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int, citeGroupDelimiter:string, yearSuffixDelimiter:string, afterCollapseDelimiter:string|null}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array<string, string>}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, pageRangeFormat:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, disambiguateAddNames:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int, citeGroupDelimiter:string, yearSuffixDelimiter:string, afterCollapseDelimiter:string|null}, citationSort:list<array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array<string, string>}
      */
     public function summary(): array
     {
@@ -2086,7 +2086,7 @@ final class CslStyle
     }
 
     /**
-     * @return list<array{sort:string, variable?:string, macro?:string}>
+     * @return list<array{sort:string, variable?:string, macro?:string, namesMin?:int, namesUseFirst?:int, namesUseLast?:bool}>
      */
     private static function sortKeys(\DOMElement $container, string $label): array
     {
@@ -2117,6 +2117,17 @@ final class CslStyle
             } else {
                 $key['macro'] = $macro;
             }
+            $namesMin = self::positiveIntegerSortKeyAttribute($keyElement, 'names-min', $label);
+            if ($namesMin !== null) {
+                $key['namesMin'] = $namesMin;
+            }
+            $namesUseFirst = self::positiveIntegerSortKeyAttribute($keyElement, 'names-use-first', $label);
+            if ($namesUseFirst !== null) {
+                $key['namesUseFirst'] = $namesUseFirst;
+            }
+            if ($keyElement->hasAttribute('names-use-last')) {
+                $key['namesUseLast'] = self::booleanAttribute($keyElement, 'names-use-last', false, $label . ' sort key');
+            }
             $keys[] = $key;
         }
 
@@ -2125,6 +2136,20 @@ final class CslStyle
         }
 
         return $keys;
+    }
+
+    private static function positiveIntegerSortKeyAttribute(\DOMElement $key, string $attribute, string $label): ?int
+    {
+        if (!$key->hasAttribute($attribute)) {
+            return null;
+        }
+
+        $value = trim($key->getAttribute($attribute));
+        if (preg_match('/^\d+$/', $value) !== 1 || (int) $value < 1) {
+            throw new \InvalidArgumentException('CSL ' . $label . ' sort key attribute ' . $attribute . ' must be a positive integer');
+        }
+
+        return (int) $value;
     }
 
     /**
