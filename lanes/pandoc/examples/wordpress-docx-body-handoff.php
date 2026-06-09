@@ -837,6 +837,7 @@ XML],
       <w:ind w:left="720" w:firstLine="240"/>
       <w:keepNext/>
     </w:pPr>
+    <w:rPr><w:i/><w:highlight w:val="cyan"/><w:lang w:val="en-US"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="ChecklistBullet"><w:name w:val="Checklist Bullet"/><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="11"/></w:numPr></w:pPr></w:style>
   <w:style w:type="character" w:styleId="ReviewEmphasis">
@@ -1345,7 +1346,7 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<h1 id="docx-source-packet">DOCX source packet</h1>',
         '<h2 id="reviewer-checklist">Reviewer checklist</h2>',
-        '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-keep-next" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-keep-next="true">Styled source packet note remains labeled.</span></p>',
+        '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-keep-next" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-keep-next="true"><span class="docx-highlight docx-highlight-cyan docx-language" data-docx-highlight="cyan" data-docx-lang="en-US" lang="en-US"><em>Styled source packet note remains labeled.</em></span></span></p>',
         '<ul><li>Match media IDs<ul><li>Map hero attachment</li></ul></li><li>Preserve alt text</li></ul>',
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<ol start="5" type="I"><li>Escalate legal review</li><li>Final archive signoff</li></ol>',

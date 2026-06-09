@@ -94,6 +94,11 @@ final class DocxReader
     private array $currentStyles = [];
 
     /**
+     * @var array<string, mixed>|null
+     */
+    private ?array $currentParagraphRunProperties = null;
+
+    /**
      * @var array<string, string>
      */
     private array $currentThemeFonts = [];
@@ -1006,7 +1011,9 @@ final class DocxReader
         }
 
         $previousStyles = $this->currentStyles;
+        $previousParagraphRunProperties = $this->currentParagraphRunProperties;
         $this->currentStyles = $styles;
+        $this->currentParagraphRunProperties = null;
         try {
             $this->noteReferenceState = $this->newNoteReferenceState([]);
             $blocks = $this->bodyChildren(
@@ -1035,6 +1042,7 @@ final class DocxReader
             return new AstNode('document', $attrs, $blocks);
         } finally {
             $this->currentStyles = $previousStyles;
+            $this->currentParagraphRunProperties = $previousParagraphRunProperties;
         }
     }
 
@@ -3107,19 +3115,25 @@ final class DocxReader
         array &$activeMoveRangeNodes
     ): ?AstNode
     {
-        $children = $this->paragraphInlines(
-            $paragraph,
-            $package,
-            $relationships,
-            $referencedNotes,
-            $activeCommentRangeId,
-            $activeProofError,
-            $activeProofErrorNodes,
-            $activePermissionRange,
-            $activePermissionRangeNodes,
-            $activeMoveRange,
-            $activeMoveRangeNodes
-        );
+        $previousParagraphRunProperties = $this->currentParagraphRunProperties;
+        $this->currentParagraphRunProperties = $this->paragraphStyleRunProperties($paragraph, $styles);
+        try {
+            $children = $this->paragraphInlines(
+                $paragraph,
+                $package,
+                $relationships,
+                $referencedNotes,
+                $activeCommentRangeId,
+                $activeProofError,
+                $activeProofErrorNodes,
+                $activePermissionRange,
+                $activePermissionRangeNodes,
+                $activeMoveRange,
+                $activeMoveRangeNodes
+            );
+        } finally {
+            $this->currentParagraphRunProperties = $previousParagraphRunProperties;
+        }
         $text = $this->plainInlineText($children);
         if ($children === [] && $text === '') {
             return null;
@@ -5879,15 +5893,15 @@ final class DocxReader
         }
 
         $properties = $this->firstChildElement($run, self::WORDPROCESSINGML_NS, 'rPr');
-        if (!$properties instanceof \DOMElement) {
-            return $nodes;
-        }
-
-        $styleId = $this->runStyleId($properties);
+        $styleId = $properties instanceof \DOMElement ? $this->runStyleId($properties) : null;
         $seen = [];
         $runProperties = $this->mergeRunProperties(
+            $this->currentParagraphRunProperties,
             $this->resolveStyleRunProperties($styleId, $seen),
-            $this->runPropertiesFromElement($properties),
+        );
+        $runProperties = $this->mergeRunProperties(
+            $runProperties,
+            $properties instanceof \DOMElement ? $this->runPropertiesFromElement($properties) : null,
         );
         if ($runProperties === null) {
             return $nodes;
@@ -5952,6 +5966,53 @@ final class DocxReader
         $style = $this->currentStyles[$styleId];
         $properties = $this->resolveStyleRunProperties(
             is_string($style['basedOn'] ?? null) ? $style['basedOn'] : null,
+            $seen
+        );
+        $styleRunProperties = $style['runProperties'] ?? null;
+        if (is_array($styleRunProperties)) {
+            $properties = $this->mergeRunProperties($properties, $styleRunProperties);
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @return array<string, mixed>|null
+     */
+    private function paragraphStyleRunProperties(\DOMElement $paragraph, array $styles): ?array
+    {
+        $styleId = $this->paragraphStyleId($paragraph);
+        if ($styleId === null || !isset($styles[$styleId]) || ($styles[$styleId]['type'] ?? null) !== 'paragraph') {
+            return null;
+        }
+
+        $seen = [];
+
+        return $this->resolveParagraphStyleRunProperties($styleId, $styles, $seen);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @param array<string, true> $seen
+     * @return array<string, mixed>|null
+     */
+    private function resolveParagraphStyleRunProperties(?string $styleId, array $styles, array &$seen): ?array
+    {
+        if (
+            $styleId === null
+            || isset($seen[$styleId])
+            || !isset($styles[$styleId])
+            || ($styles[$styleId]['type'] ?? null) !== 'paragraph'
+        ) {
+            return null;
+        }
+
+        $seen[$styleId] = true;
+        $style = $styles[$styleId];
+        $properties = $this->resolveParagraphStyleRunProperties(
+            is_string($style['basedOn'] ?? null) ? $style['basedOn'] : null,
+            $styles,
             $seen
         );
         $styleRunProperties = $style['runProperties'] ?? null;

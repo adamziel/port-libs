@@ -487,16 +487,24 @@ final class CitationCslProcessor
         $citations = $this->annotateCitationNameDisambiguationForCluster($citations);
         $citations = $this->annotateCitationYearSuffixesForCluster($citations);
         $citations = $this->annotateCitationDisambiguationForCluster($citations);
-        $entries = $this->renderCollapsedCitationEntries($citations);
-        if ($entries === null) {
-            $entries = [];
-            foreach ($citations as $citation) {
-                if (!$citation instanceof AstNode || $citation->type !== 'citation') {
-                    throw new \InvalidArgumentException('Citation cluster entries must be citation AST nodes');
-                }
-
-                $entries[] = $this->renderCitationEntry($citation);
+        $collapsedEntries = $this->renderCollapsedCitationEntries($citations);
+        if ($collapsedEntries !== null) {
+            if ($collapsedEntries === []) {
+                return '';
             }
+
+            return $this->style->citationPrefix()
+                . $this->joinCollapsedCitationEntries($collapsedEntries)
+                . $this->style->citationSuffix();
+        }
+
+        $entries = [];
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                throw new \InvalidArgumentException('Citation cluster entries must be citation AST nodes');
+            }
+
+            $entries[] = $this->renderCitationEntry($citation);
         }
 
         if ($entries === []) {
@@ -4545,7 +4553,7 @@ final class CitationCslProcessor
 
     /**
      * @param list<AstNode> $citations
-     * @return list<string>|null
+     * @return list<array{text:string, collapsed:bool}>|null
      */
     private function renderCollapsedCitationEntries(array $citations): ?array
     {
@@ -4573,7 +4581,7 @@ final class CitationCslProcessor
             if ($entry === null) {
                 $this->appendCollapsedCitationRun($entries, $run, $mode);
                 $run = [];
-                $entries[] = $this->renderCitationEntry($citation);
+                $entries[] = ['text' => $this->renderCitationEntry($citation), 'collapsed' => false];
                 continue;
             }
 
@@ -4599,7 +4607,7 @@ final class CitationCslProcessor
 
     /**
      * @param list<AstNode> $citations
-     * @return list<string>|null
+     * @return list<array{text:string, collapsed:bool}>|null
      */
     private function renderCollapsedCitationNumberEntries(array $citations): ?array
     {
@@ -4618,7 +4626,7 @@ final class CitationCslProcessor
             if ($entry === null) {
                 $this->appendCollapsedCitationNumberRun($entries, $run);
                 $run = [];
-                $entries[] = $this->renderCitationEntry($citation);
+                $entries[] = ['text' => $this->renderCitationEntry($citation), 'collapsed' => false];
                 continue;
             }
 
@@ -4922,7 +4930,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param list<string> $entries
+     * @param list<array{text:string, collapsed:bool}> $entries
      * @param list<array{citation:AstNode, number:int, text:string}> $run
      */
     private function appendCollapsedCitationNumberRun(array &$entries, array $run): void
@@ -4932,12 +4940,12 @@ final class CitationCslProcessor
         }
 
         if (count($run) === 1) {
-            $entries[] = $this->renderCitationEntry($run[0]['citation']);
+            $entries[] = ['text' => $this->renderCitationEntry($run[0]['citation']), 'collapsed' => false];
 
             return;
         }
 
-        $entries[] = $this->collapsedCitationNumberRunText($run);
+        $entries[] = ['text' => $this->collapsedCitationNumberRunText($run), 'collapsed' => false];
     }
 
     /**
@@ -4949,7 +4957,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param list<string> $entries
+     * @param list<array{text:string, collapsed:bool}> $entries
      * @param list<array{citation:AstNode, author:string, year:string, yearBase:string, yearSuffix:string, prefix:string}> $run
      */
     private function appendCollapsedCitationRun(array &$entries, array $run, string $mode): void
@@ -4959,12 +4967,12 @@ final class CitationCslProcessor
         }
 
         if (count($run) === 1) {
-            $entries[] = $this->renderCitationEntry($run[0]['citation']);
+            $entries[] = ['text' => $this->renderCitationEntry($run[0]['citation']), 'collapsed' => false];
 
             return;
         }
 
-        $entries[] = $this->collapsedCitationRunText($run, $mode);
+        $entries[] = ['text' => $this->collapsedCitationRunText($run, $mode), 'collapsed' => true];
     }
 
     /**
@@ -5003,7 +5011,7 @@ final class CitationCslProcessor
             }
         }
 
-        $entry = $author . ' ' . implode(', ', $years);
+        $entry = $author . ' ' . implode($this->citationCollapseGroupDelimiter(), $years);
 
         return $prefix === '' ? $entry : $prefix . ' ' . $entry;
     }
@@ -5021,7 +5029,56 @@ final class CitationCslProcessor
             return $suffixes[0] . '-' . $suffixes[count($suffixes) - 1];
         }
 
-        return implode(',', $suffixes);
+        return implode($this->citationYearSuffixDelimiter(), $suffixes);
+    }
+
+    /**
+     * @param list<array{text:string, collapsed:bool}> $entries
+     */
+    private function joinCollapsedCitationEntries(array $entries): string
+    {
+        $body = '';
+        foreach ($entries as $index => $entry) {
+            if ($index > 0) {
+                $previous = $entries[$index - 1];
+                $delimiter = ((bool) ($previous['collapsed'] ?? false) && $this->hasExplicitAfterCollapseDelimiter())
+                    ? $this->citationAfterCollapseDelimiter()
+                    : $this->style->citationDelimiter();
+                $body .= $delimiter;
+            }
+
+            $body .= (string) ($entry['text'] ?? '');
+        }
+
+        return $body;
+    }
+
+    private function citationCollapseGroupDelimiter(): string
+    {
+        $options = $this->style->citationOptions();
+
+        return (string) ($options['citeGroupDelimiter'] ?? ', ');
+    }
+
+    private function citationYearSuffixDelimiter(): string
+    {
+        $options = $this->style->citationOptions();
+
+        return (string) ($options['yearSuffixDelimiter'] ?? ',');
+    }
+
+    private function hasExplicitAfterCollapseDelimiter(): bool
+    {
+        $options = $this->style->citationOptions();
+
+        return array_key_exists('afterCollapseDelimiter', $options) && $options['afterCollapseDelimiter'] !== null;
+    }
+
+    private function citationAfterCollapseDelimiter(): string
+    {
+        $options = $this->style->citationOptions();
+
+        return (string) ($options['afterCollapseDelimiter'] ?? $this->style->citationDelimiter());
     }
 
     /**

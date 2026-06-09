@@ -15115,6 +15115,177 @@ XML
 XML
         ));
     },
+    'applies bounded csl custom delimiters for collapsed citation groups' => static function (TestRunner $t): void {
+        $items = [
+            [
+                'id' => 'smith-2024',
+                'type' => 'report',
+                'title' => 'Source Packet 2024',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'URL' => 'https://example.test/source-2024',
+            ],
+            [
+                'id' => 'smith-2025',
+                'type' => 'report',
+                'title' => 'Source Packet 2025',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/source-2025',
+            ],
+            [
+                'id' => 'ng-2025',
+                'type' => 'report',
+                'title' => 'Ng Source Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/ng-2025',
+            ],
+            [
+                'id' => 'rao-2023',
+                'type' => 'report',
+                'title' => 'Rao Source Packet',
+                'author' => [
+                    ['family' => 'Rao', 'given' => 'Rina'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+                'URL' => 'https://example.test/rao-2023',
+            ],
+        ];
+        $processor = CitationCslProcessor::fromItems($items)->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Collapse Delimiter Review</title>
+    <id>https://example.test/styles/bounded-collapse-delimiter-review</id>
+    <updated>2026-06-09T01:43:07+00:00</updated>
+  </info>
+  <citation collapse="year" cite-group-delimiter=" + " after-collapse-delimiter=" | ">
+    <layout prefix="(" suffix=")" delimiter=", ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <date variable="issued"><date-part name="year"/></date>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('year', $summary['citationOptions']['collapse'] ?? null);
+        $t->same(' + ', $summary['citationOptions']['citeGroupDelimiter'] ?? null);
+        $t->same(' | ', $summary['citationOptions']['afterCollapseDelimiter'] ?? null);
+        $t->same('(Smith 2024 + 2025 | Ng 2025, Rao 2023)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'smith-2024', 'text' => '[@smith-2024]']),
+            new AstNode('citation', ['id' => 'smith-2025', 'text' => '[@smith-2025]']),
+            new AstNode('citation', ['id' => 'ng-2025', 'text' => '[@ng-2025]']),
+            new AstNode('citation', ['id' => 'rao-2023', 'text' => '[@rao-2023]']),
+        ]));
+
+        $suffixProcessor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'smith-a',
+                'type' => 'report',
+                'title' => 'Post Import Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/post-import',
+            ],
+            [
+                'id' => 'smith-b',
+                'type' => 'report',
+                'title' => 'Media Import Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/media-import',
+            ],
+            [
+                'id' => 'ng-2026',
+                'type' => 'report',
+                'title' => 'Ng Import Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/ng-import',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Year Suffix Delimiter Review</title>
+    <id>https://example.test/styles/bounded-year-suffix-delimiter-review</id>
+    <updated>2026-06-09T01:43:07+00:00</updated>
+  </info>
+  <citation disambiguate-add-year-suffix="true" collapse="year-suffix" year-suffix-delimiter="/" after-collapse-delimiter=" | ">
+    <layout prefix="(" suffix=")" delimiter=", ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <group delimiter="">
+          <date variable="issued"><date-part name="year"/></date>
+          <text variable="year-suffix"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <group delimiter="">
+        <date variable="issued"><date-part name="year"/></date>
+        <text variable="year-suffix"/>
+      </group>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $suffixSummary = $suffixProcessor->cslStyleSummary();
+        $t->same('year-suffix', $suffixSummary['citationOptions']['collapse'] ?? null);
+        $t->same('/', $suffixSummary['citationOptions']['yearSuffixDelimiter'] ?? null);
+        $t->same(' | ', $suffixSummary['citationOptions']['afterCollapseDelimiter'] ?? null);
+        $t->same('(Smith 2026a/b | Ng 2026)', $suffixProcessor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'smith-a', 'text' => '[@smith-a]']),
+            new AstNode('citation', ['id' => 'smith-b', 'text' => '[@smith-b]']),
+            new AstNode('citation', ['id' => 'ng-2026', 'text' => '[@ng-2026]']),
+        ]));
+
+        $document = (new MarkdownReader())->read('Review cites [@smith-a; @smith-b; @ng-2026] before the bibliography.');
+        $processed = $suffixProcessor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (Smith 2026a/b | Ng 2026) before the bibliography.</p>', $blocks);
+        $t->contains('<dt>Smith 2026a</dt><dd>Smith, A. 2026a. Post Import Packet. https://example.test/post-import.</dd>', $blocks);
+        $t->contains('<dt>Smith 2026b</dt><dd>Smith, A. 2026b. Media Import Packet. https://example.test/media-import.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.</dd>', $blocks);
+    },
     'applies bounded csl subsequent author substitute in bibliography handoff' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [

@@ -851,6 +851,77 @@ $characterStyleRunDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$paragraphRunStyleStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="SourceBodyBase">
+    <w:name w:val="Source Body Base"/>
+    <w:rPr>
+      <w:i/>
+      <w:highlight w:val="cyan"/>
+      <w:lang w:val="en-US"/>
+      <w:color w:val="005A9C"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="SourceBodyAlert">
+    <w:name w:val="Source Body Alert"/>
+    <w:basedOn w:val="SourceBodyBase"/>
+    <w:rPr>
+      <w:b/>
+      <w:u/>
+      <w:shd w:fill="FFF2CC"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="SourceBodyMuted">
+    <w:name w:val="Source Body Muted"/>
+    <w:basedOn w:val="SourceBodyAlert"/>
+    <w:rPr>
+      <w:i w:val="0"/>
+      <w:highlight w:val="none"/>
+      <w:lang w:val="de-DE"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="SourceTerm">
+    <w:name w:val="Source Term"/>
+    <w:rPr>
+      <w:smallCaps/>
+      <w:highlight w:val="green"/>
+    </w:rPr>
+  </w:style>
+</w:styles>
+XML;
+
+$paragraphRunStyleDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="SourceBodyBase"/></w:pPr>
+      <w:r><w:t>Base paragraph style run.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="SourceBodyAlert"/></w:pPr>
+      <w:r><w:t xml:space="preserve">Alert inherited </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="SourceTerm"/></w:rPr><w:t>character term</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r>
+        <w:rPr>
+          <w:rStyle w:val="SourceTerm"/>
+          <w:i w:val="0"/>
+          <w:b w:val="0"/>
+          <w:highlight w:val="none"/>
+          <w:lang w:val="fr-FR"/>
+        </w:rPr>
+        <w:t>direct override</w:t>
+      </w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="SourceBodyMuted"/></w:pPr>
+      <w:r><w:t>Muted inherited paragraph style.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $themeFontContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -3751,6 +3822,22 @@ $buildCharacterStyleRunPackage = static function () use (
     ]);
 };
 
+$buildParagraphRunStylePackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $paragraphRunStyleDocumentXml,
+    $paragraphRunStyleStylesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $paragraphRunStyleDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $paragraphRunStyleStylesXml],
+    ]);
+};
+
 $buildThemeFontPackage = static function () use (
     $themeFontContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -5500,6 +5587,73 @@ return [
         $t->contains('<span class="docx-shading docx-language" data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"><strong><u>muted</u></strong></span>', $blocks);
         $t->true(!str_contains($markdown, 'docx-highlight-yellow .docx-language data-docx-highlight="yellow" data-docx-lang="de-DE"'), 'Disabled style highlight should not leak into muted character style Markdown');
         $t->true(!str_contains($blocks, '<em><u>muted</u></em>'), 'Disabled inherited italic should not leak into muted character style WordPress output');
+    },
+    'applies DOCX paragraph style run properties before character and direct run overrides' => static function (TestRunner $t) use ($buildParagraphRunStylePackage): void {
+        $document = (new DocxReader())->readDocument($buildParagraphRunStylePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+
+        $base = $document->children[0]->children[0];
+        $t->same('span', $base->type);
+        $t->same(['docx-highlight', 'docx-highlight-cyan', 'docx-color', 'docx-color-005a9c', 'docx-language'], $base->attr('classes'));
+        $t->same('cyan', $base->attr('attributes')['data-docx-highlight']);
+        $t->same('005A9C', $base->attr('attributes')['data-docx-color']);
+        $t->same('en-US', $base->attr('attributes')['data-docx-lang']);
+        $t->same('en-US', $base->attr('attributes')['lang']);
+        $t->same('emph', $base->children[0]->type);
+        $t->same('Base paragraph style run.', $base->children[0]->children[0]->attr('text'));
+
+        $alertParagraph = $document->children[1];
+        $t->same('paragraph', $alertParagraph->type);
+        $t->same(5, count($alertParagraph->children));
+
+        $alert = $alertParagraph->children[0];
+        $t->same('span', $alert->type);
+        $t->same(['docx-highlight', 'docx-highlight-cyan', 'docx-color', 'docx-color-005a9c', 'docx-language', 'docx-shading'], $alert->attr('classes'));
+        $t->same('FFF2CC', $alert->attr('attributes')['data-docx-shading-fill']);
+        $t->same('strong', $alert->children[0]->type);
+        $t->same('emph', $alert->children[0]->children[0]->type);
+        $t->same('underline', $alert->children[0]->children[0]->children[0]->type);
+        $t->same('Alert inherited ', $alert->children[0]->children[0]->children[0]->children[0]->attr('text'));
+
+        $term = $alertParagraph->children[1];
+        $t->same('span', $term->type);
+        $t->same(['docx-color', 'docx-color-005a9c', 'docx-language', 'docx-shading', 'docx-highlight', 'docx-highlight-green'], $term->attr('classes'));
+        $t->same('green', $term->attr('attributes')['data-docx-highlight']);
+        $t->same('en-US', $term->attr('attributes')['data-docx-lang']);
+        $t->same('strong', $term->children[0]->type);
+        $t->same('emph', $term->children[0]->children[0]->type);
+        $t->same('small_caps', $term->children[0]->children[0]->children[0]->type);
+        $t->same('underline', $term->children[0]->children[0]->children[0]->children[0]->type);
+        $t->same('character term', $term->children[0]->children[0]->children[0]->children[0]->children[0]->attr('text'));
+
+        $direct = $alertParagraph->children[3];
+        $t->same('span', $direct->type);
+        $t->same(['docx-color', 'docx-color-005a9c', 'docx-shading', 'docx-language'], $direct->attr('classes'));
+        $t->same('fr-FR', $direct->attr('attributes')['data-docx-lang']);
+        $t->same('fr-FR', $direct->attr('attributes')['lang']);
+        $t->same('005A9C', $direct->attr('attributes')['data-docx-color']);
+        $t->same('FFF2CC', $direct->attr('attributes')['data-docx-shading-fill']);
+        $t->same('small_caps', $direct->children[0]->type);
+        $t->same('underline', $direct->children[0]->children[0]->type);
+        $t->same('direct override', $direct->children[0]->children[0]->children[0]->attr('text'));
+
+        $muted = $document->children[2]->children[0];
+        $t->same('span', $muted->type);
+        $t->same(['docx-color', 'docx-color-005a9c', 'docx-shading', 'docx-language'], $muted->attr('classes'));
+        $t->same('de-DE', $muted->attr('attributes')['data-docx-lang']);
+        $t->same('strong', $muted->children[0]->type);
+        $t->same('underline', $muted->children[0]->children[0]->type);
+        $t->same('Muted inherited paragraph style.', $muted->children[0]->children[0]->children[0]->attr('text'));
+
+        $t->contains('[*Base paragraph style run.*]{.docx-highlight .docx-highlight-cyan .docx-color .docx-color-005a9c .docx-language data-docx-highlight="cyan" data-docx-color="005A9C" data-docx-lang="en-US" lang="en-US"}', $markdown);
+        $t->contains('[***[[character term]{.underline}]{.smallcaps}***]{.docx-color .docx-color-005a9c .docx-language .docx-shading .docx-highlight .docx-highlight-green data-docx-color="005A9C" data-docx-lang="en-US" lang="en-US" data-docx-shading-fill="FFF2CC" data-docx-highlight="green"}', $markdown);
+        $t->contains('[[direct override]{.underline}]{.smallcaps}]{.docx-color .docx-color-005a9c .docx-shading .docx-language data-docx-color="005A9C" data-docx-shading-fill="FFF2CC" data-docx-lang="fr-FR" lang="fr-FR"}', $markdown);
+        $t->contains('<span class="docx-highlight docx-highlight-cyan docx-color docx-color-005a9c docx-language" data-docx-highlight="cyan" data-docx-color="005A9C" data-docx-lang="en-US" lang="en-US"><em>Base paragraph style run.</em></span>', $blocks);
+        $t->contains('<span class="docx-color docx-color-005a9c docx-shading docx-language" data-docx-color="005A9C" data-docx-shading-fill="FFF2CC" data-docx-lang="fr-FR" lang="fr-FR"><span style="font-variant:small-caps"><u>direct override</u></span></span>', $blocks);
+        $t->true(!str_contains($blocks, 'docx-highlight-green" data-docx-color="005A9C" data-docx-shading-fill="FFF2CC" data-docx-lang="fr-FR"'), 'Direct highlight removal should suppress inherited paragraph and character highlights');
     },
     'resolves DOCX theme font slots into run metadata spans' => static function (TestRunner $t) use ($buildThemeFontPackage): void {
         $reader = new DocxReader();
