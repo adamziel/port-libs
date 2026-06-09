@@ -326,6 +326,80 @@ return [
         $t->same('review-packet', $roundTrip['sourcePacket']['items']['t']);
         $t->same('literal metadata payload', $roundTrip['nested']['items'][0]['items']['c']);
     },
+    'reads pandoc json metamap envelopes without confusing literal t c metadata records' => static function (TestRunner $t): void {
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                't' => 'MetaMap',
+                'c' => [
+                    'title' => ['t' => 'MetaString', 'c' => 'Envelope title'],
+                    'reviewRecord' => [
+                        't' => 'MetadataStatus',
+                        'c' => [
+                            'state' => 'queued',
+                            'priority' => 2,
+                        ],
+                    ],
+                    'filterRecord' => [
+                        't' => 'record',
+                        'c' => 'literal-content-field',
+                    ],
+                ],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Envelope'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'metadata'],
+                ]],
+            ],
+        ]);
+        $legacyDocument = $reader->readPacket([
+            'meta' => [
+                'unMeta' => ['t' => 'MetaMap', 'c' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'legacy-metamap-envelope'],
+                ]],
+            ],
+            'blocks' => [],
+        ]);
+        $literalUnMetaDocument = $reader->readPacket([
+            'meta' => [
+                'unMeta' => [
+                    't' => 'record',
+                    'c' => 'literal-unmeta-key',
+                ],
+            ],
+            'blocks' => [],
+        ]);
+
+        $meta = $document->attr('meta');
+        $reviewRecord = $meta['reviewRecord'];
+        $filterRecord = $meta['filterRecord'];
+        $encoded = $writer->toArray($document);
+        $roundTripMeta = $reader->readPacket($encoded)->attr('meta');
+        $literalUnMeta = $literalUnMetaDocument->attr('meta')['unMeta'];
+
+        $t->same('Envelope title', $meta['title']);
+        $t->same('map', $reviewRecord['type']);
+        $t->same('MetadataStatus', $reviewRecord['items']['t']);
+        $t->same('map', $reviewRecord['items']['c']['type']);
+        $t->same('queued', $reviewRecord['items']['c']['items']['state']);
+        $t->same('2', $reviewRecord['items']['c']['items']['priority']);
+        $t->same('map', $filterRecord['type']);
+        $t->same('record', $filterRecord['items']['t']);
+        $t->same('literal-content-field', $filterRecord['items']['c']);
+        $t->same('legacy-metamap-envelope', $legacyDocument->attr('meta')['source']);
+        $t->same('map', $literalUnMeta['type']);
+        $t->same('record', $literalUnMeta['items']['t']);
+        $t->same('literal-unmeta-key', $literalUnMeta['items']['c']);
+        $t->same('MetaString', $encoded['meta']['title']['t']);
+        $t->same('MetaMap', $encoded['meta']['reviewRecord']['t']);
+        $t->same('MetaMap', $encoded['meta']['reviewRecord']['c']['c']['t']);
+        $t->same('MetadataStatus', $roundTripMeta['reviewRecord']['items']['t']);
+        $t->same('literal-content-field', $roundTripMeta['filterRecord']['items']['c']);
+    },
     'writes shared ast documents as pandoc json filter exchange shape' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

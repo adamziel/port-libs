@@ -6,6 +6,15 @@ namespace PortLibs\Pandoc;
 
 final class PandocJsonReader
 {
+    private const META_CONSTRUCTORS = [
+        'MetaString',
+        'MetaBool',
+        'MetaInlines',
+        'MetaBlocks',
+        'MetaList',
+        'MetaMap',
+    ];
+
     public function read(string $json): AstNode
     {
         try {
@@ -74,8 +83,8 @@ final class PandocJsonReader
             throw new \InvalidArgumentException('Pandoc JSON meta must be an object');
         }
 
-        if (($meta['t'] ?? null) === 'MetaMap' && is_string($meta['t'] ?? null)) {
-            return $this->objectContent($meta['c'] ?? null, 'Pandoc JSON MetaMap meta');
+        if ($this->taggedMetaConstructor($meta) === 'MetaMap') {
+            return $this->objectContent($meta['c'] ?? null, 'Pandoc JSON meta MetaMap');
         }
 
         if (count($meta) === 1 && array_key_exists('unMeta', $meta) && !$this->isTaggedObject($meta['unMeta'])) {
@@ -87,12 +96,27 @@ final class PandocJsonReader
             return $unMeta;
         }
 
+        if (count($meta) === 1 && array_key_exists('unMeta', $meta) && $this->taggedMetaConstructor($meta['unMeta']) === 'MetaMap') {
+            $unMeta = $meta['unMeta'];
+
+            return $this->objectContent($unMeta['c'] ?? null, 'Pandoc JSON meta.unMeta MetaMap');
+        }
+
         return $meta;
     }
 
     private function isTaggedObject(mixed $value): bool
     {
         return is_array($value) && !array_is_list($value) && isset($value['t']) && is_string($value['t']);
+    }
+
+    private function taggedMetaConstructor(mixed $value): ?string
+    {
+        if (!is_array($value) || array_is_list($value) || !isset($value['t']) || !is_string($value['t'])) {
+            return null;
+        }
+
+        return in_array($value['t'], self::META_CONSTRUCTORS, true) ? $value['t'] : null;
     }
 
     /**
@@ -152,7 +176,7 @@ final class PandocJsonReader
             && !array_is_list($value)
             && isset($value['t'])
             && is_string($value['t'])
-            && str_starts_with($value['t'], 'Meta');
+            && in_array($value['t'], self::META_CONSTRUCTORS, true);
     }
 
     private function readPlainMetaValue(mixed $value): mixed
