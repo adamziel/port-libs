@@ -76,7 +76,7 @@ final class MarkdownReader
     private bool $resolveFootnoteReferences = true;
 
     /**
-     * @param array{literateHaskell?: bool, yamlMetadata?: bool} $options
+     * @param array{literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -16454,6 +16454,13 @@ final class MarkdownReader
      */
     private function tryParseMath(string $text, int $offset): ?array
     {
+        if (($this->options['texMathDoubleBackslash'] ?? false) === true) {
+            $doubleBackslashMath = $this->tryParseDoubleBackslashMath($text, $offset);
+            if ($doubleBackslashMath !== null) {
+                return $doubleBackslashMath;
+            }
+        }
+
         $singleBackslashMath = $this->tryParseSingleBackslashMath($text, $offset);
         if ($singleBackslashMath !== null) {
             return $singleBackslashMath;
@@ -16495,6 +16502,54 @@ final class MarkdownReader
             ]),
             'next' => $end + 1,
         ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseDoubleBackslashMath(string $text, int $offset): ?array
+    {
+        if (substr($text, $offset, 2) !== '\\\\' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $opener = $text[$offset + 2] ?? '';
+        $closer = match ($opener) {
+            '(' => ')',
+            '[' => ']',
+            default => null,
+        };
+        if ($closer === null) {
+            return null;
+        }
+
+        $end = $this->findClosingDoubleBackslashMath($text, $offset + 3, $closer);
+        if ($end === null || $end === $offset + 3) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode('math', [
+                'text' => $this->expandRawTexMathMacros(trim(substr($text, $offset + 3, $end - $offset - 3))),
+                'display' => $opener === '[',
+            ]),
+            'next' => $end + 3,
+        ];
+    }
+
+    private function findClosingDoubleBackslashMath(string $text, int $offset, string $closer): ?int
+    {
+        $needle = '\\\\' . $closer;
+        $position = strpos($text, $needle, $offset);
+        while ($position !== false) {
+            if (!$this->isEscapedInlinePosition($text, $position)) {
+                return $position;
+            }
+
+            $position = strpos($text, $needle, $position + 3);
+        }
+
+        return null;
     }
 
     /**
