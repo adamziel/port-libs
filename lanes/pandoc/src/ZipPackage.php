@@ -4903,7 +4903,13 @@ final class ZipPackage
      *     hasCentralDirectoryEocdGap:bool,
      *     centralDirectoryEocdGapOffset:?int,
      *     centralDirectoryEocdGapBytes:int,
+     *     centralDirectoryEocdGapSignature:?string,
+     *     centralDirectoryEocdGapPreviewHex:string,
+     *     centralDirectoryEocdGapPreviewByteCount:int,
      *     isCentralDirectoryEocdGapExplainedBySignature:bool,
+     *     hasRecoverableCentralDirectoryGapEntries:bool,
+     *     recoverableGapEntryCount:int,
+     *     recoverableGapEntries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}>,
      *     hasEntryCountMismatch:bool,
      *     entryCountDelta:int,
      *     extraScannedEntryCount:int,
@@ -4960,39 +4966,9 @@ final class ZipPackage
                 break;
             }
 
-            self::assertRange($bytes, $cursor, 46, 'central directory entry');
-            $flags = self::readUInt16($bytes, $cursor + 8);
-            $nameLength = self::readUInt16($bytes, $cursor + 28);
-            $extraLength = self::readUInt16($bytes, $cursor + 30);
-            $commentLength = self::readUInt16($bytes, $cursor + 32);
-            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
-            $variableStart = $cursor + 46;
-            $variableLength = $nameLength + $extraLength + $commentLength;
-            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
-
-            $rawName = substr($bytes, $variableStart, $nameLength);
-            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
-            self::assertSafePartName($rawName);
-            $decodedName = self::decodeZipText(
-                $rawName,
-                $flags,
-                $centralExtraFieldData,
-                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
-                'info-zip-unicode-path',
-                "central directory entry {$index} name"
-            );
-            self::assertSafePartName($decodedName['text']);
-            $recordEnd = $cursor + 46 + $variableLength;
-            $entries[] = [
-                'name' => $decodedName['text'],
-                'rawName' => $rawName,
-                'nameEncoding' => $decodedName['encoding'],
-                'centralDirectoryIndex' => $index,
-                'offset' => $cursor,
-                'recordEnd' => $recordEnd,
-                'localHeaderOffset' => $localHeaderOffset,
-            ];
-            $cursor = $recordEnd;
+            $entry = self::centralDirectoryInventoryEntryAt($bytes, $cursor, $index);
+            $entries[] = $entry;
+            $cursor = $entry['recordEnd'];
             $index++;
         }
 
@@ -5022,6 +4998,37 @@ final class ZipPackage
             ? 0
             : max(0, $archive['eocdOffset'] - $archive['centralDirectoryEnd']);
         $hasCentralDirectoryEocdGap = $centralDirectoryEocdGapBytes > 0;
+        $centralDirectoryEocdGapOffset = $hasCentralDirectoryEocdGap ? $archive['centralDirectoryEnd'] : null;
+        $centralDirectoryEocdGapPreviewByteCount = $hasCentralDirectoryEocdGap
+            ? min(16, $centralDirectoryEocdGapBytes)
+            : 0;
+        $centralDirectoryEocdGapPreviewHex = $hasCentralDirectoryEocdGap
+            ? bin2hex(substr($bytes, $archive['centralDirectoryEnd'], $centralDirectoryEocdGapPreviewByteCount))
+            : '';
+        $centralDirectoryEocdGapSignature = $hasCentralDirectoryEocdGap
+            ? self::zipRecordSignatureNameAt($bytes, $archive['centralDirectoryEnd'])
+            : null;
+
+        $recoverableGapEntries = [];
+        if ($hasCentralDirectoryEocdGap && substr($bytes, $archive['centralDirectoryEnd'], 4) === self::CENTRAL_DIRECTORY_SIGNATURE) {
+            $gapCursor = $archive['centralDirectoryEnd'];
+            $gapIndex = count($entries);
+            while ($gapCursor < $archive['eocdOffset'] && substr($bytes, $gapCursor, 4) === self::CENTRAL_DIRECTORY_SIGNATURE) {
+                try {
+                    $gapEntry = self::centralDirectoryInventoryEntryAt($bytes, $gapCursor, $gapIndex);
+                } catch (\RuntimeException) {
+                    break;
+                }
+
+                if ($gapEntry['recordEnd'] > $archive['eocdOffset']) {
+                    break;
+                }
+
+                $recoverableGapEntries[] = $gapEntry;
+                $gapCursor = $gapEntry['recordEnd'];
+                $gapIndex++;
+            }
+        }
 
         $scannedEntryCount = count($entries);
         $declaredEntryCount = $archive['totalEntryCount'];
@@ -5048,6 +5055,9 @@ final class ZipPackage
         if ($hasCentralDirectoryEocdGap) {
             $issues[] = 'central-directory-eocd-gap';
         }
+        if ($recoverableGapEntries !== []) {
+            $issues[] = 'central-directory-eocd-gap-central-headers';
+        }
 
         $issues = array_values(array_unique($issues));
 
@@ -5068,9 +5078,15 @@ final class ZipPackage
             'unexpectedRecordOffset' => $unexpectedRecordOffset,
             'unexpectedRecordSignatureHex' => $unexpectedRecordSignatureHex,
             'hasCentralDirectoryEocdGap' => $hasCentralDirectoryEocdGap,
-            'centralDirectoryEocdGapOffset' => $hasCentralDirectoryEocdGap ? $archive['centralDirectoryEnd'] : null,
+            'centralDirectoryEocdGapOffset' => $centralDirectoryEocdGapOffset,
             'centralDirectoryEocdGapBytes' => $centralDirectoryEocdGapBytes,
+            'centralDirectoryEocdGapSignature' => $centralDirectoryEocdGapSignature,
+            'centralDirectoryEocdGapPreviewHex' => $centralDirectoryEocdGapPreviewHex,
+            'centralDirectoryEocdGapPreviewByteCount' => $centralDirectoryEocdGapPreviewByteCount,
             'isCentralDirectoryEocdGapExplainedBySignature' => $isCentralDirectoryEocdGapExplainedBySignature,
+            'hasRecoverableCentralDirectoryGapEntries' => $recoverableGapEntries !== [],
+            'recoverableGapEntryCount' => count($recoverableGapEntries),
+            'recoverableGapEntries' => $recoverableGapEntries,
             'hasEntryCountMismatch' => $entryCountMismatch,
             'entryCountDelta' => $entryCountDelta,
             'extraScannedEntryCount' => $extraScannedEntryCount,
@@ -5081,6 +5097,45 @@ final class ZipPackage
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}
+     */
+    private static function centralDirectoryInventoryEntryAt(string $bytes, int $cursor, int $index): array
+    {
+        self::assertRange($bytes, $cursor, 46, 'central directory entry');
+        $flags = self::readUInt16($bytes, $cursor + 8);
+        $nameLength = self::readUInt16($bytes, $cursor + 28);
+        $extraLength = self::readUInt16($bytes, $cursor + 30);
+        $commentLength = self::readUInt16($bytes, $cursor + 32);
+        $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+        $variableStart = $cursor + 46;
+        $variableLength = $nameLength + $extraLength + $commentLength;
+        self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+        $rawName = substr($bytes, $variableStart, $nameLength);
+        $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+        self::assertSafePartName($rawName);
+        $decodedName = self::decodeZipText(
+            $rawName,
+            $flags,
+            $centralExtraFieldData,
+            self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+            'info-zip-unicode-path',
+            "central directory entry {$index} name"
+        );
+        self::assertSafePartName($decodedName['text']);
+
+        return [
+            'name' => $decodedName['text'],
+            'rawName' => $rawName,
+            'nameEncoding' => $decodedName['encoding'],
+            'centralDirectoryIndex' => $index,
+            'offset' => $cursor,
+            'recordEnd' => $cursor + 46 + $variableLength,
+            'localHeaderOffset' => $localHeaderOffset,
         ];
     }
 
@@ -8168,6 +8223,19 @@ final class ZipPackage
             }
 
             while ($cursor < $offset) {
+                if (substr($bytes, $cursor, 4) === self::CENTRAL_DIRECTORY_SIGNATURE) {
+                    self::assertRange($bytes, $cursor, 46, 'central directory entry');
+                    $nameLength = self::readUInt16($bytes, $cursor + 28);
+                    $extraLength = self::readUInt16($bytes, $cursor + 30);
+                    $commentLength = self::readUInt16($bytes, $cursor + 32);
+                    $cursor += 46 + $nameLength + $extraLength + $commentLength;
+                    if ($cursor > $offset) {
+                        return false;
+                    }
+
+                    continue;
+                }
+
                 $record = self::archiveExtraDataRecordAt($bytes, $cursor);
                 if ($record === null) {
                     return false;

@@ -6704,6 +6704,97 @@ return [
             $t->true(!str_contains($visibleText, $instructionText), $instructionText . ' instruction text should remain hidden from visible WordPress text');
         }
     },
+    'preserves legacy DOC quote and shape literal field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Literal '
+            . $fieldBegin . ' QUOTE "Hidden instruction literal" \* Upper '
+            . $fieldSeparator . 'DISPLAYED LITERAL' . $fieldEnd
+            . ' and '
+            . $fieldBegin . ' SHAPE "Hidden shape instruction" \* MERGEFORMAT '
+            . $fieldSeparator . 'shape placeholder' . $fieldEnd
+            . ".\r";
+
+        $quoteBegin = strpos($text, $fieldBegin);
+        $quoteSeparator = strpos($text, $fieldSeparator, (int) $quoteBegin);
+        $quoteEnd = strpos($text, $fieldEnd, (int) $quoteSeparator);
+        $shapeBegin = strpos($text, $fieldBegin, (int) $quoteEnd + 1);
+        $shapeSeparator = strpos($text, $fieldSeparator, (int) $shapeBegin);
+        $shapeEnd = strpos($text, $fieldEnd, (int) $shapeSeparator);
+        foreach ([$quoteBegin, $quoteSeparator, $quoteEnd, $shapeBegin, $shapeSeparator, $shapeEnd] as $cp) {
+            if (!is_int($cp)) {
+                throw new RuntimeException('Unable to locate legacy DOC quote/shape field fixture');
+            }
+        }
+
+        $fieldTable = $plcfldMom([
+            ['cp' => $quoteBegin, 'character' => 0x13, 'typeCode' => 0x23],
+            ['cp' => $quoteSeparator, 'character' => 0x14],
+            ['cp' => $quoteEnd, 'character' => 0x15, 'endFlags' => 0x80],
+            ['cp' => $shapeBegin, 'character' => 0x13, 'typeCode' => 0x5f],
+            ['cp' => $shapeSeparator, 'character' => 0x14],
+            ['cp' => $shapeEnd, 'character' => 0x15, 'endFlags' => 0x80],
+        ], strlen($text));
+        $wordDocument = $buildSimpleWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $fieldTable,
+        ]));
+        $document = $result['document'];
+        $fields = $result['fields'];
+        $paragraph = $document->children[0];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(6, $result['metadata']['fieldCharacterCount']);
+        $t->same(2, $result['metadata']['fieldCount']);
+        $t->same(['quote', 'shape'], array_column($fields, 'type'));
+        $t->same([0x23, 0x5f], array_column($fields, 'typeCode'));
+        $t->same($fields, $result['metadata']['fields']);
+        $t->same($fields, $document->attr('fields'));
+
+        $quote = $paragraph->children[1];
+        $t->same('span', $quote->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-literal-field', 'legacy-doc-field-quote'], $quote->attr('classes'));
+        $quoteAttrs = $quote->attr('attributes');
+        $t->same('quote', $quoteAttrs['data-legacy-doc-field']);
+        $t->same('QUOTE "Hidden instruction literal" \* Upper', $quoteAttrs['data-legacy-doc-field-instruction']);
+        $t->same('literal-text', $quoteAttrs['data-legacy-doc-literal-field-type']);
+        $t->same('metadata-only-native-review', $quoteAttrs['data-legacy-doc-literal-field-policy']);
+        $t->same('Hidden instruction literal', $quoteAttrs['data-legacy-doc-literal-field-arguments']);
+        $t->same('Upper', $quoteAttrs['data-legacy-doc-field-format']);
+        $t->same('displayed-result', $quoteAttrs['data-legacy-doc-literal-field-result-kind']);
+        $t->same('17', $quoteAttrs['data-legacy-doc-literal-field-result-character-count']);
+        $t->same('DISPLAYED LITERAL', $quote->children[0]->attr('text'));
+
+        $shape = $paragraph->children[3];
+        $t->same('span', $shape->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-literal-field', 'legacy-doc-field-shape'], $shape->attr('classes'));
+        $shapeAttrs = $shape->attr('attributes');
+        $t->same('shape', $shapeAttrs['data-legacy-doc-field']);
+        $t->same('SHAPE "Hidden shape instruction" \* MERGEFORMAT', $shapeAttrs['data-legacy-doc-field-instruction']);
+        $t->same('shape-quote-alias', $shapeAttrs['data-legacy-doc-literal-field-type']);
+        $t->same('quote', $shapeAttrs['data-legacy-doc-literal-field-alias']);
+        $t->same('metadata-only-native-review', $shapeAttrs['data-legacy-doc-literal-field-policy']);
+        $t->same('Hidden shape instruction', $shapeAttrs['data-legacy-doc-literal-field-arguments']);
+        $t->same('MERGEFORMAT', $shapeAttrs['data-legacy-doc-field-format']);
+        $t->same('17', $shapeAttrs['data-legacy-doc-literal-field-result-character-count']);
+        $t->same('shape placeholder', $shape->children[0]->attr('text'));
+
+        $t->contains('[DISPLAYED LITERAL]{.legacy-doc-field .legacy-doc-literal-field .legacy-doc-field-quote data-legacy-doc-field="quote"', $markdown);
+        $t->contains('[shape placeholder]{.legacy-doc-field .legacy-doc-literal-field .legacy-doc-field-shape data-legacy-doc-field="shape"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-literal-field legacy-doc-field-quote" data-legacy-doc-field="quote" data-legacy-doc-field-instruction="QUOTE &quot;Hidden instruction literal&quot; \* Upper" data-legacy-doc-literal-field-type="literal-text" data-legacy-doc-literal-field-policy="metadata-only-native-review" data-legacy-doc-field-format="Upper" data-legacy-doc-literal-field-arguments="Hidden instruction literal" data-legacy-doc-literal-field-result-kind="displayed-result" data-legacy-doc-literal-field-result-character-count="17">DISPLAYED LITERAL</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-literal-field legacy-doc-field-shape" data-legacy-doc-field="shape" data-legacy-doc-field-instruction="SHAPE &quot;Hidden shape instruction&quot; \* MERGEFORMAT" data-legacy-doc-literal-field-type="shape-quote-alias" data-legacy-doc-literal-field-policy="metadata-only-native-review" data-legacy-doc-literal-field-alias="quote" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-literal-field-arguments="Hidden shape instruction" data-legacy-doc-literal-field-result-kind="displayed-result" data-legacy-doc-literal-field-result-character-count="17">shape placeholder</span>', $blocks);
+
+        $visibleText = strip_tags($blocks);
+        foreach (['QUOTE', 'SHAPE', 'Hidden instruction literal', 'Hidden shape instruction'] as $hiddenInstruction) {
+            $t->true(!str_contains($visibleText, $hiddenInstruction), 'Legacy DOC literal field instructions should not render as visible WordPress text');
+        }
+    },
     'preserves legacy DOC SET field assignments as hidden handoff metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";

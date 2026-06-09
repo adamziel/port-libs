@@ -2902,6 +2902,21 @@ $centralDirectoryGapRawStrictPreflight = ZipPackage::rawStrictImportPreflight(
     100.0,
     4096
 );
+$centralDirectoryUnderstatedSize = $strictImportCentralDirectoryInventory['entries'][0]['recordEnd']
+    - $strictImportCentralDirectoryInventory['centralDirectoryOffset'];
+$centralDirectoryUnderstatedBytes = $rewriteZipEndOfCentralDirectory(
+    $strictImportPackage->bytes(),
+    [
+        'centralDirectorySize' => $centralDirectoryUnderstatedSize,
+    ]
+);
+$centralDirectoryUnderstatedInventory = ZipPackage::centralDirectoryInventoryPreflight($centralDirectoryUnderstatedBytes);
+$centralDirectoryUnderstatedRawStrictPreflight = ZipPackage::rawStrictImportPreflight(
+    $centralDirectoryUnderstatedBytes,
+    4096,
+    100.0,
+    4096
+);
 $centralDirectoryTailPayload = "hidden central tail\n";
 $centralDirectoryTailRecord = "PK\x06\x08" . pack('V', strlen($centralDirectoryTailPayload)) . $centralDirectoryTailPayload;
 $centralDirectoryTailBytes = $insertZipBeforeEndOfCentralDirectory($strictImportPackage->bytes(), $centralDirectoryTailRecord);
@@ -4767,6 +4782,26 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($centralDirectoryUnderstatedInventory['declaredEntryCount'] ?? null) !== 3
+        || ($centralDirectoryUnderstatedInventory['scannedEntryCount'] ?? null) !== 1
+        || ($centralDirectoryUnderstatedInventory['entryCountMismatchKind'] ?? null) !== 'declared-too-high'
+        || ($centralDirectoryUnderstatedInventory['hasCentralDirectoryEocdGap'] ?? null) !== true
+        || ($centralDirectoryUnderstatedInventory['centralDirectoryEocdGapSignature'] ?? null) !== 'central-directory-header'
+        || ($centralDirectoryUnderstatedInventory['hasRecoverableCentralDirectoryGapEntries'] ?? null) !== true
+        || ($centralDirectoryUnderstatedInventory['recoverableGapEntryCount'] ?? null) !== 2
+        || array_column($centralDirectoryUnderstatedInventory['recoverableGapEntries'] ?? [], 'name') !== ['word/media/', 'word/media/review.txt']
+        || ($centralDirectoryUnderstatedInventory['issues'] ?? null) !== [
+            'central-directory-entry-count-mismatch',
+            'central-directory-eocd-gap',
+            'central-directory-eocd-gap-central-headers',
+        ]
+        || ($centralDirectoryUnderstatedRawStrictPreflight['isValid'] ?? null) !== false
+        || !in_array('central-directory-eocd-gap-central-headers', $centralDirectoryUnderstatedRawStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected ZIP central-directory understated size to expose recoverable central headers');
+    }
+
+    if (
         ($centralDirectoryTailInventory['scannedEntryCount'] ?? null) !== 3
         || ($centralDirectoryTailInventory['scanCompletedCentralDirectory'] ?? null) !== false
         || ($centralDirectoryTailInventory['hasUnexpectedCentralDirectoryTail'] ?? null) !== true
@@ -6469,6 +6504,8 @@ echo 'zipCentralDirectoryDeclaredLowExtraScanned=' . $centralDirectoryDeclaredLo
 echo 'zipCentralDirectoryDeclaredHighKind=' . ($centralDirectoryDeclaredHighInventory['entryCountMismatchKind'] ?? 'none') . "\n";
 echo 'zipCentralDirectoryDeclaredHighMissing=' . $centralDirectoryDeclaredHighInventory['missingDeclaredEntryCount'] . "\n";
 echo 'zipCentralDirectoryGapBytes=' . $centralDirectoryGapInventory['centralDirectoryEocdGapBytes'] . "\n";
+echo 'zipCentralDirectoryUnderstatedRecoverableEntries=' . $centralDirectoryUnderstatedInventory['recoverableGapEntryCount'] . "\n";
+echo 'zipCentralDirectoryUnderstatedGapSignature=' . ($centralDirectoryUnderstatedInventory['centralDirectoryEocdGapSignature'] ?? 'none') . "\n";
 echo 'zipCentralDirectoryTailBytes=' . $centralDirectoryTailInventory['centralDirectoryTailBytes'] . "\n";
 echo 'zipCentralDirectoryTailSignature=' . ($centralDirectoryTailInventory['unexpectedRecordSignatureHex'] ?? 'none') . "\n";
 echo 'zipStrictImportNameHygieneReviewEntries=' . $strictImportPreflight['nameHygiene']['reviewEntryCount'] . "\n";

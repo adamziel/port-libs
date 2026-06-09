@@ -143,6 +143,7 @@ final class LegacyDocReader
         0x1f => 'date',
         0x20 => 'time',
         0x21 => 'page',
+        0x23 => 'quote',
         0x24 => 'include',
         0x25 => 'pageref',
         0x26 => 'ask',
@@ -168,6 +169,7 @@ final class LegacyDocReader
         0x53 => 'formdropdown',
         0x58 => 'hyperlink',
         0x5a => 'listnum',
+        0x5f => 'shape',
     ];
 
     /** @var list<array<string,mixed>> */
@@ -1777,6 +1779,11 @@ final class LegacyDocReader
             return $actionFieldAttrs;
         }
 
+        $literalResultFieldAttrs = $this->literalResultFieldAttrs($fieldName, $tokens, $instruction, $result);
+        if ($literalResultFieldAttrs !== null) {
+            return $literalResultFieldAttrs;
+        }
+
         $generatedFieldAttrs = $this->generatedFieldAttrs($fieldName, $tokens, $instruction);
         if ($generatedFieldAttrs !== null) {
             return $generatedFieldAttrs;
@@ -2779,6 +2786,101 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-action-field', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function literalResultFieldAttrs(string $fieldName, array $tokens, string $instruction, string $result): ?array
+    {
+        $fieldTypes = [
+            'QUOTE' => 'literal-text',
+            'SHAPE' => 'shape-quote-alias',
+        ];
+        if (!isset($fieldTypes[$fieldName])) {
+            return null;
+        }
+
+        $fieldKey = strtolower($fieldName);
+        $attributes = [
+            'data-legacy-doc-field' => $fieldKey,
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-literal-field-type' => $fieldTypes[$fieldName],
+            'data-legacy-doc-literal-field-policy' => 'metadata-only-native-review',
+        ];
+        if ($fieldName === 'SHAPE') {
+            $attributes['data-legacy-doc-literal-field-alias'] = 'quote';
+        }
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+
+        $arguments = [];
+        $switches = [];
+        $switchValues = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (!str_starts_with($token, '\\')) {
+                $arguments[] = $token;
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if ($switch === '') {
+                continue;
+            }
+            if (($switch === '*' || $switch === '@' || $switch === '#') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                continue;
+            }
+
+            $switches[] = $switch;
+            if (isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                $switchValues[$switch][] = $tokens[$index];
+            } else {
+                $switchValues[$switch] ??= [];
+            }
+        }
+
+        if ($arguments !== []) {
+            $attributes['data-legacy-doc-literal-field-arguments'] = implode(' ', $arguments);
+        }
+        $resultText = trim($result);
+        if ($resultText !== '') {
+            $attributes['data-legacy-doc-literal-field-result-kind'] = 'displayed-result';
+            $attributes['data-legacy-doc-literal-field-result-character-count'] = (string) count($this->unicodeCharacters($resultText));
+        }
+        if ($switches !== []) {
+            $switches = array_values(array_unique($switches));
+            $attributes['data-legacy-doc-literal-field-switches'] = implode(' ', $switches);
+            foreach ($switches as $switch) {
+                $attributeSwitch = preg_replace('/[^a-z0-9-]/', '', $switch);
+                if (!is_string($attributeSwitch) || $attributeSwitch === '') {
+                    continue;
+                }
+
+                $values = array_values(array_unique(array_map(
+                    static fn (mixed $value): string => (string) $value,
+                    $switchValues[$switch] ?? []
+                )));
+                $attributes['data-legacy-doc-literal-field-switch-' . $attributeSwitch] = $values === []
+                    ? 'true'
+                    : implode('; ', $values);
+            }
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-literal-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
     }

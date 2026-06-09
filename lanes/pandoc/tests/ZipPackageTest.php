@@ -4196,6 +4196,82 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($tailZip));
     },
 
+    'preflights recoverable central headers beyond understated directory size' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>understated central directory</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/recoverable-one.txt',
+                'data' => "recoverable central entry one\n",
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/recoverable-two.txt',
+                'data' => "recoverable central entry two\n",
+                'method' => 0,
+            ],
+        ]);
+        $base = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $understatedCentralDirectorySize = $base['entries'][0]['recordEnd'] - $base['centralDirectoryOffset'];
+        $understatedZip = $rewriteEndOfCentralDirectory($zip, [
+            'centralDirectorySize' => $understatedCentralDirectorySize,
+        ]);
+        $summary = ZipPackage::centralDirectoryInventoryPreflight($understatedZip);
+        $raw = ZipPackage::rawStrictImportPreflight($understatedZip, 2048, 100.0, 2048);
+
+        $t->same(3, $summary['declaredEntryCount']);
+        $t->same(1, $summary['scannedEntryCount']);
+        $t->same(true, $summary['scanCompletedCentralDirectory']);
+        $t->same(false, $summary['hasUnexpectedCentralDirectoryTail']);
+        $t->same(0, $summary['centralDirectoryTailBytes']);
+        $t->same($base['entries'][1]['offset'], $summary['scanStoppedOffset']);
+        $t->same(true, $summary['hasCentralDirectoryEocdGap']);
+        $t->same($base['entries'][1]['offset'], $summary['centralDirectoryEocdGapOffset']);
+        $t->same($base['eocdOffset'] - $base['entries'][1]['offset'], $summary['centralDirectoryEocdGapBytes']);
+        $t->same('central-directory-header', $summary['centralDirectoryEocdGapSignature']);
+        $t->same(16, $summary['centralDirectoryEocdGapPreviewByteCount']);
+        $t->same('504b0102', substr($summary['centralDirectoryEocdGapPreviewHex'], 0, 8));
+        $t->same(true, $summary['hasEntryCountMismatch']);
+        $t->same(-2, $summary['entryCountDelta']);
+        $t->same(0, $summary['extraScannedEntryCount']);
+        $t->same(2, $summary['missingDeclaredEntryCount']);
+        $t->same('declared-too-high', $summary['entryCountMismatchKind']);
+        $t->same(true, $summary['hasRecoverableCentralDirectoryGapEntries']);
+        $t->same(2, $summary['recoverableGapEntryCount']);
+        $t->same(
+            ['word/media/recoverable-one.txt', 'word/media/recoverable-two.txt'],
+            array_column($summary['recoverableGapEntries'], 'name')
+        );
+        $t->same([1, 2], array_column($summary['recoverableGapEntries'], 'centralDirectoryIndex'));
+        $t->same(
+            [$base['entries'][1]['offset'], $base['entries'][2]['offset']],
+            array_column($summary['recoverableGapEntries'], 'offset')
+        );
+        $t->same(
+            [$base['entries'][1]['localHeaderOffset'], $base['entries'][2]['localHeaderOffset']],
+            array_column($summary['recoverableGapEntries'], 'localHeaderOffset')
+        );
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(
+            [
+                'central-directory-entry-count-mismatch',
+                'central-directory-eocd-gap',
+                'central-directory-eocd-gap-central-headers',
+            ],
+            $summary['issues']
+        );
+        $t->same(false, $raw['isValid']);
+        $t->same(false, $raw['canInstantiate']);
+        $t->same($summary, $raw['centralDirectoryInventory']);
+        $t->contains('central-directory-inventory-issues', implode(',', $raw['diagnostics']));
+        $t->contains('central-directory-eocd-gap-central-headers', implode(',', $raw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $raw['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($understatedZip));
+    },
+
     'embeds zip central directory inventory in strict package import preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildCentralDirectorySignaturePackage): void {
         $zip = $buildZipPackage([
             [
