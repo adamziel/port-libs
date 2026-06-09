@@ -923,6 +923,83 @@ $numberingXml = <<<'XML'
 </w:numbering>
 XML;
 
+$numberingStyleLinkStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="ReviewBulletLevel">
+    <w:name w:val="Review Bullet Level"/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="ReviewSubLevel">
+    <w:name w:val="Review Sub Level"/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="ReviewSubLevelDerived">
+    <w:name w:val="Derived Review Sub Level"/>
+    <w:basedOn w:val="ReviewSubLevel"/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="NotLinked">
+    <w:name w:val="Unlinked Reviewer Paragraph"/>
+  </w:style>
+</w:styles>
+XML;
+
+$numberingStyleLinkNumberingXml = <<<'XML'
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="40">
+    <w:lvl w:ilvl="0">
+      <w:pStyle w:val="ReviewBulletLevel"/>
+      <w:numFmt w:val="bullet"/>
+      <w:lvlText w:val="•"/>
+    </w:lvl>
+    <w:lvl w:ilvl="1">
+      <w:start w:val="2"/>
+      <w:pStyle w:val="ReviewSubLevel"/>
+      <w:numFmt w:val="lowerLetter"/>
+      <w:lvlText w:val="%2)"/>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="41">
+    <w:abstractNumId w:val="40"/>
+  </w:num>
+</w:numbering>
+XML;
+
+$numberingStyleLinkDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ReviewBulletLevel"/></w:pPr>
+      <w:r><w:t>Collect source files</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ReviewBulletLevel"/></w:pPr>
+      <w:r><w:t>Review migration packet</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ReviewSubLevel"/></w:pPr>
+      <w:r><w:t>Check comments</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ReviewSubLevelDerived"/></w:pPr>
+      <w:r><w:t>Confirm media captions</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ReviewBulletLevel"/></w:pPr>
+      <w:r><w:t>Publish import brief</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="NotLinked"/></w:pPr>
+      <w:r><w:t>Unlinked style remains paragraph.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="ReviewBulletLevel"/>
+        <w:numPr><w:numId w:val="0"/></w:numPr>
+      </w:pPr>
+      <w:r><w:t>Suppressed style-linked numbering remains paragraph.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $paragraphStyleMetadataStylesXml = <<<'XML'
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:styleId="ReviewLayoutBase">
@@ -4150,6 +4227,24 @@ $buildStylesNumberingPackage = static function () use (
     ]);
 };
 
+$buildNumberingStyleLinkPackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $numberingStyleLinkDocumentXml,
+    $numberingStyleLinkStylesXml,
+    $numberingStyleLinkNumberingXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $numberingStyleLinkDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $numberingStyleLinkStylesXml],
+        ['name' => 'word/numbering.xml', 'data' => $numberingStyleLinkNumberingXml],
+    ]);
+};
+
 $buildNumberingLevelOverridePackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -6233,6 +6328,50 @@ return [
         $t->contains('<ul><li>Confirm media map</li><li>Preserve footnotes</li></ul>', $blocks);
         $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
         $t->contains('<ol start="3" type="a"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
+    },
+    'resolves DOCX numbering levels linked to paragraph styles into AST lists' => static function (TestRunner $t) use ($buildNumberingStyleLinkPackage): void {
+        $document = (new DocxReader())->readDocument($buildNumberingStyleLinkPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+
+        $checklist = $document->children[0];
+        $t->same('bullet_list', $checklist->type);
+        $t->same('docx', $checklist->attr('sourceFormat'));
+        $t->same('41', $checklist->attr('numId'));
+        $t->same(0, $checklist->attr('level'));
+        $t->same('bullet', $checklist->attr('format'));
+        $t->same(3, count($checklist->children));
+        $t->same('Collect source files', $checklist->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Review migration packet', $checklist->children[1]->children[0]->children[0]->attr('text'));
+
+        $sublist = $checklist->children[1]->children[1];
+        $t->same('ordered_list', $sublist->type);
+        $t->same('41', $sublist->attr('numId'));
+        $t->same(1, $sublist->attr('level'));
+        $t->same('lower_alpha', $sublist->attr('style'));
+        $t->same('one_paren', $sublist->attr('delimiter'));
+        $t->same(2, $sublist->attr('start'));
+        $t->same('Check comments', $sublist->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Confirm media captions', $sublist->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('Publish import brief', $checklist->children[2]->children[0]->children[0]->attr('text'));
+
+        $unlinked = $document->children[1];
+        $t->same('paragraph', $unlinked->type);
+        $t->same('Unlinked style remains paragraph.', $unlinked->children[0]->attr('text'));
+
+        $suppressed = $document->children[2];
+        $t->same('paragraph', $suppressed->type);
+        $t->same('Suppressed style-linked numbering remains paragraph.', $suppressed->children[0]->attr('text'));
+
+        $t->contains("- Collect source files\n- Review migration packet\n  b)  Check comments\n  c)  Confirm media captions\n- Publish import brief", $markdown);
+        $t->contains('Unlinked style remains paragraph.', $markdown);
+        $t->contains('Suppressed style-linked numbering remains paragraph.', $markdown);
+
+        $t->contains('<ul><li>Collect source files</li><li>Review migration packet<ol start="2" type="a"><li>Check comments</li><li>Confirm media captions</li></ol></li><li>Publish import brief</li></ul>', $blocks);
+        $t->contains('<p>Unlinked style remains paragraph.</p>', $blocks);
+        $t->contains('<p>Suppressed style-linked numbering remains paragraph.</p>', $blocks);
     },
     'applies full DOCX numbering level overrides from num instances' => static function (TestRunner $t) use ($buildNumberingLevelOverridePackage): void {
         $document = (new DocxReader())->readDocument($buildNumberingLevelOverridePackage());

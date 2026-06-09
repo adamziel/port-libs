@@ -12750,7 +12750,7 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>>
+     * @return array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>>
      */
     private function loadNumbering(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
     {
@@ -12842,12 +12842,12 @@ final class DocxReader
 
     /**
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
-     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>> $numbering
      * @return array{numId:string, level:int, ordered:bool, style:string, delimiter:string, start:int, format:string}|null
      */
     private function listDefinitionForParagraph(\DOMElement $paragraph, array $styles, array $numbering): ?array
     {
-        $numPr = $this->paragraphNumberingProperties($paragraph, $styles);
+        $numPr = $this->paragraphNumberingProperties($paragraph, $styles, $numbering);
         if ($numPr === null || ($numPr['numId'] ?? null) === null || $numPr['numId'] === '' || $numPr['numId'] === '0') {
             return null;
         }
@@ -14541,7 +14541,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{ordered:bool, style:string, delimiter:string, start:int, format:string}
+     * @return array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}
      */
     private function numberingLevelDefinition(\DOMElement $levelElement): array
     {
@@ -14551,14 +14551,23 @@ final class DocxReader
         $start = $startElement instanceof \DOMElement ? max(0, $this->intWordAttr($startElement, 'val', 1)) : 1;
         $levelTextElement = $this->firstChildElement($levelElement, self::WORDPROCESSINGML_NS, 'lvlText');
         $levelText = $levelTextElement instanceof \DOMElement ? (string) $this->wordAttr($levelTextElement, 'val') : '%1.';
+        $paragraphStyleElement = $this->firstChildElement($levelElement, self::WORDPROCESSINGML_NS, 'pStyle');
+        $paragraphStyleId = $paragraphStyleElement instanceof \DOMElement
+            ? trim((string) ($this->wordAttr($paragraphStyleElement, 'val') ?? ''))
+            : '';
 
-        return [
+        $definition = [
             'ordered' => !in_array($format, ['bullet', 'none'], true),
             'style' => $this->orderedListStyleForNumberingFormat($format),
             'delimiter' => $this->orderedListDelimiterForLevelText($levelText),
             'start' => $start,
             'format' => $format,
         ];
+        if ($paragraphStyleId !== '') {
+            $definition['paragraphStyleId'] = $paragraphStyleId;
+        }
+
+        return $definition;
     }
 
     private function orderedListStyleForNumberingFormat(string $format): string
@@ -14586,25 +14595,75 @@ final class DocxReader
 
     /**
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>> $numbering
      * @return array{numId:?string, level:?int}|null
      */
-    private function paragraphNumberingProperties(\DOMElement $paragraph, array $styles): ?array
+    private function paragraphNumberingProperties(\DOMElement $paragraph, array $styles, array $numbering): ?array
     {
         $properties = $this->firstChildElement($paragraph, self::WORDPROCESSINGML_NS, 'pPr');
         $direct = $properties instanceof \DOMElement ? $this->numberingProperties($properties) : null;
         $style = $this->paragraphStyleId($paragraph);
         $seen = [];
         $fromStyle = $this->resolveStyleNumberingProperties($style, $styles, $seen);
+        $fromNumberingStyle = $this->numberingPropertiesForParagraphStyle($style, $styles, $numbering);
 
-        $numId = $direct['numId'] ?? $fromStyle['numId'] ?? null;
+        $numId = $direct['numId'] ?? $fromStyle['numId'] ?? $fromNumberingStyle['numId'] ?? null;
         if ($numId === null) {
             return null;
         }
 
         return [
             'numId' => $numId,
-            'level' => $direct['level'] ?? $fromStyle['level'] ?? 0,
+            'level' => $direct['level'] ?? $fromStyle['level'] ?? $fromNumberingStyle['level'] ?? 0,
         ];
+    }
+
+    /**
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>> $numbering
+     * @return array{numId:string, level:int}|null
+     */
+    private function numberingPropertiesForParagraphStyle(?string $styleId, array $styles, array $numbering): ?array
+    {
+        foreach ($this->paragraphStyleIdChain($styleId, $styles) as $candidateStyleId) {
+            foreach ($numbering as $numId => $levels) {
+                foreach ($levels as $level => $definition) {
+                    if (($definition['paragraphStyleId'] ?? null) === $candidateStyleId) {
+                        return [
+                            'numId' => (string) $numId,
+                            'level' => (int) $level,
+                        ];
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, array{name:?string, basedOn:?string}> $styles
+     * @return list<string>
+     */
+    private function paragraphStyleIdChain(?string $styleId, array $styles): array
+    {
+        if ($styleId === null || $styleId === '') {
+            return [];
+        }
+
+        $chain = [];
+        $seen = [];
+        $current = $styleId;
+        while ($current !== null && $current !== '' && !isset($seen[$current])) {
+            $chain[] = $current;
+            $seen[$current] = true;
+            $style = $styles[$current] ?? null;
+            $current = is_array($style) && is_string($style['basedOn'] ?? null)
+                ? $style['basedOn']
+                : null;
+        }
+
+        return $chain;
     }
 
     /**

@@ -752,6 +752,36 @@ return [
         $t->same(['embed_data_files', 'http'], $audit['packageFlagDefinitionClosure']['presentFlags']['pandoc.cabal']);
         $t->same([], $audit['packageFlagDefinitionClosure']['presentFlags']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
         $t->same([], $audit['packageFlagDefinitionClosure']['missingFlags']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageFlagFields(), $audit['packageFlagDefinitionClosure']['expectedFlagFields']);
+        $t->same([
+            'embed_data_files' => [
+                'default' => 'False',
+                'manual' => 'True',
+            ],
+            'http' => [
+                'default' => 'True',
+                'manual' => 'True',
+            ],
+        ], $audit['packageFlagDefinitionClosure']['presentFlagFields']['pandoc.cabal']);
+        $t->same([
+            'lua' => [
+                'default' => 'True',
+                'manual' => null,
+            ],
+            'nightly' => [
+                'default' => 'False',
+                'manual' => null,
+            ],
+            'repl' => [
+                'default' => 'True',
+                'manual' => null,
+            ],
+            'server' => [
+                'default' => 'True',
+                'manual' => null,
+            ],
+        ], $audit['packageFlagDefinitionClosure']['presentFlagFields']['pandoc-cli/pandoc-cli.cabal']);
+        $t->same([], $audit['packageFlagDefinitionClosure']['mismatchedFlagFields']);
         $t->same(UpstreamRunnerDependencyAudit::expectedPackageDataFiles(), $audit['packageDataFileClosure']['expectedDataFiles']);
         $t->same(UpstreamRunnerDependencyAudit::expectedPackageDataFiles()['pandoc.cabal'], $audit['packageDataFileClosure']['presentDataFiles']['pandoc.cabal']);
         $t->same([], $audit['packageDataFileClosure']['presentDataFiles']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
@@ -1001,7 +1031,7 @@ return [
         $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDependencies']);
         $t->contains('non-mutating solver/build plan', $audit['activationGate']);
         $t->contains('record Cabal package identity/version headers', $audit['nonMutatingPlan'][0]);
-        $t->contains('package flag definitions for cabal.project flags', $audit['nonMutatingPlan'][0]);
+        $t->contains('package flag definitions plus default/manual values for cabal.project flags', $audit['nonMutatingPlan'][0]);
         $t->contains('exact package-level extra-doc-files and extra-source-files closure', $audit['nonMutatingPlan'][0]);
         $t->contains('no unexpected package-level extra-tmp-files or native/system dependency fields', $audit['nonMutatingPlan'][0]);
         $t->contains('pandoc.cabal tested-with GHC matrix', $audit['nonMutatingPlan'][0]);
@@ -1047,6 +1077,107 @@ return [
             $t->same(strlen($files[$relativePath]), $audit['requiredFileProvenance']['present'][$relativePath]['bytes']);
         }
         $t->contains('package-file hashes', $audit['nonMutatingPlan'][0]);
+    },
+    'blocks cabal flag default and manual field drift before solver planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            implode("\n", [
+                'flag embed_data_files',
+                '  description: Embed data files in the built executable',
+                '  default: False',
+                '  manual: True',
+            ]),
+            implode("\n", [
+                'flag embed_data_files',
+                '  description: Embed data files in the built executable',
+                '  default: True',
+            ]),
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-cli/pandoc-cli.cabal'] = str_replace(
+            implode("\n", [
+                'flag lua',
+                '  description: Support custom modifications and conversions with the pandoc Lua scripting engine.',
+                '  default: True',
+            ]),
+            implode("\n", [
+                'flag lua',
+                '  description: Support custom modifications and conversions with the pandoc Lua scripting engine.',
+                '  default: True',
+                '  manual: True',
+            ]),
+            $files['pandoc-cli/pandoc-cli.cabal']
+        );
+        $files['pandoc-cli/pandoc-cli.cabal'] = str_replace(
+            implode("\n", [
+                'flag nightly',
+                '  description: Add nightly suffix to version output.',
+                '  default: False',
+            ]),
+            implode("\n", [
+                'flag nightly',
+                '  description: Add nightly suffix to version output.',
+                '  default: True',
+            ]),
+            $files['pandoc-cli/pandoc-cli.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => '9.10.3'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['packageFlagDefinitionClosure']['missingFlags']);
+        $t->same([
+            'embed_data_files' => [
+                'default' => 'True',
+                'manual' => null,
+            ],
+            'http' => [
+                'default' => 'True',
+                'manual' => 'True',
+            ],
+        ], $audit['packageFlagDefinitionClosure']['presentFlagFields']['pandoc.cabal']);
+        $t->same([
+            'pandoc.cabal' => [
+                'embed_data_files' => [
+                    'default' => [
+                        'expected' => 'False',
+                        'actual' => 'True',
+                    ],
+                    'manual' => [
+                        'expected' => 'True',
+                        'actual' => null,
+                    ],
+                ],
+            ],
+            'pandoc-cli/pandoc-cli.cabal' => [
+                'lua' => [
+                    'manual' => [
+                        'expected' => null,
+                        'actual' => 'True',
+                    ],
+                ],
+                'nightly' => [
+                    'default' => [
+                        'expected' => 'False',
+                        'actual' => 'True',
+                    ],
+                ],
+            ],
+        ], $audit['packageFlagDefinitionClosure']['mismatchedFlagFields']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched Cabal package flag fields', $blocked);
+        $t->contains('pandoc.cabal (embed_data_files.default expected False, found True, embed_data_files.manual expected True, found absent)', $blocked);
+        $t->contains('pandoc-cli/pandoc-cli.cabal (lua.manual expected absent, found True, nightly.default expected False, found True)', $blocked);
+        $t->contains('package flag definitions plus default/manual values', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
     },
     'records cabal plan stability provenance before solver planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
@@ -1556,7 +1687,7 @@ return [
         $t->contains('mismatched Cabal package identity headers: pandoc-server/pandoc-server.cabal (version expected 0.1.2, found 0.1.1); pandoc-cli/pandoc-cli.cabal (name expected pandoc-cli, found pandoc-runner-cli)', $blocked);
         $t->contains('missing Cabal package flag definitions: pandoc-cli/pandoc-cli.cabal (nightly, server)', $blocked);
         $t->contains('Cabal package identity/version headers', $audit['activationGate']);
-        $t->contains('package flag definitions for cabal.project flags', $audit['activationGate']);
+        $t->contains('package flag definitions plus default/manual values for cabal.project flags', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks package custom setup dependencies before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
@@ -1680,7 +1811,7 @@ return [
         ], $audit['packageFlagDefinitionClosure']['missingFlags']['pandoc.cabal']);
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('missing Cabal package flag definitions: pandoc.cabal (embed_data_files, http)', $blocked);
-        $t->contains('package flag definitions for cabal.project flags', $audit['activationGate']);
+        $t->contains('package flag definitions plus default/manual values for cabal.project flags', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'rejects hydrated checkout with incomplete runner package closure' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $luaCabal): void {

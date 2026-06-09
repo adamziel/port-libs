@@ -105,6 +105,39 @@ final class UpstreamRunnerDependencyAudit
         ],
     ];
 
+    private const PACKAGE_EXPECTED_FLAG_FIELDS = [
+        'pandoc.cabal' => [
+            'embed_data_files' => [
+                'default' => 'False',
+                'manual' => 'True',
+            ],
+            'http' => [
+                'default' => 'True',
+                'manual' => 'True',
+            ],
+        ],
+        'pandoc-lua-engine/pandoc-lua-engine.cabal' => [],
+        'pandoc-server/pandoc-server.cabal' => [],
+        'pandoc-cli/pandoc-cli.cabal' => [
+            'lua' => [
+                'default' => 'True',
+                'manual' => null,
+            ],
+            'nightly' => [
+                'default' => 'False',
+                'manual' => null,
+            ],
+            'repl' => [
+                'default' => 'True',
+                'manual' => null,
+            ],
+            'server' => [
+                'default' => 'True',
+                'manual' => null,
+            ],
+        ],
+    ];
+
     private const PACKAGE_EXPECTED_DATA_FILES = [
         'pandoc.cabal' => [
             'COPYRIGHT',
@@ -1529,7 +1562,7 @@ CABAL,
      *   compilerTestedWithClosure:array{packageFile:string, expectedGhcVersions:list<string>, presentGhcVersions:list<string>, missingGhcVersions:list<string>, toolGhcVersion:string|null, toolGhcVersionSupported:bool},
      *   packageIdentityClosure:array{expected:array<string, array{name:string, version:string, cabalVersion:string, buildType:string}>, present:array<string, array{name:string|null, version:string|null, cabalVersion:string|null, buildType:string|null}>, missingHeaders:array<string, list<string>>, mismatchedHeaders:array<string, array<string, array{expected:string, actual:string|null}>>},
      *   packageSetupClosure:array{expectedSetupDependencies:array<string, list<string>>, present:array<string, array{customSetup:bool, setupDepends:list<string>, dependencyConstraints:array<string, string>}>, unexpectedCustomSetupStanzas:array<string, list<string>>, unexpectedSetupDependencies:array<string, list<string>>},
-     *   packageFlagDefinitionClosure:array{expectedFlags:array<string, list<string>>, presentFlags:array<string, list<string>>, missingFlags:array<string, list<string>>},
+     *   packageFlagDefinitionClosure:array{expectedFlags:array<string, list<string>>, presentFlags:array<string, list<string>>, missingFlags:array<string, list<string>>, expectedFlagFields:array<string, array<string, array{default:string|null, manual:string|null}>>, presentFlagFields:array<string, array<string, array{default:string|null, manual:string|null}>>, mismatchedFlagFields:array<string, array<string, array<string, array{expected:string|null, actual:string|null}>>>},
      *   packageDataFileClosure:array{expectedDataFiles:array<string, list<string>>, presentDataFiles:array<string, list<string>>, missingDataFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>},
      *   packageExtraFileClosure:array{expectedExtraDocFiles:array<string, list<string>>, presentExtraDocFiles:array<string, list<string>>, missingExtraDocFiles:array<string, list<string>>, unexpectedExtraDocFiles:array<string, list<string>>, expectedExtraSourceFiles:array<string, list<string>>, presentExtraSourceFiles:array<string, list<string>>, missingExtraSourceFiles:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, expectedExtraTmpFiles:array<string, list<string>>, presentExtraTmpFiles:array<string, list<string>>, unexpectedExtraTmpFiles:array<string, list<string>>},
      *   packageNativeSystemFieldClosure:array{expectedNativeSystemFields:array<string, array<string, list<string>>>, presentNativeSystemFields:array<string, array<string, list<string>>>, unexpectedNativeSystemFields:array<string, list<string>>},
@@ -1626,6 +1659,9 @@ CABAL,
         }
         if ($packageFlagDefinitionClosure['missingFlags'] !== []) {
             $blockedReasons[] = 'missing Cabal package flag definitions: ' . self::formatTargetFailures($packageFlagDefinitionClosure['missingFlags']);
+        }
+        if ($packageFlagDefinitionClosure['mismatchedFlagFields'] !== []) {
+            $blockedReasons[] = 'mismatched Cabal package flag fields: ' . self::formatPackageFlagFieldMismatches($packageFlagDefinitionClosure['mismatchedFlagFields']);
         }
         if ($packageDataFileClosure['missingDataFiles'] !== []) {
             $blockedReasons[] = 'missing Cabal package data-files: ' . self::formatTargetFailures($packageDataFileClosure['missingDataFiles']);
@@ -2166,7 +2202,7 @@ CABAL,
             'readyForNonMutatingCabalPlan' => $ready,
             'blockedReasons' => $blockedReasons,
             'nonMutatingPlan' => $ready ? [
-                'record Cabal package identity/version headers, package flag definitions for cabal.project flags, exact package-level data-files closure for Pandoc templates/data payloads, exact package-level extra-doc-files and extra-source-files closure for documentation and source fixture globs, no unexpected package-level extra-tmp-files or native/system dependency fields, pandoc.cabal tested-with GHC matrix, cabal.project package/flag closure plus source-repository type/location/tag closure, no unexpected cabal.project package/source-repository entries, flags, or source-repository fields, no unexpected cabal.project unconditional plan fields, non-empty runner source/golden fixture artifacts, runner source/golden artifact hashes, runner entry-point semantics including command-emulation parser/error handling plus full Tasty group dispatch, and package-file hashes before any solver/build command',
+                'record Cabal package identity/version headers, package flag definitions plus default/manual values for cabal.project flags, exact package-level data-files closure for Pandoc templates/data payloads, exact package-level extra-doc-files and extra-source-files closure for documentation and source fixture globs, no unexpected package-level extra-tmp-files or native/system dependency fields, pandoc.cabal tested-with GHC matrix, cabal.project package/flag closure plus source-repository type/location/tag closure, no unexpected cabal.project package/source-repository entries, flags, or source-repository fields, no unexpected cabal.project unconditional plan fields, non-empty runner source/golden fixture artifacts, runner source/golden artifact hashes, runner entry-point semantics including command-emulation parser/error handling plus full Tasty group dispatch, and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options, plus no unexpected cabal.project solver constraints or unconditional plan fields before any solver/build command',
                 'record test-suite type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal custom-setup/setup-depends, no unexpected common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, and exact other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus no unexpected test-options, native/system dependency fields, exact pandoc-lua-engine library HsLua module dependency closure, exact library exposed-modules closure, exact library source directory and other-modules closure, library source artifact hashes, Haskell2010 library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, exposed modules, source directories, other modules, source artifacts, mixins or build-tool dependencies, generated modules, reexported modules, module interface fields, default/other extensions, file artifact globs, native/system dependency fields, or unexpected library conditional branches, exact pandoc-server library direct dependency, exposed-module, source-directory, and default-language closure, and exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, known conditional-branch closure, conditional source artifact hashes, and conditional source semantics',
                 'record benchmark:benchmark-pandoc type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, plus no unexpected benchmark-options or native/system dependency fields, non-empty source/data artifact closure, benchmark source/data artifact hashes, benchmark fixture semantics, and entry-source semantics before any benchmark execution',
@@ -2216,6 +2252,14 @@ CABAL,
     public static function expectedPackageFlagDefinitions(): array
     {
         return self::PACKAGE_EXPECTED_FLAG_DEFINITIONS;
+    }
+
+    /**
+     * @return array<string, array<string, array{default:string|null, manual:string|null}>>
+     */
+    public static function expectedPackageFlagFields(): array
+    {
+        return self::PACKAGE_EXPECTED_FLAG_FIELDS;
     }
 
     /**
@@ -3530,6 +3574,30 @@ CABAL,
     }
 
     /**
+     * @return array<string, array{default:string|null, manual:string|null}>
+     */
+    public static function parseCabalPackageFlagFields(string $contents): array
+    {
+        $stanzas = self::parseCabalStanzas($contents);
+        $flags = [];
+
+        foreach ($stanzas as $stanza) {
+            if ($stanza['type'] !== 'flag') {
+                continue;
+            }
+
+            $fields = $stanza['fields'];
+            $flags[$stanza['name']] = [
+                'default' => self::normalizeCabalFlagBooleanValue($fields['default'] ?? null),
+                'manual' => self::normalizeCabalFlagBooleanValue($fields['manual'] ?? null),
+            ];
+        }
+
+        ksort($flags);
+        return $flags;
+    }
+
+    /**
      * @return array<string, array{type:string|null, buildable:bool|null, manual:string|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, cppOptions:list<string>, autogenModules:list<string>, reexportedModules:list<string>, moduleInterfaceFields:array<string, list<string>>, extraSourceFiles:list<string>, extraDocFiles:list<string>, extraTmpFiles:list<string>, dataFiles:list<string>, conditionalBranches:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, testOptions:list<string>, defaultExtensions:list<string>, otherExtensions:list<string>, otherModules:list<string>, nativeSystemFields:array<string, list<string>>}>
      */
     public static function parseCabalTestSuites(string $contents): array
@@ -4117,21 +4185,41 @@ CABAL,
     }
 
     /**
-     * @return array{expectedFlags:array<string, list<string>>, presentFlags:array<string, list<string>>, missingFlags:array<string, list<string>>}
+     * @return array{expectedFlags:array<string, list<string>>, presentFlags:array<string, list<string>>, missingFlags:array<string, list<string>>, expectedFlagFields:array<string, array<string, array{default:string|null, manual:string|null}>>, presentFlagFields:array<string, array<string, array{default:string|null, manual:string|null}>>, mismatchedFlagFields:array<string, array<string, array<string, array{expected:string|null, actual:string|null}>>>}
      */
     private static function auditPackageFlagDefinitionClosure(string $root): array
     {
         $present = [];
         $missing = [];
+        $presentFlagFields = [];
+        $mismatchedFlagFields = [];
 
         foreach (self::PACKAGE_EXPECTED_FLAG_DEFINITIONS as $packageFile => $expectedFlags) {
             $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $packageFile);
             $actualFlags = is_file($path) ? self::parseCabalPackageFlags((string) file_get_contents($path)) : [];
+            $actualFlagFields = is_file($path) ? self::parseCabalPackageFlagFields((string) file_get_contents($path)) : [];
             $present[$packageFile] = $actualFlags;
+            $presentFlagFields[$packageFile] = $actualFlagFields;
 
             foreach ($expectedFlags as $flag) {
                 if (!in_array($flag, $actualFlags, true)) {
                     $missing[$packageFile][] = $flag;
+                }
+            }
+
+            foreach (self::PACKAGE_EXPECTED_FLAG_FIELDS[$packageFile] ?? [] as $flag => $expectedFields) {
+                if (!array_key_exists($flag, $actualFlagFields)) {
+                    continue;
+                }
+
+                foreach ($expectedFields as $field => $expectedValue) {
+                    $actualValue = $actualFlagFields[$flag][$field] ?? null;
+                    if ($actualValue !== $expectedValue) {
+                        $mismatchedFlagFields[$packageFile][$flag][$field] = [
+                            'expected' => $expectedValue,
+                            'actual' => $actualValue,
+                        ];
+                    }
                 }
             }
         }
@@ -4140,6 +4228,9 @@ CABAL,
             'expectedFlags' => self::PACKAGE_EXPECTED_FLAG_DEFINITIONS,
             'presentFlags' => $present,
             'missingFlags' => $missing,
+            'expectedFlagFields' => self::PACKAGE_EXPECTED_FLAG_FIELDS,
+            'presentFlagFields' => $presentFlagFields,
+            'mismatchedFlagFields' => $mismatchedFlagFields,
         ];
     }
 
@@ -6782,6 +6873,25 @@ CABAL,
         return $version === '' ? null : $version;
     }
 
+    private static function normalizeCabalFlagBooleanValue(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $withoutComment = preg_replace('/\s+--.*$/', '', $value);
+        $normalized = self::normalizeCabalListItem((string) $withoutComment);
+        if ($normalized === '') {
+            return null;
+        }
+
+        return match (strtolower($normalized)) {
+            'true' => 'True',
+            'false' => 'False',
+            default => $normalized,
+        };
+    }
+
     /**
      * @return list<string>
      */
@@ -7318,6 +7428,27 @@ CABAL,
     }
 
     /**
+     * @param array<string, array<string, array<string, array{expected:string|null, actual:string|null}>>> $mismatchedFields
+     */
+    private static function formatPackageFlagFieldMismatches(array $mismatchedFields): string
+    {
+        $parts = [];
+        foreach ($mismatchedFields as $package => $flags) {
+            $fieldParts = [];
+            foreach ($flags as $flag => $fields) {
+                foreach ($fields as $field => $state) {
+                    $fieldParts[] = $flag . '.' . $field
+                        . ' expected ' . ($state['expected'] ?? 'absent')
+                        . ', found ' . ($state['actual'] ?? 'absent');
+                }
+            }
+            $parts[] = $package . ' (' . implode(', ', $fieldParts) . ')';
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
      * @param array<string, array{expected:string, actual:string}> $mismatchedConstraints
      */
     private static function formatProjectConstraintMismatches(array $mismatchedConstraints): string
@@ -7393,7 +7524,7 @@ CABAL,
      * @param array{missingGhcVersions:list<string>, toolGhcVersionSupported:bool} $compilerTestedWithClosure
      * @param array{missingHeaders:array<string, list<string>>, mismatchedHeaders:array<string, array<string, array{expected:string, actual:string|null}>>} $packageIdentityClosure
      * @param array{unexpectedCustomSetupStanzas:array<string, list<string>>, unexpectedSetupDependencies:array<string, list<string>>} $packageSetupClosure
-     * @param array{missingFlags:array<string, list<string>>} $packageFlagDefinitionClosure
+     * @param array{missingFlags:array<string, list<string>>, mismatchedFlagFields:array<string, array<string, array<string, array{expected:string|null, actual:string|null}>>>} $packageFlagDefinitionClosure
      * @param array{missingDataFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>} $packageDataFileClosure
      * @param array{missingExtraDocFiles:array<string, list<string>>, unexpectedExtraDocFiles:array<string, list<string>>, missingExtraSourceFiles:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedExtraTmpFiles:array<string, list<string>>} $packageExtraFileClosure
      * @param array{unexpectedNativeSystemFields:array<string, list<string>>} $packageNativeSystemFieldClosure
@@ -7427,6 +7558,7 @@ CABAL,
             && $packageSetupClosure['unexpectedCustomSetupStanzas'] === []
             && $packageSetupClosure['unexpectedSetupDependencies'] === []
             && $packageFlagDefinitionClosure['missingFlags'] === []
+            && $packageFlagDefinitionClosure['mismatchedFlagFields'] === []
             && $packageDataFileClosure['missingDataFiles'] === []
             && $packageDataFileClosure['unexpectedDataFiles'] === []
             && $packageExtraFileClosure['missingExtraDocFiles'] === []
@@ -7591,10 +7723,10 @@ CABAL,
             && $benchmarkEntrySourceClosure['missingTargets'] === []
             && $benchmarkEntrySourceClosure['missingSemantics'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, package flag definitions for cabal.project flags, exact package-level data-files closure for Pandoc templates/data payloads, exact package-level extra-doc-files and extra-source-files closure for documentation and source fixture globs, no unexpected package-level extra-tmp-files or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, ' . $planStabilitySummary . ', non-empty runner source/golden fixtures with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, direct build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure with exact exposed-modules, exact pandoc-lua-engine library source directory and other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, and Haskell2010 library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, exposed modules, source directories, other modules, source artifacts, mixins or build-tool dependencies, generated modules, reexported modules, module interface fields, default/other extensions, file artifact globs, native/system dependency fields, or unexpected library conditional branches, exact pandoc-server library dependency, exposed-module, source-directory, and default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, exact pandoc-cli conditional branch field bodies, non-empty pandoc-cli conditional source artifacts with hashes and enabled/disabled shim source semantics, non-empty benchmark component dependency/artifact closure with artifact hashes, benchmark fixture semantics, benchmark entry-point source semantics, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, package flag definitions plus default/manual values for cabal.project flags, exact package-level data-files closure for Pandoc templates/data payloads, exact package-level extra-doc-files and extra-source-files closure for documentation and source fixture globs, no unexpected package-level extra-tmp-files or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, ' . $planStabilitySummary . ', non-empty runner source/golden fixtures with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, direct build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure with exact exposed-modules, exact pandoc-lua-engine library source directory and other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, and Haskell2010 library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, exposed modules, source directories, other modules, source artifacts, mixins or build-tool dependencies, generated modules, reexported modules, module interface fields, default/other extensions, file artifact globs, native/system dependency fields, or unexpected library conditional branches, exact pandoc-server library dependency, exposed-module, source-directory, and default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, exact pandoc-cli conditional branch field bodies, non-empty pandoc-cli conditional source artifacts with hashes and enabled/disabled shim source semantics, non-empty benchmark component dependency/artifact closure with artifact hashes, benchmark fixture semantics, benchmark entry-point source semantics, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with Cabal package identity/version headers, package flag definitions for cabal.project flags, exact package-level data-files closure, no unexpected package-level data-files, exact package-level extra-doc-files and extra-source-files closure, no unexpected package-level extra-doc-files, extra-source-files, extra-tmp-files, or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, stable Cabal plan file provenance or an explicit cabal.project.freeze unpinned-plan risk, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures with artifact hashes, non-empty benchmark source/data artifacts with artifact hashes and fixture semantics, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure, exact pandoc-lua-engine library exposed-modules closure, exact pandoc-lua-engine library other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, Haskell2010 pandoc-lua-engine library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, no unexpected pandoc-lua-engine library exposed modules, no unexpected pandoc-lua-engine library source directories, no unexpected pandoc-lua-engine library other modules, no unexpected pandoc-lua-engine library source artifacts, no unexpected pandoc-lua-engine library mixins or build-tool dependencies, no unexpected pandoc-lua-engine library generated, reexported, or module interface fields, no unexpected pandoc-lua-engine library default/other extensions, no unexpected pandoc-lua-engine library file artifact globs, no unexpected pandoc-lua-engine library native/system dependency fields, no unexpected pandoc-lua-engine library conditional branches, exact pandoc-server library dependency/exposed-module/source-directory/default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, exact pandoc-cli conditional branch field bodies, non-empty pandoc-cli conditional source artifacts with hashes and enabled/disabled shim source semantics, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with Cabal package identity/version headers, package flag definitions plus default/manual values for cabal.project flags, exact package-level data-files closure, no unexpected package-level data-files, exact package-level extra-doc-files and extra-source-files closure, no unexpected package-level extra-doc-files, extra-source-files, extra-tmp-files, or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, stable Cabal plan file provenance or an explicit cabal.project.freeze unpinned-plan risk, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures with artifact hashes, non-empty benchmark source/data artifacts with artifact hashes and fixture semantics, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure, exact pandoc-lua-engine library exposed-modules closure, exact pandoc-lua-engine library other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, Haskell2010 pandoc-lua-engine library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, no unexpected pandoc-lua-engine library exposed modules, no unexpected pandoc-lua-engine library source directories, no unexpected pandoc-lua-engine library other modules, no unexpected pandoc-lua-engine library source artifacts, no unexpected pandoc-lua-engine library mixins or build-tool dependencies, no unexpected pandoc-lua-engine library generated, reexported, or module interface fields, no unexpected pandoc-lua-engine library default/other extensions, no unexpected pandoc-lua-engine library file artifact globs, no unexpected pandoc-lua-engine library native/system dependency fields, no unexpected pandoc-lua-engine library conditional branches, exact pandoc-server library dependency/exposed-module/source-directory/default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, exact pandoc-cli conditional branch field bodies, non-empty pandoc-cli conditional source artifacts with hashes and enabled/disabled shim source semantics, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }
