@@ -3468,6 +3468,53 @@ return [
         $t->same('gnu-sed', $directSed['requestedLanguage']);
         $t->contains('<span class="kw">s</span><span class="st">#&lt;h1&gt;\(.*\)&lt;/h1&gt;#&lt;!-- wp:heading --&gt;\1&lt;!-- /wp:heading --&gt;#</span><span class="ot">g</span>', $directSed['html']);
     },
+    'preserves sed append change and insert text payloads for wordpress review packets' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[68] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Sed stream editor code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $fixtureHighlight = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $payload = $highlighter->highlight(implode("\n", [
+            '2,5c\\',
+            '<!-- wp:paragraph -->',
+            '/legacy-shortcode/a\\',
+            '<!-- wp:shortcode -->[gallery]<!-- /wp:shortcode -->',
+            ':reviewed',
+            't reviewed',
+        ]), 'stream-editor');
+        $continuedPayload = $highlighter->highlight(implode("\n", [
+            '$i\\',
+            '<!-- wp:html -->\\',
+            '<div data-source="legacy"></div>',
+            'p',
+        ]), 'sed');
+
+        $t->same('sed', $fixtureHighlight['language']);
+        $t->contains('<span id="sed-review-1021"><a href="#sed-review-1021"></a><span class="dv">1</span><span class="kw">i</span><span class="op">\\</span></span>', $fixtureHighlight['html']);
+        $t->contains('<span id="sed-review-1022"><a href="#sed-review-1022"></a><span class="st">&lt;!-- wp:paragraph --&gt;</span></span>', $fixtureHighlight['html']);
+        $t->contains('<span id="sed-review-1023"><a href="#sed-review-1023"></a><span class="st">/^[[:space:]]*$/</span><span class="kw">d</span></span>', $fixtureHighlight['html']);
+        $t->same('sed', $payload['language']);
+        $t->same('stream-editor', $payload['requestedLanguage']);
+        $t->contains('<span class="dv">2,5</span><span class="kw">c</span><span class="op">\\</span>', $payload['html']);
+        $t->contains('<span class="st">&lt;!-- wp:paragraph --&gt;</span>', $payload['html']);
+        $t->contains('<span class="st">/legacy-shortcode/</span><span class="kw">a</span><span class="op">\\</span>', $payload['html']);
+        $t->contains('<span class="st">&lt;!-- wp:shortcode --&gt;[gallery]&lt;!-- /wp:shortcode --&gt;</span>', $payload['html']);
+        $t->contains('<span class="re">:reviewed</span>', $payload['html']);
+        $t->contains('<span class="kw">t</span> <span class="va">reviewed</span>', $payload['html']);
+        $t->same([], $payload['diagnostics']);
+        $t->contains('<span class="dv">$</span><span class="kw">i</span><span class="op">\\</span>', $continuedPayload['html']);
+        $t->contains('<span class="st">&lt;!-- wp:html --&gt;\\</span>', $continuedPayload['html']);
+        $t->contains('<span class="st">&lt;div data-source=&quot;legacy&quot;&gt;&lt;/div&gt;</span>', $continuedPayload['html']);
+        $t->contains('<span class="ot">p</span>', $continuedPayload['html']);
+    },
     'highlights bibtex bibliography review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
         if (!is_string($fixture)) {

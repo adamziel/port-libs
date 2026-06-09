@@ -2006,6 +2006,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($sed['html'], '<span class="kw">s</span><span class="st">#&lt;script[^&gt;]*&gt;.*&lt;/script&gt;##</span><span class="ot">g</span>')) {
         throw new RuntimeException('Expected Sed hash-delimited substitution and flag token handoff');
     }
+    if (!str_contains($sed['html'], '<span id="sed-review-1022"><a href="#sed-review-1022"></a><span class="st">&lt;!-- wp:paragraph --&gt;</span></span>')) {
+        throw new RuntimeException('Expected Sed insert-command text payload token handoff');
+    }
     if (!str_contains($sed['html'], '<span class="re">:normalized</span>')) {
         throw new RuntimeException('Expected Sed branch label token handoff');
     }

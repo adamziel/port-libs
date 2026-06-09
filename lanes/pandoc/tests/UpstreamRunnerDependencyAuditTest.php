@@ -1024,6 +1024,48 @@ return [
         }
         $t->contains('package-file hashes', $audit['nonMutatingPlan'][0]);
     },
+    'records cabal plan stability provenance before solver planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $root = $makeTree($files);
+        try {
+            $unpinned = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => '9.10.3'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(true, $unpinned['readyForNonMutatingCabalPlan']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedStablePlanFiles(), $unpinned['planStabilityClosure']['expectedStablePlanFiles']);
+        $t->same(['cabal.project.freeze'], $unpinned['planStabilityClosure']['missing']);
+        $t->same(true, $unpinned['planStabilityClosure']['unpinnedPlanRisk']);
+        $t->same(hash('sha256', $files['cabal.project']), $unpinned['planStabilityClosure']['present']['cabal.project']['sha256']);
+        $t->same(strlen($files['cabal.project']), $unpinned['planStabilityClosure']['present']['cabal.project']['bytes']);
+        $t->contains('cabal.project.freeze absence', $unpinned['activationGate']);
+        $t->contains('capture stable Cabal plan file provenance', $unpinned['nonMutatingPlan'][4]);
+
+        $freeze = "constraints: base ==4.20.0.0,\n  pandoc ==3.9.0.2\n";
+        $files['cabal.project.freeze'] = $freeze;
+        $root = $makeTree($files);
+        try {
+            $pinned = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => '9.10.3'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(true, $pinned['readyForNonMutatingCabalPlan']);
+        $t->same([], $pinned['planStabilityClosure']['missing']);
+        $t->same([], $pinned['planStabilityClosure']['wrongType']);
+        $t->same([], $pinned['planStabilityClosure']['emptyFiles']);
+        $t->same(false, $pinned['planStabilityClosure']['unpinnedPlanRisk']);
+        $t->same(hash('sha256', $freeze), $pinned['planStabilityClosure']['present']['cabal.project.freeze']['sha256']);
+        $t->same(strlen($freeze), $pinned['planStabilityClosure']['present']['cabal.project.freeze']['bytes']);
+        $t->contains('stable cabal.project and cabal.project.freeze provenance', $pinned['activationGate']);
+    },
     'records runner and benchmark artifact provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $root = $makeTree($files);

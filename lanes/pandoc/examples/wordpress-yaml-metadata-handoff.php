@@ -795,6 +795,22 @@ $lateDirectiveDirectives = $lateDirectiveDocument->attr('yamlMetadataDirectivePr
 $lateDirectiveTagProvenance = $lateDirectiveDocument->attr('yamlMetadataTagProvenance', []);
 $lateDirectiveBlocks = (new WordPressBlockWriter())->write($lateDirectiveDocument);
 
+$reservedDirectiveMarkdown = <<<'MARKDOWN'
+---
+%EXPORT WordPressReview 2026
+---
+title: Reserved directive packet
+review: {status: queued, owner: Import Desk}
+...
+
+# Reserved directive body
+MARKDOWN;
+
+$reservedDirectiveDocument = (new MarkdownReader())->read($reservedDirectiveMarkdown);
+$reservedDirectiveMeta = $reservedDirectiveDocument->attr('meta', []);
+$reservedDirectiveDirectives = $reservedDirectiveDocument->attr('yamlMetadataDirectiveProvenance', []);
+$reservedDirectiveBlocks = (new WordPressBlockWriter())->write($reservedDirectiveDocument);
+
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
@@ -850,6 +866,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($lateDirectiveBlocks, '<h1 id="directive-boundary-body">Directive boundary body</h1>')) {
         throw new RuntimeException('YAML metadata self-test missing late directive WordPress body handoff');
+    }
+    if (($reservedDirectiveMeta['title'] ?? '') !== 'Reserved directive packet') {
+        throw new RuntimeException('YAML metadata self-test missing reserved directive metadata');
+    }
+    if (($reservedDirectiveMeta['review']['owner'] ?? '') !== 'Import Desk' || ($reservedDirectiveMeta['review']['status'] ?? '') !== 'queued') {
+        throw new RuntimeException('YAML metadata self-test missing reserved directive review metadata');
+    }
+    if (array_column($reservedDirectiveDirectives, 'directive') !== ['EXPORT']) {
+        throw new RuntimeException('YAML metadata self-test missing reserved directive provenance');
+    }
+    if (($reservedDirectiveDirectives[0]['reserved'] ?? '') !== 'true') {
+        throw new RuntimeException('YAML metadata self-test missing reserved directive marker');
+    }
+    if (($reservedDirectiveDirectives[0]['parameters'] ?? '') !== 'WordPressReview 2026') {
+        throw new RuntimeException('YAML metadata self-test missing reserved directive parameters');
+    }
+    if (!str_contains($reservedDirectiveBlocks, '<h1 id="reserved-directive-body">Reserved directive body</h1>')) {
+        throw new RuntimeException('YAML metadata self-test missing reserved directive WordPress body handoff');
     }
     if (
         ($meta['plain-tag-key-review']['source:key'] ?? '') !== 'plain key metadata'
@@ -2541,6 +2575,7 @@ echo 'Ambiguous field diagnostics: ' . implode(', ', array_column($ambiguousYaml
 echo 'Quoted ambiguous fields: ' . ($meta['no'] ?? '') . ' / ' . ($meta['Off'] ?? '') . ' / ' . ($meta['3.14'] ?? '') . ' / ' . ($meta['0o52'] ?? '') . "\n";
 echo 'YAML diagnostics: ' . count($yamlDiagnostics) . "\n";
 echo 'YAML invalid TAG directives: ' . count($invalidTagDiagnostics) . "\n";
+echo 'YAML reserved directive: ' . ($reservedDirectiveDirectives[0]['directive'] ?? '') . ' / ' . ($reservedDirectiveDirectives[0]['parameters'] ?? '') . "\n";
 echo 'YAML invalid merge diagnostics: ' . count($invalidMergeDiagnostics) . "\n";
 echo 'YAML invalid ordered pair diagnostics: ' . count($invalidOrderedPairDiagnostics) . "\n";
 echo 'YAML undefined tag handle diagnostics: ' . implode(', ', array_column($undefinedTagHandleReviewDiagnostics, 'path')) . "\n";

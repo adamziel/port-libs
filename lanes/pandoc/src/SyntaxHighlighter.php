@@ -3597,7 +3597,55 @@ final class SyntaxHighlighter
      */
     private function tokenizeSed(string $code): array
     {
-        return $this->scan($code, [
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+        $textLinePending = false;
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            if ($textLinePending) {
+                $this->appendToken($tokens, 'string', $line);
+                $textLinePending = self::sedTextLineContinues($line);
+            } else {
+                $this->tokenizeSedLine($line, $tokens);
+                $textLinePending = self::sedStartsTextCommand($line);
+            }
+
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeSedLine(string $line, array &$tokens): void
+    {
+        if ($line === '') {
+            return;
+        }
+
+        $this->scanInto($line, self::sedPatterns(), $tokens);
+    }
+
+    /**
+     * @return list<array{0:string, 1:string}>
+     */
+    private static function sedPatterns(): array
+    {
+        return [
             ['region', '/^:[A-Za-z_][A-Za-z0-9_-]*/'],
             ['number', '/^(?:\d+(?:,\d+)?|\$)(?=[!{;,\sA-Za-z\/]|$)/'],
             ['string', '/^\/(?:\\\\.|[^\/\\\\\n])+\/(?=[!,{;\sA-Za-z]|$)/'],
@@ -3613,7 +3661,31 @@ final class SyntaxHighlighter
             ['variable', '/^\$[A-Za-z_][A-Za-z0-9_]*/'],
             ['variable', '/^\b[A-Za-z_][A-Za-z0-9_-]*\b/'],
             ['operator', '/^(?:\\\\|&&|\|\||[{}()[\];,.+*\/=!<>?:|&$^-])/'],
-        ]);
+        ];
+    }
+
+    private static function sedStartsTextCommand(string $line): bool
+    {
+        $line = rtrim($line);
+        if ($line === '') {
+            return false;
+        }
+
+        return preg_match(
+            '/(?:^|[;{]\s*)(?:(?:\d+(?:\s*,\s*\d+)?|\$|\/(?:\\\\.|[^\/\\\\\n])+\/(?:\s*,\s*(?:\d+|\$|\/(?:\\\\.|[^\/\\\\\n])+\/))?)\s*)?[aci]\s*\\\\$/',
+            $line
+        ) === 1;
+    }
+
+    private static function sedTextLineContinues(string $line): bool
+    {
+        $line = rtrim($line);
+        $backslashes = 0;
+        for ($index = strlen($line) - 1; $index >= 0 && $line[$index] === '\\'; $index--) {
+            $backslashes++;
+        }
+
+        return $backslashes % 2 === 1;
     }
 
     /**

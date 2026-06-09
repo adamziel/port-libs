@@ -533,6 +533,7 @@ final class MarkdownReader
         if (
             preg_match('/^%YAML[ \t]+\d+(?:\.\d+)?$/i', $directive) === 1
             || preg_match('/^%TAG[ \t]+(!|!!|![A-Za-z0-9_.-]+!)[ \t]+\S+$/', $directive) === 1
+            || $this->parseYamlReservedDirective($directive) !== null
         ) {
             return true;
         }
@@ -1580,7 +1581,8 @@ final class MarkdownReader
         $directive = trim($this->stripYamlTrailingComment($trimmed));
 
         return preg_match('/^%YAML[ \t]+\d+(?:\.\d+)?$/i', $directive) === 1
-            || preg_match('/^%TAG(?:[ \t]|$)/i', $directive) === 1;
+            || preg_match('/^%TAG(?:[ \t]|$)/i', $directive) === 1
+            || $this->parseYamlReservedDirective($directive) !== null;
     }
 
     private function parseYamlDirectiveLine(string $trimmed): bool
@@ -1609,7 +1611,38 @@ final class MarkdownReader
             return true;
         }
 
+        $reservedDirective = $this->parseYamlReservedDirective($directive);
+        if ($reservedDirective !== null) {
+            $this->recordYamlReservedDirective($reservedDirective['name'], $reservedDirective['parameters']);
+            return true;
+        }
+
         return false;
+    }
+
+    /**
+     * @return array{name:string, parameters:list<string>}|null
+     */
+    private function parseYamlReservedDirective(string $directive): ?array
+    {
+        if (preg_match('/^%([A-Za-z][A-Za-z0-9_-]*)(?:[ \t]+(.+))?$/', $directive, $m) !== 1) {
+            return null;
+        }
+
+        $name = $m[1];
+        if (in_array(strtoupper($name), ['YAML', 'TAG'], true)) {
+            return null;
+        }
+
+        $parameterSource = trim((string) ($m[2] ?? ''));
+        $parameters = $parameterSource === ''
+            ? []
+            : preg_split('/[ \t]+/', $parameterSource, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($parameters)) {
+            $parameters = [];
+        }
+
+        return ['name' => $name, 'parameters' => array_values($parameters)];
     }
 
     private function recordYamlVersionDirective(string $version): void
@@ -1645,6 +1678,20 @@ final class MarkdownReader
         ] + $this->yamlMetadataSourceLineAttrs();
     }
 
+    /**
+     * @param list<string> $parameters
+     */
+    private function recordYamlReservedDirective(string $name, array $parameters): void
+    {
+        $this->yamlMetadataDirectiveProvenance[] = [
+            'type' => 'yaml-directive',
+            'directive' => $name,
+            'reserved' => 'true',
+            'parameters' => implode(' ', $parameters),
+            'parameterCount' => (string) count($parameters),
+        ] + $this->yamlMetadataSourceLineAttrs();
+    }
+
     private function recordYamlInvalidTagDirective(string $directive): void
     {
         $this->yamlMetadataDiagnostics[] = [
@@ -1659,7 +1706,14 @@ final class MarkdownReader
     private function recordYamlDirectiveAfterDocumentContentDiagnostic(string $trimmed): void
     {
         $directive = trim($this->stripYamlTrailingComment($trimmed));
-        $name = preg_match('/^%YAML(?:[ \t]|$)/i', $directive) === 1 ? 'YAML' : 'TAG';
+        if (preg_match('/^%YAML(?:[ \t]|$)/i', $directive) === 1) {
+            $name = 'YAML';
+        } elseif (preg_match('/^%TAG(?:[ \t]|$)/i', $directive) === 1) {
+            $name = 'TAG';
+        } else {
+            $reservedDirective = $this->parseYamlReservedDirective($directive);
+            $name = $reservedDirective['name'] ?? 'reserved';
+        }
         $this->yamlMetadataDiagnostics[] = [
             'type' => 'yaml-directive',
             'reason' => 'directive-after-document-content',
@@ -2125,6 +2179,7 @@ final class MarkdownReader
                 && (
                     $this->parseYamlMappingLine(trim($line)) !== null
                     || $this->isYamlExplicitMappingKeyLine(trim($line))
+                    || $this->isYamlDirectiveLine(trim($line))
                 )
             ) {
                 break;

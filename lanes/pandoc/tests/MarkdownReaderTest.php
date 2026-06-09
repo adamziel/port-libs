@@ -1015,6 +1015,79 @@ return [
         $t->true(in_array('!<tag:example.test,2026:reviewer>', array_column($implicitTags, 'tag'), true));
         $t->true(in_array('/review/owner', array_column($implicitTags, 'path'), true));
     },
+    'maps pandoc yaml reserved directives around metadata document boundaries' => static function (TestRunner $t): void {
+        $explicit = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%EXPORT WordPressReview 2026',
+            '%YAML 1.2',
+            '%TAG !wp! tag:example.test,2026:',
+            '---',
+            'title: Reserved directive **Packet**',
+            'review: {owner: !wp!reviewer Import Desk, status: queued}',
+            '...',
+            '',
+            '# Reserved directive body',
+        ]));
+        $implicit = (new MarkdownReader())->read(implode("\n", [
+            '%EXPORT WordPressReview 2026',
+            '---',
+            'title: Implicit reserved **Packet**',
+            'review: {status: queued, owner: Import Desk}',
+            '...',
+            '',
+            '# Implicit reserved body',
+        ]));
+        $late = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Late reserved directive **Packet**',
+            '%EXPORT WordPressReview late',
+            'review: {status: queued}',
+            '...',
+            '',
+            '# Late reserved directive body',
+        ]));
+
+        $explicitMeta = $explicit->attr('meta');
+        $explicitDirectives = $explicit->attr('yamlMetadataDirectiveProvenance', []);
+        $explicitTags = $explicit->attr('yamlMetadataTagProvenance', []);
+        $implicitMeta = $implicit->attr('meta');
+        $implicitDirectives = $implicit->attr('yamlMetadataDirectiveProvenance', []);
+        $lateMeta = $late->attr('meta');
+        $lateDiagnostics = $late->attr('yamlMetadataDiagnostics', []);
+        $blocks = (new WordPressBlockWriter())->write($explicit);
+
+        $t->same('Reserved directive **Packet**', $explicitMeta['title']);
+        $t->same('Import Desk', $explicitMeta['review']['owner']);
+        $t->same('queued', $explicitMeta['review']['status']);
+        $t->same(['EXPORT', 'YAML', 'TAG'], array_column($explicitDirectives, 'directive'));
+        $t->same('true', $explicitDirectives[0]['reserved'] ?? null);
+        $t->same('WordPressReview 2026', $explicitDirectives[0]['parameters'] ?? null);
+        $t->same('2', $explicitDirectives[0]['parameterCount'] ?? null);
+        $t->same('2', $explicitDirectives[0]['sourceLine'] ?? null);
+        $t->true(in_array('!<tag:example.test,2026:reviewer>', array_column($explicitTags, 'tag'), true));
+        $t->true(in_array('/review/owner', array_column($explicitTags, 'path'), true));
+        $t->same('reserved-directive-body', $explicit->children[0]->attr('id'));
+        $t->contains('<h1 id="reserved-directive-body">Reserved directive body</h1>', $blocks);
+
+        $t->same('Implicit reserved **Packet**', $implicitMeta['title']);
+        $t->same('queued', $implicitMeta['review']['status']);
+        $t->same('Import Desk', $implicitMeta['review']['owner']);
+        $t->same(['EXPORT'], array_column($implicitDirectives, 'directive'));
+        $t->same('true', $implicitDirectives[0]['reserved'] ?? null);
+        $t->same('WordPressReview 2026', $implicitDirectives[0]['parameters'] ?? null);
+        $t->same('1', $implicitDirectives[0]['sourceLine'] ?? null);
+        $t->same('implicit-reserved-body', $implicit->children[0]->attr('id'));
+
+        $t->same('Late reserved directive **Packet**', $lateMeta['title']);
+        $t->same('queued', $lateMeta['review']['status']);
+        $t->same(1, count($lateDiagnostics));
+        $t->same('yaml-directive', $lateDiagnostics[0]['type'] ?? null);
+        $t->same('directive-after-document-content', $lateDiagnostics[0]['reason'] ?? null);
+        $t->same('EXPORT', $lateDiagnostics[0]['directive'] ?? null);
+        $t->same('%EXPORT WordPressReview late', $lateDiagnostics[0]['source'] ?? null);
+        $t->same('3', $lateDiagnostics[0]['sourceLine'] ?? null);
+        $t->same('late-reserved-directive-body', $late->children[0]->attr('id'));
+    },
     'records pandoc yaml version directive provenance and unsupported diagnostics' => static function (TestRunner $t): void {
         $supported = (new MarkdownReader())->read(implode("\n", [
             '---',
