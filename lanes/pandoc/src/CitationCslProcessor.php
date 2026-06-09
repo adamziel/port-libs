@@ -7836,7 +7836,7 @@ final class CitationCslProcessor
         $plural = match ((string) ($element['plural'] ?? 'contextual')) {
             'always' => true,
             'never' => false,
-            default => $this->labelValueLooksPlural($value),
+            default => $this->labelValueLooksPlural($value, $variable),
         };
 
         return $this->style->term($termName, (string) ($element['form'] ?? 'long'), $plural);
@@ -7898,11 +7898,15 @@ final class CitationCslProcessor
         };
     }
 
-    private function labelValueLooksPlural(string $value): bool
+    private function labelValueLooksPlural(string $value, string $variable = ''): bool
     {
         $value = trim($value);
         if ($value === '') {
             return false;
+        }
+
+        if (in_array(strtolower(trim($variable)), ['number-of-pages', 'number-of-volumes'], true)) {
+            return !$this->labelCountValueLooksSingular($value);
         }
 
         if (preg_match('/\d\s*(?:[-\x{2010}-\x{2015}]|&|,|;|and)\s*\d/iu', $value) === 1) {
@@ -7914,6 +7918,14 @@ final class CitationCslProcessor
         }
 
         return preg_match('/\band\b/iu', $value) === 1;
+    }
+
+    private function labelCountValueLooksSingular(string $value): bool
+    {
+        $normalized = preg_replace('/\s+/u', ' ', trim($value));
+        $normalized = is_string($normalized) ? $normalized : trim($value);
+
+        return preg_match('/^(?:1|one|i)$/iu', $normalized) === 1;
     }
 
     /**

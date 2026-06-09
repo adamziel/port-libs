@@ -19065,6 +19065,117 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Multi Section Packet :: secs. front matter; migration notes</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Single Section Notice :: sec. metro review</dd>', $blocks);
     },
+    'pluralizes bounded csl contextual labels for count number variables' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'page-count-one',
+                'type' => 'report',
+                'title' => 'Single Page Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'number-of-pages' => '1',
+                'number-of-volumes' => '1',
+                'volume' => '2',
+                'chapter-number' => '7',
+            ],
+            [
+                'id' => 'page-count-many',
+                'type' => 'report',
+                'title' => 'Long Review Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'number-of-pages' => '20',
+                'number-of-volumes' => '4',
+            ],
+            [
+                'id' => 'page-count-range',
+                'type' => 'report',
+                'title' => 'Range Review Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'number-of-pages' => '11-12',
+                'number-of-volumes' => '2-3',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Count Label Review</title>
+    <id>https://example.test/styles/bounded-count-label-review</id>
+    <updated>2026-06-09T03:09:46+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <group delimiter=" ">
+          <label variable="number-of-pages" form="short" plural="contextual"/>
+          <number variable="number-of-pages"/>
+        </group>
+        <group delimiter=" ">
+          <label variable="number-of-volumes" form="short" plural="contextual"/>
+          <number variable="number-of-volumes"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="number-of-pages" form="short" plural="contextual"/>
+        <text variable="number-of-pages"/>
+      </group>
+      <group delimiter=" ">
+        <label variable="number-of-volumes" form="short" plural="contextual"/>
+        <text variable="number-of-volumes"/>
+      </group>
+      <group delimiter=" ">
+        <label variable="volume" form="short" plural="contextual"/>
+        <number variable="volume"/>
+      </group>
+      <group delimiter=" ">
+        <label variable="chapter-number" form="short" plural="contextual"/>
+        <number variable="chapter-number"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationPagesLabel = $summary['citationRendering'][0]['children'][1]['children'][0] ?? [];
+        $citationVolumesLabel = $summary['citationRendering'][0]['children'][2]['children'][0] ?? [];
+        $bibliographyPagesLabel = $summary['bibliographyRendering'][1]['children'][0] ?? [];
+        $bibliographyVolumesLabel = $summary['bibliographyRendering'][2]['children'][0] ?? [];
+        $t->same('Bounded Count Label Review', $summary['title'] ?? null);
+        $t->same('contextual', $citationPagesLabel['plural'] ?? null);
+        $t->same('contextual', $citationVolumesLabel['plural'] ?? null);
+        $t->same('number-of-pages', $bibliographyPagesLabel['variable'] ?? null);
+        $t->same('number-of-volumes', $bibliographyVolumesLabel['variable'] ?? null);
+
+        $t->same('(Smith p. 1 vol. 1; Ng pp. 20 vols. 4; Roe pp. 11-12 vols. 2-3)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'page-count-one', 'text' => '[@page-count-one]']),
+            new AstNode('citation', ['id' => 'page-count-many', 'text' => '[@page-count-many]']),
+            new AstNode('citation', ['id' => 'page-count-range', 'text' => '[@page-count-range]']),
+        ]));
+        $t->same('Single Page Packet :: p. 1 :: vol. 1 :: vol. 2 :: chap. 7', $processor->renderBibliographyEntry('page-count-one'));
+        $t->same('Long Review Packet :: pp. 20 :: vols. 4', $processor->renderBibliographyEntry('page-count-many'));
+        $t->same('Range Review Packet :: pp. 11-12 :: vols. 2-3', $processor->renderBibliographyEntry('page-count-range'));
+
+        $document = (new MarkdownReader())->read('Count labels [@page-count-one; @page-count-many; @page-count-range] stay contextual.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Count labels (Smith p. 1 vol. 1; Ng pp. 20 vols. 4; Roe pp. 11-12 vols. 2-3) stay contextual.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Single Page Packet :: p. 1 :: vol. 1 :: vol. 2 :: chap. 7</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Long Review Packet :: pp. 20 :: vols. 4</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>Range Review Packet :: pp. 11-12 :: vols. 2-3</dd>', $blocks);
+    },
     'applies bounded csl supplement number labels and text forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

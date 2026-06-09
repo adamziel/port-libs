@@ -3385,6 +3385,17 @@ final class TableGeometry
         foreach ([
             'row' => 'targetRow',
             'column' => 'targetColumn',
+            'rowHeadColumns' => 'targetRowHeadColumns',
+            'sourceCell' => 'targetSourceCell',
+            'sourceColumn' => 'targetSourceColumn',
+            'colspan' => 'targetColspan',
+            'rowspan' => 'targetRowspan',
+            'sourceRow' => 'targetSourceRow',
+            'sourceRowEnd' => 'targetSourceRowEnd',
+            'sourceRowspan' => 'targetSourceRowspan',
+            'sourceRowspanAttribute' => 'targetSourceRowspanAttribute',
+            'globalRow' => 'targetGlobalRow',
+            'globalRowEnd' => 'targetGlobalRowEnd',
         ] as $source => $target) {
             if (isset($headerCell[$source]) && is_numeric($headerCell[$source])) {
                 $record[$target] = (int) $headerCell[$source];
@@ -3392,8 +3403,10 @@ final class TableGeometry
         }
 
         foreach ([
+            'rowRole' => 'targetRowRole',
             'scope' => 'targetScope',
             'text' => 'targetText',
+            'sourceRowspanMode' => 'targetSourceRowspanMode',
         ] as $source => $target) {
             $value = trim((string) ($headerCell[$source] ?? ''));
             if ($value !== '') {
@@ -3409,6 +3422,22 @@ final class TableGeometry
         $axis = self::stringList($headerCell['axis'] ?? []);
         if ($axis !== []) {
             $record['targetAxis'] = $axis;
+        }
+
+        foreach ([
+            'sourceRows' => 'targetSourceRows',
+            'sourceRowRange' => 'targetSourceRowRange',
+            'globalRows' => 'targetGlobalRows',
+            'globalRowRange' => 'targetGlobalRowRange',
+        ] as $source => $target) {
+            $values = self::intList($headerCell[$source] ?? []);
+            if ($values !== []) {
+                $record[$target] = $values;
+            }
+        }
+
+        if (($headerCell['rowspanToEnd'] ?? false) === true) {
+            $record['targetRowspanToEnd'] = true;
         }
 
         return $record;
@@ -3498,6 +3527,36 @@ final class TableGeometry
 
         if (($slot['rowspanToEnd'] ?? false) === true) {
             $record['rowspanToEnd'] = true;
+        }
+
+        foreach ([
+            'sourceRow',
+            'sourceRowEnd',
+            'sourceRowspan',
+            'sourceRowspanAttribute',
+            'globalRow',
+            'globalRowEnd',
+        ] as $attribute) {
+            if (isset($slot[$attribute]) && is_numeric($slot[$attribute])) {
+                $record[$attribute] = (int) $slot[$attribute];
+            }
+        }
+
+        $sourceRowspanMode = trim((string) ($slot['sourceRowspanMode'] ?? ''));
+        if ($sourceRowspanMode !== '') {
+            $record['sourceRowspanMode'] = $sourceRowspanMode;
+        }
+
+        foreach ([
+            'sourceRows',
+            'sourceRowRange',
+            'globalRows',
+            'globalRowRange',
+        ] as $attribute) {
+            $values = self::intList($slot[$attribute] ?? []);
+            if ($values !== []) {
+                $record[$attribute] = $values;
+            }
         }
 
         $sourceAttributes = self::sourceAttributeSummary($node);

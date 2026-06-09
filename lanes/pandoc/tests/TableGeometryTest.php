@@ -561,6 +561,75 @@ $buildSourceScopedHeaderDocument = static function (): AstNode {
     ]);
 };
 
+$buildSourceHeaderReferenceGeometryDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Source header reference geometry audit',
+            'alignments' => ['left', 'right', 'center'],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Reference Geometry Grid',
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Migration scope',
+                        'colspan' => 2,
+                        'htmlAttributes' => [
+                            'id' => 'source-scope-span',
+                            'scope' => 'colgroup',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Migration scope'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'State',
+                        'htmlAttributes' => [
+                            'id' => 'source-state-span',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', ['rowHeadColumns' => 1], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Posts',
+                        'rowspan' => 2,
+                        'htmlAttributes' => [
+                            'id' => 'source-posts-group',
+                            'scope' => 'rowgroup',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', [
+                        'text' => '42',
+                        'htmlAttributes' => [
+                            'headers' => 'source-scope-span source-posts-group',
+                        ],
+                    ], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Ready',
+                        'htmlAttributes' => [
+                            'headers' => 'source-state-span source-posts-group',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => '7',
+                        'htmlAttributes' => [
+                            'headers' => 'source-scope-span source-posts-group',
+                        ],
+                    ], [new AstNode('text', ['text' => '7'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Review',
+                        'htmlAttributes' => [
+                            'headers' => 'source-state-span source-posts-group',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Review'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildInvalidSourceScopeDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -2966,8 +3035,76 @@ return [
         $t->same(false, $associations['dataCells'][0]['sourceHeaderReferences'][0]['resolved'] ?? null);
         $t->same('source-posts', $associations['dataCells'][0]['sourceHeaderReferences'][1]['id'] ?? null);
         $t->same('body:0:0:0', $associations['dataCells'][0]['sourceHeaderReferences'][1]['targetKey'] ?? null);
+        $t->same(2, $associations['dataCells'][0]['sourceHeaderReferences'][1]['targetRowspan'] ?? null);
+        $t->same([0, 2], $associations['dataCells'][0]['sourceHeaderReferences'][1]['targetSourceRowRange'] ?? null);
+        $t->same([1, 3], $associations['dataCells'][0]['sourceHeaderReferences'][1]['targetGlobalRowRange'] ?? null);
         $t->same('source-document', $associations['headerCells'][2]['sourceHeaderReferences'][0]['id'] ?? null);
         $t->same('head:0:0:0', $associations['headerCells'][2]['sourceHeaderReferences'][0]['targetKey'] ?? null);
+        $t->same(1, $associations['headerCells'][2]['sourceHeaderReferences'][0]['targetRowspan'] ?? null);
+        $t->same([0], $associations['headerCells'][2]['sourceHeaderReferences'][0]['targetGlobalRows'] ?? null);
+        json_encode($associations, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'serializes resolved source header target geometry for spanned headers' => static function (TestRunner $t) use ($buildSourceHeaderReferenceGeometryDocument): void {
+        $table = $buildSourceHeaderReferenceGeometryDocument()->children[0];
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Reference Geometry Grid']);
+        $associations = $packet['headerAssociations'] ?? [];
+        $matrix = $packet['rowMatrix'] ?? [];
+
+        $scopeReferences = $associations['dataCells'][0]['sourceHeaderReferences'] ?? [];
+        $stateReferences = $associations['dataCells'][1]['sourceHeaderReferences'] ?? [];
+        $secondRowReferences = $associations['dataCells'][2]['sourceHeaderReferences'] ?? [];
+
+        $t->same(3, $associations['summary']['headerCellCount'] ?? null);
+        $t->same(4, $associations['summary']['dataCellCount'] ?? null);
+        $t->same(4, $associations['summary']['sourceHeaderReferencingCellCount'] ?? null);
+        $t->same(8, $associations['summary']['sourceHeaderReferenceCount'] ?? null);
+        $t->same(8, $associations['summary']['sourceHeaderResolvedReferenceCount'] ?? null);
+        $t->same(0, $associations['summary']['sourceHeaderUnresolvedReferenceCount'] ?? null);
+
+        $t->same('source-scope-span', $scopeReferences[0]['id'] ?? null);
+        $t->same('head:0:0:0', $scopeReferences[0]['targetKey'] ?? null);
+        $t->same('colgroup', $scopeReferences[0]['targetScope'] ?? null);
+        $t->same(2, $scopeReferences[0]['targetColspan'] ?? null);
+        $t->same(1, $scopeReferences[0]['targetRowspan'] ?? null);
+        $t->same([0, 1], $scopeReferences[0]['targetColumns'] ?? null);
+        $t->same(0, $scopeReferences[0]['targetSourceRow'] ?? null);
+        $t->same(1, $scopeReferences[0]['targetSourceRowEnd'] ?? null);
+        $t->same([0, 1], $scopeReferences[0]['targetSourceRowRange'] ?? null);
+        $t->same([0], $scopeReferences[0]['targetSourceRows'] ?? null);
+        $t->same(0, $scopeReferences[0]['targetGlobalRow'] ?? null);
+        $t->same(1, $scopeReferences[0]['targetGlobalRowEnd'] ?? null);
+        $t->same([0, 1], $scopeReferences[0]['targetGlobalRowRange'] ?? null);
+        $t->same([0], $scopeReferences[0]['targetGlobalRows'] ?? null);
+
+        $t->same('source-posts-group', $scopeReferences[1]['id'] ?? null);
+        $t->same('body:0:0:0', $scopeReferences[1]['targetKey'] ?? null);
+        $t->same('rowgroup', $scopeReferences[1]['targetScope'] ?? null);
+        $t->same(1, $scopeReferences[1]['targetColspan'] ?? null);
+        $t->same(2, $scopeReferences[1]['targetRowspan'] ?? null);
+        $t->same([0], $scopeReferences[1]['targetColumns'] ?? null);
+        $t->same(0, $scopeReferences[1]['targetSourceRow'] ?? null);
+        $t->same(2, $scopeReferences[1]['targetSourceRowEnd'] ?? null);
+        $t->same([0, 2], $scopeReferences[1]['targetSourceRowRange'] ?? null);
+        $t->same([0, 1], $scopeReferences[1]['targetSourceRows'] ?? null);
+        $t->same(1, $scopeReferences[1]['targetGlobalRow'] ?? null);
+        $t->same(3, $scopeReferences[1]['targetGlobalRowEnd'] ?? null);
+        $t->same([1, 3], $scopeReferences[1]['targetGlobalRowRange'] ?? null);
+        $t->same([1, 2], $scopeReferences[1]['targetGlobalRows'] ?? null);
+
+        $t->same('source-state-span', $stateReferences[0]['id'] ?? null);
+        $t->same('head:0:1:2', $stateReferences[0]['targetKey'] ?? null);
+        $t->same(2, $stateReferences[0]['targetColumn'] ?? null);
+        $t->same([2], $stateReferences[0]['targetColumns'] ?? null);
+        $t->same('source-posts-group', $stateReferences[1]['id'] ?? null);
+        $t->same('source-scope-span', $secondRowReferences[0]['id'] ?? null);
+        $t->same('source-posts-group', $secondRowReferences[1]['id'] ?? null);
+        $t->same([1, 2], $secondRowReferences[1]['targetGlobalRows'] ?? null);
+        $t->same([1, 3], $matrix['rows'][1]['dataCells'][0]['sourceHeaderReferences'][1]['targetGlobalRowRange'] ?? null);
+        $t->same([0, 2], $matrix['rows'][2]['dataCells'][0]['sourceHeaderReferences'][1]['targetSourceRowRange'] ?? null);
+
+        $t->same(8, $packet['summary']['sourceHeaderReferenceCount'] ?? null);
+        $t->same(0, $packet['summary']['sourceHeaderUnresolvedReferenceCount'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'reports duplicate source header ids and ambiguous headers references' => static function (TestRunner $t) use ($buildDuplicateSourceHeaderDocument): void {
@@ -3450,9 +3587,24 @@ return [
                 'targetSection' => 'body',
                 'targetRow' => 0,
                 'targetColumn' => 0,
+                'targetRowHeadColumns' => 1,
+                'targetSourceCell' => 0,
+                'targetSourceColumn' => 0,
+                'targetColspan' => 1,
+                'targetRowspan' => 2,
+                'targetSourceRow' => 0,
+                'targetSourceRowEnd' => 2,
+                'targetSourceRowspan' => 2,
+                'targetGlobalRow' => 1,
+                'targetGlobalRowEnd' => 3,
+                'targetRowRole' => 'body',
                 'targetScope' => 'row',
                 'targetText' => 'Posts',
                 'targetColumns' => [0],
+                'targetSourceRows' => [0, 1],
+                'targetSourceRowRange' => [0, 2],
+                'targetGlobalRows' => [1, 2],
+                'targetGlobalRowRange' => [1, 3],
             ],
         ], $sourceAssociations['dataCells'][0]['sourceHeaderReferences'] ?? null);
         $t->same(['source-document'], $sourceAssociations['headerCells'][2]['headers'] ?? null);
@@ -3465,9 +3617,24 @@ return [
                 'targetSection' => 'head',
                 'targetRow' => 0,
                 'targetColumn' => 0,
+                'targetRowHeadColumns' => 0,
+                'targetSourceCell' => 0,
+                'targetSourceColumn' => 0,
+                'targetColspan' => 1,
+                'targetRowspan' => 1,
+                'targetSourceRow' => 0,
+                'targetSourceRowEnd' => 1,
+                'targetSourceRowspan' => 1,
+                'targetGlobalRow' => 0,
+                'targetGlobalRowEnd' => 1,
+                'targetRowRole' => 'head',
                 'targetScope' => 'col',
                 'targetText' => 'Document',
                 'targetColumns' => [0],
+                'targetSourceRows' => [0],
+                'targetSourceRowRange' => [0, 1],
+                'targetGlobalRows' => [0],
+                'targetGlobalRowRange' => [0, 1],
             ],
         ], $sourceAssociations['headerCells'][2]['sourceHeaderReferences'] ?? null);
         json_encode($associations, JSON_THROW_ON_ERROR);

@@ -925,6 +925,71 @@ $sourceColgroupScopeTable = new AstNode('table', [
     ]),
 ]);
 
+$sourceReferenceGeometryTable = new AstNode('table', [
+    'caption' => 'Source header reference geometry audit',
+    'alignments' => ['left', 'right', 'center'],
+    'accessibilityHeaders' => true,
+    'accessibilityIdPrefix' => 'Reference Geometry Grid',
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Migration scope',
+                'colspan' => 2,
+                'htmlAttributes' => [
+                    'id' => 'source-scope-span',
+                    'scope' => 'colgroup',
+                ],
+            ], [new AstNode('text', ['text' => 'Migration scope'])]),
+            new AstNode('table_cell', [
+                'text' => 'State',
+                'htmlAttributes' => [
+                    'id' => 'source-state-span',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', ['rowHeadColumns' => 1], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Posts',
+                'rowspan' => 2,
+                'htmlAttributes' => [
+                    'id' => 'source-posts-group',
+                    'scope' => 'rowgroup',
+                ],
+            ], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', [
+                'text' => '42',
+                'htmlAttributes' => [
+                    'headers' => 'source-scope-span source-posts-group',
+                ],
+            ], [new AstNode('text', ['text' => '42'])]),
+            new AstNode('table_cell', [
+                'text' => 'Ready',
+                'htmlAttributes' => [
+                    'headers' => 'source-state-span source-posts-group',
+                ],
+            ], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => '7',
+                'htmlAttributes' => [
+                    'headers' => 'source-scope-span source-posts-group',
+                ],
+            ], [new AstNode('text', ['text' => '7'])]),
+            new AstNode('table_cell', [
+                'text' => 'Review',
+                'htmlAttributes' => [
+                    'headers' => 'source-state-span source-posts-group',
+                ],
+            ], [new AstNode('text', ['text' => 'Review'])]),
+        ]),
+    ]),
+]);
+
 $invalidSourceScopeTable = new AstNode('table', [
     'caption' => 'Invalid source scope accessibility grid',
     'alignments' => ['left', 'right'],
@@ -1402,6 +1467,7 @@ $document = new AstNode('document', [], [
     $astAttributeTable,
     $sourceRowgroupScopeTable,
     $sourceColgroupScopeTable,
+    $sourceReferenceGeometryTable,
     $invalidSourceScopeTable,
 ]);
 
@@ -2028,6 +2094,34 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing source colgroup WordPress header relationships');
     }
     json_encode($sourceColgroupPacket, JSON_THROW_ON_ERROR);
+
+    $sourceReferenceGeometryPacket = TableGeometry::reviewPacket($sourceReferenceGeometryTable, ['idPrefix' => 'Reference Geometry Grid']);
+    $scopeReference = $sourceReferenceGeometryPacket['headerAssociations']['dataCells'][0]['sourceHeaderReferences'][0] ?? [];
+    $rowgroupReference = $sourceReferenceGeometryPacket['headerAssociations']['dataCells'][0]['sourceHeaderReferences'][1] ?? [];
+    if (
+        ($sourceReferenceGeometryPacket['summary']['sourceHeaderReferenceCount'] ?? null) !== 8
+        || ($sourceReferenceGeometryPacket['summary']['sourceHeaderUnresolvedReferenceCount'] ?? null) !== 0
+        || ($scopeReference['targetColspan'] ?? null) !== 2
+        || ($scopeReference['targetSourceRowRange'] ?? null) !== [0, 1]
+        || ($scopeReference['targetGlobalRowRange'] ?? null) !== [0, 1]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source header reference column-span target metadata');
+    }
+    if (
+        ($rowgroupReference['targetRowspan'] ?? null) !== 2
+        || ($rowgroupReference['targetSourceRowRange'] ?? null) !== [0, 2]
+        || ($rowgroupReference['targetGlobalRows'] ?? null) !== [1, 2]
+        || ($sourceReferenceGeometryPacket['rowMatrix']['rows'][2]['dataCells'][0]['sourceHeaderReferences'][1]['targetGlobalRowRange'] ?? null) !== [1, 3]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source header reference row-span target metadata');
+    }
+    if (!str_contains($blocks, '<th id="source-scope-span" scope="colgroup" colspan="2" style="text-align:left">Migration scope</th><th id="source-state-span" scope="col" style="text-align:center">State</th>')) {
+        throw new RuntimeException('Table geometry self-test missing source header reference span output');
+    }
+    if (!str_contains($blocks, '<th id="source-posts-group" scope="rowgroup" rowspan="2" style="text-align:left">Posts</th><td headers="source-scope-span source-posts-group" style="text-align:right">42</td><td headers="source-state-span source-posts-group" style="text-align:center">Ready</td>')) {
+        throw new RuntimeException('Table geometry self-test missing source header reference rowgroup output');
+    }
+    json_encode($sourceReferenceGeometryPacket, JSON_THROW_ON_ERROR);
 
     $invalidSourceScopePacket = TableGeometry::reviewPacket($invalidSourceScopeTable, ['idPrefix' => 'Invalid Scope Grid']);
     if (
