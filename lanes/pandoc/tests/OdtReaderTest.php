@@ -251,12 +251,11 @@ return [
         $t->same(1, $report['textBoxes']['count']);
         $t->same(1, $report['styles']['listCount']);
     },
-    'reports compact ODT style reference diagnostics for reviewer handoff' => static function (TestRunner $t) use ($buildPackage): void {
-        $plainContentXml = <<<'XML'
+    'reports ODT style reference diagnostics for import review' => static function (TestRunner $t) use ($buildPackage): void {
+        $contentWithPlainParagraph = <<<'XML'
 <office:document-content
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-  office:version="1.3">
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
   <office:body>
     <office:text>
       <text:p>Style diagnostics packet.</text:p>
@@ -265,35 +264,48 @@ return [
 </office:document-content>
 XML;
 
-        $brokenStylesXml = <<<'XML'
+        $stylesWithBrokenReferences = <<<'XML'
 <office:document-styles
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
   xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
   xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
   xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
-  office:version="1.3">
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0">
   <office:font-face-decls>
-    <style:font-face style:name="DeclaredFont" style:font-family-generic="roman"/>
+    <style:font-face style:name="DeclaredFont"/>
   </office:font-face-decls>
+  <office:automatic-styles>
+    <number:number-style style:name="ExistingNumber">
+      <number:number number:decimal-places="2"/>
+    </number:number-style>
+    <style:page-layout style:name="ExistingLayout"/>
+  </office:automatic-styles>
   <office:styles>
-    <style:style style:name="BrokenParagraph" style:family="paragraph" style:parent-style-name="MissingParent" style:list-style-name="MissingList">
+    <style:style style:name="BrokenParagraph" style:family="paragraph" style:parent-style-name="MissingParent" style:list-style-name="MissingList" style:master-page-name="MissingMaster" style:data-style-name="MissingNumber">
       <style:text-properties style:font-name="MissingFont"/>
-      <style:map style:condition="value() &gt; 0" style:apply-style-name="MissingMappedStyle" table:base-cell-address="Review.B2"/>
     </style:style>
     <style:style style:name="CycleA" style:family="paragraph" style:parent-style-name="CycleB"/>
     <style:style style:name="CycleB" style:family="paragraph" style:parent-style-name="CycleA"/>
+    <style:style style:name="MappedCell" style:family="table-cell">
+      <style:map style:condition="value() &gt; 0" style:apply-style-name="MissingCell" table:base-cell-address="Review.C3"/>
+    </style:style>
     <text:list-style style:name="BrokenList">
       <text:list-level-style-bullet text:level="1" text:bullet-char="*">
         <style:text-properties style:font-name="MissingBulletFont"/>
       </text:list-level-style-bullet>
     </text:list-style>
+    <table:table-template table:name="AuditTemplate" table:first-row="MissingHeaderStyle" table:body="MappedCell"/>
   </office:styles>
+  <office:master-styles>
+    <style:master-page style:name="ReviewMaster" style:page-layout-name="MissingLayout" style:next-style-name="MissingNextMaster" draw:style-name="MissingDraw"/>
+  </office:master-styles>
 </office:document-styles>
 XML;
 
         $result = (new OdtReader())->readPackage($buildPackage([
-            'content.xml' => $plainContentXml,
-            'styles.xml' => $brokenStylesXml,
+            'content.xml' => $contentWithPlainParagraph,
+            'styles.xml' => $stylesWithBrokenReferences,
         ]));
         $styleReport = $result['importReport']['styles'];
         $diagnosticsByCode = [];
@@ -301,25 +313,42 @@ XML;
             $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
         }
 
+        $t->same(4, $styleReport['count']);
         $t->same(3, $styleReport['paragraphCount']);
+        $t->same(0, $styleReport['textCount']);
         $t->same(1, $styleReport['listCount']);
         $t->same(1, $styleReport['fontFaceCount']);
+        $t->same(1, $styleReport['dataStyleCount']);
+        $t->same(1, $styleReport['tableTemplateCount']);
+        $t->same(1, $styleReport['pageLayoutCount']);
+        $t->same(1, $styleReport['masterPageCount']);
         $t->same(1, $styleReport['styleMapCount']);
-        $t->same(6, $styleReport['diagnosticCount']);
+        $t->same(12, $styleReport['diagnosticCount']);
         $t->same([
             'odt-list-style-missing-font-face' => 1,
+            'odt-master-page-missing-draw-style' => 1,
+            'odt-master-page-missing-next-master-page' => 1,
+            'odt-master-page-missing-page-layout' => 1,
             'odt-style-map-missing-target' => 1,
+            'odt-style-missing-data-style' => 1,
             'odt-style-missing-font-face' => 1,
             'odt-style-missing-list-style' => 1,
+            'odt-style-missing-master-page' => 1,
             'odt-style-missing-parent' => 1,
             'odt-style-parent-cycle' => 1,
+            'odt-table-template-missing-style' => 1,
         ], $styleReport['diagnosticCodeCounts']);
+        $t->same('BrokenParagraph', $diagnosticsByCode['odt-style-missing-parent'][0]['styleName']);
         $t->same('MissingParent', $diagnosticsByCode['odt-style-missing-parent'][0]['parentName']);
         $t->same('MissingList', $diagnosticsByCode['odt-style-missing-list-style'][0]['listStyleName']);
+        $t->same('MissingMaster', $diagnosticsByCode['odt-style-missing-master-page'][0]['masterPageName']);
+        $t->same('MissingNumber', $diagnosticsByCode['odt-style-missing-data-style'][0]['dataStyleName']);
         $t->same('MissingFont', $diagnosticsByCode['odt-style-missing-font-face'][0]['fontName']);
-        $t->same('MissingMappedStyle', $diagnosticsByCode['odt-style-map-missing-target'][0]['applyStyleName']);
-        $t->same('Review.B2', $diagnosticsByCode['odt-style-map-missing-target'][0]['baseCellAddress']);
+        $t->same('MissingCell', $diagnosticsByCode['odt-style-map-missing-target'][0]['applyStyleName']);
+        $t->same('Review.C3', $diagnosticsByCode['odt-style-map-missing-target'][0]['baseCellAddress']);
         $t->same(['CycleA', 'CycleB', 'CycleA'], $diagnosticsByCode['odt-style-parent-cycle'][0]['cyclePath']);
+        $t->same('MissingHeaderStyle', $diagnosticsByCode['odt-table-template-missing-style'][0]['styleName']);
+        $t->same('MissingLayout', $diagnosticsByCode['odt-master-page-missing-page-layout'][0]['pageLayoutName']);
         $t->same('MissingBulletFont', $diagnosticsByCode['odt-list-style-missing-font-face'][0]['fontName']);
     },
     'normalizes ODT tab stops to Pandoc spaces in package reader output' => static function (TestRunner $t) use ($buildPackage): void {

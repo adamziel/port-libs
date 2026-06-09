@@ -12,6 +12,7 @@ final class OdtReader
     public const TEXT_NS = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
     public const STYLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:style:1.0';
     public const TABLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
+    public const NUMBER_NS = 'urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0';
     public const DRAW_NS = 'urn:oasis:names:tc:opendocument:xmlns:drawing:1.0';
     public const XLINK_NS = 'http://www.w3.org/1999/xlink';
     public const SVG_NS = 'urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0';
@@ -107,15 +108,20 @@ final class OdtReader
     }
 
     /**
-     * @return array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>}
+     * @return array<string, array<string, mixed>>
      */
     private function loadStyleCatalog(ZipPackage $package): array
     {
         $catalog = [
+            'styles' => [],
             'paragraphStyles' => [],
             'textStyles' => [],
             'listStyles' => [],
             'fontFaces' => [],
+            'dataStyles' => [],
+            'tableTemplates' => [],
+            'pageLayouts' => [],
+            'masterPages' => [],
         ];
 
         if ($package->has('styles.xml')) {
@@ -130,19 +136,26 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $catalog
+     * @param array<string, array<string, mixed>> $catalog
      */
     private function mergeAutomaticStyles(array &$catalog, \DOMElement $contentRoot): void
     {
         foreach ($contentRoot->childNodes as $child) {
-            if ($child instanceof \DOMElement && $this->isElement($child, self::OFFICE_NS, 'automatic-styles')) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (
+                $this->isElement($child, self::OFFICE_NS, 'font-face-decls')
+                || $this->isElement($child, self::OFFICE_NS, 'automatic-styles')
+            ) {
                 $this->mergeStyleElements($catalog, $child);
             }
         }
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $catalog
+     * @param array<string, array<string, mixed>> $catalog
      */
     private function mergeStyleElements(array &$catalog, \DOMElement $container): void
     {
@@ -155,6 +168,7 @@ final class OdtReader
                 $this->isElement($child, self::OFFICE_NS, 'styles')
                 || $this->isElement($child, self::OFFICE_NS, 'automatic-styles')
                 || $this->isElement($child, self::OFFICE_NS, 'font-face-decls')
+                || $this->isElement($child, self::OFFICE_NS, 'master-styles')
             ) {
                 $this->mergeStyleElements($catalog, $child);
                 continue;
@@ -163,12 +177,7 @@ final class OdtReader
             if ($this->isElement($child, self::STYLE_NS, 'font-face')) {
                 $name = $this->styleAttr($child, 'name');
                 if ($name !== null && $name !== '') {
-                    $catalog['fontFaces'][$name] = [
-                        'name' => $name,
-                        'fontFamily' => $this->svgAttr($child, 'font-family'),
-                        'genericFamily' => $this->styleAttr($child, 'font-family-generic'),
-                        'pitch' => $this->styleAttr($child, 'font-pitch'),
-                    ];
+                    $catalog['fontFaces'][$name] = $this->fontFaceDefinition($child);
                 }
                 continue;
             }
@@ -181,6 +190,7 @@ final class OdtReader
                 }
 
                 $style = $this->styleDefinition($child, $family);
+                $catalog['styles'][$name] = $style;
                 if ($family === 'paragraph') {
                     $catalog['paragraphStyles'][$name] = $style;
                 } elseif ($family === 'text') {
@@ -194,6 +204,41 @@ final class OdtReader
                 if ($name !== null && $name !== '') {
                     $catalog['listStyles'][$name] = $this->listStyleDefinition($child);
                 }
+                continue;
+            }
+
+            if ($child->namespaceURI === self::NUMBER_NS && $this->isDataStyleElement($child)) {
+                $name = $this->styleAttr($child, 'name');
+                if ($name !== null && $name !== '') {
+                    $catalog['dataStyles'][$name] = [
+                        'name' => $name,
+                        'element' => $child->localName,
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isElement($child, self::TABLE_NS, 'table-template')) {
+                $name = $this->tableAttr($child, 'name');
+                if ($name !== null && $name !== '') {
+                    $catalog['tableTemplates'][$name] = $this->tableTemplateDefinition($child);
+                }
+                continue;
+            }
+
+            if ($this->isElement($child, self::STYLE_NS, 'page-layout')) {
+                $name = $this->styleAttr($child, 'name');
+                if ($name !== null && $name !== '') {
+                    $catalog['pageLayouts'][$name] = ['name' => $name];
+                }
+                continue;
+            }
+
+            if ($this->isElement($child, self::STYLE_NS, 'master-page')) {
+                $name = $this->styleAttr($child, 'name');
+                if ($name !== null && $name !== '') {
+                    $catalog['masterPages'][$name] = $this->masterPageDefinition($child);
+                }
             }
         }
     }
@@ -203,16 +248,28 @@ final class OdtReader
      */
     private function styleDefinition(\DOMElement $styleElement, string $family): array
     {
+        $parent = $this->styleAttr($styleElement, 'parent-style-name');
+        $listStyleName = $this->styleAttr($styleElement, 'list-style-name');
         $definition = [
+            'name' => $this->styleAttr($styleElement, 'name'),
             'family' => $family,
-            'parent' => $this->styleAttr($styleElement, 'parent-style-name'),
-            'listStyle' => $this->styleAttr($styleElement, 'list-style-name'),
+            'parent' => $parent,
+            'parentName' => $parent,
+            'listStyle' => $listStyleName,
+            'listStyleName' => $listStyleName,
             'styleMaps' => $this->styleMapDefinitions($styleElement),
+            'masterPageName' => $this->styleAttr($styleElement, 'master-page-name'),
+            'dataStyleName' => $this->styleAttr($styleElement, 'data-style-name'),
         ];
 
         $textProperties = $this->firstChildElement($styleElement, self::STYLE_NS, 'text-properties');
         if ($textProperties instanceof \DOMElement) {
-            $definition['fontName'] = $this->styleAttr($textProperties, 'font-name');
+            $textPropertyReport = [];
+            $fontName = $this->styleAttr($textProperties, 'font-name');
+            $definition['fontName'] = $fontName;
+            if ($fontName !== null && $fontName !== '') {
+                $textPropertyReport['fontName'] = $fontName;
+            }
 
             $fontWeight = strtolower((string) ($this->foAttr($textProperties, 'font-weight') ?? ''));
             if ($fontWeight === 'bold' || (is_numeric($fontWeight) && (int) $fontWeight >= 600)) {
@@ -240,15 +297,29 @@ final class OdtReader
             } elseif (str_contains($position, 'sub')) {
                 $definition['subscript'] = true;
             }
+
+            if ($textPropertyReport !== []) {
+                $definition['textProperties'] = $textPropertyReport;
+            }
         }
 
         $paragraphProperties = $this->firstChildElement($styleElement, self::STYLE_NS, 'paragraph-properties');
         if ($paragraphProperties instanceof \DOMElement) {
-            $definition['listStyle'] = $this->styleAttr($paragraphProperties, 'list-style-name') ?? $definition['listStyle'];
+            $listStyleName = $this->styleAttr($paragraphProperties, 'list-style-name');
+            if ($listStyleName !== null && $listStyleName !== '') {
+                $definition['listStyle'] = $listStyleName;
+                $definition['listStyleName'] = $listStyleName;
+            }
+
             $alignment = strtolower((string) ($this->foAttr($paragraphProperties, 'text-align') ?? ''));
             if (in_array($alignment, ['left', 'right', 'center'], true)) {
                 $definition['align'] = $alignment;
             }
+        }
+
+        $styleMaps = $this->styleMapDefinitions($styleElement);
+        if ($styleMaps !== []) {
+            $definition['styleMaps'] = $styleMaps;
         }
 
         return $definition;
@@ -306,16 +377,17 @@ final class OdtReader
                 'displayLevels' => $this->positiveIntAttr($child, self::TEXT_NS, 'display-levels', 1),
             ];
 
-            $textProperties = $this->firstChildElement($child, self::STYLE_NS, 'text-properties');
-            if ($textProperties instanceof \DOMElement) {
-                $definition['textProperties'] = [
-                    'fontName' => $this->styleAttr($textProperties, 'font-name'),
-                ];
-            }
-
             $start = $this->textAttr($child, 'start-value');
             if ($start !== null && preg_match('/^\d+$/', $start) === 1) {
                 $definition['start'] = max(1, (int) $start);
+            }
+
+            $textProperties = $this->firstChildElement($child, self::STYLE_NS, 'text-properties');
+            if ($textProperties instanceof \DOMElement) {
+                $fontName = $this->styleAttr($textProperties, 'font-name');
+                if ($fontName !== null && $fontName !== '') {
+                    $definition['textProperties'] = ['fontName' => $fontName];
+                }
             }
 
             $levels[$level] = $definition;
@@ -325,7 +397,77 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
+     * @return array<string, string>
+     */
+    private function fontFaceDefinition(\DOMElement $fontFace): array
+    {
+        return self::withoutEmpty([
+            'name' => $this->styleAttr($fontFace, 'name'),
+            'fontFamily' => $this->svgAttr($fontFace, 'font-family'),
+            'fontFamilyGeneric' => $this->styleAttr($fontFace, 'font-family-generic'),
+            'fontPitch' => $this->styleAttr($fontFace, 'font-pitch'),
+        ]);
+    }
+
+    private function isDataStyleElement(\DOMElement $element): bool
+    {
+        return in_array($element->localName, [
+            'number-style',
+            'currency-style',
+            'percentage-style',
+            'date-style',
+            'time-style',
+            'boolean-style',
+            'text-style',
+        ], true);
+    }
+
+    /**
+     * @return array{name:string, styles:array<string, string>}
+     */
+    private function tableTemplateDefinition(\DOMElement $tableTemplate): array
+    {
+        $styles = [];
+        foreach ([
+            'first-row-start-column' => 'firstRowStartColumn',
+            'first-row-end-column' => 'firstRowEndColumn',
+            'first-column' => 'firstColumn',
+            'last-column' => 'lastColumn',
+            'first-row' => 'firstRow',
+            'last-row' => 'lastRow',
+            'body' => 'body',
+            'odd-rows' => 'oddRows',
+            'even-rows' => 'evenRows',
+            'odd-columns' => 'oddColumns',
+            'even-columns' => 'evenColumns',
+        ] as $attribute => $name) {
+            $value = $this->tableAttr($tableTemplate, $attribute);
+            if ($value !== null && $value !== '') {
+                $styles[$name] = $value;
+            }
+        }
+
+        return [
+            'name' => (string) $this->tableAttr($tableTemplate, 'name'),
+            'styles' => $styles,
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function masterPageDefinition(\DOMElement $masterPage): array
+    {
+        return self::withoutEmpty([
+            'name' => $this->styleAttr($masterPage, 'name'),
+            'pageLayoutName' => $this->styleAttr($masterPage, 'page-layout-name'),
+            'nextStyleName' => $this->styleAttr($masterPage, 'next-style-name'),
+            'drawStyleName' => $this->drawAttr($masterPage, 'style-name'),
+        ]);
+    }
+
+    /**
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
      * @return list<AstNode>
      */
     private function bodyBlocks(\DOMElement $text, ZipPackage $package, array $styles): array
@@ -877,11 +1019,17 @@ final class OdtReader
             'encryptedEntries' => array_map(static fn (array $entry): string => $entry['path'], $encrypted),
             'media' => $images,
             'styles' => [
+                'count' => count($styleCatalog['styles']),
+                'styleCount' => count($styleCatalog['styles']),
                 'paragraphCount' => count($styleCatalog['paragraphStyles']),
                 'textCount' => count($styleCatalog['textStyles']),
                 'listCount' => count($styleCatalog['listStyles']),
                 'fontFaceCount' => count($styleCatalog['fontFaces']),
-                'styleMapCount' => $this->styleMapCount($styleCatalog),
+                'dataStyleCount' => count($styleCatalog['dataStyles']),
+                'tableTemplateCount' => count($styleCatalog['tableTemplates']),
+                'pageLayoutCount' => count($styleCatalog['pageLayouts']),
+                'masterPageCount' => count($styleCatalog['masterPages']),
+                'styleMapCount' => $this->styleMapCount($styleCatalog['styles']),
                 'diagnosticCount' => count($styleDiagnostics),
                 'diagnosticCodeCounts' => $this->diagnosticCodeCounts($styleDiagnostics),
                 'diagnostics' => $styleDiagnostics,
@@ -972,80 +1120,107 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $catalog
+     * @param array<string, array<string, mixed>> $catalog
      * @return list<array<string, mixed>>
      */
     private function styleDiagnostics(array $catalog): array
     {
         $diagnostics = [];
-        $styleBuckets = [
-            'paragraph' => $catalog['paragraphStyles'],
-            'text' => $catalog['textStyles'],
-        ];
-        $allStyles = $catalog['paragraphStyles'] + $catalog['textStyles'];
+        $stylesByFamily = [];
+        foreach ($catalog['styles'] as $styleName => $style) {
+            $family = (string) ($style['family'] ?? '');
+            if ($family !== '') {
+                $stylesByFamily[$family][$styleName] = $style;
+            }
+        }
 
-        foreach ($styleBuckets as $family => $styles) {
-            foreach ($styles as $styleName => $style) {
-                $this->appendMissingReferenceDiagnostic(
-                    $diagnostics,
-                    'odt-style-missing-parent',
-                    $styleName,
-                    $family,
-                    'parentName',
-                    (string) ($style['parent'] ?? ''),
-                    $styles
-                );
+        foreach ($catalog['styles'] as $styleName => $style) {
+            $family = (string) ($style['family'] ?? '');
+            $knownFamilyStyles = $family !== '' && isset($stylesByFamily[$family])
+                ? $stylesByFamily[$family]
+                : $catalog['styles'];
+            $parentName = (string) ($style['parent'] ?? $style['parentName'] ?? '');
+            $this->appendMissingReferenceDiagnostic(
+                $diagnostics,
+                'odt-style-missing-parent',
+                (string) $styleName,
+                $family,
+                'parentName',
+                $parentName,
+                $knownFamilyStyles
+            );
 
-                if ($family === 'paragraph') {
-                    $this->appendMissingReferenceDiagnostic(
-                        $diagnostics,
-                        'odt-style-missing-list-style',
-                        $styleName,
-                        $family,
-                        'listStyleName',
-                        (string) ($style['listStyle'] ?? ''),
-                        $catalog['listStyles']
-                    );
-                }
+            $listStyleName = (string) ($style['listStyle'] ?? $style['listStyleName'] ?? '');
+            $this->appendMissingReferenceDiagnostic(
+                $diagnostics,
+                'odt-style-missing-list-style',
+                (string) $styleName,
+                $family,
+                'listStyleName',
+                $listStyleName,
+                $catalog['listStyles']
+            );
 
-                $this->appendMissingReferenceDiagnostic(
-                    $diagnostics,
-                    'odt-style-missing-font-face',
-                    $styleName,
-                    $family,
-                    'fontName',
-                    (string) ($style['fontName'] ?? ''),
-                    $catalog['fontFaces']
-                );
+            $this->appendMissingReferenceDiagnostic(
+                $diagnostics,
+                'odt-style-missing-master-page',
+                (string) $styleName,
+                $family,
+                'masterPageName',
+                (string) ($style['masterPageName'] ?? ''),
+                $catalog['masterPages']
+            );
+            $this->appendMissingReferenceDiagnostic(
+                $diagnostics,
+                'odt-style-missing-data-style',
+                (string) $styleName,
+                $family,
+                'dataStyleName',
+                (string) ($style['dataStyleName'] ?? ''),
+                $catalog['dataStyles']
+            );
 
-                $styleMaps = $style['styleMaps'] ?? [];
-                if (!is_array($styleMaps)) {
+            $textProperties = $style['textProperties'] ?? [];
+            $fontName = (string) ($style['fontName'] ?? (is_array($textProperties) ? ($textProperties['fontName'] ?? '') : ''));
+            $this->appendMissingReferenceDiagnostic(
+                $diagnostics,
+                'odt-style-missing-font-face',
+                (string) $styleName,
+                $family,
+                'fontName',
+                $fontName,
+                $catalog['fontFaces']
+            );
+
+            $styleMaps = $style['styleMaps'] ?? [];
+            if (!is_array($styleMaps)) {
+                continue;
+            }
+
+            foreach ($styleMaps as $index => $styleMap) {
+                if (!is_array($styleMap)) {
                     continue;
                 }
 
-                foreach ($styleMaps as $index => $styleMap) {
-                    if (!is_array($styleMap)) {
-                        continue;
-                    }
-
-                    $applyStyleName = (string) ($styleMap['applyStyleName'] ?? '');
-                    if ($applyStyleName === '' || isset($allStyles[$applyStyleName])) {
-                        continue;
-                    }
-
-                    $diagnostics[] = $this->withoutEmpty([
-                        'code' => 'odt-style-map-missing-target',
-                        'styleName' => $styleName,
-                        'styleFamily' => $family,
-                        'mapIndex' => $index,
-                        'applyStyleName' => $applyStyleName,
-                        'condition' => $styleMap['condition'] ?? null,
-                        'baseCellAddress' => $styleMap['baseCellAddress'] ?? null,
-                    ]);
+                $applyStyleName = (string) ($styleMap['applyStyleName'] ?? '');
+                if ($applyStyleName === '' || isset($catalog['styles'][$applyStyleName])) {
+                    continue;
                 }
-            }
 
-            array_push($diagnostics, ...$this->styleParentCycleDiagnostics($styles, $family));
+                $diagnostics[] = self::withoutEmpty([
+                    'code' => 'odt-style-map-missing-target',
+                    'styleName' => (string) $styleName,
+                    'styleFamily' => $family,
+                    'mapIndex' => is_int($index) ? $index : (int) $index,
+                    'applyStyleName' => $applyStyleName,
+                    'condition' => $styleMap['condition'] ?? null,
+                    'baseCellAddress' => $styleMap['baseCellAddress'] ?? null,
+                ]);
+            }
+        }
+
+        foreach ($stylesByFamily as $family => $styles) {
+            array_push($diagnostics, ...$this->styleParentCycleDiagnostics($styles, (string) $family));
         }
 
         foreach ($catalog['listStyles'] as $listStyleName => $levels) {
@@ -1066,9 +1241,53 @@ final class OdtReader
 
                 $diagnostics[] = [
                     'code' => 'odt-list-style-missing-font-face',
-                    'listStyleName' => $listStyleName,
+                    'listStyleName' => (string) $listStyleName,
                     'level' => is_int($level) ? $level : (int) $level,
                     'fontName' => $fontName,
+                ];
+            }
+        }
+
+        foreach ($catalog['tableTemplates'] as $tableTemplateName => $template) {
+            $styles = is_array($template) ? ($template['styles'] ?? []) : [];
+            if (!is_array($styles)) {
+                continue;
+            }
+
+            foreach ($styles as $role => $styleName) {
+                $styleName = (string) $styleName;
+                if ($styleName === '' || isset($catalog['styles'][$styleName])) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'code' => 'odt-table-template-missing-style',
+                    'tableTemplateName' => (string) $tableTemplateName,
+                    'templateRole' => (string) $role,
+                    'styleName' => $styleName,
+                ];
+            }
+        }
+
+        foreach ($catalog['masterPages'] as $masterPageName => $masterPage) {
+            if (!is_array($masterPage)) {
+                continue;
+            }
+
+            foreach ([
+                'odt-master-page-missing-page-layout' => ['pageLayoutName', $catalog['pageLayouts']],
+                'odt-master-page-missing-next-master-page' => ['nextStyleName', $catalog['masterPages']],
+                'odt-master-page-missing-draw-style' => ['drawStyleName', $catalog['styles']],
+            ] as $code => [$field, $known]) {
+                $value = (string) ($masterPage[$field] ?? '');
+                if ($value === '' || isset($known[$value])) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'code' => $code,
+                    'masterPageName' => (string) $masterPageName,
+                    $field => $value,
                 ];
             }
         }
@@ -1136,17 +1355,15 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $catalog
+     * @param array<string, array<string, mixed>> $styles
      */
-    private function styleMapCount(array $catalog): int
+    private function styleMapCount(array $styles): int
     {
         $count = 0;
-        foreach ([$catalog['paragraphStyles'], $catalog['textStyles']] as $styles) {
-            foreach ($styles as $style) {
-                $styleMaps = $style['styleMaps'] ?? [];
-                if (is_array($styleMaps)) {
-                    $count += count($styleMaps);
-                }
+        foreach ($styles as $style) {
+            $styleMaps = $style['styleMaps'] ?? [];
+            if (is_array($styleMaps)) {
+                $count += count($styleMaps);
             }
         }
 
@@ -1172,18 +1389,6 @@ final class OdtReader
         ksort($counts);
 
         return $counts;
-    }
-
-    /**
-     * @param array<string, mixed> $values
-     * @return array<string, mixed>
-     */
-    private function withoutEmpty(array $values): array
-    {
-        return array_filter(
-            $values,
-            static fn (mixed $value): bool => $value !== null && $value !== ''
-        );
     }
 
     /**
@@ -1315,6 +1520,18 @@ final class OdtReader
         $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9]+/', '-', $text) ?? '', '-'));
 
         return $slug === '' ? 'section' : $slug;
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private static function withoutEmpty(array $values): array
+    {
+        return array_filter(
+            $values,
+            static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []
+        );
     }
 
     private function positiveIntAttr(\DOMElement $element, string $namespace, string $localName, int $default): int
