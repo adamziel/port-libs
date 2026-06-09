@@ -447,6 +447,16 @@ final class LegacyDocReader
             $metadata['listOverrideCount'] = count($listOverrides);
             $metadata['listOverrides'] = $listOverrides;
         }
+        $listLevelFormattingCounts = $this->listLevelFormattingCounts($listFormats, $listOverrides);
+        if ($listLevelFormattingCounts['paragraphProperties'] > 0 || $listLevelFormattingCounts['textProperties'] > 0) {
+            $metadata['listLevelFormattingPolicy'] = 'metadata-only-native-review';
+            if ($listLevelFormattingCounts['paragraphProperties'] > 0) {
+                $metadata['listLevelParagraphPropertyCount'] = $listLevelFormattingCounts['paragraphProperties'];
+            }
+            if ($listLevelFormattingCounts['textProperties'] > 0) {
+                $metadata['listLevelTextPropertyCount'] = $listLevelFormattingCounts['textProperties'];
+            }
+        }
         $sections = $this->sectionReport($wordDocument, $tableStream, $textResult['text']);
         if ($sections !== []) {
             $metadata['sectionCount'] = count($sections);
@@ -10058,7 +10068,10 @@ final class LegacyDocReader
         if ($cursor + $papxBytes + $chpxBytes + 2 > strlen($bytes)) {
             throw new \RuntimeException('Legacy DOC list level property groups point outside the table stream');
         }
-        $cursor += $papxBytes + $chpxBytes;
+        $papxGrpprl = substr($bytes, $cursor, $papxBytes);
+        $cursor += $papxBytes;
+        $chpxGrpprl = substr($bytes, $cursor, $chpxBytes);
+        $cursor += $chpxBytes;
         $numberTextCharacters = self::u16($bytes, $cursor);
         $cursor += 2;
         if ($numberTextCharacters > 255 || $cursor + ($numberTextCharacters * 2) > strlen($bytes)) {
@@ -10120,8 +10133,82 @@ final class LegacyDocReader
         if (($bits & 0x10) !== 0) {
             $record['savedIndentTwips'] = self::signed32(self::u32($bytes, $offset + 16));
         }
+        if ($papxGrpprl !== '') {
+            $paragraphProperties = $this->listLevelFormattingProperties(
+                $this->parsePapxParagraphProperties($papxGrpprl),
+                $context
+            );
+            if ($paragraphProperties !== []) {
+                $record['paragraphProperties'] = $paragraphProperties;
+                $record['paragraphPropertyCount'] = count($paragraphProperties);
+                $record['paragraphPropertyExtractionPolicy'] = 'metadata-only-native-review';
+            }
+        }
+        if ($chpxGrpprl !== '') {
+            $textProperties = $this->listLevelFormattingProperties(
+                $this->parseChpxTextProperties($chpxGrpprl),
+                $context
+            );
+            if ($textProperties !== []) {
+                $record['textProperties'] = $textProperties;
+                $record['textPropertyCount'] = count($textProperties);
+                $record['textPropertyExtractionPolicy'] = 'metadata-only-native-review';
+            }
+        }
 
         return [$record, $cursor];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $properties
+     * @return list<array<string,mixed>>
+     */
+    private function listLevelFormattingProperties(array $properties, string $sourceTable): array
+    {
+        return array_map(
+            static function (array $property) use ($sourceTable): array {
+                $property['source'] = $sourceTable;
+                $property['sourceRecord'] = 'LVL';
+
+                return $property;
+            },
+            $properties
+        );
+    }
+
+    /**
+     * @param list<array<string,mixed>> $formats
+     * @param list<array<string,mixed>> $overrides
+     * @return array{paragraphProperties:int,textProperties:int}
+     */
+    private function listLevelFormattingCounts(array $formats, array $overrides): array
+    {
+        $paragraphProperties = 0;
+        $textProperties = 0;
+        foreach ($formats as $format) {
+            foreach (($format['levels'] ?? []) as $level) {
+                if (!is_array($level)) {
+                    continue;
+                }
+                $paragraphProperties += count(is_array($level['paragraphProperties'] ?? null) ? $level['paragraphProperties'] : []);
+                $textProperties += count(is_array($level['textProperties'] ?? null) ? $level['textProperties'] : []);
+            }
+        }
+        foreach ($overrides as $override) {
+            foreach (($override['levels'] ?? []) as $levelOverride) {
+                if (!is_array($levelOverride) || !is_array($levelOverride['levelFormat'] ?? null)) {
+                    continue;
+                }
+                $level = $levelOverride['levelFormat'];
+                $paragraphProperties += count(is_array($level['paragraphProperties'] ?? null) ? $level['paragraphProperties'] : []);
+                $textProperties += count(is_array($level['textProperties'] ?? null) ? $level['textProperties'] : []);
+            }
+        }
+
+        return [
+            'paragraphProperties' => $paragraphProperties,
+            'textProperties' => $textProperties,
+        ];
     }
 
     /**

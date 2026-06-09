@@ -1842,7 +1842,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'axis', 'bgcolor', 'char', 'charoff', 'dir', 'headers', 'height', 'nowrap', 'scope', 'style', 'summary', 'title', 'valign', 'width'], true);
+            || in_array($name, ['abbr', 'axis', 'bgcolor', 'char', 'charoff', 'dir', 'headers', 'height', 'lang', 'nowrap', 'scope', 'style', 'summary', 'title', 'translate', 'valign', 'width', 'xml:lang'], true);
     }
 
     private function allowedTableHtmlAttrValue(string $name, mixed $value): ?string
@@ -1882,6 +1882,14 @@ final class WordPressBlockWriter
             return $headers === [] ? null : implode(' ', $headers);
         }
 
+        if ($name === 'lang' || $name === 'xml:lang') {
+            return $this->allowedTableLanguageValue($value);
+        }
+
+        if ($name === 'translate') {
+            return $this->allowedTableTranslateValue($value);
+        }
+
         if ($name !== 'dir') {
             return $value;
         }
@@ -1889,6 +1897,55 @@ final class WordPressBlockWriter
         $direction = strtolower(trim($value));
 
         return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
+    }
+
+    private function allowedTableLanguageValue(string $value): ?string
+    {
+        $tag = trim($value);
+        if ($tag === '' || strlen($tag) > 64 || preg_match('/\s/u', $tag) === 1) {
+            return null;
+        }
+
+        if (preg_match('/^[A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*$/', $tag) !== 1) {
+            return null;
+        }
+
+        $parts = explode('-', $tag);
+        if (count($parts) === 1 && strlen($parts[0]) === 1) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($parts as $index => $part) {
+            if ($index === 0 || strtolower($parts[0]) === 'x') {
+                $normalized[] = strtolower($part);
+                continue;
+            }
+
+            if (preg_match('/^[A-Za-z]{4}$/', $part) === 1) {
+                $normalized[] = ucfirst(strtolower($part));
+                continue;
+            }
+
+            if (preg_match('/^[A-Za-z]{2}$/', $part) === 1) {
+                $normalized[] = strtoupper($part);
+                continue;
+            }
+
+            $normalized[] = strtolower($part);
+        }
+
+        return implode('-', $normalized);
+    }
+
+    private function allowedTableTranslateValue(string $value): ?string
+    {
+        $state = strtolower(trim($value));
+        if ($state === '') {
+            return 'yes';
+        }
+
+        return in_array($state, ['yes', 'no'], true) ? $state : null;
     }
 
     private function legacyTableStyleValue(string $style): string

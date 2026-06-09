@@ -317,8 +317,12 @@ final class TableGeometry
         $coverage = [];
         $globalRowStart = 0;
         $tableDirection = self::sourceDirection($table);
+        $tableLanguage = self::sourceLanguageRecord($table);
+        $tableTranslate = self::sourceTranslateRecord($table);
         foreach (self::sectionRowGroups($table, $columnCount) as $group) {
             $sectionDirection = self::sourceDirection($group['node'] ?? null);
+            $sectionLanguage = self::sourceLanguageRecord($group['node'] ?? null);
+            $sectionTranslate = self::sourceTranslateRecord($group['node'] ?? null);
             $layoutRows = self::layoutRows($group['rows'], $columnCount);
             $sectionRowCount = count($layoutRows);
             foreach ($layoutRows as $rowIndex => $layoutRow) {
@@ -329,6 +333,8 @@ final class TableGeometry
                     'rowRole' => $group['section'],
                 ];
                 $rowDirection = self::sourceDirection($rowEntry['row'] ?? null);
+                $rowLanguage = self::sourceLanguageRecord($rowEntry['row'] ?? null);
+                $rowTranslate = self::sourceTranslateRecord($rowEntry['row'] ?? null);
                 $headerRow = (bool) $rowEntry['header'];
                 $rowHeadColumns = (int) $rowEntry['rowHeadColumns'];
                 foreach ($layoutRow['cells'] as $cell) {
@@ -392,6 +398,20 @@ final class TableGeometry
                         'row' => $rowDirection,
                         'cell' => $cellDirection,
                     ]);
+                    $cellLanguage = self::sourceLanguageRecord($cell['node']);
+                    $cellTranslate = self::sourceTranslateRecord($cell['node']);
+                    [$language, $languageSource, $languageAttribute] = self::effectiveLocalizationValue([
+                        'table' => $tableLanguage,
+                        'section' => $sectionLanguage,
+                        'row' => $rowLanguage,
+                        'cell' => $cellLanguage,
+                    ], 'language', 'attribute');
+                    [$translate, $translateSource, $translateAttribute] = self::effectiveLocalizationValue([
+                        'table' => $tableTranslate,
+                        'section' => $sectionTranslate,
+                        'row' => $rowTranslate,
+                        'cell' => $cellTranslate,
+                    ], 'translate', 'translateAttribute');
                     $record = [
                         'section' => $group['section'],
                         'row' => $rowIndex,
@@ -464,6 +484,40 @@ final class TableGeometry
                         }
                         if ($tableDirection !== '') {
                             $record['tableDirection'] = $tableDirection;
+                        }
+                    }
+                    if ($language !== '') {
+                        $record['language'] = $language;
+                        $record['languageSource'] = $languageSource;
+                        $record['languageAttribute'] = $languageAttribute;
+                        foreach ([
+                            'sourceLanguage' => $cellLanguage,
+                            'rowLanguage' => $rowLanguage,
+                            'sectionLanguage' => $sectionLanguage,
+                            'tableLanguage' => $tableLanguage,
+                        ] as $key => $languageRecord) {
+                            $value = (string) ($languageRecord['language'] ?? '');
+                            if ($value !== '') {
+                                $record[$key] = $value;
+                                $record[$key . 'Attribute'] = (string) ($languageRecord['attribute'] ?? '');
+                            }
+                        }
+                    }
+                    if ($translate !== '') {
+                        $record['translate'] = $translate;
+                        $record['translateSource'] = $translateSource;
+                        $record['translateAttribute'] = $translateAttribute;
+                        foreach ([
+                            'sourceTranslate' => $cellTranslate,
+                            'rowTranslate' => $rowTranslate,
+                            'sectionTranslate' => $sectionTranslate,
+                            'tableTranslate' => $tableTranslate,
+                        ] as $key => $translateRecord) {
+                            $value = (string) ($translateRecord['translate'] ?? '');
+                            if ($value !== '') {
+                                $record[$key] = $value;
+                                $record[$key . 'Attribute'] = (string) ($translateRecord['translateAttribute'] ?? '');
+                            }
                         }
                     }
                     if ($hasColumnSources) {
@@ -1930,6 +1984,7 @@ final class TableGeometry
         $tableBorderCollapse = self::tableBorderCollapseMetadata($table);
         $tableBorderPresentation = self::tableBorderPresentationMetadata($table);
         $directionality = self::directionalityMetadata($table, $sections, $coverageRecords);
+        $localization = self::localizationMetadata($table, $sections, $coverageRecords);
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $idPrefix = self::reviewPacketIdPrefix($table, $options);
         $writerDowngrades = [];
@@ -1969,6 +2024,7 @@ final class TableGeometry
             'cellBackgrounds' => $cellBackgrounds,
             'cellBorderPresentations' => $cellBorderPresentations,
             'directionality' => $directionality,
+            'localization' => $localization,
             'widthSummary' => $widthSummary,
             'sections' => self::serializableSectionGrids($sections),
             'rowGroups' => $rowGroups,
@@ -2018,6 +2074,7 @@ final class TableGeometry
                 $tableBorderCollapse,
                 $tableBorderPresentation,
                 $directionality,
+                $localization,
                 (string) ($sourceSummary['text'] ?? '')
             ),
         ];
@@ -3970,11 +4027,124 @@ final class TableGeometry
         return self::normalizeTableDirectionAttribute(self::sourceHtmlAttribute($node, 'dir'));
     }
 
+    /**
+     * @return array{language?:string,attribute?:string,xmlLanguage?:string,xmlAttribute?:string}
+     */
+    private static function sourceLanguageRecord(mixed $node): array
+    {
+        $language = '';
+        $attribute = '';
+        $lang = self::sourceHtmlAttributePresence($node, 'lang');
+        if (($lang['present'] ?? false) === true) {
+            $normalized = self::normalizeTableLanguageAttribute((string) ($lang['value'] ?? ''));
+            if ($normalized !== '') {
+                $language = $normalized;
+                $attribute = 'lang';
+            }
+        }
+
+        $xmlLanguage = '';
+        $xml = self::sourceHtmlAttributePresence($node, 'xml:lang');
+        if (($xml['present'] ?? false) === true) {
+            $xmlLanguage = self::normalizeTableLanguageAttribute((string) ($xml['value'] ?? ''));
+            if ($language === '' && $xmlLanguage !== '') {
+                $language = $xmlLanguage;
+                $attribute = 'xml:lang';
+            }
+        }
+
+        if ($language === '' && $xmlLanguage === '') {
+            return [];
+        }
+
+        $record = [];
+        if ($language !== '') {
+            $record['language'] = $language;
+            $record['attribute'] = $attribute;
+        }
+        if ($xmlLanguage !== '') {
+            $record['xmlLanguage'] = $xmlLanguage;
+            $record['xmlAttribute'] = 'xml:lang';
+        }
+
+        return $record;
+    }
+
+    /**
+     * @return array{translate?:string,translateAttribute?:string}
+     */
+    private static function sourceTranslateRecord(mixed $node): array
+    {
+        $translate = self::sourceHtmlAttributePresence($node, 'translate');
+        if (($translate['present'] ?? false) !== true) {
+            return [];
+        }
+
+        $state = self::normalizeTableTranslateAttribute((string) ($translate['value'] ?? ''));
+        if ($state === '') {
+            return [];
+        }
+
+        return [
+            'translate' => $state,
+            'translateAttribute' => 'translate',
+        ];
+    }
+
     private static function normalizeTableDirectionAttribute(string $value): string
     {
         $value = strtolower(trim($value));
 
         return in_array($value, ['ltr', 'rtl', 'auto'], true) ? $value : '';
+    }
+
+    private static function normalizeTableLanguageAttribute(string $value): string
+    {
+        $tag = trim($value);
+        if ($tag === '' || strlen($tag) > 64 || preg_match('/\s/u', $tag) === 1) {
+            return '';
+        }
+
+        if (preg_match('/^[A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*$/', $tag) !== 1) {
+            return '';
+        }
+
+        $parts = explode('-', $tag);
+        if (count($parts) === 1 && strlen($parts[0]) === 1) {
+            return '';
+        }
+
+        $normalized = [];
+        foreach ($parts as $index => $part) {
+            if ($index === 0 || strtolower($parts[0]) === 'x') {
+                $normalized[] = strtolower($part);
+                continue;
+            }
+
+            if (preg_match('/^[A-Za-z]{4}$/', $part) === 1) {
+                $normalized[] = ucfirst(strtolower($part));
+                continue;
+            }
+
+            if (preg_match('/^[A-Za-z]{2}$/', $part) === 1) {
+                $normalized[] = strtoupper($part);
+                continue;
+            }
+
+            $normalized[] = strtolower($part);
+        }
+
+        return implode('-', $normalized);
+    }
+
+    private static function normalizeTableTranslateAttribute(string $value): string
+    {
+        $state = strtolower(trim($value));
+        if ($state === '') {
+            return 'yes';
+        }
+
+        return in_array($state, ['yes', 'no'], true) ? $state : '';
     }
 
     /**
@@ -3991,6 +4161,29 @@ final class TableGeometry
         }
 
         return ['', ''];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $records
+     * @return array{0:string,1:string,2:string}
+     */
+    private static function effectiveLocalizationValue(array $records, string $valueKey, string $attributeKey): array
+    {
+        foreach (['cell', 'row', 'section', 'table'] as $source) {
+            $record = $records[$source] ?? [];
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $value = trim((string) ($record[$valueKey] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            return [$value, $source, trim((string) ($record[$attributeKey] ?? ''))];
+        }
+
+        return ['', '', ''];
     }
 
     /**
@@ -4177,6 +4370,263 @@ final class TableGeometry
     }
 
     /**
+     * @param list<array<string, mixed>> $sections
+     * @param list<array<string, mixed>> $coverage
+     * @return array{
+     *     table:array<string, mixed>,
+     *     sections:list<array<string, mixed>>,
+     *     rows:list<array<string, mixed>>,
+     *     cells:list<array<string, mixed>>,
+     *     summary:array<string, mixed>
+     * }
+     */
+    private static function localizationMetadata(AstNode $table, array $sections, array $coverage): array
+    {
+        $tableRecord = self::localizationSourceRecord(
+            self::sourceLanguageRecord($table),
+            self::sourceTranslateRecord($table),
+            [
+                'source' => 'html-table-localization',
+                'element' => 'table',
+            ]
+        );
+        $sectionRecords = [];
+        $rowRecords = [];
+        $cellRecords = [];
+        $languages = [];
+        $translateStates = [];
+
+        self::collectLocalizationRecordValues($tableRecord, $languages, $translateStates);
+
+        foreach ($sections as $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            $sectionName = (string) ($section['section'] ?? '');
+            $globalRowStart = max(0, (int) ($section['globalRowStart'] ?? 0));
+            $rowEntries = is_array($section['rowEntries'] ?? null) ? $section['rowEntries'] : [];
+            $rowRange = self::sectionGridRowRange($section, $globalRowStart, count($rowEntries));
+            $sectionRecord = self::localizationSourceRecord(
+                self::sourceLanguageRecord($section['node'] ?? null),
+                self::sourceTranslateRecord($section['node'] ?? null),
+                [
+                    'source' => 'html-table-section-localization',
+                    'element' => 'table-section',
+                    'section' => $sectionName,
+                    'globalRowStart' => $rowRange[0],
+                    'globalRowEnd' => $rowRange[1],
+                    'rowRange' => $rowRange,
+                    'rowCount' => max(0, $rowRange[1] - $rowRange[0]),
+                ]
+            );
+            if ($sectionRecord !== []) {
+                $sectionRecords[] = $sectionRecord;
+                self::collectLocalizationRecordValues($sectionRecord, $languages, $translateStates);
+            }
+
+            foreach ($rowEntries as $rowIndex => $rowEntry) {
+                if (!is_array($rowEntry)) {
+                    continue;
+                }
+
+                $rowRecord = self::localizationSourceRecord(
+                    self::sourceLanguageRecord($rowEntry['row'] ?? null),
+                    self::sourceTranslateRecord($rowEntry['row'] ?? null),
+                    [
+                        'source' => 'html-table-row-localization',
+                        'element' => 'table-row',
+                        'section' => $sectionName,
+                        'rowRole' => (string) ($rowEntry['rowRole'] ?? $sectionName),
+                        'row' => (int) $rowIndex,
+                        'globalRow' => $globalRowStart + (int) $rowIndex,
+                    ]
+                );
+                if ($rowRecord === []) {
+                    continue;
+                }
+
+                $rowRecords[] = $rowRecord;
+                self::collectLocalizationRecordValues($rowRecord, $languages, $translateStates);
+            }
+        }
+
+        foreach ($coverage as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $language = self::normalizeTableLanguageAttribute((string) ($record['language'] ?? ''));
+            $translate = isset($record['translate'])
+                ? self::normalizeTableTranslateAttribute((string) $record['translate'])
+                : '';
+            if ($language === '' && $translate === '') {
+                continue;
+            }
+
+            $node = $record['node'] ?? null;
+            $cell = [
+                'source' => 'html-table-cell-localization',
+                'element' => 'table-cell',
+                'section' => (string) ($record['section'] ?? ''),
+                'rowRole' => (string) ($record['rowRole'] ?? ''),
+                'row' => max(0, (int) ($record['row'] ?? 0)),
+                'globalRow' => max(0, (int) ($record['globalRow'] ?? 0)),
+                'column' => max(0, (int) ($record['column'] ?? 0)),
+                'sourceCell' => max(0, (int) ($record['sourceCell'] ?? 0)),
+                'sourceColumn' => max(0, (int) ($record['sourceColumn'] ?? 0)),
+                'text' => $node instanceof AstNode ? self::plainText($node) : (string) ($record['text'] ?? ''),
+            ];
+
+            if ($language !== '') {
+                $cell['language'] = $language;
+                $cell['languageSource'] = (string) ($record['languageSource'] ?? '');
+                $cell['languageAttribute'] = (string) ($record['languageAttribute'] ?? '');
+                foreach (['sourceLanguage', 'rowLanguage', 'sectionLanguage', 'tableLanguage'] as $key) {
+                    $value = self::normalizeTableLanguageAttribute((string) ($record[$key] ?? ''));
+                    if ($value !== '') {
+                        $cell[$key] = $value;
+                    }
+                }
+            }
+
+            if ($translate !== '') {
+                $cell['translate'] = $translate;
+                $cell['translateSource'] = (string) ($record['translateSource'] ?? '');
+                $cell['translateAttribute'] = (string) ($record['translateAttribute'] ?? '');
+                foreach (['sourceTranslate', 'rowTranslate', 'sectionTranslate', 'tableTranslate'] as $key) {
+                    if (!isset($record[$key])) {
+                        continue;
+                    }
+
+                    $value = self::normalizeTableTranslateAttribute((string) $record[$key]);
+                    if ($value !== '') {
+                        $cell[$key] = $value;
+                    }
+                }
+            }
+
+            foreach (['columns', 'sourceColumns', 'globalRows', 'sourceRows'] as $key) {
+                $values = self::intList($record[$key] ?? []);
+                if ($values !== []) {
+                    $cell[$key] = $values;
+                }
+            }
+
+            foreach (['colspan', 'rowspan', 'rawColspan', 'rawRowspan', 'sourceRowspan'] as $key) {
+                if (isset($record[$key]) && is_numeric($record[$key])) {
+                    $cell[$key] = max(0, (int) $record[$key]);
+                }
+            }
+
+            if (($record['headerCell'] ?? false) === true) {
+                $cell['headerCell'] = true;
+            }
+
+            $cellRecords[] = $cell;
+            self::collectLocalizationRecordValues($cell, $languages, $translateStates);
+        }
+
+        $languages = self::sortedUniqueStrings($languages);
+        $translateStates = self::sortedUniqueStrings($translateStates);
+        $explicitCellLanguageCount = 0;
+        $translatedCellCount = 0;
+        foreach ($cellRecords as $cell) {
+            if (($cell['languageSource'] ?? '') === 'cell') {
+                $explicitCellLanguageCount++;
+            }
+            if (isset($cell['translate'])) {
+                $translatedCellCount++;
+            }
+        }
+
+        $localizationRecordCount = ($tableRecord === [] ? 0 : 1)
+            + count($sectionRecords)
+            + count($rowRecords)
+            + count($cellRecords);
+        $summary = [
+            'hasLocalization' => $localizationRecordCount > 0,
+            'localizationRecordCount' => $localizationRecordCount,
+            'languages' => $languages,
+            'translateStates' => $translateStates,
+            'hasTableLanguage' => isset($tableRecord['language']),
+            'hasTableTranslate' => isset($tableRecord['translate']),
+            'sectionLocalizationCount' => count($sectionRecords),
+            'rowLocalizationCount' => count($rowRecords),
+            'localizedCellCount' => count($cellRecords),
+            'explicitCellLanguageCount' => $explicitCellLanguageCount,
+            'inheritedCellLanguageCount' => count($cellRecords) - $explicitCellLanguageCount,
+            'translatedCellCount' => $translatedCellCount,
+        ];
+
+        return [
+            'table' => $tableRecord,
+            'sections' => $sectionRecords,
+            'rows' => $rowRecords,
+            'cells' => $cellRecords,
+            'summary' => $summary,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $language
+     * @param array<string, mixed> $translate
+     * @param array<string, mixed> $base
+     * @return array<string, mixed>
+     */
+    private static function localizationSourceRecord(array $language, array $translate, array $base): array
+    {
+        $record = $base;
+        $hasLocalization = false;
+        $languageValue = (string) ($language['language'] ?? '');
+        if ($languageValue !== '') {
+            $record['language'] = $languageValue;
+            $record['attribute'] = (string) ($language['attribute'] ?? '');
+            $hasLocalization = true;
+        }
+        $xmlLanguage = (string) ($language['xmlLanguage'] ?? '');
+        if ($xmlLanguage !== '') {
+            $record['xmlLanguage'] = $xmlLanguage;
+            $record['xmlAttribute'] = (string) ($language['xmlAttribute'] ?? 'xml:lang');
+            $hasLocalization = true;
+        }
+        $translateValue = (string) ($translate['translate'] ?? '');
+        if ($translateValue !== '') {
+            $record['translate'] = $translateValue;
+            $record['translateAttribute'] = (string) ($translate['translateAttribute'] ?? 'translate');
+            $hasLocalization = true;
+        }
+
+        return $hasLocalization ? $record : [];
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param list<string> $languages
+     * @param list<string> $translateStates
+     */
+    private static function collectLocalizationRecordValues(array $record, array &$languages, array &$translateStates): void
+    {
+        foreach (['language', 'xmlLanguage', 'sourceLanguage', 'rowLanguage', 'sectionLanguage', 'tableLanguage'] as $key) {
+            $language = self::normalizeTableLanguageAttribute((string) ($record[$key] ?? ''));
+            if ($language !== '') {
+                $languages[] = $language;
+            }
+        }
+
+        foreach (['translate', 'sourceTranslate', 'rowTranslate', 'sectionTranslate', 'tableTranslate'] as $key) {
+            if (!isset($record[$key])) {
+                continue;
+            }
+
+            $translate = self::normalizeTableTranslateAttribute((string) $record[$key]);
+            if ($translate !== '') {
+                $translateStates[] = $translate;
+            }
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private static function emptyDirectionalitySummary(): array
@@ -4191,6 +4641,27 @@ final class TableGeometry
             'directionalCellCount' => 0,
             'explicitCellDirectionCount' => 0,
             'inheritedCellDirectionCount' => 0,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyLocalizationSummary(): array
+    {
+        return [
+            'hasLocalization' => false,
+            'localizationRecordCount' => 0,
+            'languages' => [],
+            'translateStates' => [],
+            'hasTableLanguage' => false,
+            'hasTableTranslate' => false,
+            'sectionLocalizationCount' => 0,
+            'rowLocalizationCount' => 0,
+            'localizedCellCount' => 0,
+            'explicitCellLanguageCount' => 0,
+            'inheritedCellLanguageCount' => 0,
+            'translatedCellCount' => 0,
         ];
     }
 
@@ -5425,6 +5896,7 @@ final class TableGeometry
      * @param array<string, mixed> $tableBackground
      * @param array<string, mixed> $tableBorderCollapse
      * @param array<string, mixed> $directionality
+     * @param array<string, mixed> $localization
      * @return array<string, mixed>
      */
     private static function reviewPacketSummary(
@@ -5461,6 +5933,7 @@ final class TableGeometry
         array $tableBorderCollapse,
         array $tableBorderPresentation,
         array $directionality,
+        array $localization,
         string $sourceSummary
     ): array
     {
@@ -5645,6 +6118,9 @@ final class TableGeometry
         $directionalitySummary = is_array($directionality['summary'] ?? null)
             ? $directionality['summary']
             : self::emptyDirectionalitySummary();
+        $localizationSummary = is_array($localization['summary'] ?? null)
+            ? $localization['summary']
+            : self::emptyLocalizationSummary();
         $globalRowIndexes = array_keys($globalRows);
         sort($globalRowIndexes, SORT_NUMERIC);
         $columnRollup = self::columnSummaryRollup($columnSummaries);
@@ -5770,6 +6246,14 @@ final class TableGeometry
             'explicitCellDirectionCount' => (int) ($directionalitySummary['explicitCellDirectionCount'] ?? 0),
             'inheritedCellDirectionCount' => (int) ($directionalitySummary['inheritedCellDirectionCount'] ?? 0),
             'tableDirections' => self::stringList($directionalitySummary['directions'] ?? []),
+            'hasTableLocalization' => (bool) ($localizationSummary['hasLocalization'] ?? false),
+            'localizationRecordCount' => (int) ($localizationSummary['localizationRecordCount'] ?? 0),
+            'localizedCellCount' => (int) ($localizationSummary['localizedCellCount'] ?? 0),
+            'explicitCellLanguageCount' => (int) ($localizationSummary['explicitCellLanguageCount'] ?? 0),
+            'inheritedCellLanguageCount' => (int) ($localizationSummary['inheritedCellLanguageCount'] ?? 0),
+            'translatedCellCount' => (int) ($localizationSummary['translatedCellCount'] ?? 0),
+            'tableLanguages' => self::stringList($localizationSummary['languages'] ?? []),
+            'tableTranslateStates' => self::stringList($localizationSummary['translateStates'] ?? []),
             'hasShortCaptionBlocks' => (int) ($captions['short']['blockCount'] ?? 0) > 0,
             'shortCaptionBlockCount' => (int) ($captions['short']['blockCount'] ?? 0),
             'shortCaptionBlockTypes' => array_values(array_map(
@@ -6304,6 +6788,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableBorderCollapseWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
+                    array_push($diagnostics, ...self::tableLocalizationWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::headerAbbreviationWriterDiagnostics($table, $writer, $idPrefix));
@@ -6397,6 +6882,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableBorderCollapseWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
+                    array_push($diagnostics, ...self::tableLocalizationWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::headerAbbreviationWriterDiagnostics($table, $writer, $idPrefix));
@@ -6506,6 +6992,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableBorderCollapseWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableBorderPresentationWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
+            array_push($diagnostics, ...self::tableLocalizationWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::headerAbbreviationWriterDiagnostics($table, $writer, $idPrefix));
@@ -9920,6 +10407,53 @@ final class TableGeometry
      * @param list<array<string, mixed>> $coverage
      * @return list<array<string, mixed>>
      */
+    private static function tableLocalizationWriterDiagnostics(AstNode $table, string $writer, array $coverage): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-table-localization-requires-raw-html', 'raw-html-table-localization'],
+            'asciidoc' => ['asciidoc-table-localization-review-required', 'table-localization-review'],
+            'latex' => ['latex-table-localization-review-required', 'table-localization-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $localization = self::localizationMetadata($table, self::sectionGrids($table), $coverage);
+        $summary = is_array($localization['summary'] ?? null)
+            ? $localization['summary']
+            : self::emptyLocalizationSummary();
+        if (($summary['hasLocalization'] ?? false) !== true) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-localization',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-localization',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'languages' => self::stringList($summary['languages'] ?? []),
+            'translateStates' => self::stringList($summary['translateStates'] ?? []),
+            'localizationRecordCount' => (int) ($summary['localizationRecordCount'] ?? 0),
+            'localizedCellCount' => (int) ($summary['localizedCellCount'] ?? 0),
+            'explicitCellLanguageCount' => (int) ($summary['explicitCellLanguageCount'] ?? 0),
+            'inheritedCellLanguageCount' => (int) ($summary['inheritedCellLanguageCount'] ?? 0),
+            'translatedCellCount' => (int) ($summary['translatedCellCount'] ?? 0),
+            'table' => $localization['table'] ?? [],
+            'sections' => $localization['sections'] ?? [],
+            'rows' => $localization['rows'] ?? [],
+            'cells' => $localization['cells'] ?? [],
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
     private static function sourceAttributeWriterDiagnostics(AstNode $table, string $writer, array $coverage): array
     {
         $locations = self::nativeAttributeLocations($table, $coverage);
@@ -11110,6 +11644,26 @@ final class TableGeometry
         }
 
         return array_values(array_unique($strings));
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private static function sortedUniqueStrings(array $values): array
+    {
+        $strings = [];
+        foreach ($values as $value) {
+            $value = trim((string) $value);
+            if ($value !== '') {
+                $strings[$value] = true;
+            }
+        }
+
+        $strings = array_keys($strings);
+        sort($strings, SORT_STRING);
+
+        return array_values($strings);
     }
 
     /**

@@ -1668,6 +1668,117 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'carries html table language and translation metadata into geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="localized-source-grid" data-source="html-reader" lang="ar-eg" xml:lang="ar-EG" translate="no">
+<caption lang="en">Localized source review</caption>
+<thead lang="en">
+<tr lang="fr"><th lang="fr">Portée</th><th translate="yes">State</th></tr>
+</thead>
+<tbody lang="ar" translate="no" data-section="body">
+<tr><th>منشورات</th><td>جاهز</td></tr>
+<tr lang="en" translate="yes"><th>Media</th><td lang="en-US" translate="no">Review</td></tr>
+</tbody>
+</table>
+<table id="invalid-localized-grid" lang="bad lang" translate="maybe">
+<tbody><tr><td>Invalid</td></tr></tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $tables = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $table = $tables[0] ?? null;
+        $invalidTable = $tables[1] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->true($invalidTable instanceof AstNode);
+        if (!$table instanceof AstNode || !$invalidTable instanceof AstNode) {
+            return;
+        }
+
+        $packet = $table->attr('tableGeometry');
+        $invalidPacket = $invalidTable->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $localizationDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-localization'
+            ));
+            $localizationDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same('ar-eg', $table->attr('htmlAttributes')['lang'] ?? null);
+        $t->same('no', $table->attr('htmlAttributes')['translate'] ?? null);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('ar-EG', $packet['localization']['table']['language'] ?? null);
+        $t->same('lang', $packet['localization']['table']['attribute'] ?? null);
+        $t->same('no', $packet['localization']['table']['translate'] ?? null);
+        $t->same('translate', $packet['localization']['table']['translateAttribute'] ?? null);
+        $t->same(['en', 'ar'], array_map(static fn (array $section): string => (string) ($section['language'] ?? ''), $packet['localization']['sections'] ?? []));
+        $t->same(['head', 'body'], array_map(static fn (array $section): string => (string) ($section['section'] ?? ''), $packet['localization']['sections'] ?? []));
+        $t->same(['fr', 'en'], array_map(static fn (array $row): string => (string) ($row['language'] ?? ''), $packet['localization']['rows'] ?? []));
+        $t->same(['head', 'body'], array_map(static fn (array $row): string => (string) ($row['section'] ?? ''), $packet['localization']['rows'] ?? []));
+        $t->same(['fr', 'fr', 'ar', 'ar', 'en', 'en-US'], array_map(static fn (array $cell): string => (string) ($cell['language'] ?? ''), $packet['localization']['cells'] ?? []));
+        $t->same(['cell', 'row', 'section', 'section', 'row', 'cell'], array_map(static fn (array $cell): string => (string) ($cell['languageSource'] ?? ''), $packet['localization']['cells'] ?? []));
+        $t->same(['no', 'yes'], $packet['localization']['summary']['translateStates'] ?? null);
+        $t->same(['ar', 'ar-EG', 'en', 'en-US', 'fr'], $packet['localization']['summary']['languages'] ?? null);
+        $t->same(11, $packet['localization']['summary']['localizationRecordCount'] ?? null);
+        $t->same(6, $packet['localization']['summary']['localizedCellCount'] ?? null);
+        $t->same(2, $packet['localization']['summary']['explicitCellLanguageCount'] ?? null);
+        $t->same(4, $packet['localization']['summary']['inheritedCellLanguageCount'] ?? null);
+        $t->same(6, $packet['localization']['summary']['translatedCellCount'] ?? null);
+        $t->same(true, $packet['summary']['hasTableLocalization'] ?? null);
+        $t->same(6, $packet['summary']['localizedCellCount'] ?? null);
+        $t->same(['ar', 'ar-EG', 'en', 'en-US', 'fr'], $packet['summary']['tableLanguages'] ?? null);
+        $t->same(['no', 'yes'], $packet['summary']['tableTranslateStates'] ?? null);
+        $t->same('fr', $packet['coverage'][0]['language'] ?? null);
+        $t->same('cell', $packet['coverage'][0]['languageSource'] ?? null);
+        $t->same('yes', $packet['coverage'][1]['translate'] ?? null);
+        $t->same('cell', $packet['coverage'][1]['translateSource'] ?? null);
+        $t->same('ar', $packet['coverage'][2]['language'] ?? null);
+        $t->same('section', $packet['coverage'][2]['languageSource'] ?? null);
+        $t->same('en-US', $packet['coverage'][5]['language'] ?? null);
+        $t->same('cell', $packet['coverage'][5]['languageSource'] ?? null);
+        $t->same('no', $packet['coverage'][5]['translate'] ?? null);
+        $t->same('cell', $packet['coverage'][5]['translateSource'] ?? null);
+
+        $t->same([
+            'markdown-table-localization-requires-raw-html',
+            'asciidoc-table-localization-review-required',
+            'latex-table-localization-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $localizationDiagnostics['markdown'],
+            $localizationDiagnostics['asciidoc'],
+            $localizationDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-localization', $localizationDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same(['ar', 'ar-EG', 'en', 'en-US', 'fr'], $localizationDiagnostics['markdown']['languages'] ?? null);
+        $t->same(['no', 'yes'], $localizationDiagnostics['markdown']['translateStates'] ?? null);
+        $t->same(6, $localizationDiagnostics['markdown']['localizedCellCount'] ?? null);
+
+        $t->same(true, is_array($invalidPacket));
+        $invalidPacket = is_array($invalidPacket) ? $invalidPacket : [];
+        $t->same(false, $invalidPacket['summary']['hasTableLocalization'] ?? null);
+        $t->same([], $invalidPacket['localization']['summary']['languages'] ?? null);
+
+        $t->contains('<table id="localized-source-grid" data-source="html-reader" lang="ar-EG" xml:lang="ar-EG" translate="no">', $blocks);
+        $t->contains('<figcaption class="wp-element-caption" lang="en">Localized source review</figcaption>', $blocks);
+        $t->contains('<thead lang="en"><tr lang="fr"><th lang="fr">Portée</th><th translate="yes">State</th></tr></thead>', $blocks);
+        $t->contains('<tbody lang="ar" translate="no" data-section="body"><tr><th>منشورات</th><td>جاهز</td></tr><tr lang="en" translate="yes"><th>Media</th><td lang="en-US" translate="no">Review</td></tr></tbody>', $blocks);
+        $t->true(!str_contains($blocks, 'lang="bad lang"'), 'Invalid table language should not render');
+        $t->true(!str_contains($blocks, 'translate="maybe"'), 'Invalid translate state should not render');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($invalidPacket, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
     'normalizes legacy html table cell spacing attributes for geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="legacy-spacing-grid" data-source="html-reader" cellpadding="6" cellspacing="2">

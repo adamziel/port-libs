@@ -1972,7 +1972,7 @@ $listLevel = static function (
         . $numberTextBytes;
 };
 
-$buildListTableDocStreams = static function (?string $text = null) use ($u16, $u32, $listLevel): array {
+$buildListTableDocStreams = static function (?string $text = null, bool $withFormattingOverride = false) use ($u16, $u32, $listLevel): array {
     $text ??= "First numbered item\rSecond bullet item\r";
     $wordDocument = str_repeat("\0", 1024) . $text;
     $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
@@ -1989,14 +1989,28 @@ $buildListTableDocStreams = static function (?string $text = null) use ($u16, $u
         return $u32($lsid) . $u32($tplc) . $styleBytes . chr($flags) . chr($grfhic);
     };
 
-    $orderedLevel = $listLevel(0, 3, 0x00, "\0.", [1], 1, "\x11\x22\x33", "\x44\x55");
+    $orderedLevelPapx = $u16(0x2461) . "\x01";
+    $orderedLevelChpx = $u16(0x0835) . "\x01";
+    $orderedLevel = $listLevel(0, 3, 0x00, "\0.", [1], 1, $orderedLevelPapx, $orderedLevelChpx);
     $bulletLevel = $listLevel(0, 1, 0x17, "•");
+    $overrideLevelFormat = $listLevel(
+        0,
+        5,
+        0x00,
+        "\0)",
+        [1],
+        2,
+        $u16(0x2461) . "\x02",
+        $u16(0x0836) . "\x01"
+    );
     $plfLst = $u16(2)
         . $lstf(1001, 2001, [0 => 15], 0x01)
         . $lstf(2002, 3002, [], 0x01, 2);
     $lfo1 = $u32(1001) . $u32(0) . $u32(0) . chr(1) . chr(0xfe) . chr(0) . "\0";
     $lfo2 = $u32(2002) . $u32(0) . $u32(0) . chr(0) . chr(0) . chr(0) . "\0";
-    $lfoData1 = $u32(0) . $u32(7) . $u32(0x10);
+    $lfoData1 = $withFormattingOverride
+        ? $u32(0) . $u32(7) . $u32(0x30) . $overrideLevelFormat
+        : $u32(0) . $u32(7) . $u32(0x10);
     $lfoData2 = $u32(strlen("First numbered item\r"));
     $plfLfo = $u32(2) . $lfo1 . $lfo2 . $lfoData1 . $lfoData2;
     $tableStream = $plfLst . $orderedLevel . $bulletLevel . $plfLfo;
@@ -5927,7 +5941,24 @@ return [
         $t->same([0], $orderedLevel['placeholderLevels']);
         $t->same('space', $orderedLevel['follow']);
         $t->same(3, $orderedLevel['paragraphPropertyBytes']);
-        $t->same(2, $orderedLevel['characterPropertyBytes']);
+        $t->same(3, $orderedLevel['characterPropertyBytes']);
+        $t->same(1, $orderedLevel['paragraphPropertyCount']);
+        $t->same(1, $orderedLevel['textPropertyCount']);
+        $t->same('metadata-only-native-review', $orderedLevel['paragraphPropertyExtractionPolicy']);
+        $t->same('metadata-only-native-review', $orderedLevel['textPropertyExtractionPolicy']);
+        $t->same('justification', $orderedLevel['paragraphProperties'][0]['name']);
+        $t->same('PlfLst', $orderedLevel['paragraphProperties'][0]['source']);
+        $t->same('LVL', $orderedLevel['paragraphProperties'][0]['sourceRecord']);
+        $t->same('sprmPJc', $orderedLevel['paragraphProperties'][0]['sourceSprm']);
+        $t->same('center', $orderedLevel['paragraphProperties'][0]['value']);
+        $t->same('bold', $orderedLevel['textProperties'][0]['name']);
+        $t->same('PlfLst', $orderedLevel['textProperties'][0]['source']);
+        $t->same('LVL', $orderedLevel['textProperties'][0]['sourceRecord']);
+        $t->same('sprmCFBold', $orderedLevel['textProperties'][0]['sourceSprm']);
+        $t->same(true, $orderedLevel['textProperties'][0]['enabled']);
+        $t->same(1, $metadata['listLevelParagraphPropertyCount']);
+        $t->same(1, $metadata['listLevelTextPropertyCount']);
+        $t->same('metadata-only-native-review', $metadata['listLevelFormattingPolicy']);
         $t->same(false, $orderedLevel['canApplyNumbering']);
 
         $t->same(2002, $formats[1]['lsid']);
@@ -6002,6 +6033,56 @@ return [
         $t->contains('data-legacy-doc-numbering-field-list-text-template="%1."', $blocks);
         $t->contains('data-legacy-doc-numbering-field-list-override-start-at="7">7.</span>', $blocks);
         $t->true(!str_contains(strip_tags($blocks), 'AUTONUM'), 'Legacy DOC AUTONUM field instructions should not render as visible text');
+    },
+    'extracts legacy DOC list-level PAPX and CHPX formatting metadata as review data' => static function (TestRunner $t) use ($buildCfb, $buildListTableDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildListTableDocStreams()));
+        $orderedLevel = $result['listFormats'][0]['levels'][0];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same(1, $result['metadata']['listLevelParagraphPropertyCount']);
+        $t->same(1, $result['metadata']['listLevelTextPropertyCount']);
+        $t->same('metadata-only-native-review', $result['metadata']['listLevelFormattingPolicy']);
+        $t->same('PlfLst', $orderedLevel['paragraphProperties'][0]['source']);
+        $t->same('LVL', $orderedLevel['paragraphProperties'][0]['sourceRecord']);
+        $t->same('sprmPJc', $orderedLevel['paragraphProperties'][0]['sourceSprm']);
+        $t->same('center', $orderedLevel['paragraphProperties'][0]['value']);
+        $t->same('PlfLst', $orderedLevel['textProperties'][0]['source']);
+        $t->same('LVL', $orderedLevel['textProperties'][0]['sourceRecord']);
+        $t->same('sprmCFBold', $orderedLevel['textProperties'][0]['sourceSprm']);
+        $t->same(true, $orderedLevel['textProperties'][0]['enabled']);
+        $t->contains('<p>First numbered item</p>', $blocks);
+        $t->contains('<p>Second bullet item</p>', $blocks);
+        foreach (['sprmPJc', 'sprmCFBold', 'metadata-only-native-review'] as $metadataText) {
+            $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC list-level formatting metadata should not render into WordPress blocks');
+        }
+    },
+    'extracts legacy DOC list override LFOLVL formatting metadata as review data' => static function (TestRunner $t) use ($buildCfb, $buildListTableDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildListTableDocStreams(null, true)));
+        $override = $result['listOverrides'][0]['levels'][0];
+        $levelFormat = $override['levelFormat'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same(true, $override['startAtOverride']);
+        $t->same(true, $override['formattingOverride']);
+        $t->true(!isset($override['startAt']), 'LFOLVL startAt should stay inside the levelFormat payload when formatting is overridden');
+        $t->same(0, $levelFormat['level']);
+        $t->same(5, $levelFormat['startAt']);
+        $t->same('%1)', $levelFormat['numberText']);
+        $t->same('nothing', $levelFormat['follow']);
+        $t->same(2, $result['metadata']['listLevelParagraphPropertyCount']);
+        $t->same(2, $result['metadata']['listLevelTextPropertyCount']);
+        $t->same('metadata-only-native-review', $result['metadata']['listLevelFormattingPolicy']);
+        $t->same('LFOLVL', $levelFormat['paragraphProperties'][0]['source']);
+        $t->same('LVL', $levelFormat['paragraphProperties'][0]['sourceRecord']);
+        $t->same('sprmPJc', $levelFormat['paragraphProperties'][0]['sourceSprm']);
+        $t->same('right', $levelFormat['paragraphProperties'][0]['value']);
+        $t->same('LFOLVL', $levelFormat['textProperties'][0]['source']);
+        $t->same('LVL', $levelFormat['textProperties'][0]['sourceRecord']);
+        $t->same('sprmCFItalic', $levelFormat['textProperties'][0]['sourceSprm']);
+        $t->same(true, $levelFormat['textProperties'][0]['enabled']);
+        foreach (['sprmPJc', 'sprmCFItalic', 'metadata-only-native-review'] as $metadataText) {
+            $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC LFOLVL formatting metadata should not render into WordPress blocks');
+        }
     },
     'rejects malformed legacy DOC list tables before exposing numbering metadata' => static function (TestRunner $t) use ($buildCfb, $buildListTableDocStreams, $u32): void {
         $reader = new LegacyDocReader();

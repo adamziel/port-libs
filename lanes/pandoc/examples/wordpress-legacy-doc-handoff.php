@@ -1205,7 +1205,9 @@ $lstf = static function (int $lsid, int $tplc, array $styles, int $flags, int $g
 
     return $u32($lsid) . $u32($tplc) . $styleBytes . chr($flags) . chr($grfhic);
 };
-$listOrderedLevel = $listLevel(3, 0x00, "\0.", [1], 1, "\x11\x22", "\x33");
+$listOrderedLevelPapx = $u16(0x2461) . "\x01";
+$listOrderedLevelChpx = $u16(0x0835) . "\x01";
+$listOrderedLevel = $listLevel(3, 0x00, "\0.", [1], 1, $listOrderedLevelPapx, $listOrderedLevelChpx);
 $listBulletLevel = $listLevel(1, 0x17, "•");
 $plfLst = $u16(2)
     . $lstf(1001, 2001, [0 => 15], 0x01)
@@ -2385,6 +2387,20 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['listFormats'][0]['levels'][0]['numberText'] ?? '') !== '%1.' || ($summary['listFormats'][0]['levels'][0]['follow'] ?? '') !== 'space') {
         throw new RuntimeException('Legacy DOC handoff self-test missing ordered list level metadata');
+    }
+    if (($summary['metadata']['listLevelParagraphPropertyCount'] ?? null) !== 1 || ($summary['metadata']['listLevelTextPropertyCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing list-level formatting metadata counts');
+    }
+    if (($summary['listFormats'][0]['levels'][0]['paragraphProperties'][0]['sourceSprm'] ?? '') !== 'sprmPJc' || ($summary['listFormats'][0]['levels'][0]['paragraphProperties'][0]['value'] ?? '') !== 'center') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing list-level paragraph formatting metadata');
+    }
+    if (($summary['listFormats'][0]['levels'][0]['textProperties'][0]['sourceSprm'] ?? '') !== 'sprmCFBold' || ($summary['listFormats'][0]['levels'][0]['textProperties'][0]['enabled'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing list-level text formatting metadata');
+    }
+    foreach (['sprmPJc', 'sprmCFBold'] as $hiddenListMetadata) {
+        if (str_contains($summary['wordpressBlocks'], $hiddenListMetadata)) {
+            throw new RuntimeException('Legacy DOC handoff self-test rendered list-level formatting metadata into blocks');
+        }
     }
     if (($summary['listFormats'][1]['levels'][0]['numberFormat'] ?? '') !== 'bullet' || ($summary['listFormats'][1]['levels'][0]['numberText'] ?? '') !== '•') {
         throw new RuntimeException('Legacy DOC handoff self-test missing bullet list level metadata');

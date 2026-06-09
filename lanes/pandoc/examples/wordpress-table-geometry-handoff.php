@@ -518,6 +518,22 @@ $directionalityTables = array_values(array_filter(
     $directionalityDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$localizationDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="localized-source-grid" data-source="html-reader" lang="ar-eg" xml:lang="ar-EG" translate="no">
+<caption lang="en">Localized source review</caption>
+<thead lang="en">
+<tr lang="fr"><th lang="fr">Portée</th><th translate="yes">State</th></tr>
+</thead>
+<tbody lang="ar" translate="no" data-section="body">
+<tr><th>منشورات</th><td>جاهز</td></tr>
+<tr lang="en" translate="yes"><th>Media</th><td lang="en-US" translate="no">Review</td></tr>
+</tbody>
+</table>
+HTML);
+$localizationTables = array_values(array_filter(
+    $localizationDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $captionSourceDocument = (new MarkdownReader())->read(<<<'HTML'
 <table>
 <caption id="caption-source-handoff" class="source-caption" data-origin="html-reader" aria-label="Caption source" style="caption-side: bottom" onclick="blocked()">Caption source handoff</caption>
@@ -1658,6 +1674,7 @@ $document = new AstNode('document', [], [
     ...$borderPresentationTables,
     ...$placementAlignmentTables,
     ...$directionalityTables,
+    ...$localizationTables,
     ...$readerHandoffTables,
     ...$visualRowHeadColspanTables,
     ...$multiBodyRowHeadTables,
@@ -3969,6 +3986,53 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($directionalityPacket, JSON_THROW_ON_ERROR);
     json_encode($directionalityDowngrades, JSON_THROW_ON_ERROR);
+
+    $localizationTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'localized-source-grid') {
+            $localizationTable = $node;
+            break;
+        }
+    }
+    $localizationPacket = $localizationTable instanceof AstNode ? $localizationTable->attr('tableGeometry') : null;
+    $localizationDowngrades = $localizationTable instanceof AstNode ? TableGeometry::reviewPacket($localizationTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $localizationDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $localizationDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-localization'
+        ));
+        $localizationDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$localizationTable instanceof AstNode
+        || !is_array($localizationPacket)
+        || ($localizationPacket['localization']['table']['language'] ?? null) !== 'ar-EG'
+        || ($localizationPacket['localization']['table']['translate'] ?? null) !== 'no'
+        || ($localizationPacket['localization']['sections'][1]['language'] ?? null) !== 'ar'
+        || ($localizationPacket['localization']['cells'][5]['language'] ?? null) !== 'en-US'
+        || ($localizationPacket['localization']['cells'][5]['translate'] ?? null) !== 'no'
+        || ($localizationPacket['summary']['hasTableLocalization'] ?? null) !== true
+        || ($localizationPacket['summary']['localizedCellCount'] ?? null) !== 6
+        || ($localizationPacket['summary']['tableLanguages'] ?? null) !== ['ar', 'ar-EG', 'en', 'en-US', 'fr']
+        || ($localizationDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-localization-requires-raw-html'
+        || ($localizationDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-localization-review-required'
+        || ($localizationDiagnostics['latex']['code'] ?? null) !== 'latex-table-localization-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML table localization metadata');
+    }
+    if (
+        !str_contains($blocks, '<table id="localized-source-grid" data-source="html-reader" lang="ar-EG" xml:lang="ar-EG" translate="no">')
+        || !str_contains($blocks, '<figcaption class="wp-element-caption" lang="en">Localized source review</figcaption>')
+        || !str_contains($blocks, '<tbody lang="ar" translate="no" data-section="body"><tr><th>منشورات</th><td>جاهز</td></tr><tr lang="en" translate="yes"><th>Media</th><td lang="en-US" translate="no">Review</td></tr></tbody>')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for HTML localization handoff');
+    }
+    json_encode($localizationPacket, JSON_THROW_ON_ERROR);
+    json_encode($localizationDowngrades, JSON_THROW_ON_ERROR);
 
     $readerTable = null;
     foreach ($document->children as $node) {
