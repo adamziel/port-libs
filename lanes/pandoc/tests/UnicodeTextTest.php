@@ -1538,6 +1538,25 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes big5 kana and fullwidth extension bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Big5 Kana\n\nKana \xC6\xA1\xC6\xA2\xC6\xA3\xC6\xA4 \xC6\xA5\xC6\xA6; digits \xA2\xAF\xA2\xB0\xA2\xB1.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'big5');
+        $document = (new MarkdownReader())->readBytes($bytes, 'big5-hkscs');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $baseFixtureComparison = UnicodeText::decodeBytes((string) hex2bin('a4a4a4e5'), 'big5');
+
+        $t->same('big5', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Big5 Kana\n\nKana ヾゝゞ々 ぁあ; digits ０１２.", $decoded['text']);
+        $t->same('中文', $baseFixtureComparison['text']);
+        $t->same(['encoding' => 'big5', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Big5 Kana', $document->children[0]->attr('text'));
+        $t->same('Kana ヾゝゞ々 ぁあ; digits ０１２.', $document->children[1]->attr('text'));
+        $t->same(34, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(["ヾゝ", "ゞ々", 'ぁあ', '０１２'], UnicodeText::splitByDisplayBreakpoints("ヾゝゞ々ぁあ０１２", [4, 8, 12]));
+        $t->contains('<h1 id="big5-kana">Big5 Kana</h1>', $blocks);
+        $t->contains('<p>Kana ヾゝゞ々 ぁあ; digits ０１２.</p>', $blocks);
+    },
     'decodes cp950 big5 extension bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# CP950\n\nCP950 Euro \xA3\xE1 glyphs \xF9\xD6\xF9\xD7 box \xF9\xDD\xF9\xDE\xF9\xDF.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp950');
