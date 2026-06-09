@@ -555,6 +555,18 @@ return [
         $t->contains('<span class="kw">@supports</span> <span class="op">(</span><span class="ot">display</span><span class="op">:</span> <span class="kw">grid</span><span class="op">)</span>', $directCss['html']);
         $t->contains('<span class="dt">#site-header</span><span class="fu">::before</span>', $directCss['html']);
     },
+    'highlights modern css cascade layer and container review snippets' => static function (TestRunner $t): void {
+        $source = '@layer imports { .review:has(a) { display: subgrid; color: color-mix(in oklch, oklch(60% 0.2 240), transparent); overflow-position: safe; } }';
+        $highlighted = (new SyntaxHighlighter())->highlight($source, 'css');
+
+        $t->same('css', $highlighted['language']);
+        $t->contains('<span class="kw">@layer</span> <span class="dt">imports</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="dt">.review</span><span class="fu">:has</span><span class="op">(</span>a<span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="ot">display</span><span class="op">:</span> <span class="kw">subgrid</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">color-mix</span><span class="op">(</span><span class="dt">in</span> <span class="dt">oklch</span>', $highlighted['html']);
+        $t->contains('<span class="fu">oklch</span><span class="op">(</span><span class="dv">60</span>% <span class="dv">0.2</span> <span class="dv">240</span><span class="op">),</span>', $highlighted['html']);
+        $t->contains('<span class="ot">overflow-position</span><span class="op">:</span> <span class="kw">safe</span><span class="op">;</span>', $highlighted['html']);
+    },
     'highlights rust review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
         if (!is_string($fixture)) {
@@ -595,6 +607,21 @@ return [
         $t->contains('<span class="fu">format!</span><span class="op">(</span><span class="st">&quot;import-{}&quot;</span>', $wordpressBlock);
         $t->same('rust', $directRust['language']);
         $t->contains('<span class="kw">let</span> <span class="va">block</span><span class="op">:</span> <span class="dt">Option</span><span class="op">&lt;&amp;</span><span class="dt">str</span><span class="op">&gt;</span> <span class="op">=</span> <span class="cn">Some</span><span class="op">(</span><span class="st">r#&quot;ok&quot;#</span><span class="op">);</span>', $directRust['html']);
+    },
+    'highlights rust raw identifiers and reserved keyword review snippets' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            'pub union RawPacket { r#type: u64 }',
+            'let r#type = packet.r#type()?;',
+            'try { yield r#type }',
+        ]);
+        $highlighted = (new SyntaxHighlighter())->highlight($source, 'rust');
+
+        $t->same('rust', $highlighted['language']);
+        $t->contains('<span class="kw">pub</span> <span class="kw">union</span> <span class="dt">RawPacket</span>', $highlighted['html']);
+        $t->contains('<span class="va">r#type</span><span class="op">:</span> <span class="dt">u64</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="va">r#type</span> <span class="op">=</span>', $highlighted['html']);
+        $t->contains('<span class="va">packet</span><span class="op">.</span><span class="fu">r#type</span><span class="op">()?;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">try</span> <span class="op">{</span> <span class="kw">yield</span> <span class="va">r#type</span>', $highlighted['html']);
     },
     'highlights nix deployment review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
@@ -1740,6 +1767,19 @@ return [
         $t->same('typst', $directTypst['language']);
         $t->same('typ', $directTypst['requestedLanguage']);
         $t->contains('<span class="kw">#let</span> <span class="va">card</span> <span class="op">=</span> <span class="dt">rect</span><span class="op">(</span><span class="ot">fill</span><span class="op">:</span> <span class="fu">rgb</span><span class="op">(</span><span class="st">&quot;#fff&quot;</span><span class="op">))</span>', $directTypst['html']);
+    },
+    'highlights typst dotted helper functions for review templates' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            '#let title = "Review"',
+            '#assert.eq(title, "Review")',
+            '#counter(heading).at(here())',
+        ]);
+        $highlighted = (new SyntaxHighlighter())->highlight($source, 'typst');
+
+        $t->same('typst', $highlighted['language']);
+        $t->contains('<span class="kw">#let</span> <span class="va">title</span> <span class="op">=</span> <span class="st">&quot;Review&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">#assert.eq</span><span class="op">(</span><span class="va">title</span><span class="op">,</span> <span class="st">&quot;Review&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">#counter</span><span class="op">(</span><span class="dt">heading</span><span class="op">).</span><span class="fu">at</span><span class="op">(</span><span class="fu">here</span><span class="op">())</span>', $highlighted['html']);
     },
     'highlights kotlin android review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');

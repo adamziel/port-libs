@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 06:42:45 UTC",
-    "sourceCommit": "9f4e0a79ca6d24560390d74212fd1bc5e56b6d7d",
-    "sourceCommitShort": "9f4e0a79ca6d",
+    "generated": "2026-06-09 07:06:08 UTC",
+    "sourceCommit": "53cc273b044292e061f08ae6f6fdabc37210dcb0",
+    "sourceCommitShort": "53cc273b0442",
     "sourceBranch": "unknown",
-    "dashboardCommit": "9f4e0a79ca6d24560390d74212fd1bc5e56b6d7d",
-    "dashboardCommitShort": "9f4e0a79ca6d",
+    "dashboardCommit": "53cc273b044292e061f08ae6f6fdabc37210dcb0",
+    "dashboardCommitShort": "53cc273b0442",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,851 / 2,276 (125.3%)",
             "mapPercent": "125.3%",
             "unmapped": "0",
-            "php": "2,467 pass / 0 fail",
+            "php": "2,470 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC Citation/CSL current-base multi-variable names-substit...",
+            "audit": "2026-06-09 UTC syntax highlighting current-base slice on base 53cc273...",
             "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence plus...",
-            "nextTarget": "For Citation/CSL follow-up, choose a non-overlapping native g...",
-            "remainingGate": "No new native support component is needed for this Citation/CSL slice.",
+            "nextTarget": "For syntax highlighting follow-up, choose a non-overlapping n...",
+            "remainingGate": "No new native support component is needed for this syntax highlightin...",
             "commit": "pending fast ba..."
         },
         {
