@@ -5531,6 +5531,154 @@ return [
         );
     },
 
+    'preflights zip eocd trailing bytes and central directory offsets across archive streams' => static function (TestRunner $t) use ($zipFixtureBytes, $rewriteZipEndOfCentralDirectory): void {
+        $baseZipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>EOCD archive stream review</w:p></w:body></w:document>',
+                'compressionMethod' => 8,
+            ],
+        ], 'eocd layout review comment');
+        $trailingBytes = "detached WordPress reviewer metadata\n";
+        $zipBytes = $baseZipBytes . $trailingBytes;
+        $eocdOffset = strrpos($baseZipBytes, "PK\x05\x06");
+        if (!is_int($eocdOffset)) {
+            throw new \RuntimeException('ZIP fixture is missing an end of central directory record.');
+        }
+
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-eocd-layout-package.zip',
+                'comment' => 'zip eocd layout preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('zip eocd reviewer metadata', 10)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipEndOfCentralDirectoryPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same('zip-end-of-central-directory-policy', $inspection['type']);
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(strlen($zipBytes), $inspection['archiveLength']);
+            $t->same(true, $inspection['hasEndOfCentralDirectoryCandidate']);
+            $t->same(true, $inspection['hasEndOfCentralDirectoryRecord']);
+            $t->same($eocdOffset, $inspection['eocdOffset']);
+            $t->same(strlen($baseZipBytes), $inspection['declaredArchiveEndOffset']);
+            $t->same(strlen('eocd layout review comment'), $inspection['declaredPackageCommentLength']);
+            $t->same(strlen('eocd layout review comment'), $inspection['availablePackageCommentBytes']);
+            $t->same(strlen($trailingBytes), $inspection['trailingByteCount']);
+            $t->same(true, $inspection['hasTrailingBytes']);
+            $t->same(false, $inspection['hasTruncatedComment']);
+            $t->same(0, $inspection['diskNumber']);
+            $t->same(0, $inspection['centralDirectoryDisk']);
+            $t->same(2, $inspection['diskEntryCount']);
+            $t->same(2, $inspection['totalEntryCount']);
+            $t->same($inspection['centralDirectoryOffset'] + $inspection['centralDirectorySize'], $inspection['centralDirectoryEnd']);
+            $t->same($eocdOffset, $inspection['centralDirectoryEnd']);
+            $t->same(true, $inspection['centralDirectoryRangeAvailable']);
+            $t->same(true, $inspection['centralDirectoryRangeBeforeEocd']);
+            $t->same(true, $inspection['centralDirectoryEndMatchesEocdOffset']);
+            $t->same(false, $inspection['centralDirectoryGapExplainedBySignature']);
+            $t->same('central-directory-header', $inspection['centralDirectoryStartSignature']);
+            $t->same('central-directory-header', $inspection['centralDirectoryOffsetLocation']);
+            $t->same(true, $inspection['centralDirectoryRangeStartsWithCentralHeader']);
+            $t->same(false, $inspection['requiresZip64']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same(['eocd-trailing-bytes'], $inspection['issues']);
+            $t->same(['eocd-trailing-bytes'], $inspection['diagnostics']);
+            $t->same(['eocd-trailing-bytes'], $inspection['trailingIssues']);
+            $t->same(['eocd-trailing-bytes'], $inspection['offsetIssues']);
+            $t->same('review-before-conversion', $inspection['handoffPolicy']);
+            $t->same('zip-eocd-review', $inspection['extractionPolicy']);
+            $t->same(false, array_key_exists('package', $inspection));
+        }
+
+        $cleanInspection = ArchiveCompressionStream::inspectZipEndOfCentralDirectoryPolicy(
+            $baseZipBytes,
+            ArchiveCompressionStream::FORMAT_ZIP,
+            strlen($baseZipBytes)
+        );
+        $badOffsetZipBytes = $rewriteZipEndOfCentralDirectory($baseZipBytes, [
+            'centralDirectoryOffset' => 0,
+        ]);
+        $badOffsetInspection = ArchiveCompressionStream::inspectZipEndOfCentralDirectoryPolicy(
+            DeflateStream::build($badOffsetZipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP,
+            strlen($badOffsetZipBytes)
+        );
+        $gzipInspection = ArchiveCompressionStream::inspectZipEndOfCentralDirectoryPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $zlibInspection = ArchiveCompressionStream::inspectZipEndOfCentralDirectoryPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_ZLIB_ZIP],
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipEndOfCentralDirectoryPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same([], $cleanInspection['issues']);
+        $t->same([], $cleanInspection['diagnostics']);
+        $t->same(0, $cleanInspection['trailingByteCount']);
+        $t->same(false, $cleanInspection['hasTrailingBytes']);
+        $t->same(true, $cleanInspection['isSupportedByBoundedReader']);
+        $t->same('within-thresholds', $cleanInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $cleanInspection['extractionPolicy']);
+        $t->same(0, $badOffsetInspection['centralDirectoryOffset']);
+        $t->same('local-file-header', $badOffsetInspection['centralDirectoryStartSignature']);
+        $t->same('local-file-header', $badOffsetInspection['centralDirectoryOffsetLocation']);
+        $t->same(false, $badOffsetInspection['centralDirectoryRangeStartsWithCentralHeader']);
+        $t->same(false, $badOffsetInspection['centralDirectoryEndMatchesEocdOffset']);
+        $t->same(false, $badOffsetInspection['isSupportedByBoundedReader']);
+        $t->same(['central-directory-offset-not-central-header'], $badOffsetInspection['offsetIssues']);
+        $t->same(['central-directory-offset-not-central-header'], $badOffsetInspection['diagnostics']);
+        $t->same('zip-eocd-review', $badOffsetInspection['extractionPolicy']);
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-eocd-layout-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('zip eocd layout preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('zlib-deflate', $zlibInspection['stream']['type']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('zip eocd reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zipBytes));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($badOffsetZipBytes));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectZipEndOfCentralDirectoryPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($zipBytes)
+        ));
+    },
+
     'preflights zip64 extra fields across compressed archive streams before package exposure' => static function (TestRunner $t) use ($zipFixtureBytes, $packZip64UInt64): void {
         $documentXml = '<w:document><w:body><w:p>ZIP64 extra field archive stream</w:p></w:body></w:document>';
         $documentDeflated = gzdeflate($documentXml);

@@ -4136,6 +4136,66 @@ final class ArchiveCompressionStream
     /**
      * @return array<string, mixed>
      */
+    public static function inspectZipEndOfCentralDirectoryPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $zipBytes = self::decodeZipBytes($bytes, $format, $maxUncompressedBytes);
+        $trailing = ZipPackage::endOfCentralDirectoryTrailingBytesPreflight($zipBytes);
+        $offset = ZipPackage::endOfCentralDirectoryOffsetPreflight($zipBytes);
+        $issues = array_values(array_unique(array_merge($trailing['issues'] ?? [], $offset['issues'] ?? [])));
+
+        return [
+            'format' => $format,
+            'zipBytes' => $zipBytes,
+            'packageByteSize' => strlen($zipBytes),
+            'type' => 'zip-end-of-central-directory-policy',
+            'archiveLength' => strlen($zipBytes),
+            'hasEndOfCentralDirectoryCandidate' => $trailing['hasEndOfCentralDirectoryCandidate'],
+            'hasEndOfCentralDirectoryRecord' => $offset['hasEndOfCentralDirectoryRecord'],
+            'eocdOffset' => $offset['eocdOffset'] ?? $trailing['eocdOffset'],
+            'declaredArchiveEndOffset' => $offset['declaredArchiveEndOffset'] ?? $trailing['declaredArchiveEndOffset'],
+            'declaredPackageCommentLength' => $offset['declaredPackageCommentLength']
+                ?? $trailing['declaredPackageCommentLength'],
+            'availablePackageCommentBytes' => $trailing['availablePackageCommentBytes'],
+            'trailingByteCount' => $trailing['trailingByteCount'],
+            'hasTrailingBytes' => $trailing['hasTrailingBytes'],
+            'hasTruncatedComment' => $trailing['hasTruncatedComment'],
+            'diskNumber' => $offset['diskNumber'],
+            'centralDirectoryDisk' => $offset['centralDirectoryDisk'],
+            'diskEntryCount' => $offset['diskEntryCount'],
+            'totalEntryCount' => $offset['totalEntryCount'] ?? $trailing['totalEntryCount'],
+            'centralDirectoryOffset' => $offset['centralDirectoryOffset'] ?? $trailing['centralDirectoryOffset'],
+            'centralDirectorySize' => $offset['centralDirectorySize'] ?? $trailing['centralDirectorySize'],
+            'centralDirectoryEnd' => $offset['centralDirectoryEnd'] ?? $trailing['centralDirectoryEnd'],
+            'centralDirectoryRangeAvailable' => $offset['centralDirectoryRangeAvailable'],
+            'centralDirectoryRangeBeforeEocd' => $offset['centralDirectoryRangeBeforeEocd'],
+            'centralDirectoryEndMatchesEocdOffset' => $offset['centralDirectoryEndMatchesEocdOffset'],
+            'centralDirectoryGapExplainedBySignature' => $offset['centralDirectoryGapExplainedBySignature'],
+            'centralDirectoryStartSignature' => $offset['centralDirectoryStartSignature'],
+            'centralDirectoryOffsetLocation' => $offset['centralDirectoryOffsetLocation'],
+            'centralDirectoryRangeStartsWithCentralHeader' => $offset['centralDirectoryRangeStartsWithCentralHeader'],
+            'requiresZip64' => $offset['requiresZip64'],
+            'isSupportedByBoundedReader' => $trailing['isSupportedByBoundedReader']
+                && $offset['isSupportedByBoundedReader'],
+            'handoffPolicy' => $issues === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $issues === [] ? 'metadata-only-no-extraction' : 'zip-eocd-review',
+            'issues' => $issues,
+            'diagnostics' => $issues,
+            'trailingIssues' => $trailing['issues'],
+            'offsetIssues' => $offset['issues'],
+            'endOfCentralDirectoryTrailingBytes' => $trailing,
+            'endOfCentralDirectoryOffset' => $offset,
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function inspectZipUnicodeExtraFieldPolicy(
         string $bytes,
         string $format,
