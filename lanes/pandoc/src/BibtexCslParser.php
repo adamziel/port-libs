@@ -1037,6 +1037,34 @@ final class BibtexCslParser
             $item['event-date'] = $eventDate;
         }
 
+        $availableDate = self::dateFromFields($fields, ['availabledate'], ['availableyear', 'availablemonth', 'availableday'], [
+            'hour' => 'availablehour',
+            'minute' => 'availableminute',
+            'second' => 'availablesecond',
+            'timezone' => 'availabletimezone',
+            'endhour' => 'availableendhour',
+            'endminute' => 'availableendminute',
+            'endsecond' => 'availableendsecond',
+            'endtimezone' => 'availableendtimezone',
+        ]);
+        if ($availableDate !== null) {
+            $item['available-date'] = $availableDate;
+        }
+
+        $submittedDate = self::dateFromFields($fields, ['submitteddate', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday'], [
+            'hour' => 'submittedhour',
+            'minute' => 'submittedminute',
+            'second' => 'submittedsecond',
+            'timezone' => 'submittedtimezone',
+            'endhour' => 'submittedendhour',
+            'endminute' => 'submittedendminute',
+            'endsecond' => 'submittedendsecond',
+            'endtimezone' => 'submittedendtimezone',
+        ]);
+        if ($submittedDate !== null) {
+            $item['submitted'] = $submittedDate;
+        }
+
         $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate'], ['urlyear', 'urlmonth', 'urlday'], [
             'hour' => 'urlhour',
             'minute' => 'urlminute',

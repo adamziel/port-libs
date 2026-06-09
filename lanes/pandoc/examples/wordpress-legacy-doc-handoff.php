@@ -3025,6 +3025,30 @@ if (($argv[1] ?? '') === '--self-test') {
         . $smallRegularFat
         . $padDirectoryEntries($smallRegularDirectory, $sectorSize)
         . $padTo($smallRegularWordDocument, $sectorSize);
+    $regularWordDocumentForRootMiniStream = str_pad($smallRegularWordDocument, 4096, "\0");
+    $rootMiniStreamWithoutMiniFatSector = 10;
+    $rootMiniStreamWithoutMiniFatDirectory = $makeDirectoryEntry('Root Entry', 5, $rootMiniStreamWithoutMiniFatSector, 64, $free, $free, 1)
+        . $makeDirectoryEntry('WordDocument', 2, 2, strlen($regularWordDocumentForRootMiniStream), $free, $free, $free);
+    $rootMiniStreamWithoutMiniFatFatEntries = [
+        $fatSector,
+        $end,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        $end,
+        $end,
+    ];
+    $rootMiniStreamWithoutMiniFatFat = implode('', array_map($u32, $rootMiniStreamWithoutMiniFatFatEntries))
+        . str_repeat($u32($free), 128 - count($rootMiniStreamWithoutMiniFatFatEntries));
+    $rootMiniStreamWithoutMiniFat = str_pad($smallRegularHeader, 512, "\0")
+        . $rootMiniStreamWithoutMiniFatFat
+        . $padDirectoryEntries($rootMiniStreamWithoutMiniFatDirectory, $sectorSize)
+        . $regularWordDocumentForRootMiniStream
+        . str_repeat('M', $sectorSize);
     $unusedPhysicalSectorId = intdiv(strlen($docBytes) - $sectorSize, $sectorSize);
     $docBytesWithUnusedPhysicalSector = $docBytes . str_repeat("\0", $sectorSize);
     $unownedFatMarkerEntryOffset = 512 + ($unusedPhysicalSectorId * 4);
@@ -3072,6 +3096,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'CFB active directory name contains embedded null' => $embeddedNullActiveDirectoryName,
         'CFB active directory name invalid UTF-16LE' => $malformedUtf16ActiveDirectoryName,
         'dirty CFB unallocated directory entry' => $dirtyUnallocatedDirectoryEntry,
+        'CFB root mini stream without MiniFAT metadata' => $rootMiniStreamWithoutMiniFat,
         'small CFB stream without MiniFAT metadata' => $smallRegularStreamWithoutMiniFat,
         'invalid CFB root storage name' => substr_replace($docBytes, "X\0", $directoryFieldOffset(0, 0), 2),
         'complex DOC missing CLX piece table' => substr_replace($docBytes, $u32(0), $wordDocumentStreamOffset + 0x01a6, 4),

@@ -2717,6 +2717,135 @@ XML);
         $t->contains('Available Source Packet :: 2026-06 :: uncertain :: 2026-05-28 :: Date markers: available-date uncertain (2026-06?) :: Date times: submitted 09:30', $markdown);
         $t->true(strpos($markdown, 'Submitted Review Packet') < strpos($markdown, 'Available Source Packet'), 'submitted sort key orders bibliography entries before available source');
     },
+    'maps bounded bibtex csl available and submitted dates into metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{available-bibtex,
+  author            = {Smith, Ada},
+  title             = {Available BibTeX Packet},
+  date              = {2026},
+  url               = {https://example.test/available-bibtex},
+  availabledate     = {2026-06?},
+  submittedyear     = {2026},
+  submittedmonth    = {5},
+  submittedday      = {28},
+  submittedhour     = {9},
+  submittedminute   = {30},
+  submittedtimezone = {Z}
+}
+
+@report{submitted-bibtex,
+  author         = {Raman, Ira},
+  title          = {Submitted Split BibTeX Packet},
+  date           = {2025},
+  availableyear  = {2025},
+  availablemonth = mar,
+  availableday   = {11},
+  submitteddate  = {2024~}
+}
+
+@article{literal-available-bibtex,
+  author        = {Doe, Jae},
+  title         = {Literal Available BibTeX Packet},
+  date          = {2024},
+  availabledate = {early access queue},
+  submitted     = {2024-02}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same(['date-parts' => [[2026, 6]], 'uncertain' => true, 'raw' => '2026-06?'], $items[0]['available-date'] ?? null);
+        $t->same(['date-parts' => [[2026, 5, 28]], 'time' => '09:30Z'], $items[0]['submitted'] ?? null);
+        $t->same(['date-parts' => [[2025, 3, 11]]], $items[1]['available-date'] ?? null);
+        $t->same(['date-parts' => [[2024]], 'circa' => true, 'raw' => '2024~'], $items[1]['submitted'] ?? null);
+        $t->same(['literal' => 'early access queue'], $items[2]['available-date'] ?? null);
+        $t->same(['date-parts' => [[2024, 2]]], $items[2]['submitted'] ?? null);
+        $t->same('2026-06?', $items[0]['rawBibtex']['fields']['availabledate'] ?? null);
+        $t->same('Z', $items[0]['rawBibtex']['fields']['submittedtimezone'] ?? null);
+        $t->same('March', $items[1]['rawBibtex']['fields']['availablemonth'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <choose>
+          <if is-uncertain-date="available-date">
+            <text value="available?"/>
+          </if>
+          <else-if is-circa-date="submitted">
+            <text value="submitted circa"/>
+          </else-if>
+          <else>
+            <text value="dated"/>
+          </else>
+        </choose>
+        <date variable="available-date" form="text" date-parts="year-month"/>
+        <date variable="submitted"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="submitted"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <text variable="available-date-status"/>
+      <date variable="submitted"/>
+      <text variable="submitted-status"/>
+      <text variable="date-marker-summary"/>
+      <text variable="date-time-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $available = $processor->item('available-bibtex');
+        $submitted = $processor->item('submitted-bibtex');
+        $literal = $processor->item('literal-available-bibtex');
+        $t->same([2026, 6], $available['availableDate']['parts'] ?? null);
+        $t->same('2026-06', $available['availableDate']['display'] ?? null);
+        $t->same(true, $available['availableDate']['uncertain'] ?? null);
+        $t->same([2026, 5, 28], $available['submittedDate']['parts'] ?? null);
+        $t->same('09:30Z', $available['submittedDate']['time'] ?? null);
+        $t->same('Date markers: available-date uncertain (2026-06?)', $available['dateMarkerSummary'] ?? null);
+        $t->same('Date times: submitted 09:30Z', $available['dateTimeSummary'] ?? null);
+        $t->same([2025, 3, 11], $submitted['availableDate']['parts'] ?? null);
+        $t->same('2025-03-11', $submitted['availableDate']['display'] ?? null);
+        $t->same(true, $submitted['submittedDate']['circa'] ?? null);
+        $t->same('Date markers: submitted circa (2024~)', $submitted['dateMarkerSummary'] ?? null);
+        $t->same('early access queue', $literal['availableDate']['literal'] ?? null);
+        $t->same('early access queue', $literal['availableDate']['display'] ?? null);
+        $t->same([2024, 2], $literal['submittedDate']['parts'] ?? null);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same(['available-date'], $citationChildren[1]['branches'][0]['isUncertainDate'] ?? null);
+        $t->same(['submitted'], $citationChildren[1]['branches'][1]['isCircaDate'] ?? null);
+        $t->same('submitted', $summary['bibliographySort'][0]['variable'] ?? null);
+
+        $t->same('(Smith | available? | June 2026 | 2026-05-28; Raman | submitted circa | March 2025 | 2024; Doe | dated | early access queue | 2024-02)', $processor->renderCitationCluster([
+            $citation('available-bibtex', '[@available-bibtex]'),
+            $citation('submitted-bibtex', '[@submitted-bibtex]'),
+            $citation('literal-available-bibtex', '[@literal-available-bibtex]'),
+        ]));
+        $t->same('Available BibTeX Packet :: 2026-06 :: uncertain :: 2026-05-28 :: Date markers: available-date uncertain (2026-06?) :: Date times: submitted 09:30Z', $processor->renderBibliographyEntry('available-bibtex'));
+        $t->same('Submitted Split BibTeX Packet :: 2025-03-11 :: 2024 :: circa :: Date markers: submitted circa (2024~)', $processor->renderBibliographyEntry('submitted-bibtex'));
+        $t->same('Literal Available BibTeX Packet :: early access queue :: 2024-02', $processor->renderBibliographyEntry('literal-available-bibtex'));
+
+        $document = (new MarkdownReader())->read('BibTeX review [@available-bibtex; @submitted-bibtex; @literal-available-bibtex] keeps CSL availability dates.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Availability Sources'));
+        $t->contains('<p>BibTeX review (Smith | available? | June 2026 | 2026-05-28; Raman | submitted circa | March 2025 | 2024; Doe | dated | early access queue | 2024-02) keeps CSL availability dates.</p>', $blocks);
+        $t->contains('<dt>Raman 2025</dt><dd>Submitted Split BibTeX Packet :: 2025-03-11 :: 2024 :: circa :: Date markers: submitted circa (2024~)</dd>', $blocks);
+        $t->contains('<dt>Doe 2024</dt><dd>Literal Available BibTeX Packet :: early access queue :: 2024-02</dd>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Available BibTeX Packet :: 2026-06 :: uncertain :: 2026-05-28 :: Date markers: available-date uncertain (2026-06?) :: Date times: submitted 09:30Z</dd>', $blocks);
+        $t->true(strpos($blocks, 'Submitted Split BibTeX Packet') < strpos($blocks, 'Literal Available BibTeX Packet'), 'submitteddate sort key orders circa year before submitted month');
+        $t->true(strpos($blocks, 'Literal Available BibTeX Packet') < strpos($blocks, 'Available BibTeX Packet'), 'submitted split date sort key orders newer source last');
+    },
     'maps bounded biblatex split url date fields into accessed csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{split-url-date,

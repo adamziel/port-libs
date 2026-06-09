@@ -1475,7 +1475,8 @@ final class MarkdownReader
             count($metadata),
             null,
             $sourceLines,
-            $explicitCollectionTag === 'map' ? 'map' : null
+            $explicitCollectionTag === 'map' ? 'map' : null,
+            $lines
         );
 
         if ($topLevel && $fieldQuoteMap !== []) {
@@ -2429,7 +2430,8 @@ final class MarkdownReader
         int $memberCount,
         ?int $sourceLine = null,
         array $contentSourceLines = [],
-        ?string $explicitTag = null
+        ?string $explicitTag = null,
+        ?array $contentLines = null
     ): void {
         if (!$this->yamlMetadataRecordCollectionProvenance || $memberCount < 1) {
             return;
@@ -2465,8 +2467,41 @@ final class MarkdownReader
             $entry['contentStartLine'] = (string) $sourceLineNumbers[0];
             $entry['contentEndLine'] = (string) $sourceLineNumbers[count($sourceLineNumbers) - 1];
         }
+        if ($style === 'block' && $contentLines !== null) {
+            $entry += $this->yamlMetadataCollectionMemberLineAttrs($contentLines, $contentSourceLines);
+        }
 
         $this->yamlMetadataCollectionProvenance[] = $entry;
+    }
+
+    /**
+     * @param list<string> $contentLines
+     * @param list<int|null> $contentSourceLines
+     * @return array{memberStartLine?:string, memberEndLine?:string}
+     */
+    private function yamlMetadataCollectionMemberLineAttrs(array $contentLines, array $contentSourceLines): array
+    {
+        $memberSourceLines = [];
+        foreach ($contentLines as $index => $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '#') || $this->isYamlDirectiveLine($trimmed)) {
+                continue;
+            }
+
+            $sourceLine = $contentSourceLines[$index] ?? null;
+            if ($sourceLine !== null) {
+                $memberSourceLines[] = $sourceLine;
+            }
+        }
+
+        if ($memberSourceLines === []) {
+            return [];
+        }
+
+        return [
+            'memberStartLine' => (string) $memberSourceLines[0],
+            'memberEndLine' => (string) $memberSourceLines[count($memberSourceLines) - 1],
+        ];
     }
 
     private function yamlExplicitScalarProvenanceType(string $tag): ?string
@@ -3002,7 +3037,8 @@ final class MarkdownReader
             count($items),
             null,
             $sourceLines,
-            $explicitCollectionTag === 'seq' ? 'seq' : null
+            $explicitCollectionTag === 'seq' ? 'seq' : null,
+            $lines
         );
 
         return $items;
@@ -3915,7 +3951,7 @@ final class MarkdownReader
         }
 
         $set = $this->parseYamlBlockSet($normalized, $childrenSourceLines);
-        $this->recordYamlCollectionProvenance('mapping', 'block', count($set), null, $childrenSourceLines, $explicitTag);
+        $this->recordYamlCollectionProvenance('mapping', 'block', count($set), null, $childrenSourceLines, $explicitTag, $normalized);
 
         return $set;
     }
@@ -4103,7 +4139,7 @@ final class MarkdownReader
             $explicitTag,
             $this->yamlBlockSequenceItemSourceLines($normalized, $childrenSourceLines)
         );
-        $this->recordYamlCollectionProvenance('sequence', 'block', count($pairs), null, $childrenSourceLines, $explicitTag);
+        $this->recordYamlCollectionProvenance('sequence', 'block', count($pairs), null, $childrenSourceLines, $explicitTag, $normalized);
 
         return $pairs;
     }

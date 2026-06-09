@@ -1430,6 +1430,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!$foundPlainReviewCollectionRange) {
         throw new RuntimeException('YAML metadata self-test missing block collection line range');
     }
+    $stepsCollection = $yamlCollectionByPath['/plain-continuation-review/steps'] ?? [];
+    if (
+        ($stepsCollection['memberStartLine'] ?? '') === ''
+        || ($stepsCollection['memberEndLine'] ?? '') === ''
+        || (int) ($stepsCollection['memberStartLine'] ?? '0') <= (int) ($stepsCollection['contentStartLine'] ?? '0')
+        || (int) ($stepsCollection['memberEndLine'] ?? '0') !== (int) ($stepsCollection['contentEndLine'] ?? '0')
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing block collection member source span');
+    }
     $multilineFlowReviewLine = (int) ($yamlCollectionByPath['/multiline-flow-review']['sourceLine'] ?? '0');
     $multilineFlowOwnersLine = (int) ($yamlCollectionByPath['/multiline-flow-review/owners']['sourceLine'] ?? '0');
     $multilineFlowOwnerQuoteLine = (int) ($yamlQuotedScalarProvenance['/multiline-flow-review/owners/1']['sourceLine'] ?? '0');

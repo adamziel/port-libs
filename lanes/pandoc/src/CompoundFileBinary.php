@@ -502,6 +502,9 @@ final class CompoundFileBinary
         }
         $rootMiniStreamSize = 0;
         if ($root !== null && (int) ($root['size'] ?? 0) > 0) {
+            if (!self::isRegularSector($this->firstMiniFatSector) || $this->miniFatSectorCount <= 0) {
+                throw new \RuntimeException('CFB root mini stream requires MiniFAT metadata');
+            }
             $rootMiniStreamSize = (int) $root['size'];
             $markReserved(
                 $this->regularSectorChainIds((int) $root['startSector'], $rootMiniStreamSize, 'Root Entry mini stream'),
@@ -544,7 +547,7 @@ final class CompoundFileBinary
             }
         }
 
-        if ($rootMiniStreamSize > 0 && self::isRegularSector($this->firstMiniFatSector) && $this->miniFatSectorCount > 0) {
+        if ($rootMiniStreamSize > 0) {
             $this->validateMiniFatAllocation($miniStreamSectors, $rootMiniStreamSize);
         }
 

@@ -5501,6 +5501,76 @@ return [
         $t->same('collection-provenance-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="collection-provenance-yaml-body">Collection provenance YAML body</h1>', $blocks);
     },
+    'records pandoc yaml block collection member source spans' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Collection member span **Packet**',
+            'review:',
+            '  # reviewer queue comment before first member',
+            '',
+            '  status: queued',
+            '  labels:',
+            '    # import labels comment',
+            '    - migration',
+            '    - wordpress',
+            '    # trailing label comment',
+            '',
+            '  owner: Import Desk',
+            '  ',
+            'references:',
+            '  # source reference comment before first item',
+            '  - id: collection-member-ref',
+            '    metadata:',
+            '      # source metadata comment before first member',
+            '      source: export',
+            '      status: approved',
+            '      ',
+            '  # source reference comment after last item',
+            '...',
+            '',
+            '# Collection member span body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataCollectionProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Collection member span **Packet**', $meta['title']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['migration', 'wordpress'], $meta['review']['labels']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('collection-member-ref', $meta['references'][0]['id']);
+        $t->same('export', $meta['references'][0]['metadata']['source']);
+        $t->same('approved', $meta['references'][0]['metadata']['status']);
+
+        $collections = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') !== 'yaml-collection') {
+                continue;
+            }
+            $collections[$entry['path'] ?? ''] = $entry;
+        }
+
+        $t->same('4', $collections['/review']['contentStartLine'] ?? null);
+        $t->same('13', $collections['/review']['contentEndLine'] ?? null);
+        $t->same('6', $collections['/review']['memberStartLine'] ?? null);
+        $t->same('13', $collections['/review']['memberEndLine'] ?? null);
+        $t->same('8', $collections['/review/labels']['contentStartLine'] ?? null);
+        $t->same('11', $collections['/review/labels']['contentEndLine'] ?? null);
+        $t->same('9', $collections['/review/labels']['memberStartLine'] ?? null);
+        $t->same('10', $collections['/review/labels']['memberEndLine'] ?? null);
+        $t->same('16', $collections['/references']['contentStartLine'] ?? null);
+        $t->same('23', $collections['/references']['contentEndLine'] ?? null);
+        $t->same('17', $collections['/references']['memberStartLine'] ?? null);
+        $t->same('21', $collections['/references']['memberEndLine'] ?? null);
+        $t->same('19', $collections['/references/0/metadata']['contentStartLine'] ?? null);
+        $t->same('21', $collections['/references/0/metadata']['contentEndLine'] ?? null);
+        $t->same('20', $collections['/references/0/metadata']['memberStartLine'] ?? null);
+        $t->same('21', $collections['/references/0/metadata']['memberEndLine'] ?? null);
+        $t->same(false, isset($collections['/review/labels']['memberStartLine']) && ($collections['/review/labels']['memberStartLine'] ?? '') === ($collections['/review/labels']['contentStartLine'] ?? ''));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('collection-member-span-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="collection-member-span-body">Collection member span body</h1>', $blocks);
+    },
     'records pandoc yaml explicit collection tag provenance' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

@@ -2330,6 +2330,36 @@ return [
             $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($corruptDocBytes));
         }
     },
+    'rejects CFB root mini streams when MiniFAT metadata is absent before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32, $u64): void {
+        $regularWordDocument = str_pad($buildSimpleWordDocument("Root mini stream guard packet\r"), 4096, "\0");
+        $bytes = $buildCfb([
+            'WordDocument' => $regularWordDocument,
+        ], false);
+        $sectorSize = 512;
+        $directorySectorOffset = $sectorSize + $sectorSize;
+        $rootMiniStreamSector = intdiv(strlen($bytes) - $sectorSize, $sectorSize);
+        $rootMiniStreamWithoutMiniFat = $bytes . str_repeat('M', $sectorSize);
+        $rootMiniStreamWithoutMiniFat = substr_replace(
+            $rootMiniStreamWithoutMiniFat,
+            $u32(0xfffffffe),
+            $sectorSize + ($rootMiniStreamSector * 4),
+            4
+        );
+        $rootMiniStreamWithoutMiniFat = substr_replace(
+            $rootMiniStreamWithoutMiniFat,
+            $u32($rootMiniStreamSector),
+            $directorySectorOffset + 116,
+            4
+        );
+        $rootMiniStreamWithoutMiniFat = substr_replace(
+            $rootMiniStreamWithoutMiniFat,
+            $u64(64),
+            $directorySectorOffset + 120,
+            8
+        );
+
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($rootMiniStreamWithoutMiniFat));
+    },
     'rejects small CFB streams when MiniFAT metadata is absent before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $docBytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Small regular stream must stay guarded\r"),
