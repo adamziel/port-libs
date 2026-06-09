@@ -17642,8 +17642,10 @@ final class PdfTextExtractor
     private function pageLabelDictionaryHasNumberTreeKeys(string $dictionary): bool
     {
         foreach (['Nums', 'Kids', 'Limits'] as $name) {
-            if ($this->pageLabelTopLevelValueAfterName($dictionary, $name) !== null) {
-                return true;
+            foreach ($this->pageLabelTopLevelValueEntriesAfterName($dictionary, $name) as $entry) {
+                if (!$entry['has_trailing_operand']) {
+                    return true;
+                }
             }
         }
 

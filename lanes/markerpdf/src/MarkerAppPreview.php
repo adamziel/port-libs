@@ -2525,8 +2525,10 @@ final class MarkerAppPreview
     private function pageLabelDictionaryHasNumberTreeKeys(string $dict): bool
     {
         foreach (['Nums', 'Kids', 'Limits'] as $name) {
-            if ($this->valueAfterName($dict, $name) !== null) {
-                return true;
+            foreach ($this->valueEntriesAfterName($dict, $name) as $entry) {
+                if (!$entry['has_trailing_operand']) {
+                    return true;
+                }
             }
         }
 

@@ -19,7 +19,7 @@ final class PdfEmbeddedFileExtractor
 
     private const EMBEDDED_FILE_FALLBACK_KEYS = ['UF', 'F', 'Unix', 'Mac', 'DOS'];
 
-    private const FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac', 'EF', 'AFRelationship'];
+    private const FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS = ['Type', 'F', 'UF', 'DOS', 'Unix', 'Mac', 'EF', 'AFRelationship'];
 
     private const FILE_SPEC_METADATA_BOUNDARY_KEYS = ['FS', 'ID', 'V'];
 
@@ -33,7 +33,7 @@ final class PdfEmbeddedFileExtractor
 
     private const RELATED_FILE_DICTIONARY_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
-    private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Filter', 'DecodeParms', 'Params', 'DL'];
+    private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Type', 'Subtype', 'Filter', 'DecodeParms', 'Params', 'DL'];
 
     private const EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS = ['Size', 'CheckSum', 'CreationDate', 'ModDate', 'Mac'];
 
