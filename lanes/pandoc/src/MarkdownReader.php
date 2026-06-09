@@ -8161,7 +8161,7 @@ final class MarkdownReader
             return $this->readRawHtmlUntilClosingTag($lines, $index, 'table', true);
         }
 
-        if (preg_match('/^ {0,3}<(?:base|hr|input|link|meta)(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
+        if (preg_match('/^ {0,3}<(?:base|hr|input|link|meta|source|track)(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
             return new AstNode('raw_html', ['html' => trim($line)]);
         }
 
@@ -10654,7 +10654,7 @@ final class MarkdownReader
         }
 
         $name = strtolower($node->localName);
-        if (in_array($name, ['base', 'iframe', 'input', 'link', 'meta', 'select'], true)) {
+        if (in_array($name, ['base', 'iframe', 'input', 'link', 'meta', 'select', 'source', 'track'], true)) {
             return [new AstNode('raw_html_inline', ['html' => XmlHtml5Dom::serializeHtmlFragment($node)])];
         }
 

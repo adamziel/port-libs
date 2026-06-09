@@ -14092,6 +14092,64 @@ XML;
         $t->contains('<p>Before <base data-source="batch-45" href="https://example.test/imports/" target="_blank"> after.</p>', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before  after.'), 'HTML document base tag should not be dropped from the paragraph');
     },
+    'maps upstream html reader source media tags as raw review markup' => static function (TestRunner $t): void {
+        $source = '<source src="clip.webm" type="video/webm" data-source="batch-46">';
+        $blockDocument = (new MarkdownReader())->read($source . "\n\nAfter the media source.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($source, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the media source.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $source, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;source'), 'Standalone source media tag should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . $source
+            . '</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineSource = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<source data-source="batch-46" src="clip.webm" type="video/webm">', $inlineSource->attr('html'));
+        $t->contains('<p>Before <source data-source="batch-46" src="clip.webm" type="video/webm"></p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document source media tag should not be dropped from the paragraph');
+    },
+    'maps upstream html reader track media tags as raw review markup' => static function (TestRunner $t): void {
+        $track = '<track src="captions.vtt" kind="captions" srclang="en" label="English" data-source="batch-46">';
+        $blockDocument = (new MarkdownReader())->read($track . "\n\nAfter the caption track.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($track, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the caption track.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $track, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;track'), 'Standalone track media tag should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . $track
+            . '</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineTrack = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<track data-source="batch-46" kind="captions" label="English" src="captions.vtt" srclang="en">', $inlineTrack->attr('html'));
+        $t->contains('<p>Before <track data-source="batch-46" kind="captions" label="English" src="captions.vtt" srclang="en"></p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document track media tag should not be dropped from the paragraph');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
