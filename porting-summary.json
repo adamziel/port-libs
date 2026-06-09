@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 11:42:53 UTC",
-    "sourceCommit": "6015fe7e84dc103ae25bd946b46459a21033d320",
-    "sourceCommitShort": "6015fe7e84dc",
+    "generated": "2026-06-09 11:44:17 UTC",
+    "sourceCommit": "26abf042fe40ef2e04d643a063a6e3a3106612a5",
+    "sourceCommitShort": "26abf042fe40",
     "sourceBranch": "unknown",
-    "dashboardCommit": "6015fe7e84dc103ae25bd946b46459a21033d320",
-    "dashboardCommitShort": "6015fe7e84dc",
+    "dashboardCommit": "26abf042fe40ef2e04d643a063a6e3a3106612a5",
+    "dashboardCommitShort": "26abf042fe40",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,919 / 2,276 (128.3%)",
             "mapPercent": "128.3%",
             "unmapped": "0",
-            "php": "2,715 pass / 0 fail",
-            "phase": "native PHP Pandoc ODF/OpenDocument metadata handoff",
-            "audit": "2026-06-09 UTC current-base ODF extended statistics slice: fill non-w...",
-            "currentWork": "ODF field review fills extended statistic fields from package meta.xml without extern...",
+            "php": "2,716 pass / 0 fail",
+            "phase": "native PHP Pandoc Citation/BibTeX/CSL follow-up handoff",
+            "audit": "2026-06-09 UTC current-base Citation/BibTeX/CSL slice: decode common...",
+            "currentWork": "BibTeX CSL review packets decode common logo macros without bibliography managers.",
             "nextTarget": "Continue non-overlapping native conversion support under ODF/...",
-            "remainingGate": "No LibreOffice, Pandoc, model, or GPU path used.",
+            "remainingGate": "No Pandoc, citeproc, BibTeX, Biber, model, or GPU path used.",
             "commit": "pending fast ba..."
         },
         {

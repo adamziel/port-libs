@@ -2991,6 +2991,10 @@ final class BibtexCslParser
     private static function decodeLatexPunctuationCommands(string $value): string
     {
         $map = [
+            'BibLaTeX' => 'BibLaTeX',
+            'BibTeX' => 'BibTeX',
+            'LaTeX' => 'LaTeX',
+            'TeX' => 'TeX',
             'dots' => "\u{2026}",
             'ldots' => "\u{2026}",
             'textasciicircum' => '^',

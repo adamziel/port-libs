@@ -565,6 +565,63 @@ XML);
         $t->contains('<p>Text symbol source [Path \ assets &lt;review&gt; | Audit © Team | packet~draft ® ™ №7 °C | phase ^2] keeps BibTeX path and rights symbols readable.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Path \ assets &lt;review&gt; :: Audit © Team :: packet~draft ® ™ №7 °C | phase ^2</dd>', $blocks);
     },
+    'decodes bounded latex logo macros in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{logo-source,
+  author    = {Knuth, Donald and Lamport, Leslie},
+  title     = {Native \TeX{} and \LaTeX{} Source Review},
+  publisher = {{\BibTeX{} and \BibLaTeX{} Archive Desk}},
+  note      = {Preserve \LaTeX{} macro names without renderer},
+  date      = {2026},
+  url       = {https://example.test/logo-source}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Native TeX and LaTeX Source Review', $items[0]['title'] ?? null);
+        $t->same('BibTeX and BibLaTeX Archive Desk', $items[0]['publisher'] ?? null);
+        $t->same('Preserve LaTeX macro names without renderer', $items[0]['note'] ?? null);
+        $t->same('Native \\TeX{} and \\LaTeX{} Source Review', $items[0]['rawBibtex']['fields']['title'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('logo-source');
+        $t->same('Native TeX and LaTeX Source Review', $item['title'] ?? null);
+        $t->same('BibTeX and BibLaTeX Archive Desk', $item['publisher'] ?? null);
+        $t->same('Preserve LaTeX macro names without renderer', $item['note'] ?? null);
+        $t->same('(Knuth and Lamport 2026)', $processor->renderCitationCluster([$citation('logo-source', '[@logo-source]')]));
+        $t->same('Knuth, Donald; Lamport, Leslie. Native TeX and LaTeX Source Review. BibTeX and BibLaTeX Archive Desk, 2026. Note: Preserve LaTeX macro names without renderer. https://example.test/logo-source.', $processor->renderBibliographyEntry('logo-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="publisher"/>
+        <text variable="note"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher"/>
+      <text variable="note"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Native TeX and LaTeX Source Review | BibTeX and BibLaTeX Archive Desk | Preserve LaTeX macro names without renderer]', $styled->renderCitationCluster([$citation('logo-source', '[@logo-source]')]));
+        $t->same('Native TeX and LaTeX Source Review :: BibTeX and BibLaTeX Archive Desk :: Preserve LaTeX macro names without renderer', $styled->renderBibliographyEntry('logo-source'));
+
+        $document = (new MarkdownReader())->read('Logo source [@logo-source] keeps bibliography macro names readable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Logo source (Knuth and Lamport 2026) keeps bibliography macro names readable.</p>', $blocks);
+        $t->contains('<dt>Knuth and Lamport 2026</dt><dd>Knuth, Donald; Lamport, Leslie. Native TeX and LaTeX Source Review. BibTeX and BibLaTeX Archive Desk, 2026. Note: Preserve LaTeX macro names without renderer. https://example.test/logo-source.</dd>', $blocks);
+    },
     'inherits bounded bibtex crossref fields into child csl items' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @proceedings{conf2026,
