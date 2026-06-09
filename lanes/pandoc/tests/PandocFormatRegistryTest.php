@@ -336,6 +336,52 @@ return [
         $t->same('', $packet['formats']['man']['inputImplementation']);
         $t->same('', $packet['formats']['ms']['outputImplementation']);
     },
+    'summarizes roff manual unsupported format surfaces without converter claims' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::roffManualUnsupportedFormatSummary();
+        $packet = PandocFormatRegistry::roffManualFormatReviewPacket();
+        $directions = PandocFormatRegistry::roffManualFormatDirections();
+
+        $t->same($summary, $packet['unsupportedFormatSummary']);
+        $t->same([
+            'man',
+            'mdoc',
+            'ms',
+        ], $summary['anyUnsupported']);
+        $t->same(['man'], $summary['unsupportedBoth']);
+        $t->same(['mdoc'], $summary['unsupportedInputOnly']);
+        $t->same(['ms'], $summary['unsupportedOutputOnly']);
+        $t->same(PandocFormatRegistry::unsupportedRoffManualInputFormats(), $summary['noNativeReader']);
+        $t->same(PandocFormatRegistry::unsupportedRoffManualOutputFormats(), $summary['noNativeWriter']);
+        $t->same(['man', 'mdoc'], $summary['noNativeReader']);
+        $t->same(['man', 'ms'], $summary['noNativeWriter']);
+
+        foreach ($summary['anyUnsupported'] as $format) {
+            $direction = $directions[$format];
+            $t->same(true, $direction['inputStatus'] === 'unsupported' || $direction['outputStatus'] === 'unsupported', "Roff manual {$format} should have an unsupported surface");
+        }
+
+        $man = $packet['formats']['man'];
+        $t->same('input-output', $man['direction']);
+        $t->same('unsupported', $man['inputStatus']);
+        $t->same('unsupported', $man['outputStatus']);
+        $t->same(['.[1-9]', '.[1-9][a-z]+'], $man['extensions']);
+        $t->same('', $man['inputImplementation']);
+        $t->same('', $man['outputImplementation']);
+
+        $mdoc = $packet['formats']['mdoc'];
+        $t->same('input-only', $mdoc['direction']);
+        $t->same('unsupported', $mdoc['inputStatus']);
+        $t->same('not-applicable', $mdoc['outputStatus']);
+        $t->same([], $mdoc['extensions']);
+        $t->same('', $mdoc['inputImplementation']);
+
+        $ms = $packet['formats']['ms'];
+        $t->same('output-only', $ms['direction']);
+        $t->same('not-applicable', $ms['inputStatus']);
+        $t->same('unsupported', $ms['outputStatus']);
+        $t->same(['.ms', '.roff'], $ms['extensions']);
+        $t->same('', $ms['outputImplementation']);
+    },
     'tracks rich package formats and unsupported direct writer parity' => static function (TestRunner $t): void {
         $t->same([
             'docx',
