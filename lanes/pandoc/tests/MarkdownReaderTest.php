@@ -2794,6 +2794,49 @@ return [
         $t->same('yaml-merge-sequence-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-merge-sequence-body">YAML merge sequence body</h1>', $blocks);
     },
+    'records pandoc yaml merge source provenance for metadata review' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Merge provenance **Packet**',
+            'review-base_: &review_base {status: queued, priority: 5, labels: [base, import], reviewer: Base Desk}',
+            'review-override_: &review_override {status: approved, labels: [override, review]}',
+            'review:',
+            '  <<: [*review_override, missing, *review_base]',
+            '  priority: 1',
+            'direct-review:',
+            '  <<: *review_base',
+            'flow-review: {<<: [*review_override, *review_base], reviewer: Flow Desk}',
+            'tagged-review:',
+            '  !!merge <<: *review_base',
+            '  status: tagged',
+            '...',
+            '',
+            '# YAML merge provenance body',
+        ]));
+        $meta = $document->attr('meta');
+        $mergeProvenance = $document->attr('yamlMetadataMergeProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Merge provenance **Packet**', $meta['title']);
+        $t->same('approved', $meta['review']['status']);
+        $t->same(1, $meta['review']['priority']);
+        $t->same('queued', $meta['direct-review']['status']);
+        $t->same('Flow Desk', $meta['flow-review']['reviewer']);
+        $t->same('tagged', $meta['tagged-review']['status']);
+        $t->same(false, array_key_exists('__yamlMetadataMergeProvenance', $meta));
+        $t->same(4, count($mergeProvenance));
+        $t->same(array_fill(0, 4, 'yaml-merge'), array_column($mergeProvenance, 'type'));
+        $t->same(array_fill(0, 4, 'merge-source'), array_column($mergeProvenance, 'reason'));
+        $t->same(['/review/<<', '/direct-review/<<', '/flow-review/<<', '/tagged-review/<<'], array_column($mergeProvenance, 'path'));
+        $t->same(['sequence', 'mapping', 'sequence', 'mapping'], array_column($mergeProvenance, 'valueKind'));
+        $t->same(['2', '1', '2', '1'], array_column($mergeProvenance, 'mergeSourceCount'));
+        $t->same(['1', '0', '0', '0'], array_column($mergeProvenance, 'invalidMergeSourceCount'));
+        $t->same(['partial', 'applied', 'applied', 'applied'], array_column($mergeProvenance, 'policy'));
+        $t->same(['6', '9', '10', '12'], array_column($mergeProvenance, 'sourceLine'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('yaml-merge-provenance-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-merge-provenance-body">YAML merge provenance body</h1>', $blocks);
+    },
     'records pandoc yaml merge sequence shadow diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

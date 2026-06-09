@@ -52,6 +52,9 @@ final class MarkdownReader
     private array $yamlMetadataAliasProvenance = [];
 
     /** @var list<array<string, string>> */
+    private array $yamlMetadataMergeProvenance = [];
+
+    /** @var list<array<string, string>> */
     private array $yamlMetadataScalarProvenance = [];
 
     private bool $yamlMetadataRecordScalarProvenance = true;
@@ -699,6 +702,7 @@ final class MarkdownReader
         $previousYamlMetadataCommentProvenance = $this->yamlMetadataCommentProvenance;
         $previousYamlMetadataAnchorProvenance = $this->yamlMetadataAnchorProvenance;
         $previousYamlMetadataAliasProvenance = $this->yamlMetadataAliasProvenance;
+        $previousYamlMetadataMergeProvenance = $this->yamlMetadataMergeProvenance;
         $previousYamlMetadataScalarProvenance = $this->yamlMetadataScalarProvenance;
         $previousYamlMetadataCollectionProvenance = $this->yamlMetadataCollectionProvenance;
         $previousYamlMetadataInvalid = $this->yamlMetadataInvalid;
@@ -713,6 +717,7 @@ final class MarkdownReader
         $this->yamlMetadataCommentProvenance = [];
         $this->yamlMetadataAnchorProvenance = [];
         $this->yamlMetadataAliasProvenance = [];
+        $this->yamlMetadataMergeProvenance = [];
         $this->yamlMetadataScalarProvenance = [];
         $this->yamlMetadataCollectionProvenance = [];
         $this->yamlMetadataInvalid = false;
@@ -749,6 +754,9 @@ final class MarkdownReader
             if ($this->yamlMetadataAliasProvenance !== []) {
                 $metadata['__yamlMetadataAliasProvenance'] = $this->yamlMetadataAliasProvenance;
             }
+            if ($this->yamlMetadataMergeProvenance !== []) {
+                $metadata['__yamlMetadataMergeProvenance'] = $this->yamlMetadataMergeProvenance;
+            }
             if ($this->yamlMetadataScalarProvenance !== []) {
                 $metadata['__yamlMetadataScalarProvenance'] = $this->yamlMetadataScalarProvenance;
             }
@@ -767,6 +775,7 @@ final class MarkdownReader
             $this->yamlMetadataCommentProvenance = $previousYamlMetadataCommentProvenance;
             $this->yamlMetadataAnchorProvenance = $previousYamlMetadataAnchorProvenance;
             $this->yamlMetadataAliasProvenance = $previousYamlMetadataAliasProvenance;
+            $this->yamlMetadataMergeProvenance = $previousYamlMetadataMergeProvenance;
             $this->yamlMetadataScalarProvenance = $previousYamlMetadataScalarProvenance;
             $this->yamlMetadataCollectionProvenance = $previousYamlMetadataCollectionProvenance;
             $this->yamlMetadataInvalid = $previousYamlMetadataInvalid;
@@ -808,6 +817,8 @@ final class MarkdownReader
         $nextAnchors = $this->yamlMetadataAnchorProvenanceList($next['__yamlMetadataAnchorProvenance'] ?? []);
         $currentAliases = $this->yamlMetadataAliasProvenanceList($current['__yamlMetadataAliasProvenance'] ?? []);
         $nextAliases = $this->yamlMetadataAliasProvenanceList($next['__yamlMetadataAliasProvenance'] ?? []);
+        $currentMerges = $this->yamlMetadataMergeProvenanceList($current['__yamlMetadataMergeProvenance'] ?? []);
+        $nextMerges = $this->yamlMetadataMergeProvenanceList($next['__yamlMetadataMergeProvenance'] ?? []);
         $currentScalars = $this->yamlMetadataScalarProvenanceList($current['__yamlMetadataScalarProvenance'] ?? []);
         $nextScalars = $this->yamlMetadataScalarProvenanceList($next['__yamlMetadataScalarProvenance'] ?? []);
         $currentCollections = $this->yamlMetadataCollectionProvenanceList($current['__yamlMetadataCollectionProvenance'] ?? []);
@@ -835,6 +846,8 @@ final class MarkdownReader
             $next['__yamlMetadataAnchorProvenance'],
             $current['__yamlMetadataAliasProvenance'],
             $next['__yamlMetadataAliasProvenance'],
+            $current['__yamlMetadataMergeProvenance'],
+            $next['__yamlMetadataMergeProvenance'],
             $current['__yamlMetadataScalarProvenance'],
             $next['__yamlMetadataScalarProvenance'],
             $current['__yamlMetadataCollectionProvenance'],
@@ -869,6 +882,10 @@ final class MarkdownReader
         $aliasProvenance = array_merge($currentAliases, $nextAliases);
         if ($aliasProvenance !== []) {
             $merged['__yamlMetadataAliasProvenance'] = $aliasProvenance;
+        }
+        $mergeProvenance = array_merge($currentMerges, $nextMerges);
+        if ($mergeProvenance !== []) {
+            $merged['__yamlMetadataMergeProvenance'] = $mergeProvenance;
         }
         $scalarProvenance = array_merge($currentScalars, $nextScalars);
         if ($scalarProvenance !== []) {
@@ -1138,6 +1155,28 @@ final class MarkdownReader
      * @return list<array<string, string>>
      */
     private function yamlMetadataAliasProvenanceList(mixed $value): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return [];
+        }
+
+        $provenance = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $provenance[] = array_filter(
+                    $item,
+                    static fn (mixed $entry): bool => is_string($entry)
+                );
+            }
+        }
+
+        return $provenance;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function yamlMetadataMergeProvenanceList(mixed $value): array
     {
         if (!is_array($value) || !array_is_list($value)) {
             return [];
@@ -6641,6 +6680,9 @@ final class MarkdownReader
      */
     private function mergeYamlMapValue(array $current, mixed $mergeValue): array
     {
+        [$validMergeSourceCount, $invalidMergeSourceCount] = $this->yamlMetadataMergeSourceCounts($mergeValue);
+        $this->recordYamlMergeProvenance($mergeValue, $validMergeSourceCount, $invalidMergeSourceCount);
+
         $merged = [];
         if ($this->isYamlAssociativeArray($mergeValue)) {
             $merged = $mergeValue;
@@ -6657,6 +6699,51 @@ final class MarkdownReader
         }
 
         return array_replace($merged, $current);
+    }
+
+    /**
+     * @return array{0:int, 1:int}
+     */
+    private function yamlMetadataMergeSourceCounts(mixed $mergeValue): array
+    {
+        if ($this->isYamlAssociativeArray($mergeValue)) {
+            return [1, 0];
+        }
+
+        if (!is_array($mergeValue)) {
+            return [0, 1];
+        }
+
+        $valid = 0;
+        $invalid = 0;
+        foreach ($mergeValue as $item) {
+            if ($this->isYamlAssociativeArray($item)) {
+                $valid++;
+                continue;
+            }
+
+            $invalid++;
+        }
+
+        return [$valid, $invalid];
+    }
+
+    private function recordYamlMergeProvenance(mixed $mergeValue, int $validMergeSourceCount, int $invalidMergeSourceCount): void
+    {
+        $provenance = [
+            'type' => 'yaml-merge',
+            'reason' => 'merge-source',
+            'path' => $this->yamlMetadataPathWithSegment('<<'),
+            'valueKind' => $this->yamlMetadataValueKind($mergeValue),
+            'mergeSourceCount' => (string) $validMergeSourceCount,
+            'invalidMergeSourceCount' => (string) $invalidMergeSourceCount,
+            'policy' => $validMergeSourceCount === 0
+                ? 'invalid'
+                : ($invalidMergeSourceCount === 0 ? 'applied' : 'partial'),
+        ];
+        $provenance += $this->yamlMetadataSourceLineAttrs();
+
+        $this->yamlMetadataMergeProvenance[] = $provenance;
     }
 
     /**
@@ -6760,6 +6847,7 @@ final class MarkdownReader
         $commentProvenance = [];
         $anchorProvenance = [];
         $aliasProvenance = [];
+        $mergeProvenance = [];
         $scalarProvenance = [];
         $collectionProvenance = [];
         $streamProvenance = [];
@@ -6788,6 +6876,10 @@ final class MarkdownReader
             }
             if ($fieldName === '__yamlMetadataAliasProvenance') {
                 $aliasProvenance = array_merge($aliasProvenance, $this->yamlMetadataAliasProvenanceList($value));
+                continue;
+            }
+            if ($fieldName === '__yamlMetadataMergeProvenance') {
+                $mergeProvenance = array_merge($mergeProvenance, $this->yamlMetadataMergeProvenanceList($value));
                 continue;
             }
             if ($fieldName === '__yamlMetadataScalarProvenance') {
@@ -6891,6 +6983,9 @@ final class MarkdownReader
         if ($aliasProvenance !== []) {
             $attrs['yamlMetadataAliasProvenance'] = $aliasProvenance;
         }
+        if ($mergeProvenance !== []) {
+            $attrs['yamlMetadataMergeProvenance'] = $mergeProvenance;
+        }
         if ($scalarProvenance !== []) {
             $attrs['yamlMetadataScalarProvenance'] = $scalarProvenance;
         }
@@ -6907,6 +7002,7 @@ final class MarkdownReader
             || $directiveProvenance !== []
             || $commentProvenance !== []
             || $anchorProvenance !== []
+            || $mergeProvenance !== []
             || $scalarProvenance !== []
             || $collectionProvenance !== []
             || $streamProvenance !== []
@@ -6918,6 +7014,7 @@ final class MarkdownReader
                 $directiveProvenance,
                 $commentProvenance,
                 $anchorProvenance,
+                $mergeProvenance,
                 $scalarProvenance,
                 $collectionProvenance,
                 $streamProvenance
@@ -6934,6 +7031,7 @@ final class MarkdownReader
      * @param list<array<string, string>> $directiveProvenance
      * @param list<array<string, string>> $commentProvenance
      * @param list<array<string, string>> $anchorProvenance
+     * @param list<array<string, string>> $mergeProvenance
      * @param list<array<string, string>> $scalarProvenance
      * @param list<array<string, string>> $collectionProvenance
      * @param list<array<string, string>> $streamProvenance
@@ -6946,6 +7044,7 @@ final class MarkdownReader
         array $directiveProvenance,
         array $commentProvenance,
         array $anchorProvenance,
+        array $mergeProvenance,
         array $scalarProvenance,
         array $collectionProvenance,
         array $streamProvenance
@@ -7023,6 +7122,7 @@ final class MarkdownReader
             'directiveCount' => count($directiveProvenance),
             'commentCount' => count($commentProvenance),
             'anchorCount' => count($anchorProvenance),
+            'mergeCount' => count($mergeProvenance),
             'scalarCount' => count($scalarProvenance),
             'collectionCount' => count($collectionProvenance),
             'streamCount' => count($streamProvenance),

@@ -583,6 +583,7 @@ $yamlDirectiveProvenance = $document->attr('yamlMetadataDirectiveProvenance', []
 $yamlCommentProvenance = $document->attr('yamlMetadataCommentProvenance', []);
 $yamlAnchorProvenance = $document->attr('yamlMetadataAnchorProvenance', []);
 $yamlAliasProvenance = $document->attr('yamlMetadataAliasProvenance', []);
+$yamlMergeProvenance = $document->attr('yamlMetadataMergeProvenance', []);
 $yamlScalarProvenance = $document->attr('yamlMetadataScalarProvenance', []);
 $yamlCollectionProvenance = $document->attr('yamlMetadataCollectionProvenance', []);
 $yamlStreamProvenance = $document->attr('yamlMetadataStreamProvenance', []);
@@ -911,6 +912,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($yamlReviewSummary['commentCount'] ?? null) !== count($yamlCommentProvenance)) {
         throw new RuntimeException('YAML metadata self-test review summary comment count mismatch');
+    }
+    if (($yamlReviewSummary['mergeCount'] ?? null) !== count($yamlMergeProvenance)) {
+        throw new RuntimeException('YAML metadata self-test review summary merge count mismatch');
     }
     if (!in_array('review', $yamlReviewSummary['overriddenFields'] ?? [], true)) {
         throw new RuntimeException('YAML metadata self-test review summary missing overridden review field');
@@ -1432,6 +1436,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (array_key_exists('__yamlMetadataAliasProvenance', $meta)) {
         throw new RuntimeException('YAML metadata self-test leaked alias provenance into plain metadata');
+    }
+    if (array_key_exists('__yamlMetadataMergeProvenance', $meta)) {
+        throw new RuntimeException('YAML metadata self-test leaked merge provenance into plain metadata');
     }
     if (array_key_exists('__yamlMetadataStreamProvenance', $meta)) {
         throw new RuntimeException('YAML metadata self-test leaked stream provenance into plain metadata');
@@ -2048,6 +2055,37 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (array_column($invalidMergeDiagnostics, 'valueKind') !== ['scalar', 'sequence', 'scalar']) {
         throw new RuntimeException('YAML metadata self-test missing invalid merge value-kind metadata');
+    }
+    $yamlMergeProvenanceByPath = [];
+    foreach ($yamlMergeProvenance as $entry) {
+        $path = $entry['path'] ?? '';
+        if ($path !== '') {
+            $yamlMergeProvenanceByPath[$path] = $entry;
+        }
+    }
+    $expectedMergeProvenance = [
+        '/merge-sequence-review/<<' => ['sequence', '2', '0', 'applied'],
+        '/invalid-merge-review/<<' => ['sequence', '2', '2', 'partial'],
+        '/invalid-direct-merge/<<' => ['scalar', '0', '1', 'invalid'],
+        '/merge-tag-flow-review/<<' => ['mapping', '1', '0', 'applied'],
+        '/explicit-review/<<' => ['mapping', '1', '0', 'applied'],
+    ];
+    foreach ($expectedMergeProvenance as $path => [$valueKind, $mergeSourceCount, $invalidMergeSourceCount, $policy]) {
+        $entry = $yamlMergeProvenanceByPath[$path] ?? null;
+        if ($entry === null) {
+            throw new RuntimeException('YAML metadata self-test missing merge provenance path ' . $path);
+        }
+        if (($entry['type'] ?? '') !== 'yaml-merge' || ($entry['reason'] ?? '') !== 'merge-source') {
+            throw new RuntimeException('YAML metadata self-test missing merge provenance record type for ' . $path);
+        }
+        if (
+            ($entry['valueKind'] ?? '') !== $valueKind
+            || ($entry['mergeSourceCount'] ?? '') !== $mergeSourceCount
+            || ($entry['invalidMergeSourceCount'] ?? '') !== $invalidMergeSourceCount
+            || ($entry['policy'] ?? '') !== $policy
+        ) {
+            throw new RuntimeException('YAML metadata self-test mismatched merge provenance source counts for ' . $path);
+        }
     }
     if (($meta['merge-tag-review']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing explicit merge-tag block merge');
