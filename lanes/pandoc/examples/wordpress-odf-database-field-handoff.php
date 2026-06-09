@@ -48,6 +48,10 @@ $contentXml = <<<'XML'
         <table:named-range table:name="ReadyPostRows" table:cell-range-address="Review.A2:Review.D12" table:base-cell-address="Review.A1" table:range-usable-as="filter"/>
         <table:named-expression table:name="ReadyPostCount" table:expression="of:=COUNTIF([.B2:.B12];&quot;ready&quot;)" table:base-cell-address="Review.A1"/>
       </table:named-expressions>
+      <table:label-ranges>
+        <table:label-range table:label-cell-range-address="Review.A1:Review.D1" table:data-cell-range-address="Review.A2:Review.D12" table:orientation="column"/>
+        <table:label-range table:label-cell-range-address="Review.A2:Review.A12" table:data-cell-range-address="Review.B2:Review.D12" table:orientation="row"/>
+      </table:label-ranges>
       <table:data-pilot-tables>
         <table:data-pilot-table table:name="ReadyPostPivot" table:application-data="wp-import-review" table:target-range-address="Pivot.A1:Pivot.D8" table:buttons="true" table:show-filter-button="true" table:grand-total="both" table:ignore-empty-rows="true" table:identify-categories="false">
           <table:source-cell-range table:cell-range-address="Review.A1:Review.D12"/>
@@ -142,6 +146,22 @@ if (in_array('--self-test', $argv, true)) {
     }
     if (($declarations['namedFormulaExpressionCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT named formula expression count to be preserved');
+    }
+    if (($declarations['labelRangeCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT label ranges to be counted in the import report');
+    }
+    $labelRanges = $result['document']->attr('contentDeclarations')['labelRanges'] ?? [];
+    if (!is_array($labelRanges)
+        || ($labelRanges[0]['labelCellRangeAddress'] ?? '') !== 'Review.A1:Review.D1'
+        || ($labelRanges[0]['dataCellRangeAddress'] ?? '') !== 'Review.A2:Review.D12'
+        || ($labelRanges[1]['orientation'] ?? '') !== 'row') {
+        throw new RuntimeException('Expected ODT label-range addresses and orientations to be preserved');
+    }
+    $labelOrientationCounts = $result['document']->attr('contentDeclarations')['labelRangeOrientationCounts'] ?? [];
+    if (!is_array($labelOrientationCounts)
+        || ($labelOrientationCounts['column'] ?? 0) !== 1
+        || ($labelOrientationCounts['row'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT label-range orientation counts to be preserved');
     }
     $namedExpressions = $result['document']->attr('contentDeclarations')['namedExpressionsByName'] ?? [];
     $readyRows = is_array($namedExpressions) ? ($namedExpressions['ReadyPostRows'] ?? null) : null;

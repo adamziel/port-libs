@@ -5171,6 +5171,107 @@ return [
         );
     },
 
+    'preflights zip local header name and flag mismatches across archive streams' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $centralName = 'word/document.xml';
+        $localName = 'word/documenx.xml';
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+                'flags' => 0x0800,
+            ],
+            [
+                'name' => $centralName,
+                'data' => '<w:document><w:body><w:p>Local header mismatch stream policy</w:p></w:body></w:document>',
+                'compressionMethod' => 8,
+                'flags' => 0x0800,
+                'localFlags' => 0x0000,
+            ],
+        ], 'local header mismatch stream fixture');
+        $nameOffset = strpos($zipBytes, $centralName);
+        if (!is_int($nameOffset)) {
+            throw new RuntimeException('Expected local header name in ZIP fixture.');
+        }
+        $zipBytes = substr_replace($zipBytes, $localName, $nameOffset, strlen($centralName));
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-local-header-name-mismatch.zip',
+                'comment' => 'ZIP local header name preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('local header mismatch reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipLocalHeaderNamePolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(2, $inspection['entryCount']);
+            $t->same(2, $inspection['totalEntryCount']);
+            $t->same(1, $inspection['mismatchedEntryCount']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same([
+                'local-header-name-mismatch',
+                'local-header-decoded-name-mismatch',
+                'local-header-flags-mismatch',
+            ], $inspection['issues']);
+            $t->same([$centralName], array_column($inspection['mismatchedEntries'], 'centralName'));
+            $t->same([$localName], array_column($inspection['mismatchedEntries'], 'localName'));
+            $t->same(0x0800, $inspection['mismatchedEntries'][0]['centralGeneralPurposeFlags']);
+            $t->same(0x0000, $inspection['mismatchedEntries'][0]['localGeneralPurposeFlags']);
+            $t->same('utf-8', $inspection['mismatchedEntries'][0]['centralNameEncoding']);
+            $t->same('cp437', $inspection['mismatchedEntries'][0]['localNameEncoding']);
+            $t->same(false, $inspection['mismatchedEntries'][0]['rawNameMatchesCentral']);
+            $t->same(false, $inspection['mismatchedEntries'][0]['decodedNameMatchesCentral']);
+            $t->same(false, $inspection['mismatchedEntries'][0]['generalPurposeFlagsMatchCentral']);
+            $t->same(false, array_key_exists('package', $inspection));
+            $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zipBytes));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipLocalHeaderNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipLocalHeaderNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-local-header-name-mismatch.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('ZIP local header name preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('local header mismatch reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipLocalHeaderNamePolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
     'preflights encrypted zip package streams without exposing entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
         $utf8 = 0x0800;
         $winZipAesExtra = pack('vvv', 0x9901, 7, 2) . 'AE' . "\x03" . pack('v', 8);

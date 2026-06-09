@@ -1078,6 +1078,49 @@ try {
 } catch (RuntimeException) {
     $archiveExtraZipExtractionBlocked = true;
 }
+$localHeaderMismatchCentralName = 'word/document.xml';
+$localHeaderMismatchLocalName = 'word/documenx.xml';
+$localHeaderMismatchZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'flags' => 0x0800,
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => $localHeaderMismatchCentralName,
+        'data' => '<w:document><w:body><w:p>Local header mismatch archive stream review</w:p></w:body></w:document>',
+        'flags' => 0x0800,
+        'compressionMethod' => 8,
+    ],
+], 'local header mismatch stream review fixture');
+$localHeaderMismatchOffset = strpos($localHeaderMismatchZipBytes, $localHeaderMismatchCentralName);
+if (!is_int($localHeaderMismatchOffset)) {
+    throw new RuntimeException('ZIP local-header mismatch fixture is missing local name.');
+}
+$localHeaderMismatchZipBytes = substr_replace($localHeaderMismatchZipBytes, pack('v', 0x0000), $localHeaderMismatchOffset - 24, 2);
+$localHeaderMismatchZipBytes = substr_replace(
+    $localHeaderMismatchZipBytes,
+    $localHeaderMismatchLocalName,
+    $localHeaderMismatchOffset,
+    strlen($localHeaderMismatchCentralName)
+);
+$localHeaderMismatchZipGzip = GzipStream::build($localHeaderMismatchZipBytes, [
+    'filename' => 'wordpress-local-header-name-mismatch.zip',
+    'comment' => 'ZIP local header name preflight fixture',
+    'headerCrc' => true,
+]);
+$localHeaderMismatchInspection = ArchiveCompressionStream::inspectZipLocalHeaderNamePolicy(
+    $localHeaderMismatchZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($localHeaderMismatchZipBytes)
+);
+$localHeaderMismatchExtractionBlocked = false;
+try {
+    ZipPackage::fromString($localHeaderMismatchZipBytes);
+} catch (RuntimeException) {
+    $localHeaderMismatchExtractionBlocked = true;
+}
 $generalPurposeZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -1858,6 +1901,17 @@ if (in_array('--self-test', $argv, true)) {
         'zipArchiveExtraRecordData' => $archiveExtraZipRecordData,
         'zipArchiveExtraEntryNames' => ['[Content_Types].xml', 'word/document.xml'],
         'zipArchiveExtraGzipFilename' => 'wordpress-archive-extra-package.zip',
+        'zipLocalHeaderNameFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipLocalHeaderNameEntryCount' => 2,
+        'zipLocalHeaderNameMismatchCount' => 1,
+        'zipLocalHeaderNameSupportedByBoundedReader' => false,
+        'zipLocalHeaderNameIssues' => ['local-header-name-mismatch', 'local-header-decoded-name-mismatch', 'local-header-flags-mismatch'],
+        'zipLocalHeaderNameCentral' => $localHeaderMismatchCentralName,
+        'zipLocalHeaderNameLocal' => $localHeaderMismatchLocalName,
+        'zipLocalHeaderNameCentralFlags' => 0x0800,
+        'zipLocalHeaderNameLocalFlags' => 0x0000,
+        'zipLocalHeaderNameEncodings' => ['utf-8', 'cp437'],
+        'zipLocalHeaderNameGzipFilename' => 'wordpress-local-header-name-mismatch.zip',
         'zipGeneralPurposeFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipGeneralPurposeEntryCount' => 4,
         'zipGeneralPurposeSupportedCount' => 4,
@@ -2458,6 +2512,28 @@ if (in_array('--self-test', $argv, true)) {
         || ($archiveExtraZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipArchiveExtraGzipFilename']
         || isset($archiveExtraZipInspection['package'])
         || !$archiveExtraZipExtractionBlocked
+        || $localHeaderMismatchInspection['format'] !== $expected['zipLocalHeaderNameFormat']
+        || $localHeaderMismatchInspection['zipBytes'] !== $localHeaderMismatchZipBytes
+        || $localHeaderMismatchInspection['packageByteSize'] !== strlen($localHeaderMismatchZipBytes)
+        || $localHeaderMismatchInspection['entryCount'] !== $expected['zipLocalHeaderNameEntryCount']
+        || $localHeaderMismatchInspection['totalEntryCount'] !== $expected['zipLocalHeaderNameEntryCount']
+        || $localHeaderMismatchInspection['mismatchedEntryCount'] !== $expected['zipLocalHeaderNameMismatchCount']
+        || $localHeaderMismatchInspection['isSupportedByBoundedReader'] !== $expected['zipLocalHeaderNameSupportedByBoundedReader']
+        || $localHeaderMismatchInspection['issues'] !== $expected['zipLocalHeaderNameIssues']
+        || array_column($localHeaderMismatchInspection['mismatchedEntries'], 'centralName') !== [$expected['zipLocalHeaderNameCentral']]
+        || array_column($localHeaderMismatchInspection['mismatchedEntries'], 'localName') !== [$expected['zipLocalHeaderNameLocal']]
+        || ($localHeaderMismatchInspection['mismatchedEntries'][0]['centralGeneralPurposeFlags'] ?? null) !== $expected['zipLocalHeaderNameCentralFlags']
+        || ($localHeaderMismatchInspection['mismatchedEntries'][0]['localGeneralPurposeFlags'] ?? null) !== $expected['zipLocalHeaderNameLocalFlags']
+        || [
+            ($localHeaderMismatchInspection['mismatchedEntries'][0]['centralNameEncoding'] ?? null),
+            ($localHeaderMismatchInspection['mismatchedEntries'][0]['localNameEncoding'] ?? null),
+        ] !== $expected['zipLocalHeaderNameEncodings']
+        || ($localHeaderMismatchInspection['mismatchedEntries'][0]['rawNameMatchesCentral'] ?? null) !== false
+        || ($localHeaderMismatchInspection['mismatchedEntries'][0]['decodedNameMatchesCentral'] ?? null) !== false
+        || ($localHeaderMismatchInspection['mismatchedEntries'][0]['generalPurposeFlagsMatchCentral'] ?? null) !== false
+        || ($localHeaderMismatchInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipLocalHeaderNameGzipFilename']
+        || isset($localHeaderMismatchInspection['package'])
+        || !$localHeaderMismatchExtractionBlocked
         || $generalPurposeZipInspection['format'] !== $expected['zipGeneralPurposeFormat']
         || $generalPurposeZipInspection['zipBytes'] !== $generalPurposeZipBytes
         || $generalPurposeZipInspection['packageByteSize'] !== strlen($generalPurposeZipBytes)
@@ -2903,6 +2979,14 @@ echo 'zipArchiveExtra.location=' . ($archiveExtraZipInspection['archiveExtraData
 echo 'zipArchiveExtra.issues=' . implode(',', $archiveExtraZipInspection['archiveExtraDataRecords'][0]['issues'] ?? []) . "\n";
 echo 'zipArchiveExtra.gzipFilename=' . $archiveExtraZipInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipArchiveExtra.extractionBlocked=' . ($archiveExtraZipExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zipLocalHeaderName.format=' . $localHeaderMismatchInspection['format'] . "\n";
+echo 'zipLocalHeaderName.entryCount=' . $localHeaderMismatchInspection['entryCount'] . "\n";
+echo 'zipLocalHeaderName.mismatchCount=' . $localHeaderMismatchInspection['mismatchedEntryCount'] . "\n";
+echo 'zipLocalHeaderName.central=' . $localHeaderMismatchInspection['mismatchedEntries'][0]['centralName'] . "\n";
+echo 'zipLocalHeaderName.local=' . $localHeaderMismatchInspection['mismatchedEntries'][0]['localName'] . "\n";
+echo 'zipLocalHeaderName.issues=' . implode(',', $localHeaderMismatchInspection['issues']) . "\n";
+echo 'zipLocalHeaderName.gzipFilename=' . $localHeaderMismatchInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipLocalHeaderName.extractionBlocked=' . ($localHeaderMismatchExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'zipGeneralPurpose.format=' . $generalPurposeZipInspection['format'] . "\n";
 echo 'zipGeneralPurpose.entryCount=' . $generalPurposeZipInspection['entryCount'] . "\n";
 echo 'zipGeneralPurpose.supportedCount=' . $generalPurposeZipInspection['supportedEntryCount'] . "\n";

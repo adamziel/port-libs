@@ -4619,6 +4619,50 @@ XML;
         $t->contains('Named expressions stay metadata-only.', $markdown);
         $t->contains('<p>Named expressions stay metadata-only.</p>', $blocksHtml);
     },
+    'maps ODT label ranges into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithLabelRanges = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:label-ranges>
+        <table:label-range table:label-cell-range-address="Review.A1:Review.D1" table:data-cell-range-address="Review.A2:Review.D42" table:orientation="column"/>
+        <table:label-range table:label-cell-range-address="Review.A2:Review.A42" table:data-cell-range-address="Review.B2:Review.D42" table:orientation="row"/>
+        <table:label-range/>
+      </table:label-ranges>
+      <text:p>Label ranges stay metadata-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithLabelRanges));
+        $declarations = $result['contentDeclarations'];
+        $labelRanges = is_array($declarations['labelRanges'] ?? null) ? $declarations['labelRanges'] : [];
+        $orientationCounts = is_array($declarations['labelRangeOrientationCounts'] ?? null) ? $declarations['labelRangeOrientationCounts'] : [];
+
+        $t->same(2, $declarations['labelRangeCount'] ?? null);
+        $t->same(2, count($labelRanges));
+        $t->same('Review.A1:Review.D1', $labelRanges[0]['labelCellRangeAddress'] ?? null);
+        $t->same('Review.A2:Review.D42', $labelRanges[0]['dataCellRangeAddress'] ?? null);
+        $t->same('column', $labelRanges[0]['orientation'] ?? null);
+        $t->same('Review.A2:Review.A42', $labelRanges[1]['labelCellRangeAddress'] ?? null);
+        $t->same('Review.B2:Review.D42', $labelRanges[1]['dataCellRangeAddress'] ?? null);
+        $t->same('row', $labelRanges[1]['orientation'] ?? null);
+        $t->same(['column' => 1, 'row' => 1], $orientationCounts);
+        $t->same($declarations, $result['document']->attr('contentDeclarations'));
+        $t->same(2, $result['importReport']['contentDeclarations']['labelRangeCount'] ?? null);
+        $t->same(['column' => 1, 'row' => 1], $result['importReport']['contentDeclarations']['labelRangeOrientationCounts'] ?? null);
+        $t->same(2, $result['importReport']['content']['labelRangeCount'] ?? null);
+        $t->same('Label ranges stay metadata-only.', $result['document']->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Label ranges stay metadata-only.', $markdown);
+        $t->contains('<p>Label ranges stay metadata-only.</p>', $blocksHtml);
+    },
     'maps ODT source metadata fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSourceMetadataFields = <<<'XML'
 <office:document-content

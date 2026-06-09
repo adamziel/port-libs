@@ -268,6 +268,7 @@ final class OdfReader
                     'contentValidationCount' => (int) ($content['contentDeclarations']['contentValidationCount'] ?? 0),
                     'contentValidationConditionCount' => (int) ($content['contentDeclarations']['contentValidationConditionCount'] ?? 0),
                     'contentValidationMessageCount' => (int) ($content['contentDeclarations']['contentValidationMessageCount'] ?? 0),
+                    'labelRangeCount' => (int) ($content['contentDeclarations']['labelRangeCount'] ?? 0),
                     'namedExpressionCount' => (int) ($content['contentDeclarations']['namedExpressionCount'] ?? 0),
                     'namedRangeCount' => (int) ($content['contentDeclarations']['namedRangeCount'] ?? 0),
                     'namedFormulaExpressionCount' => (int) ($content['contentDeclarations']['namedFormulaExpressionCount'] ?? 0),
@@ -3542,6 +3543,15 @@ final class OdfReader
             }
         }
 
+        $labelRanges = $this->labelRangesFromText($text);
+        $labelRangeOrientationCounts = [];
+        foreach ($labelRanges as $labelRange) {
+            $orientation = (string) ($labelRange['orientation'] ?? '');
+            if ($orientation !== '') {
+                $labelRangeOrientationCounts[$orientation] = ($labelRangeOrientationCounts[$orientation] ?? 0) + 1;
+            }
+        }
+
         $databaseRanges = $this->databaseRangesFromText($text);
         $databaseRangesByName = [];
         $databaseSubtotalRuleCount = 0;
@@ -3645,6 +3655,9 @@ final class OdfReader
             'contentValidationMessageCount' => $contentValidationMessageCount,
             'contentValidations' => $contentValidations,
             'contentValidationsByName' => $contentValidationsByName,
+            'labelRangeCount' => count($labelRanges),
+            'labelRanges' => $labelRanges,
+            'labelRangeOrientationCounts' => $labelRangeOrientationCounts,
             'namedExpressionCount' => count($namedExpressions),
             'namedRangeCount' => $namedRangeCount,
             'namedFormulaExpressionCount' => $namedFormulaExpressionCount,
@@ -3841,6 +3854,36 @@ final class OdfReader
             'macroName' => self::nullable(self::attr($macro, self::TABLE_NS, 'macro-name')),
             'scriptLanguage' => self::nullable(self::attr($macro, self::SCRIPT_NS, 'language')),
             'href' => self::nullable(self::attr($macro, self::XLINK_NS, 'href')),
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function labelRangesFromText(\DOMElement $text): array
+    {
+        $ranges = [];
+        foreach (self::childElements($text, 'label-ranges', self::TABLE_NS) as $container) {
+            foreach (self::childElements($container, 'label-range', self::TABLE_NS) as $range) {
+                $definition = $this->labelRangeDefinition($range);
+                if ($definition !== []) {
+                    $ranges[] = $definition;
+                }
+            }
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function labelRangeDefinition(\DOMElement $range): array
+    {
+        return self::withoutEmpty([
+            'labelCellRangeAddress' => self::nullable(self::attr($range, self::TABLE_NS, 'label-cell-range-address')),
+            'dataCellRangeAddress' => self::nullable(self::attr($range, self::TABLE_NS, 'data-cell-range-address')),
+            'orientation' => self::nullable(self::attr($range, self::TABLE_NS, 'orientation')),
         ]);
     }
 
