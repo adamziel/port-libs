@@ -444,6 +444,75 @@ return [
         $t->same(['external-collection-link-target', 'missing-collection-link-target'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $summary['wordpressImport']['collectionDiagnostics']));
     },
 
+    'preserves OPF metadata link records for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithLinks = str_replace(
+            '</metadata>',
+            '    <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en" title="Review record"/>
+    <link id="remote-onix" rel="record" href="https://metadata.example.invalid/onix.xml" media-type="application/xml" properties="onix"/>
+    <link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg" properties="pronunciation"/>
+    <link id="missing-record" rel="record" href="meta/missing-record.json" media-type="application/json"/>
+  </metadata>',
+            $epub3OpfXml
+        );
+        $opfWithLinks = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="creator-audio" href="audio/creator-name.mp3" media-type="audio/mpeg"/>',
+            $opfWithLinks
+        );
+
+        $reviewRecord = '{"@context":"https://schema.org","name":"WordPress EPUB review record"}';
+        $creatorAudio = 'MP3-CREATOR-NAME';
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithLinks],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/review-record.json', 'data' => $reviewRecord],
+            ['name' => 'EPUB/audio/creator-name.mp3', 'data' => $creatorAudio],
+        ]));
+
+        $links = $epub->packageLinks();
+        $summary = $epub->summary();
+
+        $t->same(4, count($links));
+        $t->same('review-record', $links[0]['id']);
+        $t->same(['record', 'alternate'], $links[0]['rel']);
+        $t->same('/EPUB/meta/review-record.json', $links[0]['target']);
+        $t->same('/EPUB/meta/review-record.json', $links[0]['partName']);
+        $t->same(true, $links[0]['exists']);
+        $t->same(strlen($reviewRecord), $links[0]['byteLength']);
+        $t->same(hash('crc32b', $reviewRecord), $links[0]['crc32']);
+        $t->same('application/ld+json', $links[0]['mediaType']);
+        $t->same(null, $links[0]['manifestId']);
+        $t->same(['schema-org', 'reviewer'], $links[0]['properties']);
+        $t->same('en', $links[0]['hreflang']);
+        $t->same('Review record', $links[0]['title']);
+        $t->same('remote-onix', $links[1]['id']);
+        $t->same(true, $links[1]['external']);
+        $t->same('external-package-link-target', $links[1]['diagnostics'][0]['type']);
+        $t->same('creator', $links[2]['subjectId']);
+        $t->same('/EPUB/audio/creator-name.mp3', $links[2]['target']);
+        $t->same('creator-audio', $links[2]['manifestId']);
+        $t->same('audio/mpeg', $links[2]['manifestMediaType']);
+        $t->same(strlen($creatorAudio), $links[2]['byteLength']);
+        $t->same('missing-package-link-target', $links[3]['diagnostics'][0]['type']);
+
+        $t->same(['record' => 3, 'alternate' => 1, 'voicing' => 1], $summary['packageLinkRelCounts']);
+        $t->same('review-record', $summary['packageLinksByRel']['record'][0]['id']);
+        $t->same('creator-voicing', $summary['packageLinksByRel']['voicing'][0]['id']);
+        $t->same($links, $summary['packageLinks']);
+        $t->same($links, $summary['metadata']['links']);
+        $t->same($summary['packageLinkRelCounts'], $summary['metadata']['linkRelCounts']);
+        $t->same(['/EPUB/meta/review-record.json', 'https://metadata.example.invalid/onix.xml', '/EPUB/audio/creator-name.mp3', '/EPUB/meta/missing-record.json'], $summary['wordpressImport']['packageLinkTargets']);
+        $t->same(['external-package-link-target', 'missing-package-link-target'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $summary['wordpressImport']['packageLinkDiagnostics']));
+        $t->same('creator-voicing', $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['id']);
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],

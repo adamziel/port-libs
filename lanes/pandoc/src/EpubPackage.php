@@ -20,6 +20,7 @@ final class EpubPackage
     /**
      * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
      * @param array<string, mixed> $metadata
+     * @param list<array<string, mixed>> $packageLinks
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
      * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestItems
      * @param list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}> $spine
@@ -34,6 +35,7 @@ final class EpubPackage
         private readonly array $rootfiles,
         private readonly string $opfPartName,
         private readonly array $metadata,
+        private readonly array $packageLinks,
         private readonly array $manifestById,
         private readonly array $manifestItems,
         private readonly array $spine,
@@ -83,6 +85,7 @@ final class EpubPackage
             $rootfiles,
             $opfPartName,
             $opf['metadata'],
+            $opf['packageLinks'],
             $opf['manifestById'],
             $opf['manifestItems'],
             $opf['spine'],
@@ -118,6 +121,14 @@ final class EpubPackage
     public function metadata(): array
     {
         return $this->metadata;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function packageLinks(): array
+    {
+        return $this->packageLinks;
     }
 
     /**
@@ -255,11 +266,16 @@ final class EpubPackage
     {
         $assetSummary = $this->assetSummary();
         $navigationEntries = $this->navigation['entries'] ?? [];
+        $packageLinkReport = self::collectionLinkReport($this->packageLinks);
 
         return [
             'opfPart' => $this->opfPartName,
             'rootfiles' => $this->rootfiles,
             'metadata' => $this->metadata,
+            'packageLinks' => $this->packageLinks,
+            'packageLinksByRel' => $packageLinkReport['linksByRel'],
+            'packageLinkRelCounts' => $packageLinkReport['relCounts'],
+            'packageLinkDiagnostics' => $packageLinkReport['diagnostics'],
             'manifest' => $this->manifestItems,
             'readingOrder' => $this->spine,
             'guide' => $this->guideReferences,
@@ -295,6 +311,10 @@ final class EpubPackage
                 'collectionTitles' => self::collectionTitles($this->collections),
                 'collectionLinkTargets' => self::collectionLinkTargets($this->collections),
                 'collectionDiagnostics' => self::collectionDiagnostics($this->collections),
+                'packageLinks' => $this->packageLinks,
+                'packageLinksByRel' => $packageLinkReport['linksByRel'],
+                'packageLinkTargets' => self::packageLinkTargets($this->packageLinks),
+                'packageLinkDiagnostics' => $packageLinkReport['diagnostics'],
                 'mediaTypeBindings' => $this->bindings['items'],
                 'mediaTypeBindingDiagnostics' => $this->bindings['diagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
@@ -367,6 +387,7 @@ final class EpubPackage
     /**
      * @return array{
      *     metadata:array<string, mixed>,
+     *     packageLinks:list<array<string, mixed>>,
      *     manifestById:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
      *     manifestItems:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
      *     spine:list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}>,
@@ -394,6 +415,12 @@ final class EpubPackage
 
         $metadata = self::parseMetadata($metadataElement, $root);
         [$manifestById, $manifestItems] = self::parseManifest($manifestElement, $opfPartName, $package);
+        $packageLinks = self::parsePackageLinks($metadataElement, $opfPartName, $package, self::manifestByPart($manifestById));
+        $packageLinkReport = self::collectionLinkReport($packageLinks);
+        $metadata['links'] = $packageLinks;
+        $metadata['linksByRel'] = $packageLinkReport['linksByRel'];
+        $metadata['linkRelCounts'] = $packageLinkReport['relCounts'];
+        $metadata['linkDiagnostics'] = $packageLinkReport['diagnostics'];
         $spine = self::parseSpine($spineElement, $manifestById);
         $guideReferences = self::parseGuide(self::firstChildElement($root, 'guide', self::OPF_NAMESPACE), $opfPartName, $package);
         $collections = self::parseCollections($root, $opfPartName, $package, $manifestById);
@@ -401,6 +428,7 @@ final class EpubPackage
 
         return [
             'metadata' => $metadata,
+            'packageLinks' => $packageLinks,
             'manifestById' => $manifestById,
             'manifestItems' => $manifestItems,
             'spine' => $spine,
@@ -1150,6 +1178,119 @@ final class EpubPackage
     }
 
     /**
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestByPart
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function parsePackageLinks(
+        \DOMElement $metadataElement,
+        string $opfPartName,
+        ZipPackage $package,
+        array $manifestByPart
+    ): array {
+        $links = [];
+        foreach (self::childElements($metadataElement, 'link', self::OPF_NAMESPACE) as $index => $linkElement) {
+            $links[] = self::parsePackageLink($linkElement, $index, $opfPartName, $package, $manifestByPart);
+        }
+
+        return $links;
+    }
+
+    /**
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function parsePackageLink(
+        \DOMElement $linkElement,
+        int $index,
+        string $opfPartName,
+        ZipPackage $package,
+        array $manifestByPart
+    ): array {
+        $href = self::emptyToNull($linkElement->getAttribute('href'));
+        $rel = self::splitTokens($linkElement->getAttribute('rel'));
+        $target = null;
+        $partName = null;
+        $external = false;
+        $exists = false;
+        $entry = null;
+        $manifestItem = null;
+        $diagnostics = [];
+
+        if ($rel === []) {
+            $diagnostics[] = [
+                'type' => 'missing-package-link-rel',
+                'message' => 'EPUB OPF metadata link is missing rel tokens for package preflight classification',
+            ];
+        }
+
+        if ($href === null) {
+            $diagnostics[] = [
+                'type' => 'missing-package-link-href',
+                'message' => 'EPUB OPF metadata link is missing href',
+            ];
+        } else {
+            try {
+                $target = self::resolvePackageHref($opfPartName, $href);
+                $external = self::isAbsoluteUri($target);
+                if ($external) {
+                    $diagnostics[] = [
+                        'type' => 'external-package-link-target',
+                        'href' => $href,
+                        'message' => 'EPUB OPF metadata link points outside the package and was not fetched',
+                    ];
+                } else {
+                    $partName = OpcPackagePath::stripQueryAndFragment($target);
+                    $exists = $package->has($partName);
+                    $entry = $exists ? $package->entry($partName) : null;
+                    $manifestItem = $manifestByPart[$partName] ?? null;
+                    if (!$exists) {
+                        $diagnostics[] = [
+                            'type' => 'missing-package-link-target',
+                            'href' => $href,
+                            'partName' => $partName,
+                            'message' => 'EPUB OPF metadata link target is missing from the package',
+                        ];
+                    }
+                }
+            } catch (\InvalidArgumentException $exception) {
+                $diagnostics[] = [
+                    'type' => 'invalid-package-link-href',
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        $refines = self::emptyToNull($linkElement->getAttribute('refines'));
+
+        return [
+            'index' => $index,
+            'id' => self::emptyToNull($linkElement->getAttribute('id')),
+            'rel' => $rel,
+            'href' => $href,
+            'target' => $target,
+            'partName' => $partName,
+            'external' => $external,
+            'exists' => $exists,
+            'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
+            'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
+            'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
+            'properties' => self::splitTokens($linkElement->getAttribute('properties')),
+            'title' => self::emptyToNull($linkElement->getAttribute('title')),
+            'hreflang' => self::emptyToNull($linkElement->getAttribute('hreflang')),
+            'language' => self::metadataElementLanguage($linkElement),
+            'direction' => self::metadataElementDirection($linkElement),
+            'refines' => $refines,
+            'subjectId' => self::metadataRefinementSubject($refines),
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
      *
      * @return list<array<string, mixed>>
@@ -1418,6 +1559,24 @@ final class EpubPackage
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     *
+     * @return list<string>
+     */
+    private static function packageLinkTargets(array $links): array
+    {
+        $targets = [];
+        foreach ($links as $link) {
+            $target = $link['target'] ?? null;
+            if (is_string($target) && $target !== '') {
+                $targets[] = $target;
+            }
+        }
+
+        return $targets;
     }
 
     /**

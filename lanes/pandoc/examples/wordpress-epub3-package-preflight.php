@@ -27,6 +27,10 @@ $opfXml = <<<'XML'
     <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
     <meta refines="#bookid" property="identifier-type" scheme="onix:codelist5">15</meta>
     <meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>
+    <link id="remote-onix" rel="record" href="https://metadata.example.invalid/onix.xml" media-type="application/xml" properties="onix"/>
+    <link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg" properties="pronunciation"/>
+    <link id="missing-record" rel="record" href="meta/missing-record.json" media-type="application/json"/>
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
@@ -34,6 +38,7 @@ $opfXml = <<<'XML'
     <item id="chapter2" href="chapters/review.xhtml" media-type="application/xhtml+xml"/>
     <item id="cover" href="media/cover.png" media-type="image/png" properties="cover-image"/>
     <item id="css" href="styles/import.css" media-type="text/css"/>
+    <item id="creator-audio" href="audio/creator-name.mp3" media-type="audio/mpeg"/>
     <item id="review-widget" href="widgets/review-widget.bin" media-type="application/x-wordpress-review-widget"/>
     <item id="review-widget-handler" href="widgets/review-widget.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
   </manifest>
@@ -92,6 +97,8 @@ $package = ZipPackage::fromParts([
     ['name' => 'EPUB/chapters/review.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review checklist</h1></body></html>'],
     ['name' => 'EPUB/media/cover.png', 'data' => 'PNG'],
     ['name' => 'EPUB/styles/import.css', 'data' => 'body { line-height: 1.5; }'],
+    ['name' => 'EPUB/meta/review-record.json', 'data' => '{"@context":"https://schema.org","name":"WordPress EPUB review record"}'],
+    ['name' => 'EPUB/audio/creator-name.mp3', 'data' => 'MP3-CREATOR-NAME'],
     ['name' => 'EPUB/meta/series.json', 'data' => '{"name":"Import packet series"}'],
     ['name' => 'EPUB/widgets/review-widget.bin', 'data' => 'WIDGET'],
     ['name' => 'EPUB/widgets/review-widget.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review widget fallback</h1></body></html>'],
@@ -119,6 +126,10 @@ if (($argv[1] ?? '') === '--self-test') {
         'application/x-wordpress-review-widget',
         '/EPUB/widgets/review-widget.xhtml',
         'missing-binding-handler-manifest-item',
+        ['/EPUB/meta/review-record.json', 'https://metadata.example.invalid/onix.xml', '/EPUB/audio/creator-name.mp3', '/EPUB/meta/missing-record.json'],
+        'external-package-link-target',
+        'creator-voicing',
+        'creator-audio',
     ];
     $actual = [
         $summary['wordpressImport']['title'],
@@ -138,6 +149,10 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['wordpressImport']['mediaTypeBindings'][0]['mediaType'] ?? null,
         $summary['wordpressImport']['mediaTypeBindings'][0]['handlerPartName'] ?? null,
         $summary['wordpressImport']['mediaTypeBindingDiagnostics'][0]['type'] ?? null,
+        $summary['wordpressImport']['packageLinkTargets'],
+        $summary['wordpressImport']['packageLinkDiagnostics'][0]['type'] ?? null,
+        $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['id'] ?? null,
+        $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['manifestId'] ?? null,
     ];
 
     if ($actual !== $expected) {
