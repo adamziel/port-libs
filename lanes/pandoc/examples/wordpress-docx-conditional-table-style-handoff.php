@@ -105,8 +105,45 @@ if (in_array('--self-test', $argv, true)) {
     if (($attrs['data-docx-table-style-region-3-row-cant-split'] ?? null) !== 'true') {
         throw new RuntimeException('DOCX conditional table-style example did not preserve last-row cantSplit metadata');
     }
+
+    $body = $table->children[0] ?? null;
+    $firstRow = $body instanceof AstNode ? ($body->children[0] ?? null) : null;
+    $bandedRow = $body instanceof AstNode ? ($body->children[1] ?? null) : null;
+    $lastRow = $body instanceof AstNode ? ($body->children[2] ?? null) : null;
+    $firstCell = $firstRow instanceof AstNode ? ($firstRow->children[0] ?? null) : null;
+    $bandedCell = $bandedRow instanceof AstNode ? ($bandedRow->children[0] ?? null) : null;
+    $lastCell = $lastRow instanceof AstNode ? ($lastRow->children[0] ?? null) : null;
+
+    if (!$firstRow instanceof AstNode || ($firstRow->attr('attributes', [])['data-docx-table-style-row-region'] ?? null) !== 'firstRow') {
+        throw new RuntimeException('DOCX conditional table-style example did not apply the firstRow row style');
+    }
+    if (!$bandedRow instanceof AstNode || ($bandedRow->attr('attributes', [])['data-docx-table-style-row-region'] ?? null) !== 'band1Horz') {
+        throw new RuntimeException('DOCX conditional table-style example did not apply the banded row style');
+    }
+    if (!$lastRow instanceof AstNode || ($lastRow->attr('attributes', [])['data-docx-table-style-row-region'] ?? null) !== 'lastRow') {
+        throw new RuntimeException('DOCX conditional table-style example did not apply the lastRow row style');
+    }
+    if (!$firstCell instanceof AstNode || ($firstCell->attr('attributes', [])['data-docx-table-style-cell-region'] ?? null) !== 'firstRow') {
+        throw new RuntimeException('DOCX conditional table-style example did not apply the firstRow cell style');
+    }
+    if (($firstCell->attr('attributes', [])['data-docx-cell-shading-fill'] ?? null) !== 'CFE2F3') {
+        throw new RuntimeException('DOCX conditional table-style example did not apply first-row cell shading');
+    }
+    if (!$bandedCell instanceof AstNode || ($bandedCell->attr('attributes', [])['data-docx-table-style-cell-region'] ?? null) !== 'band1Horz') {
+        throw new RuntimeException('DOCX conditional table-style example did not apply the banded cell style');
+    }
+    if (!$lastCell instanceof AstNode || ($lastCell->attr('attributes', [])['data-docx-table-style-cell-region'] ?? null) !== 'lastRow') {
+        throw new RuntimeException('DOCX conditional table-style example did not apply the lastRow cell style');
+    }
+
     if (!str_contains($blocks, 'data-docx-table-style-region-types="firstRow band1Horz lastRow"')) {
         throw new RuntimeException('DOCX conditional table-style example did not render region metadata to WordPress blocks');
+    }
+    if (!str_contains($blocks, 'data-docx-table-style-cell-region="band1Horz"')) {
+        throw new RuntimeException('DOCX conditional table-style example did not render applied banded cell metadata');
+    }
+    if (!str_contains($blocks, 'font-variant:small-caps">Final owner</span>')) {
+        throw new RuntimeException('DOCX conditional table-style example did not render applied last-row run styling');
     }
 
     echo "wordpress-docx-conditional-table-style-handoff self-test passed\n";

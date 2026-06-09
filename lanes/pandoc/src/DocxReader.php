@@ -127,12 +127,22 @@ final class DocxReader
     /**
      * @var array<string, mixed>|null
      */
+    private ?array $currentTableConditionalRunProperties = null;
+
+    /**
+     * @var array<string, mixed>|null
+     */
     private ?array $currentDefaultRunProperties = null;
 
     /**
      * @var array{classes:list<string>, attributes:array<string, string>}|null
      */
     private ?array $currentDefaultParagraphMetadata = null;
+
+    /**
+     * @var array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private ?array $currentTableConditionalParagraphMetadata = null;
 
     /**
      * @var array<string, string>
@@ -3248,6 +3258,9 @@ final class DocxReader
                 $this->resolveStyleParagraphMetadataAttrs($style, $styles, $seen)
             );
         }
+        if ($this->currentTableConditionalParagraphMetadata !== null) {
+            $attrs = $this->mergeMetadataAttrs($attrs, $this->currentTableConditionalParagraphMetadata);
+        }
 
         $properties = $this->firstChildElement($paragraph, self::WORDPROCESSINGML_NS, 'pPr');
         if (!$properties instanceof \DOMElement) {
@@ -6095,6 +6108,10 @@ final class DocxReader
         $seen = [];
         $runProperties = $this->mergeRunProperties(
             $this->currentParagraphRunProperties,
+            $this->currentTableConditionalRunProperties,
+        );
+        $runProperties = $this->mergeRunProperties(
+            $runProperties,
             $this->resolveStyleRunProperties($styleId, $seen),
         );
         $runProperties = $this->mergeRunProperties(
@@ -10930,10 +10947,18 @@ final class DocxReader
     {
         $rows = [];
         $verticalMerges = [];
-        foreach ($table->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'tr') as $rowElement) {
-            if (!$rowElement instanceof \DOMElement || $rowElement->parentNode !== $table) {
-                continue;
-            }
+        $rowElements = $this->directWordChildElements($table, 'tr');
+        $rowCount = count($rowElements);
+        $conditionalRegions = $this->tableConditionalStyleRegionsForTable($table, $styles);
+        foreach ($rowElements as $rowIndex => $rowElement) {
+            $rowRegions = $this->tableConditionalRegionsForRow($conditionalRegions, $rowIndex, $rowCount);
+            $rowAttrs = $this->mergeTableRowAttrs(
+                $this->tableConditionalRowAttrs($rowRegions),
+                $this->tableRowAttrs($rowElement),
+            );
+            $conditionalCellAttrs = $this->tableConditionalCellAttrs($rowRegions);
+            $conditionalParagraphMetadata = $this->tableConditionalParagraphMetadata($rowRegions);
+            $conditionalRunProperties = $this->tableConditionalRunProperties($rowRegions);
 
             $cells = [];
             $gridBefore = $this->tableRowGridOmissionCount($rowElement, 'gridBefore');
@@ -10943,11 +10968,7 @@ final class DocxReader
                 array_push($cells, ...$this->tableRowOmittedGridCells($rowElement, 'before'));
             }
 
-            foreach ($rowElement->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'tc') as $cellElement) {
-                if (!$cellElement instanceof \DOMElement || $cellElement->parentNode !== $rowElement) {
-                    continue;
-                }
-
+            foreach ($this->directWordChildElements($rowElement, 'tc') as $cellElement) {
                 $colspan = $this->tableCellGridSpan($cellElement);
                 $verticalMerge = $this->tableCellVerticalMerge($cellElement);
                 if ($verticalMerge === 'continue' && isset($verticalMerges[$gridColumn])) {
@@ -10958,6 +10979,9 @@ final class DocxReader
 
                 $this->clearTableVerticalMergeColumns($verticalMerges, $gridColumn, $colspan);
                 $attrs = $this->tableCellAttrs($cellElement);
+                if ($conditionalCellAttrs !== null) {
+                    $attrs = $this->mergeTableCellAttrs($conditionalCellAttrs, $attrs);
+                }
                 if ($colspan > 1) {
                     $attrs['colspan'] = $colspan;
                 }
@@ -10974,7 +10998,9 @@ final class DocxReader
                     $activePermissionRange,
                     $activePermissionRangeNodes,
                     $activeMoveRange,
-                    $activeMoveRangeNodes
+                    $activeMoveRangeNodes,
+                    $conditionalParagraphMetadata,
+                    $conditionalRunProperties
                 );
                 $attrs['text'] = $this->plainBlockText($cellBlocks);
 
@@ -10998,7 +11024,7 @@ final class DocxReader
                 array_push($cells, ...$this->tableRowOmittedGridCells($rowElement, 'after'));
             }
 
-            $rows[] = new AstNode('table_row', $this->tableRowAttrs($rowElement), $cells);
+            $rows[] = new AstNode('table_row', $rowAttrs, $cells);
         }
 
         $tableAttrs = array_replace($this->tableAttrs($table, $styles), $this->tableGridAttrs($table));
@@ -11006,6 +11032,23 @@ final class DocxReader
         return TableGeometry::withReviewPacket(new AstNode('table', $tableAttrs, [
             new AstNode('table_body', [], $rows),
         ]), ['idPrefix' => 'docx-table']);
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function directWordChildElements(\DOMElement $element, string $localName): array
+    {
+        $children = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, $localName)) {
+                continue;
+            }
+
+            $children[] = $child;
+        }
+
+        return $children;
     }
 
     /**
@@ -11136,6 +11179,283 @@ final class DocxReader
         $styleAttrs = $style['tableMetadata'] ?? null;
 
         return $this->mergeTableAttrs($attrs, is_array($styleAttrs) ? $styleAttrs : null);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @return array<string, array<string, mixed>>
+     */
+    private function tableConditionalStyleRegionsForTable(\DOMElement $table, array $styles): array
+    {
+        $properties = $this->firstChildElement($table, self::WORDPROCESSINGML_NS, 'tblPr');
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $seen = [];
+
+        return $this->resolveStyleTableConditionalRegions($this->tableStyleId($properties), $styles, $seen);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @param array<string, bool> $seen
+     * @return array<string, array<string, mixed>>
+     */
+    private function resolveStyleTableConditionalRegions(?string $styleId, array $styles, array &$seen): array
+    {
+        if ($styleId === null || isset($seen[$styleId]) || !isset($styles[$styleId])) {
+            return [];
+        }
+
+        $style = $styles[$styleId];
+        if (($style['type'] ?? null) !== 'table') {
+            return [];
+        }
+
+        $seen[$styleId] = true;
+        $regions = $this->resolveStyleTableConditionalRegions(
+            is_string($style['basedOn'] ?? null) ? $style['basedOn'] : null,
+            $styles,
+            $seen
+        );
+
+        $styleRegions = is_array($style['tableConditionalRegions'] ?? null) ? $style['tableConditionalRegions'] : [];
+        foreach ($styleRegions as $type => $region) {
+            if (!is_string($type) || !is_array($region)) {
+                continue;
+            }
+
+            $regions[$type] = $region;
+        }
+
+        return $regions;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function styleTableConditionalRegions(\DOMElement $styleElement): array
+    {
+        $regions = [];
+        foreach ($styleElement->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'tblStylePr')) {
+                continue;
+            }
+
+            $type = trim((string) ($this->wordAttr($child, 'type') ?? ''));
+            if ($type === '') {
+                continue;
+            }
+
+            $suffix = $this->tableStyleConditionalRegionClassSuffix($type);
+            if ($suffix === null) {
+                continue;
+            }
+
+            $region = [
+                'type' => $type,
+                'label' => $suffix,
+            ];
+
+            $rowProperties = $this->firstChildElement($child, self::WORDPROCESSINGML_NS, 'trPr');
+            $region['rowAttrs'] = $this->tableStyleConditionalTableLikeAttrs(
+                $rowProperties instanceof \DOMElement ? $this->tableRowAttrs($rowProperties) : null,
+                'row',
+                $type,
+                $suffix
+            );
+
+            $cellProperties = $this->firstChildElement($child, self::WORDPROCESSINGML_NS, 'tcPr');
+            if ($cellProperties instanceof \DOMElement) {
+                $region['cellAttrs'] = $this->tableStyleConditionalTableLikeAttrs(
+                    $this->tableCellAttrs($cellProperties),
+                    'cell',
+                    $type,
+                    $suffix
+                );
+            }
+
+            $paragraphProperties = $this->firstChildElement($child, self::WORDPROCESSINGML_NS, 'pPr');
+            if ($paragraphProperties instanceof \DOMElement) {
+                $region['paragraphMetadata'] = $this->tableStyleConditionalMetadataAttrs(
+                    $this->paragraphPropertiesMetadataAttrs($paragraphProperties),
+                    'paragraph',
+                    $type,
+                    $suffix
+                );
+            }
+
+            $runProperties = $this->firstChildElement($child, self::WORDPROCESSINGML_NS, 'rPr');
+            if ($runProperties instanceof \DOMElement) {
+                $region['runProperties'] = $this->tableStyleConditionalRunProperties(
+                    $this->runPropertiesFromElement($runProperties),
+                    $type,
+                    $suffix
+                );
+            }
+
+            $regions[$type] = $region;
+        }
+
+        return $regions;
+    }
+
+    /**
+     * @param array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null $attrs
+     * @return array{classes:list<string>, attributes:array<string, string>, htmlAttributes:array<string, string>}
+     */
+    private function tableStyleConditionalTableLikeAttrs(?array $attrs, string $target, string $type, string $suffix): array
+    {
+        $classes = is_array($attrs['classes'] ?? null) ? $attrs['classes'] : [];
+        $attributes = is_array($attrs['attributes'] ?? null) ? $attrs['attributes'] : [];
+        $htmlAttributes = is_array($attrs['htmlAttributes'] ?? null) ? $attrs['htmlAttributes'] : [];
+        $classes[] = 'docx-table-style-' . $target . '-region';
+        $classes[] = 'docx-table-style-' . $target . '-region-' . $suffix;
+        $attributes['data-docx-table-style-' . $target . '-region'] = $type;
+        $attributes['data-docx-table-style-' . $target . '-region-label'] = $suffix;
+        $htmlAttributes['data-docx-table-style-' . $target . '-region'] = $type;
+        $htmlAttributes['data-docx-table-style-' . $target . '-region-label'] = $suffix;
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+            'htmlAttributes' => $htmlAttributes,
+        ];
+    }
+
+    /**
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $attrs
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function tableStyleConditionalMetadataAttrs(?array $attrs, string $target, string $type, string $suffix): array
+    {
+        $classes = $attrs['classes'] ?? [];
+        $attributes = $attrs['attributes'] ?? [];
+        $classes[] = 'docx-table-style-' . $target . '-region';
+        $classes[] = 'docx-table-style-' . $target . '-region-' . $suffix;
+        $attributes['data-docx-table-style-' . $target . '-region'] = $type;
+        $attributes['data-docx-table-style-' . $target . '-region-label'] = $suffix;
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $runProperties
+     * @return array<string, mixed>
+     */
+    private function tableStyleConditionalRunProperties(?array $runProperties, string $type, string $suffix): array
+    {
+        $runProperties ??= [];
+        $runProperties['metadata'] = $this->mergeRunMetadataAttrs(
+            isset($runProperties['metadata']) && is_array($runProperties['metadata']) ? $runProperties['metadata'] : null,
+            $this->tableStyleConditionalMetadataAttrs(null, 'run', $type, $suffix),
+            []
+        );
+
+        return $runProperties;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $regions
+     * @return list<array<string, mixed>>
+     */
+    private function tableConditionalRegionsForRow(array $regions, int $rowIndex, int $rowCount): array
+    {
+        if ($rowCount <= 0) {
+            return [];
+        }
+
+        $active = [];
+        if (isset($regions['wholeTable'])) {
+            $active[] = $regions['wholeTable'];
+        }
+        if ($rowIndex > 0 && $rowIndex < $rowCount - 1) {
+            if (($rowIndex % 2) === 1 && isset($regions['band1Horz'])) {
+                $active[] = $regions['band1Horz'];
+            } elseif (($rowIndex % 2) === 0 && isset($regions['band2Horz'])) {
+                $active[] = $regions['band2Horz'];
+            }
+        }
+        if ($rowIndex === 0 && isset($regions['firstRow'])) {
+            $active[] = $regions['firstRow'];
+        }
+        if ($rowIndex === $rowCount - 1 && isset($regions['lastRow'])) {
+            $active[] = $regions['lastRow'];
+        }
+
+        return $active;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $regions
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null
+     */
+    private function tableConditionalRowAttrs(array $regions): ?array
+    {
+        $attrs = null;
+        foreach ($regions as $region) {
+            $regionAttrs = $region['rowAttrs'] ?? null;
+            if (is_array($regionAttrs)) {
+                $attrs = $this->mergeTableRowAttrs($attrs, $regionAttrs);
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $regions
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null
+     */
+    private function tableConditionalCellAttrs(array $regions): ?array
+    {
+        $attrs = null;
+        foreach ($regions as $region) {
+            $regionAttrs = $region['cellAttrs'] ?? null;
+            if (is_array($regionAttrs)) {
+                $attrs = $this->mergeTableCellAttrs($attrs, $regionAttrs);
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $regions
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function tableConditionalParagraphMetadata(array $regions): ?array
+    {
+        $attrs = null;
+        foreach ($regions as $region) {
+            $metadata = $region['paragraphMetadata'] ?? null;
+            if (is_array($metadata)) {
+                $attrs = $this->mergeMetadataAttrs($attrs, $metadata);
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $regions
+     * @return array<string, mixed>|null
+     */
+    private function tableConditionalRunProperties(array $regions): ?array
+    {
+        $properties = null;
+        foreach ($regions as $region) {
+            $runProperties = $region['runProperties'] ?? null;
+            if (is_array($runProperties)) {
+                $properties = $this->mergeRunProperties($properties, $runProperties);
+            }
+        }
+
+        return $properties;
     }
 
     /**
@@ -11544,7 +11864,7 @@ final class DocxReader
      */
     private function tableRowAttrs(\DOMElement $row): array
     {
-        $properties = $this->firstChildElement($row, self::WORDPROCESSINGML_NS, 'trPr');
+        $properties = $this->tableRowPropertiesElement($row);
         if (!$properties instanceof \DOMElement) {
             return [];
         }
@@ -11584,6 +11904,29 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    private function tableRowPropertiesElement(\DOMElement $rowOrProperties): ?\DOMElement
+    {
+        if ($this->isWordElement($rowOrProperties, 'trPr')) {
+            return $rowOrProperties;
+        }
+
+        return $this->firstChildElement($rowOrProperties, self::WORDPROCESSINGML_NS, 'trPr');
+    }
+
+    /**
+     * @param array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null $base
+     * @param array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>} $override
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
+     */
+    private function mergeTableRowAttrs(?array $base, array $override): array
+    {
+        if ($base === null) {
+            return $override;
+        }
+
+        return $this->mergeTableCellAttrs($base, $override);
     }
 
     /**
@@ -11729,7 +12072,7 @@ final class DocxReader
 
     private function tableRowGridOmissionCount(\DOMElement $row, string $localName): int
     {
-        $properties = $this->firstChildElement($row, self::WORDPROCESSINGML_NS, 'trPr');
+        $properties = $this->tableRowPropertiesElement($row);
         if (!$properties instanceof \DOMElement) {
             return 0;
         }
@@ -11885,12 +12228,21 @@ final class DocxReader
         return $base;
     }
 
+    private function tableCellPropertiesElement(\DOMElement $cellOrProperties): ?\DOMElement
+    {
+        if ($this->isWordElement($cellOrProperties, 'tcPr')) {
+            return $cellOrProperties;
+        }
+
+        return $this->firstChildElement($cellOrProperties, self::WORDPROCESSINGML_NS, 'tcPr');
+    }
+
     /**
      * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
      */
     private function tableCellMarginAttrs(\DOMElement $cell): array
     {
-        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        $properties = $this->tableCellPropertiesElement($cell);
         if (!$properties instanceof \DOMElement) {
             return [];
         }
@@ -12006,7 +12358,7 @@ final class DocxReader
      */
     private function tableCellWidthAttrs(\DOMElement $cell): array
     {
-        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        $properties = $this->tableCellPropertiesElement($cell);
         if (!$properties instanceof \DOMElement) {
             return [];
         }
@@ -12061,7 +12413,7 @@ final class DocxReader
      */
     private function tableCellBorderAttrs(\DOMElement $cell): array
     {
-        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        $properties = $this->tableCellPropertiesElement($cell);
         if (!$properties instanceof \DOMElement) {
             return [];
         }
@@ -12212,7 +12564,7 @@ final class DocxReader
      */
     private function tableCellVerticalAlignmentAttrs(\DOMElement $cell): array
     {
-        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        $properties = $this->tableCellPropertiesElement($cell);
         if (!$properties instanceof \DOMElement) {
             return [];
         }
@@ -12249,7 +12601,7 @@ final class DocxReader
      */
     private function tableCellShadingAttrs(\DOMElement $cell): array
     {
-        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        $properties = $this->tableCellPropertiesElement($cell);
         if (!$properties instanceof \DOMElement) {
             return [];
         }
@@ -12356,24 +12708,36 @@ final class DocxReader
         ?array &$activePermissionRange,
         array &$activePermissionRangeNodes,
         ?array &$activeMoveRange,
-        array &$activeMoveRangeNodes
+        array &$activeMoveRangeNodes,
+        ?array $conditionalParagraphMetadata = null,
+        ?array $conditionalRunProperties = null
     ): array
     {
-        return $this->blockContainerChildrenWithRanges(
-            $cell,
-            $package,
-            $relationships,
-            $referencedNotes,
-            $styles,
-            $numbering,
-            $activeCommentRangeId,
-            $activeProofError,
-            $activeProofErrorNodes,
-            $activePermissionRange,
-            $activePermissionRangeNodes,
-            $activeMoveRange,
-            $activeMoveRangeNodes
-        );
+        $previousParagraphMetadata = $this->currentTableConditionalParagraphMetadata;
+        $previousRunProperties = $this->currentTableConditionalRunProperties;
+        $this->currentTableConditionalParagraphMetadata = $conditionalParagraphMetadata;
+        $this->currentTableConditionalRunProperties = $conditionalRunProperties;
+
+        try {
+            return $this->blockContainerChildrenWithRanges(
+                $cell,
+                $package,
+                $relationships,
+                $referencedNotes,
+                $styles,
+                $numbering,
+                $activeCommentRangeId,
+                $activeProofError,
+                $activeProofErrorNodes,
+                $activePermissionRange,
+                $activePermissionRangeNodes,
+                $activeMoveRange,
+                $activeMoveRangeNodes
+            );
+        } finally {
+            $this->currentTableConditionalParagraphMetadata = $previousParagraphMetadata;
+            $this->currentTableConditionalRunProperties = $previousRunProperties;
+        }
     }
 
     private function tableCellGridSpan(\DOMElement $cell): int
@@ -12975,6 +13339,7 @@ final class DocxReader
                 'paragraphMetadata' => $type === 'paragraph' && $properties instanceof \DOMElement ? $this->paragraphPropertiesMetadataAttrs($properties) : null,
                 'runProperties' => $runProperties instanceof \DOMElement ? $this->runPropertiesFromElement($runProperties) : null,
                 'tableMetadata' => $type === 'table' ? $this->styleTableMetadataAttrs($tableProperties, $name, $basedOn, $styleElement) : null,
+                'tableConditionalRegions' => $type === 'table' ? $this->styleTableConditionalRegions($styleElement) : [],
             ];
         }
 

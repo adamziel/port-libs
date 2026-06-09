@@ -7371,9 +7371,10 @@ return [
         $t->same('EADCF8', $sourceAttributes['data-docx-table-style-region-3-cell-shading-fill'] ?? null);
 
         $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| Styled header | Reviewer status |', $normalizedMarkdown);
-        $t->contains('| Final owner | Import desk |', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-table-style-region'), 'Pipe-table Markdown handoff should not leak conditional DOCX table style metadata');
+        $t->contains('Styled header', $normalizedMarkdown);
+        $t->contains('Reviewer status', $normalizedMarkdown);
+        $t->contains('Final owner', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-table-style-region-count'), 'Pipe-table Markdown handoff should not leak table-level conditional style inventory metadata');
 
         $t->contains('class="docx-table-width docx-table-width-pct docx-table-align docx-table-align-center docx-table-style-definition docx-table-style-conditional docx-table-style-conditional-first-row docx-table-style-conditional-band-1-horz docx-table-style-conditional-last-row docx-table-style docx-table-style-conditionalreviewtable"', $blocks);
         $t->contains('data-docx-table-style-region-count="3"', $blocks);
@@ -7383,6 +7384,79 @@ return [
         $t->contains('data-docx-table-style-region-2-cell-shading-theme-fill="accent1"', $blocks);
         $t->contains('data-docx-table-style-region-2-run-italic="false"', $blocks);
         $t->contains('data-docx-table-style-region-3-row-cant-split="true"', $blocks);
+    },
+    'applies DOCX conditional table style regions to table rows cells and runs' => static function (TestRunner $t) use ($buildTableConditionalStylePackage): void {
+        $document = (new DocxReader())->readDocument($buildTableConditionalStylePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $body = $table->children[0];
+        $headerRow = $body->children[0];
+        $bandedRow = $body->children[1];
+        $lastRow = $body->children[2];
+        $headerCell = $headerRow->children[0];
+        $bandedCell = $bandedRow->children[0];
+        $lastCell = $lastRow->children[0];
+
+        $t->true(in_array('docx-table-row-repeat-header', $headerRow->attr('classes'), true), 'Expected firstRow trPr to mark a repeat header row');
+        $t->same('true', $headerRow->attr('attributes')['data-docx-table-row-repeat-header'] ?? null);
+        $t->same('firstRow', $headerRow->attr('attributes')['data-docx-table-style-row-region'] ?? null);
+        $t->same('band1Horz', $bandedRow->attr('attributes')['data-docx-table-style-row-region'] ?? null);
+        $t->true(in_array('docx-table-row-cant-split', $lastRow->attr('classes'), true), 'Expected lastRow trPr to mark a cant-split row');
+        $t->same('true', $lastRow->attr('attributes')['data-docx-table-row-cant-split'] ?? null);
+        $t->same('lastRow', $lastRow->attr('attributes')['data-docx-table-style-row-region'] ?? null);
+
+        $headerCellAttrs = $headerCell->attr('attributes');
+        $t->same('firstRow', $headerCellAttrs['data-docx-table-style-cell-region'] ?? null);
+        $t->same('pct', $headerCellAttrs['data-docx-cell-width-type'] ?? null);
+        $t->same('50', $headerCellAttrs['data-docx-cell-width-percent'] ?? null);
+        $t->same('CFE2F3', $headerCellAttrs['data-docx-cell-shading-fill'] ?? null);
+        $t->same('center', $headerCellAttrs['data-docx-cell-vertical-align'] ?? null);
+        $t->contains('width:50%', $headerCell->attr('htmlAttributes')['style'] ?? '');
+        $t->contains('background-color:#CFE2F3', $headerCell->attr('htmlAttributes')['style'] ?? '');
+
+        $headerParagraphSpan = $headerCell->children[0]->children[0];
+        $t->same('span', $headerParagraphSpan->type);
+        $t->same('center', $headerParagraphSpan->attr('attributes')['data-docx-paragraph-align'] ?? null);
+        $t->same('firstRow', $headerParagraphSpan->attr('attributes')['data-docx-table-style-paragraph-region'] ?? null);
+        $headerRunSpan = $headerParagraphSpan->children[0];
+        $t->same('span', $headerRunSpan->type);
+        $t->same('1F4E79', $headerRunSpan->attr('attributes')['data-docx-color'] ?? null);
+        $t->same('firstRow', $headerRunSpan->attr('attributes')['data-docx-table-style-run-region'] ?? null);
+        $t->same('strong', $headerRunSpan->children[0]->type);
+
+        $bandedCellAttrs = $bandedCell->attr('attributes');
+        $t->same('band1Horz', $bandedCellAttrs['data-docx-table-style-cell-region'] ?? null);
+        $t->same('F3F6FA', $bandedCellAttrs['data-docx-cell-shading-fill'] ?? null);
+        $t->same('accent1', $bandedCellAttrs['data-docx-cell-shading-theme-fill'] ?? null);
+        $bandedRunSpan = $bandedCell->children[0]->children[0];
+        $t->same('yellow', $bandedRunSpan->attr('attributes')['data-docx-highlight'] ?? null);
+        $t->same('band1Horz', $bandedRunSpan->attr('attributes')['data-docx-table-style-run-region'] ?? null);
+        $t->true(!in_array('emph', array_map(static fn (AstNode $node): string => $node->type, $bandedRunSpan->children), true), 'Explicit banded-row italic off should not add emphasis');
+
+        $lastCellAttrs = $lastCell->attr('attributes');
+        $t->same('lastRow', $lastCellAttrs['data-docx-table-style-cell-region'] ?? null);
+        $t->same('EADCF8', $lastCellAttrs['data-docx-cell-shading-fill'] ?? null);
+        $lastRunSpan = $lastCell->children[0]->children[0];
+        $t->same('lastRow', $lastRunSpan->attr('attributes')['data-docx-table-style-run-region'] ?? null);
+        $t->same('small_caps', $lastRunSpan->children[0]->type);
+
+        $t->contains('data-docx-table-style-paragraph-region="firstRow"', $markdown);
+        $t->contains('data-docx-table-style-run-region="band1Horz"', $markdown);
+        $t->contains('data-docx-highlight="yellow"', $markdown);
+        $t->true(!str_contains($markdown, 'data-docx-table-style-cell-region'), 'Pipe-table Markdown handoff should not leak table cell HTML metadata');
+
+        $t->contains('data-docx-table-style-row-region="firstRow"', $blocks);
+        $t->contains('data-docx-table-style-row-region="band1Horz"', $blocks);
+        $t->contains('data-docx-table-style-row-region="lastRow"', $blocks);
+        $t->contains('data-docx-table-style-cell-region="firstRow"', $blocks);
+        $t->contains('data-docx-cell-width-percent="50"', $blocks);
+        $t->contains('valign="middle"', $blocks);
+        $t->contains('data-docx-table-style-cell-region="band1Horz"', $blocks);
+        $t->contains('data-docx-highlight="yellow"', $blocks);
+        $t->contains('data-docx-table-style-cell-region="lastRow"', $blocks);
+        $t->contains('font-variant:small-caps">Final owner</span>', $blocks);
     },
     'preserves DOCX table cell vertical alignment metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellVerticalAlignmentPackage): void {
         $document = (new DocxReader())->readDocument($buildTableCellVerticalAlignmentPackage());
