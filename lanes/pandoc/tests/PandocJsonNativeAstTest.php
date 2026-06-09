@@ -212,6 +212,71 @@ return [
         $t->same('MetaMap', $encoded['meta']['review']['c']['ticket']['t']);
         $t->same('plain-ticket', $roundTripMeta['review']['items']['ticket']['items']['t']);
     },
+    'accepts document metadata encoded as a MetaMap envelope' => static function (TestRunner $t): void {
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                't' => 'MetaMap',
+                'c' => [
+                    'title' => ['t' => 'MetaInlines', 'c' => [
+                        ['t' => 'Str', 'c' => 'Envelope'],
+                        ['t' => 'Space'],
+                        ['t' => 'Strong', 'c' => [
+                            ['t' => 'Str', 'c' => 'metadata'],
+                        ]],
+                    ]],
+                    'review' => ['t' => 'MetaMap', 'c' => [
+                        'source' => ['t' => 'MetaString', 'c' => 'meta-map-envelope'],
+                        'draft' => ['t' => 'MetaBool', 'c' => false],
+                        'tags' => ['t' => 'MetaList', 'c' => [
+                            ['t' => 'MetaString', 'c' => 'json'],
+                            ['t' => 'MetaString', 'c' => 'compat'],
+                        ]],
+                    ]],
+                ],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Envelope'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'packet'],
+                ]],
+            ],
+        ]);
+        $encoded = $writer->toArray($document);
+        $typedMapPacket = $writer->toArray(new AstNode('document', [
+            'meta' => ['type' => 'map', 'items' => [
+                'source' => 'typed-document-map',
+                'draft' => true,
+                'tags' => ['type' => 'list', 'items' => ['json', false]],
+            ]],
+        ]));
+        $taggedMapPacket = $writer->toArray(new AstNode('document', [
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'source' => ['t' => 'MetaString', 'c' => 'tagged-document-map'],
+            ]],
+        ]));
+
+        $meta = $document->attr('meta');
+        $review = $meta['review']['items'];
+
+        $t->same('inlines', $meta['title']['type']);
+        $t->same('strong', $meta['title']['children'][2]->type);
+        $t->same('map', $meta['review']['type']);
+        $t->same('meta-map-envelope', $review['source']);
+        $t->same(false, $review['draft']);
+        $t->same(['json', 'compat'], $review['tags']['items']);
+        $t->same('MetaInlines', $encoded['meta']['title']['t']);
+        $t->same('MetaMap', $encoded['meta']['review']['t']);
+        $t->same(false, isset($encoded['meta']['t']));
+        $t->same('MetaString', $typedMapPacket['meta']['source']['t']);
+        $t->same('MetaBool', $typedMapPacket['meta']['draft']['t']);
+        $t->same('MetaList', $typedMapPacket['meta']['tags']['t']);
+        $t->same('MetaString', $taggedMapPacket['meta']['source']['t']);
+        $t->same('tagged-document-map', $taggedMapPacket['meta']['source']['c']);
+    },
     'writes shared ast documents as pandoc json filter exchange shape' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

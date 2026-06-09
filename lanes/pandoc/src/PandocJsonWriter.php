@@ -57,8 +57,23 @@ final class PandocJsonWriter
     private function meta(AstNode $document): array
     {
         $meta = $document->attr('meta', []);
+        if (!is_array($meta) || array_is_list($meta)) {
+            return [];
+        }
 
-        return is_array($meta) && !array_is_list($meta) ? $meta : [];
+        if (($meta['t'] ?? null) === 'MetaMap') {
+            $content = $meta['c'] ?? [];
+
+            return is_array($content) && !array_is_list($content) ? $content : [];
+        }
+
+        if (($meta['type'] ?? null) === 'map') {
+            $items = $meta['items'] ?? [];
+
+            return is_array($items) && !array_is_list($items) ? $items : [];
+        }
+
+        return $meta;
     }
 
     /**

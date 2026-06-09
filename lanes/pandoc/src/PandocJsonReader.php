@@ -74,6 +74,10 @@ final class PandocJsonReader
             throw new \InvalidArgumentException('Pandoc JSON meta must be an object');
         }
 
+        if (($meta['t'] ?? null) === 'MetaMap' && is_string($meta['t'] ?? null)) {
+            return $this->objectContent($meta['c'] ?? null, 'Pandoc JSON MetaMap meta');
+        }
+
         if (count($meta) === 1 && array_key_exists('unMeta', $meta) && !$this->isTaggedObject($meta['unMeta'])) {
             $unMeta = $meta['unMeta'];
             if (!is_array($unMeta) || ($unMeta !== [] && array_is_list($unMeta))) {
