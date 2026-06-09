@@ -479,6 +479,9 @@ $drawingPlaceholderChartXml = <<<'XML'
     </c:title>
     <c:plotArea>
       <c:barChart>
+        <c:barDir val="col"/>
+        <c:grouping val="clustered"/>
+        <c:varyColors val="1"/>
         <c:ser>
           <c:idx val="0"/>
           <c:order val="0"/>
@@ -494,6 +497,16 @@ $drawingPlaceholderChartXml = <<<'XML'
             </c:strRef>
           </c:tx>
         </c:ser>
+        <c:dLbls>
+          <c:dLblPos val="outEnd"/>
+          <c:showLegendKey val="0"/>
+          <c:showVal val="1"/>
+          <c:showCatName val="0"/>
+          <c:showSerName val="1"/>
+          <c:showPercent val="0"/>
+          <c:separator> | </c:separator>
+          <c:numFmt formatCode="#,##0" sourceLinked="0"/>
+        </c:dLbls>
       </c:barChart>
       <c:catAx>
         <c:axId val="10"/>
@@ -504,6 +517,18 @@ $drawingPlaceholderChartXml = <<<'XML'
         <c:title><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:t>Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title>
       </c:valAx>
     </c:plotArea>
+    <c:legend>
+      <c:legendPos val="r"/>
+      <c:layout>
+        <c:manualLayout>
+          <c:x val="0.72"/>
+          <c:y val="0.18"/>
+          <c:w val="0.20"/>
+          <c:h val="0.35"/>
+        </c:manualLayout>
+      </c:layout>
+      <c:overlay val="0"/>
+    </c:legend>
   </c:chart>
   <c:externalData r:id="rIdChartWorkbook">
     <c:autoUpdate val="0"/>
@@ -5437,6 +5462,10 @@ return [
             'docx-chart-title',
             'docx-chart-series',
             'docx-chart-axis-title',
+            'docx-chart-plot',
+            'docx-chart-plot-bar',
+            'docx-chart-data-labels',
+            'docx-chart-legend',
             'docx-chart-style-part',
             'docx-chart-color-style-part',
             'docx-chart-embedded-data',
@@ -5480,6 +5509,27 @@ return [
         $t->same('valAx', $chartAttributes['data-docx-chart-axis-2-type']);
         $t->same('20', $chartAttributes['data-docx-chart-axis-2-id']);
         $t->same('Revenue', $chartAttributes['data-docx-chart-axis-2-title']);
+        $t->same('1', $chartAttributes['data-docx-chart-plot-count']);
+        $t->same('barChart', $chartAttributes['data-docx-chart-plot-1-type']);
+        $t->same('col', $chartAttributes['data-docx-chart-plot-1-bar-direction']);
+        $t->same('clustered', $chartAttributes['data-docx-chart-plot-1-grouping']);
+        $t->same('true', $chartAttributes['data-docx-chart-plot-1-vary-colors']);
+        $t->same('2', $chartAttributes['data-docx-chart-plot-1-series-count']);
+        $t->same('outEnd', $chartAttributes['data-docx-chart-plot-1-data-label-position']);
+        $t->same('false', $chartAttributes['data-docx-chart-plot-1-data-label-show-legend-key']);
+        $t->same('true', $chartAttributes['data-docx-chart-plot-1-data-label-show-value']);
+        $t->same('false', $chartAttributes['data-docx-chart-plot-1-data-label-show-category-name']);
+        $t->same('true', $chartAttributes['data-docx-chart-plot-1-data-label-show-series-name']);
+        $t->same('false', $chartAttributes['data-docx-chart-plot-1-data-label-show-percent']);
+        $t->same('|', $chartAttributes['data-docx-chart-plot-1-data-label-separator']);
+        $t->same('#,##0', $chartAttributes['data-docx-chart-plot-1-data-label-number-format']);
+        $t->same('false', $chartAttributes['data-docx-chart-plot-1-data-label-source-linked']);
+        $t->same('r', $chartAttributes['data-docx-chart-legend-position']);
+        $t->same('false', $chartAttributes['data-docx-chart-legend-overlay']);
+        $t->same('0.72', $chartAttributes['data-docx-chart-legend-layout-x']);
+        $t->same('0.18', $chartAttributes['data-docx-chart-legend-layout-y']);
+        $t->same('0.20', $chartAttributes['data-docx-chart-legend-layout-width']);
+        $t->same('0.35', $chartAttributes['data-docx-chart-legend-layout-height']);
         $t->same('rIdChartStyle', $chartAttributes['data-docx-chart-style-relationship-id']);
         $t->same('http://schemas.microsoft.com/office/2011/relationships/chartStyle', $chartAttributes['data-docx-chart-style-relationship-type']);
         $t->same('/word/charts/style1.xml', $chartAttributes['data-docx-chart-style-target-part']);
@@ -5521,13 +5571,16 @@ return [
         $t->same('/word/diagrams/colors1.xml', $diagramAttributes['data-docx-diagram-colors-target-part']);
         $t->same('.', $paragraph->children[4]->attr('text'));
 
-        $t->contains('[DOCX chart: Quarterly sales chart]{.docx-drawing-placeholder .docx-drawing-chart .docx-chart-style .docx-chart-override-color-mapping .docx-chart-title .docx-chart-series .docx-chart-axis-title .docx-chart-style-part .docx-chart-color-style-part .docx-chart-embedded-data', $markdown);
+        $t->contains('[DOCX chart: Quarterly sales chart]{.docx-drawing-placeholder .docx-drawing-chart .docx-chart-style .docx-chart-override-color-mapping .docx-chart-title .docx-chart-series .docx-chart-axis-title .docx-chart-plot .docx-chart-plot-bar .docx-chart-data-labels .docx-chart-legend .docx-chart-style-part .docx-chart-color-style-part .docx-chart-embedded-data', $markdown);
         $t->contains('data-docx-relationship-id="rIdChart"', $markdown);
         $t->contains('data-docx-chart-style-val="201"', $markdown);
         $t->contains('data-docx-chart-color-map-accent-1="accent3"', $markdown);
         $t->contains('data-docx-chart-title="Quarterly migration revenue"', $markdown);
         $t->contains('data-docx-chart-series-1-name="North region"', $markdown);
         $t->contains('data-docx-chart-axis-2-title="Revenue"', $markdown);
+        $t->contains('data-docx-chart-plot-1-type="barChart"', $markdown);
+        $t->contains('data-docx-chart-plot-1-data-label-show-value="true"', $markdown);
+        $t->contains('data-docx-chart-legend-position="r"', $markdown);
         $t->contains('data-docx-chart-style-target-part="/word/charts/style1.xml"', $markdown);
         $t->contains('data-docx-chart-color-style-target-part="/word/charts/colors1.xml"', $markdown);
         $t->contains('data-docx-chart-external-data-id="rIdChartWorkbook"', $markdown);
@@ -5535,13 +5588,16 @@ return [
         $t->contains('[DOCX diagram: Review workflow diagram]{.docx-drawing-placeholder .docx-drawing-diagram', $markdown);
         $t->contains('data-docx-diagram-data-id="rIdDiagramData"', $markdown);
 
-        $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart docx-chart-style docx-chart-override-color-mapping docx-chart-title docx-chart-series docx-chart-axis-title docx-chart-style-part docx-chart-color-style-part docx-chart-embedded-data"', $blocks);
+        $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart docx-chart-style docx-chart-override-color-mapping docx-chart-title docx-chart-series docx-chart-axis-title docx-chart-plot docx-chart-plot-bar docx-chart-data-labels docx-chart-legend docx-chart-style-part docx-chart-color-style-part docx-chart-embedded-data"', $blocks);
         $t->contains('data-docx-relationship-id="rIdChart"', $blocks);
         $t->contains('data-docx-chart-style-val="201"', $blocks);
         $t->contains('data-docx-chart-color-map-accent-1="accent3"', $blocks);
         $t->contains('data-docx-chart-title="Quarterly migration revenue"', $blocks);
         $t->contains('data-docx-chart-series-2-name="South region"', $blocks);
         $t->contains('data-docx-chart-axis-1-title="Quarter"', $blocks);
+        $t->contains('data-docx-chart-plot-1-grouping="clustered"', $blocks);
+        $t->contains('data-docx-chart-plot-1-data-label-number-format="#,##0"', $blocks);
+        $t->contains('data-docx-chart-legend-layout-width="0.20"', $blocks);
         $t->contains('data-docx-chart-style-target-part="/word/charts/style1.xml"', $blocks);
         $t->contains('data-docx-chart-color-style-target-part="/word/charts/colors1.xml"', $blocks);
         $t->contains('data-docx-chart-external-data-id="rIdChartWorkbook"', $blocks);
@@ -5626,6 +5682,47 @@ return [
         $t->contains('data-docx-chart-title="Quarterly migration revenue"', $blocks);
         $t->contains('data-docx-chart-series-1-name="North region"', $blocks);
         $t->contains('data-docx-chart-axis-2-title="Revenue"', $blocks);
+    },
+    'preserves DOCX chart plot legend and data-label metadata for reviewer handoff' => static function (TestRunner $t) use ($buildDrawingPlaceholderPackage): void {
+        $result = (new DocxReader())->readPackage($buildDrawingPlaceholderPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $chart = $document->children[0]->children[1];
+        $classes = $chart->attr('classes');
+        $t->true(is_array($classes) && in_array('docx-chart-plot', $classes, true), 'Chart placeholder should expose chart plot metadata');
+        $t->true(is_array($classes) && in_array('docx-chart-plot-bar', $classes, true), 'Chart placeholder should expose bar chart plot metadata');
+        $t->true(is_array($classes) && in_array('docx-chart-data-labels', $classes, true), 'Chart placeholder should expose chart data-label metadata');
+        $t->true(is_array($classes) && in_array('docx-chart-legend', $classes, true), 'Chart placeholder should expose chart legend metadata');
+
+        $attrs = $chart->attr('attributes');
+        $t->same('1', $attrs['data-docx-chart-plot-count']);
+        $t->same('barChart', $attrs['data-docx-chart-plot-1-type']);
+        $t->same('col', $attrs['data-docx-chart-plot-1-bar-direction']);
+        $t->same('clustered', $attrs['data-docx-chart-plot-1-grouping']);
+        $t->same('true', $attrs['data-docx-chart-plot-1-vary-colors']);
+        $t->same('2', $attrs['data-docx-chart-plot-1-series-count']);
+        $t->same('outEnd', $attrs['data-docx-chart-plot-1-data-label-position']);
+        $t->same('true', $attrs['data-docx-chart-plot-1-data-label-show-value']);
+        $t->same('true', $attrs['data-docx-chart-plot-1-data-label-show-series-name']);
+        $t->same('|', $attrs['data-docx-chart-plot-1-data-label-separator']);
+        $t->same('#,##0', $attrs['data-docx-chart-plot-1-data-label-number-format']);
+        $t->same('false', $attrs['data-docx-chart-plot-1-data-label-source-linked']);
+        $t->same('r', $attrs['data-docx-chart-legend-position']);
+        $t->same('false', $attrs['data-docx-chart-legend-overlay']);
+        $t->same('0.72', $attrs['data-docx-chart-legend-layout-x']);
+        $t->same('0.18', $attrs['data-docx-chart-legend-layout-y']);
+        $t->same('0.20', $attrs['data-docx-chart-legend-layout-width']);
+        $t->same('0.35', $attrs['data-docx-chart-legend-layout-height']);
+
+        $t->contains('data-docx-chart-plot-1-bar-direction="col"', $markdown);
+        $t->contains('data-docx-chart-plot-1-data-label-separator="|"', $markdown);
+        $t->contains('data-docx-chart-legend-overlay="false"', $markdown);
+
+        $t->contains('data-docx-chart-plot-1-vary-colors="true"', $blocks);
+        $t->contains('data-docx-chart-plot-1-data-label-show-series-name="true"', $blocks);
+        $t->contains('data-docx-chart-legend-layout-height="0.35"', $blocks);
     },
     'preserves DOCX DrawingML shape text as reviewer spans' => static function (TestRunner $t) use ($buildDrawingTextPackage): void {
         $document = (new DocxReader())->readDocument($buildDrawingTextPackage());

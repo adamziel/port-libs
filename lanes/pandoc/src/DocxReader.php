@@ -8142,6 +8142,7 @@ final class DocxReader
 
         $attrs = $this->mergeNodeMetadataAttrs($attrs, $this->chartStyleAndColorAttrs($chartRoot));
         $attrs = $this->mergeNodeMetadataAttrs($attrs, $this->chartTextMetadataAttrs($chartRoot));
+        $attrs = $this->mergeNodeMetadataAttrs($attrs, $this->chartPlotAndLegendMetadataAttrs($chartRoot));
 
         $externalData = $this->firstDescendantElement($chartRoot, self::DRAWINGML_CHART_NS, 'externalData');
         $relationshipPart = OpcRelationships::relationshipPartNameForSource($chartTargetPart);
@@ -8365,6 +8366,258 @@ final class DocxReader
             'classes' => array_values(array_unique($attrs['classes'])),
             'attributes' => $attrs['attributes'],
         ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function chartPlotAndLegendMetadataAttrs(\DOMElement $chartRoot): array
+    {
+        $attrs = [
+            'classes' => [],
+            'attributes' => [],
+        ];
+
+        $plots = $this->chartPlotMetadata($chartRoot);
+        if ($plots !== []) {
+            $attrs['classes'][] = 'docx-chart-plot';
+            $attrs['attributes']['data-docx-chart-plot-count'] = (string) count($plots);
+            foreach ($plots as $index => $plot) {
+                if (isset($plot['class']) && is_string($plot['class']) && $plot['class'] !== '') {
+                    $attrs['classes'][] = 'docx-chart-plot-' . $plot['class'];
+                }
+
+                foreach (array_keys($plot) as $key) {
+                    if (is_string($key) && str_starts_with($key, 'data-label-')) {
+                        $attrs['classes'][] = 'docx-chart-data-labels';
+                        break;
+                    }
+                }
+
+                $prefix = 'data-docx-chart-plot-' . ($index + 1);
+                foreach ($plot as $key => $value) {
+                    if ($key === 'class' || $value === '') {
+                        continue;
+                    }
+
+                    $attrs['attributes'][$prefix . '-' . $key] = $value;
+                }
+            }
+        }
+
+        $legend = $this->chartLegendMetadata($chartRoot);
+        if ($legend !== []) {
+            $attrs['classes'][] = 'docx-chart-legend';
+            foreach ($legend as $key => $value) {
+                if ($value !== '') {
+                    $attrs['attributes']['data-docx-chart-legend-' . $key] = $value;
+                }
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($attrs['classes'])),
+            'attributes' => $attrs['attributes'],
+        ];
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function chartPlotMetadata(\DOMElement $chartRoot): array
+    {
+        $chart = $this->firstDescendantElement($chartRoot, self::DRAWINGML_CHART_NS, 'chart');
+        if (!$chart instanceof \DOMElement) {
+            return [];
+        }
+
+        $plotArea = $this->firstChildElement($chart, self::DRAWINGML_CHART_NS, 'plotArea');
+        if (!$plotArea instanceof \DOMElement) {
+            return [];
+        }
+
+        $plots = [];
+        foreach ($plotArea->childNodes as $child) {
+            if (
+                !$child instanceof \DOMElement
+                || $child->namespaceURI !== self::DRAWINGML_CHART_NS
+                || !str_ends_with($child->localName, 'Chart')
+            ) {
+                continue;
+            }
+
+            $plot = [
+                'type' => (string) $child->localName,
+                'class' => $this->chartPlotClassSuffix((string) $child->localName),
+                'series-count' => (string) $this->chartDirectChildCount($child, 'ser'),
+            ];
+
+            foreach ([
+                'grouping' => 'grouping',
+                'barDir' => 'bar-direction',
+                'radarStyle' => 'radar-style',
+                'scatterStyle' => 'scatter-style',
+                'ofPieType' => 'of-pie-type',
+            ] as $localName => $attributeName) {
+                $value = $this->chartChildVal($child, (string) $localName);
+                if ($value !== null && $value !== '') {
+                    $plot[$attributeName] = $value;
+                }
+            }
+
+            $varyColors = $this->firstChildElement($child, self::DRAWINGML_CHART_NS, 'varyColors');
+            if ($varyColors instanceof \DOMElement) {
+                $plot['vary-colors'] = $this->normalizedOnOffAttribute($varyColors, 'val') ?? 'true';
+            }
+
+            $dataLabels = $this->chartDataLabelMetadata($child);
+            if ($dataLabels !== []) {
+                foreach ($dataLabels as $key => $value) {
+                    $plot['data-label-' . $key] = $value;
+                }
+            }
+
+            $plots[] = $plot;
+        }
+
+        return array_slice($plots, 0, 6);
+    }
+
+    private function chartPlotClassSuffix(string $localName): string
+    {
+        $base = preg_replace('/Chart$/', '', $localName) ?? $localName;
+        $base = str_replace('3D', '3d', $base);
+        $base = preg_replace('/(?<!^)[A-Z]/', '-$0', $base) ?? $base;
+        $base = strtolower($base);
+        $base = preg_replace('/[^a-z0-9]+/', '-', $base) ?? $base;
+
+        return trim($base, '-') === '' ? strtolower($localName) : trim($base, '-');
+    }
+
+    private function chartDirectChildCount(\DOMElement $element, string $localName): int
+    {
+        $count = 0;
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === self::DRAWINGML_CHART_NS && $child->localName === $localName) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function chartDataLabelMetadata(\DOMElement $plot): array
+    {
+        $labels = $this->firstChildElement($plot, self::DRAWINGML_CHART_NS, 'dLbls');
+        if (!$labels instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        $position = $this->chartChildVal($labels, 'dLblPos');
+        if ($position !== null && $position !== '') {
+            $metadata['position'] = $position;
+        }
+
+        foreach ([
+            'showLegendKey' => 'show-legend-key',
+            'showVal' => 'show-value',
+            'showCatName' => 'show-category-name',
+            'showSerName' => 'show-series-name',
+            'showPercent' => 'show-percent',
+            'showBubbleSize' => 'show-bubble-size',
+            'showLeaderLines' => 'show-leader-lines',
+        ] as $localName => $attributeName) {
+            $element = $this->firstChildElement($labels, self::DRAWINGML_CHART_NS, (string) $localName);
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $metadata[$attributeName] = $this->normalizedOnOffAttribute($element, 'val') ?? 'true';
+        }
+
+        $separator = $this->firstChildElement($labels, self::DRAWINGML_CHART_NS, 'separator');
+        if ($separator instanceof \DOMElement) {
+            $separatorText = $this->chartNormalizeText($separator->textContent ?? '');
+            if ($separatorText !== '') {
+                $metadata['separator'] = $this->boundedTextPreview($separatorText);
+            }
+        }
+
+        $numberFormat = $this->firstChildElement($labels, self::DRAWINGML_CHART_NS, 'numFmt');
+        if ($numberFormat instanceof \DOMElement) {
+            $formatCode = trim($numberFormat->getAttribute('formatCode'));
+            if ($formatCode !== '') {
+                $metadata['number-format'] = $this->boundedTextPreview($formatCode);
+            }
+
+            $sourceLinked = $this->normalizedOnOffAttribute($numberFormat, 'sourceLinked');
+            if ($sourceLinked !== null) {
+                $metadata['source-linked'] = $sourceLinked;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function chartLegendMetadata(\DOMElement $chartRoot): array
+    {
+        $chart = $this->firstDescendantElement($chartRoot, self::DRAWINGML_CHART_NS, 'chart');
+        if (!$chart instanceof \DOMElement) {
+            return [];
+        }
+
+        $legend = $this->firstChildElement($chart, self::DRAWINGML_CHART_NS, 'legend');
+        if (!$legend instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        $position = $this->chartChildVal($legend, 'legendPos');
+        if ($position !== null && $position !== '') {
+            $metadata['position'] = $position;
+        }
+
+        $overlay = $this->firstChildElement($legend, self::DRAWINGML_CHART_NS, 'overlay');
+        if ($overlay instanceof \DOMElement) {
+            $metadata['overlay'] = $this->normalizedOnOffAttribute($overlay, 'val') ?? 'true';
+        }
+
+        $layout = $this->firstChildElement($legend, self::DRAWINGML_CHART_NS, 'layout');
+        $manualLayout = $layout instanceof \DOMElement ? $this->firstChildElement($layout, self::DRAWINGML_CHART_NS, 'manualLayout') : null;
+        if ($manualLayout instanceof \DOMElement) {
+            foreach ([
+                'x' => 'layout-x',
+                'y' => 'layout-y',
+                'w' => 'layout-width',
+                'h' => 'layout-height',
+            ] as $localName => $attributeName) {
+                $value = $this->chartChildVal($manualLayout, (string) $localName);
+                if ($value !== null && $value !== '') {
+                    $metadata[$attributeName] = $value;
+                }
+            }
+        }
+
+        return $metadata;
+    }
+
+    private function chartChildVal(\DOMElement $element, string $localName): ?string
+    {
+        $child = $this->firstChildElement($element, self::DRAWINGML_CHART_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = trim($child->getAttribute('val'));
+
+        return $value === '' ? null : $value;
     }
 
     /**
