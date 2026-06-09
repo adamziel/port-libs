@@ -149,6 +149,7 @@ final class LegacyDocReader
         0x26 => 'ask',
         0x27 => 'fillin',
         0x28 => 'data',
+        0x31 => 'eq',
         0x32 => 'gotobutton',
         0x33 => 'macrobutton',
         0x34 => 'autonumout',
@@ -1784,6 +1785,11 @@ final class LegacyDocReader
             return $literalResultFieldAttrs;
         }
 
+        $equationFieldAttrs = $this->equationFieldAttrs($fieldName, $tokens, $instruction, $result);
+        if ($equationFieldAttrs !== null) {
+            return $equationFieldAttrs;
+        }
+
         $generatedFieldAttrs = $this->generatedFieldAttrs($fieldName, $tokens, $instruction);
         if ($generatedFieldAttrs !== null) {
             return $generatedFieldAttrs;
@@ -2882,6 +2888,62 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-literal-field', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function equationFieldAttrs(string $fieldName, array $tokens, string $instruction, string $result): ?array
+    {
+        if ($fieldName !== 'EQ') {
+            return null;
+        }
+
+        $attributes = [
+            'data-legacy-doc-field' => 'eq',
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-equation-field-type' => 'legacy-word-eq',
+            'data-legacy-doc-equation-field-policy' => 'metadata-only-native-review',
+        ];
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+
+        $codeTokens = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (str_starts_with($token, '\\')) {
+                $switch = strtolower(substr($token, 1));
+                if (($switch === '*' || $switch === '@' || $switch === '#') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                    $index++;
+                    continue;
+                }
+            }
+
+            $codeTokens[] = $token;
+        }
+
+        if ($codeTokens !== []) {
+            $attributes['data-legacy-doc-equation-field-code'] = implode(' ', $codeTokens);
+        }
+
+        $resultText = trim($result);
+        if ($resultText !== '') {
+            $attributes['data-legacy-doc-equation-field-result-kind'] = 'displayed-result';
+            $attributes['data-legacy-doc-equation-field-result-character-count'] = (string) count($this->unicodeCharacters($resultText));
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-equation-field', 'legacy-doc-field-eq'],
             'attributes' => $attributes,
         ];
     }

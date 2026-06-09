@@ -6833,6 +6833,72 @@ return [
             $t->true(!str_contains($visibleText, $hiddenInstruction), 'Legacy DOC literal field instructions should not render as visible WordPress text');
         }
     },
+    'preserves legacy DOC EQ equation fields as metadata-only handoff spans' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Equation '
+            . $fieldBegin . ' EQ \f(a,b) \* MERGEFORMAT '
+            . $fieldSeparator . '(a)/(b)' . $fieldEnd
+            . " ready.\r";
+
+        $equationBegin = strpos($text, $fieldBegin);
+        $equationSeparator = strpos($text, $fieldSeparator, (int) $equationBegin);
+        $equationEnd = strpos($text, $fieldEnd, (int) $equationSeparator);
+        foreach ([$equationBegin, $equationSeparator, $equationEnd] as $cp) {
+            if (!is_int($cp)) {
+                throw new RuntimeException('Unable to locate legacy DOC EQ field fixture');
+            }
+        }
+
+        $fieldTable = $plcfldMom([
+            ['cp' => $equationBegin, 'character' => 0x13, 'typeCode' => 0x31],
+            ['cp' => $equationSeparator, 'character' => 0x14],
+            ['cp' => $equationEnd, 'character' => 0x15, 'endFlags' => 0x80],
+        ], strlen($text));
+        $wordDocument = $buildSimpleWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $fieldTable,
+        ]));
+        $document = $result['document'];
+        $fields = $result['fields'];
+        $paragraph = $document->children[0];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, $result['metadata']['fieldCharacterCount']);
+        $t->same(1, $result['metadata']['fieldCount']);
+        $t->same('eq', $fields[0]['type']);
+        $t->same(0x31, $fields[0]['typeCode']);
+        $t->same($fields, $result['metadata']['fields']);
+        $t->same($fields, $document->attr('fields'));
+
+        $equation = $paragraph->children[1];
+        $t->same('span', $equation->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-equation-field', 'legacy-doc-field-eq'], $equation->attr('classes'));
+        $equationAttrs = $equation->attr('attributes');
+        $t->same('eq', $equationAttrs['data-legacy-doc-field']);
+        $t->same('EQ \f(a,b) \* MERGEFORMAT', $equationAttrs['data-legacy-doc-field-instruction']);
+        $t->same('legacy-word-eq', $equationAttrs['data-legacy-doc-equation-field-type']);
+        $t->same('metadata-only-native-review', $equationAttrs['data-legacy-doc-equation-field-policy']);
+        $t->same('\f(a,b)', $equationAttrs['data-legacy-doc-equation-field-code']);
+        $t->same('MERGEFORMAT', $equationAttrs['data-legacy-doc-field-format']);
+        $t->same('displayed-result', $equationAttrs['data-legacy-doc-equation-field-result-kind']);
+        $t->same('7', $equationAttrs['data-legacy-doc-equation-field-result-character-count']);
+        $t->same('(a)/(b)', $equation->children[0]->attr('text'));
+
+        $t->contains('[(a)/(b)]{.legacy-doc-field .legacy-doc-equation-field .legacy-doc-field-eq data-legacy-doc-field="eq"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-equation-field legacy-doc-field-eq" data-legacy-doc-field="eq" data-legacy-doc-field-instruction="EQ \f(a,b) \* MERGEFORMAT" data-legacy-doc-equation-field-type="legacy-word-eq" data-legacy-doc-equation-field-policy="metadata-only-native-review" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-equation-field-code="\f(a,b)" data-legacy-doc-equation-field-result-kind="displayed-result" data-legacy-doc-equation-field-result-character-count="7">(a)/(b)</span>', $blocks);
+
+        $visibleText = strip_tags($blocks);
+        foreach (['EQ', '\f(a,b)', 'MERGEFORMAT'] as $hiddenInstruction) {
+            $t->true(!str_contains($visibleText, $hiddenInstruction), 'Legacy DOC EQ field instructions should not render as visible WordPress text');
+        }
+    },
     'preserves legacy DOC SET field assignments as hidden handoff metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";
