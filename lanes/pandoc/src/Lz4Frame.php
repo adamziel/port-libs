@@ -228,12 +228,14 @@ final class Lz4Frame
 
             $descriptor = substr($bytes, $descriptorStart, $cursor - $descriptorStart);
             self::assertRange($bytes, $cursor, 1, 'frame descriptor checksum');
+            $headerChecksumOffset = $cursor;
             $headerChecksum = ord($bytes[$cursor]);
             $expectedHeaderChecksum = (self::xxh32($descriptor) >> 8) & 0xff;
             if ($headerChecksum !== $expectedHeaderChecksum) {
                 throw new \RuntimeException('LZ4 frame header checksum does not match descriptor bytes');
             }
             $cursor++;
+            $headerSize = $cursor - $frameStart;
 
             $blockChecksum = ($flags & self::FLAG_BLOCK_CHECKSUM) !== 0;
             $blockCount = 0;
@@ -284,6 +286,16 @@ final class Lz4Frame
 
             $frames[] = [
                 'type' => 'frame',
+                'flags' => $flags,
+                'flagsHex' => sprintf('%02x', $flags),
+                'blockDescriptor' => $blockDescriptor,
+                'blockDescriptorHex' => sprintf('%02x', $blockDescriptor),
+                'descriptorOffset' => $descriptorStart,
+                'descriptorSize' => strlen($descriptor),
+                'headerChecksum' => $headerChecksum,
+                'headerChecksumHex' => sprintf('%02x', $headerChecksum),
+                'headerChecksumOffset' => $headerChecksumOffset,
+                'headerSize' => $headerSize,
                 'dictionaryId' => $dictionaryId,
                 'contentSize' => $contentSize,
                 'blockMaxSize' => $blockMaxSize,
@@ -388,6 +400,16 @@ final class Lz4Frame
                 'type' => 'frame',
                 'frameIndex' => $frameIndex,
                 'dataFrameIndex' => $dataFrameIndex,
+                'flags' => $frame['flags'],
+                'flagsHex' => $frame['flagsHex'],
+                'blockDescriptor' => $frame['blockDescriptor'],
+                'blockDescriptorHex' => $frame['blockDescriptorHex'],
+                'descriptorOffset' => $frame['descriptorOffset'],
+                'descriptorSize' => $frame['descriptorSize'],
+                'headerChecksum' => $frame['headerChecksum'],
+                'headerChecksumHex' => $frame['headerChecksumHex'],
+                'headerChecksumOffset' => $frame['headerChecksumOffset'],
+                'headerSize' => $frame['headerSize'],
                 'contentSize' => $contentSize,
                 'decodedDataSize' => $decodedSize,
                 'contentSizeMatches' => $matches,
@@ -574,12 +596,15 @@ final class Lz4Frame
             }
 
             $descriptor = substr($bytes, $descriptorStart, $cursor - $descriptorStart);
+            self::assertRange($bytes, $cursor, 1, 'frame descriptor checksum');
+            $headerChecksumOffset = $cursor;
             $headerChecksum = ord($bytes[$cursor]);
             $expectedHeaderChecksum = (self::xxh32($descriptor) >> 8) & 0xff;
             if ($headerChecksum !== $expectedHeaderChecksum) {
                 throw new \RuntimeException('LZ4 frame header checksum does not match descriptor bytes');
             }
             $cursor++;
+            $headerSize = $cursor - $frameStart;
 
             $dictionaryBytes = '';
             if ($dictionaryId !== null) {
@@ -674,6 +699,16 @@ final class Lz4Frame
             $frames[] = [
                 'type' => 'frame',
                 'data' => $data,
+                'flags' => $flags,
+                'flagsHex' => sprintf('%02x', $flags),
+                'blockDescriptor' => $blockDescriptor,
+                'blockDescriptorHex' => sprintf('%02x', $blockDescriptor),
+                'descriptorOffset' => $descriptorStart,
+                'descriptorSize' => strlen($descriptor),
+                'headerChecksum' => $headerChecksum,
+                'headerChecksumHex' => sprintf('%02x', $headerChecksum),
+                'headerChecksumOffset' => $headerChecksumOffset,
+                'headerSize' => $headerSize,
                 'frameSize' => $cursor - $frameStart,
                 'frameOffset' => $frameStart,
                 'nextFrameOffset' => $cursor,

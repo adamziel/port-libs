@@ -1936,8 +1936,8 @@ final class ZipPackage
      *     extendedTimestampEntryCount:int,
      *     ntfsTimestampEntryCount:int,
      *     invalidDosTimestampEntryCount:int,
-     *     invalidDosTimestampEntries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, issues:list<string>}>,
-     *     entries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, issues:list<string>}>
+     *     invalidDosTimestampEntries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, centralExtendedModifiedAt:?int, centralNtfsModifiedAt:?int, centralModifiedAt:?int, centralTimestampSource:?string, localExtendedModifiedAt:?int, localNtfsModifiedAt:?int, localModifiedAt:?int, localTimestampSource:?string, issues:list<string>}>,
+     *     entries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, centralExtendedModifiedAt:?int, centralNtfsModifiedAt:?int, centralModifiedAt:?int, centralTimestampSource:?string, localExtendedModifiedAt:?int, localNtfsModifiedAt:?int, localModifiedAt:?int, localTimestampSource:?string, issues:list<string>}>
      * }
      */
     public function modificationTimePreflight(): array
@@ -1976,6 +1976,27 @@ final class ZipPackage
                 $ntfsTimestampEntryCount++;
             }
 
+            $localHeader = $this->readLocalHeader($entry);
+            $localExtendedTimestamps = self::extendedTimestampsFromExtraFieldData(
+                $localHeader['extraFieldData'],
+                "local extra fields for {$entry->name}"
+            );
+            $localNtfsTimestamps = self::ntfsTimestampsFromExtraFieldData(
+                $localHeader['extraFieldData'],
+                "local extra fields for {$entry->name}"
+            );
+            $localExtendedModifiedAt = $localExtendedTimestamps['modifiedAt'] ?? null;
+            $localNtfsModifiedAt = $localNtfsTimestamps['modifiedAt'] ?? null;
+            $localModifiedAt = $localExtendedModifiedAt ?? $localNtfsModifiedAt ?? $dosModifiedAt;
+            $localTimestampSource = null;
+            if ($localExtendedModifiedAt !== null) {
+                $localTimestampSource = 'extended-timestamp';
+            } elseif ($localNtfsModifiedAt !== null) {
+                $localTimestampSource = 'ntfs';
+            } elseif ($dosModifiedAt !== null) {
+                $localTimestampSource = 'dos';
+            }
+
             $isDosTimestampValid = !$hasDosTimestamp || $dosModifiedAt !== null;
             $issues = $isDosTimestampValid ? [] : ['invalid-dos-modified-timestamp'];
             $summary = [
@@ -1989,6 +2010,14 @@ final class ZipPackage
                 'ntfsModifiedAt' => $ntfsModifiedAt,
                 'modifiedAt' => $modifiedAt,
                 'timestampSource' => $timestampSource,
+                'centralExtendedModifiedAt' => $extendedModifiedAt,
+                'centralNtfsModifiedAt' => $ntfsModifiedAt,
+                'centralModifiedAt' => $modifiedAt,
+                'centralTimestampSource' => $timestampSource,
+                'localExtendedModifiedAt' => $localExtendedModifiedAt,
+                'localNtfsModifiedAt' => $localNtfsModifiedAt,
+                'localModifiedAt' => $localModifiedAt,
+                'localTimestampSource' => $localTimestampSource,
                 'issues' => $issues,
             ];
             $entries[] = $summary;
@@ -2017,8 +2046,8 @@ final class ZipPackage
      *     extendedTimestampEntryCount:int,
      *     ntfsTimestampEntryCount:int,
      *     invalidDosTimestampEntryCount:int,
-     *     invalidDosTimestampEntries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, issues:list<string>}>,
-     *     entries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, issues:list<string>}>
+     *     invalidDosTimestampEntries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, centralExtendedModifiedAt:?int, centralNtfsModifiedAt:?int, centralModifiedAt:?int, centralTimestampSource:?string, localExtendedModifiedAt:?int, localNtfsModifiedAt:?int, localModifiedAt:?int, localTimestampSource:?string, issues:list<string>}>,
+     *     entries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, centralExtendedModifiedAt:?int, centralNtfsModifiedAt:?int, centralModifiedAt:?int, centralTimestampSource:?string, localExtendedModifiedAt:?int, localNtfsModifiedAt:?int, localModifiedAt:?int, localTimestampSource:?string, issues:list<string>}>
      * }
      */
     public function assertValidModificationTimes(): array

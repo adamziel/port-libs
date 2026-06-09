@@ -1755,6 +1755,42 @@ return [
         $t->same('invalid DOS date metadata should be reviewed', $invalidPackage->read('/word/media/bad-date.txt'));
     },
 
+    'preflights central and local zip timestamp provenance before media handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
+        $centralModifiedAt = 1780479017;
+        $localModifiedAt = 1780479020;
+        $localAccessedAt = 1780479021;
+        $localCreatedAt = 1780479022;
+        $centralTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, $centralModifiedAt);
+        $localNtfsExtra = $buildNtfsExtra($localModifiedAt, $localAccessedAt, $localCreatedAt);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'timestamp provenance should remain inspectable',
+                'method' => 0,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+                'localExtra' => $localNtfsExtra,
+                'centralExtra' => $centralTimestampExtra,
+            ],
+        ]));
+        $summary = $package->modificationTimePreflight();
+        $entry = $summary['entries'][0];
+
+        $t->same(1, $summary['entryCount']);
+        $t->same(1, $summary['timestampEntryCount']);
+        $t->same(1, $summary['extendedTimestampEntryCount']);
+        $t->same(0, $summary['ntfsTimestampEntryCount']);
+        $t->same('extended-timestamp', $entry['timestampSource']);
+        $t->same($centralModifiedAt, $entry['modifiedAt']);
+        $t->same(null, $entry['localExtendedModifiedAt']);
+        $t->same($localModifiedAt, $entry['localNtfsModifiedAt']);
+        $t->same($localModifiedAt, $entry['localModifiedAt']);
+        $t->same('ntfs', $entry['localTimestampSource']);
+        $t->same(['modifiedAt' => $localModifiedAt, 'accessedAt' => $localAccessedAt, 'createdAt' => $localCreatedAt], $package->localNtfsTimestamps('word/media/reviewer-note.txt'));
+        $t->same('timestamp provenance should remain inspectable', $package->read('/word/media/reviewer-note.txt'));
+    },
+
     'rejects unsupported zip extraction versions before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [

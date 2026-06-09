@@ -271,6 +271,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -3781,6 +3782,74 @@ final class PdfEngineHandoff
             $reason = 'pdf-output-encrypted';
         }
 
+        $missingExpectedEngineArtifacts = array_values(array_diff($expectedEngineArtifacts, array_keys($producedArtifactsSha256)));
+        sort($missingExpectedEngineArtifacts);
+        $artifactProvenanceIssues = [];
+        if ($missingProgram['missing']) {
+            $artifactProvenanceIssues[] = 'engine-program-missing:' . $missingProgram['program'];
+        }
+        foreach ($missingExpectedEngineArtifacts as $missingExpectedEngineArtifact) {
+            $artifactProvenanceIssues[] = 'missing-expected-engine-artifact:' . $missingExpectedEngineArtifact;
+        }
+        if ($engineMessages['warnings'] !== []) {
+            $artifactProvenanceIssues[] = 'engine-log-warnings:' . count($engineMessages['warnings']);
+        }
+        if ($engineMessages['errors'] !== []) {
+            $artifactProvenanceIssues[] = 'engine-log-errors:' . count($engineMessages['errors']);
+        }
+        if ($engineMissingDependencies !== []) {
+            $artifactProvenanceIssues[] = 'engine-missing-dependencies:' . count($engineMissingDependencies);
+        }
+        if ($bibliographyMessages['warnings'] !== []) {
+            $artifactProvenanceIssues[] = 'bibliography-warnings:' . count($bibliographyMessages['warnings']);
+        }
+        if ($bibliographyMessages['errors'] !== []) {
+            $artifactProvenanceIssues[] = 'bibliography-errors:' . count($bibliographyMessages['errors']);
+        }
+        if ($engineMessages['rerunNeeded']) {
+            $artifactProvenanceIssues[] = 'engine-rerun-needed';
+        }
+        if ($bibliographyMessages['needed']) {
+            $artifactProvenanceIssues[] = 'bibliography-run-needed';
+        }
+        if (!is_string($pdfBytes)) {
+            $artifactProvenanceIssues[] = 'pdf-output-missing';
+        }
+
+        $artifactProvenanceReviewStatus = 'ok';
+        if (
+            $status !== 'ok'
+            || $engineMessages['errors'] !== []
+            || $bibliographyMessages['errors'] !== []
+            || $missingProgram['missing']
+        ) {
+            $artifactProvenanceReviewStatus = 'failed';
+        } elseif ($artifactProvenanceIssues !== []) {
+            $artifactProvenanceReviewStatus = 'review';
+        }
+        $artifactProvenanceReview = [
+            'reviewStatus' => $artifactProvenanceReviewStatus,
+            'engine' => $engine,
+            'sourceFile' => $sourceFile,
+            'outputFile' => $outputFile,
+            'engineArtifactStem' => $engineArtifactStem,
+            'sourceSha256' => $sourceSha256,
+            'pdfSha256' => is_string($pdfBytes) ? hash('sha256', $pdfBytes) : null,
+            'expectedEngineArtifacts' => $expectedEngineArtifacts,
+            'missingExpectedEngineArtifacts' => $missingExpectedEngineArtifacts,
+            'producedEngineArtifactsSha256' => $producedArtifactsSha256,
+            'engineLogFiles' => $engineLogFiles,
+            'engineWarnings' => $engineMessages['warnings'],
+            'engineErrors' => $engineMessages['errors'],
+            'bibliographyLogFiles' => $bibliographyLogFiles,
+            'bibliographyWarnings' => $bibliographyMessages['warnings'],
+            'bibliographyErrors' => $bibliographyMessages['errors'],
+            'bibliographyNeeded' => $bibliographyMessages['needed'],
+            'rerunNeeded' => $engineMessages['rerunNeeded'] || $bibliographyMessages['needed'],
+            'issues' => $artifactProvenanceIssues,
+        ];
+        $diagnostics[] = 'artifact-provenance-review:' . $artifactProvenanceReviewStatus;
+
         return [
             'ok' => $status === 'ok',
             'status' => $status,
@@ -3821,6 +3890,7 @@ final class PdfEngineHandoff
             'bibliographyErrors' => $bibliographyMessages['errors'],
             'bibliographyNeeded' => $bibliographyMessages['needed'],
             'rerunNeeded' => $engineMessages['rerunNeeded'] || $bibliographyMessages['needed'],
+            'artifactProvenanceReview' => $artifactProvenanceReview,
             'declaredOutputFile' => $declaredOutput['file'],
             'declaredOutputPages' => $declaredOutput['pages'],
             'declaredOutputBytes' => $declaredOutput['bytes'],

@@ -1104,7 +1104,7 @@ final class ArchiveCompressionStream
                 'entryNames' => $summary['entryNames'],
                 'policy' => $standalonePackage ? 'standalone-lz4-frame-package' : 'package-segment',
                 'diagnostics' => $frameDiagnostics,
-            ];
+            ] + self::lz4FrameDescriptorMetadata($frame);
             $dataFrameIndex++;
         }
 
@@ -1292,7 +1292,7 @@ final class ArchiveCompressionStream
                 'decodedBytesOverLimit' => $decodedBytesOverLimit,
                 'policy' => $frameDiagnostics === [] ? 'metadata-only-no-extraction' : 'review-before-conversion',
                 'diagnostics' => $frameDiagnostics,
-            ];
+            ] + self::lz4FrameDescriptorMetadata($frame);
             $dataFrameIndex++;
         }
 
@@ -2528,7 +2528,7 @@ final class ArchiveCompressionStream
                 'frameSize' => (int) $frame['frameSize'],
                 'policy' => (string) $frame['policy'],
                 'diagnostics' => $frame['diagnostics'],
-            ];
+            ] + self::lz4FrameDescriptorMetadata($frame);
             $dataFrameIndex++;
         }
 
@@ -2637,7 +2637,7 @@ final class ArchiveCompressionStream
                 'nextFrameOffset' => (int) $frame['nextFrameOffset'],
                 'policy' => (string) $frame['policy'],
                 'diagnostics' => $frame['diagnostics'],
-            ];
+            ] + self::lz4FrameDescriptorMetadata($frame);
         }
 
         $diagnostics = $policy['mismatchedContentSizeFrameCount'] > 0
@@ -2812,7 +2812,7 @@ final class ArchiveCompressionStream
                     ? 'metadata-only-no-extraction'
                     : 'review-before-conversion',
                 'diagnostics' => $frameDiagnostics,
-            ];
+            ] + self::lz4FrameDescriptorMetadata($frame);
             $dataFrameIndex++;
         }
 
@@ -6203,7 +6203,7 @@ final class ArchiveCompressionStream
                 'frameSize' => $frame['frameSize'],
                 'frameOffset' => $frame['frameOffset'],
                 'nextFrameOffset' => $frame['nextFrameOffset'],
-            ];
+            ] + self::lz4FrameDescriptorMetadata($frame);
         }
 
         return [
@@ -6215,6 +6215,41 @@ final class ArchiveCompressionStream
             'compressedSize' => strlen($bytes),
             'uncompressedSize' => $uncompressedSize,
             'frames' => $frames,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $frame
+     * @return array{
+     *     flags:int,
+     *     flagsHex:string,
+     *     blockDescriptor:int,
+     *     blockDescriptorHex:string,
+     *     descriptorOffset:int,
+     *     descriptorSize:int,
+     *     headerChecksum:int,
+     *     headerChecksumHex:string,
+     *     headerChecksumOffset:int,
+     *     headerSize:int
+     * }
+     */
+    private static function lz4FrameDescriptorMetadata(array $frame): array
+    {
+        $flags = (int) ($frame['flags'] ?? 0);
+        $blockDescriptor = (int) ($frame['blockDescriptor'] ?? 0);
+        $headerChecksum = (int) ($frame['headerChecksum'] ?? 0);
+
+        return [
+            'flags' => $flags,
+            'flagsHex' => (string) ($frame['flagsHex'] ?? sprintf('%02x', $flags)),
+            'blockDescriptor' => $blockDescriptor,
+            'blockDescriptorHex' => (string) ($frame['blockDescriptorHex'] ?? sprintf('%02x', $blockDescriptor)),
+            'descriptorOffset' => (int) ($frame['descriptorOffset'] ?? 0),
+            'descriptorSize' => (int) ($frame['descriptorSize'] ?? 0),
+            'headerChecksum' => $headerChecksum,
+            'headerChecksumHex' => (string) ($frame['headerChecksumHex'] ?? sprintf('%02x', $headerChecksum)),
+            'headerChecksumOffset' => (int) ($frame['headerChecksumOffset'] ?? 0),
+            'headerSize' => (int) ($frame['headerSize'] ?? 0),
         ];
     }
 
@@ -6282,7 +6317,7 @@ final class ArchiveCompressionStream
                 'frameSize' => $frame['frameSize'],
                 'frameOffset' => $frame['frameOffset'],
                 'nextFrameOffset' => $frame['nextFrameOffset'],
-            ];
+            ] + self::lz4FrameDescriptorMetadata($frame);
         }
 
         return [

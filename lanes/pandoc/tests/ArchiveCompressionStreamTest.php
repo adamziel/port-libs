@@ -9810,6 +9810,58 @@ return [
         $t->same('<w:document><w:body><w:p>LZ4 wrapped package import</w:p></w:body></w:document>', $roundTrip->read('/word/document.xml'));
     },
 
+    'exposes lz4 frame descriptor metadata for archive review packets' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"lz4-descriptor","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# LZ4 descriptor metadata\n\nReady for archive review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $lz4 = Lz4Frame::build($tarBytes, [
+            'blockChecksum' => true,
+            'contentChecksum' => false,
+            'contentSize' => true,
+        ]);
+        $frames = Lz4Frame::frames($lz4);
+        $inspection = ArchiveCompressionStream::inspectTarStream(
+            $lz4,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            strlen($tarBytes)
+        );
+        $streamFrame = $inspection['stream']['frames'][0];
+        $compactFrame = Lz4Frame::frames(Lz4Frame::build('descriptor sidecar', [
+            'contentChecksum' => false,
+            'contentSize' => false,
+        ]))[0];
+
+        $t->same(1, count($frames));
+        $t->same(0x78, $frames[0]['flags']);
+        $t->same('78', $frames[0]['flagsHex']);
+        $t->same(0x40, $frames[0]['blockDescriptor']);
+        $t->same('40', $frames[0]['blockDescriptorHex']);
+        $t->same(4, $frames[0]['descriptorOffset']);
+        $t->same(10, $frames[0]['descriptorSize']);
+        $t->same(ord($lz4[14]), $frames[0]['headerChecksum']);
+        $t->same(sprintf('%02x', ord($lz4[14])), $frames[0]['headerChecksumHex']);
+        $t->same(14, $frames[0]['headerChecksumOffset']);
+        $t->same(15, $frames[0]['headerSize']);
+        $t->same($frames[0]['flags'], $streamFrame['flags']);
+        $t->same($frames[0]['blockDescriptor'], $streamFrame['blockDescriptor']);
+        $t->same($frames[0]['descriptorSize'], $streamFrame['descriptorSize']);
+        $t->same($frames[0]['headerChecksumHex'], $streamFrame['headerChecksumHex']);
+        $t->same($frames[0]['headerSize'], $streamFrame['headerSize']);
+        $t->same("# LZ4 descriptor metadata\n\nReady for archive review.\n", $inspection['archive']->read('/packet/content.md'));
+        $t->same(0x60, $compactFrame['flags']);
+        $t->same(2, $compactFrame['descriptorSize']);
+        $t->same(6, $compactFrame['headerChecksumOffset']);
+        $t->same(7, $compactFrame['headerSize']);
+    },
+
     'reads compressed lz4 blocks and skippable import metadata frames' => static function (TestRunner $t): void {
         $packet = str_repeat('packet/word/document.xml:review;', 420) . 'tail';
         $lz4 = Lz4Frame::build($packet, [

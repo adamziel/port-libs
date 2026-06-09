@@ -584,6 +584,48 @@ MARKDOWN);
         $t->contains('produced-engine-artifacts:3', implode(',', $result['diagnostics']));
     },
 
+    'fake runner exposes tex artifact provenance review metadata' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'lualatex', 'outputPath' => 'review.pdf']);
+        $pdfBytes = "%PDF-1.7\n% fake bounded provenance packet\n%%EOF\n";
+        $log = implode("\n", [
+            'This is LuaHBTeX, Version 1.18.0',
+            "LaTeX Warning: Reference `missing-section' on page 1 undefined on input line 8.",
+            'LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.',
+            'Output written on review.pdf (1 page, ' . strlen($pdfBytes) . ' bytes).',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'review.aux' => "\\relax\n",
+                'review.out' => '',
+                'review.log' => $log,
+                'review.pdf' => $pdfBytes,
+            ],
+        ]);
+
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same('lualatex', $result['artifactProvenanceReview']['engine']);
+        $t->same('review.tex', $result['artifactProvenanceReview']['sourceFile']);
+        $t->same('review.pdf', $result['artifactProvenanceReview']['outputFile']);
+        $t->same(hash('sha256', (string) $plan['sourceBytes']), $result['artifactProvenanceReview']['sourceSha256']);
+        $t->same(hash('sha256', $pdfBytes), $result['artifactProvenanceReview']['pdfSha256']);
+        $t->same($plan['expectedEngineArtifacts'], $result['artifactProvenanceReview']['expectedEngineArtifacts']);
+        $t->same(['review.toc'], $result['artifactProvenanceReview']['missingExpectedEngineArtifacts']);
+        $t->same(['review.log'], $result['artifactProvenanceReview']['engineLogFiles']);
+        $t->same([
+            'review.aux' => hash('sha256', "\\relax\n"),
+            'review.log' => hash('sha256', $log),
+            'review.out' => hash('sha256', ''),
+        ], $result['artifactProvenanceReview']['producedEngineArtifactsSha256']);
+        $t->same(true, $result['artifactProvenanceReview']['rerunNeeded']);
+        $t->contains('missing-section', implode("\n", $result['artifactProvenanceReview']['engineWarnings']));
+        $t->contains('missing-expected-engine-artifact:review.toc', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('engine-rerun-needed', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('artifact-provenance-review:review', implode(',', $result['diagnostics']));
+    },
+
     'fake runner classifies bibliography sidecars and biber rerun diagnostics' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'review.pdf']);
