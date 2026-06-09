@@ -6,6 +6,7 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\PandocJsonWriter;
+use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
@@ -339,6 +340,185 @@ return [
         $t->same('packet', $roundTrip->children[6]->attr('id'));
         $t->same('horizontal_rule', $roundTrip->children[7]->type);
     },
+    'round trips pandoc json table captions through shared table ast' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['json-table', ['wp-import-table'], [['data-source', 'json-filter']]],
+                [
+                    [
+                        ['t' => 'Str', 'c' => 'Short'],
+                        ['t' => 'Space'],
+                        ['t' => 'Strong', 'c' => [
+                            ['t' => 'Str', 'c' => 'caption'],
+                        ]],
+                    ],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Long'],
+                            ['t' => 'Space'],
+                            ['t' => 'Emph', 'c' => [
+                                ['t' => 'Str', 'c' => 'caption'],
+                            ]],
+                            ['t' => 'Space'],
+                            ['t' => 'Link', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Str', 'c' => 'reviewer'],
+                                ],
+                                ['https://example.test/review', 'Review'],
+                            ]],
+                        ]],
+                    ],
+                ],
+                [
+                    [['t' => 'AlignLeft'], ['t' => 'ColWidth', 'c' => 0.4]],
+                    [['t' => 'AlignCenter'], ['t' => 'ColWidthDefault']],
+                ],
+                [
+                    ['', [], []],
+                    [
+                        [
+                            ['', [], []],
+                            [
+                                [
+                                    ['', [], []],
+                                    ['t' => 'AlignDefault'],
+                                    1,
+                                    1,
+                                    [
+                                        ['t' => 'Plain', 'c' => [
+                                            ['t' => 'Str', 'c' => 'Metric'],
+                                        ]],
+                                    ],
+                                ],
+                                [
+                                    ['', [], []],
+                                    ['t' => 'AlignDefault'],
+                                    1,
+                                    1,
+                                    [
+                                        ['t' => 'Plain', 'c' => [
+                                            ['t' => 'Str', 'c' => 'State'],
+                                        ]],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    [
+                        ['', ['body-source'], []],
+                        ['t' => 'RowHeadColumns', 'c' => 1],
+                        [],
+                        [
+                            [
+                                ['', [], []],
+                                [
+                                    [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        1,
+                                        1,
+                                        [
+                                            ['t' => 'Plain', 'c' => [
+                                                ['t' => 'Str', 'c' => 'Posts'],
+                                            ]],
+                                        ],
+                                    ],
+                                    [
+                                        ['', [], []],
+                                        ['t' => 'AlignRight'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [
+                                            ['t' => 'Plain', 'c' => [
+                                                ['t' => 'Str', 'c' => 'Ready'],
+                                            ]],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    ['', [], []],
+                    [],
+                ],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket($packet);
+        $table = $document->children[0];
+        $body = $table->children[1];
+        $captionBlocks = $table->attr('captionBlocks');
+        $captionInlines = $table->attr('captionInlines');
+        $shortCaptionInlines = $table->attr('shortCaptionInlines');
+        $encoded = $writer->toArray($document);
+        $roundTrip = $reader->readPacket($encoded);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $generated = $writer->toArray(new AstNode('document', [], [
+            new AstNode('table', [
+                'caption' => 'Fallback long',
+                'shortCaption' => 'Fallback short',
+            ], [
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'Cell']),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]));
+        $generatedRoundTrip = $reader->readPacket($generated);
+
+        $t->same('table', $table->type);
+        $t->same('json-table', $table->attr('id'));
+        $t->same(['wp-import-table'], $table->attr('classes'));
+        $t->same(['data-source' => 'json-filter'], $table->attr('attributes'));
+        $t->same('Long caption reviewer', $table->attr('caption'));
+        $t->same('Short caption', $table->attr('shortCaption'));
+        $t->same(['left', 'center'], $table->attr('alignments'));
+        $t->same([0.4, null], $table->attr('widths'));
+        $t->same(['table_head', 'table_body'], array_map(static fn (AstNode $node): string => $node->type, $table->children));
+        $t->same(1, $body->attr('rowHeadColumns'));
+        $t->same(['body-source'], $body->attr('classes'));
+        $t->same('right', $body->children[0]->children[1]->attr('align'));
+        $t->same(true, is_array($captionBlocks));
+        $t->same('plain', $captionBlocks[0]->type);
+        $t->same(true, is_array($captionInlines));
+        $t->same(['text', 'space', 'emph', 'space', 'link'], array_map(static fn (AstNode $node): string => $node->type, $captionInlines));
+        $t->same(true, is_array($shortCaptionInlines));
+        $t->same(['text', 'space', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $shortCaptionInlines));
+        $t->same('Table', $encoded['blocks'][0]['t']);
+        $t->same($tableBlock['c'][0], $encoded['blocks'][0]['c'][0]);
+        $t->same('Short', $encoded['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Long', $encoded['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('ColWidth', $encoded['blocks'][0]['c'][2][0][1]['t']);
+        $t->same(0.4, $encoded['blocks'][0]['c'][2][0][1]['c']);
+        $t->same(1, $encoded['blocks'][0]['c'][4][0][1]);
+        $t->same('Short caption', $roundTrip->children[0]->attr('shortCaption'));
+        $t->same('Long caption reviewer', $roundTrip->children[0]->attr('caption'));
+        $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="Short caption">', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Long <em>caption</em> <a href="https://example.test/review" title="Review">reviewer</a></figcaption>', $blocks);
+        $t->same('captionBlocks', $packet['captions']['long']['source'] ?? null);
+        $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
+        $t->same('Fallback', $generated['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Fallback', $generated['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Fallback short', $generatedRoundTrip->children[0]->attr('shortCaption'));
+        $t->same('Fallback long', $generatedRoundTrip->children[0]->attr('caption'));
+    },
     'maps pandoc definition lists into term and definition ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
@@ -556,7 +736,7 @@ return [
         ]])));
         $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket(['pandoc-api-version' => ['1'], 'blocks' => []]));
         $t->throws(InvalidArgumentException::class, static fn (): string => $writer->write(new AstNode('paragraph')));
-        $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [new AstNode('table')])));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [new AstNode('unsupported_block')])));
         $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [new AstNode('paragraph', [], [new AstNode('citation')])])));
     },
     'renders wordpress blocks from pandoc json filter input' => static function (TestRunner $t): void {

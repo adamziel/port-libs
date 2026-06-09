@@ -209,6 +209,7 @@ final class PandocJsonWriter
             'line_block' => ['t' => 'LineBlock', 'c' => array_map(fn (AstNode $line): array => $this->writeInlines($this->inlineChildrenOrText($line)), $node->children)],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->writeBlocks($node->children)]],
+            'table' => $this->writeTableBlock($node),
             default => throw new \InvalidArgumentException("Unsupported AST block node for Pandoc JSON: {$node->type}"),
         };
     }
@@ -279,6 +280,192 @@ final class PandocJsonWriter
         }
 
         return $this->writeBlocks($node->children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function writeTableBlock(AstNode $node): array
+    {
+        return [
+            't' => 'Table',
+            'c' => [
+                $this->attrTuple($node),
+                $this->writeTableCaption($node),
+                $this->writeTableColumnSpecs($node),
+                $this->writeTableSection($this->firstTableSection($node, 'table_head') ?? new AstNode('table_head')),
+                array_map(fn (AstNode $body): array => $this->writeTableBody($body), $this->tableSections($node, 'table_body')),
+                $this->writeTableSection($this->firstTableSection($node, 'table_foot') ?? new AstNode('table_foot')),
+            ],
+        ];
+    }
+
+    /**
+     * @return array{0:list<array<string, mixed>>|null, 1:list<array<string, mixed>>}
+     */
+    private function writeTableCaption(AstNode $node): array
+    {
+        return [
+            $this->writeShortCaption($node),
+            $this->writeLongCaptionBlocks($node),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>|null
+     */
+    private function writeShortCaption(AstNode $node): ?array
+    {
+        $inlines = $node->attr('shortCaptionInlines', []);
+        if ($inlines !== [] && is_array($inlines) && $this->allAstNodes($inlines) && $this->allInlineNodes($inlines)) {
+            return $this->writeInlines($inlines);
+        }
+
+        $text = trim((string) $node->attr('shortCaption', ''));
+
+        return $text === '' ? null : $this->writeInlines($this->textInlines($text));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function writeLongCaptionBlocks(AstNode $node): array
+    {
+        $captionBlocks = $node->attr('captionBlocks', []);
+        if ($captionBlocks !== [] && is_array($captionBlocks) && $this->allAstNodes($captionBlocks)) {
+            return $this->writeBlocks(array_values($captionBlocks));
+        }
+
+        $captionInlines = $node->attr('captionInlines', []);
+        if ($captionInlines !== [] && is_array($captionInlines) && $this->allAstNodes($captionInlines) && $this->allInlineNodes($captionInlines)) {
+            return [['t' => 'Plain', 'c' => $this->writeInlines(array_values($captionInlines))]];
+        }
+
+        $text = trim((string) $node->attr('caption', ''));
+
+        return $text === '' ? [] : [['t' => 'Plain', 'c' => $this->writeInlines($this->textInlines($text))]];
+    }
+
+    /**
+     * @return list<array{0:array{t:string}, 1:array<string, mixed>}>
+     */
+    private function writeTableColumnSpecs(AstNode $node): array
+    {
+        $alignments = $node->attr('alignments', []);
+        $widths = $node->attr('widths', []);
+        $columnCount = max(
+            is_array($alignments) ? count($alignments) : 0,
+            is_array($widths) ? count($widths) : 0,
+            TableGeometry::columnCount($node)
+        );
+        $specs = [];
+        for ($index = 0; $index < $columnCount; $index++) {
+            $alignment = is_array($alignments) ? (string) ($alignments[$index] ?? 'default') : 'default';
+            $width = is_array($widths) ? ($widths[$index] ?? null) : null;
+            $specs[] = [
+                $this->enum($this->tableAlignmentConstructor($alignment)),
+                is_int($width) || is_float($width) ? ['t' => 'ColWidth', 'c' => (float) $width] : ['t' => 'ColWidthDefault'],
+            ];
+        }
+
+        return $specs;
+    }
+
+    /**
+     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>}
+     */
+    private function writeTableSection(AstNode $section): array
+    {
+        return [
+            $this->attrTuple($section),
+            $this->writeTableRows($section->children),
+        ];
+    }
+
+    /**
+     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:int, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
+     */
+    private function writeTableBody(AstNode $body): array
+    {
+        $headRows = $body->attr('headRows', []);
+
+        return [
+            $this->attrTuple($body),
+            max(0, (int) $body->attr('rowHeadColumns', 0)),
+            is_array($headRows) ? $this->writeTableRows(array_values($headRows)) : [],
+            $this->writeTableRows($body->children),
+        ];
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>
+     */
+    private function writeTableRows(array $rows): array
+    {
+        $encoded = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof AstNode || $row->type !== 'table_row') {
+                continue;
+            }
+
+            $encoded[] = [
+                $this->attrTuple($row),
+                $this->writeTableCells($row->children),
+            ];
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @param list<AstNode> $cells
+     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:int, 3:int, 4:list<array<string, mixed>>}>
+     */
+    private function writeTableCells(array $cells): array
+    {
+        $encoded = [];
+        foreach ($cells as $cell) {
+            if (!$cell instanceof AstNode || $cell->type !== 'table_cell') {
+                continue;
+            }
+
+            $encoded[] = [
+                $this->attrTuple($cell),
+                $this->enum($this->tableAlignmentConstructor((string) $cell->attr('align', 'default'))),
+                max(1, (int) $cell->attr('rowspan', 1)),
+                max(1, (int) $cell->attr('colspan', 1)),
+                $this->childrenAsBlocks($cell),
+            ];
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableSections(AstNode $node, string $type): array
+    {
+        $sections = [];
+        foreach ($node->children as $child) {
+            if ($child->type === $type) {
+                $sections[] = $child;
+            }
+        }
+
+        return $sections;
+    }
+
+    private function firstTableSection(AstNode $node, string $type): ?AstNode
+    {
+        foreach ($node->children as $child) {
+            if ($child->type === $type) {
+                return $child;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -568,6 +755,16 @@ final class PandocJsonWriter
             'one_paren' => 'OneParen',
             'two_parens' => 'TwoParens',
             default => 'DefaultDelim',
+        };
+    }
+
+    private function tableAlignmentConstructor(string $alignment): string
+    {
+        return match ($alignment) {
+            'left' => 'AlignLeft',
+            'right' => 'AlignRight',
+            'center' => 'AlignCenter',
+            default => 'AlignDefault',
         };
     }
 

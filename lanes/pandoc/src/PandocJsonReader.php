@@ -164,6 +164,7 @@ final class PandocJsonReader
             'LineBlock' => $this->readLineBlock($content),
             'HorizontalRule' => new AstNode('horizontal_rule'),
             'Div' => $this->readDivBlock($content),
+            'Table' => $this->readTableBlock($content),
             default => throw new \InvalidArgumentException("Unsupported Pandoc block constructor: {$tag}"),
         };
     }
@@ -277,6 +278,241 @@ final class PandocJsonReader
         $tuple = $this->tuple($content, 2, 'Div');
 
         return new AstNode('div', $this->readAttrTuple($tuple[0]), $this->readBlocks($this->listContent($tuple[1], 'Div blocks')));
+    }
+
+    private function readTableBlock(mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 6, 'Table');
+        $attrs = array_merge(
+            $this->readAttrTuple($tuple[0]),
+            $this->readTableCaptionAttrs($tuple[1]),
+            $this->readTableColumnSpecAttrs($tuple[2])
+        );
+
+        $children = [];
+        $head = $this->readTableSection($tuple[3], 'TableHead', 'table_head');
+        if ($this->tableSectionHasContent($head)) {
+            $children[] = $head;
+        }
+
+        foreach ($this->listContent($tuple[4], 'Table bodies') as $body) {
+            $bodyNode = $this->readTableBody($body);
+            if ($this->tableSectionHasContent($bodyNode)) {
+                $children[] = $bodyNode;
+            }
+        }
+
+        $foot = $this->readTableSection($tuple[5], 'TableFoot', 'table_foot');
+        if ($this->tableSectionHasContent($foot)) {
+            $children[] = $foot;
+        }
+
+        return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readTableCaptionAttrs(mixed $caption): array
+    {
+        $content = $this->constructorContent($caption, 'Caption', 'Table caption', false);
+        $tuple = $this->tuple($content, 2, 'Table caption');
+        $attrs = [];
+
+        $shortCaptionInlines = $this->readShortCaptionInlines($tuple[0]);
+        if ($shortCaptionInlines !== []) {
+            $attrs['shortCaptionInlines'] = $shortCaptionInlines;
+            $attrs['shortCaption'] = trim($this->plainText($shortCaptionInlines));
+        }
+
+        $captionBlocks = $this->readBlocks($this->listContent($tuple[1], 'Table caption blocks'));
+        if ($captionBlocks === []) {
+            $attrs['caption'] = '';
+
+            return $attrs;
+        }
+
+        $attrs['captionBlocks'] = $captionBlocks;
+        $attrs['caption'] = $this->plainTextFromBlocks($captionBlocks);
+
+        $captionInlines = $this->singleInlineCaptionBlock($captionBlocks);
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function readShortCaptionInlines(mixed $shortCaption): array
+    {
+        if ($shortCaption === null || $shortCaption === []) {
+            return [];
+        }
+
+        $content = $this->constructorContent($shortCaption, 'ShortCaption', 'Table short caption', false);
+        if (is_array($content) && array_is_list($content) && count($content) === 1 && is_array($content[0]) && array_is_list($content[0])) {
+            $content = $content[0];
+        }
+
+        return $this->readInlines($this->listContent($content, 'Table short caption'));
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function singleInlineCaptionBlock(array $blocks): array
+    {
+        if (count($blocks) !== 1) {
+            return [];
+        }
+
+        $block = $blocks[0];
+        if (!in_array($block->type, ['plain', 'paragraph'], true)) {
+            return [];
+        }
+
+        return $block->children;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readTableColumnSpecAttrs(mixed $colSpecs): array
+    {
+        $alignments = [];
+        $widths = [];
+        foreach ($this->listContent($colSpecs, 'Table column specs') as $colSpec) {
+            $tuple = $this->tuple($colSpec, 2, 'Table column spec');
+            $alignments[] = $this->readTableAlignment($tuple[0]);
+            $widths[] = $this->readTableColumnWidth($tuple[1]);
+        }
+
+        if ($alignments === []) {
+            return [];
+        }
+
+        return [
+            'alignments' => $alignments,
+            'widths' => $widths,
+        ];
+    }
+
+    private function readTableSection(mixed $section, string $constructor, string $type): AstNode
+    {
+        $content = $this->constructorContent($section, $constructor, $constructor, false);
+        $tuple = $this->tuple($content, 2, $constructor);
+
+        return new AstNode($type, $this->readAttrTuple($tuple[0]), $this->readTableRows($tuple[1]));
+    }
+
+    private function readTableBody(mixed $body): AstNode
+    {
+        $content = $this->constructorContent($body, 'TableBody', 'TableBody', false);
+        $tuple = $this->tuple($content, 4, 'TableBody');
+        $attrs = $this->readAttrTuple($tuple[0]);
+
+        $rowHeadColumns = $this->readTaggedInteger($tuple[1], 'RowHeadColumns', 'TableBody rowHeadColumns');
+        if ($rowHeadColumns > 0) {
+            $attrs['rowHeadColumns'] = $rowHeadColumns;
+        }
+
+        $headRows = $this->readTableRows($tuple[2]);
+        if ($headRows !== []) {
+            $attrs['headRows'] = $headRows;
+        }
+
+        return new AstNode('table_body', $attrs, $this->readTableRows($tuple[3]));
+    }
+
+    private function tableSectionHasContent(AstNode $section): bool
+    {
+        if ($section->children !== []) {
+            return true;
+        }
+
+        if ($section->type === 'table_body') {
+            $headRows = $section->attr('headRows', []);
+            if (is_array($headRows) && $headRows !== []) {
+                return true;
+            }
+        }
+
+        return $section->attrs !== [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function readTableRows(mixed $rows): array
+    {
+        $nodes = [];
+        foreach ($this->listContent($rows, 'Table rows') as $row) {
+            $content = $this->constructorContent($row, 'Row', 'Table row', false);
+            $tuple = $this->tuple($content, 2, 'Table row');
+            $nodes[] = new AstNode('table_row', $this->readAttrTuple($tuple[0]), $this->readTableCells($tuple[1]));
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function readTableCells(mixed $cells): array
+    {
+        $nodes = [];
+        foreach ($this->listContent($cells, 'Table cells') as $cell) {
+            $nodes[] = $this->readTableCell($cell);
+        }
+
+        return $nodes;
+    }
+
+    private function readTableCell(mixed $cell): AstNode
+    {
+        $content = $this->constructorContent($cell, 'Cell', 'Table cell', false);
+        $tuple = $this->tuple($content, 5, 'Table cell');
+        $attrs = $this->readAttrTuple($tuple[0]);
+
+        $alignment = $this->readTableAlignment($tuple[1]);
+        if ($alignment !== 'default') {
+            $attrs['align'] = $alignment;
+        }
+
+        $rowspan = $this->readTaggedInteger($tuple[2], 'RowSpan', 'Table cell rowspan');
+        if ($rowspan > 1) {
+            $attrs['rowspan'] = $rowspan;
+        }
+
+        $colspan = $this->readTaggedInteger($tuple[3], 'ColSpan', 'Table cell colspan');
+        if ($colspan > 1) {
+            $attrs['colspan'] = $colspan;
+        }
+
+        $blocks = $this->readBlocks($this->listContent($tuple[4], 'Table cell blocks'));
+        $text = $this->plainTextFromBlocks($blocks);
+        if ($text !== '') {
+            $attrs['text'] = $text;
+        }
+
+        return new AstNode('table_cell', $attrs, $this->tableCellChildren($blocks));
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function tableCellChildren(array $blocks): array
+    {
+        if (count($blocks) === 1 && in_array($blocks[0]->type, ['plain', 'paragraph'], true)) {
+            return $blocks[0]->children;
+        }
+
+        return $blocks;
     }
 
     /**
@@ -619,6 +855,80 @@ final class PandocJsonReader
         };
     }
 
+    private function readTableAlignment(mixed $value): string
+    {
+        return match ($this->enumTag($value, 'table alignment')) {
+            'AlignLeft' => 'left',
+            'AlignRight' => 'right',
+            'AlignCenter' => 'center',
+            'AlignDefault' => 'default',
+            default => throw new \InvalidArgumentException('Unsupported Pandoc table alignment'),
+        };
+    }
+
+    private function readTableColumnWidth(mixed $value): ?float
+    {
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
+        $tag = $this->enumTag($value, 'table column width');
+        if ($tag === 'ColWidthDefault') {
+            return null;
+        }
+        if ($tag !== 'ColWidth') {
+            throw new \InvalidArgumentException('Unsupported Pandoc table column width');
+        }
+
+        $content = $this->constructorContent($value, 'ColWidth', 'table column width');
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+        if (!is_int($content) && !is_float($content)) {
+            throw new \InvalidArgumentException('ColWidth content must be numeric');
+        }
+
+        return (float) $content;
+    }
+
+    private function readTaggedInteger(mixed $value, string $tag, string $context): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_array($value) && array_is_list($value) && count($value) === 1 && is_int($value[0])) {
+            return $value[0];
+        }
+
+        $content = $this->constructorContent($value, $tag, $context);
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+        if (!is_int($content)) {
+            throw new \InvalidArgumentException("{$context} must contain an integer");
+        }
+
+        return $content;
+    }
+
+    private function constructorContent(mixed $value, string $tag, string $context, bool $requireTag = true): mixed
+    {
+        if (!is_array($value) || !isset($value['t']) || !is_string($value['t'])) {
+            if ($requireTag) {
+                throw new \InvalidArgumentException("{$context} must be a {$tag} constructor");
+            }
+
+            return $value;
+        }
+
+        if ($value['t'] !== $tag) {
+            throw new \InvalidArgumentException("{$context} must be a {$tag} constructor");
+        }
+
+        return $value['c'] ?? null;
+    }
+
     private function readQuoteType(mixed $value): string
     {
         return match ($this->enumTag($value, 'quote type')) {
@@ -643,6 +953,22 @@ final class PandocJsonReader
         }
 
         return $text;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function plainTextFromBlocks(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            $text = trim($this->plainText($block->children));
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return implode("\n", $parts);
     }
 
     private function isMarkdownRawFormat(string $format): bool
