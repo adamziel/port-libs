@@ -20780,6 +20780,92 @@ XML);
         $t->contains('<p>Letter source [letter | Legacy Source Letter | Review Desk | Preserved from migration mailbox] keeps personal-communication routing stable.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>letter :: Legacy Source Letter :: Smith, Ada :: Review Desk :: Preserved from migration mailbox</dd>', $blocks);
     },
+    'maps biblatex supplemental periodical entries to csl article journal conditionals' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@suppperiodical{journal-supplement,
+  author       = {Roe, Pat},
+  title        = {Supplemental Import Notes},
+  journaltitle = {Journal of Migration Review},
+  date         = {2026},
+  number       = {S1},
+  pages        = {S3--S9},
+  note         = {Published as online supplement}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('journal-supplement', $items[0]['id'] ?? null);
+        $t->same('article-journal', $items[0]['type'] ?? null);
+        $t->same('suppperiodical', $items[0]['rawBibtex']['type'] ?? null);
+        $t->same('Journal of Migration Review', $items[0]['container-title'] ?? null);
+        $t->same('S1', $items[0]['issue'] ?? null);
+        $t->same('S3-S9', $items[0]['page'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Supplemental Periodical Type Review</title>
+    <id>https://example.test/styles/bounded-suppperiodical-type-review</id>
+    <updated>2026-06-09T04:47:12+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <choose>
+        <if type="article-journal">
+          <group delimiter=" | ">
+            <text value="journal supplement"/>
+            <text variable="title"/>
+            <text variable="container-title"/>
+            <text variable="issue"/>
+            <text variable="page"/>
+            <text variable="note"/>
+          </group>
+        </if>
+        <else>
+          <text value="fallback"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <choose>
+        <if type="article-journal">
+          <group delimiter=" :: ">
+            <text value="journal supplement"/>
+            <text variable="title"/>
+            <text variable="container-title"/>
+            <text variable="issue"/>
+            <text variable="page"/>
+            <text variable="note"/>
+          </group>
+        </if>
+      </choose>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $item = $processor->item('journal-supplement');
+        $t->same('Bounded Supplemental Periodical Type Review', $summary['title'] ?? null);
+        $t->same(['article-journal'], $summary['citationRendering'][0]['branches'][0]['types'] ?? null);
+        $t->same('article-journal', $item['type'] ?? null);
+        $t->same('suppperiodical', $item['raw']['rawBibtex']['type'] ?? null);
+        $t->same('S1', $item['issue'] ?? null);
+
+        $t->same('[journal supplement | Supplemental Import Notes | Journal of Migration Review | S1 | S3-S9 | Published as online supplement]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'journal-supplement', 'text' => '[@journal-supplement]']),
+        ]));
+        $t->same('journal supplement :: Supplemental Import Notes :: Journal of Migration Review :: S1 :: S3-S9 :: Published as online supplement', $processor->renderBibliographyEntry('journal-supplement'));
+
+        $document = (new MarkdownReader())->read('Supplemental periodical source [@journal-supplement] keeps journal-article routing stable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Supplemental periodical source [journal supplement | Supplemental Import Notes | Journal of Migration Review | S1 | S3-S9 | Published as online supplement] keeps journal-article routing stable.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>journal supplement :: Supplemental Import Notes :: Journal of Migration Review :: S1 :: S3-S9 :: Published as online supplement</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
