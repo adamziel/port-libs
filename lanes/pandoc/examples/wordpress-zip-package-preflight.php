@@ -2956,6 +2956,26 @@ try {
 } catch (RuntimeException $exception) {
     $strictCommentControlImportRejected = str_contains($exception->getMessage(), 'comment-control-bytes');
 }
+$strictCommentUnicodeControlImportPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Unicode comment review</w:p></w:body></w:document>',
+        'comment' => "entry\u{200d}review",
+    ],
+    [
+        'name' => 'word/media/review.txt',
+        'data' => "review media bytes with Unicode comment metadata\n",
+        'compressionMethod' => 0,
+    ],
+], "package\u{202e}review");
+$strictCommentUnicodeControlPreflight = $strictCommentUnicodeControlImportPackage->commentPreflight();
+$strictCommentUnicodeControlImportPreflight = $strictCommentUnicodeControlImportPackage->strictImportPreflight(4096, 100.0, 4096);
+$strictCommentUnicodeControlImportRejected = false;
+try {
+    $strictCommentUnicodeControlImportPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $strictCommentUnicodeControlImportRejected = str_contains($exception->getMessage(), 'comment-unicode-format-controls');
+}
 $generatedPackageCommentControlRejected = false;
 try {
     ZipPackage::fromParts([
@@ -4779,6 +4799,31 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected strict ZIP import preflight to reject raw comment control bytes');
     }
 
+    if (
+        ($strictCommentUnicodeControlPreflight['hasComments'] ?? null) !== true
+        || ($strictCommentUnicodeControlPreflight['hasCommentControlBytes'] ?? null) !== false
+        || ($strictCommentUnicodeControlPreflight['hasCommentUnicodeFormatControls'] ?? null) !== true
+        || ($strictCommentUnicodeControlPreflight['hasCommentBidiControls'] ?? null) !== true
+        || ($strictCommentUnicodeControlPreflight['packageCommentHasUnicodeFormatControls'] ?? null) !== true
+        || ($strictCommentUnicodeControlPreflight['packageCommentHasBidiControls'] ?? null) !== true
+        || ($strictCommentUnicodeControlPreflight['packageCommentUnicodeFormatControlNames'] ?? null) !== ['right-to-left-override']
+        || ($strictCommentUnicodeControlPreflight['packageCommentBidiControlNames'] ?? null) !== ['right-to-left-override']
+        || ($strictCommentUnicodeControlPreflight['commentUnicodeFormatControlEntryCount'] ?? null) !== 1
+        || ($strictCommentUnicodeControlPreflight['commentBidiControlEntryCount'] ?? null) !== 0
+        || ($strictCommentUnicodeControlPreflight['commentUnicodeFormatControlEntries'][0]['name'] ?? null) !== 'word/document.xml'
+        || ($strictCommentUnicodeControlPreflight['commentUnicodeFormatControlEntries'][0]['unicodeFormatControlNames'] ?? null) !== ['zero-width-joiner']
+        || ($strictCommentUnicodeControlImportPreflight['isValid'] ?? null) !== false
+        || ($strictCommentUnicodeControlImportPreflight['diagnostics'] ?? null) !== [
+            'package-or-entry-comments',
+            'comment-unicode-format-controls',
+            'comment-bidi-format-controls',
+        ]
+        || ($strictCommentUnicodeControlImportPreflight['comments'] ?? null) !== $strictCommentUnicodeControlPreflight
+        || !$strictCommentUnicodeControlImportRejected
+    ) {
+        throw new RuntimeException('Expected strict ZIP import preflight to reject Unicode comment format controls');
+    }
+
     if (!$generatedPackageCommentControlRejected || !$generatedEntryCommentControlRejected) {
         throw new RuntimeException('Expected generated ZIP comments with raw control bytes to be rejected before writing');
     }
@@ -6364,6 +6409,9 @@ echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPre
 echo 'zipCommentControlBytePolicy=' . ($strictCommentControlImportRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipCommentControlByteEntryCount=' . $strictCommentControlPreflight['commentControlByteEntryCount'] . "\n";
 echo 'zipCommentControlByteDiagnostics=' . implode(',', $strictCommentControlImportPreflight['diagnostics']) . "\n";
+echo 'zipCommentUnicodeControlPolicy=' . ($strictCommentUnicodeControlImportRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipCommentUnicodeControlEntryCount=' . $strictCommentUnicodeControlPreflight['commentUnicodeFormatControlEntryCount'] . "\n";
+echo 'zipCommentUnicodeControlDiagnostics=' . implode(',', $strictCommentUnicodeControlImportPreflight['diagnostics']) . "\n";
 echo 'zipInvalidDosTimestampPolicy=' . ($invalidDosTimestampRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipInvalidDosTimestampStrictPolicy=' . ($invalidDosTimestampStrictRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipInvalidDosTimestampEntry=' . ($invalidDosTimestampPreflight['invalidDosTimestampEntries'][0]['name'] ?? 'none') . "\n";

@@ -4778,6 +4778,64 @@ return [
         $t->same(['package-or-entry-comments'], $safeCommentPackage->strictImportPreflight(2048, 100.0, 2048)['diagnostics']);
     },
 
+    'preflights zip comment unicode format controls before strict package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>Unicode comment control policy</w:p></w:document>',
+                'method' => 8,
+                'comment' => "entry\u{200d}comment",
+            ],
+            [
+                'name' => 'word/media/review-note.txt',
+                'data' => 'Unicode comment metadata remains bounded',
+                'method' => 0,
+            ],
+        ], "source\u{202e}package"));
+        $summary = $package->commentPreflight();
+
+        $t->same(true, $summary['hasComments']);
+        $t->same(false, $summary['hasCommentControlBytes']);
+        $t->same(true, $summary['hasCommentUnicodeFormatControls']);
+        $t->same(true, $summary['hasCommentBidiControls']);
+        $t->same(true, $summary['packageCommentHasUnicodeFormatControls']);
+        $t->same(true, $summary['packageCommentHasBidiControls']);
+        $t->same("source\u{202e}package", $summary['packageComment']);
+        $t->same("source\u{202e}package", $summary['rawPackageComment']);
+        $t->same([], $summary['packageCommentControlByteOffsets']);
+        $t->same(['right-to-left-override'], $summary['packageCommentUnicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $summary['packageCommentBidiControlNames']);
+        $t->same([
+            'package-comment-unicode-format-control',
+            'package-comment-bidi-format-control',
+        ], $summary['packageCommentIssues']);
+        $t->same(1, $summary['commentUnicodeFormatControlEntryCount']);
+        $t->same(0, $summary['commentBidiControlEntryCount']);
+        $t->same('word/document.xml', $summary['commentUnicodeFormatControlEntries'][0]['name']);
+        $t->same("entry\u{200d}comment", $summary['commentUnicodeFormatControlEntries'][0]['comment']);
+        $t->same(false, $summary['commentUnicodeFormatControlEntries'][0]['hasControlBytes']);
+        $t->same(true, $summary['commentUnicodeFormatControlEntries'][0]['hasUnicodeFormatControls']);
+        $t->same(false, $summary['commentUnicodeFormatControlEntries'][0]['hasBidiControls']);
+        $t->same(['zero-width-joiner'], $summary['commentUnicodeFormatControlEntries'][0]['unicodeFormatControlNames']);
+        $t->same([], $summary['commentUnicodeFormatControlEntries'][0]['bidiControlNames']);
+        $t->same(['entry-comment-unicode-format-control'], $summary['commentUnicodeFormatControlEntries'][0]['issues']);
+        $t->same(['entry-comment-unicode-format-control'], $summary['commentedEntries'][0]['issues']);
+        $t->same([], $summary['entries'][1]['unicodeFormatControlNames']);
+        $t->same([], $summary['entries'][1]['issues']);
+
+        $strictSummary = $package->strictImportPreflight(2048, 100.0, 2048);
+
+        $t->same(false, $strictSummary['isValid']);
+        $t->same([
+            'package-or-entry-comments',
+            'comment-unicode-format-controls',
+            'comment-bidi-format-controls',
+        ], $strictSummary['diagnostics']);
+        $t->same($summary, $strictSummary['comments']);
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertStrictImportable(2048, 100.0, 2048));
+        $t->same('Unicode comment metadata remains bounded', $package->read('/word/media/review-note.txt'));
+    },
+
     'rejects generated zip comment control bytes before package writing' => static function (TestRunner $t): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
             [
