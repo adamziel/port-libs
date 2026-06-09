@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 11:15:37 UTC",
-    "sourceCommit": "fdde6d1bf9b5441bad00729c10b9d18e245520bc",
-    "sourceCommitShort": "fdde6d1bf9b5",
+    "generated": "2026-06-09 11:20:25 UTC",
+    "sourceCommit": "9ee4a8dc0486f51186ad24738c07f3a1ad388ec5",
+    "sourceCommitShort": "9ee4a8dc0486",
     "sourceBranch": "unknown",
-    "dashboardCommit": "fdde6d1bf9b5441bad00729c10b9d18e245520bc",
-    "dashboardCommitShort": "fdde6d1bf9b5",
+    "dashboardCommit": "9ee4a8dc0486f51186ad24738c07f3a1ad388ec5",
+    "dashboardCommitShort": "9ee4a8dc0486",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,698 pass / 0 fail",
-            "phase": "native PHP Pandoc ZIP package preflight; additional timestamp provena...",
-            "audit": "2026-06-09 UTC rebased pandoc-zip-preflight slice on accepted base fd...",
-            "currentWork": "Pandoc ZIP package preflight now preserves additional timestamp provenance without in...",
+            "php": "2,701 pass / 0 fail",
+            "phase": "native PHP Pandoc document template handoff",
+            "audit": "2026-06-09 UTC rebased pandoc-doctemplate slice on accepted base 9ee4...",
+            "currentWork": "Pandoc document template review packets preserve partial include provenance without e...",
             "nextTarget": "Continue non-overlapping native conversion support under ODF/...",
-            "remainingGate": "No external zip tooling is needed.",
+            "remainingGate": "No external template engine, model, or GPU path used.",
             "commit": "pending fast ba..."
         },
         {

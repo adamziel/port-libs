@@ -5084,9 +5084,25 @@ CSS;
         );
     }
 
+    /**
+     * @param array<string, mixed> $token
+     */
+    private function withPartialIncludeLocation(\UnexpectedValueException $exception, array $token): \UnexpectedValueException
+    {
+        if (!$this->messageHasTemplateLocation($exception->getMessage())) {
+            return $exception;
+        }
+
+        return new \UnexpectedValueException(
+            $exception->getMessage() . ' included from ' . $token['source'] . ':' . $token['line'] . ':' . $token['column'],
+            0,
+            $exception,
+        );
+    }
+
     private function messageHasTemplateLocation(string $message): bool
     {
-        return preg_match('/ at [^\\r\\n]+:\\d+:\\d+$/', $message) === 1;
+        return preg_match('/ at [^\\r\\n]+:\\d+:\\d+(?: included from [^\\r\\n]+:\\d+:\\d+)*$/', $message) === 1;
     }
 
     /**
@@ -5369,25 +5385,33 @@ CSS;
             try {
                 $partial = $this->parsePartialDirective($directive);
                 if ($partial !== null) {
-                    $this->validatePartial(
-                        $partial['name'],
-                        $partials,
-                        $partialSources,
-                        $partialStack,
-                        $directiveBreakableSpaces,
-                    );
+                    try {
+                        $this->validatePartial(
+                            $partial['name'],
+                            $partials,
+                            $partialSources,
+                            $partialStack,
+                            $directiveBreakableSpaces,
+                        );
+                    } catch (\UnexpectedValueException $exception) {
+                        throw $this->withPartialIncludeLocation($exception, $token);
+                    }
                     continue;
                 }
 
                 $appliedPartial = $this->parseAppliedPartialDirective($directive);
                 if ($appliedPartial !== null) {
-                    $this->validatePartial(
-                        $appliedPartial['partial']['name'],
-                        $partials,
-                        $partialSources,
-                        $partialStack,
-                        $directiveBreakableSpaces,
-                    );
+                    try {
+                        $this->validatePartial(
+                            $appliedPartial['partial']['name'],
+                            $partials,
+                            $partialSources,
+                            $partialStack,
+                            $directiveBreakableSpaces,
+                        );
+                    } catch (\UnexpectedValueException $exception) {
+                        throw $this->withPartialIncludeLocation($exception, $token);
+                    }
                     continue;
                 }
 

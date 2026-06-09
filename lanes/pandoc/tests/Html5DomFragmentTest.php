@@ -6005,4 +6005,32 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromHtml('<?xml-stylesheet href="https://example.invalid/review.xsl"?><p>bad</p>'));
         $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromXml('<?xml-stylesheet href="https://example.invalid/review.xsl"?><root/>'));
     },
+    'preserves declaration-looking text inside inert html comments before handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<!-- <!DOCTYPE html><!ENTITY reviewer SYSTEM "file:///etc/passwd"> -->'
+            . '<p data-source="review">Safe packet</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/commented-declaration-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $html = $fragment->serialize();
+
+        $expected = '<!-- <!DOCTYPE html><!ENTITY reviewer SYSTEM "file:///etc/passwd"> --><p data-source="review">Safe packet</p>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Safe packet', $fragment->textContent());
+        $t->same(2, $summary['topLevelNodes']);
+        $t->same(1, $summary['comments']);
+        $t->same(['p'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same([], $fragment->diagnosticCodes());
+        $t->same('comment', $nodes[0]['type']);
+        $t->same(' <!DOCTYPE html><!ENTITY reviewer SYSTEM "file:///etc/passwd"> ', $nodes[0]['text']);
+        $t->same('p', $nodes[1]['name']);
+        $t->same('/migration/commented-declaration-review.html', $document->children[0]->attr('part'));
+    },
 ];

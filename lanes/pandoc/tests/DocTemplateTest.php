@@ -5266,6 +5266,19 @@ TPL;
         );
     },
 
+    'reports pandoc doctemplate nested partial include provenance' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->renderResource('review-packets/review.html', [
+                'review-packets/review.html' => "<article>\n" . '${ components/footer() }' . "\n</article>",
+                'review-packets/components/footer.html' => "<footer>\n" . '${ components/missing-row() }',
+            ], []),
+            'Missing doctemplate partial components/missing-row at review-packets/components/footer.html:2:1 included from review-packets/review.html:2:1',
+        );
+    },
+
     'reports pandoc doctemplate parser columns by unicode characters' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
         $renderer = new DocTemplate();
 

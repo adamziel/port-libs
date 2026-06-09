@@ -2291,6 +2291,24 @@ return [
         $t->same(["\u{1E0D}\u{0307}", ' ', 'C', 'a', 'f', 'é', ' ', 'Å'], UnicodeText::graphemes($nfc['text']));
         $t->throws(\InvalidArgumentException::class, static fn (): array => UnicodeText::normalize('text', 'nfc', 'remote'));
     },
+    'normalizes unicode letterlike sign aliases with fallback data' => static function (TestRunner $t): void {
+        $fallbackNfc = UnicodeText::normalize("\u{2126} \u{212A} \u{212B}", 'nfc', 'fallback');
+        $fallbackNfd = UnicodeText::normalize("\u{2126} \u{212A} \u{212B}", 'nfd', 'fallback');
+        $decoded = UnicodeText::decodeBytes("# \xE2\x84\xA6 \xE2\x84\xAA Review\n\nLegacy \xE2\x84\xAB source", 'utf-8', 'nfc');
+        $document = (new MarkdownReader())->readBytes("# \xE2\x84\xA6 \xE2\x84\xAA Review\n\nLegacy \xE2\x84\xAB source", 'utf-8', 'nfc');
+
+        $t->same("\u{03A9} K \u{00C5}", $fallbackNfc['text']);
+        $t->same('nfc', $fallbackNfc['form']);
+        $t->same(true, $fallbackNfc['changed']);
+        $t->same('fallback', $fallbackNfc['implementation']);
+        $t->same("\u{03A9} K A\u{030A}", $fallbackNfd['text']);
+        $t->same('nfd', $fallbackNfd['form']);
+        $t->same('fallback', $fallbackNfd['implementation']);
+        $t->same("# \u{03A9} K Review\n\nLegacy \u{00C5} source", $decoded['text']);
+        $t->same("\u{03A9} K Review", $document->children[0]->attr('text'));
+        $t->same("Legacy \u{00C5} source", $document->children[1]->attr('text'));
+        $t->same(['form' => 'nfc', 'changed' => true, 'implementation' => $decoded['normalization']['implementation']], $decoded['normalization']);
+    },
     'normalizes latin extended reviewer names with fallback unicode data' => static function (TestRunner $t): void {
         $polishDecomposed = "Zaz\u{0307}o\u{0301}łc\u{0301} ge\u{0328}s\u{0301}la\u{0328} jaz\u{0301}n\u{0301}";
         $polishComposed = "Zażółć gęślą jaźń";

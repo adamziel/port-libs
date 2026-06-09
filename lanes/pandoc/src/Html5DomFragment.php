@@ -7224,10 +7224,11 @@ final class Html5DomFragment
     private static function assertSafeHtmlSource(string $html, string $label): void
     {
         self::assertNoNullByte($html, $label);
-        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $html) === 1) {
+        $declarationScanSource = self::sourceWithoutClosedComments($html);
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
-        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $html) === 1) {
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
     }
@@ -7235,12 +7236,18 @@ final class Html5DomFragment
     private static function assertSafeXmlSource(string $xml, string $label): void
     {
         self::assertNoNullByte($xml, $label);
-        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $xml) === 1) {
+        $declarationScanSource = self::sourceWithoutClosedComments($xml);
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
-        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $xml) === 1) {
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException('XML fragments with DTD or entity declarations are not supported');
         }
+    }
+
+    private static function sourceWithoutClosedComments(string $source): string
+    {
+        return preg_replace('/<!--(?:[^-]|-(?!-))*-->/s', '', $source) ?? $source;
     }
 
     private static function assertNoNullByte(string $source, string $label): void
