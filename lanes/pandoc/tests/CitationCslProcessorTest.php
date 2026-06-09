@@ -16295,6 +16295,92 @@ XML);
         $t->contains('<dt>Diaz 2026</dt><dd>Diaz, R. :: Named Source Packet :: 2026</dd>', $blocks);
         $t->contains('<dt>Title Only Packet 2025</dt><dd>Title Only Packet :: 2025</dd>', $blocks);
     },
+    'suppresses only rendered bounded csl multi variable names substitutes' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'edited-translation',
+                'type' => 'book',
+                'title' => 'Translated Review Packet',
+                'editor' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                ],
+                'translator' => [
+                    ['family' => 'Tran', 'given' => 'Mina'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'translated-only',
+                'type' => 'book',
+                'title' => 'Translated Only Packet',
+                'translator' => [
+                    ['family' => 'Ivers', 'given' => 'Noa'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Multi Variable Names Substitute Suppression Review</title>
+    <id>https://example.test/styles/bounded-multi-variable-names-substitute-suppression-review</id>
+    <updated>2026-06-09T06:28:40+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author">
+          <substitute>
+            <names variable="editor translator"/>
+            <text variable="title"/>
+          </substitute>
+        </names>
+        <names variable="translator" prefix="translated by "/>
+        <text variable="title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <substitute>
+          <names variable="editor translator">
+            <name initialize-with=". " name-as-sort-order="all"/>
+          </names>
+          <text variable="title"/>
+        </substitute>
+      </names>
+      <names variable="translator" prefix="translated by ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+      <date variable="issued"><date-part name="year"/></date>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Multi Variable Names Substitute Suppression Review', $summary['title'] ?? null);
+        $t->same('editor translator', $summary['citationRendering'][0]['children'][0]['substitute'][0]['variable'] ?? null);
+        $t->same('translator', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same('editor translator', $summary['bibliographyRendering'][0]['substitute'][0]['variable'] ?? null);
+
+        $t->same('(Curator | translated by Tran | Translated Review Packet | 2026; Ivers | Translated Only Packet | 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'edited-translation', 'text' => '[@edited-translation]']),
+            new AstNode('citation', ['id' => 'translated-only', 'text' => '[@translated-only]']),
+        ]));
+        $t->same('Curator, E. :: translated by Tran, M. :: Translated Review Packet :: 2026', $processor->renderBibliographyEntry('edited-translation'));
+        $t->same('Ivers, N. :: Translated Only Packet :: 2025', $processor->renderBibliographyEntry('translated-only'));
+
+        $document = (new MarkdownReader())->read('Multi-variable substitute cites [@edited-translation; @translated-only] before review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Multi-variable substitute cites (Curator | translated by Tran | Translated Review Packet | 2026; Ivers | Translated Only Packet | 2025) before review.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Curator, E. :: translated by Tran, M. :: Translated Review Packet :: 2026</dd>', $blocks);
+        $t->contains('<dt>Ivers 2025</dt><dd>Ivers, N. :: Translated Only Packet :: 2025</dd>', $blocks);
+    },
     'suppresses only rendered bounded csl choose substitute variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

@@ -312,6 +312,37 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $fullNestReviewPacket = $renderer->render(
+        '$details$' . "\n"
+            . '$details$' . "\n"
+            . '$^$$details$' . "\n"
+            . '$review.zub$ $^$$details$' . "\n"
+            . '$review.zub$ $^$$count$' . "\n"
+            . '             queued $details$' . "\n"
+            . '$for(reviewItems)$' . "\n"
+            . '1. $^$Review $if(it)$' . "\n"
+            . '$it$' . "\n"
+            . '$endif$' . "\n"
+            . '$endfor$' . "\n"
+            . '$^$owner $details$' . "\n"
+            . 'owner $details$' . "\n"
+            . 'owner $details$' . "\n"
+            . 'owner $if(count)$' . "\n"
+            . '$count$' . "\n"
+            . '$endif$' . "\n"
+            . 'owner',
+        [
+            'count' => 3,
+            'reviewItems' => ['media', 'links'],
+            'review' => ['zub' => 'wp'],
+            'details' => "media packet\nlinks packet",
+        ],
+    );
+    if ($fullNestReviewPacket !== "media packet\nlinks packet\nmedia packet\nlinks packet\nmedia packet\nlinks packet\nwp media packet\n   links packet\nwp 3\n   queued media packet\n   links packet\n1. Review media\n1. Review links\nowner media packet\nlinks packet\nowner media packet\nlinks packet\nowner media packet\nlinks packet\nowner 3\nowner") {
+        fwrite(STDERR, "Unexpected doctemplate full nesting fixture output\n");
+        exit(1);
+    }
+
     $blockPipeReviewPacket = $renderer->render(
         '$source/uppercase/left 8 "| " " | "$$details/left 20 "" "|"$',
         [

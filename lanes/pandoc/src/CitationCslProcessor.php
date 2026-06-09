@@ -7223,7 +7223,7 @@ final class CitationCslProcessor
     private function substituteRenderedNamesElementVariables(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, array $substitutedVariables = []): array
     {
         $variable = (string) ($element['variable'] ?? 'author editor');
-        $nameGroups = $this->namesForRenderingVariableGroups($item, $variable);
+        $nameGroups = $this->renderableNameGroupsForRenderingVariable($item, $variable, $substitutedVariables);
         if ($nameGroups !== []) {
             $probeSubstitutedVariables = $substitutedVariables;
             $bibliographyState = null;
@@ -7240,7 +7240,14 @@ final class CitationCslProcessor
                 ));
             }
 
-            return $this->renderingVariableNames($variable);
+            if ($this->rendersCombinedEditorTranslatorNameGroup($variable, $nameGroups)) {
+                return array_values(array_map(
+                    static fn (array $group): string => $group['variable'],
+                    $nameGroups
+                ));
+            }
+
+            return [(string) ($nameGroups[0]['variable'] ?? '')];
         }
 
         $substitute = $element['substitute'] ?? [];
@@ -7285,6 +7292,24 @@ final class CitationCslProcessor
         }
 
         return array_values(array_unique($variables));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, bool> $substitutedVariables
+     * @return list<array{variable:string, names:list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>}>
+     */
+    private function renderableNameGroupsForRenderingVariable(array $item, string $variable, array $substitutedVariables = []): array
+    {
+        $nameGroups = $this->namesForRenderingVariableGroups($item, $variable);
+        if ($nameGroups === [] || $substitutedVariables === []) {
+            return $nameGroups;
+        }
+
+        return array_values(array_filter(
+            $nameGroups,
+            fn (array $group): bool => !isset($substitutedVariables[$this->normalizedRenderingVariableName((string) ($group['variable'] ?? ''))])
+        ));
     }
 
     /**
@@ -7812,7 +7837,7 @@ final class CitationCslProcessor
     private function renderNamesElementValue(array $element, array $item, string $scope, bool $allowImplicitTitleFallback, ?array &$bibliographyState = null, ?AstNode $citation = null, array &$substitutedVariables = []): string
     {
         $variable = (string) ($element['variable'] ?? 'author editor');
-        $nameGroups = $this->namesForRenderingVariableGroups($item, $variable);
+        $nameGroups = $this->renderableNameGroupsForRenderingVariable($item, $variable, $substitutedVariables);
         if ($nameGroups === []) {
             $substitute = $element['substitute'] ?? [];
             if (is_array($substitute) && $substitute !== []) {

@@ -523,6 +523,58 @@ TPL, [
         ]), $output);
     },
 
+    'matches upstream pandoc doctemplate full nesting fixture' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+$sup$
+$sup$
+$^$$sup$
+$bim.zub$ $^$$sup$
+$bim.zub$ $^$$foo$
+          bar $sup$
+$for(baz)$
+1. $^$Hello $if(it)$
+$it$
+$endif$
+$endfor$
+$^$hey $sup$
+hey $sup$
+hey $sup$
+hey $if(foo)$
+$foo$
+$endif$
+hey
+TPL, [
+            'foo' => 1,
+            'baz' => ['a', 'b'],
+            'bim' => ['zub' => 'sim'],
+            'sup' => "a multiline\nstring",
+        ]);
+
+        $t->same(implode("\n", [
+            'a multiline',
+            'string',
+            'a multiline',
+            'string',
+            'a multiline',
+            'string',
+            'sim a multiline',
+            '    string',
+            'sim 1',
+            '    bar a multiline',
+            '    string',
+            '1. Hello a',
+            '1. Hello b',
+            'hey a multiline',
+            'string',
+            'hey a multiline',
+            'string',
+            'hey a multiline',
+            'string',
+            'hey 1',
+            'hey',
+        ]), $output);
+    },
+
     'ends explicit pandoc doctemplate nesting before dedented source lines' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->render(<<<'TPL'
 <section>
