@@ -208,6 +208,50 @@ return [
         $t->same(['https://example.test/source', 'Source title'], $packet['blocks'][1]['c'][2]['c'][2]);
         $t->same(['', ['source-link'], [['data-source', 'source']]], $packet['blocks'][1]['c'][2]['c'][0]);
     },
+    'writes pre-tagged pandoc json metadata values as compatible constructors' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => 'Tagged'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'Metadata'],
+                ]],
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'draft' => ['t' => 'MetaBool', 'c' => false],
+                    'aliases' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaString', 'c' => 'json-filter'],
+                        ['t' => 'MetaString', 'c' => 'legacy-packet'],
+                    ]],
+                    'body' => ['t' => 'MetaBlocks', 'c' => [
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Str', 'c' => 'Reviewer'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'note'],
+                        ]],
+                    ]],
+                ]],
+            ],
+        ], [
+            new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Packet'])]),
+        ]);
+
+        $writer = new PandocJsonWriter();
+        $packet = $writer->toArray($document);
+        $roundTrip = (new PandocJsonReader())->readPacket($packet);
+        $meta = $roundTrip->attr('meta');
+
+        $t->same('MetaInlines', $packet['meta']['title']['t']);
+        $t->same('Tagged', $packet['meta']['title']['c'][0]['c']);
+        $t->same('MetaMap', $packet['meta']['review']['t']);
+        $t->same('MetaBool', $packet['meta']['review']['c']['draft']['t']);
+        $t->same('MetaList', $packet['meta']['review']['c']['aliases']['t']);
+        $t->same('MetaBlocks', $packet['meta']['review']['c']['body']['t']);
+        $t->same('inlines', $meta['title']['type']);
+        $t->same('Metadata', $meta['title']['children'][2]->attr('text'));
+        $t->same(false, $meta['review']['items']['draft']);
+        $t->same(['json-filter', 'legacy-packet'], $meta['review']['items']['aliases']['items']);
+        $t->same('paragraph', $meta['review']['items']['body']['children'][0]->type);
+    },
     'round trips core inline constructors through pandoc json' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

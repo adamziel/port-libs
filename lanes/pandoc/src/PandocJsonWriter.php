@@ -95,6 +95,10 @@ final class PandocJsonWriter
         }
 
         if (is_array($value)) {
+            if ($this->isTaggedMetaValue($value)) {
+                return $this->writeCompatibleMetaValue($value);
+            }
+
             if (isset($value['type']) && is_string($value['type'])) {
                 return $this->writeTypedMetaValue($value);
             }
@@ -132,6 +136,42 @@ final class PandocJsonWriter
             'map' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [])],
             default => ['t' => 'MetaString', 'c' => ''],
         };
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function isTaggedMetaValue(array $value): bool
+    {
+        return !array_is_list($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && in_array($value['t'], [
+                'MetaString',
+                'MetaBool',
+                'MetaInlines',
+                'MetaBlocks',
+                'MetaList',
+                'MetaMap',
+            ], true);
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return array<string, mixed>
+     */
+    private function writeCompatibleMetaValue(array $value): array
+    {
+        $document = (new PandocJsonReader())->readPacket([
+            'meta' => ['__value' => $value],
+            'blocks' => [],
+        ]);
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta) || !array_key_exists('__value', $meta)) {
+            throw new \InvalidArgumentException('Unable to normalize tagged Pandoc JSON metadata value');
+        }
+
+        return $this->writeMetaValue($meta['__value']);
     }
 
     /**
