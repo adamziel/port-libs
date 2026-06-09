@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 07:06:08 UTC",
-    "sourceCommit": "53cc273b044292e061f08ae6f6fdabc37210dcb0",
-    "sourceCommitShort": "53cc273b0442",
+    "generated": "2026-06-09 07:11:25 UTC",
+    "sourceCommit": "030e94cf137586963da96dca64555cebe2ff01ee",
+    "sourceCommitShort": "030e94cf1375",
     "sourceBranch": "unknown",
-    "dashboardCommit": "53cc273b044292e061f08ae6f6fdabc37210dcb0",
-    "dashboardCommitShort": "53cc273b0442",
+    "dashboardCommit": "030e94cf137586963da96dca64555cebe2ff01ee",
+    "dashboardCommitShort": "030e94cf1375",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,9 +137,9 @@
             "coverage": "2,851 / 2,276 (125.3%)",
             "mapPercent": "125.3%",
             "unmapped": "0",
-            "php": "2,470 pass / 0 fail",
+            "php": "2,472 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC syntax highlighting current-base slice on base 53cc273...",
+            "audit": "2026-06-09 UTC syntax highlighting current-base Terraform/AsciiDoc sl...",
             "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence plus...",
             "nextTarget": "For syntax highlighting follow-up, choose a non-overlapping n...",
             "remainingGate": "No new native support component is needed for this syntax highlightin...",

@@ -2034,11 +2034,11 @@ final class SyntaxHighlighter
             ['comment', '/^#[^\\n]*/'],
             ['string', '/^<<-?([A-Za-z_][A-Za-z0-9_]*)[\\s\\S]*?(?:\\r?\\n)[ \\t]*\\1\\b/'],
             ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
-            ['keyword', '/^\\b(?:backend|check|data|dynamic|ephemeral|import|locals|module|moved|output|provider|provider_meta|provisioner|removed|resource|terraform|variable)\\b/'],
+            ['keyword', '/^\\b(?:backend|check|data|dynamic|ephemeral|import|locals|module|moved|output|provider|provider_meta|provisioner|removed|resource|terraform|validation|variable)\\b/'],
             ['keyword', '/^\\b(?:content|for|for_each|if|in|lifecycle|postcondition|precondition)\\b/'],
             ['constant', '/^\\b(?:false|null|true)\\b/'],
             ['datatype', '/^\\b(?:any|bool|list|map|number|object|optional|set|string|tuple)\\b/'],
-            ['function', '/^\\b(?:abspath|alltrue|anytrue|basename|can|cidrhost|cidrnetmask|cidrsubnet|cidrsubnets|coalesce|compact|concat|contains|csvdecode|dirname|element|ephemeralasnull|file|fileset|flatten|format|issensitive|jsondecode|jsonencode|length|lookup|lower|merge|nonsensitive|one|regex|replace|sensitive|setproduct|sort|split|templatefile|toset|try|upper|yamldecode|yamlencode|zipmap)\\b(?=\\s*\\()/'],
+            ['function', '/^\\b(?:abspath|alltrue|anytrue|basename|can|chomp|chunklist|cidrhost|cidrnetmask|cidrsubnet|cidrsubnets|coalesce|compact|concat|contains|csvdecode|dirname|distinct|element|endswith|ephemeralasnull|file|fileset|flatten|format|issensitive|join|jsondecode|jsonencode|keys|length|lookup|lower|merge|nonsensitive|one|range|regex|replace|sensitive|setproduct|sort|split|startswith|strcontains|substr|templatefile|timeadd|timestamp|toset|trimspace|try|upper|values|yamldecode|yamlencode|zipmap)\\b(?=\\s*\\()/'],
             ['number', '/^-?\\b(?:0|[1-9]\\d*)(?:\\.\\d+)?\\b/'],
             ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*=)/'],
             ['variable', '/^\\b(?:count|data|each|local|module|path|self|terraform|var)\\.[A-Za-z0-9_.-]+\\b/'],
@@ -4645,7 +4645,7 @@ final class SyntaxHighlighter
 
     private static function asciidocBlockDelimiter(string $line): ?string
     {
-        return in_array($line, ['----', '....'], true) ? $line : null;
+        return in_array($line, ['----', '....', '====', '****', '____'], true) ? $line : null;
     }
 
     private static function asciidocSourceLanguage(string $line): ?string

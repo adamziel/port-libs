@@ -1418,6 +1418,24 @@ return [
         $t->contains('<span class="kw">const</span> <span class="va">block</span> <span class="op">=</span> <span class="va">wp</span><span class="op">.</span><span class="va">element</span><span class="op">.</span><span class="fu">createElement</span>', $javascriptSource['html']);
         $t->contains('<span class="dt">raw &lt;&lt; token</span>', $unsupportedSource['html']);
     },
+    'delegates asciidoc source listings through alternate delimited blocks' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            '[source,terraform]',
+            '====',
+            'locals {',
+            '  title = trimspace(var.title)',
+            '}',
+            '====',
+        ]);
+        $highlighted = (new SyntaxHighlighter())->highlight($source, 'adoc');
+
+        $t->same('asciidoc', $highlighted['language']);
+        $t->contains('<span class="ot">[source,terraform]</span>', $highlighted['html']);
+        $t->contains('<span class="re">====</span>', $highlighted['html']);
+        $t->contains('<span class="kw">locals</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">title</span> <span class="op">=</span> <span class="fu">trimspace</span><span class="op">(</span><span class="va">var.title</span><span class="op">)</span>', $highlighted['html']);
+        $t->same(false, str_contains($highlighted['html'], '<span class="dt">locals {'));
+    },
     'highlights phpdoc annotations and typed metadata in php review snippets' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
         if (!is_string($fixture)) {
@@ -1537,6 +1555,34 @@ return [
         $t->contains('<span class="ot">safe_title</span> <span class="op">=</span> <span class="fu">nonsensitive</span><span class="op">(</span><span class="fu">ephemeralasnull</span><span class="op">(</span><span class="va">var.title</span><span class="op">))</span>', $highlighted['html']);
         $t->contains('<span class="ot">network</span> <span class="op">=</span> <span class="fu">cidrsubnet</span><span class="op">(</span><span class="va">var.vpc_cidr</span><span class="op">,</span> <span class="dv">8</span><span class="op">,</span> <span class="dv">3</span><span class="op">)</span>', $highlighted['html']);
         $t->contains('<span class="ot">ready</span> <span class="op">=</span> <span class="fu">alltrue</span><span class="op">([</span><span class="va">var.enabled</span><span class="op">,</span> <span class="op">!</span><span class="fu">issensitive</span><span class="op">(</span><span class="va">local.safe_title</span><span class="op">)])</span>', $highlighted['html']);
+    },
+    'highlights terraform validation and string collection helpers' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            'variable "slug" {',
+            '  type = string',
+            '  validation {',
+            '    condition = alltrue([',
+            '      strcontains(var.slug, "-"),',
+            '      startswith(trimspace(var.slug), "wp-"),',
+            '      endswith(var.slug, "-review")',
+            '    ])',
+            '    error_message = join(" ", distinct(["slug", "invalid"]))',
+            '  }',
+            '}',
+            'locals { labels = keys({ for k, v in var.map : k => v if can(v.id) }) }',
+        ]);
+        $highlighted = (new SyntaxHighlighter())->highlight($source, 'tf');
+
+        $t->same('hcl', $highlighted['language']);
+        $t->same('tf', $highlighted['requestedLanguage']);
+        $t->contains('<span class="kw">validation</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">condition</span> <span class="op">=</span> <span class="fu">alltrue</span><span class="op">([</span>', $highlighted['html']);
+        $t->contains('<span class="fu">strcontains</span><span class="op">(</span><span class="va">var.slug</span><span class="op">,</span> <span class="st">&quot;-&quot;</span><span class="op">),</span>', $highlighted['html']);
+        $t->contains('<span class="fu">startswith</span><span class="op">(</span><span class="fu">trimspace</span><span class="op">(</span><span class="va">var.slug</span><span class="op">),</span> <span class="st">&quot;wp-&quot;</span><span class="op">),</span>', $highlighted['html']);
+        $t->contains('<span class="fu">endswith</span><span class="op">(</span><span class="va">var.slug</span><span class="op">,</span> <span class="st">&quot;-review&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="ot">error_message</span> <span class="op">=</span> <span class="fu">join</span><span class="op">(</span><span class="st">&quot; &quot;</span><span class="op">,</span> <span class="fu">distinct</span><span class="op">([</span><span class="st">&quot;slug&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">keys</span><span class="op">({</span> <span class="kw">for</span> <span class="va">k</span><span class="op">,</span> <span class="va">v</span> <span class="kw">in</span> <span class="va">var.map</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="fu">can</span><span class="op">(</span><span class="va">v.id</span><span class="op">)</span>', $highlighted['html']);
     },
     'highlights liquid shopify template snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
