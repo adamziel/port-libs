@@ -1366,6 +1366,75 @@ $localHeaderOrderInspection = ArchiveCompressionStream::inspectZipLocalHeaderOrd
     ArchiveCompressionStream::FORMAT_GZIP_ZIP,
     strlen($localHeaderOrderZipBytes)
 );
+$zipPackagePrefixBytes = "MZwordpress-review-stub\n";
+$zipPackagePrefixName = 'word/document.xml';
+$zipPackagePrefixDocumentXml = '<w:document><w:p>Prefixed ZIP package stream review</w:p></w:document>';
+$zipPackagePrefixPayload = gzdeflate($zipPackagePrefixDocumentXml);
+$zipPackagePrefixCrc32 = (int) sprintf('%u', crc32($zipPackagePrefixDocumentXml));
+$zipPackagePrefixBody = $zipPackagePrefixBytes . pack(
+    'VvvvvvVVVvv',
+    0x04034b50,
+    20,
+    0x0800,
+    8,
+    0,
+    0,
+    $zipPackagePrefixCrc32,
+    strlen($zipPackagePrefixPayload),
+    strlen($zipPackagePrefixDocumentXml),
+    strlen($zipPackagePrefixName),
+    0
+) . $zipPackagePrefixName . $zipPackagePrefixPayload;
+$zipPackagePrefixCentralDirectoryOffset = strlen($zipPackagePrefixBody);
+$zipPackagePrefixCentralDirectory = pack(
+    'VvvvvvvVVVvvvvvVV',
+    0x02014b50,
+    0x0314,
+    20,
+    0x0800,
+    8,
+    0,
+    0,
+    $zipPackagePrefixCrc32,
+    strlen($zipPackagePrefixPayload),
+    strlen($zipPackagePrefixDocumentXml),
+    strlen($zipPackagePrefixName),
+    0,
+    0,
+    0,
+    0,
+    0x81a40000,
+    strlen($zipPackagePrefixBytes)
+) . $zipPackagePrefixName;
+$zipPackagePrefixZipBytes = $zipPackagePrefixBody
+    . $zipPackagePrefixCentralDirectory
+    . pack(
+        'VvvvvVVv',
+        0x06054b50,
+        0,
+        0,
+        1,
+        1,
+        strlen($zipPackagePrefixCentralDirectory),
+        $zipPackagePrefixCentralDirectoryOffset,
+        0
+    );
+$zipPackagePrefixZipGzip = GzipStream::build($zipPackagePrefixZipBytes, [
+    'filename' => 'wordpress-prefixed-package.zip',
+    'comment' => 'ZIP package prefix preflight fixture',
+    'headerCrc' => true,
+]);
+$zipPackagePrefixInspection = ArchiveCompressionStream::inspectZipPackagePrefixPolicy(
+    $zipPackagePrefixZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($zipPackagePrefixZipBytes)
+);
+$zipPackagePrefixExtractionBlocked = false;
+try {
+    ZipPackage::fromString($zipPackagePrefixZipBytes);
+} catch (RuntimeException) {
+    $zipPackagePrefixExtractionBlocked = true;
+}
 $generalPurposeZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -2328,6 +2397,17 @@ if (in_array('--self-test', $argv, true)) {
         'zipLocalHeaderOrderLocalNames' => ['mimetype', 'content.xml', 'styles.xml'],
         'zipLocalHeaderOrderLocalIndexes' => [1, 2, 0],
         'zipLocalHeaderOrderGzipFilename' => 'wordpress-local-header-order-review.zip',
+        'zipPackagePrefixFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipPackagePrefixType' => 'zip-package-prefix-policy',
+        'zipPackagePrefixEntryCount' => 1,
+        'zipPackagePrefixByteCount' => strlen($zipPackagePrefixBytes),
+        'zipPackagePrefixPreviewHex' => bin2hex(substr($zipPackagePrefixBytes, 0, 16)),
+        'zipPackagePrefixSignature' => 'mz-executable-stub',
+        'zipPackagePrefixIssues' => ['package-prefix-bytes', 'package-prefix-mz-executable-stub'],
+        'zipPackagePrefixLocalSpanIssues' => ['local-header-prefix-bytes'],
+        'zipPackagePrefixHandoffPolicy' => 'review-before-conversion',
+        'zipPackagePrefixExtractionPolicy' => 'package-prefix-review',
+        'zipPackagePrefixGzipFilename' => 'wordpress-prefixed-package.zip',
         'zipGeneralPurposeFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipGeneralPurposeEntryCount' => 4,
         'zipGeneralPurposeSupportedCount' => 4,
@@ -3126,6 +3206,31 @@ if (in_array('--self-test', $argv, true)) {
         || array_column($localHeaderOrderInspection['mismatchedEntries'], 'localHeaderNameAtCentralDirectoryIndex') !== $expected['zipLocalHeaderOrderLocalNames']
         || ($localHeaderOrderInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipLocalHeaderOrderGzipFilename']
         || isset($localHeaderOrderInspection['package'])
+        || $zipPackagePrefixInspection['format'] !== $expected['zipPackagePrefixFormat']
+        || $zipPackagePrefixInspection['type'] !== $expected['zipPackagePrefixType']
+        || $zipPackagePrefixInspection['zipBytes'] !== $zipPackagePrefixZipBytes
+        || $zipPackagePrefixInspection['packageByteSize'] !== strlen($zipPackagePrefixZipBytes)
+        || $zipPackagePrefixInspection['entryCount'] !== $expected['zipPackagePrefixEntryCount']
+        || $zipPackagePrefixInspection['hasPackagePrefix'] !== true
+        || $zipPackagePrefixInspection['prefixByteCount'] !== $expected['zipPackagePrefixByteCount']
+        || $zipPackagePrefixInspection['prefixPreviewByteCount'] !== 16
+        || $zipPackagePrefixInspection['prefixPreviewHex'] !== $expected['zipPackagePrefixPreviewHex']
+        || $zipPackagePrefixInspection['prefixSignature'] !== $expected['zipPackagePrefixSignature']
+        || $zipPackagePrefixInspection['hasExecutableStubPrefix'] !== true
+        || $zipPackagePrefixInspection['firstLocalHeaderOffset'] !== strlen($zipPackagePrefixBytes)
+        || $zipPackagePrefixInspection['centralDirectoryOffset'] !== $zipPackagePrefixCentralDirectoryOffset
+        || $zipPackagePrefixInspection['centralDirectoryOffsetAfterPrefix'] !== $zipPackagePrefixCentralDirectoryOffset - strlen($zipPackagePrefixBytes)
+        || $zipPackagePrefixInspection['localHeaderSpanIssues'] !== $expected['zipPackagePrefixLocalSpanIssues']
+        || $zipPackagePrefixInspection['localHeaderSpanIssuesWithoutPrefix'] !== []
+        || $zipPackagePrefixInspection['isPackageLayoutOtherwiseContiguous'] !== true
+        || $zipPackagePrefixInspection['isSupportedByBoundedReader'] !== false
+        || $zipPackagePrefixInspection['issues'] !== $expected['zipPackagePrefixIssues']
+        || $zipPackagePrefixInspection['diagnostics'] !== $expected['zipPackagePrefixIssues']
+        || $zipPackagePrefixInspection['handoffPolicy'] !== $expected['zipPackagePrefixHandoffPolicy']
+        || $zipPackagePrefixInspection['extractionPolicy'] !== $expected['zipPackagePrefixExtractionPolicy']
+        || ($zipPackagePrefixInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipPackagePrefixGzipFilename']
+        || isset($zipPackagePrefixInspection['package'])
+        || !$zipPackagePrefixExtractionBlocked
         || $generalPurposeZipInspection['format'] !== $expected['zipGeneralPurposeFormat']
         || $generalPurposeZipInspection['zipBytes'] !== $generalPurposeZipBytes
         || $generalPurposeZipInspection['packageByteSize'] !== strlen($generalPurposeZipBytes)
@@ -3684,6 +3789,12 @@ echo 'zipLocalHeaderOrder.centralNames=' . implode(',', $localHeaderOrderInspect
 echo 'zipLocalHeaderOrder.localNames=' . implode(',', $localHeaderOrderInspection['localHeaderOrderNames']) . "\n";
 echo 'zipLocalHeaderOrder.diagnostics=' . implode(',', $localHeaderOrderInspection['diagnostics']) . "\n";
 echo 'zipLocalHeaderOrder.gzipFilename=' . $localHeaderOrderInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipPackagePrefix.format=' . $zipPackagePrefixInspection['format'] . "\n";
+echo 'zipPackagePrefix.prefixBytes=' . $zipPackagePrefixInspection['prefixByteCount'] . "\n";
+echo 'zipPackagePrefix.signature=' . $zipPackagePrefixInspection['prefixSignature'] . "\n";
+echo 'zipPackagePrefix.issues=' . implode(',', $zipPackagePrefixInspection['issues']) . "\n";
+echo 'zipPackagePrefix.gzipFilename=' . $zipPackagePrefixInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipPackagePrefix.extractionBlocked=' . ($zipPackagePrefixExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'zipGeneralPurpose.format=' . $generalPurposeZipInspection['format'] . "\n";
 echo 'zipGeneralPurpose.entryCount=' . $generalPurposeZipInspection['entryCount'] . "\n";
 echo 'zipGeneralPurpose.supportedCount=' . $generalPurposeZipInspection['supportedEntryCount'] . "\n";

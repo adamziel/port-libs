@@ -6109,6 +6109,182 @@ return [
         );
     },
 
+    'preflights zip package prefixes across archive streams before package exposure' => static function (TestRunner $t): void {
+        $prefix = "MZwordpress-review-stub\n";
+        $contentTypes = '<Types><Default Extension="xml" ContentType="application/xml"/></Types>';
+        $documentXml = '<w:document><w:p>prefixed package stream review</w:p></w:document>';
+        $entries = [
+            ['name' => '[Content_Types].xml', 'data' => $contentTypes, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 8],
+        ];
+
+        $body = $prefix;
+        $centralDirectory = '';
+        foreach ($entries as $entry) {
+            $name = $entry['name'];
+            $data = $entry['data'];
+            $method = $entry['compressionMethod'];
+            $payload = $method === 8 ? gzdeflate($data) : $data;
+            $crc32 = (int) sprintf('%u', crc32($data));
+            $localHeaderOffset = strlen($body);
+
+            $body .= pack(
+                'VvvvvvVVVvv',
+                0x04034b50,
+                20,
+                0x0800,
+                $method,
+                0,
+                0,
+                $crc32,
+                strlen($payload),
+                strlen($data),
+                strlen($name),
+                0
+            ) . $name . $payload;
+
+            $centralDirectory .= pack(
+                'VvvvvvvVVVvvvvvVV',
+                0x02014b50,
+                0x0314,
+                20,
+                0x0800,
+                $method,
+                0,
+                0,
+                $crc32,
+                strlen($payload),
+                strlen($data),
+                strlen($name),
+                0,
+                0,
+                0,
+                0,
+                0x81a40000,
+                $localHeaderOffset
+            ) . $name;
+        }
+
+        $centralDirectoryOffset = strlen($body);
+        $zipBytes = $body
+            . $centralDirectory
+            . pack(
+                'VvvvvVVv',
+                0x06054b50,
+                0,
+                0,
+                count($entries),
+                count($entries),
+                strlen($centralDirectory),
+                $centralDirectoryOffset,
+                0
+            );
+        $eocdOffset = strlen($body) + strlen($centralDirectory);
+
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-prefixed-package.zip',
+                'comment' => 'ZIP package prefix preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('package prefix reviewer metadata', 14)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipPackagePrefixPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same($format, $inspection['format']);
+            $t->same('zip-package-prefix-policy', $inspection['type']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(2, $inspection['entryCount']);
+            $t->same(true, $inspection['hasPackagePrefix']);
+            $t->same(strlen($prefix), $inspection['prefixByteCount']);
+            $t->same(16, $inspection['prefixPreviewByteCount']);
+            $t->same(bin2hex(substr($prefix, 0, 16)), $inspection['prefixPreviewHex']);
+            $t->same('mz-executable-stub', $inspection['prefixSignature']);
+            $t->same(true, $inspection['hasExecutableStubPrefix']);
+            $t->same(strlen($prefix), $inspection['firstLocalHeaderOffset']);
+            $t->same($centralDirectoryOffset, $inspection['centralDirectoryOffset']);
+            $t->same($centralDirectoryOffset - strlen($prefix), $inspection['centralDirectoryOffsetAfterPrefix']);
+            $t->same($eocdOffset, $inspection['eocdOffset']);
+            $t->same($eocdOffset - strlen($prefix), $inspection['eocdOffsetAfterPrefix']);
+            $t->same(['local-header-prefix-bytes'], $inspection['localHeaderSpanIssues']);
+            $t->same([], $inspection['localHeaderSpanIssuesWithoutPrefix']);
+            $t->same(true, $inspection['isPackageLayoutOtherwiseContiguous']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same(['package-prefix-bytes', 'package-prefix-mz-executable-stub'], $inspection['issues']);
+            $t->same(['package-prefix-bytes', 'package-prefix-mz-executable-stub'], $inspection['diagnostics']);
+            $t->same('review-before-conversion', $inspection['handoffPolicy']);
+            $t->same('package-prefix-review', $inspection['extractionPolicy']);
+            $t->same(false, array_key_exists('package', $inspection));
+            $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectZipStream($bytes, $format, strlen($zipBytes)));
+        }
+
+        $safeZipBytes = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>ordinary prefix-free package stream</w:p></w:document>',
+            ],
+        ])->bytes();
+        $safeInspection = ArchiveCompressionStream::inspectZipPackagePrefixPolicy(
+            DeflateStream::build($safeZipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP,
+            strlen($safeZipBytes)
+        );
+        $gzipInspection = ArchiveCompressionStream::inspectZipPackagePrefixPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipPackagePrefixPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same(false, $safeInspection['hasPackagePrefix']);
+        $t->same(0, $safeInspection['prefixByteCount']);
+        $t->same('', $safeInspection['prefixPreviewHex']);
+        $t->same(null, $safeInspection['prefixSignature']);
+        $t->same([], $safeInspection['issues']);
+        $t->same([], $safeInspection['diagnostics']);
+        $t->same('within-thresholds', $safeInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $safeInspection['extractionPolicy']);
+        $t->same(true, $safeInspection['isSupportedByBoundedReader']);
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-prefixed-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('ZIP package prefix preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('package prefix reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipPackagePrefixPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
     'preflights encrypted zip package streams without exposing entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
         $utf8 = 0x0800;
         $winZipAesExtra = pack('vvv', 0x9901, 7, 2) . 'AE' . "\x03" . pack('v', 8);

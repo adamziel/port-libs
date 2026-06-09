@@ -3410,6 +3410,33 @@ final class ArchiveCompressionStream
     /**
      * @return array<string, mixed>
      */
+    public static function inspectZipPackagePrefixPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $zipBytes = self::decodeZipBytes($bytes, $format, $maxUncompressedBytes);
+        $policy = ZipPackage::packagePrefixPreflight($zipBytes);
+        $diagnostics = $policy['issues'];
+
+        return [
+            'format' => $format,
+            'zipBytes' => $zipBytes,
+            'packageByteSize' => strlen($zipBytes),
+            'type' => 'zip-package-prefix-policy',
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $diagnostics === [] ? 'metadata-only-no-extraction' : 'package-prefix-review',
+            'diagnostics' => $diagnostics,
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function inspectZipLocalHeaderMetadataPolicy(
         string $bytes,
         string $format,

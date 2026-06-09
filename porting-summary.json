@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 05:48:41 UTC",
-    "sourceCommit": "2c84ca27878846c6b3725d422a6af783d4bbe9c7",
-    "sourceCommitShort": "2c84ca278788",
+    "generated": "2026-06-09 05:49:36 UTC",
+    "sourceCommit": "ad84da2b3ad9a16abf64f4518160c1cf0405abc0",
+    "sourceCommitShort": "ad84da2b3ad9",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2c84ca27878846c6b3725d422a6af783d4bbe9c7",
-    "dashboardCommitShort": "2c84ca278788",
+    "dashboardCommit": "ad84da2b3ad9a16abf64f4518160c1cf0405abc0",
+    "dashboardCommitShort": "ad84da2b3ad9",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,791 / 2,276 (122.6%)",
             "mapPercent": "122.6%",
             "unmapped": "0",
-            "php": "2,400 pass / 0 fail",
+            "php": "2,401 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC ODF/OpenDocument data-pilot field policy slice on base...",
+            "audit": "2026-06-09 UTC archive-compression-streams slice on base 43b1a4a1010b...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For ODF/OpenDocument follow-up, choose a non-overlapping nati...",
-            "remainingGate": "No new native support component is needed for this ODF/OpenDocument s...",
+            "nextTarget": "For archive-compression follow-up, keep stream wrappers focus...",
+            "remainingGate": "No new native support component is needed for this archive-compressio...",
             "commit": "pending fast ba..."
         },
         {
