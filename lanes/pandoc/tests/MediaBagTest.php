@@ -241,4 +241,32 @@ return [
         $t->same('assets/deleted.png', $mappedDocument->children[1]->children[0]->attr('url'));
         $t->same(['media-resource-mapped:assets/kept.svg'], $extracted['diagnostics']);
     },
+
+    'reuses preloaded path-only media for url-suffixed image sources' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $bytes = "<svg><text>preloaded chart</text></svg>\n";
+        $source = 'assets/charts/review.svg?width=640#caption';
+        $bag->insertMedia('assets\\charts\\review.svg', 'image/svg+xml', $bytes);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $source,
+                    'title' => 'Preloaded review chart',
+                ], [new AstNode('text', ['text' => 'Preloaded review chart'])]),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, []);
+        $extracted = $bag->extractMedia($filled['document'], 'media');
+        $mappedImage = $extracted['document']->children[0]->children[0];
+
+        $t->same([], $filled['diagnostics']);
+        $t->same('image', $filled['document']->children[0]->children[0]->type);
+        $t->same('media/assets/charts/review.svg', $mappedImage->attr('url'));
+        $t->same('media/assets/charts/review.svg', $extracted['entries'][0]['path']);
+        $t->same('assets/charts/review.svg', $extracted['entries'][0]['mediaPath']);
+        $t->same($bytes, $extracted['entries'][0]['contents']);
+        $t->same(['media-resource-mapped:' . $source], $extracted['diagnostics']);
+    },
 ];

@@ -144,7 +144,7 @@ final class MediaBag
         $resourcesByCanonicalSource = self::canonicalResourceMap($resources);
         $document = $this->mapImages($document, function (AstNode $image) use ($resources, $resourcesByCanonicalSource, &$diagnostics): AstNode {
             $source = (string) $image->attr('url', '');
-            if ($source === '' || $this->has($source)) {
+            if ($source === '' || $this->lookupImageSource($source) !== null) {
                 return $image;
             }
 
@@ -203,7 +203,7 @@ final class MediaBag
 
         $document = $this->mapImages($document, function (AstNode $image) use ($destination, &$diagnostics): AstNode {
             $source = (string) $image->attr('url', '');
-            $item = $this->lookup($source);
+            $item = $this->lookupImageSource($source);
             if ($item === null) {
                 return $image;
             }
@@ -452,6 +452,21 @@ final class MediaBag
         }
 
         return substr($source, 0, min($positions));
+    }
+
+    /**
+     * @return array{source:string, canonicalSource:string, path:string, mimeType:string, contents:string, sha1:string, byteLength:int}|null
+     */
+    private function lookupImageSource(string $source): ?array
+    {
+        foreach (self::resourceLookupKeys($source) as $key) {
+            $item = $this->lookup($key);
+            if ($item !== null) {
+                return $item;
+            }
+        }
+
+        return null;
     }
 
     private function placeholderFor(AstNode $image): AstNode
