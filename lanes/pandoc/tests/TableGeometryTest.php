@@ -882,6 +882,56 @@ $buildDuplicateSourceHeaderDocument = static function (): AstNode {
     ]);
 };
 
+$buildDuplicateSourceHeaderTokenDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Duplicate source headers token audit',
+            'alignments' => ['left', 'right', 'center'],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Duplicate Token Grid',
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Document',
+                        'htmlAttributes' => [
+                            'id' => 'dup-token-document',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Document'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Count',
+                        'htmlAttributes' => [
+                            'id' => 'dup-token-count',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Count'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'State',
+                        'htmlAttributes' => [
+                            'id' => 'dup-token-state',
+                            'scope' => 'col',
+                            'headers' => 'dup-token-document dup-token-document',
+                        ],
+                    ], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', [
+                        'text' => '42',
+                        'htmlAttributes' => [
+                            'headers' => 'dup-token-document dup-token-count dup-token-count',
+                        ],
+                    ], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildRowspanOverlapDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -3163,6 +3213,73 @@ return [
         $t->same([], $packet['writerDowngrades']['wordpress'] ?? null);
         $t->contains('<th id="duplicate-document" scope="col" style="text-align:left">Document A</th><th id="duplicate-document" scope="col" style="text-align:right">Document B</th><th id="duplicate-state" scope="col" headers="duplicate-document" style="text-align:center">State</th>', $blocks);
         $t->contains('<td headers="duplicate-document missing-document" style="text-align:right">42</td>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'reports duplicate source headers tokens without changing resolved references' => static function (TestRunner $t) use ($buildDuplicateSourceHeaderTokenDocument): void {
+        $document = $buildDuplicateSourceHeaderTokenDocument();
+        $table = $document->children[0];
+        $packet = TableGeometry::reviewPacket($table, [
+            'idPrefix' => 'Duplicate Token Grid',
+            'writers' => ['pipe-table', 'asciidoctor', 'xelatex', 'wordpress'],
+        ]);
+        $associations = $packet['headerAssociations'] ?? [];
+        $diagnostics = TableGeometry::diagnostics($table);
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, $associations['summary']['duplicateSourceHeaderTokenCellCount'] ?? null);
+        $t->same(2, $associations['summary']['duplicateSourceHeaderTokenCount'] ?? null);
+        $t->same(true, $associations['summary']['hasDuplicateSourceHeaderTokens'] ?? null);
+        $t->same(['dup-token-document', 'dup-token-count'], $associations['summary']['duplicateSourceHeaderTokens'] ?? null);
+        $t->same(3, $associations['summary']['sourceHeaderReferenceCount'] ?? null);
+        $t->same(3, $associations['summary']['sourceHeaderResolvedReferenceCount'] ?? null);
+        $t->same(0, $associations['summary']['sourceHeaderUnresolvedReferenceCount'] ?? null);
+        $t->same(0, $associations['summary']['sourceHeaderAmbiguousReferenceCount'] ?? null);
+
+        $t->same(2, $packet['summary']['sourceHeaderDuplicateTokenCellCount'] ?? null);
+        $t->same(2, $packet['summary']['sourceHeaderDuplicateTokenCount'] ?? null);
+        $t->same(['dup-token-document', 'dup-token-count'], $packet['summary']['sourceHeaderDuplicateTokens'] ?? null);
+        $t->same(true, $packet['summary']['hasDuplicateSourceHeaderTokens'] ?? null);
+        $t->same(2, $packet['summary']['duplicateSourceHeaderTokenCount'] ?? null);
+        $t->same(2, $packet['summary']['duplicateSourceHeaderTokenCellCount'] ?? null);
+        $t->same(['dup-token-document', 'dup-token-count'], $packet['summary']['duplicateSourceHeaderTokens'] ?? null);
+        $t->same(['table-source-headers-duplicate-tokens'], $packet['summary']['diagnosticCodes'] ?? null);
+
+        $t->same(['table-source-headers-duplicate-tokens'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics));
+        $t->same(2, $diagnostics[0]['duplicateTokenCellCount'] ?? null);
+        $t->same(2, $diagnostics[0]['duplicateTokenCount'] ?? null);
+        $t->same(['dup-token-document', 'dup-token-count'], $diagnostics[0]['duplicateTokens'] ?? null);
+        $t->same(['header', 'data'], array_map(static fn (array $cell): string => (string) ($cell['role'] ?? ''), $diagnostics[0]['cells'] ?? []));
+        $t->same('head:0:2:2', $diagnostics[0]['cells'][0]['key'] ?? null);
+        $t->same(['dup-token-document'], $diagnostics[0]['cells'][0]['duplicateSourceHeaderTokens'] ?? null);
+        $t->same(2, $diagnostics[0]['cells'][0]['sourceHeaderTokenCount'] ?? null);
+        $t->same(1, $diagnostics[0]['cells'][0]['sourceHeaderUniqueTokenCount'] ?? null);
+        $t->same('body:0:1:1', $diagnostics[0]['cells'][1]['key'] ?? null);
+        $t->same(['dup-token-count'], $diagnostics[0]['cells'][1]['duplicateSourceHeaderTokens'] ?? null);
+        $t->same(3, $diagnostics[0]['cells'][1]['sourceHeaderTokenCount'] ?? null);
+        $t->same(2, $diagnostics[0]['cells'][1]['sourceHeaderUniqueTokenCount'] ?? null);
+
+        $headerReference = $associations['headerCells'][2]['sourceHeaderReferences'][0] ?? [];
+        $dataReferences = $associations['dataCells'][1]['sourceHeaderReferences'] ?? [];
+        $t->same('dup-token-document', $headerReference['id'] ?? null);
+        $t->same('head:0:0:0', $headerReference['targetKey'] ?? null);
+        $t->same(1, count($associations['headerCells'][2]['sourceHeaderReferences'] ?? []));
+        $t->same(['dup-token-document'], $associations['headerCells'][2]['duplicateSourceHeaderTokens'] ?? null);
+        $t->same(['dup-token-document', 'dup-token-count'], $associations['dataCells'][1]['sourceHeaders'] ?? null);
+        $t->same(2, count($dataReferences));
+        $t->same('dup-token-count', $dataReferences[1]['id'] ?? null);
+        $t->same('head:0:1:1', $dataReferences[1]['targetKey'] ?? null);
+
+        $t->same(2, $markdownDiagnostics[0]['duplicateTokenCellCount'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['duplicateTokenCount'] ?? null);
+        $t->same(true, $markdownDiagnostics[0]['hasDuplicateTokens'] ?? null);
+        $t->same(['dup-token-document', 'dup-token-count'], $markdownDiagnostics[0]['duplicateTokens'] ?? null);
+        $t->same(['dup-token-count'], $markdownDiagnostics[0]['cells'][1]['duplicateSourceHeaderTokens'] ?? null);
+        $t->same($markdownDiagnostics[0], $packet['writerDowngrades']['markdown'][0] ?? null);
+        $t->same([], $packet['writerDowngrades']['wordpress'] ?? null);
+        $t->contains('<th id="dup-token-state" scope="col" headers="dup-token-document" style="text-align:center">State</th>', $blocks);
+        $t->contains('<td headers="dup-token-document dup-token-count" style="text-align:right">42</td>', $blocks);
+        $t->true(!str_contains($blocks, 'headers="dup-token-document dup-token-count dup-token-count"'));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'reports source header reference writer handoff diagnostics' => static function (TestRunner $t) use ($buildSourceScopedHeaderDocument): void {

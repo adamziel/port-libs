@@ -1707,6 +1707,20 @@ final class WordPressBlockWriter
             return in_array($scope, self::TABLE_CELL_SCOPES, true) ? $scope : null;
         }
 
+        if ($name === 'headers') {
+            $tokens = preg_split('/\s+/', trim($value), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $headers = [];
+            foreach ($tokens as $token) {
+                $token = trim((string) $token);
+                if ($token !== '') {
+                    $headers[] = $token;
+                }
+            }
+            $headers = array_values(array_unique($headers));
+
+            return $headers === [] ? null : implode(' ', $headers);
+        }
+
         if ($name !== 'dir') {
             return $value;
         }

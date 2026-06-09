@@ -3386,6 +3386,64 @@ XML;
         $t->same(false, $rolesById['rIdMisplacedSignature']['valid']);
         $t->same(['digital-signature-signature-source-not-origin'], $rolesById['rIdMisplacedSignature']['issues']);
     },
+    'does not authorize OPC digital signature sources from invalid origin targets' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/_xmlsignatures/bad-origin.sigs" ContentType="application/xml"/>
+  <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdBadSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/bad-origin.sigs"/>
+</Relationships>
+XML;
+
+        $signatureOriginRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSignature1" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig1.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => '_xmlsignatures/bad-origin.sigs', 'data' => ''],
+            ['name' => '_xmlsignatures/_rels/bad-origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
+            ['name' => '_xmlsignatures/sig1.xml', 'data' => '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/>'],
+        ]));
+
+        $roles = $graph->preflightDigitalSignatureRelationshipRoles();
+        $rolesById = [];
+        foreach ($roles['roles'] as $role) {
+            $rolesById[$role['id']] = $role;
+        }
+
+        $t->same(false, $roles['valid']);
+        $t->same(1, $roles['originCount']);
+        $t->same(1, $roles['signatureCount']);
+        $t->same([], $roles['allowedSignatureSources']);
+        $t->same(['rIdBadSignatureOrigin', 'rIdSignature1'], array_keys($rolesById));
+
+        $t->same('digital-signature-origin', $rolesById['rIdBadSignatureOrigin']['role']);
+        $t->same('/', $rolesById['rIdBadSignatureOrigin']['source']);
+        $t->same('/_xmlsignatures/bad-origin.sigs', $rolesById['rIdBadSignatureOrigin']['targetPart']);
+        $t->same('application/xml', $rolesById['rIdBadSignatureOrigin']['contentType']);
+        $t->same(true, $rolesById['rIdBadSignatureOrigin']['sourceAllowed']);
+        $t->same(false, $rolesById['rIdBadSignatureOrigin']['valid']);
+        $t->same(['invalid-digital-signature-origin-content-type'], $rolesById['rIdBadSignatureOrigin']['issues']);
+
+        $t->same('digital-signature-signature', $rolesById['rIdSignature1']['role']);
+        $t->same('/_xmlsignatures/bad-origin.sigs', $rolesById['rIdSignature1']['source']);
+        $t->same('/_xmlsignatures/sig1.xml', $rolesById['rIdSignature1']['targetPart']);
+        $t->same([], $rolesById['rIdSignature1']['allowedSignatureSources']);
+        $t->same(false, $rolesById['rIdSignature1']['sourceAllowed']);
+        $t->same(false, $rolesById['rIdSignature1']['valid']);
+        $t->same(['digital-signature-signature-source-not-origin'], $rolesById['rIdSignature1']['issues']);
+    },
     'preflights OPC encrypted package relationship policy' => static function (TestRunner $t): void {
         $encryptedRelationshipType = OpcRelationshipGraph::ENCRYPTED_PACKAGE_RELATIONSHIP_TYPE;
         $encryptedContentType = 'application/vnd.openxmlformats-package.encrypted-package';

@@ -1115,6 +1115,52 @@ $duplicateHeaderTable = new AstNode('table', [
     ]),
 ]);
 
+$duplicateHeaderTokenTable = new AstNode('table', [
+    'caption' => 'Duplicate source headers token audit',
+    'alignments' => ['left', 'right', 'center'],
+    'accessibilityHeaders' => true,
+    'accessibilityIdPrefix' => 'Duplicate Token Grid',
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Document',
+                'htmlAttributes' => [
+                    'id' => 'dup-token-document',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'Document'])]),
+            new AstNode('table_cell', [
+                'text' => 'Count',
+                'htmlAttributes' => [
+                    'id' => 'dup-token-count',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'Count'])]),
+            new AstNode('table_cell', [
+                'text' => 'State',
+                'htmlAttributes' => [
+                    'id' => 'dup-token-state',
+                    'scope' => 'col',
+                    'headers' => 'dup-token-document dup-token-document',
+                ],
+            ], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', [
+                'text' => '42',
+                'htmlAttributes' => [
+                    'headers' => 'dup-token-document dup-token-count dup-token-count',
+                ],
+            ], [new AstNode('text', ['text' => '42'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $emptyReviewTable = new AstNode('table', [
     'caption' => 'Empty import table audit',
 ], [
@@ -1431,6 +1477,7 @@ $document = new AstNode('document', [], [
     ]),
     $abbreviatedHeaderTable,
     $duplicateHeaderTable,
+    $duplicateHeaderTokenTable,
     $emptyReviewTable,
     new AstNode('table', [
         'caption' => 'Implicit source shift review',
@@ -2195,6 +2242,46 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing ambiguous source headers data-cell output');
     }
     json_encode($duplicateHeaderPacket, JSON_THROW_ON_ERROR);
+
+    $duplicateHeaderTokenPacket = TableGeometry::reviewPacket($duplicateHeaderTokenTable, [
+        'idPrefix' => 'Duplicate Token Grid',
+        'writers' => ['markdown', 'asciidoctor', 'xelatex', 'wordpress'],
+    ]);
+    if (
+        ($duplicateHeaderTokenPacket['summary']['diagnosticCodes'] ?? null) !== ['table-source-headers-duplicate-tokens']
+        || ($duplicateHeaderTokenPacket['summary']['duplicateSourceHeaderTokenCount'] ?? null) !== 2
+        || ($duplicateHeaderTokenPacket['summary']['duplicateSourceHeaderTokenCellCount'] ?? null) !== 2
+        || ($duplicateHeaderTokenPacket['summary']['duplicateSourceHeaderTokens'] ?? null) !== ['dup-token-document', 'dup-token-count']
+        || ($duplicateHeaderTokenPacket['summary']['sourceHeaderReferenceCount'] ?? null) !== 3
+        || ($duplicateHeaderTokenPacket['headerAssociations']['summary']['sourceHeaderResolvedReferenceCount'] ?? null) !== 3
+    ) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source headers token audit summary');
+    }
+    if (
+        ($duplicateHeaderTokenPacket['diagnostics'][0]['cells'][0]['duplicateSourceHeaderTokens'] ?? null) !== ['dup-token-document']
+        || ($duplicateHeaderTokenPacket['diagnostics'][0]['cells'][1]['duplicateSourceHeaderTokens'] ?? null) !== ['dup-token-count']
+        || ($duplicateHeaderTokenPacket['headerAssociations']['dataCells'][1]['sourceHeaders'] ?? null) !== ['dup-token-document', 'dup-token-count']
+        || count($duplicateHeaderTokenPacket['headerAssociations']['dataCells'][1]['sourceHeaderReferences'] ?? []) !== 2
+    ) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source headers token cell metadata');
+    }
+    if (
+        ($duplicateHeaderTokenPacket['writerDowngrades']['markdown'][0]['duplicateTokenCount'] ?? null) !== 2
+        || ($duplicateHeaderTokenPacket['writerDowngrades']['markdown'][0]['duplicateTokens'] ?? null) !== ['dup-token-document', 'dup-token-count']
+        || ($duplicateHeaderTokenPacket['writerDowngrades']['wordpress'] ?? null) !== []
+    ) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source headers token writer metadata');
+    }
+    if (!str_contains($blocks, '<th id="dup-token-state" scope="col" headers="dup-token-document" style="text-align:center">State</th>')) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source header token header-cell output');
+    }
+    if (!str_contains($blocks, '<td headers="dup-token-document dup-token-count" style="text-align:right">42</td>')) {
+        throw new RuntimeException('Table geometry self-test missing normalized duplicate source headers data-cell output');
+    }
+    if (str_contains($blocks, 'headers="dup-token-document dup-token-count dup-token-count"')) {
+        throw new RuntimeException('Table geometry self-test leaked duplicate source headers tokens into WordPress output');
+    }
+    json_encode($duplicateHeaderTokenPacket, JSON_THROW_ON_ERROR);
 
     $nestedPacket = TableGeometry::reviewPacket($document->children[8], ['idPrefix' => 'Nested Packet']);
     if (($nestedPacket['summary']['nestedTableCount'] ?? null) !== 1 || ($nestedPacket['summary']['nestedTableCellCount'] ?? null) !== 1) {

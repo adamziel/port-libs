@@ -705,6 +705,13 @@ final class TableGeometry
                 'sourceHeaderUnresolvedReferenceCount' => $sourceHeaderReferenceSummary['unresolvedReferenceCount'],
                 'hasUnresolvedSourceHeaderReferences' => $sourceHeaderReferenceSummary['unresolvedReferenceCount'] > 0,
                 'unresolvedSourceHeaderReferences' => $sourceHeaderReferenceSummary['unresolvedReferences'],
+                'duplicateSourceHeaderTokenCellCount' => $sourceHeaderReferenceSummary['duplicateSourceHeaderTokenCellCount'],
+                'duplicateSourceHeaderTokenCount' => $sourceHeaderReferenceSummary['duplicateSourceHeaderTokenCount'],
+                'hasDuplicateSourceHeaderTokens' => $sourceHeaderReferenceSummary['hasDuplicateSourceHeaderTokens'],
+                'duplicateSourceHeaderTokens' => $sourceHeaderReferenceSummary['duplicateSourceHeaderTokens'],
+                'sourceHeaderDuplicateTokenCellCount' => $sourceHeaderReferenceSummary['duplicateSourceHeaderTokenCellCount'],
+                'sourceHeaderDuplicateTokenCount' => $sourceHeaderReferenceSummary['duplicateSourceHeaderTokenCount'],
+                'sourceHeaderDuplicateTokens' => $sourceHeaderReferenceSummary['duplicateSourceHeaderTokens'],
                 'sourceHeaderAmbiguousReferenceCount' => $sourceHeaderReferenceSummary['ambiguousReferenceCount'],
                 'hasAmbiguousSourceHeaderReferences' => $sourceHeaderReferenceSummary['ambiguousReferenceCount'] > 0,
                 'ambiguousSourceHeaderReferences' => $sourceHeaderReferenceSummary['ambiguousReferences'],
@@ -768,6 +775,7 @@ final class TableGeometry
         array_push($diagnostics, ...self::widthDiagnostics($table, $diagnostics !== []));
         array_push($diagnostics, ...self::spanNormalizationDiagnostics($table));
         array_push($diagnostics, ...self::duplicateHeaderIdDiagnostics($table));
+        array_push($diagnostics, ...self::duplicateSourceHeaderTokenDiagnostics($table));
         array_push($diagnostics, ...self::invalidSourceScopeDiagnostics($table));
         $declaredColumnCount = self::declaredColumnCount($table);
         foreach (self::sectionRowGroups($table, null) as $group) {
@@ -868,6 +876,29 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function duplicateSourceHeaderTokenDiagnostics(AstNode $table): array
+    {
+        $associations = self::headerAssociations($table);
+        $summary = is_array($associations['summary'] ?? null) ? $associations['summary'] : [];
+        $duplicateTokenCount = (int) ($summary['duplicateSourceHeaderTokenCount'] ?? 0);
+        if ($duplicateTokenCount <= 0) {
+            return [];
+        }
+
+        return [[
+            'code' => 'table-source-headers-duplicate-tokens',
+            'source' => 'html-table-headers',
+            'caption' => (string) $table->attr('caption', ''),
+            'duplicateTokenCellCount' => (int) ($summary['duplicateSourceHeaderTokenCellCount'] ?? 0),
+            'duplicateTokenCount' => $duplicateTokenCount,
+            'duplicateTokens' => self::stringList($summary['duplicateSourceHeaderTokens'] ?? []),
+            'cells' => self::sourceHeaderDuplicateTokenCells($associations),
+        ]];
     }
 
     /**
@@ -2122,6 +2153,13 @@ final class TableGeometry
                 'sourceHeaderUnresolvedReferenceCount' => 0,
                 'hasUnresolvedSourceHeaderReferences' => false,
                 'unresolvedSourceHeaderReferences' => [],
+                'duplicateSourceHeaderTokenCellCount' => 0,
+                'duplicateSourceHeaderTokenCount' => 0,
+                'hasDuplicateSourceHeaderTokens' => false,
+                'duplicateSourceHeaderTokens' => [],
+                'sourceHeaderDuplicateTokenCellCount' => 0,
+                'sourceHeaderDuplicateTokenCount' => 0,
+                'sourceHeaderDuplicateTokens' => [],
                 'sourceHeaderAmbiguousReferenceCount' => 0,
                 'hasAmbiguousSourceHeaderReferences' => false,
                 'ambiguousSourceHeaderReferences' => [],
@@ -3298,6 +3336,10 @@ final class TableGeometry
      *     resolvedReferenceCount:int,
      *     unresolvedReferenceCount:int,
      *     unresolvedReferences:list<string>,
+     *     duplicateSourceHeaderTokenCellCount:int,
+     *     duplicateSourceHeaderTokenCount:int,
+     *     hasDuplicateSourceHeaderTokens:bool,
+     *     duplicateSourceHeaderTokens:list<string>,
      *     ambiguousReferenceCount:int,
      *     ambiguousReferences:list<string>,
      *     duplicateHeaderIdCount:int,
@@ -3331,6 +3373,10 @@ final class TableGeometry
             'resolvedReferenceCount' => 0,
             'unresolvedReferenceCount' => 0,
             'unresolvedReferences' => [],
+            'duplicateSourceHeaderTokenCellCount' => 0,
+            'duplicateSourceHeaderTokenCount' => 0,
+            'hasDuplicateSourceHeaderTokens' => false,
+            'duplicateSourceHeaderTokens' => [],
             'ambiguousReferenceCount' => 0,
             'ambiguousReferences' => [],
             'duplicateHeaderIdCount' => count($duplicateHeaderIds),
@@ -3361,6 +3407,11 @@ final class TableGeometry
 
         $summary['unresolvedReferences'] = array_values(array_unique($summary['unresolvedReferences']));
         $summary['ambiguousReferences'] = array_values(array_unique($summary['ambiguousReferences']));
+        $duplicateTokenSummary = self::duplicateSourceHeaderTokenSummary($headerCells, $dataCells);
+        $summary['duplicateSourceHeaderTokenCellCount'] = $duplicateTokenSummary['cellCount'];
+        $summary['duplicateSourceHeaderTokenCount'] = $duplicateTokenSummary['tokenCount'];
+        $summary['hasDuplicateSourceHeaderTokens'] = $duplicateTokenSummary['tokenCount'] > 0;
+        $summary['duplicateSourceHeaderTokens'] = $duplicateTokenSummary['tokens'];
 
         return $summary;
     }
@@ -3503,6 +3554,38 @@ final class TableGeometry
     }
 
     /**
+     * @param list<array<string, mixed>> $headerCells
+     * @param list<array<string, mixed>> $dataCells
+     * @return array{cellCount:int,tokenCount:int,tokens:list<string>}
+     */
+    private static function duplicateSourceHeaderTokenSummary(array $headerCells, array $dataCells): array
+    {
+        $cellCount = 0;
+        $tokenCount = 0;
+        $tokens = [];
+        foreach ([...$headerCells, ...$dataCells] as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $duplicates = self::stringList($record['duplicateSourceHeaderTokens'] ?? []);
+            if ($duplicates === []) {
+                continue;
+            }
+
+            $cellCount++;
+            $tokenCount += max(0, (int) ($record['duplicateSourceHeaderTokenCount'] ?? count($duplicates)));
+            array_push($tokens, ...$duplicates);
+        }
+
+        return [
+            'cellCount' => $cellCount,
+            'tokenCount' => $tokenCount,
+            'tokens' => array_values(array_unique($tokens)),
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $slot
      * @return array<string, mixed>
      */
@@ -3527,6 +3610,11 @@ final class TableGeometry
 
         if (($slot['rowspanToEnd'] ?? false) === true) {
             $record['rowspanToEnd'] = true;
+        }
+
+        $duplicateSourceHeaderMetadata = self::duplicateSourceHeaderTokenMetadata($node);
+        if ($duplicateSourceHeaderMetadata !== []) {
+            $record = array_replace($record, $duplicateSourceHeaderMetadata);
         }
 
         foreach ([
@@ -3680,12 +3768,81 @@ final class TableGeometry
      */
     private static function cellSourceHtmlHeaders(mixed $node): array
     {
-        $headers = preg_split('/\s+/', self::sourceHtmlAttribute($node, 'headers'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        return array_values(array_unique(self::sourceHeaderTokens($node)));
+    }
 
-        return array_values(array_unique(array_map(
-            static fn (string $header): string => trim($header),
-            $headers
-        )));
+    /**
+     * @return list<string>
+     */
+    private static function sourceHeaderTokens(mixed $node): array
+    {
+        $tokens = preg_split('/\s+/', self::sourceHtmlAttribute($node, 'headers'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $headers = [];
+        foreach ($tokens as $token) {
+            $token = trim((string) $token);
+            if ($token !== '') {
+                $headers[] = $token;
+            }
+        }
+
+        return $headers;
+    }
+
+    /**
+     * @return array{
+     *     sourceHeaderTokenCount:int,
+     *     sourceHeaderUniqueTokenCount:int,
+     *     duplicateSourceHeaderTokenCount:int,
+     *     duplicateSourceHeaderTokens:list<string>
+     * }
+     */
+    private static function duplicateSourceHeaderTokenMetadata(mixed $node): array
+    {
+        $tokens = self::sourceHeaderTokens($node);
+        if ($tokens === []) {
+            return [];
+        }
+
+        $uniqueTokens = array_values(array_unique($tokens));
+        $duplicateTokens = self::duplicateStringValues($tokens);
+        if ($duplicateTokens === []) {
+            return [];
+        }
+
+        return [
+            'sourceHeaderTokenCount' => count($tokens),
+            'sourceHeaderUniqueTokenCount' => count($uniqueTokens),
+            'duplicateSourceHeaderTokenCount' => count($tokens) - count($uniqueTokens),
+            'duplicateSourceHeaderTokens' => $duplicateTokens,
+        ];
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private static function duplicateStringValues(array $values): array
+    {
+        $seen = [];
+        $duplicates = [];
+        foreach ($values as $value) {
+            $value = trim((string) $value);
+            if ($value === '') {
+                continue;
+            }
+
+            if (!isset($seen[$value])) {
+                $seen[$value] = 1;
+                continue;
+            }
+
+            $seen[$value]++;
+            if ($seen[$value] === 2) {
+                $duplicates[] = $value;
+            }
+        }
+
+        return $duplicates;
     }
 
     private static function sourceHtmlAttribute(mixed $node, string $name): string
@@ -5137,6 +5294,9 @@ final class TableGeometry
         $emptyTableRowCount = 0;
         $invalidSourceScopeCount = 0;
         $invalidSourceScopes = [];
+        $duplicateSourceHeaderTokenCount = 0;
+        $duplicateSourceHeaderTokenCellCount = 0;
+        $duplicateSourceHeaderTokens = [];
         foreach ($diagnostics as $diagnostic) {
             $code = (string) ($diagnostic['code'] ?? '');
             if ($code !== '') {
@@ -5153,6 +5313,10 @@ final class TableGeometry
                 if ($invalidSourceScope !== '') {
                     $invalidSourceScopes[] = $invalidSourceScope;
                 }
+            } elseif ($code === 'table-source-headers-duplicate-tokens') {
+                $duplicateSourceHeaderTokenCount += (int) ($diagnostic['duplicateTokenCount'] ?? 0);
+                $duplicateSourceHeaderTokenCellCount += (int) ($diagnostic['duplicateTokenCellCount'] ?? 0);
+                array_push($duplicateSourceHeaderTokens, ...self::stringList($diagnostic['duplicateTokens'] ?? []));
             }
         }
 
@@ -5248,6 +5412,10 @@ final class TableGeometry
             'hasInvalidSourceScopes' => $invalidSourceScopeCount > 0,
             'invalidSourceScopeCount' => $invalidSourceScopeCount,
             'invalidSourceScopes' => array_values(array_unique($invalidSourceScopes)),
+            'hasDuplicateSourceHeaderTokens' => $duplicateSourceHeaderTokenCount > 0,
+            'duplicateSourceHeaderTokenCount' => $duplicateSourceHeaderTokenCount,
+            'duplicateSourceHeaderTokenCellCount' => $duplicateSourceHeaderTokenCellCount,
+            'duplicateSourceHeaderTokens' => array_values(array_unique($duplicateSourceHeaderTokens)),
             'hasCaption' => (string) ($captions['long']['text'] ?? '') !== '',
             'hasShortCaption' => (string) ($captions['short']['text'] ?? '') !== '',
             'captionInlineTypes' => array_values(array_map(
@@ -5407,6 +5575,9 @@ final class TableGeometry
             'sourceHeaderUnresolvedReferenceCount' => (int) ($headerAssociationSummary['sourceHeaderUnresolvedReferenceCount'] ?? 0),
             'hasUnresolvedSourceHeaderReferences' => (bool) ($headerAssociationSummary['hasUnresolvedSourceHeaderReferences'] ?? false),
             'unresolvedSourceHeaderReferences' => self::stringList($headerAssociationSummary['unresolvedSourceHeaderReferences'] ?? []),
+            'sourceHeaderDuplicateTokenCellCount' => (int) ($headerAssociationSummary['duplicateSourceHeaderTokenCellCount'] ?? 0),
+            'sourceHeaderDuplicateTokenCount' => (int) ($headerAssociationSummary['duplicateSourceHeaderTokenCount'] ?? 0),
+            'sourceHeaderDuplicateTokens' => self::stringList($headerAssociationSummary['duplicateSourceHeaderTokens'] ?? []),
             'sourceHeaderAmbiguousReferenceCount' => (int) ($headerAssociationSummary['sourceHeaderAmbiguousReferenceCount'] ?? 0),
             'hasAmbiguousSourceHeaderReferences' => (bool) ($headerAssociationSummary['hasAmbiguousSourceHeaderReferences'] ?? false),
             'ambiguousSourceHeaderReferences' => self::stringList($headerAssociationSummary['ambiguousSourceHeaderReferences'] ?? []),
@@ -6115,6 +6286,10 @@ final class TableGeometry
             'unresolvedReferenceCount' => (int) ($summary['sourceHeaderUnresolvedReferenceCount'] ?? 0),
             'hasUnresolvedReferences' => (bool) ($summary['hasUnresolvedSourceHeaderReferences'] ?? false),
             'unresolvedReferences' => self::stringList($summary['unresolvedSourceHeaderReferences'] ?? []),
+            'duplicateTokenCellCount' => (int) ($summary['duplicateSourceHeaderTokenCellCount'] ?? 0),
+            'duplicateTokenCount' => (int) ($summary['duplicateSourceHeaderTokenCount'] ?? 0),
+            'hasDuplicateTokens' => (bool) ($summary['hasDuplicateSourceHeaderTokens'] ?? false),
+            'duplicateTokens' => self::stringList($summary['duplicateSourceHeaderTokens'] ?? []),
             'ambiguousReferenceCount' => (int) ($summary['sourceHeaderAmbiguousReferenceCount'] ?? 0),
             'hasAmbiguousReferences' => (bool) ($summary['hasAmbiguousSourceHeaderReferences'] ?? false),
             'ambiguousReferences' => self::stringList($summary['ambiguousSourceHeaderReferences'] ?? []),
@@ -6208,6 +6383,54 @@ final class TableGeometry
      * @param array<string, mixed> $associations
      * @return list<array<string, mixed>>
      */
+    private static function sourceHeaderDuplicateTokenCells(array $associations): array
+    {
+        $cells = [];
+        foreach (['headerCells' => 'header', 'dataCells' => 'data'] as $associationKey => $role) {
+            $records = is_array($associations[$associationKey] ?? null) ? $associations[$associationKey] : [];
+            foreach ($records as $record) {
+                if (!is_array($record)) {
+                    continue;
+                }
+
+                $duplicates = self::stringList($record['duplicateSourceHeaderTokens'] ?? []);
+                if ($duplicates === []) {
+                    continue;
+                }
+
+                $cell = ['role' => $role];
+                foreach (['key', 'section', 'rowRole', 'id', 'scope', 'text'] as $key) {
+                    $value = trim((string) ($record[$key] ?? ''));
+                    if ($value !== '') {
+                        $cell[$key] = $value;
+                    }
+                }
+
+                foreach (['row', 'column', 'sourceCell', 'sourceColumn', 'colspan', 'rowspan', 'sourceHeaderTokenCount', 'sourceHeaderUniqueTokenCount', 'duplicateSourceHeaderTokenCount'] as $key) {
+                    if (isset($record[$key]) && is_numeric($record[$key])) {
+                        $cell[$key] = (int) $record[$key];
+                    }
+                }
+
+                foreach (['columns', 'headers', 'sourceHeaders'] as $key) {
+                    $values = $key === 'columns' ? self::intList($record[$key] ?? []) : self::stringList($record[$key] ?? []);
+                    if ($values !== []) {
+                        $cell[$key] = $values;
+                    }
+                }
+
+                $cell['duplicateSourceHeaderTokens'] = $duplicates;
+                $cells[] = $cell;
+            }
+        }
+
+        return $cells;
+    }
+
+    /**
+     * @param array<string, mixed> $associations
+     * @return list<array<string, mixed>>
+     */
     private static function sourceHeaderReferenceCells(array $associations): array
     {
         $cells = [];
@@ -6236,13 +6459,13 @@ final class TableGeometry
                     }
                 }
 
-                foreach (['row', 'column', 'sourceCell', 'sourceColumn', 'colspan', 'rowspan'] as $key) {
+                foreach (['row', 'column', 'sourceCell', 'sourceColumn', 'colspan', 'rowspan', 'sourceHeaderTokenCount', 'sourceHeaderUniqueTokenCount', 'duplicateSourceHeaderTokenCount'] as $key) {
                     if (isset($record[$key]) && is_numeric($record[$key])) {
                         $cell[$key] = (int) $record[$key];
                     }
                 }
 
-                foreach (['columns', 'headers', 'sourceHeaders', 'axis'] as $key) {
+                foreach (['columns', 'headers', 'sourceHeaders', 'axis', 'duplicateSourceHeaderTokens'] as $key) {
                     $values = $key === 'columns' ? self::intList($record[$key] ?? []) : self::stringList($record[$key] ?? []);
                     if ($values !== []) {
                         $cell[$key] = $values;

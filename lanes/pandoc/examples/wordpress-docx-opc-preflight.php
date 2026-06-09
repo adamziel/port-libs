@@ -2015,6 +2015,26 @@ $emptySignatureOriginGuard = [
     'valid' => $emptySignatureOrigin['valid'] ?? null,
     'issues' => $emptySignatureOrigin['issues'] ?? null,
 ];
+$invalidSignatureOriginGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/_xmlsignatures/bad-origin.sigs" ContentType="application/xml"/><Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/></Types>'],
+    ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdBadSignatureOrigin" Type="' . OpcRelationshipGraph::DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE . '" Target="_xmlsignatures/bad-origin.sigs"/></Relationships>'],
+    ['name' => '_xmlsignatures/bad-origin.sigs', 'data' => ''],
+    ['name' => '_xmlsignatures/_rels/bad-origin.sigs.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdSignature1" Type="' . OpcRelationshipGraph::DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE . '" Target="sig1.xml"/></Relationships>'],
+    ['name' => '_xmlsignatures/sig1.xml', 'data' => '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/>'],
+]));
+$invalidSignatureOriginRoles = $invalidSignatureOriginGraph->preflightDigitalSignatureRelationshipRoles();
+$invalidSignatureOriginRolesById = [];
+foreach ($invalidSignatureOriginRoles['roles'] as $role) {
+    $invalidSignatureOriginRolesById[$role['id']] = $role;
+}
+$invalidSignatureOriginGuard = [
+    'allowedSignatureSources' => $invalidSignatureOriginRoles['allowedSignatureSources'],
+    'originValid' => $invalidSignatureOriginRolesById['rIdBadSignatureOrigin']['valid'] ?? null,
+    'originIssues' => $invalidSignatureOriginRolesById['rIdBadSignatureOrigin']['issues'] ?? null,
+    'signatureSourceAllowed' => $invalidSignatureOriginRolesById['rIdSignature1']['sourceAllowed'] ?? null,
+    'signatureValid' => $invalidSignatureOriginRolesById['rIdSignature1']['valid'] ?? null,
+    'signatureIssues' => $invalidSignatureOriginRolesById['rIdSignature1']['issues'] ?? null,
+];
 
 $corePropertiesPreflight = $graph->preflightCoreProperties();
 $corePropertiesPart = $corePropertiesPreflight['relationships'][0]['targetPart'] ?? null;
@@ -2317,6 +2337,7 @@ $summary = [
         'internalTargetDiagnostics' => $internalTargetDiagnostics,
         'relationshipSerializationGuard' => $relationshipSerializationGuard,
         'emptySignatureOriginGuard' => $emptySignatureOriginGuard,
+        'invalidSignatureOriginGuard' => $invalidSignatureOriginGuard,
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
     'relationshipTargetModeGuards' => $relationshipTargetModeGuards,
@@ -2895,6 +2916,12 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['emptySignatureOriginGuard']['signatureCount'] ?? null) !== 0
         || ($summary['integrity']['emptySignatureOriginGuard']['valid'] ?? null) !== false
         || ($summary['integrity']['emptySignatureOriginGuard']['issues'] ?? null) !== ['missing-digital-signature-signature-relationships']
+        || ($summary['integrity']['invalidSignatureOriginGuard']['allowedSignatureSources'] ?? null) !== []
+        || ($summary['integrity']['invalidSignatureOriginGuard']['originValid'] ?? null) !== false
+        || ($summary['integrity']['invalidSignatureOriginGuard']['originIssues'] ?? null) !== ['invalid-digital-signature-origin-content-type']
+        || ($summary['integrity']['invalidSignatureOriginGuard']['signatureSourceAllowed'] ?? null) !== false
+        || ($summary['integrity']['invalidSignatureOriginGuard']['signatureValid'] ?? null) !== false
+        || ($summary['integrity']['invalidSignatureOriginGuard']['signatureIssues'] ?? null) !== ['digital-signature-signature-source-not-origin']
         || ($summary['relationships']['rIdInternalBookmark']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['relationships']['rIdInternalReviewState']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['wordpressImport']['internalSourceReferences'][0]['id'] ?? null) !== 'rIdInternalBookmark'

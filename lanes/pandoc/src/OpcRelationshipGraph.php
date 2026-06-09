@@ -2220,7 +2220,13 @@ final class OpcRelationshipGraph
         $allowedSignatureSources = [];
         foreach ($this->preflightTargetsForSource('/', self::DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE) as $origin) {
             $targetPart = self::targetPartFromPreflightTarget($origin);
-            if ($origin['external'] || $targetPart === null) {
+            if (
+                $origin['external']
+                || $targetPart === null
+                || $origin['exists'] !== true
+                || !$origin['valid']
+                || !self::contentTypeMatches($origin['contentType'], self::DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE)
+            ) {
                 continue;
             }
 
