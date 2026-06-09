@@ -249,6 +249,109 @@ return [
         $t->same('captionBlocks', $packet['captions']['long']['source'] ?? null);
         $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
     },
+    'accepts constructor wrapped native table captions for review handoff' => static function (TestRunner $t): void {
+        $nativeTable = [
+            't' => 'Table',
+            'c' => [
+                ['', ['constructor-caption'], []],
+                [
+                    't' => 'Caption',
+                    'c' => [
+                        [
+                            't' => 'Just',
+                            'c' => [
+                                't' => 'ShortCaption',
+                                'c' => [[
+                                    ['t' => 'Str', 'c' => 'Queue'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Emph', 'c' => [
+                                        ['t' => 'Str', 'c' => 'short'],
+                                    ]],
+                                ]],
+                            ],
+                        ],
+                        [
+                            ['t' => 'Para', 'c' => [
+                                ['t' => 'Str', 'c' => 'Wrapped'],
+                                ['t' => 'Space'],
+                                ['t' => 'Strong', 'c' => [
+                                    ['t' => 'Str', 'c' => 'caption'],
+                                ]],
+                            ]],
+                            ['t' => 'Plain', 'c' => [
+                                ['t' => 'Str', 'c' => 'Second'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'line'],
+                            ]],
+                        ],
+                    ],
+                ],
+                [
+                    [['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']],
+                ],
+                ['t' => 'TableHead', 'c' => [
+                    ['', [], []],
+                    [],
+                ]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 0],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [
+                                            ['t' => 'Plain', 'c' => [
+                                                ['t' => 'Str', 'c' => 'Cell'],
+                                            ]],
+                                        ],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [
+                    ['', [], []],
+                    [],
+                ]],
+            ],
+        ];
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$nativeTable],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $table = $document->children[0];
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('table', $table->type);
+        $t->same(['constructor-caption'], $table->attr('classes'));
+        $t->same('Queue short', $table->attr('shortCaption'));
+        $t->same('Wrapped caption' . "\n" . 'Second line', $table->attr('caption'));
+        $t->same(['paragraph', 'plain'], array_map(static fn (AstNode $node): string => $node->type, $table->attr('captionBlocks')));
+        $t->same([], $table->attr('captionInlines', []));
+        $t->same(['text', 'emph'], array_map(static fn (AstNode $node): string => $node->type, $table->attr('shortCaptionInlines')));
+        $t->same('captionBlocks', $packet['captions']['long']['source'] ?? null);
+        $t->same(2, $packet['captions']['long']['blockCount'] ?? null);
+        $t->same(['paragraph', 'plain'], $packet['captions']['long']['blockTypes'] ?? null);
+        $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
+        $t->same(['text', 'emph'], $packet['captions']['short']['inlineTypes'] ?? null);
+        $t->contains('data-pandoc-short-caption="Queue short"', $blocks);
+        $t->contains('<strong>caption</strong>', $blocks);
+        $t->same($nativeTable, $roundTrip['blocks'][0]);
+    },
     'writes shared table captions as pandoc native ast json' => static function (TestRunner $t): void {
         $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
             new AstNode('table', [
