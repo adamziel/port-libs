@@ -319,6 +319,7 @@ final class PdfEngineHandoff
      *     pdfPageOutputIntents: list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pdfOutputIntentPolicy: array<string, mixed>,
      *     pdfConformancePolicy: array<string, mixed>,
+     *     pdfAssociatedFilePolicy: array<string, mixed>,
      *     pdfLanguage: string|null,
      *     pdfPageLayout: string|null,
      *     pdfPageMode: string|null,
@@ -783,6 +784,7 @@ final class PdfEngineHandoff
         $pdfPageOutputIntents = [];
         $pdfOutputIntentPolicy = [];
         $pdfConformancePolicy = [];
+        $pdfAssociatedFilePolicy = [];
         $pdfLanguage = null;
         $pdfPageLayout = null;
         $pdfPageMode = null;
@@ -905,6 +907,7 @@ final class PdfEngineHandoff
                 $pdfPageOutputIntents = $pdfInspection['pageOutputIntents'];
                 $pdfOutputIntentPolicy = $pdfInspection['outputIntentPolicy'];
                 $pdfConformancePolicy = $pdfInspection['conformancePolicy'];
+                $pdfAssociatedFilePolicy = $pdfInspection['associatedFilePolicy'];
                 $pdfLanguage = $pdfInspection['language'];
                 $pdfPageLayout = $pdfInspection['pageLayout'];
                 $pdfPageMode = $pdfInspection['pageMode'];
@@ -1838,6 +1841,46 @@ final class PdfEngineHandoff
                         ksort($issueCounts);
                         foreach ($issueCounts as $issue => $count) {
                             $diagnostics[] = 'pdf-byte-conformance-policy-issue:' . $issue . ':' . $count;
+                        }
+                    }
+                }
+                if ($pdfAssociatedFilePolicy !== []) {
+                    $policyStatus = is_string($pdfAssociatedFilePolicy['reviewStatus'] ?? null)
+                        ? $pdfAssociatedFilePolicy['reviewStatus']
+                        : 'unknown';
+                    $diagnostics[] = 'pdf-byte-associated-file-policy:' . $policyStatus;
+                    if (isset($pdfAssociatedFilePolicy['associatedFileCount']) && is_int($pdfAssociatedFilePolicy['associatedFileCount'])) {
+                        $diagnostics[] = 'pdf-byte-associated-files:' . $pdfAssociatedFilePolicy['associatedFileCount'];
+                    }
+                    if (isset($pdfAssociatedFilePolicy['unassociatedFileCount']) && is_int($pdfAssociatedFilePolicy['unassociatedFileCount']) && $pdfAssociatedFilePolicy['unassociatedFileCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-unassociated-embedded-files:' . $pdfAssociatedFilePolicy['unassociatedFileCount'];
+                    }
+                    if (isset($pdfAssociatedFilePolicy['missingRelationshipCount']) && is_int($pdfAssociatedFilePolicy['missingRelationshipCount']) && $pdfAssociatedFilePolicy['missingRelationshipCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-associated-file-missing-relationships:' . $pdfAssociatedFilePolicy['missingRelationshipCount'];
+                    }
+                    if (isset($pdfAssociatedFilePolicy['relationshipCounts']) && is_array($pdfAssociatedFilePolicy['relationshipCounts']) && $pdfAssociatedFilePolicy['relationshipCounts'] !== []) {
+                        $diagnostics[] = 'pdf-byte-associated-file-relationships:' . count($pdfAssociatedFilePolicy['relationshipCounts']);
+                        foreach ($pdfAssociatedFilePolicy['relationshipCounts'] as $relationship => $count) {
+                            if (!is_string($relationship) || !is_int($count)) {
+                                continue;
+                            }
+
+                            $diagnostics[] = 'pdf-byte-associated-file-relationship:' . $relationship . ':' . $count;
+                        }
+                    }
+                    if (isset($pdfAssociatedFilePolicy['issues']) && is_array($pdfAssociatedFilePolicy['issues']) && $pdfAssociatedFilePolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-associated-file-policy-issues:' . count($pdfAssociatedFilePolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfAssociatedFilePolicy['issues'] as $issue) {
+                            if (!is_string($issue) || $issue === '') {
+                                continue;
+                            }
+
+                            $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-associated-file-policy-issue:' . $issue . ':' . $count;
                         }
                     }
                 }
@@ -3271,6 +3314,7 @@ final class PdfEngineHandoff
             'pdfPageOutputIntents' => $pdfPageOutputIntents,
             'pdfOutputIntentPolicy' => $pdfOutputIntentPolicy,
             'pdfConformancePolicy' => $pdfConformancePolicy,
+            'pdfAssociatedFilePolicy' => $pdfAssociatedFilePolicy,
             'pdfLanguage' => $pdfLanguage,
             'pdfPageLayout' => $pdfPageLayout,
             'pdfPageMode' => $pdfPageMode,
@@ -3414,6 +3458,7 @@ final class PdfEngineHandoff
      *     finalPdfPageOutputIntents: list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     finalPdfOutputIntentPolicy: array<string, mixed>,
      *     finalPdfConformancePolicy: array<string, mixed>,
+     *     finalPdfAssociatedFilePolicy: array<string, mixed>,
      *     finalPdfLanguage: string|null,
      *     finalPdfPageLayout: string|null,
      *     finalPdfPageMode: string|null,
@@ -3671,6 +3716,7 @@ final class PdfEngineHandoff
             'finalPdfPageOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfPageOutputIntents'] ?? null) ? $finalRun['pdfPageOutputIntents'] : [],
             'finalPdfOutputIntentPolicy' => is_array($finalRun) && is_array($finalRun['pdfOutputIntentPolicy'] ?? null) ? $finalRun['pdfOutputIntentPolicy'] : [],
             'finalPdfConformancePolicy' => is_array($finalRun) && is_array($finalRun['pdfConformancePolicy'] ?? null) ? $finalRun['pdfConformancePolicy'] : [],
+            'finalPdfAssociatedFilePolicy' => is_array($finalRun) && is_array($finalRun['pdfAssociatedFilePolicy'] ?? null) ? $finalRun['pdfAssociatedFilePolicy'] : [],
             'finalPdfLanguage' => is_array($finalRun) && is_string($finalRun['pdfLanguage'] ?? null) ? $finalRun['pdfLanguage'] : null,
             'finalPdfPageLayout' => is_array($finalRun) && is_string($finalRun['pdfPageLayout'] ?? null) ? $finalRun['pdfPageLayout'] : null,
             'finalPdfPageMode' => is_array($finalRun) && is_string($finalRun['pdfPageMode'] ?? null) ? $finalRun['pdfPageMode'] : null,
@@ -4981,6 +5027,7 @@ final class PdfEngineHandoff
             'pageOutputIntents' => $pageOutputIntents,
             'outputIntentPolicy' => $this->summarizePdfOutputIntentPolicy($xmpMetadata, $outputIntents, $pageOutputIntents),
             'conformancePolicy' => $this->summarizePdfConformancePolicy($xmpMetadata, $outputIntents, $language, $taggingMetadata, $encryption),
+            'associatedFilePolicy' => $this->summarizePdfAssociatedFilePolicy($xmpMetadata, $embeddedFiles),
             'language' => $language,
             'pageLayout' => $this->extractPdfCatalogName($catalog, 'PageLayout'),
             'pageMode' => $this->extractPdfCatalogName($catalog, 'PageMode'),
@@ -7650,6 +7697,107 @@ final class PdfEngineHandoff
             'outputIntentCount' => count($outputIntents),
             'issues' => $issues,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $xmpMetadata
+     * @param list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}> $embeddedFiles
+     * @return array<string, mixed>
+     */
+    private function summarizePdfAssociatedFilePolicy(array $xmpMetadata, array $embeddedFiles): array
+    {
+        if ($embeddedFiles === []) {
+            return [];
+        }
+
+        $pdfaIdentification = isset($xmpMetadata['pdfaIdentification']) && is_array($xmpMetadata['pdfaIdentification'])
+            ? $xmpMetadata['pdfaIdentification']
+            : [];
+        $pdfaPart = is_string($pdfaIdentification['part'] ?? null) && $pdfaIdentification['part'] !== ''
+            ? $pdfaIdentification['part']
+            : null;
+        $pdfaConformance = is_string($pdfaIdentification['conformance'] ?? null) && $pdfaIdentification['conformance'] !== ''
+            ? $pdfaIdentification['conformance']
+            : null;
+        $pdfaClaimed = $pdfaPart !== null || $pdfaConformance !== null;
+        $standardRelationships = array_fill_keys(['Alternative', 'Data', 'Source', 'Supplement', 'Unspecified'], true);
+        $relationshipCounts = [];
+        $associatedFileCount = 0;
+        $unassociatedFileCount = 0;
+        $missingRelationshipCount = 0;
+        $issueSet = [];
+        $files = [];
+
+        foreach ($embeddedFiles as $embeddedFile) {
+            $source = is_string($embeddedFile['source'] ?? null) ? $embeddedFile['source'] : '';
+            $relationship = is_string($embeddedFile['afRelationship'] ?? null) && $embeddedFile['afRelationship'] !== ''
+                ? $embeddedFile['afRelationship']
+                : null;
+            $associated = $this->isPdfAssociatedFileSource($source);
+            $fileIssues = [];
+
+            if ($associated) {
+                $associatedFileCount++;
+                if ($relationship === null) {
+                    $missingRelationshipCount++;
+                    $fileIssues[] = 'associated-file-missing-afrelationship';
+                } else {
+                    $relationshipCounts[$relationship] = ($relationshipCounts[$relationship] ?? 0) + 1;
+                    if (!isset($standardRelationships[$relationship])) {
+                        $fileIssues[] = 'associated-file-nonstandard-afrelationship';
+                    }
+                }
+
+                if ($pdfaClaimed && $pdfaPart !== '3') {
+                    $fileIssues[] = 'pdfa-associated-files-require-pdfa-3';
+                }
+            } else {
+                $unassociatedFileCount++;
+                if ($pdfaClaimed && (($embeddedFile['embeddedFile'] ?? null) !== null || ($embeddedFile['streamBytes'] ?? null) !== null)) {
+                    $fileIssues[] = 'pdfa-embedded-file-not-associated';
+                }
+            }
+
+            $fileIssues = array_values(array_unique($fileIssues));
+            foreach ($fileIssues as $issue) {
+                $issueSet[$issue] = true;
+            }
+
+            $files[] = [
+                'name' => (string) ($embeddedFile['name'] ?? ''),
+                'source' => $source,
+                'filespec' => is_string($embeddedFile['filespec'] ?? null) ? $embeddedFile['filespec'] : null,
+                'embeddedFile' => is_string($embeddedFile['embeddedFile'] ?? null) ? $embeddedFile['embeddedFile'] : null,
+                'afRelationship' => $relationship,
+                'associated' => $associated,
+                'issues' => $fileIssues,
+            ];
+        }
+
+        ksort($relationshipCounts);
+        $issues = array_keys($issueSet);
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'pdfaClaimed' => $pdfaClaimed,
+            'pdfaPart' => $pdfaPart,
+            'pdfaConformance' => $pdfaConformance,
+            'embeddedFileCount' => count($embeddedFiles),
+            'associatedFileCount' => $associatedFileCount,
+            'unassociatedFileCount' => $unassociatedFileCount,
+            'missingRelationshipCount' => $missingRelationshipCount,
+            'relationshipCounts' => $relationshipCounts,
+            'issues' => $issues,
+            'files' => $files,
+        ];
+    }
+
+    private function isPdfAssociatedFileSource(string $source): bool
+    {
+        return $source === 'catalog.AF'
+            || str_ends_with($source, '.AF')
+            || str_contains($source, '.AF.');
     }
 
     /**

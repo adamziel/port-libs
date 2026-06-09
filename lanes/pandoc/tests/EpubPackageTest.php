@@ -179,6 +179,63 @@ return [
         $t->same(['chapter1', 'chapter2'], array_column($epub->spine(), 'idref'));
     },
 
+    'preserves OPF guide references and XHTML nav sections for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithGuide = str_replace(
+            '</spine>',
+            '</spine>
+  <guide>
+    <reference type="text" title="Start reading" href="text/chapter1.xhtml#install"/>
+    <reference type="cover" title="Cover image" href="images/cover.png"/>
+    <reference type="glossary" title="Legacy glossary" href="https://example.invalid/glossary.xhtml"/>
+  </guide>',
+            $epub3OpfXml
+        );
+        $navWithSections = str_replace(
+            '</body>',
+            '    <nav epub:type="landmarks">
+      <ol>
+        <li><a epub:type="bodymatter" href="text/chapter1.xhtml#install">Start reading</a></li>
+        <li><a epub:type="backmatter bibliography" href="text/chapter2.xhtml#refs">References</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="text/chapter1.xhtml#page-1">1</a></li>
+        <li><a epub:type="pagebreak" href="text/chapter2.xhtml#page-2">2</a></li>
+      </ol>
+    </nav>
+  </body>',
+            $epub3NavXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithGuide],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navWithSections],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="install">Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="refs">References</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $summary = $epub->summary();
+
+        $t->same(['text', 'cover', 'glossary'], array_column($epub->guideReferences(), 'type'));
+        $t->same('/EPUB/text/chapter1.xhtml#install', $epub->guideReferences()[0]['target']);
+        $t->same(true, $epub->guideReferences()[0]['exists']);
+        $t->same('/EPUB/images/cover.png', $epub->guideReferences()[1]['partName']);
+        $t->same('https://example.invalid/glossary.xhtml', $epub->guideReferences()[2]['target']);
+        $t->same(true, $epub->guideReferences()[2]['external']);
+
+        $t->same(['toc', 'landmarks', 'page-list'], array_column($epub->navigationSections(), 'type'));
+        $t->same(['Introduction', 'Install notes', 'Review checklist'], array_column($epub->navigationSections()[0]['entries'], 'label'));
+        $t->same(['Start reading', 'References'], array_column($epub->navigationSections()[1]['entries'], 'label'));
+        $t->same(['/EPUB/text/chapter1.xhtml#install', '/EPUB/text/chapter2.xhtml#refs'], array_column($epub->navigationSections()[1]['entries'], 'target'));
+        $t->same(['1', '2'], array_column($epub->navigationSections()[2]['entries'], 'label'));
+        $t->same(['/EPUB/text/chapter1.xhtml#page-1', '/EPUB/text/chapter2.xhtml#page-2'], array_column($summary['wordpressImport']['pageListTargets'], 'target'));
+        $t->same(['/EPUB/text/chapter1.xhtml#install', '/EPUB/images/cover.png', 'https://example.invalid/glossary.xhtml'], array_column($summary['wordpressImport']['guideReferences'], 'target'));
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],

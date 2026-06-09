@@ -23,7 +23,9 @@ final class EpubPackage
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
      * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestItems
      * @param list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}> $spine
+     * @param list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}> $guideReferences
      * @param array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null $navigation
+     * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}> $navigationSections
      */
     private function __construct(
         private readonly ZipPackage $package,
@@ -33,7 +35,9 @@ final class EpubPackage
         private readonly array $manifestById,
         private readonly array $manifestItems,
         private readonly array $spine,
+        private readonly array $guideReferences,
         private readonly ?array $navigation,
+        private readonly array $navigationSections,
     ) {
     }
 
@@ -78,7 +82,9 @@ final class EpubPackage
             $opf['manifestById'],
             $opf['manifestItems'],
             $opf['spine'],
-            $navigation,
+            $opf['guideReferences'],
+            $navigation['navigation'],
+            $navigation['sections'],
         );
     }
 
@@ -141,11 +147,27 @@ final class EpubPackage
     }
 
     /**
+     * @return list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>
+     */
+    public function guideReferences(): array
+    {
+        return $this->guideReferences;
+    }
+
+    /**
      * @return array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null
      */
     public function navigation(): ?array
     {
         return $this->navigation;
+    }
+
+    /**
+     * @return list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}>
+     */
+    public function navigationSections(): array
+    {
+        return $this->navigationSections;
     }
 
     /**
@@ -218,7 +240,9 @@ final class EpubPackage
             'metadata' => $this->metadata,
             'manifest' => $this->manifestItems,
             'readingOrder' => $this->spine,
+            'guide' => $this->guideReferences,
             'navigation' => $this->navigation,
+            'navigationSections' => $this->navigationSections,
             'assets' => $assetSummary,
             'wordpressImport' => [
                 'title' => $this->metadata['title'],
@@ -229,6 +253,9 @@ final class EpubPackage
                     static fn (array $entry): string => $entry['label'],
                     $navigationEntries,
                 )),
+                'guideReferences' => $this->guideReferences,
+                'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
+                'pageListTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'page-list'),
                 'coverImagePart' => $assetSummary['coverImagePart'],
                 'stylesheetParts' => $assetSummary['stylesheetParts'],
                 'imageParts' => $assetSummary['imageParts'],
@@ -300,6 +327,7 @@ final class EpubPackage
      *     manifestById:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
      *     manifestItems:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
      *     spine:list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}>,
+     *     guideReferences:list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>,
      *     spineTocId:?string
      * }
      */
@@ -322,12 +350,14 @@ final class EpubPackage
         $metadata = self::parseMetadata($metadataElement, $root);
         [$manifestById, $manifestItems] = self::parseManifest($manifestElement, $opfPartName, $package);
         $spine = self::parseSpine($spineElement, $manifestById);
+        $guideReferences = self::parseGuide(self::firstChildElement($root, 'guide', self::OPF_NAMESPACE), $opfPartName, $package);
 
         return [
             'metadata' => $metadata,
             'manifestById' => $manifestById,
             'manifestItems' => $manifestItems,
             'spine' => $spine,
+            'guideReferences' => $guideReferences,
             'spineTocId' => $spineElement->hasAttribute('toc') ? $spineElement->getAttribute('toc') : null,
         ];
     }
@@ -527,16 +557,24 @@ final class EpubPackage
     /**
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
      *
-     * @return array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null
+     * @return array{
+     *     navigation:array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null,
+     *     sections:list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}>
+     * }
      */
-    private static function loadNavigation(ZipPackage $package, string $opfPartName, array $manifestById, ?string $spineTocId): ?array
+    private static function loadNavigation(ZipPackage $package, string $opfPartName, array $manifestById, ?string $spineTocId): array
     {
         foreach ($manifestById as $item) {
             if ($item['mediaType'] === self::XHTML_MEDIA_TYPE && in_array('nav', $item['properties'], true)) {
+                $report = self::parseNavDocument($package->read($item['partName']), $item['partName']);
+
                 return [
-                    'type' => 'nav',
-                    'partName' => $item['partName'],
-                    'entries' => self::parseNavDocument($package->read($item['partName']), $item['partName']),
+                    'navigation' => [
+                        'type' => 'nav',
+                        'partName' => $item['partName'],
+                        'entries' => $report['primaryEntries'],
+                    ],
+                    'sections' => $report['sections'],
                 ];
             }
         }
@@ -554,18 +592,35 @@ final class EpubPackage
         }
 
         if (is_array($ncxItem)) {
+            $entries = self::parseNcxDocument($package->read($ncxItem['partName']), $ncxItem['partName']);
+
             return [
-                'type' => 'ncx',
-                'partName' => $ncxItem['partName'],
-                'entries' => self::parseNcxDocument($package->read($ncxItem['partName']), $ncxItem['partName']),
+                'navigation' => [
+                    'type' => 'ncx',
+                    'partName' => $ncxItem['partName'],
+                    'entries' => $entries,
+                ],
+                'sections' => [[
+                    'type' => 'toc',
+                    'types' => ['toc'],
+                    'label' => null,
+                    'partName' => $ncxItem['partName'],
+                    'entries' => $entries,
+                ]],
             ];
         }
 
-        return null;
+        return [
+            'navigation' => null,
+            'sections' => [],
+        ];
     }
 
     /**
-     * @return list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>
+     * @return array{
+     *     primaryEntries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>,
+     *     sections:list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}>
+     * }
      */
     private static function parseNavDocument(string $xml, string $navPartName): array
     {
@@ -576,30 +631,40 @@ final class EpubPackage
             throw new \RuntimeException('EPUB navigation document does not contain a nav element');
         }
 
-        $tocNav = null;
+        $primaryEntries = null;
+        $fallbackEntries = null;
+        $sections = [];
         foreach ($nodes as $node) {
             if (!$node instanceof \DOMElement) {
                 continue;
             }
 
-            $type = $node->getAttributeNS(self::EPUB_OPS_NAMESPACE, 'type') ?: $node->getAttribute('epub:type') ?: $node->getAttribute('type');
-            if (in_array('toc', self::splitTokens($type), true)) {
-                $tocNav = $node;
-                break;
+            $types = self::epubTypes($node);
+            $list = self::firstChildElement($node, 'ol') ?? self::firstDescendantElement($node, 'ol');
+            $entries = $list instanceof \DOMElement ? self::parseNavList($list, $navPartName, 1) : [];
+            $section = [
+                'type' => $types[0] ?? null,
+                'types' => $types,
+                'label' => self::navSectionLabel($node),
+                'partName' => $navPartName,
+                'entries' => $entries,
+            ];
+
+            $sections[] = $section;
+            $fallbackEntries ??= $entries;
+            if (in_array('toc', $types, true) && $primaryEntries === null) {
+                $primaryEntries = $entries;
             }
         }
 
-        $tocNav ??= $nodes->item(0) instanceof \DOMElement ? $nodes->item(0) : null;
-        if (!$tocNav instanceof \DOMElement) {
+        if ($sections === []) {
             throw new \RuntimeException('EPUB navigation document does not contain a usable nav element');
         }
 
-        $list = self::firstChildElement($tocNav, 'ol') ?? self::firstDescendantElement($tocNav, 'ol');
-        if (!$list instanceof \DOMElement) {
-            return [];
-        }
-
-        return self::parseNavList($list, $navPartName, 1);
+        return [
+            'primaryEntries' => $primaryEntries ?? $fallbackEntries ?? [],
+            'sections' => $sections,
+        ];
     }
 
     /**
@@ -636,6 +701,48 @@ final class EpubPackage
     }
 
     /**
+     * @return list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>
+     */
+    private static function parseGuide(?\DOMElement $guideElement, string $opfPartName, ZipPackage $package): array
+    {
+        if (!$guideElement instanceof \DOMElement) {
+            return [];
+        }
+
+        $references = [];
+        foreach (self::childElements($guideElement, 'reference', self::OPF_NAMESPACE) as $reference) {
+            $href = trim($reference->getAttribute('href'));
+            $target = null;
+            $partName = null;
+            $external = false;
+            $exists = false;
+
+            if ($href !== '') {
+                $target = self::resolvePackageHref($opfPartName, $href);
+                $external = self::isAbsoluteUri($target);
+                if (!$external) {
+                    $partName = OpcPackagePath::stripQueryAndFragment($target);
+                    $exists = $package->has($partName);
+                }
+            }
+
+            $type = trim($reference->getAttribute('type'));
+            $title = trim($reference->getAttribute('title'));
+            $references[] = [
+                'type' => $type === '' ? null : $type,
+                'title' => $title === '' ? null : $title,
+                'href' => $href === '' ? null : $href,
+                'target' => $target,
+                'partName' => $partName,
+                'external' => $external,
+                'exists' => $exists,
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
      * @return list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>
      */
     private static function parseNcxDocument(string $xml, string $ncxPartName): array
@@ -652,6 +759,50 @@ final class EpubPackage
         }
 
         return self::parseNcxNavPoints($navMap, $ncxPartName, 1);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function epubTypes(\DOMElement $element): array
+    {
+        $type = $element->getAttributeNS(self::EPUB_OPS_NAMESPACE, 'type')
+            ?: $element->getAttribute('epub:type')
+            ?: $element->getAttribute('type');
+
+        return self::splitTokens($type);
+    }
+
+    private static function navSectionLabel(\DOMElement $nav): ?string
+    {
+        foreach (self::childElements($nav) as $child) {
+            if (in_array($child->localName, ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'], true)) {
+                $label = self::normalizeText($child->textContent);
+
+                return $label === '' ? null : $label;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}> $sections
+     *
+     * @return list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>
+     */
+    private static function navigationEntriesForSectionType(array $sections, string $type): array
+    {
+        $entries = [];
+        foreach ($sections as $section) {
+            if (!in_array($type, $section['types'], true)) {
+                continue;
+            }
+
+            array_push($entries, ...$section['entries']);
+        }
+
+        return $entries;
     }
 
     /**

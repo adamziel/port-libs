@@ -6671,6 +6671,207 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfEmbeddedFiles']);
     },
 
+    'fake runner summarizes pdfa associated file review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/pdfa-associated-files.pdf']);
+        $xmpPart2 = implode("\n", [
+            '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+            '<rdf:Description xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">',
+            '<pdfaid:part>2</pdfaid:part>',
+            '<pdfaid:conformance>B</pdfaid:conformance>',
+            '</rdf:Description>',
+            '</rdf:RDF>',
+            '</x:xmpmeta>',
+            '<?xpacket end="w"?>',
+        ]);
+        $xmpPart3 = str_replace('<pdfaid:part>2</pdfaid:part>', '<pdfaid:part>3</pdfaid:part>', $xmpPart2);
+        $missingRelationshipBytes = "missing relationship attachment\n";
+        $chartSourceBytes = '{"chart":true}';
+        $looseAttachmentBytes = "loose name-tree attachment\n";
+        $pdfa2Bytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R /Names << /EmbeddedFiles << /Names [(loose.txt) 10 0 R] >> >> /AF [6 0 R] >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /AF [8 0 R] >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmpPart2) . ' >>',
+            'stream',
+            $xmpPart2,
+            'endstream',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Filespec /F (missing-relation.txt) /Desc (Missing relationship) /EF << /F 7 0 R >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size ' . strlen($missingRelationshipBytes) . ' >> /Length ' . strlen($missingRelationshipBytes) . ' >>',
+            'stream',
+            $missingRelationshipBytes,
+            'endstream',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Filespec /F (chart-source.json) /Desc (Chart source) /AFRelationship /Source /EF << /F 9 0 R >> >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size ' . strlen($chartSourceBytes) . ' >> /Length ' . strlen($chartSourceBytes) . ' >>',
+            'stream',
+            $chartSourceBytes,
+            'endstream',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Filespec /F (loose.txt) /Desc (Name tree attachment) /AFRelationship /Data /EF << /F 11 0 R >> >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size ' . strlen($looseAttachmentBytes) . ' >> /Length ' . strlen($looseAttachmentBytes) . ' >>',
+            'stream',
+            $looseAttachmentBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+        $pdfa3Bytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R /AF [6 0 R] >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmpPart3) . ' >>',
+            'stream',
+            $xmpPart3,
+            'endstream',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Filespec /F (review-data.csv) /Desc (Review data) /AFRelationship /Data /EF << /F 7 0 R >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size 12 >> /Length 12 >>',
+            'stream',
+            "id,status\n1",
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/pdfa-associated-files.pdf' => $pdfa2Bytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/pdfa-associated-files.pdf' => $pdfa2Bytes,
+                ],
+            ],
+        ]);
+        $ok = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/pdfa-associated-files.pdf' => $pdfa3Bytes,
+            ],
+        ]);
+        $expected = [
+            'reviewStatus' => 'review',
+            'pdfaClaimed' => true,
+            'pdfaPart' => '2',
+            'pdfaConformance' => 'B',
+            'embeddedFileCount' => 3,
+            'associatedFileCount' => 2,
+            'unassociatedFileCount' => 1,
+            'missingRelationshipCount' => 1,
+            'relationshipCounts' => ['Source' => 1],
+            'issues' => [
+                'associated-file-missing-afrelationship',
+                'pdfa-associated-files-require-pdfa-3',
+                'pdfa-embedded-file-not-associated',
+            ],
+            'files' => [
+                [
+                    'name' => 'chart-source.json',
+                    'source' => 'page:3 0 R.AF',
+                    'filespec' => '8 0 R',
+                    'embeddedFile' => '9 0 R',
+                    'afRelationship' => 'Source',
+                    'associated' => true,
+                    'issues' => ['pdfa-associated-files-require-pdfa-3'],
+                ],
+                [
+                    'name' => 'loose.txt',
+                    'source' => 'catalog.Names.EmbeddedFiles',
+                    'filespec' => '10 0 R',
+                    'embeddedFile' => '11 0 R',
+                    'afRelationship' => 'Data',
+                    'associated' => false,
+                    'issues' => ['pdfa-embedded-file-not-associated'],
+                ],
+                [
+                    'name' => 'missing-relation.txt',
+                    'source' => 'catalog.AF',
+                    'filespec' => '6 0 R',
+                    'embeddedFile' => '7 0 R',
+                    'afRelationship' => null,
+                    'associated' => true,
+                    'issues' => ['associated-file-missing-afrelationship', 'pdfa-associated-files-require-pdfa-3'],
+                ],
+            ],
+        ];
+        $expectedOk = [
+            'reviewStatus' => 'ok',
+            'pdfaClaimed' => true,
+            'pdfaPart' => '3',
+            'pdfaConformance' => 'B',
+            'embeddedFileCount' => 1,
+            'associatedFileCount' => 1,
+            'unassociatedFileCount' => 0,
+            'missingRelationshipCount' => 0,
+            'relationshipCounts' => ['Data' => 1],
+            'issues' => [],
+            'files' => [
+                [
+                    'name' => 'review-data.csv',
+                    'source' => 'catalog.AF',
+                    'filespec' => '6 0 R',
+                    'embeddedFile' => '7 0 R',
+                    'afRelationship' => 'Data',
+                    'associated' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfAssociatedFilePolicy']);
+        $t->contains('pdf-byte-associated-file-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-associated-files:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-unassociated-embedded-files:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-associated-file-missing-relationships:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-associated-file-relationship:Source:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-associated-file-policy-issue:pdfa-associated-files-require-pdfa-3:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-associated-file-policy-issue:associated-file-missing-afrelationship:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-associated-file-policy-issue:pdfa-embedded-file-not-associated:1', implode(',', $result['diagnostics']));
+        $t->same($expected, $sequence['finalPdfAssociatedFilePolicy']);
+        $t->same($expectedOk, $ok['pdfAssociatedFilePolicy']);
+        $t->contains('pdf-byte-associated-file-policy:ok', implode(',', $ok['diagnostics']));
+    },
+
     'fake runner extracts bounded pdf marked content property associated files from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/marked-content.pdf']);

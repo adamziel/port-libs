@@ -35,6 +35,10 @@ $opfXml = <<<'XML'
     <itemref idref="chapter1"/>
     <itemref idref="chapter2"/>
   </spine>
+  <guide>
+    <reference type="text" title="Start reading" href="chapters/intro.xhtml"/>
+    <reference type="cover" title="Cover" href="media/cover.png"/>
+  </guide>
 </package>
 XML;
 
@@ -45,6 +49,16 @@ $navXml = <<<'XML'
       <ol>
         <li><a href="chapters/intro.xhtml">Intro</a></li>
         <li><a href="chapters/review.xhtml">Review checklist</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="landmarks">
+      <ol>
+        <li><a epub:type="bodymatter" href="chapters/intro.xhtml">Start reading</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="chapters/review.xhtml#page-2">2</a></li>
       </ol>
     </nav>
   </body>
@@ -72,6 +86,9 @@ if (($argv[1] ?? '') === '--self-test') {
         ['Intro', 'Review checklist'],
         '/EPUB/media/cover.png',
         ['/EPUB/styles/import.css'],
+        ['/EPUB/chapters/intro.xhtml', '/EPUB/media/cover.png'],
+        ['/EPUB/chapters/intro.xhtml'],
+        ['/EPUB/chapters/review.xhtml#page-2'],
     ];
     $actual = [
         $summary['wordpressImport']['title'],
@@ -79,6 +96,9 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['wordpressImport']['navigationLabels'],
         $summary['wordpressImport']['coverImagePart'],
         $summary['wordpressImport']['stylesheetParts'],
+        array_column($summary['wordpressImport']['guideReferences'], 'target'),
+        array_column($summary['wordpressImport']['landmarkTargets'], 'target'),
+        array_column($summary['wordpressImport']['pageListTargets'], 'target'),
     ];
 
     if ($actual !== $expected) {

@@ -618,7 +618,9 @@ $abstractWordPress = $abstractBlocks === []
     ? ''
     : (new WordPressBlockWriter())->write(new AstNode('document', [], $abstractBlocks));
 $metadataMarkdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
-$metadataRoundTripMeta = (new MarkdownReader())->read($metadataMarkdown)->attr('meta', []);
+$metadataRoundTripDocument = (new MarkdownReader())->read($metadataMarkdown);
+$metadataRoundTripMeta = $metadataRoundTripDocument->attr('meta', []);
+$metadataRoundTripCollectionProvenance = $metadataRoundTripDocument->attr('yamlMetadataCollectionProvenance', []);
 
 $implicitOpeningMarkdown = <<<'MARKDOWN'
 title: "Implicit **Packet**"
@@ -2184,6 +2186,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($metadataMarkdown, "review-notes:\n  - |-\n    Preserve original front matter.")) {
         throw new RuntimeException('YAML metadata self-test did not write sequence multiline note as a YAML block scalar');
     }
+    if (!str_contains($metadataMarkdown, "  reviewer-pairs: !!pairs\n    - owner: \"Import Desk\"\n    - owner: \"QA Desk\"")) {
+        throw new RuntimeException('YAML metadata self-test did not preserve ordered pair tag in nested writer metadata');
+    }
+    if (!str_contains($metadataMarkdown, "flow-ordered-review:\n  steps: !!omap\n    - stage: collected\n    - stage: normalized\n  reviewers: !!pairs\n    - owner: \"Import Desk\"")) {
+        throw new RuntimeException('YAML metadata self-test did not preserve flow ordered collection tags in writer metadata');
+    }
+    if (str_contains($metadataMarkdown, "reviewer-pairs:\n    - key: owner")) {
+        throw new RuntimeException('YAML metadata self-test flattened ordered pair metadata into key/value records');
+    }
     if (
         !str_contains($metadataMarkdown, "writer-hashtag-label: \"#needs-review\"")
         || !str_contains($metadataMarkdown, "  - \"#migration\"")
@@ -2241,6 +2252,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($metadataRoundTripMeta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test failed writer metadata round trip');
+    }
+    $metadataRoundTripCollectionTags = [];
+    foreach ($metadataRoundTripCollectionProvenance as $entry) {
+        if (($entry['type'] ?? '') === 'yaml-collection' && isset($entry['explicitTag'])) {
+            $metadataRoundTripCollectionTags[$entry['path'] ?? ''] = $entry['explicitTag'];
+        }
+    }
+    foreach ([
+        '/ordered-review/reviewer-pairs' => 'pairs',
+        '/flow-ordered-review/steps' => 'omap',
+        '/flow-ordered-review/reviewers' => 'pairs',
+    ] as $expectedPath => $expectedTag) {
+        if (($metadataRoundTripCollectionTags[$expectedPath] ?? null) !== $expectedTag) {
+            throw new RuntimeException('YAML metadata self-test lost writer ordered collection tag at ' . $expectedPath);
+        }
     }
     if (($metadataRoundTripMeta['source-uri'] ?? '') !== '/exports/packet#front-matter') {
         throw new RuntimeException('YAML metadata self-test lost quoted writer source URI during round trip');

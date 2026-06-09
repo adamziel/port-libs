@@ -21,6 +21,9 @@ final class MarkdownWriter
     /** @var array<string, string> */
     private array $referenceTargetLabels = [];
 
+    /** @var array<string, string> */
+    private array $yamlMetadataExplicitCollectionTags = [];
+
     private int $nextNoteNumber = 1;
 
     private int $lastReferenceIndex = 0;
@@ -43,11 +46,15 @@ final class MarkdownWriter
         $this->referenceLabelUses = [];
         $this->referenceUsedLabels = [];
         $this->referenceTargetLabels = [];
+        $this->yamlMetadataExplicitCollectionTags = [];
         $this->nextNoteNumber = 1;
         $this->lastReferenceIndex = 0;
 
         $blocks = [];
         if ((bool) ($this->options['yamlMetadata'] ?? false)) {
+            $this->yamlMetadataExplicitCollectionTags = $this->yamlMetadataExplicitCollectionTags(
+                $document->attr('yamlMetadataCollectionProvenance', [])
+            );
             $metadataBlock = $this->renderYamlMetadataBlock($document->attr('meta', []));
             if ($metadataBlock !== []) {
                 $blocks[] = implode("\n", $metadataBlock);
@@ -89,11 +96,45 @@ final class MarkdownWriter
 
         $lines = ['---'];
         foreach ($metadata as $key => $value) {
-            $this->appendYamlMetadataMappingLines($lines, (string) $key, $value, 0);
+            $path = $this->yamlMetadataPathWithSegment('', (string) $key);
+            $this->appendYamlMetadataMappingLines($lines, (string) $key, $value, 0, $path);
         }
         $lines[] = '...';
 
         return $lines;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function yamlMetadataExplicitCollectionTags(mixed $provenance): array
+    {
+        if (!is_array($provenance)) {
+            return [];
+        }
+
+        $tags = [];
+        foreach ($provenance as $entry) {
+            if (!is_array($entry) || ($entry['type'] ?? '') !== 'yaml-collection') {
+                continue;
+            }
+
+            $path = $entry['path'] ?? null;
+            $tag = $entry['explicitTag'] ?? null;
+            if (
+                !is_string($path)
+                || $path === ''
+                || !is_string($tag)
+                || !in_array($tag, ['omap', 'pairs'], true)
+                || ($entry['kind'] ?? '') !== 'sequence'
+            ) {
+                continue;
+            }
+
+            $tags[$path] = $tag;
+        }
+
+        return $tags;
     }
 
     /**
@@ -155,11 +196,18 @@ final class MarkdownWriter
     /**
      * @param list<string> $lines
      */
-    private function appendYamlMetadataMappingLines(array &$lines, string $key, mixed $value, int $indent): void
+    private function appendYamlMetadataMappingLines(array &$lines, string $key, mixed $value, int $indent, string $path): void
     {
         $prefix = str_repeat(' ', $indent) . $this->formatYamlMetadataKey($key);
         if (!$this->isYamlMetadataCollection($value)) {
             $this->appendYamlMetadataScalarMappingLines($lines, $prefix . ':', $value, $indent + 2);
+            return;
+        }
+
+        $orderedPairTag = $this->yamlMetadataOrderedPairTagForPath($path, $value);
+        if ($orderedPairTag !== null) {
+            $lines[] = $prefix . ': !!' . $orderedPairTag;
+            $this->appendYamlMetadataOrderedPairSequenceLines($lines, $value, $indent + 2, $path);
             return;
         }
 
@@ -169,30 +217,46 @@ final class MarkdownWriter
         }
 
         $lines[] = $prefix . ':';
-        $this->appendYamlMetadataValueLines($lines, $value, $indent + 2);
+        $this->appendYamlMetadataValueLines($lines, $value, $indent + 2, $path);
     }
 
     /**
      * @param list<string> $lines
      */
-    private function appendYamlMetadataValueLines(array &$lines, mixed $value, int $indent): void
+    private function appendYamlMetadataValueLines(array &$lines, mixed $value, int $indent, string $path): void
     {
         if (!$this->isYamlMetadataCollection($value)) {
             $this->appendYamlMetadataScalarValueLines($lines, $value, $indent);
             return;
         }
 
+        $orderedPairTag = $this->yamlMetadataOrderedPairTagForPath($path, $value);
+        if ($orderedPairTag !== null) {
+            $lines[] = str_repeat(' ', $indent) . '!!' . $orderedPairTag;
+            $this->appendYamlMetadataOrderedPairSequenceLines($lines, $value, $indent, $path);
+            return;
+        }
+
         if (!array_is_list($value)) {
             foreach ($value as $key => $item) {
-                $this->appendYamlMetadataMappingLines($lines, (string) $key, $item, $indent);
+                $itemPath = $this->yamlMetadataPathWithSegment($path, (string) $key);
+                $this->appendYamlMetadataMappingLines($lines, (string) $key, $item, $indent, $itemPath);
             }
             return;
         }
 
         $prefix = str_repeat(' ', $indent);
-        foreach ($value as $item) {
+        foreach ($value as $index => $item) {
+            $itemPath = $this->yamlMetadataPathWithSegment($path, $index);
             if (!$this->isYamlMetadataCollection($item)) {
                 $this->appendYamlMetadataScalarListItemLines($lines, $item, $indent);
+                continue;
+            }
+
+            $orderedPairTag = $this->yamlMetadataOrderedPairTagForPath($itemPath, $item);
+            if ($orderedPairTag !== null) {
+                $lines[] = $prefix . '- !!' . $orderedPairTag;
+                $this->appendYamlMetadataOrderedPairSequenceLines($lines, $item, $indent + 2, $itemPath);
                 continue;
             }
 
@@ -202,12 +266,12 @@ final class MarkdownWriter
             }
 
             if (!array_is_list($item)) {
-                $this->appendYamlMetadataMappingListItemLines($lines, $item, $indent);
+                $this->appendYamlMetadataMappingListItemLines($lines, $item, $indent, $itemPath);
                 continue;
             }
 
             $lines[] = $prefix . '-';
-            $this->appendYamlMetadataValueLines($lines, $item, $indent + 2);
+            $this->appendYamlMetadataValueLines($lines, $item, $indent + 2, $itemPath);
         }
     }
 
@@ -215,12 +279,13 @@ final class MarkdownWriter
      * @param array<string|int, mixed> $map
      * @param list<string> $lines
      */
-    private function appendYamlMetadataMappingListItemLines(array &$lines, array $map, int $indent): void
+    private function appendYamlMetadataMappingListItemLines(array &$lines, array $map, int $indent, string $path): void
     {
         $prefix = str_repeat(' ', $indent);
         $first = true;
         foreach ($map as $key => $value) {
             $field = $this->formatYamlMetadataKey((string) $key);
+            $itemPath = $this->yamlMetadataPathWithSegment($path, (string) $key);
             if (!$this->isYamlMetadataCollection($value)) {
                 $this->appendYamlMetadataScalarMappingLines(
                     $lines,
@@ -232,6 +297,14 @@ final class MarkdownWriter
                 continue;
             }
 
+            $orderedPairTag = $this->yamlMetadataOrderedPairTagForPath($itemPath, $value);
+            if ($orderedPairTag !== null) {
+                $lines[] = $prefix . ($first ? '- ' : '  ') . $field . ': !!' . $orderedPairTag;
+                $this->appendYamlMetadataOrderedPairSequenceLines($lines, $value, $indent + 4, $itemPath);
+                $first = false;
+                continue;
+            }
+
             if ($value === []) {
                 $lines[] = $prefix . ($first ? '- ' : '  ') . $field . ': []';
                 $first = false;
@@ -239,9 +312,76 @@ final class MarkdownWriter
             }
 
             $lines[] = $prefix . ($first ? '- ' : '  ') . $field . ':';
-            $this->appendYamlMetadataValueLines($lines, $value, $indent + 4);
+            $this->appendYamlMetadataValueLines($lines, $value, $indent + 4, $itemPath);
             $first = false;
         }
+    }
+
+    /**
+     * @param list<array{key:mixed, value:mixed}> $pairs
+     * @param list<string> $lines
+     */
+    private function appendYamlMetadataOrderedPairSequenceLines(array &$lines, array $pairs, int $indent, string $path): void
+    {
+        foreach ($pairs as $index => $pair) {
+            $key = $this->formatYamlMetadataKey((string) $pair['key']);
+            $value = $pair['value'] ?? null;
+            $pairPath = $this->yamlMetadataPathWithSegment($path, $index);
+            $valuePath = $this->yamlMetadataPathWithSegment($pairPath, (string) $pair['key']);
+            $prefix = str_repeat(' ', $indent) . '- ' . $key . ':';
+
+            if (!$this->isYamlMetadataCollection($value)) {
+                $this->appendYamlMetadataScalarMappingLines($lines, $prefix, $value, $indent + 4);
+                continue;
+            }
+
+            $orderedPairTag = $this->yamlMetadataOrderedPairTagForPath($valuePath, $value);
+            if ($orderedPairTag !== null) {
+                $lines[] = $prefix . ' !!' . $orderedPairTag;
+                $this->appendYamlMetadataOrderedPairSequenceLines($lines, $value, $indent + 4, $valuePath);
+                continue;
+            }
+
+            if ($value === []) {
+                $lines[] = $prefix . ' []';
+                continue;
+            }
+
+            $lines[] = $prefix;
+            $this->appendYamlMetadataValueLines($lines, $value, $indent + 4, $valuePath);
+        }
+    }
+
+    private function yamlMetadataOrderedPairTagForPath(string $path, mixed $value): ?string
+    {
+        $tag = $this->yamlMetadataExplicitCollectionTags[$path] ?? null;
+        if (($tag !== 'omap' && $tag !== 'pairs') || !$this->isYamlMetadataOrderedPairSequence($value)) {
+            return null;
+        }
+
+        return $tag;
+    }
+
+    private function isYamlMetadataOrderedPairSequence(mixed $value): bool
+    {
+        if (!is_array($value) || !array_is_list($value) || $value === []) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if (!is_array($item) || !array_key_exists('key', $item) || !array_key_exists('value', $item)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function yamlMetadataPathWithSegment(string $path, int|string $segment): string
+    {
+        $escaped = str_replace(['~', '/'], ['~0', '~1'], (string) $segment);
+
+        return $path === '' ? '/' . $escaped : $path . '/' . $escaped;
     }
 
     private function isYamlMetadataCollection(mixed $value): bool

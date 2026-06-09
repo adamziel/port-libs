@@ -7679,6 +7679,66 @@ MD;
         $t->same('yaml-writer-timestamp-body', $roundTripped->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-writer-timestamp-body">YAML writer timestamp body</h1>', $blocks);
     },
+    'writes pandoc yaml ordered pair metadata using explicit collection provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Ordered writer **Packet**',
+            'ordered-review: !!omap',
+            '  - source-title: Original export',
+            '  - source-title: Revised export',
+            '  - priority: !!int "3"',
+            'reviewer-pairs: !!pairs [{owner: Import Desk}, {owner: QA Desk}]',
+            'review:',
+            '  steps: !!omap [{stage: collected}, {stage: normalized}]',
+            '  approvals:',
+            '    - !!pairs',
+            '      - owner: Import Desk',
+            '      - owner: QA Desk',
+            '...',
+            '',
+            '# Ordered writer body',
+        ]));
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $provenance = $roundTripped->attr('yamlMetadataCollectionProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $t->contains("ordered-review: !!omap\n  - source-title: \"Original export\"\n  - source-title: \"Revised export\"\n  - priority: 3", $markdown);
+        $t->contains("reviewer-pairs: !!pairs\n  - owner: \"Import Desk\"\n  - owner: \"QA Desk\"", $markdown);
+        $t->contains("  steps: !!omap\n    - stage: collected\n    - stage: normalized", $markdown);
+        $t->contains("  approvals:\n    - !!pairs\n      - owner: \"Import Desk\"\n      - owner: \"QA Desk\"", $markdown);
+        $t->same(false, str_contains($markdown, '- key: source-title'));
+        $t->same(false, str_contains($markdown, 'value: "Original export"'));
+        $t->same('source-title', $meta['ordered-review'][0]['key']);
+        $t->same('Original export', $meta['ordered-review'][0]['value']);
+        $t->same('source-title', $meta['ordered-review'][1]['key']);
+        $t->same('Revised export', $meta['ordered-review'][1]['value']);
+        $t->same('priority', $meta['ordered-review'][2]['key']);
+        $t->same(3, $meta['ordered-review'][2]['value']);
+        $t->same('owner', $meta['reviewer-pairs'][1]['key']);
+        $t->same('QA Desk', $meta['reviewer-pairs'][1]['value']);
+        $t->same('normalized', $meta['review']['steps'][1]['value']);
+        $t->same('QA Desk', $meta['review']['approvals'][0][1]['value']);
+        $t->same(false, array_key_exists('__yamlMetadataCollectionProvenance', $meta));
+
+        $taggedCollections = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') !== 'yaml-collection' || !isset($entry['explicitTag'])) {
+                continue;
+            }
+
+            $taggedCollections[$entry['path'] ?? ''] = $entry['explicitTag'];
+        }
+
+        $t->same('omap', $taggedCollections['/ordered-review'] ?? null);
+        $t->same('pairs', $taggedCollections['/reviewer-pairs'] ?? null);
+        $t->same('omap', $taggedCollections['/review/steps'] ?? null);
+        $t->same('pairs', $taggedCollections['/review/approvals/0'] ?? null);
+        $t->same('ordered-writer-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="ordered-writer-body">Ordered writer body</h1>', $blocks);
+    },
     'writes pandoc yaml multiline metadata as block scalars' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [
