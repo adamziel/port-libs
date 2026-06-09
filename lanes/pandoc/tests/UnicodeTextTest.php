@@ -1517,6 +1517,38 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes cp950 big5 extension bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# CP950\n\nCP950 Euro \xA3\xE1 glyphs \xF9\xD6\xF9\xD7 box \xF9\xDD\xF9\xDE\xF9\xDF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp950');
+        $document = (new MarkdownReader())->readBytes($bytes, 'windows-950');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $big5Comparison = UnicodeText::decodeBytes("\xA3\xE1\xF9\xD6", 'big5');
+        $punctuation = UnicodeText::decodeBytes("\xA1\x45\xA1\xC2\xA1\xE3\xA2\x40", 'ms950');
+        $malformedTrail = UnicodeText::decodeBytes("\xF9\"A", 'windows-950');
+        $unmappedPair = UnicodeText::decodeBytes("\x81\x40A", 'cp950');
+
+        $t->same('cp950', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# CP950\n\nCP950 Euro \u{20AC} glyphs \u{7881}\u{92B9} box \u{2554}\u{2566}\u{2557}.", $decoded['text']);
+        $t->same("\u{FFFD}\u{FFFD}", $big5Comparison['text']);
+        $t->same(2, $big5Comparison['repairs']);
+        $t->same('cp950', $punctuation['encoding']);
+        $t->same("\u{2027}\u{00AF}\u{FF5E}\u{FF3C}", $punctuation['text']);
+        $t->same(0, $punctuation['repairs']);
+        $t->same(6, UnicodeText::displayWidth($punctuation['text']));
+        $t->same(7, UnicodeText::displayWidth($punctuation['text'], 'wide'));
+        $t->same(['encoding' => 'cp950', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('CP950', $document->children[0]->attr('text'));
+        $t->same("CP950 Euro \u{20AC} glyphs \u{7881}\u{92B9} box \u{2554}\u{2566}\u{2557}.", $document->children[1]->attr('text'));
+        $t->same(33, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(37, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="cp950">CP950</h1>', $blocks);
+        $t->contains("<p>CP950 Euro \u{20AC} glyphs \u{7881}\u{92B9} box \u{2554}\u{2566}\u{2557}.</p>", $blocks);
+        $t->same("\u{FFFD}\"A", $malformedTrail['text']);
+        $t->same(1, $malformedTrail['repairs']);
+        $t->same("\u{FFFD}A", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+    },
     'decodes bounded gbk simplified chinese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
         $decoded = UnicodeText::decodeBytes($bytes, 'gbk');

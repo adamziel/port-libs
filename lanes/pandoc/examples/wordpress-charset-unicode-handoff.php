@@ -217,6 +217,9 @@ $big5Bytes = (string) hex2bin('2320a4a4a4e50a0aa4a4a4e5204269673520b4fab8d5a141a
 $big5Source = (new MarkdownReader())->readBytes($big5Bytes, 'big5-hkscs');
 $big5Text = (string) $big5Source->children[1]->attr('text');
 $big5PointerText = UnicodeText::decodeBytes("\x88\x62\x88\x64\x88\xA3\x88\xA5", 'big5')['text'];
+$cp950Bytes = "# CP950\n\nCP950 Euro \xA3\xE1 glyphs \xF9\xD6\xF9\xD7 box \xF9\xDD\xF9\xDE\xF9\xDF.";
+$cp950Source = (new MarkdownReader())->readBytes($cp950Bytes, 'windows-950');
+$cp950Text = (string) $cp950Source->children[1]->attr('text');
 $gbkBytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
 $gbkSource = (new MarkdownReader())->readBytes($gbkBytes, 'gbk');
 $gbkText = (string) $gbkSource->children[1]->attr('text');
@@ -921,6 +924,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'big5:' . UnicodeText::displayWidth($big5PointerText)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CP950 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $cp950Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($cp950Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($cp950Text) . '/' . UnicodeText::displayWidth($cp950Text, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'GBK source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $gbkText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gbkSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gbkText)])]),
@@ -1501,6 +1509,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Big5 pointer sequences</td><td>Ê\u{0304}Ê\u{030C}ê\u{0304}ê\u{030C}</td><td>big5:4</td>")) {
         throw new RuntimeException('charset handoff self-test missing Big5 two-codepoint pointer audit row');
+    }
+    if (($cp950Source->attr('sourceEncoding')['encoding'] ?? '') !== 'cp950') {
+        throw new RuntimeException('charset handoff self-test missing CP950 source encoding');
+    }
+    if (!str_contains($blocks, "<td>CP950 source</td><td>CP950 Euro € glyphs 碁銹 box ╔╦╗.</td><td>cp950:33/37</td>")) {
+        throw new RuntimeException('charset handoff self-test missing CP950 extension decode audit row');
     }
     if (($gbkSource->attr('sourceEncoding')['encoding'] ?? '') !== 'gbk') {
         throw new RuntimeException('charset handoff self-test missing GBK source encoding');

@@ -4337,6 +4337,20 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const CP950_PAIRS = [
+        0xa145 => 0x2027,
+        0xa1c2 => 0x00af,
+        0xa1e3 => 0xff5e,
+        0xa240 => 0xff3c,
+        0xa3e1 => 0x20ac,
+        0xf9d6 => 0x7881,
+        0xf9d7 => 0x92b9,
+        0xf9dd => 0x2554,
+        0xf9de => 0x2566,
+        0xf9df => 0x2557,
+    ];
+
+    /** @var array<int, int> */
     private const GBK_PAIRS = [
         0xa1a3 => 0x3002,
         0xa2e3 => 0x20ac,
@@ -4740,6 +4754,7 @@ final class UnicodeText
             || $normalized === 'iso-2022-jp'
             || $normalized === 'mac-japan'
             || $normalized === 'big5'
+            || $normalized === 'cp950'
             || $normalized === 'gbk'
             || $normalized === 'gb12345'
             || $normalized === 'gb18030'
@@ -4754,6 +4769,7 @@ final class UnicodeText
                 'iso-2022-jp' => self::decodeIso2022Jp($bytes),
                 'mac-japan' => self::decodeMacJapanese($bytes),
                 'big5' => self::decodeBig5($bytes),
+                'cp950' => self::decodeBig5($bytes, true),
                 'gbk' => self::decodeGbk($bytes),
                 'gb12345' => self::decodeGb12345($bytes),
                 'gb18030' => self::decodeGb18030($bytes),
@@ -5557,6 +5573,7 @@ final class UnicodeText
             'cseucpkdfmtjapanese', 'eucjp', 'xeucjp' => 'euc-jp',
             'iso2022jp', 'csiso2022jp' => 'iso-2022-jp',
             'big5', 'big5hkscs', 'big5hk', 'cnbig5', 'csbig5', 'xxbig5' => 'big5',
+            'cp950', 'windows950', 'ms950', 'xcp950', 'big5cp950' => 'cp950',
             'gb18030' => 'gb18030',
             'gbk', 'gb2312', 'gb2312:1980', 'csgb2312', 'csiso58gb231280',
             'cp936', 'ms936', 'windows936', 'xgbk', 'xcp936', 'euccn' => 'gbk',
@@ -6976,7 +6993,7 @@ final class UnicodeText
     /**
      * @return array{0:string, 1:int}
      */
-    private static function decodeBig5(string $bytes): array
+    private static function decodeBig5(string $bytes, bool $useCp950 = false): array
     {
         $out = '';
         $repairs = 0;
@@ -7005,6 +7022,12 @@ final class UnicodeText
             }
 
             $pair = ($byte << 8) | $trail;
+            if ($useCp950 && isset(self::CP950_PAIRS[$pair])) {
+                $out .= self::fromCodepoint(self::CP950_PAIRS[$pair]);
+                $offset++;
+                continue;
+            }
+
             if (isset(self::BIG5_PAIR_SEQUENCES[$pair])) {
                 $out .= self::BIG5_PAIR_SEQUENCES[$pair];
                 $offset++;
