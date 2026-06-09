@@ -247,6 +247,95 @@ return [
         $t->same('', $packet['formats']['man']['outputImplementation']);
         $t->same(false, $packet['formats']['mdoc']['extensionInferred']);
     },
+    'classifies roff manual extension evidence without converter parity' => static function (TestRunner $t): void {
+        $metadata = PandocFormatRegistry::roffManualExtensionPatternMetadata();
+
+        $t->same([
+            '.ms' => [
+                'format' => 'ms',
+                'kind' => 'ms-macro-package',
+                'manualSection' => false,
+            ],
+            '.roff' => [
+                'format' => 'ms',
+                'kind' => 'generic-roff-source',
+                'manualSection' => false,
+            ],
+            '.[1-9]' => [
+                'format' => 'man',
+                'kind' => 'manual-section',
+                'manualSection' => true,
+            ],
+            '.[1-9][a-z]+' => [
+                'format' => 'man',
+                'kind' => 'manual-section-suffix',
+                'manualSection' => true,
+            ],
+        ], $metadata);
+
+        foreach ($metadata as $pattern => $entry) {
+            $t->same(PandocFormatRegistry::roffManualExtensionInference()[$pattern], $entry['format'], "Roff manual extension metadata {$pattern} must match format inference");
+        }
+
+        $t->same([
+            'format' => 'ms',
+            'normalizedExtension' => '.ms',
+            'pattern' => '.ms',
+            'kind' => 'ms-macro-package',
+            'manualSection' => null,
+            'manualSectionNumber' => null,
+            'manualSectionSuffix' => null,
+        ], PandocFormatRegistry::classifyRoffManualExtension('MS'));
+        $t->same([
+            'format' => 'ms',
+            'normalizedExtension' => '.roff',
+            'pattern' => '.roff',
+            'kind' => 'generic-roff-source',
+            'manualSection' => null,
+            'manualSectionNumber' => null,
+            'manualSectionSuffix' => null,
+        ], PandocFormatRegistry::classifyRoffManualExtension('.ROFF'));
+        $t->same([
+            'format' => 'man',
+            'normalizedExtension' => '.1',
+            'pattern' => '.[1-9]',
+            'kind' => 'manual-section',
+            'manualSection' => '1',
+            'manualSectionNumber' => '1',
+            'manualSectionSuffix' => '',
+        ], PandocFormatRegistry::classifyRoffManualExtension('1'));
+        $t->same([
+            'format' => 'man',
+            'normalizedExtension' => '.3p',
+            'pattern' => '.[1-9][a-z]+',
+            'kind' => 'manual-section-suffix',
+            'manualSection' => '3p',
+            'manualSectionNumber' => '3',
+            'manualSectionSuffix' => 'p',
+        ], PandocFormatRegistry::classifyRoffManualExtension('.3P'));
+        $t->same([
+            'format' => null,
+            'normalizedExtension' => '.10ssl',
+            'pattern' => null,
+            'kind' => 'unknown',
+            'manualSection' => null,
+            'manualSectionNumber' => null,
+            'manualSectionSuffix' => null,
+        ], PandocFormatRegistry::classifyRoffManualExtension('.10ssl'));
+
+        foreach (['.ms', '.roff', '.1', '.3p', '.5ssl', '.10ssl', '.mdoc', ''] as $extension) {
+            $classification = PandocFormatRegistry::classifyRoffManualExtension($extension);
+            $t->same($classification['format'], PandocFormatRegistry::inferRoffManualFormatFromExtension($extension), "Roff manual classification {$extension} should drive format inference");
+        }
+
+        $packet = PandocFormatRegistry::roffManualFormatReviewPacket();
+        $t->same($metadata, $packet['extensionPatternMetadata']);
+        $t->same('unsupported', $packet['formats']['man']['inputStatus']);
+        $t->same('unsupported', $packet['formats']['man']['outputStatus']);
+        $t->same('unsupported', $packet['formats']['ms']['outputStatus']);
+        $t->same('', $packet['formats']['man']['inputImplementation']);
+        $t->same('', $packet['formats']['ms']['outputImplementation']);
+    },
     'tracks rich package formats and unsupported direct writer parity' => static function (TestRunner $t): void {
         $t->same([
             'docx',

@@ -190,6 +190,30 @@ final class PandocFormatRegistry
         '.[1-9][a-z]+' => 'man',
     ];
 
+    /** @var array<string, array{format:string, kind:string, manualSection:bool}> */
+    private const ROFF_MANUAL_EXTENSION_PATTERN_METADATA = [
+        '.ms' => [
+            'format' => 'ms',
+            'kind' => 'ms-macro-package',
+            'manualSection' => false,
+        ],
+        '.roff' => [
+            'format' => 'ms',
+            'kind' => 'generic-roff-source',
+            'manualSection' => false,
+        ],
+        '.[1-9]' => [
+            'format' => 'man',
+            'kind' => 'manual-section',
+            'manualSection' => true,
+        ],
+        '.[1-9][a-z]+' => [
+            'format' => 'man',
+            'kind' => 'manual-section-suffix',
+            'manualSection' => true,
+        ],
+    ];
+
     /** @var list<string> */
     private const RICH_PACKAGE_INPUT_FORMATS = [
         'docx',
@@ -631,28 +655,51 @@ final class PandocFormatRegistry
      */
     public static function inferRoffManualFormatFromExtension(string $extension): ?string
     {
+        return self::classifyRoffManualExtension($extension)['format'];
+    }
+
+    /**
+     * @return array<string, array{format:string, kind:string, manualSection:bool}>
+     */
+    public static function roffManualExtensionPatternMetadata(): array
+    {
+        return self::ROFF_MANUAL_EXTENSION_PATTERN_METADATA;
+    }
+
+    /**
+     * @return array{
+     *     format:string|null,
+     *     normalizedExtension:string,
+     *     pattern:string|null,
+     *     kind:string,
+     *     manualSection:string|null,
+     *     manualSectionNumber:string|null,
+     *     manualSectionSuffix:string|null
+     * }
+     */
+    public static function classifyRoffManualExtension(string $extension): array
+    {
         $normalized = strtolower($extension);
         if ($normalized === '') {
-            return null;
+            return self::roffManualExtensionClassification(null, '', null, null, null);
         }
         if ($normalized[0] !== '.') {
             $normalized = '.' . $normalized;
         }
 
-        if (preg_match('/^\.[1-9](?:[a-z]+)?$/', $normalized) === 1) {
-            return 'man';
+        if (preg_match('/^\.([1-9])([a-z]+)?$/', $normalized, $matches) === 1) {
+            $suffix = $matches[2] ?? '';
+            $pattern = $suffix === '' ? '.[1-9]' : '.[1-9][a-z]+';
+
+            return self::roffManualExtensionClassification('man', $normalized, $pattern, $matches[1], $suffix);
         }
 
-        foreach (self::ROFF_MANUAL_EXTENSION_INFERENCE as $candidate => $format) {
-            if ($candidate === '.[1-9]') {
-                continue;
-            }
-            if ($normalized === $candidate) {
-                return $format;
-            }
+        $metadata = self::ROFF_MANUAL_EXTENSION_PATTERN_METADATA[$normalized] ?? null;
+        if ($metadata !== null) {
+            return self::roffManualExtensionClassification($metadata['format'], $normalized, $normalized, null, null);
         }
 
-        return null;
+        return self::roffManualExtensionClassification(null, $normalized, null, null, null);
     }
 
     /**
@@ -727,6 +774,7 @@ final class PandocFormatRegistry
      *     outputFormats:list<string>,
      *     directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>},
      *     extensionInference:array<string, string>,
+     *     extensionPatternMetadata:array<string, array{format:string, kind:string, manualSection:bool}>,
      *     extensionInferredFormats:list<string>,
      *     nonExtensionInferredFormats:list<string>,
      *     unsupportedInputFormats:list<string>,
@@ -775,6 +823,7 @@ final class PandocFormatRegistry
                 'outputOnly' => self::roffManualOutputOnlyFormats(),
             ],
             'extensionInference' => self::ROFF_MANUAL_EXTENSION_INFERENCE,
+            'extensionPatternMetadata' => self::ROFF_MANUAL_EXTENSION_PATTERN_METADATA,
             'extensionInferredFormats' => self::roffManualFormatsWithExtensionInference(),
             'nonExtensionInferredFormats' => self::roffManualFormatsWithoutExtensionInference(),
             'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
@@ -1095,6 +1144,41 @@ final class PandocFormatRegistry
         }
 
         return $formats;
+    }
+
+    /**
+     * @return array{
+     *     format:string|null,
+     *     normalizedExtension:string,
+     *     pattern:string|null,
+     *     kind:string,
+     *     manualSection:string|null,
+     *     manualSectionNumber:string|null,
+     *     manualSectionSuffix:string|null
+     * }
+     */
+    private static function roffManualExtensionClassification(
+        ?string $format,
+        string $normalizedExtension,
+        ?string $pattern,
+        ?string $manualSectionNumber,
+        ?string $manualSectionSuffix
+    ): array {
+        $metadata = $pattern === null ? null : self::ROFF_MANUAL_EXTENSION_PATTERN_METADATA[$pattern];
+        $manualSection = null;
+        if ($manualSectionNumber !== null) {
+            $manualSection = $manualSectionNumber . ($manualSectionSuffix ?? '');
+        }
+
+        return [
+            'format' => $format,
+            'normalizedExtension' => $normalizedExtension,
+            'pattern' => $pattern,
+            'kind' => $metadata['kind'] ?? 'unknown',
+            'manualSection' => $manualSection,
+            'manualSectionNumber' => $manualSectionNumber,
+            'manualSectionSuffix' => $manualSectionSuffix,
+        ];
     }
 
     /**
