@@ -2542,6 +2542,67 @@ return [
             $t->true(!str_contains($blocks, $sourceContent), 'Expected WordPress blocks to omit source meta microdata content: ' . $sourceContent);
         }
     },
+    'keeps passive meta conversions while preserving itemprop microdata values' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article itemscope itemtype="https://schema.org/Article">'
+            . '<meta property="og:image" itemprop="image" content="./cover.png">'
+            . '<meta name="description" itemprop="description" content=" Review summary ">'
+            . '<p>body</p>'
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/microdata-meta-passive-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $microdataDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'microdata-value-review'
+        ));
+
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article" data-pandoc-microdata-properties="image description" data-pandoc-microdata-property-count="2" data-pandoc-microdata-value-count="2">'
+            . '<a href="https://source.example.test/import/posts/cover.png" data-pandoc-meta-property="og:image" data-pandoc-meta-content="https://source.example.test/import/posts/cover.png" data-pandoc-meta-url="true" data-pandoc-microdata-property="image" data-pandoc-microdata-value="https://source.example.test/import/posts/cover.png" data-pandoc-microdata-source="meta">Open Graph image</a>'
+            . '<span data-pandoc-meta-name="description" data-pandoc-meta-content="Review summary" data-pandoc-microdata-property="description" data-pandoc-microdata-value="Review summary" data-pandoc-microdata-source="meta">Description: Review summary</span>'
+            . '<p>body</p></article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Open Graph imageDescription: Review summarybody', $fragment->textContent());
+        $t->same(['a', 'article', 'p', 'span'], $summary['elementNames']);
+        $t->same(['meta'], $summary['blockedTags']);
+        $t->same(2, count($microdataDiagnostics));
+        $t->same([
+            'data-pandoc-microdata-scope' => 'true',
+            'data-pandoc-microdata-type' => 'https://schema.org/Article',
+            'data-pandoc-microdata-properties' => 'image description',
+            'data-pandoc-microdata-property-count' => '2',
+            'data-pandoc-microdata-value-count' => '2',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/cover.png',
+            'data-pandoc-meta-property' => 'og:image',
+            'data-pandoc-meta-content' => 'https://source.example.test/import/posts/cover.png',
+            'data-pandoc-meta-url' => 'true',
+            'data-pandoc-microdata-property' => 'image',
+            'data-pandoc-microdata-value' => 'https://source.example.test/import/posts/cover.png',
+            'data-pandoc-microdata-source' => 'meta',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'data-pandoc-meta-name' => 'description',
+            'data-pandoc-meta-content' => 'Review summary',
+            'data-pandoc-microdata-property' => 'description',
+            'data-pandoc-microdata-value' => 'Review summary',
+            'data-pandoc-microdata-source' => 'meta',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same('/migration/microdata-meta-passive-review.html', $document->children[0]->attr('part'));
+        foreach (['<meta', ' itemprop=', ' content='] as $sourceAttribute) {
+            $t->true(!str_contains($html, $sourceAttribute), 'Expected source meta microdata attribute to be replaced: ' . $sourceAttribute);
+            $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source meta microdata attribute: ' . $sourceAttribute);
+        }
+    },
     'summarizes scoped microdata properties without crossing nested item boundaries' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article itemscope itemtype="https://schema.org/Event">'

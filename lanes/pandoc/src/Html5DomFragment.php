@@ -4754,11 +4754,6 @@ final class Html5DomFragment
             'tag' => 'meta',
         ], $element);
 
-        $microdataMetadata = self::htmlMetaMicrodataMetadataNode($element, $diagnostics);
-        if ($microdataMetadata !== null) {
-            return [$microdataMetadata];
-        }
-
         $target = self::htmlMetaRefreshTarget($element);
         if ($target === null) {
             $charsetMetadata = self::htmlMetaCharsetMetadata($element);
@@ -4807,16 +4802,20 @@ final class Html5DomFragment
                 $metadataAttributeName = $kind === 'property'
                     ? 'data-pandoc-meta-property'
                     : 'data-pandoc-meta-name';
+                $attrs = [
+                    'href' => $href,
+                    $metadataAttributeName => $name,
+                    'data-pandoc-meta-content' => $href,
+                    'data-pandoc-meta-url' => 'true',
+                ];
+                foreach (self::htmlMetaMicrodataMetadataAttributes($element, $diagnostics, $href) as $microdataName => $microdataValue) {
+                    $attrs[$microdataName] = $microdataValue;
+                }
 
                 return [self::nodeWithSourceLine([
                     'type' => 'element',
                     'name' => 'a',
-                    'attrs' => [
-                        'href' => $href,
-                        $metadataAttributeName => $name,
-                        'data-pandoc-meta-content' => $href,
-                        'data-pandoc-meta-url' => 'true',
-                    ],
+                    'attrs' => $attrs,
                     'children' => [[
                         'type' => 'text',
                         'text' => self::htmlMetaReviewLabel($name),
@@ -4830,14 +4829,18 @@ final class Html5DomFragment
                 $metadataAttributeName = $kind === 'http-equiv'
                     ? 'data-pandoc-meta-http-equiv'
                     : 'data-pandoc-meta-name';
+                $attrs = [
+                    $metadataAttributeName => $name,
+                    'data-pandoc-meta-content' => $content,
+                ];
+                foreach (self::htmlMetaMicrodataMetadataAttributes($element, $diagnostics, $content) as $microdataName => $microdataValue) {
+                    $attrs[$microdataName] = $microdataValue;
+                }
 
                 return [self::nodeWithSourceLine([
                     'type' => 'element',
                     'name' => 'span',
-                    'attrs' => [
-                        $metadataAttributeName => $name,
-                        'data-pandoc-meta-content' => $content,
-                    ],
+                    'attrs' => $attrs,
                     'children' => [[
                         'type' => 'text',
                         'text' => self::htmlMetaReviewLabel($name) . ': ' . $content,
@@ -4851,14 +4854,18 @@ final class Html5DomFragment
                 $metadataAttributeName = $kind === 'property'
                     ? 'data-pandoc-meta-property'
                     : 'data-pandoc-meta-name';
+                $attrs = [
+                    $metadataAttributeName => $name,
+                    'data-pandoc-meta-content' => $content,
+                ];
+                foreach (self::htmlMetaMicrodataMetadataAttributes($element, $diagnostics, $content) as $microdataName => $microdataValue) {
+                    $attrs[$microdataName] = $microdataValue;
+                }
 
                 return [self::nodeWithSourceLine([
                     'type' => 'element',
                     'name' => 'span',
-                    'attrs' => [
-                        $metadataAttributeName => $name,
-                        'data-pandoc-meta-content' => $content,
-                    ],
+                    'attrs' => $attrs,
                     'children' => [[
                         'type' => 'text',
                         'text' => self::htmlMetaReviewLabel($name) . ': ' . $content,
@@ -4868,6 +4875,11 @@ final class Html5DomFragment
 
             $reviewMetadata = self::htmlMetaReviewMetadata($element, $diagnostics);
             if ($reviewMetadata === null) {
+                $microdataMetadata = self::htmlMetaMicrodataMetadataNode($element, $diagnostics);
+                if ($microdataMetadata !== null) {
+                    return [$microdataMetadata];
+                }
+
                 return null;
             }
 
@@ -4881,6 +4893,9 @@ final class Html5DomFragment
             ];
             foreach ($metadataAttrs as $metadataName => $metadataValue) {
                 $attrs[$metadataName] = $metadataValue;
+            }
+            foreach (self::htmlMetaMicrodataMetadataAttributes($element, $diagnostics, $content) as $microdataName => $microdataValue) {
+                $attrs[$microdataName] = $microdataValue;
             }
 
             return [self::nodeWithSourceLine([
@@ -4916,14 +4931,18 @@ final class Html5DomFragment
         $href = $baseUrl !== null
             ? self::resolveRelativeUrl($baseUrl, $normalizedTarget)
             : $normalizedTarget;
+        $attrs = [
+            'href' => $href,
+            'data-pandoc-meta-refresh' => 'true',
+        ];
+        foreach (self::htmlMetaMicrodataMetadataAttributes($element, $diagnostics, $href) as $microdataName => $microdataValue) {
+            $attrs[$microdataName] = $microdataValue;
+        }
 
         return [self::nodeWithSourceLine([
             'type' => 'element',
             'name' => 'a',
-            'attrs' => [
-                'href' => $href,
-                'data-pandoc-meta-refresh' => 'true',
-            ],
+            'attrs' => $attrs,
             'children' => [
                 [
                     'type' => 'text',
@@ -4939,8 +4958,36 @@ final class Html5DomFragment
      */
     private static function htmlMetaMicrodataMetadataNode(\DOMElement $element, array &$diagnostics): ?array
     {
-        if (!$element->hasAttribute('itemprop')) {
+        $attrs = self::htmlMetaMicrodataMetadataAttributes($element, $diagnostics);
+        if ($attrs === []) {
             return null;
+        }
+
+        $properties = $attrs['data-pandoc-microdata-property'];
+        $content = $attrs['data-pandoc-microdata-value'];
+
+        return self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => 'Microdata ' . $properties . ': ' . $content,
+            ]],
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function htmlMetaMicrodataMetadataAttributes(
+        \DOMElement $element,
+        array &$diagnostics,
+        ?string $contentValue = null
+    ): array {
+        if (!$element->hasAttribute('itemprop')) {
+            return [];
         }
 
         $properties = self::normalizeHtmlSemanticTermTokenList(
@@ -4951,12 +4998,14 @@ final class Html5DomFragment
             $diagnostics
         );
         if ($properties === null) {
-            return null;
+            return [];
         }
 
-        $content = $element->hasAttribute('content')
-            ? self::normalizeHtmlMicrodataItemValue($element->getAttribute('content'))
-            : null;
+        $content = $contentValue !== null
+            ? self::normalizeHtmlMicrodataItemValue($contentValue)
+            : ($element->hasAttribute('content')
+                ? self::normalizeHtmlMicrodataItemValue($element->getAttribute('content'))
+                : null);
         if ($content === null) {
             $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
@@ -4965,7 +5014,7 @@ final class Html5DomFragment
                 'reason' => 'invalid-microdata-meta-content',
             ], $element);
 
-            return null;
+            return [];
         }
 
         $diagnostics[] = self::diagnosticWithSourceLine([
@@ -4976,19 +5025,11 @@ final class Html5DomFragment
             'reason' => 'microdata-meta-content-preserved-as-review-metadata',
         ], $element);
 
-        return self::nodeWithSourceLine([
-            'type' => 'element',
-            'name' => 'span',
-            'attrs' => [
-                'data-pandoc-microdata-property' => $properties,
-                'data-pandoc-microdata-value' => $content,
-                'data-pandoc-microdata-source' => 'meta',
-            ],
-            'children' => [[
-                'type' => 'text',
-                'text' => 'Microdata ' . $properties . ': ' . $content,
-            ]],
-        ], $element);
+        return [
+            'data-pandoc-microdata-property' => $properties,
+            'data-pandoc-microdata-value' => $content,
+            'data-pandoc-microdata-source' => 'meta',
+        ];
     }
 
     private static function htmlMetaRefreshTarget(\DOMElement $element): ?string
