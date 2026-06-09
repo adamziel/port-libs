@@ -99,6 +99,7 @@ $archiveBytes = $tarArchive([
 $packet = $gzipMember($archiveBytes, 'wordpress-import.tar', 1780479021);
 $entries = ArchiveCompressionStreams::tarGzipEntries($packet);
 $files = ArchiveCompressionStreams::tarGzipFiles($packet);
+$singleZeroEndMarkerPacket = $gzipMember(substr($archiveBytes, 0, -512), 'wordpress-truncated-end-marker.tar', 1780479022);
 
 if (in_array('--self-test', $argv, true)) {
     if (($files['content/post.md'] ?? '') !== "# Imported Packet\n\nBody copied from a compressed WordPress migration bundle.\n") {
@@ -111,6 +112,17 @@ if (in_array('--self-test', $argv, true)) {
 
     if (($entries[0]['type'] ?? '') !== 'directory' || ($entries[0]['name'] ?? '') !== 'content/') {
         throw new RuntimeException('Expected source directory entry to be preserved in the archive preflight');
+    }
+
+    $singleZeroEndMarkerBlocked = false;
+    try {
+        ArchiveCompressionStreams::tarGzipEntries($singleZeroEndMarkerPacket);
+    } catch (RuntimeException) {
+        $singleZeroEndMarkerBlocked = true;
+    }
+
+    if (!$singleZeroEndMarkerBlocked) {
+        throw new RuntimeException('Expected gzip-tar streams with a single zero end marker block to be rejected');
     }
 
     echo "archive compression preflight self-test passed\n";

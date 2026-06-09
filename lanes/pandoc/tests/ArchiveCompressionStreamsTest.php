@@ -222,6 +222,9 @@ return [
         $missingEnd = substr($buildTarArchive([
             ['name' => 'content/post.md', 'data' => 'ok'],
         ]), 0, -1024);
+        $singleZeroBlockEnd = substr($buildTarArchive([
+            ['name' => 'content/post.md', 'data' => 'ok'],
+        ]), 0, -512);
         $trailingGarbage = $buildTarArchive([
             ['name' => 'content/post.md', 'data' => 'ok'],
         ]) . 'garbage';
@@ -233,6 +236,7 @@ return [
         $t->throws(RuntimeException::class, static fn (): array => ArchiveCompressionStreams::tarEntries($checksumMismatch));
         $t->throws(RuntimeException::class, static fn (): array => ArchiveCompressionStreams::tarEntries($truncated));
         $t->throws(RuntimeException::class, static fn (): array => ArchiveCompressionStreams::tarEntries($missingEnd));
+        $t->throws(RuntimeException::class, static fn (): array => ArchiveCompressionStreams::tarEntries($singleZeroBlockEnd));
         $t->throws(RuntimeException::class, static fn (): array => ArchiveCompressionStreams::tarEntries($trailingGarbage));
     },
 ];

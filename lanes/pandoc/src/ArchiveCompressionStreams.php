@@ -301,6 +301,10 @@ final class ArchiveCompressionStreams
     private static function assertRemainingTarPadding(string $bytes, int $offset): void
     {
         $remaining = substr($bytes, $offset);
+        if (strlen($remaining) < self::TAR_BLOCK_SIZE * 2) {
+            throw new \RuntimeException('TAR archive end marker must contain two zero blocks');
+        }
+
         if ($remaining === '' || strspn($remaining, "\0") !== strlen($remaining)) {
             throw new \RuntimeException('TAR archive contains non-zero data after the end-of-archive block');
         }
