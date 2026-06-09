@@ -357,6 +357,25 @@ return [
         $t->true(!str_contains($html, '<textarea>'), 'Expected raw text textarea-looking source to stay escaped');
         $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected raw text script-looking source to stay escaped');
     },
+    'treats html iframe fallback as escaped raw text for raw handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<iframe data-source="legacy"><p>Fallback <script>alert(1)</script> &amp; note</p></iframe><p>after</p>',
+            'iframe raw text review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same(2, count($summary));
+        $t->same('iframe', $summary[0]['name']);
+        $t->same(['data-source' => 'legacy'], $summary[0]['attributes']);
+        $t->same('<p>Fallback <script>alert(1)</script> &amp; note</p>', $summary[0]['text']);
+        $t->same('text', $summary[0]['children'][0]['type']);
+        $t->same('<p>Fallback <script>alert(1)</script> &amp; note</p>', $summary[0]['children'][0]['text']);
+        $t->same('p', $summary[1]['name']);
+        $t->same('<iframe data-source="legacy">&lt;p&gt;Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; note&lt;/p&gt;</iframe><p>after</p>', $html);
+        $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected iframe fallback script-looking source to stay escaped');
+        $t->true(!str_contains($html, '<p>Fallback'), 'Expected iframe fallback paragraph markup to stay escaped');
+    },
     'treats html plaintext as escaped source text through end of fragment' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<plaintext data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b></plaintext><p>after</p>',

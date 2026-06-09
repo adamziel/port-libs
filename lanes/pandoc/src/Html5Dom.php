@@ -13,7 +13,7 @@ final class Html5Dom
     {
         self::assertNoNullByte($html, 'HTML fragment');
         self::assertNoHtmlFragmentDeclarations($html, 'HTML fragment');
-        $html = XmlHtmlDom::protectHtmlRcdataElements($html, protectTemplateContent: true);
+        $html = XmlHtmlDom::protectHtmlRcdataElements($html, protectTemplateContent: true, protectIframeContent: true);
 
         $dom = self::loadHtml(
             '<!doctype html><html><body>' . $html . '</body></html>',
@@ -180,7 +180,7 @@ final class Html5Dom
         $dom->resolveExternals = false;
         $dom->substituteEntities = false;
         if ($protectRcdata) {
-            $html = XmlHtmlDom::protectHtmlRcdataElements($html, protectTemplateContent: true);
+            $html = XmlHtmlDom::protectHtmlRcdataElements($html, protectTemplateContent: true, protectIframeContent: true);
         }
         $loaded = $dom->loadHTML(
             '<?xml encoding="UTF-8">' . $html,

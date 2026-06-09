@@ -2334,6 +2334,29 @@ return [
         $t->same($centralComposed, $document->children[1]->attr('text'));
         $t->contains("<p>{$centralComposed}</p>", $blocks);
     },
+    'normalizes latin macron reviewer text with fallback unicode data' => static function (TestRunner $t): void {
+        $decomposed = "A\u{0304}land a\u{0304}r; E\u{0304}ka e\u{0304}na; I\u{0304}re i\u{0304}sa; O\u{0304}saka o\u{0304}kami; U\u{0304}dens u\u{0304}pe";
+        $composed = 'Āland ār; Ēka ēna; Īre īsa; Ōsaka ōkami; Ūdens ūpe';
+        $fallbackNfc = UnicodeText::normalize($decomposed, 'nfc', 'fallback');
+        $fallbackNfd = UnicodeText::normalize($composed, 'nfd', 'fallback');
+        $decoded = UnicodeText::decodeBytes("# {$decomposed}\n\nReviewer {$decomposed}", 'utf-8', 'nfc');
+        $document = (new MarkdownReader())->readBytes("# {$decomposed}\n\nReviewer {$decomposed}", 'utf-8', 'nfc');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same($composed, $fallbackNfc['text']);
+        $t->same('nfc', $fallbackNfc['form']);
+        $t->same('fallback', $fallbackNfc['implementation']);
+        $t->same(true, $fallbackNfc['changed']);
+        $t->same($decomposed, $fallbackNfd['text']);
+        $t->same('nfd', $fallbackNfd['form']);
+        $t->same('fallback', $fallbackNfd['implementation']);
+        $t->same(true, $fallbackNfd['changed']);
+        $t->same(UnicodeText::displayWidth($fallbackNfc['text']), UnicodeText::displayWidth($fallbackNfd['text']));
+        $t->same("# {$composed}\n\nReviewer {$composed}", $decoded['text']);
+        $t->same($composed, $document->children[0]->attr('text'));
+        $t->same("Reviewer {$composed}", $document->children[1]->attr('text'));
+        $t->contains("<p>Reviewer {$composed}</p>", $blocks);
+    },
     'measures display width for cjk combining emoji and zero width marks' => static function (TestRunner $t): void {
         $accent = "A\u{0301}";
         $persian = "\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}";

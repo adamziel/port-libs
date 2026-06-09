@@ -291,7 +291,7 @@ final class XmlHtmlDom
         self::assertSafeSource($html, $label);
         self::assertNoDoctype($html, $label);
         self::assertNoHtmlFragmentDeclarations($html, $label);
-        $html = self::protectHtmlRcdataElements($html, protectTemplateContent: true);
+        $html = self::protectHtmlRcdataElements($html, protectTemplateContent: true, protectIframeContent: true);
 
         $wrapped = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div '
             . self::FRAGMENT_ROOT_ATTRIBUTE . '="1">' . $html . '</div></body></html>';
@@ -402,11 +402,16 @@ final class XmlHtmlDom
         return self::HTML5_FOREIGN_ATTRIBUTE_NAMES[$lowercaseName] ?? $lowercaseName;
     }
 
-    public static function protectHtmlRcdataElements(string $html, bool $protectTemplateContent = false): string
+    public static function protectHtmlRcdataElements(
+        string $html,
+        bool $protectTemplateContent = false,
+        bool $protectIframeContent = false
+    ): string
     {
         $offset = 0;
         $protected = '';
         $rawTextNames = 'script|style|xmp|noembed|noframes|title|textarea|plaintext'
+            . ($protectIframeContent ? '|iframe' : '')
             . ($protectTemplateContent ? '|template' : '');
         $pattern = '~<(?P<name>' . $rawTextNames . ')(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
 
