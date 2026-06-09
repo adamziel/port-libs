@@ -164,6 +164,25 @@ final class PandocFormatRegistry
         'zimwiki',
     ];
 
+    /** @var list<string> */
+    private const ROFF_MANUAL_INPUT_FORMATS = [
+        'man',
+        'mdoc',
+    ];
+
+    /** @var list<string> */
+    private const ROFF_MANUAL_OUTPUT_FORMATS = [
+        'man',
+        'ms',
+    ];
+
+    /** @var array<string, string> */
+    private const ROFF_MANUAL_EXTENSION_INFERENCE = [
+        '.ms' => 'ms',
+        '.roff' => 'ms',
+        '.[1-9]' => 'man',
+    ];
+
     /** @var array<string, string> */
     private const INPUT_ALIASES = [
         'bits' => 'jats',
@@ -229,6 +248,11 @@ final class PandocFormatRegistry
             'implementation' => MarkdownReader::class,
             'notes' => 'Raw TeX and bounded LaTeX table/math behavior are mapped; full LaTeX reader parity remains open.',
         ],
+        'man' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'Roff manual registry evidence tracks the upstream man reader source semantics; no native PHP man reader is registered yet.',
+        ],
         'markdown' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
@@ -253,6 +277,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
             'notes' => 'Strict Markdown uses the shared reader without a complete extension disabling matrix.',
+        ],
+        'mdoc' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'Roff manual registry evidence tracks upstream mdoc as a manual-family input; no native PHP mdoc reader is registered yet.',
         ],
         'native' => [
             'status' => 'partial',
@@ -310,6 +339,11 @@ final class PandocFormatRegistry
             'implementation' => LatexWriter::class,
             'notes' => 'LaTeX writer covers bounded block, inline, math, and raw TeX slices; full writer parity remains open.',
         ],
+        'man' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'Roff manual registry evidence tracks the upstream man writer source semantics; no native PHP man writer is registered yet.',
+        ],
         'markdown' => [
             'status' => 'partial',
             'implementation' => MarkdownWriter::class,
@@ -334,6 +368,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => MarkdownWriter::class,
             'notes' => 'Strict Markdown output lacks a complete extension disabling matrix.',
+        ],
+        'ms' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'Roff manual registry evidence tracks the upstream ms writer and .ms/.roff extension inference; no native PHP ms writer is registered yet.',
         ],
         'native' => [
             'status' => 'partial',
@@ -377,6 +416,30 @@ final class PandocFormatRegistry
     public static function wikiOutputFormats(): array
     {
         return self::WIKI_OUTPUT_FORMATS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function roffManualInputFormats(): array
+    {
+        return self::ROFF_MANUAL_INPUT_FORMATS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function roffManualOutputFormats(): array
+    {
+        return self::ROFF_MANUAL_OUTPUT_FORMATS;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function roffManualExtensionInference(): array
+    {
+        return self::ROFF_MANUAL_EXTENSION_INFERENCE;
     }
 
     /**
@@ -425,6 +488,22 @@ final class PandocFormatRegistry
     public static function wikiOutputSupport(): array
     {
         return self::onlyFormats(self::phpOutputSupport(), self::WIKI_OUTPUT_FORMATS);
+    }
+
+    /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function roffManualInputSupport(): array
+    {
+        return self::onlyFormats(self::phpInputSupport(), self::ROFF_MANUAL_INPUT_FORMATS);
+    }
+
+    /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function roffManualOutputSupport(): array
+    {
+        return self::onlyFormats(self::phpOutputSupport(), self::ROFF_MANUAL_OUTPUT_FORMATS);
     }
 
     /**

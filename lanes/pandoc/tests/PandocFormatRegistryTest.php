@@ -86,4 +86,36 @@ return [
         $t->same(34, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
+    'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {
+        $t->same(['man', 'mdoc'], PandocFormatRegistry::roffManualInputFormats());
+        $t->same(['man', 'ms'], PandocFormatRegistry::roffManualOutputFormats());
+        $t->same([
+            '.ms' => 'ms',
+            '.roff' => 'ms',
+            '.[1-9]' => 'man',
+        ], PandocFormatRegistry::roffManualExtensionInference());
+
+        $inputSupport = PandocFormatRegistry::roffManualInputSupport();
+        $outputSupport = PandocFormatRegistry::roffManualOutputSupport();
+
+        $t->same(['man', 'mdoc'], array_keys($inputSupport));
+        $t->same(['man', 'ms'], array_keys($outputSupport));
+
+        $t->same('unsupported', $inputSupport['man']['status']);
+        $t->same('', $inputSupport['man']['implementation']);
+        $t->contains('upstream man reader source semantics', $inputSupport['man']['notes']);
+        $t->same('unsupported', $inputSupport['mdoc']['status']);
+        $t->same('', $inputSupport['mdoc']['implementation']);
+        $t->contains('manual-family input', $inputSupport['mdoc']['notes']);
+
+        $t->same('unsupported', $outputSupport['man']['status']);
+        $t->same('', $outputSupport['man']['implementation']);
+        $t->contains('upstream man writer source semantics', $outputSupport['man']['notes']);
+        $t->same('unsupported', $outputSupport['ms']['status']);
+        $t->same('', $outputSupport['ms']['implementation']);
+        $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
+
+        $t->same(34, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
+    },
 ];
