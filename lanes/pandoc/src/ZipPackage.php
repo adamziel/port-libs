@@ -29,6 +29,13 @@ final class ZipPackage
     private const INFOZIP_UNIX_UID_GID_EXTRA_ID = 0x7875;
     private const WINZIP_AES_EXTRA_ID = 0x9901;
     private const UINT32_FACTOR = 4294967296;
+    private const UNIX_HOST_SYSTEM = 3;
+    private const DOS_READ_ONLY_ATTRIBUTE = 0x01;
+    private const DOS_HIDDEN_ATTRIBUTE = 0x02;
+    private const DOS_SYSTEM_ATTRIBUTE = 0x04;
+    private const DOS_VOLUME_LABEL_ATTRIBUTE = 0x08;
+    private const DOS_DIRECTORY_ATTRIBUTE = 0x10;
+    private const DOS_ARCHIVE_ATTRIBUTE = 0x20;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
     private const UNIX_FIFO_TYPE = 0x1000;
     private const UNIX_CHARACTER_DEVICE_TYPE = 0x2000;
@@ -3922,6 +3929,215 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     entryCount:int,
+     *     issueEntryCount:int,
+     *     symlinkEntryCount:int,
+     *     unixSpecialFileEntryCount:int,
+     *     directoryAttributeMismatchEntryCount:int,
+     *     unixFileTypeMismatchEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     issueEntries:list<array<string, mixed>>,
+     *     symlinkEntries:list<array<string, mixed>>,
+     *     unixSpecialFileEntries:list<array<string, mixed>>,
+     *     directoryAttributeMismatchEntries:list<array<string, mixed>>,
+     *     unixFileTypeMismatchEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function externalAttributePolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before external attributes can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $issueEntries = [];
+        $symlinkEntries = [];
+        $unixSpecialFileEntries = [];
+        $directoryAttributeMismatchEntries = [];
+        $unixFileTypeMismatchEntries = [];
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $versionMadeBy = self::readUInt16($bytes, $cursor + 4);
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $externalAttributes = self::readUInt32($bytes, $cursor + 38);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $name = $decodedName['text'];
+            $hostSystem = ($versionMadeBy >> 8) & 0xff;
+            $hostSystemName = self::creatorHostSystemName($hostSystem);
+            $dosAttributes = $externalAttributes & 0xff;
+            $hasDosDirectoryAttribute = ($dosAttributes & self::DOS_DIRECTORY_ATTRIBUTE) !== 0;
+            $isDirectory = str_ends_with($name, '/');
+            $unixMode = $hostSystem === self::UNIX_HOST_SYSTEM
+                ? (($externalAttributes >> 16) & 0xffff)
+                : null;
+            $unixFileType = $hostSystem === self::UNIX_HOST_SYSTEM
+                ? self::unixFileTypeFromExternalAttributes($externalAttributes)
+                : null;
+            $unixFileTypeName = $unixFileType === null ? null : self::unixFileTypeName($unixFileType);
+            $isUnixSymlink = $unixFileType === self::UNIX_SYMLINK_TYPE;
+            $isUnixSpecialFile = $unixFileType !== null
+                && $unixFileType !== self::UNIX_DIRECTORY_TYPE
+                && $unixFileType !== self::UNIX_REGULAR_FILE_TYPE
+                && $unixFileType !== self::UNIX_SYMLINK_TYPE;
+            $hasDirectoryAttributeMismatch = !$isDirectory && $hasDosDirectoryAttribute;
+            $hasUnixFileTypeMismatch = ($isDirectory && $unixFileType !== null && $unixFileType !== self::UNIX_DIRECTORY_TYPE)
+                || (!$isDirectory && $unixFileType === self::UNIX_DIRECTORY_TYPE);
+
+            $diagnostics = [];
+            $entryIssues = [];
+            if ($isUnixSymlink) {
+                $diagnostics[] = 'zip-unix-symlink-entry';
+                $entryIssues[] = 'symlink-zip-entry';
+            }
+            if ($isUnixSpecialFile) {
+                $diagnostics[] = 'zip-unix-special-file-entry';
+                $entryIssues[] = 'unix-special-file-entry';
+            }
+            if ($hasDirectoryAttributeMismatch) {
+                $diagnostics[] = 'zip-dos-directory-attribute-name-mismatch';
+                $entryIssues[] = 'directory-attribute-mismatch';
+            }
+            if ($hasUnixFileTypeMismatch) {
+                $diagnostics[] = 'zip-unix-file-type-name-mismatch';
+                $entryIssues[] = 'unix-file-type-name-mismatch';
+            }
+
+            $entry = [
+                'name' => $name,
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'madeByHostSystem' => $hostSystem,
+                'madeByHostSystemName' => $hostSystemName,
+                'madeByVersion' => $versionMadeBy & 0xff,
+                'versionMadeBy' => $versionMadeBy,
+                'externalAttributes' => $externalAttributes,
+                'dosAttributes' => $dosAttributes,
+                'dosAttributeNames' => self::dosAttributeNamesFromBits($dosAttributes),
+                'hasDosDirectoryAttribute' => $hasDosDirectoryAttribute,
+                'unixMode' => $unixMode,
+                'unixFileType' => $unixFileType,
+                'unixFileTypeName' => $unixFileTypeName,
+                'isDirectory' => $isDirectory,
+                'isUnixSymlink' => $isUnixSymlink,
+                'isUnixSpecialFile' => $isUnixSpecialFile,
+                'hasDirectoryAttributeMismatch' => $hasDirectoryAttributeMismatch,
+                'hasUnixFileTypeMismatch' => $hasUnixFileTypeMismatch,
+                'policy' => $diagnostics === [] ? 'metadata' : 'blocked',
+                'diagnostics' => $diagnostics,
+                'issues' => $entryIssues,
+            ];
+            $entries[] = $entry;
+            if ($diagnostics !== []) {
+                $issueEntries[] = $entry;
+            }
+            if ($isUnixSymlink) {
+                $symlinkEntries[] = $entry;
+            }
+            if ($isUnixSpecialFile) {
+                $unixSpecialFileEntries[] = $entry;
+            }
+            if ($hasDirectoryAttributeMismatch) {
+                $directoryAttributeMismatchEntries[] = $entry;
+            }
+            if ($hasUnixFileTypeMismatch) {
+                $unixFileTypeMismatchEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            $index++;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($symlinkEntries !== []) {
+            $issues[] = 'symlink-zip-entries';
+        }
+        if ($unixSpecialFileEntries !== []) {
+            $issues[] = 'unix-special-file-entries';
+        }
+        if ($directoryAttributeMismatchEntries !== []) {
+            $issues[] = 'directory-attribute-mismatch';
+        }
+        if ($unixFileTypeMismatchEntries !== []) {
+            $issues[] = 'unix-file-type-name-mismatch';
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'issueEntryCount' => count($issueEntries),
+            'symlinkEntryCount' => count($symlinkEntries),
+            'unixSpecialFileEntryCount' => count($unixSpecialFileEntries),
+            'directoryAttributeMismatchEntryCount' => count($directoryAttributeMismatchEntries),
+            'unixFileTypeMismatchEntryCount' => count($unixFileTypeMismatchEntries),
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'issueEntries' => $issueEntries,
+            'symlinkEntries' => $symlinkEntries,
+            'unixSpecialFileEntries' => $unixSpecialFileEntries,
+            'directoryAttributeMismatchEntries' => $directoryAttributeMismatchEntries,
+            'unixFileTypeMismatchEntries' => $unixFileTypeMismatchEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     eocdOffset:int,
      *     diskNumber:int,
      *     centralDirectoryDisk:int,
@@ -5113,6 +5329,7 @@ final class ZipPackage
      *     encryption:?array<string, mixed>,
      *     compressionMethods:?array<string, mixed>,
      *     creatorHostSystems:?array<string, mixed>,
+     *     externalAttributes:?array<string, mixed>,
      *     zip64ExtraFields:?array<string, mixed>,
      *     dataDescriptors:?array<string, mixed>,
      *     strictImport:?array<string, mixed>,
@@ -5207,6 +5424,7 @@ final class ZipPackage
                 'encryption' => null,
                 'compressionMethods' => null,
                 'creatorHostSystems' => null,
+                'externalAttributes' => null,
                 'zip64ExtraFields' => null,
                 'dataDescriptors' => null,
                 'strictImport' => null,
@@ -5231,6 +5449,7 @@ final class ZipPackage
         $encryption = null;
         $compressionMethods = null;
         $creatorHostSystems = null;
+        $externalAttributes = null;
         $zip64ExtraFields = null;
         $dataDescriptors = null;
         $strictImport = null;
@@ -5314,6 +5533,14 @@ final class ZipPackage
                 $addDiagnostics($creatorHostSystems['issues']);
             }
 
+            $externalAttributes = $runPreflight(
+                'external-attribute-policy',
+                static fn (): array => self::externalAttributePolicyPreflight($bytes)
+            );
+            if ($externalAttributes !== null && !$externalAttributes['isSupportedByBoundedReader']) {
+                $addDiagnostics($externalAttributes['issues']);
+            }
+
             $zip64ExtraFields = $runPreflight(
                 'zip64-extra-fields',
                 static fn (): array => self::zip64ExtraFieldPreflight($bytes)
@@ -5363,6 +5590,7 @@ final class ZipPackage
             ?? $encryption['entryCount']
             ?? $compressionMethods['entryCount']
             ?? $creatorHostSystems['entryCount']
+            ?? $externalAttributes['entryCount']
             ?? $archiveExtraDataRecords['entryCount']
             ?? $zip64ExtraFields['entryCount']
             ?? $dataDescriptors['entryCount']
@@ -5393,6 +5621,7 @@ final class ZipPackage
             'encryption' => $encryption,
             'compressionMethods' => $compressionMethods,
             'creatorHostSystems' => $creatorHostSystems,
+            'externalAttributes' => $externalAttributes,
             'zip64ExtraFields' => $zip64ExtraFields,
             'dataDescriptors' => $dataDescriptors,
             'strictImport' => $strictImport,
@@ -8765,6 +8994,34 @@ final class ZipPackage
             self::UNIX_SOCKET_TYPE => 'socket',
             default => 'unknown',
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function dosAttributeNamesFromBits(int $attributes): array
+    {
+        $names = [];
+        if (($attributes & self::DOS_READ_ONLY_ATTRIBUTE) !== 0) {
+            $names[] = 'read-only';
+        }
+        if (($attributes & self::DOS_HIDDEN_ATTRIBUTE) !== 0) {
+            $names[] = 'hidden';
+        }
+        if (($attributes & self::DOS_SYSTEM_ATTRIBUTE) !== 0) {
+            $names[] = 'system';
+        }
+        if (($attributes & self::DOS_VOLUME_LABEL_ATTRIBUTE) !== 0) {
+            $names[] = 'volume-label';
+        }
+        if (($attributes & self::DOS_DIRECTORY_ATTRIBUTE) !== 0) {
+            $names[] = 'directory';
+        }
+        if (($attributes & self::DOS_ARCHIVE_ATTRIBUTE) !== 0) {
+            $names[] = 'archive';
+        }
+
+        return $names;
     }
 
     private static function readUInt16(string $bytes, int $offset): int

@@ -2513,6 +2513,120 @@ return [
         $t->same('', $fatPackage->read('/word/media/reviewer-folder'));
     },
 
+    'preflights raw zip external attribute policy before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/media/link-review.png',
+                'data' => '../embeddings/oleObject1.bin',
+                'method' => 0,
+                'externalAttributes' => 0xa1ff0000,
+            ],
+            [
+                'name' => 'word/media/device-review.bin',
+                'data' => 'character device metadata must not become media bytes',
+                'method' => 0,
+                'externalAttributes' => 0x21b60000,
+            ],
+            [
+                'name' => 'word/media/reviewer-folder',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x10,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/fat-highbits.bin',
+                'data' => 'non-unix high bits stay metadata only',
+                'method' => 0,
+                'versionMadeBy' => 0x0014,
+                'externalAttributes' => 0xa1ff0000,
+            ],
+        ]);
+
+        $summary = ZipPackage::externalAttributePolicyPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 20.0, 1024);
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(4, $summary['issueEntryCount']);
+        $t->same(1, $summary['symlinkEntryCount']);
+        $t->same(1, $summary['unixSpecialFileEntryCount']);
+        $t->same(1, $summary['directoryAttributeMismatchEntryCount']);
+        $t->same(1, $summary['unixFileTypeMismatchEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same([
+            'symlink-zip-entries',
+            'unix-special-file-entries',
+            'directory-attribute-mismatch',
+            'unix-file-type-name-mismatch',
+        ], $summary['issues']);
+
+        $symlink = $summary['symlinkEntries'][0];
+        $t->same('word/media/link-review.png', $symlink['name']);
+        $t->same(3, $symlink['madeByHostSystem']);
+        $t->same('unix', $symlink['madeByHostSystemName']);
+        $t->same(0xa000, $symlink['unixFileType']);
+        $t->same('symlink', $symlink['unixFileTypeName']);
+        $t->same(true, $symlink['isUnixSymlink']);
+        $t->same(false, $symlink['isUnixSpecialFile']);
+        $t->same(false, $symlink['hasDirectoryAttributeMismatch']);
+        $t->same(false, $symlink['hasUnixFileTypeMismatch']);
+        $t->same('blocked', $symlink['policy']);
+        $t->same(['zip-unix-symlink-entry'], $symlink['diagnostics']);
+        $t->same(['symlink-zip-entry'], $symlink['issues']);
+
+        $special = $summary['unixSpecialFileEntries'][0];
+        $t->same('word/media/device-review.bin', $special['name']);
+        $t->same(0x2000, $special['unixFileType']);
+        $t->same('character-device', $special['unixFileTypeName']);
+        $t->same(true, $special['isUnixSpecialFile']);
+        $t->same(['zip-unix-special-file-entry'], $special['diagnostics']);
+        $t->same(['unix-special-file-entry'], $special['issues']);
+
+        $dosMismatch = $summary['directoryAttributeMismatchEntries'][0];
+        $t->same('word/media/reviewer-folder', $dosMismatch['name']);
+        $t->same(0x10, $dosMismatch['dosAttributes']);
+        $t->same(['directory'], $dosMismatch['dosAttributeNames']);
+        $t->same(true, $dosMismatch['hasDosDirectoryAttribute']);
+        $t->same(false, $dosMismatch['isDirectory']);
+        $t->same(true, $dosMismatch['hasDirectoryAttributeMismatch']);
+        $t->same(['zip-dos-directory-attribute-name-mismatch'], $dosMismatch['diagnostics']);
+
+        $unixMismatch = $summary['unixFileTypeMismatchEntries'][0];
+        $t->same('word/media/', $unixMismatch['name']);
+        $t->same(true, $unixMismatch['isDirectory']);
+        $t->same(0x8000, $unixMismatch['unixFileType']);
+        $t->same('regular-file', $unixMismatch['unixFileTypeName']);
+        $t->same(true, $unixMismatch['hasUnixFileTypeMismatch']);
+        $t->same(['zip-unix-file-type-name-mismatch'], $unixMismatch['diagnostics']);
+
+        $fatEntry = $summary['entries'][4];
+        $t->same('word/media/fat-highbits.bin', $fatEntry['name']);
+        $t->same(0, $fatEntry['madeByHostSystem']);
+        $t->same('ms-dos-fat', $fatEntry['madeByHostSystemName']);
+        $t->same(null, $fatEntry['unixMode']);
+        $t->same(null, $fatEntry['unixFileType']);
+        $t->same(null, $fatEntry['unixFileTypeName']);
+        $t->same(false, $fatEntry['isUnixSymlink']);
+        $t->same(false, $fatEntry['isUnixSpecialFile']);
+        $t->same('metadata', $fatEntry['policy']);
+        $t->same([], $fatEntry['diagnostics']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->same($summary, $rawStrict['externalAttributes']);
+        $t->contains('symlink-zip-entries', implode(',', $rawStrict['diagnostics']));
+        $t->contains('unix-special-file-entries', implode(',', $rawStrict['diagnostics']));
+        $t->contains('directory-attribute-mismatch', implode(',', $rawStrict['diagnostics']));
+        $t->contains('unix-file-type-name-mismatch', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+    },
+
     'preflights zip file-directory path collisions before media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $collisionPackage = ZipPackage::fromString($buildZipPackage([
             [

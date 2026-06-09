@@ -241,6 +241,11 @@ XML],
       <w:r><w:t>.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Proofing policy </w:t></w:r>
+      <w:r><w:rPr><w:noProof/></w:rPr><w:t>OCR packet label</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> remains reviewer-only.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Typographic source label </w:t></w:r>
       <w:r><w:rPr><w:spacing w:val="30"/><w:w w:val="90"/><w:kern w:val="24"/></w:rPr><w:t>expanded reviewer copy</w:t></w:r>
       <w:r><w:t xml:space="preserve"> and </w:t></w:r>
@@ -1375,6 +1380,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Ruby reviewer term <span class="docx-ruby" data-docx-ruby-text="とうきょう" data-docx-ruby-align="center" data-docx-ruby-lang="ja-JP" data-docx-ruby-hps="14" data-docx-ruby-hps-raise="18" data-docx-ruby-hps-base-text="24"><strong>東京</strong></span> keeps pronunciation metadata.</p>',
         '<p>Reviewer marks <span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span> and <span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7">source shading</span> plus <span class="docx-color docx-color-c00000 docx-theme-color docx-theme-color-accent2" data-docx-color="C00000" data-docx-theme-color="accent2" data-docx-theme-tint="33">redline label</span>.</p>',
         '<p>Run effect review <span class="docx-run-effect docx-run-hidden docx-run-web-hidden" data-docx-run-hidden="true" data-docx-run-web-hidden="true">hidden source clue</span> and <span class="docx-run-effect docx-emphasis-mark docx-emphasis-mark-dot docx-text-effect docx-text-effect-blinkbackground" data-docx-emphasis-mark="dot" data-docx-text-effect="blinkBackground">emphasis mark</span>.</p>',
+        '<p>Proofing policy <span class="docx-no-proof" data-docx-no-proof="true">OCR packet label</span> remains reviewer-only.</p>',
         '<p>Typographic source label <span class="docx-run-metrics docx-run-spacing docx-run-spacing-expanded docx-run-scale docx-run-kern" data-docx-run-spacing-twips="30" data-docx-run-scale-percent="90" data-docx-run-kern-half-points="24">expanded reviewer copy</span> and <span class="docx-run-metrics docx-run-position docx-run-position-lowered docx-run-fit-text" data-docx-run-position-half-points="-6" data-docx-fit-text-width-twips="1200" data-docx-fit-text-id="fit-review">fit text label</span>.</p>',
         '<p><span class="docx-paragraph-align docx-align-center docx-formatting-change docx-paragraph-formatting-change" data-docx-paragraph-align="center" data-docx-formatting-change="paragraph" data-docx-change-id="24" data-docx-author="Layout Reviewer" data-docx-date="2026-06-05T18:30:00Z" data-docx-previous-paragraph-style="OldReviewLayout" data-docx-previous-paragraph-align="left">Tracked paragraph formatting remains auditable.</span></p>',
         '<p>Tracked run formatting <span class="docx-formatting-change docx-run-formatting-change" data-docx-formatting-change="run" data-docx-change-id="25" data-docx-author="Run Reviewer" data-docx-date="2026-06-05T18:35:00Z" data-docx-previous-italic="true" data-docx-previous-highlight="yellow" data-docx-previous-lang="fr-FR"><strong>approved label</strong></span> stays visible.</p>',

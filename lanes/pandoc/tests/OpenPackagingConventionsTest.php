@@ -4271,6 +4271,83 @@ XML;
         $t->contains('Id="rIdHero"', $transforms[0]['relationshipXml']);
         $t->contains('Id="rIdReviewer"', $transforms[0]['relationshipXml']);
     },
+    'preflights duplicate OPC relationship transform selectors for review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/embeddings/source-workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+  <Override PartName="/_xmlsignatures/sig-duplicate-selector.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-workbook.xlsx"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/source-workbook.xlsx', 'data' => 'PK' . "\x03\x04"],
+            ['name' => '_xmlsignatures/sig-duplicate-selector.xml', 'data' => $signatureXml],
+        ]));
+
+        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-duplicate-selector.xml');
+
+        $t->same(1, count($transforms));
+        $t->same('/word/document.xml', $transforms[0]['source']);
+        $t->same(['rIdHero'], $transforms[0]['sourceIds']);
+        $t->same([OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE], $transforms[0]['sourceTypes']);
+        $t->same(['rIdHero'], $transforms[0]['duplicateSourceIds']);
+        $t->same([OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE], $transforms[0]['duplicateSourceTypes']);
+        $t->same(1, $transforms[0]['selectorDuplicateSourceIdCount']);
+        $t->same(1, $transforms[0]['selectorDuplicateSourceTypeCount']);
+        $t->same(4, $transforms[0]['selectorChildCount']);
+        $t->same(2, $transforms[0]['selectorRelationshipReferenceCount']);
+        $t->same(2, $transforms[0]['selectorRelationshipGroupReferenceCount']);
+        $t->same(['rIdEmbeddedWorkbook', 'rIdHero'], $transforms[0]['relationshipIds']);
+        $t->same(2, $transforms[0]['relationshipCount']);
+        $t->same(true, $transforms[0]['selectorValid']);
+        $t->same(true, $transforms[0]['relationshipTargetsValid']);
+        $t->same(false, $transforms[0]['valid']);
+        $t->same(['duplicate-source-id', 'duplicate-source-type'], $transforms[0]['issues']);
+        $t->contains('Id="rIdEmbeddedWorkbook"', $transforms[0]['relationshipXml']);
+        $t->contains('Id="rIdHero"', $transforms[0]['relationshipXml']);
+        $t->same(false, str_contains((string) $transforms[0]['relationshipXml'], 'rIdReviewer'));
+    },
     'rejects singular OPC relationship group reference aliases in signature transforms' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

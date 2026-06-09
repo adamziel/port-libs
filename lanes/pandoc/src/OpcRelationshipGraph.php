@@ -2775,7 +2775,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorChildCount:int, selectorRelationshipReferenceCount:int, selectorRelationshipGroupReferenceCount:int, selectorUnsupportedChildCount:int, selectorUnsupportedContentCount:int, followingCanonicalizationAlgorithm:?string, followingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, duplicateSourceIds:list<string>, duplicateSourceTypes:list<string>, selectorDuplicateSourceIdCount:int, selectorDuplicateSourceTypeCount:int, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorChildCount:int, selectorRelationshipReferenceCount:int, selectorRelationshipGroupReferenceCount:int, selectorUnsupportedChildCount:int, selectorUnsupportedContentCount:int, followingCanonicalizationAlgorithm:?string, followingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>
      */
     public function preflightSignatureRelationshipTransforms(string $signaturePartName): array
     {
@@ -2923,6 +2923,10 @@ final class OpcRelationshipGraph
                     'transformAlgorithm' => self::RELATIONSHIP_TRANSFORM_ALGORITHM,
                     'sourceIds' => $selector['sourceIds'],
                     'sourceTypes' => $selector['sourceTypes'],
+                    'duplicateSourceIds' => $selector['duplicateSourceIds'],
+                    'duplicateSourceTypes' => $selector['duplicateSourceTypes'],
+                    'selectorDuplicateSourceIdCount' => $selector['selectorDuplicateSourceIdCount'],
+                    'selectorDuplicateSourceTypeCount' => $selector['selectorDuplicateSourceTypeCount'],
                     'invalidSourceTypes' => $invalidSourceTypes,
                     'sourceTypeIssues' => $sourceTypeIssues,
                     'selectorChildCount' => $selector['selectorChildCount'],
@@ -4048,12 +4052,16 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorChildCount:int, selectorRelationshipReferenceCount:int, selectorRelationshipGroupReferenceCount:int, selectorUnsupportedChildCount:int, selectorUnsupportedContentCount:int, issues:list<string>}
+     * @return array{sourceIds:list<string>, sourceTypes:list<string>, duplicateSourceIds:list<string>, duplicateSourceTypes:list<string>, selectorDuplicateSourceIdCount:int, selectorDuplicateSourceTypeCount:int, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorChildCount:int, selectorRelationshipReferenceCount:int, selectorRelationshipGroupReferenceCount:int, selectorUnsupportedChildCount:int, selectorUnsupportedContentCount:int, issues:list<string>}
      */
     private static function relationshipTransformSelectors(\DOMElement $transform): array
     {
         $sourceIds = [];
         $sourceTypes = [];
+        $sourceIdOccurrences = [];
+        $sourceTypeOccurrences = [];
+        $duplicateSourceIds = [];
+        $duplicateSourceTypes = [];
         $sourceTypeIssues = [];
         $selectorChildCount = 0;
         $selectorRelationshipReferenceCount = 0;
@@ -4092,6 +4100,12 @@ final class OpcRelationshipGraph
                     continue;
                 }
 
+                $sourceIdOccurrences[$sourceId] = ($sourceIdOccurrences[$sourceId] ?? 0) + 1;
+                if ($sourceIdOccurrences[$sourceId] === 2) {
+                    $duplicateSourceIds[] = $sourceId;
+                    $issues[] = 'duplicate-source-id';
+                }
+
                 if (!in_array($sourceId, $sourceIds, true)) {
                     $sourceIds[] = $sourceId;
                 }
@@ -4105,6 +4119,12 @@ final class OpcRelationshipGraph
                 if ($sourceType === '') {
                     $issues[] = 'missing-source-type';
                     continue;
+                }
+
+                $sourceTypeOccurrences[$sourceType] = ($sourceTypeOccurrences[$sourceType] ?? 0) + 1;
+                if ($sourceTypeOccurrences[$sourceType] === 2) {
+                    $duplicateSourceTypes[] = $sourceType;
+                    $issues[] = 'duplicate-source-type';
                 }
 
                 if (!in_array($sourceType, $sourceTypes, true)) {
@@ -4129,6 +4149,10 @@ final class OpcRelationshipGraph
         return [
             'sourceIds' => $sourceIds,
             'sourceTypes' => $sourceTypes,
+            'duplicateSourceIds' => $duplicateSourceIds,
+            'duplicateSourceTypes' => $duplicateSourceTypes,
+            'selectorDuplicateSourceIdCount' => count($duplicateSourceIds),
+            'selectorDuplicateSourceTypeCount' => count($duplicateSourceTypes),
             'invalidSourceTypes' => array_keys($sourceTypeIssues),
             'sourceTypeIssues' => $sourceTypeIssues,
             'selectorChildCount' => $selectorChildCount,

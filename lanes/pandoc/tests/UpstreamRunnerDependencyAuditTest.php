@@ -319,20 +319,28 @@ $cliCabal = static function (): string {
         '  other-modules: PandocCLI.Lua, PandocCLI.Server',
         '  if arch(wasm32)',
         '    hs-source-dirs: wasm',
+        '    other-modules: PandocWasm',
+        '    cpp-options: -DINCLUDE_WASM',
+        '    build-depends: aeson, containers, bytestring, skylighting, filepath, pandoc-lua-engine',
+        '    ghc-options: -optl-Wl,--export=__wasm_call_ctors,--export=hs_init_with_rtsopts,--export=malloc,--export=convert,--export=query',
         '  else',
         '    ghc-options: -threaded',
         '  if flag(nightly)',
         '    cpp-options: -DNIGHTLY',
+        '    build-depends: template-haskell, time',
         '  if flag(server)',
+        '    build-depends: pandoc-server >= 0.1.1 && < 0.2, wai-extra >= 3.0.24, warp, safe',
         '    hs-source-dirs: server',
         '  else',
-        '    cpp-options: -DNO_SERVER',
+        '    hs-source-dirs: no-server',
         '  if flag(lua)',
+        '    build-depends: pandoc-lua-engine >= 0.5.1 && < 0.6',
         '    hs-source-dirs: lua',
         '  else',
-        '    cpp-options: -DNO_LUA',
+        '    hs-source-dirs: no-lua',
         '  if flag(repl)',
-        '    hs-source-dirs: repl',
+        '    build-depends: hslua-cli >= 1.4.1 && < 1.5, temporary >= 1.1 && < 1.4',
+        '    cpp-options: -DREPL',
     ]);
 };
 
@@ -2782,19 +2790,78 @@ return [
         $t->contains('exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'records pandoc cli flag-specific conditional dependency closure before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $root = $makeTree($requiredFiles($pinnedProject()));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $closure = $audit['cliExecutableClosure']['presentConditionalFieldClosure'];
+        $t->same(true, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([
+            'aeson',
+            'bytestring',
+            'containers',
+            'filepath',
+            'pandoc-lua-engine',
+            'skylighting',
+        ], $closure['executable pandoc: if arch(wasm32)']['buildDepends']);
+        $t->same(['PandocWasm'], $closure['executable pandoc: if arch(wasm32)']['otherModules']);
+        $t->same([
+            'template-haskell',
+            'time',
+        ], $closure['executable pandoc: if flag(nightly)']['buildDepends']);
+        $t->same([
+            'pandoc-server >= 0.1.1 && < 0.2',
+            'safe',
+            'wai-extra >= 3.0.24',
+            'warp',
+        ], $closure['executable pandoc: if flag(server)']['buildDepends']);
+        $t->same(['no-server'], $closure['executable pandoc: else after if flag(server)']['sourceDirectories']);
+        $t->same(['pandoc-lua-engine >= 0.5.1 && < 0.6'], $closure['executable pandoc: if flag(lua)']['buildDepends']);
+        $t->same(['no-lua'], $closure['executable pandoc: else after if flag(lua)']['sourceDirectories']);
+        $t->same([
+            'hslua-cli >= 1.4.1 && < 1.5',
+            'temporary >= 1.1 && < 1.4',
+        ], $closure['executable pandoc: if flag(repl)']['buildDepends']);
+        $t->same(['-DREPL'], $closure['executable pandoc: if flag(repl)']['cppOptions']);
+        $t->same([], $audit['cliExecutableClosure']['missingConditionalFieldEntries']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedConditionalFieldEntries']);
+    },
     'blocks pandoc cli conditional branch field drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $cliCabal): void {
         $cliPackage = str_replace(
             [
                 '    hs-source-dirs: wasm',
+                '    other-modules: PandocWasm',
+                '    cpp-options: -DINCLUDE_WASM',
+                '    build-depends: aeson, containers, bytestring, skylighting, filepath, pandoc-lua-engine',
                 '    ghc-options: -threaded',
-                "  if flag(server)\n    hs-source-dirs: server",
-                '    cpp-options: -DNO_LUA',
+                '    build-depends: template-haskell, time',
+                '    build-depends: pandoc-server >= 0.1.1 && < 0.2, wai-extra >= 3.0.24, warp, safe',
+                '    hs-source-dirs: server',
+                '    build-depends: pandoc-lua-engine >= 0.5.1 && < 0.6',
+                '    hs-source-dirs: no-lua',
+                '    build-depends: hslua-cli >= 1.4.1 && < 1.5, temporary >= 1.1 && < 1.4',
+                '    cpp-options: -DREPL',
             ],
             [
                 '    hs-source-dirs: generated-wasm',
+                '    other-modules: PandocGeneratedWasm',
+                '    cpp-options: -DINCLUDE_GENERATED_WASM',
+                '    build-depends: aeson, containers, bytestring, skylighting, pandoc-wasm-audit >= 0.1 && < 0.2',
                 '    ghc-options: -eventlog',
-                "  if flag(server)\n    hs-source-dirs: server generated-server\n    build-depends: pandoc-server-audit >= 0.1 && < 0.2",
-                '    cpp-options: -DNO_LUA_DISABLED',
+                '    build-depends: template-haskell, nightly-audit >= 0.1 && < 0.2',
+                '    build-depends: pandoc-server >= 0.1.0 && < 0.2, warp, pandoc-server-audit >= 0.1 && < 0.2',
+                '    hs-source-dirs: server generated-server',
+                '    build-depends: pandoc-lua-engine >= 0.5.0 && < 0.6',
+                '    hs-source-dirs: generated-no-lua',
+                '    build-depends: hslua-cli >= 1.4.1 && < 1.5',
+                '    cpp-options: -DREPL_GENERATED',
             ],
             $cliCabal()
         );
@@ -2832,10 +2899,16 @@ return [
             ],
             'executable pandoc: if arch(wasm32)' => [
                 'sourceDirectories' => ['generated-wasm'],
-                'ghcOptions' => [],
-                'cppOptions' => [],
-                'buildDepends' => [],
-                'otherModules' => [],
+                'ghcOptions' => ['-optl-Wl,--export=__wasm_call_ctors,--export=hs_init_with_rtsopts,--export=malloc,--export=convert,--export=query'],
+                'cppOptions' => ['-DINCLUDE_GENERATED_WASM'],
+                'buildDepends' => [
+                    'aeson',
+                    'bytestring',
+                    'containers',
+                    'pandoc-wasm-audit >= 0.1 && < 0.2',
+                    'skylighting',
+                ],
+                'otherModules' => ['PandocGeneratedWasm'],
                 'nativeSystemFields' => [],
             ],
             'executable pandoc: else after if arch(wasm32)' => [
@@ -2850,7 +2923,10 @@ return [
                 'sourceDirectories' => [],
                 'ghcOptions' => [],
                 'cppOptions' => ['-DNIGHTLY'],
-                'buildDepends' => [],
+                'buildDepends' => [
+                    'nightly-audit >= 0.1 && < 0.2',
+                    'template-haskell',
+                ],
                 'otherModules' => [],
                 'nativeSystemFields' => [],
             ],
@@ -2858,14 +2934,18 @@ return [
                 'sourceDirectories' => ['server', 'generated-server'],
                 'ghcOptions' => [],
                 'cppOptions' => [],
-                'buildDepends' => ['pandoc-server-audit >= 0.1 && < 0.2'],
+                'buildDepends' => [
+                    'pandoc-server >= 0.1.0 && < 0.2',
+                    'pandoc-server-audit >= 0.1 && < 0.2',
+                    'warp',
+                ],
                 'otherModules' => [],
                 'nativeSystemFields' => [],
             ],
             'executable pandoc: else after if flag(server)' => [
-                'sourceDirectories' => [],
+                'sourceDirectories' => ['no-server'],
                 'ghcOptions' => [],
-                'cppOptions' => ['-DNO_SERVER'],
+                'cppOptions' => [],
                 'buildDepends' => [],
                 'otherModules' => [],
                 'nativeSystemFields' => [],
@@ -2874,45 +2954,75 @@ return [
                 'sourceDirectories' => ['lua'],
                 'ghcOptions' => [],
                 'cppOptions' => [],
-                'buildDepends' => [],
+                'buildDepends' => ['pandoc-lua-engine >= 0.5.0 && < 0.6'],
                 'otherModules' => [],
                 'nativeSystemFields' => [],
             ],
             'executable pandoc: else after if flag(lua)' => [
-                'sourceDirectories' => [],
-                'ghcOptions' => [],
-                'cppOptions' => ['-DNO_LUA_DISABLED'],
-                'buildDepends' => [],
-                'otherModules' => [],
-                'nativeSystemFields' => [],
-            ],
-            'executable pandoc: if flag(repl)' => [
-                'sourceDirectories' => ['repl'],
+                'sourceDirectories' => ['generated-no-lua'],
                 'ghcOptions' => [],
                 'cppOptions' => [],
                 'buildDepends' => [],
                 'otherModules' => [],
                 'nativeSystemFields' => [],
             ],
+            'executable pandoc: if flag(repl)' => [
+                'sourceDirectories' => [],
+                'ghcOptions' => [],
+                'cppOptions' => ['-DREPL_GENERATED'],
+                'buildDepends' => ['hslua-cli >= 1.4.1 && < 1.5'],
+                'otherModules' => [],
+                'nativeSystemFields' => [],
+            ],
         ], $audit['cliExecutableClosure']['presentConditionalFieldClosure']);
         $t->same([
-            'executable pandoc: if arch(wasm32)' => ['hs-source-dirs: wasm'],
+            'executable pandoc: if arch(wasm32)' => [
+                'hs-source-dirs: wasm',
+                'cpp-options: -DINCLUDE_WASM',
+                'build-depends: filepath',
+                'build-depends: pandoc-lua-engine',
+                'other-modules: PandocWasm',
+            ],
             'executable pandoc: else after if arch(wasm32)' => ['ghc-options: -threaded'],
-            'executable pandoc: else after if flag(lua)' => ['cpp-options: -DNO_LUA'],
+            'executable pandoc: if flag(nightly)' => ['build-depends: time'],
+            'executable pandoc: if flag(server)' => [
+                'build-depends: pandoc-server >= 0.1.1 && < 0.2',
+                'build-depends: safe',
+                'build-depends: wai-extra >= 3.0.24',
+            ],
+            'executable pandoc: if flag(lua)' => ['build-depends: pandoc-lua-engine >= 0.5.1 && < 0.6'],
+            'executable pandoc: else after if flag(lua)' => ['hs-source-dirs: no-lua'],
+            'executable pandoc: if flag(repl)' => [
+                'cpp-options: -DREPL',
+                'build-depends: temporary >= 1.1 && < 1.4',
+            ],
         ], $audit['cliExecutableClosure']['missingConditionalFieldEntries']);
         $t->same([
-            'executable pandoc: if arch(wasm32)' => ['hs-source-dirs: generated-wasm'],
+            'executable pandoc: if arch(wasm32)' => [
+                'hs-source-dirs: generated-wasm',
+                'cpp-options: -DINCLUDE_GENERATED_WASM',
+                'build-depends: pandoc-wasm-audit >= 0.1 && < 0.2',
+                'other-modules: PandocGeneratedWasm',
+            ],
             'executable pandoc: else after if arch(wasm32)' => ['ghc-options: -eventlog'],
+            'executable pandoc: if flag(nightly)' => ['build-depends: nightly-audit >= 0.1 && < 0.2'],
             'executable pandoc: if flag(server)' => [
                 'hs-source-dirs: generated-server',
+                'build-depends: pandoc-server >= 0.1.0 && < 0.2',
                 'build-depends: pandoc-server-audit >= 0.1 && < 0.2',
             ],
-            'executable pandoc: else after if flag(lua)' => ['cpp-options: -DNO_LUA_DISABLED'],
+            'executable pandoc: if flag(lua)' => ['build-depends: pandoc-lua-engine >= 0.5.0 && < 0.6'],
+            'executable pandoc: else after if flag(lua)' => ['hs-source-dirs: generated-no-lua'],
+            'executable pandoc: if flag(repl)' => ['cpp-options: -DREPL_GENERATED'],
         ], $audit['cliExecutableClosure']['unexpectedConditionalFieldEntries']);
 
         $blocked = implode("\n", $audit['blockedReasons']);
-        $t->contains('missing pandoc-cli executable conditional branch fields: executable pandoc: if arch(wasm32) (hs-source-dirs: wasm); executable pandoc: else after if arch(wasm32) (ghc-options: -threaded); executable pandoc: else after if flag(lua) (cpp-options: -DNO_LUA)', $blocked);
-        $t->contains('unexpected pandoc-cli executable conditional branch fields: executable pandoc: if arch(wasm32) (hs-source-dirs: generated-wasm); executable pandoc: else after if arch(wasm32) (ghc-options: -eventlog); executable pandoc: if flag(server) (hs-source-dirs: generated-server, build-depends: pandoc-server-audit >= 0.1 && < 0.2); executable pandoc: else after if flag(lua) (cpp-options: -DNO_LUA_DISABLED)', $blocked);
+        $t->contains('missing pandoc-cli executable conditional branch fields: executable pandoc: if arch(wasm32) (hs-source-dirs: wasm, cpp-options: -DINCLUDE_WASM, build-depends: filepath, build-depends: pandoc-lua-engine, other-modules: PandocWasm)', $blocked);
+        $t->contains('executable pandoc: if flag(server) (build-depends: pandoc-server >= 0.1.1 && < 0.2, build-depends: safe, build-depends: wai-extra >= 3.0.24)', $blocked);
+        $t->contains('executable pandoc: if flag(repl) (cpp-options: -DREPL, build-depends: temporary >= 1.1 && < 1.4)', $blocked);
+        $t->contains('unexpected pandoc-cli executable conditional branch fields: executable pandoc: if arch(wasm32) (hs-source-dirs: generated-wasm, cpp-options: -DINCLUDE_GENERATED_WASM, build-depends: pandoc-wasm-audit >= 0.1 && < 0.2, other-modules: PandocGeneratedWasm)', $blocked);
+        $t->contains('executable pandoc: if flag(server) (hs-source-dirs: generated-server, build-depends: pandoc-server >= 0.1.0 && < 0.2, build-depends: pandoc-server-audit >= 0.1 && < 0.2)', $blocked);
+        $t->contains('executable pandoc: if flag(lua) (build-depends: pandoc-lua-engine >= 0.5.0 && < 0.6)', $blocked);
         $t->contains('exact pandoc-cli conditional branch field bodies', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },

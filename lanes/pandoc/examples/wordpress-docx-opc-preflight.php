@@ -38,6 +38,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
   <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-selector-shape.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+  <Override PartName="/_xmlsignatures/sig-duplicate-selector.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-missing-rels.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-fragment.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-dot-segments.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
@@ -160,6 +161,24 @@ $selectorShapeSignatureXml = <<<'XML'
         <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
           <mdssi:RelationshipReference SourceId="rIdHero" mdssi:review="bad"><mdssi:Trace/></mdssi:RelationshipReference>
           <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Extra="bad">text</mdssi:RelationshipsGroupReference>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+$duplicateSelectorSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
         </ds:Transform>
         <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
       </ds:Transforms>
@@ -396,6 +415,7 @@ $package = ZipPackage::fromParts([
     ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
     ['name' => '_xmlsignatures/sig1.xml', 'data' => $signatureXml],
     ['name' => '_xmlsignatures/sig-selector-shape.xml', 'data' => $selectorShapeSignatureXml],
+    ['name' => '_xmlsignatures/sig-duplicate-selector.xml', 'data' => $duplicateSelectorSignatureXml],
     ['name' => '_xmlsignatures/sig-missing-rels.xml', 'data' => $missingRelationshipPartSignatureXml],
     ['name' => '_xmlsignatures/sig-fragment.xml', 'data' => $fragmentReferenceSignatureXml],
     ['name' => '_xmlsignatures/sig-dot-segments.xml', 'data' => $dotSegmentReferenceSignatureXml],
@@ -1614,6 +1634,10 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.
         'source' => $transform['source'],
         'sourceIds' => $transform['sourceIds'],
         'sourceTypes' => $transform['sourceTypes'],
+        'duplicateSourceIds' => $transform['duplicateSourceIds'],
+        'duplicateSourceTypes' => $transform['duplicateSourceTypes'],
+        'selectorDuplicateSourceIdCount' => $transform['selectorDuplicateSourceIdCount'],
+        'selectorDuplicateSourceTypeCount' => $transform['selectorDuplicateSourceTypeCount'],
         'selectorChildCount' => $transform['selectorChildCount'],
         'selectorRelationshipReferenceCount' => $transform['selectorRelationshipReferenceCount'],
         'selectorRelationshipGroupReferenceCount' => $transform['selectorRelationshipGroupReferenceCount'],
@@ -1646,6 +1670,37 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-s
         'source' => $transform['source'],
         'sourceIds' => $transform['sourceIds'],
         'sourceTypes' => $transform['sourceTypes'],
+        'duplicateSourceIds' => $transform['duplicateSourceIds'],
+        'duplicateSourceTypes' => $transform['duplicateSourceTypes'],
+        'selectorDuplicateSourceIdCount' => $transform['selectorDuplicateSourceIdCount'],
+        'selectorDuplicateSourceTypeCount' => $transform['selectorDuplicateSourceTypeCount'],
+        'selectorChildCount' => $transform['selectorChildCount'],
+        'selectorRelationshipReferenceCount' => $transform['selectorRelationshipReferenceCount'],
+        'selectorRelationshipGroupReferenceCount' => $transform['selectorRelationshipGroupReferenceCount'],
+        'selectorUnsupportedChildCount' => $transform['selectorUnsupportedChildCount'],
+        'selectorUnsupportedContentCount' => $transform['selectorUnsupportedContentCount'],
+        'relationshipIds' => $transform['relationshipIds'],
+        'relationshipCount' => $transform['relationshipCount'],
+        'valid' => $transform['valid'],
+        'issues' => $transform['issues'],
+    ];
+}
+foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-duplicate-selector.xml') as $transform) {
+    $signatureRelationshipTransformGuards[] = [
+        'signaturePart' => $transform['signaturePart'],
+        'referenceUri' => $transform['referenceUri'],
+        'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceRelationshipPartExists' => $transform['referenceRelationshipPartExists'],
+        'referenceTargetContentType' => $transform['referenceTargetContentType'],
+        'referenceContentType' => $transform['referenceContentType'],
+        'referenceContentTypeMatches' => $transform['referenceContentTypeMatches'],
+        'source' => $transform['source'],
+        'sourceIds' => $transform['sourceIds'],
+        'sourceTypes' => $transform['sourceTypes'],
+        'duplicateSourceIds' => $transform['duplicateSourceIds'],
+        'duplicateSourceTypes' => $transform['duplicateSourceTypes'],
+        'selectorDuplicateSourceIdCount' => $transform['selectorDuplicateSourceIdCount'],
+        'selectorDuplicateSourceTypeCount' => $transform['selectorDuplicateSourceTypeCount'],
         'selectorChildCount' => $transform['selectorChildCount'],
         'selectorRelationshipReferenceCount' => $transform['selectorRelationshipReferenceCount'],
         'selectorRelationshipGroupReferenceCount' => $transform['selectorRelationshipGroupReferenceCount'],
@@ -3315,6 +3370,10 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureRelationshipTransforms'][0]['source'] ?? null) !== '/word/document.xml'
         || ($summary['signatureRelationshipTransforms'][0]['sourceIds'] ?? null) !== ['rIdHero', 'rIdReviewer']
         || ($summary['signatureRelationshipTransforms'][0]['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
+        || ($summary['signatureRelationshipTransforms'][0]['duplicateSourceIds'] ?? null) !== []
+        || ($summary['signatureRelationshipTransforms'][0]['duplicateSourceTypes'] ?? null) !== []
+        || ($summary['signatureRelationshipTransforms'][0]['selectorDuplicateSourceIdCount'] ?? null) !== 0
+        || ($summary['signatureRelationshipTransforms'][0]['selectorDuplicateSourceTypeCount'] ?? null) !== 0
         || ($summary['signatureRelationshipTransforms'][0]['selectorChildCount'] ?? null) !== 3
         || ($summary['signatureRelationshipTransforms'][0]['selectorRelationshipReferenceCount'] ?? null) !== 2
         || ($summary['signatureRelationshipTransforms'][0]['selectorRelationshipGroupReferenceCount'] ?? null) !== 1
@@ -3336,7 +3395,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || !ctype_xdigit((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXmlSha256'] ?? ''))
         || !str_contains((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? ''), 'Id="rIdEmbeddedWorkbook"')
         || str_contains((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? ''), 'rIdDraftReview')
-        || count($summary['signatureRelationshipTransformGuards'] ?? []) !== 1
+        || count($summary['signatureRelationshipTransformGuards'] ?? []) !== 2
         || ($summary['signatureRelationshipTransformGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-selector-shape.xml'
         || ($summary['signatureRelationshipTransformGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels'
         || ($summary['signatureRelationshipTransformGuards'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
@@ -3347,6 +3406,10 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureRelationshipTransformGuards'][0]['source'] ?? null) !== '/word/document.xml'
         || ($summary['signatureRelationshipTransformGuards'][0]['sourceIds'] ?? null) !== ['rIdHero']
         || ($summary['signatureRelationshipTransformGuards'][0]['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
+        || ($summary['signatureRelationshipTransformGuards'][0]['duplicateSourceIds'] ?? null) !== []
+        || ($summary['signatureRelationshipTransformGuards'][0]['duplicateSourceTypes'] ?? null) !== []
+        || ($summary['signatureRelationshipTransformGuards'][0]['selectorDuplicateSourceIdCount'] ?? null) !== 0
+        || ($summary['signatureRelationshipTransformGuards'][0]['selectorDuplicateSourceTypeCount'] ?? null) !== 0
         || ($summary['signatureRelationshipTransformGuards'][0]['selectorChildCount'] ?? null) !== 2
         || ($summary['signatureRelationshipTransformGuards'][0]['selectorRelationshipReferenceCount'] ?? null) !== 1
         || ($summary['signatureRelationshipTransformGuards'][0]['selectorRelationshipGroupReferenceCount'] ?? null) !== 1
@@ -3360,6 +3423,26 @@ if (($argv[1] ?? '') === '--self-test') {
             'unsupported-relationship-transform-selector-child',
             'unsupported-relationship-transform-selector-content',
         ]
+        || ($summary['signatureRelationshipTransformGuards'][1]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-duplicate-selector.xml'
+        || ($summary['signatureRelationshipTransformGuards'][1]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransformGuards'][1]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransformGuards'][1]['referenceRelationshipPartExists'] ?? null) !== true
+        || ($summary['signatureRelationshipTransformGuards'][1]['source'] ?? null) !== '/word/document.xml'
+        || ($summary['signatureRelationshipTransformGuards'][1]['sourceIds'] ?? null) !== ['rIdHero']
+        || ($summary['signatureRelationshipTransformGuards'][1]['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
+        || ($summary['signatureRelationshipTransformGuards'][1]['duplicateSourceIds'] ?? null) !== ['rIdHero']
+        || ($summary['signatureRelationshipTransformGuards'][1]['duplicateSourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
+        || ($summary['signatureRelationshipTransformGuards'][1]['selectorDuplicateSourceIdCount'] ?? null) !== 1
+        || ($summary['signatureRelationshipTransformGuards'][1]['selectorDuplicateSourceTypeCount'] ?? null) !== 1
+        || ($summary['signatureRelationshipTransformGuards'][1]['selectorChildCount'] ?? null) !== 4
+        || ($summary['signatureRelationshipTransformGuards'][1]['selectorRelationshipReferenceCount'] ?? null) !== 2
+        || ($summary['signatureRelationshipTransformGuards'][1]['selectorRelationshipGroupReferenceCount'] ?? null) !== 2
+        || ($summary['signatureRelationshipTransformGuards'][1]['selectorUnsupportedChildCount'] ?? null) !== 0
+        || ($summary['signatureRelationshipTransformGuards'][1]['selectorUnsupportedContentCount'] ?? null) !== 0
+        || ($summary['signatureRelationshipTransformGuards'][1]['relationshipIds'] ?? null) !== ['rIdEmbeddedWorkbook', 'rIdHero']
+        || ($summary['signatureRelationshipTransformGuards'][1]['relationshipCount'] ?? null) !== 2
+        || ($summary['signatureRelationshipTransformGuards'][1]['valid'] ?? null) !== false
+        || ($summary['signatureRelationshipTransformGuards'][1]['issues'] ?? null) !== ['duplicate-source-id', 'duplicate-source-type']
         || count($summary['signatureMissingRelationshipPartGuards'] ?? []) !== 1
         || ($summary['signatureMissingRelationshipPartGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-missing-rels.xml'
         || ($summary['signatureMissingRelationshipPartGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/missing-comments.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'

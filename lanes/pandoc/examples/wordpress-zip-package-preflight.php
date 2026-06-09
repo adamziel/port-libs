@@ -4023,6 +4023,14 @@ try {
 $unixFileTypeNameMismatchRejected = $unixDirectoryRegularTypeRejected
     && $unixFileDirectoryTypeRejected
     && $generatedUnixTypeMismatchRejected;
+$rawExternalAttributePolicyZip = $buildUnixFileTypeNameMismatchBackedPackage('word/media/', 0x81a40000);
+$rawExternalAttributePolicy = ZipPackage::externalAttributePolicyPreflight($rawExternalAttributePolicyZip);
+$rawExternalAttributeStrictPreflight = ZipPackage::rawStrictImportPreflight(
+    $rawExternalAttributePolicyZip,
+    4096,
+    100.0,
+    4096
+);
 $duplicateLocalOffsetRejected = false;
 try {
     ZipPackage::fromString($buildDuplicateLocalOffsetBackedPackage());
@@ -5757,6 +5765,18 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP Unix file-type metadata to match entry name shape before media import');
     }
 
+    if (
+        ($rawExternalAttributePolicy['issueEntryCount'] ?? null) !== 1
+        || ($rawExternalAttributePolicy['unixFileTypeMismatchEntryCount'] ?? null) !== 1
+        || ($rawExternalAttributePolicy['issueEntries'][0]['name'] ?? null) !== 'word/media/'
+        || ($rawExternalAttributePolicy['issueEntries'][0]['policy'] ?? null) !== 'blocked'
+        || !in_array('unix-file-type-name-mismatch', $rawExternalAttributePolicy['issues'] ?? [], true)
+        || ($rawExternalAttributeStrictPreflight['canInstantiate'] ?? true) !== false
+        || !in_array('unix-file-type-name-mismatch', $rawExternalAttributeStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw ZIP external-attribute policy diagnostics before package instantiation');
+    }
+
     if (!$localEntryOverlapRejected) {
         throw new RuntimeException('Expected ZIP local entry overlap to be rejected before media import');
     }
@@ -6093,6 +6113,8 @@ echo 'zipRawStrictLocalHeaderSpanUnclaimedBytes=' . ($rawStrictLocalHeaderSpanPr
 echo 'zipRawStrictLocalHeaderOffsetPolicy=' . ($rawStrictLocalHeaderOffsetPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictLocalHeaderOffsetIssues=' . implode(',', $rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issues'] ?? []) . "\n";
 echo 'zipRawStrictLocalHeaderOffsetLocation=' . ($rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issueEntries'][0]['localHeaderOffsetLocation'] ?? 'none') . "\n";
+echo 'zipRawExternalAttributeIssueCount=' . $rawExternalAttributePolicy['issueEntryCount'] . "\n";
+echo 'zipRawExternalAttributeDiagnostics=' . implode(',', $rawExternalAttributeStrictPreflight['diagnostics']) . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPreflight['diagnostics']) . "\n";
 echo 'zipCommentControlBytePolicy=' . ($strictCommentControlImportRejected ? 'rejected' : 'not-rejected') . "\n";

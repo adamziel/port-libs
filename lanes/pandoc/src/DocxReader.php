@@ -6174,6 +6174,7 @@ final class DocxReader
             'vanish' => 'run-hidden',
             'webHidden' => 'run-web-hidden',
             'specVanish' => 'run-spec-hidden',
+            'noProof' => 'no-proof',
             'caps' => 'run-caps',
             'outline' => 'run-outline',
             'shadow' => 'run-shadow',
@@ -6320,6 +6321,9 @@ final class DocxReader
             $removeExactClasses[] = 'docx-run-spec-hidden';
             $removeExactAttributes[] = 'data-docx-run-spec-hidden';
             $runEffectFamily = true;
+        } elseif ($family === 'no-proof') {
+            $removeExactClasses[] = 'docx-no-proof';
+            $removeExactAttributes[] = 'data-docx-no-proof';
         } elseif ($family === 'run-caps') {
             $removeExactClasses[] = 'docx-run-caps';
             $removeExactAttributes[] = 'data-docx-run-caps';
@@ -6488,6 +6492,7 @@ final class DocxReader
             $this->runFontAttrs($properties),
             $this->runEffectAttrs($properties),
             $this->runMetricAttrs($properties),
+            $this->runProofingAttrs($properties),
             $includeFormattingChange ? $this->runFormattingChangeAttrs($properties) : null,
         ] as $source) {
             if ($source === null) {
@@ -6566,6 +6571,23 @@ final class DocxReader
         return [
             'classes' => array_values(array_unique($classes)),
             'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function runProofingAttrs(\DOMElement $properties): ?array
+    {
+        if ($this->onOffChildValue($properties, 'noProof') !== true) {
+            return null;
+        }
+
+        return [
+            'classes' => ['docx-no-proof'],
+            'attributes' => [
+                'data-docx-no-proof' => 'true',
+            ],
         ];
     }
 

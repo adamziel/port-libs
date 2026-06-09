@@ -3040,6 +3040,65 @@ $runEffectDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$runProofingPolicyContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>
+XML;
+
+$runProofingPolicyDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+XML;
+
+$runProofingPolicyStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="character" w:styleId="MachineTranscription">
+    <w:name w:val="Machine Transcription"/>
+    <w:rPr><w:noProof/></w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="MachineTranscriptionChecked">
+    <w:name w:val="Machine Transcription Checked"/>
+    <w:basedOn w:val="MachineTranscription"/>
+    <w:rPr><w:noProof w:val="0"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="SourceExtract">
+    <w:name w:val="Source Extract"/>
+    <w:rPr><w:noProof/></w:rPr>
+  </w:style>
+</w:styles>
+XML;
+
+$runProofingPolicyDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Proofing policy </w:t></w:r>
+      <w:r><w:rPr><w:noProof/></w:rPr><w:t>OCR token</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r><w:rPr><w:noProof w:val="0"/></w:rPr><w:t>checked token</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="MachineTranscription"/></w:rPr><w:t>style token</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="MachineTranscriptionChecked"/></w:rPr><w:t>style cleared</w:t></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="SourceExtract"/></w:pPr>
+      <w:r><w:t>Paragraph style unproofed.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="SourceExtract"/></w:pPr>
+      <w:r><w:rPr><w:noProof w:val="false"/></w:rPr><w:t>Direct proofing override.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $runMetricDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -4415,6 +4474,22 @@ $buildRunEffectPackage = static function () use ($contentTypesXml, $packageRelat
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $runEffectDocumentXml],
+    ]);
+};
+
+$buildRunProofingPolicyPackage = static function () use (
+    $runProofingPolicyContentTypesXml,
+    $packageRelationshipsXml,
+    $runProofingPolicyDocumentRelationshipsXml,
+    $runProofingPolicyStylesXml,
+    $runProofingPolicyDocumentXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $runProofingPolicyContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $runProofingPolicyDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $runProofingPolicyDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $runProofingPolicyStylesXml],
     ]);
 };
 
@@ -8859,6 +8934,59 @@ return [
         $t->contains('<span class="docx-run-effect docx-emphasis-mark docx-emphasis-mark-dot docx-text-effect docx-text-effect-blinkbackground" data-docx-emphasis-mark="dot" data-docx-text-effect="blinkBackground">emphasis mark</span> plain.', $blocks);
         $t->true(!str_contains($markdown, 'data-docx-text-effect="none"'), 'DOCX effect none should not create Markdown run-effect metadata');
         $t->true(!str_contains($blocks, 'data-docx-run-caps="off"'), 'DOCX off caps should not create WordPress run-effect metadata');
+    },
+    'preserves DOCX run no-proof policy metadata and clears inherited policy overrides' => static function (TestRunner $t) use ($buildRunProofingPolicyPackage): void {
+        $document = (new DocxReader())->readDocument($buildRunProofingPolicyPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(5, count($paragraph->children));
+        $t->same('Proofing policy ', $paragraph->children[0]->attr('text'));
+
+        $direct = $paragraph->children[1];
+        $t->same('span', $direct->type);
+        $t->same(['docx-no-proof'], $direct->attr('classes'));
+        $t->same('true', $direct->attr('attributes')['data-docx-no-proof']);
+        $t->same('OCR token', $direct->children[0]->attr('text'));
+
+        $t->same('text', $paragraph->children[2]->type);
+        $t->same(', checked token, ', $paragraph->children[2]->attr('text'));
+
+        $style = $paragraph->children[3];
+        $t->same('span', $style->type);
+        $t->same(['docx-no-proof'], $style->attr('classes'));
+        $t->same('true', $style->attr('attributes')['data-docx-no-proof']);
+        $t->same('style token', $style->children[0]->attr('text'));
+
+        $t->same('text', $paragraph->children[4]->type);
+        $t->same(', style cleared.', $paragraph->children[4]->attr('text'));
+
+        $paragraphStyle = $document->children[1]->children[0];
+        $t->same('span', $paragraphStyle->type);
+        $t->same(['docx-no-proof'], $paragraphStyle->attr('classes'));
+        $t->same('true', $paragraphStyle->attr('attributes')['data-docx-no-proof']);
+        $t->same('Paragraph style unproofed.', $paragraphStyle->children[0]->attr('text'));
+
+        $paragraphOverride = $document->children[2]->children[0];
+        $t->same('text', $paragraphOverride->type);
+        $t->same('Direct proofing override.', $paragraphOverride->attr('text'));
+
+        $t->contains('[OCR token]{.docx-no-proof data-docx-no-proof="true"}', $markdown);
+        $t->contains('[style token]{.docx-no-proof data-docx-no-proof="true"}', $markdown);
+        $t->contains('[Paragraph style unproofed.]{.docx-no-proof data-docx-no-proof="true"}', $markdown);
+        $t->contains('<span class="docx-no-proof" data-docx-no-proof="true">OCR token</span>', $blocks);
+        $t->contains('<span class="docx-no-proof" data-docx-no-proof="true">style token</span>', $blocks);
+        $t->contains('<p><span class="docx-no-proof" data-docx-no-proof="true">Paragraph style unproofed.</span></p>', $blocks);
+
+        $t->true(!str_contains($markdown, 'data-docx-no-proof="false"'), 'Disabled DOCX noProof should not create false no-proof Markdown metadata');
+        $t->true(!str_contains($blocks, 'data-docx-no-proof="false"'), 'Disabled DOCX noProof should not create false no-proof WordPress metadata');
+        $t->true(!str_contains($blocks, '<span class="docx-no-proof" data-docx-no-proof="true">checked token</span>'), 'Direct disabled DOCX noProof should stay plain');
+        $t->true(!str_contains($blocks, '<span class="docx-no-proof" data-docx-no-proof="true">style cleared</span>'), 'Style-level disabled DOCX noProof should clear inherited proofing metadata');
+        $t->true(!str_contains($blocks, '<span class="docx-no-proof" data-docx-no-proof="true">Direct proofing override.</span>'), 'Direct disabled DOCX noProof should clear paragraph style proofing metadata');
     },
     'preserves DOCX run typographic metrics as reviewer spans' => static function (TestRunner $t) use ($buildRunMetricPackage): void {
         $document = (new DocxReader())->readDocument($buildRunMetricPackage());
