@@ -324,6 +324,24 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $trailingBlockPipeTablePacket = $renderer->render(
+        "|------------|------------|\n"
+            . '$for(reviewers)$' . "\n"
+            . '$it.name/uppercase/left 10 "| "$' . '$it.ticket/right 10 " | " " |"$' . "\n"
+            . '$endfor$'
+            . "|------------|------------|\n\n",
+        [
+            'reviewers' => [
+                ['name' => 'Media', 'ticket' => '17'],
+                ['name' => 'Layout', 'ticket' => '103'],
+            ],
+        ],
+    );
+    if ($trailingBlockPipeTablePacket !== "|------------|------------|\n| MEDIA      |         17 |\n| LAYOUT     |        103 |\n|------------|------------|\n") {
+        fwrite(STDERR, "Unexpected doctemplate trailing block-pipe table output\n");
+        exit(1);
+    }
+
     if (str_contains($output, "\n\n</section>")) {
         fwrite(STDERR, "Unexpected blank line before doctemplate review body close\n");
         exit(1);

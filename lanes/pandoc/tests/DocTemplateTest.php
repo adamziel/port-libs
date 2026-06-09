@@ -1286,6 +1286,67 @@ TPL;
         ]));
     },
 
+    'matches upstream pandoc doctemplate pad fixture final blank-line handling' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+$sup/right 15$$sup/center 15$$sup/left 15$
+
+$for(baz/pairs)$
+$it.key/alpha/right 4$. $^$$it.value$
+$endfor$
+
++------+-----------+
+$for(baz/pairs)$
+$it.key/right 4 "| " " | "$$it.value/left 10 "" "|"$
++------+-----------+
+$endfor$
+
+|------------|------------|
+$for(employee)$
+$it.name.first/uppercase/left 10 "| "$$it.salary/right 10 " | " " |"$
+$endfor$|------------|------------|
+
+TPL;
+
+        $expected = <<<'EXPECTED'
+    a multiline  a multiline  a multiline
+         string    string     string
+
+   a. a
+      b
+   b. b
+      c
+      d
+
++------+-----------+
+|    1 | a         |
+|      | b         |
++------+-----------+
+|    2 | b         |
+|      | c         |
+|      | d         |
++------+-----------+
+
+|------------|------------|
+| JOHN       |            |
+| OMAR       |      30000 |
+| SARA       |      60000 |
+|------------|------------|
+EXPECTED;
+        $expected .= "\n";
+
+        $output = (new DocTemplate())->render($template, [
+            'sup' => "a multiline\nstring",
+            'baz' => ["a\nb", "b\nc\nd"],
+            'employee' => [
+                ['name' => ['first' => 'John', 'last' => 'Doe']],
+                ['name' => ['first' => 'Omar', 'last' => 'Smith'], 'salary' => '30000'],
+                ['name' => ['first' => 'Sara', 'last' => 'Chen'], 'salary' => '60000'],
+            ],
+        ]);
+
+        $t->same($expected, $output);
+    },
+
     'leaves non textual values unchanged for pandoc doctemplate block pipes' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Meta: $meta/left 12 "| " " |"$

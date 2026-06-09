@@ -74,7 +74,10 @@ final class DocTemplate
     {
         $partials = $this->normalizePartialMap($partials);
 
-        return $this->renderTemplate($template, $context, $partials, $this->partialSourceMap($partials), [], false, '<template>');
+        return $this->stripRootTemplateRedundantFinalBlankLine(
+            $template,
+            $this->renderTemplate($template, $context, $partials, $this->partialSourceMap($partials), [], false, '<template>'),
+        );
     }
 
     /**
@@ -87,7 +90,10 @@ final class DocTemplate
         $partials = $this->normalizePartialMap($partials);
 
         return $this->wrapBreakableSpaces(
-            $this->renderTemplate($template, $context, $partials, $this->partialSourceMap($partials), [], true, '<template>'),
+            $this->stripRootTemplateRedundantFinalBlankLine(
+                $template,
+                $this->renderTemplate($template, $context, $partials, $this->partialSourceMap($partials), [], true, '<template>'),
+            ),
             $lineLength,
         );
     }
@@ -108,14 +114,17 @@ final class DocTemplate
 
         $partialResources = $this->partialResourcesForTemplateResource($templatePath, $resources, $userDataDirectory);
 
-        return $this->renderTemplate(
+        return $this->stripRootTemplateRedundantFinalBlankLine(
             $resources[$templatePath],
-            $context,
-            $partialResources['partials'],
-            $partialResources['sources'],
-            [],
-            false,
-            $templatePath,
+            $this->renderTemplate(
+                $resources[$templatePath],
+                $context,
+                $partialResources['partials'],
+                $partialResources['sources'],
+                [],
+                false,
+                $templatePath,
+            ),
         );
     }
 
@@ -137,14 +146,17 @@ final class DocTemplate
         $partialResources = $this->partialResourcesForTemplateResource($templatePath, $resources, $userDataDirectory);
 
         return $this->wrapBreakableSpaces(
-            $this->renderTemplate(
+            $this->stripRootTemplateRedundantFinalBlankLine(
                 $resources[$templatePath],
-                $context,
-                $partialResources['partials'],
-                $partialResources['sources'],
-                [],
-                true,
-                $templatePath,
+                $this->renderTemplate(
+                    $resources[$templatePath],
+                    $context,
+                    $partialResources['partials'],
+                    $partialResources['sources'],
+                    [],
+                    true,
+                    $templatePath,
+                ),
             ),
             $lineLength,
         );
@@ -6671,6 +6683,21 @@ CSS;
 
         if (str_ends_with($value, "\n") || str_ends_with($value, "\r")) {
             return substr($value, 0, -1);
+        }
+
+        return $value;
+    }
+
+    private function stripRootTemplateRedundantFinalBlankLine(string $template, string $value): string
+    {
+        $templateWithoutFinalLineEnding = $this->stripSingleFinalNewline($template);
+        if ($templateWithoutFinalLineEnding === $template || !$this->endsWithLineEnding($templateWithoutFinalLineEnding)) {
+            return $value;
+        }
+
+        $withoutFinalLineEnding = $this->stripSingleFinalNewline($value);
+        if ($withoutFinalLineEnding !== $value && $this->endsWithLineEnding($withoutFinalLineEnding)) {
+            return $withoutFinalLineEnding;
         }
 
         return $value;
