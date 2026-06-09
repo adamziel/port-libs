@@ -1097,4 +1097,129 @@ return [
             $t->same('', $review['outputImplementation']);
         }
     },
+    'builds wiki format upstream evidence packets without direct parity claims' => static function (TestRunner $t): void {
+        $templates = PandocFormatRegistry::wikiTemplateResources();
+        $fixtures = PandocFormatRegistry::wikiFixtureSources();
+        $packet = PandocFormatRegistry::wikiFormatEvidencePacket();
+
+        $t->same([
+            'dokuwiki' => 'data/templates/default.dokuwiki',
+            'jira' => 'data/templates/default.jira',
+            'mediawiki' => 'data/templates/default.mediawiki',
+            'xwiki' => 'data/templates/default.xwiki',
+            'zimwiki' => 'data/templates/default.zimwiki',
+        ], $templates);
+        $t->same([
+            'creole' => [
+                'reader' => ['test/creole-reader.txt'],
+                'writer' => [],
+            ],
+            'dokuwiki' => [
+                'reader' => [
+                    'test/dokuwiki_inline_formatting.dokuwiki',
+                    'test/dokuwiki_external_images.dokuwiki',
+                    'test/dokuwiki_multiblock_table.dokuwiki',
+                ],
+                'writer' => [
+                    'test/tables.dokuwiki',
+                    'test/writer.dokuwiki',
+                ],
+            ],
+            'jira' => [
+                'reader' => ['test/jira-reader.jira'],
+                'writer' => [
+                    'test/tables.jira',
+                    'test/writer.jira',
+                ],
+            ],
+            'mediawiki' => [
+                'reader' => ['test/mediawiki-reader.wiki'],
+                'writer' => [
+                    'test/tables.mediawiki',
+                    'test/tables/*.mediawiki',
+                    'test/writer.mediawiki',
+                ],
+            ],
+            'tikiwiki' => [
+                'reader' => ['test/tikiwiki-reader.tikiwiki'],
+                'writer' => [],
+            ],
+            'twiki' => [
+                'reader' => ['test/twiki-reader.twiki'],
+                'writer' => [],
+            ],
+            'vimwiki' => [
+                'reader' => ['test/vimwiki-reader.wiki'],
+                'writer' => [],
+            ],
+            'xwiki' => [
+                'reader' => [],
+                'writer' => [
+                    'test/tables.xwiki',
+                    'test/writer.xwiki',
+                ],
+            ],
+            'zimwiki' => [
+                'reader' => [],
+                'writer' => [
+                    'test/tables.zimwiki',
+                    'test/writer.zimwiki',
+                ],
+            ],
+        ], $fixtures);
+
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same($templates, $packet['templateResources']);
+        $t->same($fixtures, $packet['fixtureSources']);
+        $t->same([
+            'creole',
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+            'xwiki',
+            'zimwiki',
+        ], array_keys($packet['formats']));
+
+        $t->same([
+            'test/dokuwiki_inline_formatting.dokuwiki',
+            'test/dokuwiki_external_images.dokuwiki',
+            'test/dokuwiki_multiblock_table.dokuwiki',
+        ], $packet['formats']['dokuwiki']['readerFixtures']);
+        $t->same([
+            'test/tables.dokuwiki',
+            'test/writer.dokuwiki',
+        ], $packet['formats']['dokuwiki']['writerFixtures']);
+        $t->same('data/templates/default.dokuwiki', $packet['formats']['dokuwiki']['templateResource']);
+        $t->same(true, $packet['formats']['dokuwiki']['hasTemplateResource']);
+        $t->same('input-output', $packet['formats']['mediawiki']['direction']);
+        $t->same(['test/mediawiki-reader.wiki'], $packet['formats']['mediawiki']['readerFixtures']);
+        $t->same([
+            'test/tables.mediawiki',
+            'test/tables/*.mediawiki',
+            'test/writer.mediawiki',
+        ], $packet['formats']['mediawiki']['writerFixtures']);
+        $t->same('input-only', $packet['formats']['vimwiki']['direction']);
+        $t->same(['test/vimwiki-reader.wiki'], $packet['formats']['vimwiki']['readerFixtures']);
+        $t->same([], $packet['formats']['vimwiki']['writerFixtures']);
+        $t->same('', $packet['formats']['vimwiki']['templateResource']);
+        $t->same(false, $packet['formats']['vimwiki']['hasTemplateResource']);
+        $t->same('output-only', $packet['formats']['xwiki']['direction']);
+        $t->same([], $packet['formats']['xwiki']['readerFixtures']);
+        $t->same([
+            'test/tables.xwiki',
+            'test/writer.xwiki',
+        ], $packet['formats']['xwiki']['writerFixtures']);
+        $t->same('not-applicable', $packet['formats']['xwiki']['inputStatus']);
+        $t->same('unsupported', $packet['formats']['xwiki']['outputStatus']);
+
+        foreach ($packet['formats'] as $format => $evidence) {
+            $t->same('', $evidence['inputImplementation'], "Wiki evidence packet {$format} must not register an input implementation");
+            $t->same('', $evidence['outputImplementation'], "Wiki evidence packet {$format} must not register an output implementation");
+        }
+    },
 ];

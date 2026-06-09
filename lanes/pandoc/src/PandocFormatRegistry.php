@@ -170,6 +170,58 @@ final class PandocFormatRegistry
         '.wiki' => 'mediawiki',
     ];
 
+    /** @var array<string, list<string>> */
+    private const WIKI_READER_FIXTURE_SOURCES = [
+        'creole' => [
+            'test/creole-reader.txt',
+        ],
+        'dokuwiki' => [
+            'test/dokuwiki_inline_formatting.dokuwiki',
+            'test/dokuwiki_external_images.dokuwiki',
+            'test/dokuwiki_multiblock_table.dokuwiki',
+        ],
+        'jira' => [
+            'test/jira-reader.jira',
+        ],
+        'mediawiki' => [
+            'test/mediawiki-reader.wiki',
+        ],
+        'tikiwiki' => [
+            'test/tikiwiki-reader.tikiwiki',
+        ],
+        'twiki' => [
+            'test/twiki-reader.twiki',
+        ],
+        'vimwiki' => [
+            'test/vimwiki-reader.wiki',
+        ],
+    ];
+
+    /** @var array<string, list<string>> */
+    private const WIKI_WRITER_FIXTURE_SOURCES = [
+        'dokuwiki' => [
+            'test/tables.dokuwiki',
+            'test/writer.dokuwiki',
+        ],
+        'jira' => [
+            'test/tables.jira',
+            'test/writer.jira',
+        ],
+        'mediawiki' => [
+            'test/tables.mediawiki',
+            'test/tables/*.mediawiki',
+            'test/writer.mediawiki',
+        ],
+        'xwiki' => [
+            'test/tables.xwiki',
+            'test/writer.xwiki',
+        ],
+        'zimwiki' => [
+            'test/tables.zimwiki',
+            'test/writer.zimwiki',
+        ],
+    ];
+
     /** @var list<string> */
     private const ROFF_MANUAL_INPUT_FORMATS = [
         'man',
@@ -587,6 +639,43 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, string>
+     */
+    public static function wikiTemplateResources(): array
+    {
+        $dataFiles = array_flip(UpstreamRunnerDependencyAudit::expectedPackageDataFiles()['pandoc.cabal'] ?? []);
+        $resources = [];
+
+        foreach (self::WIKI_OUTPUT_FORMATS as $format) {
+            $resource = 'data/templates/default.' . $format;
+            if (array_key_exists($resource, $dataFiles)) {
+                $resources[$format] = $resource;
+            }
+        }
+
+        return $resources;
+    }
+
+    /**
+     * @return array<string, array{reader:list<string>, writer:list<string>}>
+     */
+    public static function wikiFixtureSources(): array
+    {
+        $sourceFiles = array_flip(UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles()['pandoc.cabal'] ?? []);
+        $formats = array_values(array_unique(array_merge(self::WIKI_INPUT_FORMATS, self::WIKI_OUTPUT_FORMATS)));
+        $sources = [];
+
+        foreach ($formats as $format) {
+            $sources[$format] = [
+                'reader' => self::auditedFixtureSources(self::WIKI_READER_FIXTURE_SOURCES[$format] ?? [], $sourceFiles),
+                'writer' => self::auditedFixtureSources(self::WIKI_WRITER_FIXTURE_SOURCES[$format] ?? [], $sourceFiles),
+            ];
+        }
+
+        return $sources;
+    }
+
+    /**
      * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
      */
     public static function wikiFormatDirections(): array
@@ -669,6 +758,55 @@ final class PandocFormatRegistry
             'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
             'unsupportedOutputFormats' => self::formatsWithStatus($outputSupport, 'unsupported'),
             'unsupportedFormatSummary' => self::wikiUnsupportedFormatSummary(),
+            'formats' => $formats,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     templateResources:array<string, string>,
+     *     fixtureSources:array<string, array{reader:list<string>, writer:list<string>}>,
+     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, readerFixtures:list<string>, writerFixtures:list<string>, templateResource:string, hasTemplateResource:bool, inputImplementation:string, outputImplementation:string}>
+     * }
+     */
+    public static function wikiFormatEvidencePacket(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::wikiOutputSupport();
+        $templates = self::wikiTemplateResources();
+        $fixtureSources = self::wikiFixtureSources();
+        $formats = [];
+
+        foreach ($directions as $format => $direction) {
+            $hasInput = $direction['input'];
+            $hasOutput = $direction['output'];
+            $formatFixtures = $fixtureSources[$format] ?? ['reader' => [], 'writer' => []];
+
+            $formats[$format] = [
+                'input' => $hasInput,
+                'output' => $hasOutput,
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'readerFixtures' => $hasInput ? $formatFixtures['reader'] : [],
+                'writerFixtures' => $hasOutput ? $formatFixtures['writer'] : [],
+                'templateResource' => $templates[$format] ?? '',
+                'hasTemplateResource' => array_key_exists($format, $templates),
+                'inputImplementation' => $hasInput ? $inputSupport[$format]['implementation'] : '',
+                'outputImplementation' => $hasOutput ? $outputSupport[$format]['implementation'] : '',
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'templateResources' => $templates,
+            'fixtureSources' => $fixtureSources,
             'formats' => $formats,
         ];
     }
@@ -1653,6 +1791,23 @@ final class PandocFormatRegistry
         }
 
         return $formats;
+    }
+
+    /**
+     * @param list<string> $candidates
+     * @param array<string, int> $sourceFiles
+     * @return list<string>
+     */
+    private static function auditedFixtureSources(array $candidates, array $sourceFiles): array
+    {
+        $fixtures = [];
+        foreach ($candidates as $candidate) {
+            if (array_key_exists($candidate, $sourceFiles)) {
+                $fixtures[] = $candidate;
+            }
+        }
+
+        return $fixtures;
     }
 
     /**
