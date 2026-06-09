@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 10:22:53 UTC",
-    "sourceCommit": "26bad299c294d47f82dc7be2acde614a0cf7cfe9",
-    "sourceCommitShort": "26bad299c294",
+    "generated": "2026-06-09 10:28:13 UTC",
+    "sourceCommit": "a93829e8049e921808dbe71abcbbd478192a22f0",
+    "sourceCommitShort": "a93829e8049e",
     "sourceBranch": "unknown",
-    "dashboardCommit": "26bad299c294d47f82dc7be2acde614a0cf7cfe9",
-    "dashboardCommitShort": "26bad299c294",
+    "dashboardCommit": "a93829e8049e921808dbe71abcbbd478192a22f0",
+    "dashboardCommitShort": "a93829e8049e",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,10 +137,10 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,632 pass / 0 fail",
-            "phase": "native PHP Pandoc HTML5 reader review markup; standalone SVG definiti...",
-            "audit": "2026-06-09 UTC isolated pandoc-html-svg-definitions current-base slic...",
-            "currentWork": "Pandoc HTML reader review now preserves standalone SVG animate/animateMotion/animateT...",
+            "php": "2,644 pass / 0 fail",
+            "phase": "native PHP Pandoc HTML5 reader review markup; standalone SVG text, sw...",
+            "audit": "2026-06-09 UTC isolated pandoc-html-svg-more current-base slice on ac...",
+            "currentWork": "Pandoc HTML reader review now preserves standalone SVG desc/metadata/switch/view/tspa...",
             "nextTarget": "Continue non-overlapping native conversion support under DOCX...",
             "remainingGate": "No new native support component is needed.",
             "commit": "pending fast ba..."
