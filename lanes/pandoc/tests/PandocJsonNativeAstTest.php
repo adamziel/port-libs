@@ -753,6 +753,99 @@ return [
         $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers must not render on Pandoc Figure output');
         $t->true(!str_contains($blocks, 'style="display:none"'), 'Unsafe style attributes must not render on Pandoc Figure output');
     },
+    'renders pandoc inline attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
+        $packet = [
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Span', 'c' => [
+                        [
+                            'inline-lang',
+                            ['language'],
+                            [
+                                ['data-review', 'span'],
+                                ['xml:lang', 'pl'],
+                                ['style', 'color:red'],
+                                ['onclick', 'blocked'],
+                            ],
+                        ],
+                        [
+                            ['t' => 'Str', 'c' => 'tekst'],
+                        ],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Link', 'c' => [
+                        [
+                            '',
+                            ['source-link'],
+                            [
+                                ['data-review', 'link'],
+                                ['xml:lang', 'en-US'],
+                                ['style', 'color:blue'],
+                                ['onfocus', 'blocked'],
+                            ],
+                        ],
+                        [
+                            ['t' => 'Str', 'c' => 'source'],
+                        ],
+                        ['https://example.test/source', 'Source title'],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Code', 'c' => [
+                        [
+                            'code-frag',
+                            ['php'],
+                            [
+                                ['data-review', 'code'],
+                                ['xml:lang', 'en-US'],
+                                ['style', 'color:green'],
+                                ['onmouseover', 'blocked'],
+                            ],
+                        ],
+                        'echo "x";',
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Image', 'c' => [
+                        [
+                            '',
+                            ['inline-media'],
+                            [
+                                ['data-review', 'image'],
+                                ['xml:lang', 'en-US'],
+                                ['style', 'filter:blur(1px)'],
+                                ['onerror', 'blocked'],
+                            ],
+                        ],
+                        [
+                            ['t' => 'Str', 'c' => 'Diagram'],
+                        ],
+                        ['/media/diagram.png', 'Diagram title'],
+                    ]],
+                ]],
+            ],
+        ];
+
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $paragraph = $document->children[0];
+        $span = $paragraph->children[0];
+        $link = $paragraph->children[2];
+        $code = $paragraph->children[4];
+        $image = $paragraph->children[6];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('pl', $span->attr('attributes')['xml:lang'] ?? null);
+        $t->same('en-US', $link->attr('attributes')['xml:lang'] ?? null);
+        $t->same('en-US', $code->attr('attributes')['xml:lang'] ?? null);
+        $t->same('en-US', $image->attr('attributes')['xml:lang'] ?? null);
+        $t->contains('<span id="inline-lang" class="language" data-review="span" xml:lang="pl">tekst</span>', $blocks);
+        $t->contains('<a href="https://example.test/source" title="Source title" class="source-link" data-review="link" xml:lang="en-US">source</a>', $blocks);
+        $t->contains('<code id="code-frag" class="php" data-review="code" xml:lang="en-US">echo &quot;x&quot;;</code>', $blocks);
+        $t->contains('<img src="/media/diagram.png" alt="" title="Diagram title" class="inline-media" data-review="image" xml:lang="en-US"/>', $blocks);
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe style attributes must not render on Pandoc inline output');
+        $t->true(!str_contains($blocks, 'onclick='), 'Unsafe click handler attributes must not render on Pandoc inline output');
+        $t->true(!str_contains($blocks, 'onfocus='), 'Unsafe focus handler attributes must not render on Pandoc inline output');
+        $t->true(!str_contains($blocks, 'onmouseover='), 'Unsafe hover handler attributes must not render on Pandoc inline output');
+        $t->true(!str_contains($blocks, 'onerror='), 'Unsafe image handler attributes must not render on Pandoc inline output');
+    },
     'round trips pandoc json table captions through shared table ast' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',
