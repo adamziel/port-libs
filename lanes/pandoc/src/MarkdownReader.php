@@ -8153,7 +8153,7 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(audio|button|canvas|datalist|details|dialog|iframe|map|meter|object|output|picture|progress|script|style|select|template|textarea|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('/^ {0,3}<(audio|button|canvas|datalist|details|dialog|fieldset|form|iframe|label|legend|map|meter|object|optgroup|option|output|picture|progress|script|style|select|template|textarea|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -10654,7 +10654,7 @@ final class MarkdownReader
         }
 
         $name = strtolower($node->localName);
-        if (in_array($name, ['area', 'audio', 'base', 'button', 'canvas', 'datalist', 'details', 'dialog', 'embed', 'iframe', 'input', 'link', 'map', 'meta', 'meter', 'object', 'output', 'param', 'picture', 'progress', 'select', 'source', 'template', 'textarea', 'track', 'video', 'wbr'], true)) {
+        if (in_array($name, ['area', 'audio', 'base', 'button', 'canvas', 'datalist', 'details', 'dialog', 'embed', 'fieldset', 'form', 'iframe', 'input', 'label', 'legend', 'link', 'map', 'meta', 'meter', 'object', 'optgroup', 'option', 'output', 'param', 'picture', 'progress', 'select', 'source', 'template', 'textarea', 'track', 'video', 'wbr'], true)) {
             return [new AstNode('raw_html_inline', ['html' => XmlHtml5Dom::serializeHtmlFragment($node)])];
         }
 

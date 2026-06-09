@@ -14756,6 +14756,112 @@ XML;
         $t->same('<meter data-source="batch-51" max="10" min="0" value="7">7</meter>', $inlineMeter->attr('html'));
         $t->contains('<p>Before <meter data-source="batch-51" max="10" min="0" value="7">7</meter></p>', $htmlOutput);
     },
+    'maps upstream html reader form containers as raw review markup' => static function (TestRunner $t): void {
+        $form = implode("\n", [
+            '<form id="review-form" method="post" action="/imports/review" data-source="batch-52">',
+            '<input type="hidden" name="source-id" value="52">',
+            '<button type="submit">Approve source</button>',
+            '</form>',
+        ]);
+        $document = (new MarkdownReader())->read($form . "\n\nAfter the review form.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($form, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the review form.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . '<form id="review-form" method="post" action="/imports/review" data-source="batch-52">', $blocks);
+        $t->contains('<button type="submit">Approve source</button>', $blocks);
+        $t->true(!str_contains($blocks, '&lt;form'), 'Standalone form container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader fieldset containers as raw review markup' => static function (TestRunner $t): void {
+        $fieldset = implode("\n", [
+            '<fieldset id="import-flags" data-source="batch-52">',
+            '<legend>Import flags</legend>',
+            '<label><input type="checkbox" checked> Preserve media</label>',
+            '</fieldset>',
+        ]);
+        $document = (new MarkdownReader())->read($fieldset . "\n\nAfter the import flags.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($fieldset, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the import flags.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . '<fieldset id="import-flags" data-source="batch-52">', $blocks);
+        $t->contains('<legend>Import flags</legend>', $blocks);
+        $t->true(!str_contains($blocks, '&lt;fieldset'), 'Standalone fieldset container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader legend containers as raw review markup' => static function (TestRunner $t): void {
+        $legend = '<legend data-source="batch-52">Source metadata</legend>';
+        $document = (new MarkdownReader())->read($legend . "\n\nAfter the legend.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($legend, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the legend.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $legend, $blocks);
+        $t->true(!str_contains($blocks, '&lt;legend'), 'Standalone legend container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader label controls as raw review markup' => static function (TestRunner $t): void {
+        $label = '<label for="reviewer" data-source="batch-52">Reviewer</label>';
+        $document = (new MarkdownReader())->read($label . "\n\nAfter the label.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($label, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the label.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $label, $blocks);
+        $t->true(!str_contains($blocks, '&lt;label'), 'Standalone label control should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $label . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineLabel = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<label data-source="batch-52" for="reviewer">Reviewer</label>', $inlineLabel->attr('html'));
+        $t->contains('<p>Before <label data-source="batch-52" for="reviewer">Reviewer</label></p>', $htmlOutput);
+    },
+    'maps upstream html reader optgroup containers as raw review markup' => static function (TestRunner $t): void {
+        $optgroup = '<optgroup label="Review status" data-source="batch-52"><option value="queued">Queued</option></optgroup>';
+        $document = (new MarkdownReader())->read($optgroup . "\n\nAfter the optgroup.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($optgroup, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the optgroup.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $optgroup, $blocks);
+        $t->true(!str_contains($blocks, '&lt;optgroup'), 'Standalone optgroup container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader option controls as raw review markup' => static function (TestRunner $t): void {
+        $option = '<option value="approved" selected data-source="batch-52">Approved</option>';
+        $document = (new MarkdownReader())->read($option . "\n\nAfter the option.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($option, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the option.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $option, $blocks);
+        $t->true(!str_contains($blocks, '&lt;option'), 'Standalone option control should not be escaped into reviewer text');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
