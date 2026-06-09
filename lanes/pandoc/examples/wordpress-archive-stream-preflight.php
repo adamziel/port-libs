@@ -1568,6 +1568,30 @@ $zipCommentInspection = ArchiveCompressionStream::inspectZipCommentPolicy(
     ArchiveCompressionStream::FORMAT_GZIP_ZIP,
     strlen($zipCommentZipBytes)
 );
+$zipModificationTimeModifiedAt = 1780479120;
+$zipModificationTimeZipBytes = ZipPackage::build([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Timestamped ZIP source</w:p></w:body></w:document>',
+        'compressionMethod' => 8,
+        'modifiedAt' => $zipModificationTimeModifiedAt,
+    ],
+], 'zip modification time review fixture');
+$zipModificationTimeGzip = GzipStream::build($zipModificationTimeZipBytes, [
+    'filename' => 'wordpress-zip-modification-times.zip',
+    'comment' => 'ZIP modification time preflight fixture',
+    'headerCrc' => true,
+]);
+$zipModificationTimeInspection = ArchiveCompressionStream::inspectZipModificationTimePolicy(
+    $zipModificationTimeGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($zipModificationTimeZipBytes)
+);
 $creatorExternalZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => 'word/unknown-host.xml',
@@ -2530,6 +2554,18 @@ if (in_array('--self-test', $argv, true)) {
         'zipCommentControlEntry' => 'word/media/review-note.txt',
         'zipCommentControlOffsets' => [5],
         'zipCommentGzipFilename' => 'wordpress-zip-comments.zip',
+        'zipModificationTimeFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipModificationTimeType' => 'zip-modification-time-policy',
+        'zipModificationTimePolicy' => 'within-thresholds',
+        'zipModificationTimeExtractionPolicy' => 'metadata-only-no-extraction',
+        'zipModificationTimeDiagnostics' => [],
+        'zipModificationTimeEntryCount' => 2,
+        'zipModificationTimeTimestampCount' => 1,
+        'zipModificationTimeDosCount' => 1,
+        'zipModificationTimeExtendedCount' => 1,
+        'zipModificationTimeInvalidCount' => 0,
+        'zipModificationTimeModifiedAt' => $zipModificationTimeModifiedAt,
+        'zipModificationTimeGzipFilename' => 'wordpress-zip-modification-times.zip',
         'zipCreatorHostFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipCreatorHostEntryCount' => 3,
         'zipCreatorHostKnownCount' => 2,
@@ -3400,6 +3436,23 @@ if (in_array('--self-test', $argv, true)) {
         || ($zipCommentInspection['entries'][3]['issues'] ?? []) !== []
         || ($zipCommentInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipCommentGzipFilename']
         || isset($zipCommentInspection['package'])
+        || $zipModificationTimeInspection['format'] !== $expected['zipModificationTimeFormat']
+        || $zipModificationTimeInspection['zipBytes'] !== $zipModificationTimeZipBytes
+        || $zipModificationTimeInspection['packageByteSize'] !== strlen($zipModificationTimeZipBytes)
+        || $zipModificationTimeInspection['type'] !== $expected['zipModificationTimeType']
+        || $zipModificationTimeInspection['handoffPolicy'] !== $expected['zipModificationTimePolicy']
+        || $zipModificationTimeInspection['extractionPolicy'] !== $expected['zipModificationTimeExtractionPolicy']
+        || $zipModificationTimeInspection['diagnostics'] !== $expected['zipModificationTimeDiagnostics']
+        || $zipModificationTimeInspection['entryCount'] !== $expected['zipModificationTimeEntryCount']
+        || $zipModificationTimeInspection['timestampEntryCount'] !== $expected['zipModificationTimeTimestampCount']
+        || $zipModificationTimeInspection['dosTimestampEntryCount'] !== $expected['zipModificationTimeDosCount']
+        || $zipModificationTimeInspection['extendedTimestampEntryCount'] !== $expected['zipModificationTimeExtendedCount']
+        || $zipModificationTimeInspection['invalidDosTimestampEntryCount'] !== $expected['zipModificationTimeInvalidCount']
+        || ($zipModificationTimeInspection['entries'][1]['name'] ?? null) !== 'word/document.xml'
+        || ($zipModificationTimeInspection['entries'][1]['modifiedAt'] ?? null) !== $expected['zipModificationTimeModifiedAt']
+        || ($zipModificationTimeInspection['entries'][1]['timestampSource'] ?? null) !== 'extended-timestamp'
+        || ($zipModificationTimeInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipModificationTimeGzipFilename']
+        || isset($zipModificationTimeInspection['package'])
         || $creatorHostZipInspection['format'] !== $expected['zipCreatorHostFormat']
         || $creatorHostZipInspection['zipBytes'] !== $creatorExternalZipBytes
         || $creatorHostZipInspection['packageByteSize'] !== strlen($creatorExternalZipBytes)
@@ -3951,6 +4004,13 @@ echo 'zipComment.entryCount=' . $zipCommentInspection['entryCommentCount'] . "\n
 echo 'zipComment.controlEntry=' . $zipCommentInspection['commentControlByteEntries'][0]['name'] . "\n";
 echo 'zipComment.unicodeEntry=' . $zipCommentInspection['commentUnicodeFormatControlEntries'][0]['name'] . "\n";
 echo 'zipComment.gzipFilename=' . $zipCommentInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipModificationTime.format=' . $zipModificationTimeInspection['format'] . "\n";
+echo 'zipModificationTime.handoffPolicy=' . $zipModificationTimeInspection['handoffPolicy'] . "\n";
+echo 'zipModificationTime.extractionPolicy=' . $zipModificationTimeInspection['extractionPolicy'] . "\n";
+echo 'zipModificationTime.timestampCount=' . $zipModificationTimeInspection['timestampEntryCount'] . "\n";
+echo 'zipModificationTime.extendedCount=' . $zipModificationTimeInspection['extendedTimestampEntryCount'] . "\n";
+echo 'zipModificationTime.modifiedAt=' . $zipModificationTimeInspection['entries'][1]['modifiedAt'] . "\n";
+echo 'zipModificationTime.gzipFilename=' . $zipModificationTimeInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipCreatorHost.format=' . $creatorHostZipInspection['format'] . "\n";
 echo 'zipCreatorHost.unknownCount=' . $creatorHostZipInspection['unknownHostSystemEntryCount'] . "\n";
 echo 'zipCreatorHost.unknownEntry=' . $creatorHostZipInspection['unknownEntries'][0]['name'] . "\n";

@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 07:20:22 UTC",
-    "sourceCommit": "84952480fb0aa5aaa2da3b9447e4b60b43879d72",
-    "sourceCommitShort": "84952480fb0a",
+    "generated": "2026-06-09 07:22:11 UTC",
+    "sourceCommit": "93c7fe92d8764429cde901a465ac3a9266aec0d4",
+    "sourceCommitShort": "93c7fe92d876",
     "sourceBranch": "unknown",
-    "dashboardCommit": "84952480fb0aa5aaa2da3b9447e4b60b43879d72",
-    "dashboardCommitShort": "84952480fb0a",
+    "dashboardCommit": "93c7fe92d8764429cde901a465ac3a9266aec0d4",
+    "dashboardCommitShort": "93c7fe92d876",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,867 / 2,276 (126.0%)",
             "mapPercent": "126.0%",
             "unmapped": "0",
-            "php": "2,489 pass / 0 fail",
+            "php": "2,490 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC HTML5 DOM current-base link-relation slice on base 606...",
+            "audit": "2026-06-09 UTC archive compression current-base duplicate slice on ba...",
             "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence plus...",
-            "nextTarget": "For HTML5 DOM follow-up, choose a non-overlapping native gap...",
-            "remainingGate": "No new native support component is needed for this HTML5 DOM slice.",
+            "nextTarget": "For archive compression follow-up, choose a non-overlapping n...",
+            "remainingGate": "No new native support component is needed for this archive compressio...",
             "commit": "pending fast ba..."
         },
         {

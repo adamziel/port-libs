@@ -215,6 +215,10 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
         $localExtra = (string) ($entry['localExtra'] ?? $entry['extra'] ?? '');
         $comment = (string) ($entry['comment'] ?? '');
         $diskStart = (int) ($entry['diskStart'] ?? 0);
+        $modifiedTime = (int) ($entry['modifiedTime'] ?? 0);
+        $modifiedDate = (int) ($entry['modifiedDate'] ?? 0);
+        $localModifiedTime = (int) ($entry['localModifiedTime'] ?? $modifiedTime);
+        $localModifiedDate = (int) ($entry['localModifiedDate'] ?? $modifiedDate);
         $payload = $method === 8 ? gzdeflate($data) : $data;
         $crc32 = (int) sprintf('%u', crc32($data));
         $localCrc32 = (int) ($entry['localCrc32'] ?? ($descriptor ? 0 : $crc32));
@@ -232,8 +236,8 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
             $localVersionNeededToExtract,
             $localFlags,
             $localMethod,
-            0,
-            0,
+            $localModifiedTime,
+            $localModifiedDate,
             $localCrc32,
             $localCompressedSize,
             $localUncompressedSize,
@@ -273,8 +277,8 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
             $centralVersionNeededToExtract,
             $flags,
             $centralMethod,
-            0,
-            0,
+            $modifiedTime,
+            $modifiedDate,
             $crc32,
             $centralCompressedSize,
             $centralUncompressedSize,
@@ -330,6 +334,35 @@ $zipUnicodeExtra = static function (int $id, string $rawBytes, string $utf8Text)
     $payload = pack('CV', 1, (int) sprintf('%u', crc32($rawBytes))) . $utf8Text;
 
     return pack('vv', $id, strlen($payload)) . $payload;
+};
+$zipDosDateTime = static function (int $timestamp): array {
+    $date = (new DateTimeImmutable('@' . $timestamp))->setTimezone(new DateTimeZone('UTC'));
+    $year = (int) $date->format('Y');
+    if ($year < 1980 || $year > 2107) {
+        throw new RuntimeException('ZIP DOS timestamp fixture year is outside the supported range.');
+    }
+
+    $time = (((int) $date->format('H')) << 11)
+        | (((int) $date->format('i')) << 5)
+        | intdiv((int) $date->format('s'), 2);
+    $day = (($year - 1980) << 9)
+        | (((int) $date->format('m')) << 5)
+        | ((int) $date->format('d'));
+
+    return [$time, $day];
+};
+$zipNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $createdAt): string {
+    $packFileTime = static function (int $timestamp): string {
+        $fileTime = ($timestamp + 11644473600) * 10000000;
+
+        return pack('VV', $fileTime & 0xffffffff, intdiv($fileTime, 0x100000000));
+    };
+    $payload = pack('Vvv', 0, 0x0001, 24)
+        . $packFileTime($modifiedAt)
+        . $packFileTime($accessedAt)
+        . $packFileTime($createdAt);
+
+    return pack('vv', 0x000a, strlen($payload)) . $payload;
 };
 
 $packZip64UInt64 = static function (int $value): string {
@@ -7243,6 +7276,150 @@ return [
         $t->throws(
             \RuntimeException::class,
             static fn (): array => ArchiveCompressionStream::inspectZipCommentPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+                strlen($zipBytes) - 1
+            )
+        );
+    },
+
+    'preflights zip modification times across compressed archive streams before strict handoff' => static function (TestRunner $t) use ($zipFixtureBytes, $zipDosDateTime, $zipNtfsExtra): void {
+        $extendedModifiedAt = 1780479120;
+        $ntfsModifiedAt = 1780479132;
+        [$extendedDosTime, $extendedDosDate] = $zipDosDateTime($extendedModifiedAt);
+        $extendedTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, $extendedModifiedAt);
+        $ntfsExtra = $zipNtfsExtra($ntfsModifiedAt, 1780479134, 1780479136);
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>ZIP timestamp metadata</w:p></w:body></w:document>',
+                'compressionMethod' => 8,
+                'modifiedTime' => $extendedDosTime,
+                'modifiedDate' => $extendedDosDate,
+                'localExtra' => $extendedTimestampExtra,
+                'centralExtra' => $extendedTimestampExtra,
+            ],
+            [
+                'name' => 'word/media/ntfs-review.txt',
+                'data' => "NTFS timestamp metadata stays reviewable\n",
+                'compressionMethod' => 0,
+                'versionMadeBy' => 0x0a14,
+                'localExtra' => $ntfsExtra,
+                'centralExtra' => $ntfsExtra,
+            ],
+            [
+                'name' => 'word/media/bad-date.txt',
+                'data' => "invalid DOS date metadata should stay review-only\n",
+                'compressionMethod' => 0,
+                'modifiedTime' => 0,
+                'modifiedDate' => 0x0020,
+            ],
+        ], 'zip modification time stream fixture');
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-zip-modification-times.zip',
+                'comment' => 'ZIP modification time preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('zip modification time reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipModificationTimePolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same($format, $inspection['format']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same('zip-modification-time-policy', $inspection['type']);
+            $t->same('review-before-conversion', $inspection['handoffPolicy']);
+            $t->same('zip-modification-time-review', $inspection['extractionPolicy']);
+            $t->same(['invalid-modification-times'], $inspection['diagnostics']);
+            $t->same(3, $inspection['entryCount']);
+            $t->same(2, $inspection['timestampEntryCount']);
+            $t->same(2, $inspection['dosTimestampEntryCount']);
+            $t->same(1, $inspection['extendedTimestampEntryCount']);
+            $t->same(1, $inspection['ntfsTimestampEntryCount']);
+            $t->same(1, $inspection['invalidDosTimestampEntryCount']);
+            $t->same(['word/document.xml', 'word/media/ntfs-review.txt', 'word/media/bad-date.txt'], array_column($inspection['entries'], 'name'));
+            $t->same(true, $inspection['entries'][0]['hasDosTimestamp']);
+            $t->same(true, $inspection['entries'][0]['isDosTimestampValid']);
+            $t->same($extendedModifiedAt, $inspection['entries'][0]['dosModifiedAt']);
+            $t->same($extendedModifiedAt, $inspection['entries'][0]['extendedModifiedAt']);
+            $t->same(null, $inspection['entries'][0]['ntfsModifiedAt']);
+            $t->same($extendedModifiedAt, $inspection['entries'][0]['modifiedAt']);
+            $t->same('extended-timestamp', $inspection['entries'][0]['timestampSource']);
+            $t->same(false, $inspection['entries'][1]['hasDosTimestamp']);
+            $t->same(null, $inspection['entries'][1]['dosModifiedAt']);
+            $t->same(null, $inspection['entries'][1]['extendedModifiedAt']);
+            $t->same($ntfsModifiedAt, $inspection['entries'][1]['ntfsModifiedAt']);
+            $t->same($ntfsModifiedAt, $inspection['entries'][1]['modifiedAt']);
+            $t->same('ntfs', $inspection['entries'][1]['timestampSource']);
+            $t->same('word/media/bad-date.txt', $inspection['invalidDosTimestampEntries'][0]['name']);
+            $t->same(false, $inspection['invalidDosTimestampEntries'][0]['isDosTimestampValid']);
+            $t->same(['invalid-dos-modified-timestamp'], $inspection['invalidDosTimestampEntries'][0]['issues']);
+            $t->same(null, $inspection['invalidDosTimestampEntries'][0]['modifiedAt']);
+            $t->same(false, array_key_exists('package', $inspection));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipModificationTimePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipModificationTimePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+        $safeZipBytes = $zipFixtureBytes([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>timestamp-free package</w:p></w:document>',
+                'compressionMethod' => 8,
+            ],
+        ]);
+        $safeInspection = ArchiveCompressionStream::inspectZipModificationTimePolicy(
+            $safeZipBytes,
+            ArchiveCompressionStream::FORMAT_ZIP,
+            strlen($safeZipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-zip-modification-times.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('ZIP modification time preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('zip modification time reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->same('within-thresholds', $safeInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $safeInspection['extractionPolicy']);
+        $t->same([], $safeInspection['diagnostics']);
+        $t->same(0, $safeInspection['timestampEntryCount']);
+        $t->same(false, array_key_exists('package', $safeInspection));
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipModificationTimePolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipModificationTimePolicy(
                 $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
                 ArchiveCompressionStream::FORMAT_GZIP_ZIP,
                 strlen($zipBytes) - 1
