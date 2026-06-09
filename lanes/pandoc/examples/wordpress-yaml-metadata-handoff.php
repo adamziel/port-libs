@@ -863,6 +863,30 @@ $indentedBlockScalarMeta = $indentedBlockScalarDocument->attr('meta', []);
 $indentedBlockScalarProvenance = $indentedBlockScalarDocument->attr('yamlMetadataScalarProvenance', []);
 $indentedBlockScalarBlocks = (new WordPressBlockWriter())->write($indentedBlockScalarDocument);
 
+$invalidExplicitKeyBlockScalarMarkdown = <<<'MARKDOWN'
+---
+title: Invalid explicit key packet
+? |-
+bad:key
+: root metadata value
+review:
+  ? >-
+  owner
+  : Import Desk
+  status: queued
+...
+
+# Invalid explicit key body
+MARKDOWN;
+
+$invalidExplicitKeyBlockScalarDocument = (new MarkdownReader())->read($invalidExplicitKeyBlockScalarMarkdown);
+$invalidExplicitKeyBlockScalarMeta = $invalidExplicitKeyBlockScalarDocument->attr('meta', []);
+$invalidExplicitKeyBlockScalarDiagnostics = array_values(array_filter(
+    $invalidExplicitKeyBlockScalarDocument->attr('yamlMetadataDiagnostics', []),
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-block-scalar-indentation'
+));
+$invalidExplicitKeyBlockScalarBlocks = (new WordPressBlockWriter())->write($invalidExplicitKeyBlockScalarDocument);
+
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
@@ -1010,6 +1034,27 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($indentedBlockScalarBlocks, '<h1 id="indented-block-scalar-body">Indented block scalar body</h1>')) {
         throw new RuntimeException('YAML metadata self-test missing indented block scalar WordPress body handoff');
+    }
+    if (
+        ($invalidExplicitKeyBlockScalarMeta['title'] ?? '') !== 'Invalid explicit key packet'
+        || ($invalidExplicitKeyBlockScalarMeta['review']['status'] ?? '') !== 'queued'
+        || array_key_exists('bad:key', $invalidExplicitKeyBlockScalarMeta)
+        || array_key_exists('owner', $invalidExplicitKeyBlockScalarMeta['review'] ?? [])
+    ) {
+        throw new RuntimeException('YAML metadata self-test did not preserve valid siblings around invalid explicit-key block scalars');
+    }
+    if (
+        count($invalidExplicitKeyBlockScalarDiagnostics) !== 2
+        || array_column($invalidExplicitKeyBlockScalarDiagnostics, 'type') !== ['yaml-explicit-key', 'yaml-explicit-key']
+        || array_column($invalidExplicitKeyBlockScalarDiagnostics, 'indicator') !== ['|', '>']
+        || array_column($invalidExplicitKeyBlockScalarDiagnostics, 'contentLine') !== ['bad:key', 'owner']
+        || array_column($invalidExplicitKeyBlockScalarDiagnostics, 'sourceLine') !== ['3', '7']
+        || (($invalidExplicitKeyBlockScalarDiagnostics[1]['parentPath'] ?? '') !== '/review')
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing invalid explicit-key block scalar diagnostics');
+    }
+    if (!str_contains($invalidExplicitKeyBlockScalarBlocks, '<h1 id="invalid-explicit-key-body">Invalid explicit key body</h1>')) {
+        throw new RuntimeException('YAML metadata self-test missing invalid explicit-key WordPress body handoff');
     }
     if (
         ($meta['plain-tag-key-review']['source:key'] ?? '') !== 'plain key metadata'

@@ -5076,6 +5076,49 @@ return [
         $t->same('indented-block-scalar-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="indented-block-scalar-yaml-body">Indented block scalar YAML body</h1>', $blocks);
     },
+    'records pandoc yaml invalid explicit key block scalar indentation diagnostics' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Invalid explicit key **Packet**',
+            '? |-',
+            'bad:key',
+            ': root metadata value',
+            'review:',
+            '  ? >-',
+            '  owner',
+            '  : Import Desk',
+            '  status: queued',
+            '...',
+            '',
+            '# Invalid explicit key YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = array_values(array_filter(
+            $document->attr('yamlMetadataDiagnostics', []),
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-block-scalar-indentation'
+        ));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Invalid explicit key **Packet**', $meta['title']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(false, array_key_exists('bad:key', $meta));
+        $t->same(false, array_key_exists('owner', $meta['review']));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same(2, count($diagnostics));
+        $t->same(array_fill(0, 2, 'yaml-explicit-key'), array_column($diagnostics, 'type'));
+        $t->same(['|', '>'], array_column($diagnostics, 'indicator'));
+        $t->same(['|-' . "\n" . 'bad:key', '>-' . "\n" . 'owner'], array_column($diagnostics, 'source'));
+        $t->same(['bad:key', 'owner'], array_column($diagnostics, 'contentLine'));
+        $t->same(['1', '1'], array_column($diagnostics, 'requiredIndent'));
+        $t->same(['0', '0'], array_column($diagnostics, 'actualIndent'));
+        $t->same(['3', '7'], array_column($diagnostics, 'sourceLine'));
+        $t->same(['4', '8'], array_column($diagnostics, 'contentSourceLine'));
+        $t->same(false, isset($diagnostics[0]['parentPath']));
+        $t->same('/review', $diagnostics[1]['parentPath'] ?? null);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('invalid-explicit-key-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="invalid-explicit-key-yaml-body">Invalid explicit key YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit keys inside flow metadata maps' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

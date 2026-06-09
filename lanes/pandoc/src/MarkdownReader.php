@@ -1549,6 +1549,12 @@ final class MarkdownReader
                 continue;
             }
 
+            $invalidExplicitKeyBlockScalar = $this->skipInvalidYamlExplicitKeyBlockScalarPair($lines, $index, $sourceLines);
+            if ($invalidExplicitKeyBlockScalar !== null) {
+                $index = $invalidExplicitKeyBlockScalar;
+                continue;
+            }
+
             $explicitMapping = $this->parseYamlExplicitMappingPair($lines, $index, $sourceLines);
             if ($explicitMapping !== null) {
                 [$key, $sourceValue, $children, $childrenSourceLines, $nextIndex, $quotedKey] = $explicitMapping;
@@ -1881,6 +1887,86 @@ final class MarkdownReader
             'source' => $directive,
             'expected' => 'YAML directives must precede document content',
         ] + $this->yamlMetadataSourceLineAttrs();
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<int|null>|null $sourceLines
+     */
+    private function skipInvalidYamlExplicitKeyBlockScalarPair(array $lines, int $start, ?array $sourceLines = null): ?int
+    {
+        $line = $lines[$start] ?? '';
+        $startIndent = $this->countIndentColumns($line);
+        if ($startIndent > 0) {
+            return null;
+        }
+
+        $trimmed = trim($line);
+        if (!$this->isYamlExplicitMappingKeyLine($trimmed)) {
+            return null;
+        }
+
+        $keySource = trim(substr($trimmed, 1));
+        $cursor = $start + 1;
+        $count = count($lines);
+        $keyLines = [];
+        $keySourceLines = [];
+        while ($cursor < $count && !$this->isYamlExplicitMappingValueLineAtIndent($lines[$cursor], $startIndent)) {
+            $keyLines[] = $lines[$cursor];
+            $keySourceLines[] = $sourceLines[$cursor] ?? null;
+            $cursor++;
+        }
+
+        if ($cursor >= $count) {
+            return null;
+        }
+
+        $headerSourceLine = $sourceLines[$start] ?? null;
+        if ($keySource !== '') {
+            $header = $this->parseYamlBlockScalarHeader($keySource);
+            if ($header === null) {
+                return null;
+            }
+
+            $source = $keySource . ($keyLines === [] ? '' : "\n" . implode("\n", $keyLines));
+            $contentLines = $keyLines;
+            $contentSourceLines = $keySourceLines;
+        } else {
+            $normalized = $this->stripYamlCommonIndent($keyLines);
+            $firstContentIndex = $this->firstYamlContentLineIndex($normalized);
+            if ($firstContentIndex === null) {
+                return null;
+            }
+
+            $headerSource = trim($normalized[$firstContentIndex]);
+            $header = $this->parseYamlBlockScalarHeader($headerSource);
+            if ($header === null) {
+                return null;
+            }
+
+            $source = trim(implode("\n", $normalized));
+            $headerSourceLine = $keySourceLines[$firstContentIndex] ?? null;
+            $contentLines = array_slice($normalized, $firstContentIndex + 1);
+            $contentSourceLines = array_slice($keySourceLines, $firstContentIndex + 1);
+        }
+
+        $invalidIndent = $this->invalidYamlBlockScalarIndentation($contentLines, $header['indent'], $contentSourceLines);
+        if ($invalidIndent === null) {
+            return null;
+        }
+
+        $this->withYamlMetadataSourceLine(
+            $headerSourceLine,
+            fn (): mixed => $this->recordYamlInvalidExplicitKeyBlockScalarIndentationDiagnostic(
+                $source,
+                $header,
+                $invalidIndent
+            )
+        );
+
+        [, $nextIndex] = $this->collectYamlChildLines($lines, $cursor + 1, $sourceLines);
+
+        return $nextIndex;
     }
 
     /**
@@ -2532,19 +2618,78 @@ final class MarkdownReader
      */
     private function yamlBlockScalarIndentationIsValid(array $lines, ?int $indent): bool
     {
+        return $this->invalidYamlBlockScalarIndentation($lines, $indent) === null;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<int|null> $sourceLines
+     * @return array{requiredIndent:int, actualIndent:int, line:string, contentLine:string, contentSourceLine?:string}|null
+     */
+    private function invalidYamlBlockScalarIndentation(array $lines, ?int $indent, array $sourceLines = []): ?array
+    {
         $requiredIndent = $indent ?? 1;
-        foreach ($lines as $line) {
+        foreach ($lines as $index => $line) {
             $expanded = $this->expandTabsToSpaces($line);
             if (trim($expanded) === '') {
                 continue;
             }
 
-            if (strspn($expanded, ' ') < $requiredIndent) {
-                return false;
+            $actualIndent = strspn($expanded, ' ');
+            if ($actualIndent < $requiredIndent) {
+                $invalid = [
+                    'requiredIndent' => $requiredIndent,
+                    'actualIndent' => $actualIndent,
+                    'line' => $expanded,
+                    'contentLine' => trim($expanded),
+                ];
+                $sourceLine = $sourceLines[$index] ?? null;
+                if ($sourceLine !== null) {
+                    $invalid['contentSourceLine'] = (string) $sourceLine;
+                }
+
+                return $invalid;
             }
         }
 
-        return true;
+        return null;
+    }
+
+    /**
+     * @param array{style:string, chomp:string|null, indent:int|null} $header
+     * @param array{requiredIndent:int, actualIndent:int, line:string, contentLine:string, contentSourceLine?:string} $invalidIndent
+     */
+    private function recordYamlInvalidExplicitKeyBlockScalarIndentationDiagnostic(
+        string $source,
+        array $header,
+        array $invalidIndent
+    ): void {
+        $diagnostic = [
+            'type' => 'yaml-explicit-key',
+            'reason' => 'invalid-block-scalar-indentation',
+            'syntax' => 'block',
+            'indicator' => $header['style'],
+            'source' => $source,
+            'contentLine' => $invalidIndent['contentLine'],
+            'requiredIndent' => (string) $invalidIndent['requiredIndent'],
+            'actualIndent' => (string) $invalidIndent['actualIndent'],
+            'expected' => 'block scalar explicit key content must be indented',
+        ];
+        if ($header['chomp'] !== null) {
+            $diagnostic['chomp'] = $header['chomp'];
+        }
+        if ($header['indent'] !== null) {
+            $diagnostic['explicitIndent'] = (string) $header['indent'];
+        }
+        if (isset($invalidIndent['contentSourceLine'])) {
+            $diagnostic['contentSourceLine'] = $invalidIndent['contentSourceLine'];
+        }
+        $path = $this->currentYamlMetadataDiagnosticPath();
+        if ($path !== null) {
+            $diagnostic['parentPath'] = $path;
+        }
+
+        $this->yamlMetadataDiagnostics[] = $diagnostic + $this->yamlMetadataSourceLineAttrs();
     }
 
     private function foldYamlBlockScalarText(string $text): string
