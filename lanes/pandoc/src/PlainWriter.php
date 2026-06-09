@@ -36,6 +36,9 @@ final class PlainWriter
      *     lineSeparatorBreakCount:int,
      *     paragraphSeparatorBreakCount:int,
      *     softBreakOpportunityCount:int,
+     *     spaceBreakOpportunityCount:int,
+     *     unicodeSpaceBreakOpportunityCount:int,
+     *     maxUnicodeSpaceDisplayAdvance:int,
      *     tabBreakOpportunityCount:int,
      *     maxTabDisplayAdvance:int,
      *     zeroWidthSpaceBreakOpportunityCount:int,
@@ -56,6 +59,9 @@ final class PlainWriter
      *       lineFeedBreakCount:int,
      *       lineSeparatorBreakCount:int,
      *       paragraphSeparatorBreakCount:int,
+     *       spaceBreakOpportunityCount:int,
+     *       unicodeSpaceBreakOpportunityCount:int,
+     *       maxUnicodeSpaceDisplayAdvance:int,
      *       tabBreakOpportunityCount:int,
      *       maxTabDisplayAdvance:int,
      *       zeroWidthSpaceBreakOpportunityCount:int,
@@ -88,6 +94,9 @@ final class PlainWriter
         $lineSeparatorBreakCount = 0;
         $paragraphSeparatorBreakCount = 0;
         $softBreakOpportunityCount = 0;
+        $spaceBreakOpportunityCount = 0;
+        $unicodeSpaceBreakOpportunityCount = 0;
+        $maxUnicodeSpaceDisplayAdvance = 0;
         $tabBreakOpportunityCount = 0;
         $maxTabDisplayAdvance = 0;
         $zeroWidthSpaceBreakOpportunityCount = 0;
@@ -134,6 +143,9 @@ final class PlainWriter
             $lineSeparatorBreakCount += $typeCounts['lineSeparator'];
             $paragraphSeparatorBreakCount += $typeCounts['paragraphSeparator'];
             $softBreakOpportunityCount += $opportunities['softBreakCount'];
+            $spaceBreakOpportunityCount += $typeCounts['space'];
+            $unicodeSpaceBreakOpportunityCount += $typeCounts['unicodeSpace'];
+            $maxUnicodeSpaceDisplayAdvance = max($maxUnicodeSpaceDisplayAdvance, $typeCounts['maxUnicodeSpaceDisplayAdvance']);
             $tabBreakOpportunityCount += $typeCounts['tab'];
             $maxTabDisplayAdvance = max($maxTabDisplayAdvance, $typeCounts['maxTabDisplayAdvance']);
             $zeroWidthSpaceBreakOpportunityCount += $typeCounts['zeroWidthSpace'];
@@ -155,6 +167,9 @@ final class PlainWriter
                 'lineFeedBreakCount' => $typeCounts['lineFeed'],
                 'lineSeparatorBreakCount' => $typeCounts['lineSeparator'],
                 'paragraphSeparatorBreakCount' => $typeCounts['paragraphSeparator'],
+                'spaceBreakOpportunityCount' => $typeCounts['space'],
+                'unicodeSpaceBreakOpportunityCount' => $typeCounts['unicodeSpace'],
+                'maxUnicodeSpaceDisplayAdvance' => $typeCounts['maxUnicodeSpaceDisplayAdvance'],
                 'tabBreakOpportunityCount' => $typeCounts['tab'],
                 'maxTabDisplayAdvance' => $typeCounts['maxTabDisplayAdvance'],
                 'zeroWidthSpaceBreakOpportunityCount' => $typeCounts['zeroWidthSpace'],
@@ -182,6 +197,9 @@ final class PlainWriter
                 'lineSeparatorBreakCount' => $lineSeparatorBreakCount,
                 'paragraphSeparatorBreakCount' => $paragraphSeparatorBreakCount,
                 'softBreakOpportunityCount' => $softBreakOpportunityCount,
+                'spaceBreakOpportunityCount' => $spaceBreakOpportunityCount,
+                'unicodeSpaceBreakOpportunityCount' => $unicodeSpaceBreakOpportunityCount,
+                'maxUnicodeSpaceDisplayAdvance' => $maxUnicodeSpaceDisplayAdvance,
                 'tabBreakOpportunityCount' => $tabBreakOpportunityCount,
                 'maxTabDisplayAdvance' => $maxTabDisplayAdvance,
                 'zeroWidthSpaceBreakOpportunityCount' => $zeroWidthSpaceBreakOpportunityCount,
@@ -222,7 +240,7 @@ final class PlainWriter
 
     /**
      * @param list<array{type:string, column?:int, columnAfter?:int}> $opportunities
-     * @return array{lineFeed:int, lineSeparator:int, paragraphSeparator:int, tab:int, maxTabDisplayAdvance:int, zeroWidthSpace:int, softHyphen:int, visibleBreakAfter:int}
+     * @return array{lineFeed:int, lineSeparator:int, paragraphSeparator:int, space:int, unicodeSpace:int, maxUnicodeSpaceDisplayAdvance:int, tab:int, maxTabDisplayAdvance:int, zeroWidthSpace:int, softHyphen:int, visibleBreakAfter:int}
      */
     private function lineBreakOpportunityTypeCounts(array $opportunities): array
     {
@@ -230,6 +248,9 @@ final class PlainWriter
             'lineFeed' => 0,
             'lineSeparator' => 0,
             'paragraphSeparator' => 0,
+            'space' => 0,
+            'unicodeSpace' => 0,
+            'maxUnicodeSpaceDisplayAdvance' => 0,
             'tab' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpace' => 0,
@@ -242,6 +263,7 @@ final class PlainWriter
                 'line-feed' => 'lineFeed',
                 'line-separator' => 'lineSeparator',
                 'paragraph-separator' => 'paragraphSeparator',
+                'space' => 'space',
                 'tab' => 'tab',
                 'zero-width-space' => 'zeroWidthSpace',
                 'soft-hyphen' => 'softHyphen',
@@ -255,9 +277,34 @@ final class PlainWriter
                 $advance = max(0, (int) ($opportunity['columnAfter'] ?? 0) - (int) ($opportunity['column'] ?? 0));
                 $counts['maxTabDisplayAdvance'] = max($counts['maxTabDisplayAdvance'], $advance);
             }
+            if ($this->isUnicodeSpaceBreakType($opportunity['type'])) {
+                ++$counts['unicodeSpace'];
+                $advance = max(0, (int) ($opportunity['columnAfter'] ?? 0) - (int) ($opportunity['column'] ?? 0));
+                $counts['maxUnicodeSpaceDisplayAdvance'] = max($counts['maxUnicodeSpaceDisplayAdvance'], $advance);
+            }
         }
 
         return $counts;
+    }
+
+    private function isUnicodeSpaceBreakType(string $type): bool
+    {
+        return in_array($type, [
+            'unicode-space',
+            'ogham-space-mark',
+            'en-quad',
+            'em-quad',
+            'en-space',
+            'em-space',
+            'three-per-em-space',
+            'four-per-em-space',
+            'six-per-em-space',
+            'punctuation-space',
+            'thin-space',
+            'hair-space',
+            'medium-mathematical-space',
+            'ideographic-space',
+        ], true);
     }
 
     private function renderBlock(AstNode $node): string

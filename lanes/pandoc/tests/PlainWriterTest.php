@@ -40,6 +40,9 @@ return [
         $t->same(22, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
         $t->same(9, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(9, $result['diagnostics']['spaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['unicodeSpaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['maxUnicodeSpaceDisplayAdvance']);
         $t->same(0, $result['diagnostics']['tabBreakOpportunityCount']);
         $t->same(0, $result['diagnostics']['maxTabDisplayAdvance']);
         $t->same(0, $result['diagnostics']['zeroWidthSpaceBreakOpportunityCount']);
@@ -60,6 +63,9 @@ return [
             'lineFeedBreakCount' => 0,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
+            'spaceBreakOpportunityCount' => 6,
+            'unicodeSpaceBreakOpportunityCount' => 0,
+            'maxUnicodeSpaceDisplayAdvance' => 0,
             'tabBreakOpportunityCount' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
@@ -101,6 +107,9 @@ return [
             'lineFeedBreakCount' => 2,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
+            'spaceBreakOpportunityCount' => 3,
+            'unicodeSpaceBreakOpportunityCount' => 0,
+            'maxUnicodeSpaceDisplayAdvance' => 0,
             'tabBreakOpportunityCount' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
@@ -124,6 +133,9 @@ return [
         $t->same(9, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
         $t->same(4, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['spaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['unicodeSpaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['maxUnicodeSpaceDisplayAdvance']);
         $t->same(3, $result['diagnostics']['tabBreakOpportunityCount']);
         $t->same(3, $result['diagnostics']['maxTabDisplayAdvance']);
         $t->same(0, $result['diagnostics']['overColumnLineCount']);
@@ -140,8 +152,53 @@ return [
             'lineFeedBreakCount' => 1,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
+            'spaceBreakOpportunityCount' => 1,
+            'unicodeSpaceBreakOpportunityCount' => 0,
+            'maxUnicodeSpaceDisplayAdvance' => 0,
             'tabBreakOpportunityCount' => 3,
             'maxTabDisplayAdvance' => 3,
+            'zeroWidthSpaceBreakOpportunityCount' => 0,
+            'softHyphenBreakOpportunityCount' => 0,
+            'visibleBreakAfterOpportunityCount' => 0,
+            'protectedSeparatorCount' => 0,
+            'lineEndingNormalizationCount' => 0,
+        ], $result['diagnostics']['blocks'][0]);
+    },
+    'reports unicode space break opportunities in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "Alpha Beta\u{2009}Gamma Delta\u{3000}Tail"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 18]))->writeWithDiagnostics($document);
+
+        $t->same("Alpha Beta\u{2009}Gamma\nDelta\u{3000}Tail", $result['text']);
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(2, $result['diagnostics']['outputLineCount']);
+        $t->same(16, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(4, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(2, $result['diagnostics']['spaceBreakOpportunityCount']);
+        $t->same(2, $result['diagnostics']['unicodeSpaceBreakOpportunityCount']);
+        $t->same(2, $result['diagnostics']['maxUnicodeSpaceDisplayAdvance']);
+        $t->same(0, $result['diagnostics']['tabBreakOpportunityCount']);
+        $t->same([
+            'blockIndex' => 0,
+            'blockType' => 'code_block',
+            'sourceLineCount' => 1,
+            'outputLineCount' => 2,
+            'maxSourceDisplayWidth' => 28,
+            'maxOutputDisplayWidth' => 16,
+            'overColumnLineCount' => 0,
+            'maxOverColumnDisplayWidth' => 0,
+            'wrapped' => true,
+            'lineFeedBreakCount' => 0,
+            'lineSeparatorBreakCount' => 0,
+            'paragraphSeparatorBreakCount' => 0,
+            'spaceBreakOpportunityCount' => 2,
+            'unicodeSpaceBreakOpportunityCount' => 2,
+            'maxUnicodeSpaceDisplayAdvance' => 2,
+            'tabBreakOpportunityCount' => 0,
+            'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
             'softHyphenBreakOpportunityCount' => 0,
             'visibleBreakAfterOpportunityCount' => 0,
@@ -178,6 +235,9 @@ return [
         $t->same(13, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
         $t->same(2, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(2, $result['diagnostics']['spaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['unicodeSpaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['maxUnicodeSpaceDisplayAdvance']);
         $t->same(0, $result['diagnostics']['zeroWidthSpaceBreakOpportunityCount']);
         $t->same(0, $result['diagnostics']['softHyphenBreakOpportunityCount']);
         $t->same(0, $result['diagnostics']['visibleBreakAfterOpportunityCount']);
@@ -196,6 +256,9 @@ return [
             'lineFeedBreakCount' => 1,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
+            'spaceBreakOpportunityCount' => 2,
+            'unicodeSpaceBreakOpportunityCount' => 0,
+            'maxUnicodeSpaceDisplayAdvance' => 0,
             'tabBreakOpportunityCount' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
@@ -224,6 +287,9 @@ return [
         $t->same(6, $result['diagnostics']['outputLineCount']);
         $t->same(8, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(5, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(2, $result['diagnostics']['spaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['unicodeSpaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['maxUnicodeSpaceDisplayAdvance']);
         $t->same(1, $result['diagnostics']['zeroWidthSpaceBreakOpportunityCount']);
         $t->same(1, $result['diagnostics']['softHyphenBreakOpportunityCount']);
         $t->same(1, $result['diagnostics']['visibleBreakAfterOpportunityCount']);
@@ -240,6 +306,9 @@ return [
             'lineFeedBreakCount' => 0,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
+            'spaceBreakOpportunityCount' => 2,
+            'unicodeSpaceBreakOpportunityCount' => 0,
+            'maxUnicodeSpaceDisplayAdvance' => 0,
             'tabBreakOpportunityCount' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 1,
@@ -266,6 +335,9 @@ return [
         $t->same(1, $result['diagnostics']['lineSeparatorBreakCount']);
         $t->same(1, $result['diagnostics']['paragraphSeparatorBreakCount']);
         $t->same(1, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['spaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['unicodeSpaceBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['maxUnicodeSpaceDisplayAdvance']);
         $t->same(1, $result['diagnostics']['lineEndingNormalizationCount']);
         $t->same([
             'blockIndex' => 0,
@@ -280,6 +352,9 @@ return [
             'lineFeedBreakCount' => 1,
             'lineSeparatorBreakCount' => 1,
             'paragraphSeparatorBreakCount' => 1,
+            'spaceBreakOpportunityCount' => 1,
+            'unicodeSpaceBreakOpportunityCount' => 0,
+            'maxUnicodeSpaceDisplayAdvance' => 0,
             'tabBreakOpportunityCount' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
