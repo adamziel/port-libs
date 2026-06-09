@@ -3992,6 +3992,9 @@ final class MarkdownReader
 
                     $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
                     $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
+                    if (array_key_exists($key, $set)) {
+                        $this->recordYamlDuplicateKeyDiagnostic($key);
+                    }
                     $set[$key] = null;
                 }
             );
@@ -4070,6 +4073,12 @@ final class MarkdownReader
 
             $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
             $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
+            if (array_key_exists($key, $set)) {
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    fn (): mixed => $this->recordYamlDuplicateKeyDiagnostic($key)
+                );
+            }
             $set[$key] = null;
         }
 

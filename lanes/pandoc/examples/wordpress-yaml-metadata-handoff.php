@@ -213,15 +213,17 @@ core-tagged-items: !!seq
   - !!seq
     - nested
     - item
-review-label-set: !!set {front-matter, wordpress, "source:key"}
+review-label-set: !!set {front-matter, wordpress, wordpress, "source:key", "source:key"}
 block-label-set: !!set
   ? migration
   ? "qa:review"
+  ? migration
 sequence-label-sets:
-  - !!set {draft, published}
+  - !!set {draft, published, draft}
   - !!set
     ? queued
     ? "needs:review"
+    ? queued
 review-order_: &review_order !!omap
   - source-title: Original export
   - source-title: Revised export
@@ -611,6 +613,13 @@ $flowNullKeyDiagnostics = array_values(array_filter(
 $invalidOrderedPairDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-ordered-pair-member'
+));
+$duplicateSetDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'duplicate-key'
+        && (str_starts_with($diagnostic['path'] ?? '', '/review-label-set')
+            || str_starts_with($diagnostic['path'] ?? '', '/block-label-set')
+            || str_starts_with($diagnostic['path'] ?? '', '/sequence-label-sets/'))
 ));
 $blocks = (new WordPressBlockWriter())->write($document);
 $abstractBlocks = $meta['abstractBlocks'] ?? [];
@@ -1554,6 +1563,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!array_key_exists('needs:review', $meta['sequence-label-sets'][1] ?? []) || $meta['sequence-label-sets'][1]['needs:review'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing sequence block set tag metadata');
     }
+    if (array_column($duplicateSetDiagnostics, 'path') !== [
+        '/review-label-set/wordpress',
+        '/review-label-set/source:key',
+        '/block-label-set/migration',
+        '/sequence-label-sets/0/draft',
+        '/sequence-label-sets/1/queued',
+    ]) {
+        throw new RuntimeException('YAML metadata self-test missing duplicate set member diagnostic paths');
+    }
     if (($meta['ordered-review']['steps'][0]['key'] ?? '') !== 'source-title' || ($meta['ordered-review']['steps'][0]['value'] ?? '') !== 'Original export') {
         throw new RuntimeException('YAML metadata self-test missing ordered-map first source title');
     }
@@ -2490,6 +2508,7 @@ echo 'YAML diagnostics: ' . count($yamlDiagnostics) . "\n";
 echo 'YAML invalid TAG directives: ' . count($invalidTagDiagnostics) . "\n";
 echo 'YAML invalid merge diagnostics: ' . count($invalidMergeDiagnostics) . "\n";
 echo 'YAML invalid ordered pair diagnostics: ' . count($invalidOrderedPairDiagnostics) . "\n";
+echo 'YAML duplicate set diagnostics: ' . implode(', ', array_column($duplicateSetDiagnostics, 'path')) . "\n";
 echo 'YAML alias diagnostic paths: ' . implode(', ', array_column($aliasYamlDiagnostics, 'path')) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
 echo 'YAML custom tag provenance paths: ' . implode(', ', array_filter(array_column($yamlTagProvenance, 'path'))) . "\n";

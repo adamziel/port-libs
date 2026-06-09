@@ -3851,6 +3851,55 @@ return [
         $t->same('set-tag-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="set-tag-yaml-body">Set tag YAML body</h1>', $blocks);
     },
+    'records pandoc yaml duplicate set member diagnostics without hiding final metadata values' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Duplicate set **Packet**',
+            'review-labels: !!set {front-matter, wordpress, wordpress, "source:key", "source:key"}',
+            'block-labels: !!set',
+            '  ? migration',
+            '  ? "qa:review"',
+            '  ? migration',
+            'review:',
+            '  required-labels: !!set {import, approved, import}',
+            '  nested-labels:',
+            '    - !!set {draft, published, draft}',
+            '    - !!set',
+            '      ? queued',
+            '      ? "needs:review"',
+            '      ? queued',
+            '...',
+            '',
+            '# Duplicate set YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Duplicate set **Packet**', $meta['title']);
+        $t->same(['front-matter', 'wordpress', 'source:key'], array_keys($meta['review-labels']));
+        $t->same(['migration', 'qa:review'], array_keys($meta['block-labels']));
+        $t->same(['import', 'approved'], array_keys($meta['review']['required-labels']));
+        $t->same(['draft', 'published'], array_keys($meta['review']['nested-labels'][0]));
+        $t->same(['queued', 'needs:review'], array_keys($meta['review']['nested-labels'][1]));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same(6, count($diagnostics));
+        $t->same(array_fill(0, 6, 'yaml-duplicate-key'), array_column($diagnostics, 'type'));
+        $t->same(array_fill(0, 6, 'duplicate-key'), array_column($diagnostics, 'reason'));
+        $t->same(['wordpress', 'source:key', 'migration', 'import', 'draft', 'queued'], array_column($diagnostics, 'field'));
+        $t->same([
+            '/review-labels/wordpress',
+            '/review-labels/source:key',
+            '/block-labels/migration',
+            '/review/required-labels/import',
+            '/review/nested-labels/0/draft',
+            '/review/nested-labels/1/queued',
+        ], array_column($diagnostics, 'path'));
+        $t->same(['3', '3', '7', '9', '11', '15'], array_column($diagnostics, 'sourceLine'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('duplicate-set-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="duplicate-set-yaml-body">Duplicate set YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml ordered map and pairs tags in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
