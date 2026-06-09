@@ -12,6 +12,7 @@ final class NativeReader
         if (!is_array($native)) {
             throw new \InvalidArgumentException('Pandoc native JSON must decode to an object');
         }
+        $native = $this->normalizeDocument($native);
 
         $attrs = [
             'meta' => $this->metadata($native['meta'] ?? []),
@@ -28,6 +29,36 @@ final class NativeReader
         }
 
         return new AstNode('document', $attrs, $children);
+    }
+
+    /**
+     * @param array<mixed> $native
+     * @return array<string, mixed>
+     */
+    private function normalizeDocument(array $native): array
+    {
+        if (!array_is_list($native)) {
+            return $native;
+        }
+
+        if (count($native) !== 2) {
+            throw new \InvalidArgumentException('Legacy Pandoc native JSON must contain metadata and blocks');
+        }
+
+        $metadata = $native[0];
+        if (!is_array($metadata) || array_is_list($metadata)) {
+            throw new \InvalidArgumentException('Legacy Pandoc native JSON metadata must be an object');
+        }
+
+        $meta = $metadata['unMeta'] ?? null;
+        if (!is_array($meta) || ($meta !== [] && array_is_list($meta))) {
+            throw new \InvalidArgumentException('Legacy Pandoc native JSON metadata must contain an unMeta object');
+        }
+
+        return [
+            'meta' => $meta,
+            'blocks' => $native[1],
+        ];
     }
 
     /**

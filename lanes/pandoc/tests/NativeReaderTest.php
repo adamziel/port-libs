@@ -62,6 +62,50 @@ return [
         $t->same($native['blocks'], $roundTrip['blocks']);
         $t->same($native, $roundTrip);
     },
+    'normalizes legacy pandoc native json unMeta document arrays' => static function (TestRunner $t): void {
+        $legacy = [
+            [
+                'unMeta' => [
+                    'title' => [
+                        't' => 'MetaInlines',
+                        'c' => [
+                            ['t' => 'Str', 'c' => 'Legacy'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'Native'],
+                        ],
+                    ],
+                    'review' => [
+                        't' => 'MetaMap',
+                        'c' => [
+                            'source' => ['t' => 'MetaString', 'c' => 'pre-1.18-filter'],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                [
+                    't' => 'Para',
+                    'c' => [
+                        ['t' => 'Str', 'c' => 'Legacy'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'native'],
+                    ],
+                ],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($legacy, JSON_THROW_ON_ERROR));
+        $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('document', $document->type);
+        $t->same('pandoc-json', $document->attr('nativeFormat'));
+        $t->same($legacy[0]['unMeta'], $document->attr('meta'));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Legacy native', $document->children[0]->attr('text'));
+        $t->same($legacy[0]['unMeta'], $roundTrip['meta']);
+        $t->same($legacy[1], $roundTrip['blocks']);
+        $t->same([1, 23, 1], $roundTrip['pandoc-api-version']);
+    },
     'round trips markdown paragraph inlines through pandoc native ast json' => static function (TestRunner $t): void {
         $markdown = "Native *AST* **roundtrip** with `code` and [link](https://example.test/source)\nnext line.";
         $document = (new MarkdownReader())->read($markdown);
