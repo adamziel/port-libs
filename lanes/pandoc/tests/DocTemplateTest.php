@@ -816,6 +816,59 @@ TPL;
         ]), $output);
     },
 
+    'matches upstream pandoc doctemplates pipes fixture applied partial newlines' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+        $context = [
+            'bim' => ['Zub' => 'Sim'],
+            'digits' => [1, 5, 20],
+            'foo' => 1,
+            'hasblanksmap' => [
+                'a' => "hello\n\n",
+                'b' => "there\n\n",
+            ],
+            'items' => [
+                "one with\na line break",
+                'two',
+                "three with\na line break",
+            ],
+        ];
+
+        $enumerated = $renderer->render('$items/pairs/reverse:enum()$', $context, [
+            'enum' => '$it.key/alpha/uppercase$.  $^$$it.value$' . "\n\n",
+        ]);
+        $t->same(implode("\n", [
+            'C.  three with',
+            '    a line break',
+            'B.  two',
+            'A.  one with',
+            '    a line break',
+            '',
+        ]), $enumerated);
+
+        $chompedMap = $renderer->render(<<<'TPL'
+$for(hasblanksmap/chomp/pairs/uppercase)$
+$it.key$ ($it.value$)
+$endfor$
+TPL, $context);
+        $t->same(implode("\n", [
+            'A (HELLO)',
+            'B (THERE)',
+            '',
+        ]), $chompedMap);
+
+        $t->same('SIM', $renderer->render('$for(bim/uppercase)$$it.Zub$$endfor$', $context));
+        $t->same('i v xx', $renderer->render('$digits/roman[ ]$', $context));
+        $t->same("1\n20\n5\n20\n1\n5\n1", $renderer->render(<<<'TPL'
+$digits/first$
+$digits/last$
+$for(digits/rest)$
+$it$
+$endfor$$for(digits/allbutlast)$
+$it$
+$endfor$$foo/first$
+TPL, $context));
+    },
+
     'applies pandoc doctemplate pipes to loop expressions and conditionals' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 $if(warnings/first)$Warnings:

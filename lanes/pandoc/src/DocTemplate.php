@@ -6715,6 +6715,12 @@ CSS;
 
             $sourceIndent = substr($value, $afterLineEnding, $indentEnd - $afterLineEnding);
             if ($indentEnd < $length && ($value[$indentEnd] === "\r" || $value[$indentEnd] === "\n")) {
+                if ($this->containsOnlyLineEndings(substr($value, $indentEnd))) {
+                    $output .= substr($value, $indentEnd);
+
+                    return [$output, true];
+                }
+
                 $output .= $indent;
                 $offset = $indentEnd;
                 continue;
@@ -6730,6 +6736,11 @@ CSS;
         }
 
         return [$output, true];
+    }
+
+    private function containsOnlyLineEndings(string $value): bool
+    {
+        return $value !== '' && strspn($value, "\r\n") === strlen($value);
     }
 
     private function dropSourceIndentColumns(string $indent, int $columns): string

@@ -4277,6 +4277,15 @@ final class ZipPackage
      *     eocdOffset:int,
      *     scannedCentralDirectoryBytes:int,
      *     centralDirectoryTailBytes:int,
+     *     scanStoppedOffset:int,
+     *     scanCompletedCentralDirectory:bool,
+     *     hasUnexpectedCentralDirectoryTail:bool,
+     *     unexpectedRecordOffset:?int,
+     *     unexpectedRecordSignatureHex:?string,
+     *     hasCentralDirectoryEocdGap:bool,
+     *     centralDirectoryEocdGapOffset:?int,
+     *     centralDirectoryEocdGapBytes:int,
+     *     isCentralDirectoryEocdGapExplainedBySignature:bool,
      *     hasEntryCountMismatch:bool,
      *     entryCountDelta:int,
      *     extraScannedEntryCount:int,
@@ -4310,6 +4319,8 @@ final class ZipPackage
         $issues = [];
         $cursor = $archive['centralDirectoryOffset'];
         $centralDirectorySignature = null;
+        $unexpectedRecordOffset = null;
+        $unexpectedRecordSignatureHex = null;
         $index = 0;
         while ($cursor < $archive['centralDirectoryEnd']) {
             $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
@@ -4326,6 +4337,8 @@ final class ZipPackage
 
             if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
                 $issues[] = 'central-directory-unexpected-record';
+                $unexpectedRecordOffset = $cursor;
+                $unexpectedRecordSignatureHex = bin2hex(substr($bytes, $cursor, min(4, strlen($bytes) - $cursor)));
                 break;
             }
 
@@ -4377,6 +4390,21 @@ final class ZipPackage
             }
         }
 
+        if ($cursor < $archive['centralDirectoryEnd'] && $unexpectedRecordOffset === null) {
+            $unexpectedRecordOffset = $cursor;
+            $unexpectedRecordSignatureHex = bin2hex(substr($bytes, $cursor, min(4, strlen($bytes) - $cursor)));
+        }
+
+        $scanCompletedCentralDirectory = $cursor === $archive['centralDirectoryEnd'];
+        $hasUnexpectedCentralDirectoryTail = $cursor < $archive['centralDirectoryEnd'];
+        $isCentralDirectoryEocdGapExplainedBySignature = $centralDirectorySignature !== null
+            && $centralDirectorySignature['offset'] === $archive['centralDirectoryEnd']
+            && $centralDirectorySignature['endOffset'] === $archive['eocdOffset'];
+        $centralDirectoryEocdGapBytes = $isCentralDirectoryEocdGapExplainedBySignature
+            ? 0
+            : max(0, $archive['eocdOffset'] - $archive['centralDirectoryEnd']);
+        $hasCentralDirectoryEocdGap = $centralDirectoryEocdGapBytes > 0;
+
         $scannedEntryCount = count($entries);
         $declaredEntryCount = $archive['totalEntryCount'];
         $entryCountDelta = $scannedEntryCount - $declaredEntryCount;
@@ -4399,13 +4427,7 @@ final class ZipPackage
         if ($cursor < $archive['centralDirectoryEnd']) {
             $issues[] = 'central-directory-unexpected-tail';
         }
-        if (
-            $archive['centralDirectoryEnd'] < $archive['eocdOffset']
-            && (
-                $centralDirectorySignature === null
-                || $centralDirectorySignature['endOffset'] !== $archive['eocdOffset']
-            )
-        ) {
+        if ($hasCentralDirectoryEocdGap) {
             $issues[] = 'central-directory-eocd-gap';
         }
 
@@ -4422,6 +4444,15 @@ final class ZipPackage
             'eocdOffset' => $archive['eocdOffset'],
             'scannedCentralDirectoryBytes' => $cursor - $archive['centralDirectoryOffset'],
             'centralDirectoryTailBytes' => max(0, $archive['centralDirectoryEnd'] - $cursor),
+            'scanStoppedOffset' => $cursor,
+            'scanCompletedCentralDirectory' => $scanCompletedCentralDirectory,
+            'hasUnexpectedCentralDirectoryTail' => $hasUnexpectedCentralDirectoryTail,
+            'unexpectedRecordOffset' => $unexpectedRecordOffset,
+            'unexpectedRecordSignatureHex' => $unexpectedRecordSignatureHex,
+            'hasCentralDirectoryEocdGap' => $hasCentralDirectoryEocdGap,
+            'centralDirectoryEocdGapOffset' => $hasCentralDirectoryEocdGap ? $archive['centralDirectoryEnd'] : null,
+            'centralDirectoryEocdGapBytes' => $centralDirectoryEocdGapBytes,
+            'isCentralDirectoryEocdGapExplainedBySignature' => $isCentralDirectoryEocdGapExplainedBySignature,
             'hasEntryCountMismatch' => $entryCountMismatch,
             'entryCountDelta' => $entryCountDelta,
             'extraScannedEntryCount' => $extraScannedEntryCount,

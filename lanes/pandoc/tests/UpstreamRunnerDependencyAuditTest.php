@@ -583,7 +583,20 @@ $benchmarkArtifacts = static function () use ($benchmarkEntryPoint): array {
     return $files;
 };
 
-$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true, ?string $serverPackage = null, ?string $cliPackage = null) use ($pandocCabal, $luaCabal, $serverCabal, $cliCabal, $runnerArtifacts, $luaLibraryArtifacts, $benchmarkArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
+$cliSourceArtifacts = static function (): array {
+    $files = [];
+    foreach (UpstreamRunnerDependencyAudit::expectedCliExecutableSourceArtifacts() as $relativePath => $kind) {
+        if ($kind === 'directory') {
+            $files[$relativePath . '/.audit-keep'] = 'cli executable source fixture present';
+        } else {
+            $files[$relativePath] = 'cli executable source fixture present for ' . $relativePath;
+        }
+    }
+
+    return $files;
+};
+
+$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true, ?string $serverPackage = null, ?string $cliPackage = null) use ($pandocCabal, $luaCabal, $serverCabal, $cliCabal, $runnerArtifacts, $luaLibraryArtifacts, $benchmarkArtifacts, $cliSourceArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
     $files = [
         'cabal.project' => $project,
         'pandoc.cabal' => $pandocPackage ?? $pandocCabal(),
@@ -595,6 +608,7 @@ $requiredFiles = static function (string $project, ?string $pandocPackage = null
     ];
 
     $files = array_merge($files, $luaLibraryArtifacts());
+    $files = array_merge($files, $cliSourceArtifacts());
 
     if ($includeRunnerArtifacts) {
         $files = array_merge($files, $runnerArtifacts(), $benchmarkArtifacts());
@@ -2832,6 +2846,68 @@ return [
         $t->same(['-DREPL'], $closure['executable pandoc: if flag(repl)']['cppOptions']);
         $t->same([], $audit['cliExecutableClosure']['missingConditionalFieldEntries']);
         $t->same([], $audit['cliExecutableClosure']['unexpectedConditionalFieldEntries']);
+    },
+    'records pandoc cli conditional source artifacts before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $root = $makeTree($requiredFiles($pinnedProject()));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $expected = UpstreamRunnerDependencyAudit::expectedCliExecutableSourceArtifacts();
+        $closure = $audit['cliExecutableClosure'];
+        $t->same(true, $audit['readyForNonMutatingCabalPlan']);
+        $t->same($expected, $closure['expectedSourceArtifacts']);
+        $t->same(array_keys($expected), $closure['presentSourceArtifacts']);
+        $t->same([], $closure['missingSourceArtifacts']);
+        $t->same([], $closure['wrongTypeSourceArtifacts']);
+        $t->same([], $closure['emptySourceArtifacts']);
+        $t->same(array_keys($expected), array_keys($closure['sourceArtifactProvenance']));
+        $t->same(true, $closure['sourceArtifactProvenance']['pandoc-cli/wasm/PandocWasm.hs']['bytes'] > 0);
+        $t->same(true, $closure['sourceArtifactProvenance']['pandoc-cli/server/PandocCLI/Server.hs']['bytes'] > 0);
+        $t->same(true, $closure['sourceArtifactProvenance']['pandoc-cli/no-server/PandocCLI/Server.hs']['bytes'] > 0);
+        $t->same(true, $closure['sourceArtifactProvenance']['pandoc-cli/lua/PandocCLI/Lua.hs']['bytes'] > 0);
+        $t->same(true, $closure['sourceArtifactProvenance']['pandoc-cli/no-lua/PandocCLI/Lua.hs']['bytes'] > 0);
+        $t->contains('non-empty pandoc-cli conditional source artifacts with hashes', $audit['activationGate']);
+        $t->contains('conditional source artifact hashes', $audit['nonMutatingPlan'][2]);
+    },
+    'blocks pandoc cli conditional source artifact drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        unset($files['pandoc-cli/wasm/PandocWasm.hs']);
+        unset($files['pandoc-cli/server/PandocCLI/Server.hs']);
+        $files['pandoc-cli/server/PandocCLI/Server.hs/.audit-keep'] = 'wrong source artifact type';
+        $files['pandoc-cli/no-lua/PandocCLI/Lua.hs'] = '';
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same(['pandoc-cli/wasm/PandocWasm.hs'], $audit['cliExecutableClosure']['missingSourceArtifacts']);
+        $t->same([
+            'pandoc-cli/server/PandocCLI/Server.hs' => [
+                'expected' => 'file',
+                'actual' => 'directory',
+            ],
+        ], $audit['cliExecutableClosure']['wrongTypeSourceArtifacts']);
+        $t->same(['pandoc-cli/no-lua/PandocCLI/Lua.hs'], $audit['cliExecutableClosure']['emptySourceArtifacts']);
+
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing pandoc-cli executable source artifacts: pandoc-cli/wasm/PandocWasm.hs', $blocked);
+        $t->contains('mismatched pandoc-cli executable source artifact types: pandoc-cli/server/PandocCLI/Server.hs expected file, found directory', $blocked);
+        $t->contains('empty pandoc-cli executable source artifacts: pandoc-cli/no-lua/PandocCLI/Lua.hs', $blocked);
+        $t->contains('non-empty pandoc-cli conditional source artifacts with hashes', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks pandoc cli conditional branch field drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $cliCabal): void {
         $cliPackage = str_replace(

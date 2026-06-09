@@ -32,6 +32,7 @@ for $title$$~$</p>
 <p class="brace-separated-sources">${ reviewSources/uppercase[} ] }</p>
 <p class="bracket-separated-sources">${ reviewSources/uppercase[[ ] }</p>
 <p class="chomped-review-sources">${ reviewSourcesWithNewlines/chomp/uppercase[ / ] }</p>
+<pre class="source-enum">${ reviewSourcesWithNotes/pairs/reverse:components/source-enum() }</pre>
 <pre class="review-code">$shortReviewCode/left 4 "[" "]"$</pre>
 <p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
 <p class="style-metadata">$style:font-name$ / ${ style:family:components/style-token()[, ] }</p>
@@ -65,6 +66,7 @@ HTML,
     'review-packets/components/missing-count.html' => 'missing=<$missingWarnings$>; it=$it$',
     'review-packets/components/style-token.html' => '$style:family.style:name$=$it.style:font-name$',
     'review-packets/components/asset-digit-row.html' => '$assets.360-view.name$:$it.1st-pass$',
+    'review-packets/components/source-enum.html' => '$it.key/alpha/uppercase$. $^$$it.value$' . "\n\n",
     'review-packets/components/crlf-note.html' => '<p class="crlf-note">CRLF partial final line ending stripped</p>' . "\r\n",
     'review-packets/components/trailing-note.html' => '<p class="partial-spacing">Partial spacing survives reviewer packet boundaries</p>' . "\n\n",
     'review-packets/components/warning-list.html' => <<<'HTML'
@@ -93,6 +95,11 @@ $context = [
     ],
     'reviewSources' => ['media', 'links', 'layout'],
     'reviewSourcesWithNewlines' => ["media\n", "links\n\n", "layout\r\n"],
+    'reviewSourcesWithNotes' => [
+        "Media audit\nCheck alt text",
+        'Link audit',
+        "Layout review\nCheck styles",
+    ],
     'shortReviewCode' => 'WP-Review',
     'reviewMeta' => [
         'zeta' => 'queued-last',
@@ -189,6 +196,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="brace-separated-sources">MEDIA} LINKS} LAYOUT</p>',
         '<p class="bracket-separated-sources">MEDIA[ LINKS[ LAYOUT</p>',
         '<p class="chomped-review-sources">MEDIA / LINKS / LAYOUT</p>',
+        "<pre class=\"source-enum\">C. Layout review\n   Check styles\nB. Link audit\nA. Media audit\n   Check alt text\n</pre>",
         "<pre class=\"review-code\">[WP-R]\n[evie]\n[w   ]</pre>",
         '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
         '<p class="style-metadata">Atkinson Hyperlegible / Heading_20_1=Alegreya, BodyText=Atkinson Hyperlegible</p>',

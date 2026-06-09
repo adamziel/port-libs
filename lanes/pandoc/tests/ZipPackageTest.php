@@ -3847,6 +3847,77 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($declaredTooHigh));
     },
 
+    'preflights zip central directory recovery metadata before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>central recovery</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "central recovery attachment\n",
+                'method' => 0,
+            ],
+        ]);
+        $base = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $eocdOffset = strrpos($zip, "PK\x05\x06");
+        if ($eocdOffset === false) {
+            throw new RuntimeException('EOCD fixture not found');
+        }
+
+        $gapPayload = "hidden central directory gap\n";
+        $gapBytes = "PK\x06\x08" . pack('V', strlen($gapPayload)) . $gapPayload;
+        $gapZip = substr($zip, 0, $eocdOffset) . $gapBytes . substr($zip, $eocdOffset);
+        $gapSummary = ZipPackage::centralDirectoryInventoryPreflight($gapZip);
+        $gapRaw = ZipPackage::rawStrictImportPreflight($gapZip, 2048, 100.0, 2048);
+
+        $t->same(2, $gapSummary['scannedEntryCount']);
+        $t->same(true, $gapSummary['scanCompletedCentralDirectory']);
+        $t->same($base['centralDirectoryEnd'], $gapSummary['scanStoppedOffset']);
+        $t->same(false, $gapSummary['hasUnexpectedCentralDirectoryTail']);
+        $t->same(0, $gapSummary['centralDirectoryTailBytes']);
+        $t->same(null, $gapSummary['unexpectedRecordOffset']);
+        $t->same(null, $gapSummary['unexpectedRecordSignatureHex']);
+        $t->same(true, $gapSummary['hasCentralDirectoryEocdGap']);
+        $t->same($base['centralDirectoryEnd'], $gapSummary['centralDirectoryEocdGapOffset']);
+        $t->same(strlen($gapBytes), $gapSummary['centralDirectoryEocdGapBytes']);
+        $t->same(false, $gapSummary['isCentralDirectoryEocdGapExplainedBySignature']);
+        $t->same(['central-directory-eocd-gap'], $gapSummary['issues']);
+        $t->same(false, $gapRaw['isValid']);
+        $t->same(false, $gapRaw['canInstantiate']);
+        $t->same($gapSummary, $gapRaw['centralDirectoryInventory']);
+        $t->contains('central-directory-eocd-gap', implode(',', $gapRaw['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($gapZip));
+
+        $tailPayload = "hidden central tail\n";
+        $tailBytes = "PK\x06\x08" . pack('V', strlen($tailPayload)) . $tailPayload;
+        $tailZip = substr($zip, 0, $eocdOffset) . $tailBytes . substr($zip, $eocdOffset);
+        $tailZip = $rewriteEndOfCentralDirectory($tailZip, [
+            'centralDirectorySize' => $base['centralDirectorySize'] + strlen($tailBytes),
+        ]);
+        $tailSummary = ZipPackage::centralDirectoryInventoryPreflight($tailZip);
+        $tailRaw = ZipPackage::rawStrictImportPreflight($tailZip, 2048, 100.0, 2048);
+
+        $t->same(2, $tailSummary['scannedEntryCount']);
+        $t->same(false, $tailSummary['scanCompletedCentralDirectory']);
+        $t->same($base['centralDirectoryEnd'], $tailSummary['scanStoppedOffset']);
+        $t->same(true, $tailSummary['hasUnexpectedCentralDirectoryTail']);
+        $t->same(strlen($tailBytes), $tailSummary['centralDirectoryTailBytes']);
+        $t->same($base['centralDirectoryEnd'], $tailSummary['unexpectedRecordOffset']);
+        $t->same(bin2hex(substr($tailBytes, 0, 4)), $tailSummary['unexpectedRecordSignatureHex']);
+        $t->same(false, $tailSummary['hasCentralDirectoryEocdGap']);
+        $t->same(null, $tailSummary['centralDirectoryEocdGapOffset']);
+        $t->same(0, $tailSummary['centralDirectoryEocdGapBytes']);
+        $t->same(false, $tailSummary['isCentralDirectoryEocdGapExplainedBySignature']);
+        $t->same(['central-directory-unexpected-record', 'central-directory-unexpected-tail'], $tailSummary['issues']);
+        $t->same(false, $tailRaw['isValid']);
+        $t->same(false, $tailRaw['canInstantiate']);
+        $t->same($tailSummary, $tailRaw['centralDirectoryInventory']);
+        $t->contains('central-directory-unexpected-tail', implode(',', $tailRaw['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($tailZip));
+    },
+
     'embeds zip central directory inventory in strict package import preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildCentralDirectorySignaturePackage): void {
         $zip = $buildZipPackage([
             [

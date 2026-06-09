@@ -2265,6 +2265,14 @@ $rewriteZipEndOfCentralDirectory = static function (string $zip, array $fields):
 
     return $zip;
 };
+$insertZipBeforeEndOfCentralDirectory = static function (string $zip, string $bytes): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('ZIP end-of-central-directory fixture was not found');
+    }
+
+    return substr($zip, 0, $eocdOffset) . $bytes . substr($zip, $eocdOffset);
+};
 $rewriteFirstCentralLocalHeaderOffset = static function (string $zip, int $localHeaderOffset): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -2762,6 +2770,32 @@ $centralDirectoryDeclaredHighInventory = ZipPackage::centralDirectoryInventoryPr
         'totalEntryCount' => 4,
     ]
 ));
+$centralDirectoryGapPayload = "hidden central directory gap\n";
+$centralDirectoryGapRecord = "PK\x06\x08" . pack('V', strlen($centralDirectoryGapPayload)) . $centralDirectoryGapPayload;
+$centralDirectoryGapBytes = $insertZipBeforeEndOfCentralDirectory($strictImportPackage->bytes(), $centralDirectoryGapRecord);
+$centralDirectoryGapInventory = ZipPackage::centralDirectoryInventoryPreflight($centralDirectoryGapBytes);
+$centralDirectoryGapRawStrictPreflight = ZipPackage::rawStrictImportPreflight(
+    $centralDirectoryGapBytes,
+    4096,
+    100.0,
+    4096
+);
+$centralDirectoryTailPayload = "hidden central tail\n";
+$centralDirectoryTailRecord = "PK\x06\x08" . pack('V', strlen($centralDirectoryTailPayload)) . $centralDirectoryTailPayload;
+$centralDirectoryTailBytes = $insertZipBeforeEndOfCentralDirectory($strictImportPackage->bytes(), $centralDirectoryTailRecord);
+$centralDirectoryTailBytes = $rewriteZipEndOfCentralDirectory(
+    $centralDirectoryTailBytes,
+    [
+        'centralDirectorySize' => $strictImportCentralDirectoryInventory['centralDirectorySize'] + strlen($centralDirectoryTailRecord),
+    ]
+);
+$centralDirectoryTailInventory = ZipPackage::centralDirectoryInventoryPreflight($centralDirectoryTailBytes);
+$centralDirectoryTailRawStrictPreflight = ZipPackage::rawStrictImportPreflight(
+    $centralDirectoryTailBytes,
+    4096,
+    100.0,
+    4096
+);
 $rawStrictImportPreflight = ZipPackage::rawStrictImportPreflight($strictImportPackage->bytes(), 4096, 100.0, 4096);
 $rawStrictTrailingEocdBytes = $strictImportPackage->bytes() . "detached reviewer bytes\n";
 $rawStrictTrailingEocdSummary = ZipPackage::endOfCentralDirectoryTrailingBytesPreflight($rawStrictTrailingEocdBytes);
@@ -4521,6 +4555,35 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($centralDirectoryGapInventory['scannedEntryCount'] ?? null) !== 3
+        || ($centralDirectoryGapInventory['scanCompletedCentralDirectory'] ?? null) !== true
+        || ($centralDirectoryGapInventory['hasUnexpectedCentralDirectoryTail'] ?? null) !== false
+        || ($centralDirectoryGapInventory['hasCentralDirectoryEocdGap'] ?? null) !== true
+        || ($centralDirectoryGapInventory['centralDirectoryEocdGapOffset'] ?? null) !== $strictImportCentralDirectoryInventory['centralDirectoryEnd']
+        || ($centralDirectoryGapInventory['centralDirectoryEocdGapBytes'] ?? null) !== strlen($centralDirectoryGapRecord)
+        || ($centralDirectoryGapInventory['issues'] ?? null) !== ['central-directory-eocd-gap']
+        || ($centralDirectoryGapRawStrictPreflight['isValid'] ?? null) !== false
+        || !in_array('central-directory-eocd-gap', $centralDirectoryGapRawStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected ZIP central-directory gap recovery metadata before strict package import');
+    }
+
+    if (
+        ($centralDirectoryTailInventory['scannedEntryCount'] ?? null) !== 3
+        || ($centralDirectoryTailInventory['scanCompletedCentralDirectory'] ?? null) !== false
+        || ($centralDirectoryTailInventory['hasUnexpectedCentralDirectoryTail'] ?? null) !== true
+        || ($centralDirectoryTailInventory['centralDirectoryTailBytes'] ?? null) !== strlen($centralDirectoryTailRecord)
+        || ($centralDirectoryTailInventory['unexpectedRecordOffset'] ?? null) !== $strictImportCentralDirectoryInventory['centralDirectoryEnd']
+        || ($centralDirectoryTailInventory['unexpectedRecordSignatureHex'] ?? null) !== '504b0608'
+        || ($centralDirectoryTailInventory['hasCentralDirectoryEocdGap'] ?? null) !== false
+        || ($centralDirectoryTailInventory['issues'] ?? null) !== ['central-directory-unexpected-record', 'central-directory-unexpected-tail']
+        || ($centralDirectoryTailRawStrictPreflight['isValid'] ?? null) !== false
+        || !in_array('central-directory-unexpected-tail', $centralDirectoryTailRawStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected ZIP central-directory unexpected-tail recovery metadata before strict package import');
+    }
+
+    if (
         ($rawStrictImportPreflight['isValid'] ?? null) !== true
         || ($rawStrictImportPreflight['canInstantiate'] ?? null) !== true
         || ($rawStrictImportPreflight['instantiationError'] ?? null) !== null
@@ -6113,6 +6176,9 @@ echo 'zipCentralDirectoryDeclaredLowKind=' . ($centralDirectoryDeclaredLowInvent
 echo 'zipCentralDirectoryDeclaredLowExtraScanned=' . $centralDirectoryDeclaredLowInventory['extraScannedEntryCount'] . "\n";
 echo 'zipCentralDirectoryDeclaredHighKind=' . ($centralDirectoryDeclaredHighInventory['entryCountMismatchKind'] ?? 'none') . "\n";
 echo 'zipCentralDirectoryDeclaredHighMissing=' . $centralDirectoryDeclaredHighInventory['missingDeclaredEntryCount'] . "\n";
+echo 'zipCentralDirectoryGapBytes=' . $centralDirectoryGapInventory['centralDirectoryEocdGapBytes'] . "\n";
+echo 'zipCentralDirectoryTailBytes=' . $centralDirectoryTailInventory['centralDirectoryTailBytes'] . "\n";
+echo 'zipCentralDirectoryTailSignature=' . ($centralDirectoryTailInventory['unexpectedRecordSignatureHex'] ?? 'none') . "\n";
 echo 'zipStrictImportNameHygieneReviewEntries=' . $strictImportPreflight['nameHygiene']['reviewEntryCount'] . "\n";
 echo 'zipStrictImportPlatformMetadataEntries=' . $strictImportPreflight['platformMetadata']['platformMetadataEntryCount'] . "\n";
 echo 'zipRawStrictImportPolicy=' . ($rawStrictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
