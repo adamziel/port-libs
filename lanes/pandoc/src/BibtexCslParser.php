@@ -3011,6 +3011,8 @@ final class BibtexCslParser
             $value
         ) ?? $value;
 
+        $value = preg_replace('/\s+---\s+/u', ' — ', $value) ?? $value;
+
         return str_replace(['``', "''"], ["\u{201C}", "\u{201D}"], $value);
     }
 

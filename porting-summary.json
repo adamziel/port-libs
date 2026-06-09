@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 11:02:31 UTC",
-    "sourceCommit": "f1bae4d2cc04b99b8444f3087783e8f5e47e0832",
-    "sourceCommitShort": "f1bae4d2cc04",
+    "generated": "2026-06-09 11:05:58 UTC",
+    "sourceCommit": "f733fccf6080bd67053dca60f16d3e8f70ea0dc7",
+    "sourceCommitShort": "f733fccf6080",
     "sourceBranch": "unknown",
-    "dashboardCommit": "f1bae4d2cc04b99b8444f3087783e8f5e47e0832",
-    "dashboardCommitShort": "f1bae4d2cc04",
+    "dashboardCommit": "f733fccf6080bd67053dca60f16d3e8f70ea0dc7",
+    "dashboardCommitShort": "f733fccf6080",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,689 pass / 0 fail",
-            "phase": "native PHP Pandoc DOCX/OpenXML table look handoff; w:tblLook gating n...",
-            "audit": "2026-06-09 UTC rebased pandoc-docx-table-look slice on accepted base...",
-            "currentWork": "Pandoc DOCX table handoff now preserves table-look flags and uses them to suppress di...",
+            "php": "2,690 pass / 0 fail",
+            "phase": "native PHP Pandoc BibTeX/CSL parser handoff; spaced TeX em dash punct...",
+            "audit": "2026-06-09 UTC rebased pandoc-citations-tex-em-dash slice on accepted...",
+            "currentWork": "Pandoc BibTeX/CSL handoff now renders spaced TeX em dash punctuation in imported titl...",
             "nextTarget": "Continue non-overlapping native conversion support under ODF/...",
-            "remainingGate": "No external converter is needed.",
+            "remainingGate": "No external citation engine is needed.",
             "commit": "pending fast ba..."
         },
         {

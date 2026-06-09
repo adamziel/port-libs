@@ -334,6 +334,68 @@ BIB;
         $t->contains('<p>Review keeps Müller et al. (2026) in source notes.</p>', $blocks);
         $t->contains('<dt>Müller et al. 2026</dt><dd>Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.</dd>', $blocks);
     },
+    'decodes spaced tex em dash punctuation in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{dash-source,
+  author       = {Smith, Ada},
+  title        = {Migration Review --- Source Packet},
+  journaltitle = {Import Notes --- Archive Desk},
+  note         = {Reviewer note --- check legacy packet},
+  date         = {2026},
+  pages        = {11--12},
+  url          = {https://example.test/dash-source}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Migration Review — Source Packet', $items[0]['title'] ?? null);
+        $t->same('Import Notes — Archive Desk', $items[0]['container-title'] ?? null);
+        $t->same('Reviewer note — check legacy packet', $items[0]['note'] ?? null);
+        $t->same('11-12', $items[0]['page'] ?? null);
+        $t->same('Migration Review --- Source Packet', $items[0]['rawBibtex']['fields']['title'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('dash-source');
+        $t->same('Migration Review — Source Packet', $item['title'] ?? null);
+        $t->same('Import Notes — Archive Desk', $item['containerTitle'] ?? null);
+        $t->same('Reviewer note — check legacy packet', $item['note'] ?? null);
+        $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('dash-source', '[@dash-source]')]));
+        $t->same(
+            'Smith, Ada. Migration Review — Source Packet. Import Notes — Archive Desk. 2026. 11-12. Note: Reviewer note — check legacy packet. https://example.test/dash-source.',
+            $processor->renderBibliographyEntry('dash-source')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="title"/>
+        <text variable="container-title"/>
+        <text variable="note"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="note"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | Migration Review — Source Packet | Import Notes — Archive Desk | Reviewer note — check legacy packet]', $styled->renderCitationCluster([$citation('dash-source', '[@dash-source]')]));
+        $t->same('Migration Review — Source Packet :: Import Notes — Archive Desk :: Reviewer note — check legacy packet', $styled->renderBibliographyEntry('dash-source'));
+
+        $document = (new MarkdownReader())->read('Dash source @dash-source keeps TeX punctuation readable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Dash source Smith (2026) keeps TeX punctuation readable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Review — Source Packet. Import Notes — Archive Desk. 2026. 11-12. Note: Reviewer note — check legacy packet. https://example.test/dash-source.</dd>', $blocks);
+    },
     'strips bounded latex text wrappers in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{macro-source,
