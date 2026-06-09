@@ -1532,6 +1532,7 @@ $relationshipSourceClosureSummary = [
     'sources' => $relationshipSourceClosureSources,
     'stops' => $relationshipSourceClosureStops,
 ];
+$officeDocumentRelationshipReadiness = $graph->preflightOfficeDocumentRelationshipReadiness();
 
 $relationshipPreflight = [];
 foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
@@ -2111,6 +2112,7 @@ $summary = [
     'relationshipSources' => $graph->sourcePartNames(),
     'relationshipSourceInventory' => $relationshipSourceInventory,
     'relationshipSourceClosure' => $relationshipSourceClosureSummary,
+    'officeDocumentRelationshipReadiness' => $officeDocumentRelationshipReadiness,
     'relationshipTypeInventory' => $relationshipTypeInventory,
     'packagePartReferences' => $packagePartReferences,
     'relationships' => $relationshipSummaries,
@@ -2222,6 +2224,18 @@ $summary = [
             'issues' => $relationshipSourceClosureSummary['issues'],
             'sources' => array_values($relationshipSourceClosureSummary['sources']),
             'stops' => array_values($relationshipSourceClosureSummary['stops']),
+        ],
+        'officeDocumentRelationshipReadiness' => [
+            'valid' => $officeDocumentRelationshipReadiness['valid'],
+            'issues' => $officeDocumentRelationshipReadiness['issues'],
+            'documentPart' => $officeDocumentRelationshipReadiness['documentPart'],
+            'documentRelationshipPartName' => $officeDocumentRelationshipReadiness['documentRelationshipPartName'],
+            'documentRelationshipPartLoaded' => $officeDocumentRelationshipReadiness['documentRelationshipPartLoaded'],
+            'relationshipRoleCount' => $officeDocumentRelationshipReadiness['relationshipRoleCount'],
+            'relationshipRoleCounts' => $officeDocumentRelationshipReadiness['relationshipRoleCounts'],
+            'invalidRelationshipRoleCount' => $officeDocumentRelationshipReadiness['invalidRelationshipRoleCount'],
+            'invalidRelationshipRoleIssues' => $officeDocumentRelationshipReadiness['invalidRelationshipRoleIssues'],
+            'relationshipClosure' => $officeDocumentRelationshipReadiness['relationshipClosure'],
         ],
         'externalTargets' => array_values(array_map(
             static fn (array $target): array => [
@@ -2763,6 +2777,22 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipSourceClosure']['stops']['rIdMalformedType']['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
         || ($summary['wordpressImport']['relationshipClosureReview']['expandedSourceCount'] ?? null) !== 4
         || ($summary['wordpressImport']['relationshipClosureReview']['stopCount'] ?? null) !== 16
+        || ($summary['officeDocumentRelationshipReadiness']['valid'] ?? null) !== false
+        || ($summary['officeDocumentRelationshipReadiness']['issues'] ?? null) !== ['external-target-network-path-base-uri', 'external-target-unsafe-scheme', 'internal-hyperlink-target', 'invalid-custom-xml-content-type', 'relationship-type-not-absolute-uri']
+        || ($summary['officeDocumentRelationshipReadiness']['documentPart'] ?? null) !== '/word/document.xml'
+        || ($summary['officeDocumentRelationshipReadiness']['documentRelationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['officeDocumentRelationshipReadiness']['documentRelationshipPartLoaded'] ?? null) !== true
+        || ($summary['officeDocumentRelationshipReadiness']['relationshipRoleCount'] ?? null) !== 12
+        || ($summary['officeDocumentRelationshipReadiness']['relationshipRoleCounts'] ?? null) !== ['custom-xml' => 3, 'footnotes' => 1, 'hyperlink' => 5, 'image' => 2, 'styles' => 1]
+        || ($summary['officeDocumentRelationshipReadiness']['invalidRelationshipRoleCount'] ?? null) !== 4
+        || ($summary['officeDocumentRelationshipReadiness']['invalidRelationshipRoleIssues'] ?? null) !== ['external-target-network-path-base-uri', 'external-target-unsafe-scheme', 'internal-hyperlink-target', 'invalid-custom-xml-content-type']
+        || ($summary['officeDocumentRelationshipReadiness']['relationshipClosure']['expandedSourceCount'] ?? null) !== 4
+        || ($summary['officeDocumentRelationshipReadiness']['relationshipClosure']['stopCount'] ?? null) !== 16
+        || ($summary['officeDocumentRelationshipReadiness']['relationshipClosure']['issues'] ?? null) !== ['external-target-network-path-base-uri', 'external-target-unsafe-scheme', 'relationship-type-not-absolute-uri']
+        || ($summary['wordpressImport']['officeDocumentRelationshipReadiness']['documentPart'] ?? null) !== '/word/document.xml'
+        || ($summary['wordpressImport']['officeDocumentRelationshipReadiness']['relationshipRoleCount'] ?? null) !== 12
+        || ($summary['wordpressImport']['officeDocumentRelationshipReadiness']['invalidRelationshipRoleCount'] ?? null) !== 4
+        || ($summary['wordpressImport']['officeDocumentRelationshipReadiness']['relationshipClosure']['unloadedStopCount'] ?? null) !== 9
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSourceLoaded'] ?? null) !== true
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipPartLoadAction'] ?? null) !== 'loaded'

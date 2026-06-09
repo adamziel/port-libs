@@ -6608,6 +6608,107 @@ XML;
         $t->same(false, $byId['rIdExternalDoc']['valid']);
         $t->same(['external-office-document-target'], $byId['rIdExternalDoc']['issues']);
     },
+    'summarizes DOCX officeDocument relationship readiness for importer handoff' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
+        $validGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
+            ['name' => 'customXml/item1.xml', 'data' => '<review/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $valid = $validGraph->preflightOfficeDocumentRelationshipReadiness();
+        $t->same(true, $valid['valid']);
+        $t->same([], $valid['issues']);
+        $t->same('/word/document.xml', $valid['documentPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $valid['documentContentType']);
+        $t->same('/word/_rels/document.xml.rels', $valid['documentRelationshipPartName']);
+        $t->same(true, $valid['documentRelationshipPartLoaded']);
+        $t->same(1, $valid['officeDocument']['relationshipCount']);
+        $t->same(true, $valid['officeDocument']['valid']);
+        $t->same(true, $valid['relationshipClosure']['valid']);
+        $t->same(3, $valid['relationshipClosure']['expandedSourceCount']);
+        $t->same(6, $valid['relationshipClosure']['stopCount']);
+        $t->same(2, $valid['relationshipClosure']['externalStopCount']);
+        $t->same(4, $valid['relationshipClosure']['unloadedStopCount']);
+        $t->same(5, $valid['relationshipRoleCount']);
+        $t->same([
+            'custom-xml' => 1,
+            'footnotes' => 1,
+            'hyperlink' => 1,
+            'image' => 1,
+            'styles' => 1,
+        ], $valid['relationshipRoleCounts']);
+        $t->same(0, $valid['invalidRelationshipRoleCount']);
+        $t->same([], $valid['invalidRelationshipRoleIssues']);
+
+        $roles = [];
+        foreach ($valid['documentRelationshipRoles'] as $role) {
+            $roles[$role['id']] = $role;
+        }
+        $t->same(['rIdStyles', 'rIdFootnotes', 'rIdImage', 'rIdCustomXml', 'rIdReviewerLink'], array_keys($roles));
+        $t->same('/word/footnotes.xml', $roles['rIdFootnotes']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml', $roles['rIdFootnotes']['contentType']);
+        $t->same(true, $roles['rIdReviewerLink']['external']);
+        $t->same(true, $roles['rIdReviewerLink']['valid']);
+
+        $invalidDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdMissingStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="missing-styles.xml"/>
+  <Relationship Id="rIdUnsafeReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+  <Relationship Id="rIdInternalBookmark" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#bookmark"/>
+</Relationships>
+XML;
+        $invalidGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $invalidDocumentRelationshipsXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $invalid = $invalidGraph->preflightOfficeDocumentRelationshipReadiness();
+        $t->same(false, $invalid['valid']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'internal-hyperlink-target',
+            'invalid-styles-content-type',
+            'missing-in-package',
+        ], $invalid['issues']);
+        $t->same('/word/document.xml', $invalid['documentPart']);
+        $t->same(true, $invalid['documentRelationshipPartLoaded']);
+        $t->same(false, $invalid['relationshipClosure']['valid']);
+        $t->same(['external-target-unsafe-scheme', 'missing-in-package'], $invalid['relationshipClosure']['issues']);
+        $t->same(2, $invalid['relationshipClosure']['expandedSourceCount']);
+        $t->same(3, $invalid['relationshipClosure']['stopCount']);
+        $t->same(1, $invalid['relationshipClosure']['externalStopCount']);
+        $t->same(1, $invalid['relationshipClosure']['missingStopCount']);
+        $t->same(1, $invalid['relationshipClosure']['cycleStopCount']);
+        $t->same(3, $invalid['relationshipRoleCount']);
+        $t->same([
+            'hyperlink' => 2,
+            'styles' => 1,
+        ], $invalid['relationshipRoleCounts']);
+        $t->same(3, $invalid['invalidRelationshipRoleCount']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'internal-hyperlink-target',
+            'invalid-styles-content-type',
+            'missing-in-package',
+        ], $invalid['invalidRelationshipRoleIssues']);
+        $t->same('rIdMissingStyles', $invalid['invalidRelationshipRoles'][0]['id']);
+        $t->same(['missing-in-package', 'invalid-styles-content-type'], $invalid['invalidRelationshipRoles'][0]['issues']);
+        $t->same('rIdUnsafeReview', $invalid['invalidRelationshipRoles'][1]['id']);
+        $t->same(['external-target-unsafe-scheme'], $invalid['invalidRelationshipRoles'][1]['issues']);
+        $t->same('rIdInternalBookmark', $invalid['invalidRelationshipRoles'][2]['id']);
+        $t->same(['internal-hyperlink-target'], $invalid['invalidRelationshipRoles'][2]['issues']);
+    },
     'preflights OPC core properties relationship cardinality and content type' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $validGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],

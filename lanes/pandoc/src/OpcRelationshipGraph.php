@@ -1494,6 +1494,110 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @param list<string>|null $expectedContentTypes
+     * @return array{valid:bool, issues:list<string>, documentPart:?string, documentContentType:?string, documentRelationshipPartName:?string, documentRelationshipPartLoaded:bool, officeDocument:array<string, mixed>, relationshipClosure:array<string, mixed>, relationshipRoleCount:int, relationshipRoleCounts:array<string, int>, invalidRelationshipRoleCount:int, invalidRelationshipRoleIssues:list<string>, invalidRelationshipRoles:list<array{id:string, role:string, type:string, targetPart:?string, external:bool, valid:bool, issues:list<string>}>, documentRelationshipRoles:list<array<string, mixed>>}
+     */
+    public function preflightOfficeDocumentRelationshipReadiness(?array $expectedContentTypes = null): array
+    {
+        $officeDocument = $this->preflightOfficeDocumentRoot(
+            $expectedContentTypes ?? self::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES
+        );
+        $documentRelationship = null;
+        foreach ($officeDocument['relationships'] as $relationship) {
+            if ($relationship['external'] || $relationship['targetPart'] === null) {
+                continue;
+            }
+
+            $documentRelationship = $relationship;
+            break;
+        }
+
+        $documentPart = $documentRelationship['targetPart'] ?? null;
+        $documentContentType = $documentRelationship['contentType'] ?? null;
+        $documentRelationshipPartName = $documentPart === null
+            ? null
+            : OpcRelationships::relationshipPartNameForSource($documentPart);
+        $documentRelationshipPartLoaded = $documentPart !== null
+            && $this->relationshipsForSource($documentPart) instanceof OpcRelationships;
+        $documentRelationshipRoles = $documentPart === null
+            ? []
+            : $this->preflightWordprocessingDocumentRelationships($documentPart);
+        $relationshipClosure = $this->relationshipSourceClosureInventory('/', self::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
+
+        $roleCounts = [];
+        $invalidRoles = [];
+        $invalidRoleIssues = [];
+        foreach ($documentRelationshipRoles as $role) {
+            $roleName = $role['role'];
+            $roleCounts[$roleName] = ($roleCounts[$roleName] ?? 0) + 1;
+
+            if ($role['valid']) {
+                continue;
+            }
+
+            $invalidRoles[] = [
+                'id' => $role['id'],
+                'role' => $roleName,
+                'type' => $role['type'],
+                'targetPart' => $role['targetPart'],
+                'external' => $role['external'],
+                'valid' => false,
+                'issues' => $role['issues'],
+            ];
+            foreach ($role['issues'] as $issue) {
+                self::appendUniqueString($invalidRoleIssues, $issue);
+            }
+        }
+        ksort($roleCounts, SORT_STRING);
+        sort($invalidRoleIssues, SORT_STRING);
+
+        $issues = $officeDocument['issues'];
+        foreach ($officeDocument['relationships'] as $relationship) {
+            foreach ($relationship['issues'] as $issue) {
+                self::appendUniqueString($issues, $issue);
+            }
+        }
+        foreach ($relationshipClosure['issues'] as $issue) {
+            self::appendUniqueString($issues, $issue);
+        }
+        foreach ($invalidRoleIssues as $issue) {
+            self::appendUniqueString($issues, $issue);
+        }
+        sort($issues, SORT_STRING);
+
+        return [
+            'valid' => $officeDocument['valid']
+                && $relationshipClosure['valid']
+                && $invalidRoles === [],
+            'issues' => $issues,
+            'documentPart' => $documentPart,
+            'documentContentType' => $documentContentType,
+            'documentRelationshipPartName' => $documentRelationshipPartName,
+            'documentRelationshipPartLoaded' => $documentRelationshipPartLoaded,
+            'officeDocument' => $officeDocument,
+            'relationshipClosure' => [
+                'valid' => $relationshipClosure['valid'],
+                'issues' => $relationshipClosure['issues'],
+                'expandedSourceCount' => $relationshipClosure['expandedSourceCount'],
+                'outsideSourceCount' => $relationshipClosure['outsideSourceCount'],
+                'stopCount' => $relationshipClosure['stopCount'],
+                'externalStopCount' => $relationshipClosure['externalStopCount'],
+                'invalidStopCount' => $relationshipClosure['invalidStopCount'],
+                'missingStopCount' => $relationshipClosure['missingStopCount'],
+                'relationshipPartStopCount' => $relationshipClosure['relationshipPartStopCount'],
+                'cycleStopCount' => $relationshipClosure['cycleStopCount'],
+                'unloadedStopCount' => $relationshipClosure['unloadedStopCount'],
+            ],
+            'relationshipRoleCount' => count($documentRelationshipRoles),
+            'relationshipRoleCounts' => $roleCounts,
+            'invalidRelationshipRoleCount' => count($invalidRoles),
+            'invalidRelationshipRoleIssues' => $invalidRoleIssues,
+            'invalidRelationshipRoles' => $invalidRoles,
+            'documentRelationshipRoles' => $documentRelationshipRoles,
+        ];
+    }
+
+    /**
      * @return array{relationshipCount:int, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightCoreProperties(): array

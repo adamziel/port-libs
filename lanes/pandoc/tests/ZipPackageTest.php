@@ -5133,6 +5133,30 @@ return [
         ]));
     },
 
+    'rejects semantically invalid generated zip dos timestamps before writing' => static function (TestRunner $t): void {
+        $invalidFields = [
+            ['modifiedDosTime' => 0x0000, 'modifiedDosDate' => 0x0001],
+            ['modifiedDosTime' => 0xc000, 'modifiedDosDate' => 23747],
+            ['modifiedDosTime' => 0x0780, 'modifiedDosDate' => 23747],
+            ['modifiedDosTime' => 0x001e, 'modifiedDosDate' => 23747],
+        ];
+
+        foreach ($invalidFields as $fields) {
+            $rejected = false;
+            try {
+                ZipPackage::fromParts([[
+                    'name' => 'word/document.xml',
+                    'data' => 'ok',
+                    ...$fields,
+                ]]);
+            } catch (\RuntimeException $exception) {
+                $rejected = str_contains($exception->getMessage(), 'valid timestamp');
+            }
+
+            $t->same(true, $rejected);
+        }
+    },
+
     'rejects unsafe package part names before exposing entries' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             ['name' => '/word/document.xml', 'data' => 'absolute'],

@@ -8326,6 +8326,9 @@ final class ZipPackage
 
             self::assertUInt16Value($part['modifiedDosTime'], "ZIP entry {$name} DOS modification time");
             self::assertUInt16Value($part['modifiedDosDate'], "ZIP entry {$name} DOS modification date");
+            if (!self::isValidDosDateTimeValue($part['modifiedDosTime'], $part['modifiedDosDate'])) {
+                throw new \RuntimeException("ZIP entry {$name} DOS modification time and date must encode a valid timestamp");
+            }
 
             return [$part['modifiedDosTime'], $part['modifiedDosDate']];
         }
@@ -8439,6 +8442,21 @@ final class ZipPackage
         $dosDate = (($year - 1980) << 9) | ($month << 5) | $day;
 
         return [$dosTime, $dosDate];
+    }
+
+    private static function isValidDosDateTimeValue(int $time, int $date): bool
+    {
+        $year = (($date >> 9) & 0x7f) + 1980;
+        $month = ($date >> 5) & 0x0f;
+        $day = $date & 0x1f;
+        $hour = ($time >> 11) & 0x1f;
+        $minute = ($time >> 5) & 0x3f;
+        $second = ($time & 0x1f) * 2;
+
+        return checkdate($month, $day, $year)
+            && $hour <= 23
+            && $minute <= 59
+            && $second <= 59;
     }
 
     private static function assertSafePartName(string $name): void

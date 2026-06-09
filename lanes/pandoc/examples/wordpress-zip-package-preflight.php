@@ -2729,6 +2729,19 @@ try {
 } catch (RuntimeException $exception) {
     $generatedEntryCommentControlRejected = str_contains($exception->getMessage(), 'control bytes');
 }
+$generatedInvalidDosTimestampRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/document.xml',
+            'data' => '<w:document><w:body><w:p>Generated invalid DOS date guard</w:p></w:body></w:document>',
+            'modifiedDosTime' => 0,
+            'modifiedDosDate' => 1,
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $generatedInvalidDosTimestampRejected = str_contains($exception->getMessage(), 'valid timestamp');
+}
 $odtMimetype = 'application/vnd.oasis.opendocument.text';
 $odtMimetypePackage = ZipPackage::fromParts([
     [
@@ -4365,6 +4378,10 @@ if (in_array('--self-test', $argv, true)) {
 
     if (!$generatedPackageCommentControlRejected || !$generatedEntryCommentControlRejected) {
         throw new RuntimeException('Expected generated ZIP comments with raw control bytes to be rejected before writing');
+    }
+
+    if (!$generatedInvalidDosTimestampRejected) {
+        throw new RuntimeException('Expected generated ZIP DOS timestamp fields to be validated before writing');
     }
 
     if (
