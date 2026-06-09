@@ -4169,6 +4169,53 @@ return [
         $t->contains('benchmark entry-point source semantics', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks benchmark utf8 decode and mismatch error source drift before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['benchmark/benchmark-pandoc.hs'] = str_replace(
+            [
+                '  inp <- UTF8.toText <$> B.readFile "test/testsuite.txt"',
+                '      _ -> throwError $ PandocSomeError $ "text/bytestring format mismatch: " <> name',
+                'nf (either (error . show) id . runPure . r def) mempty',
+                'nf (either (error . show) id . runPure . r def{readerExtensions = rexts}) mempty',
+            ],
+            [
+                "  raw <- B.readFile \"test/testsuite.txt\"\n  let inp = UTF8.toText raw",
+                '      _ -> throwError $ PandocSomeError "benchmark format mismatch"',
+                'nf (either (const mempty) id . runPure . r def) mempty',
+                'nf (either (const mempty) id . runPure . r def{readerExtensions = rexts}) mempty',
+            ],
+            $files['benchmark/benchmark-pandoc.hs']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $target = 'benchmark:benchmark-pandoc';
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['benchmarkArtifactClosure']['missing']);
+        $t->same([], $audit['benchmarkEntrySourceClosure']['missingTargets']);
+        $t->same([
+            'decodes benchmark markdown fixture as UTF-8',
+            'raises reader benchmark failures with shown Pandoc errors',
+            'reports text bytestring benchmark mismatches',
+        ], $audit['benchmarkEntrySourceClosure']['missingSemantics'][$target]);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing benchmark entry point source semantics', $blocked);
+        $t->contains('decodes benchmark markdown fixture as UTF-8', $blocked);
+        $t->contains('raises reader benchmark failures with shown Pandoc errors', $blocked);
+        $t->contains('reports text bytestring benchmark mismatches', $blocked);
+        $t->contains('benchmark entry-point source semantics', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'blocks runner and benchmark mixin drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $files['pandoc.cabal'] = str_replace(

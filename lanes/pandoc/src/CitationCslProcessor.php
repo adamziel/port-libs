@@ -10160,6 +10160,9 @@ final class CitationCslProcessor
         $institutionParts = (string) ($institution['institutionParts'] ?? 'long');
         $delimiter = (string) ($institution['delimiter'] ?? ' ');
         $short = trim((string) ($name['short'] ?? ''));
+        if ($short === '') {
+            $short = $this->institutionShortAbbreviation($literal);
+        }
 
         $longRendered = $this->formatInstitutionPart($literal, $longPart);
         $shortRendered = $this->formatInstitutionPart($short !== '' ? $short : $literal, $shortPart);
@@ -10188,6 +10191,18 @@ final class CitationCslProcessor
             $rendered,
             static fn (string $part): bool => $part !== ''
         )), $delimiter);
+    }
+
+    private function institutionShortAbbreviation(string $literal): string
+    {
+        $literal = trim($literal);
+        if ($literal === '' || $this->cslAbbreviations === []) {
+            return '';
+        }
+
+        $abbreviation = $this->cslAbbreviations['institution'][$literal] ?? null;
+
+        return is_string($abbreviation) ? trim($abbreviation) : '';
     }
 
     /**

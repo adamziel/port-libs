@@ -9340,6 +9340,106 @@ XML
         $t->contains('<dt>org WPMD 2026</dt><dd>Institution: WP Migration Desk / abbr WPMD :: Institutional Short Reviewer Packet :: https://example.test/institution-short-source</dd>', $blocks);
         $t->contains('<dt>org ARCHIVE REVIEW COUNCIL 2025</dt><dd>Institution: Archive Review Council :: Institutional Fallback Reviewer Packet :: https://example.test/institution-fallback-source</dd>', $blocks);
     },
+    'applies bounded csl institution abbreviations for literal name short parts' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'institution-abbrev-source',
+                'type' => 'webpage',
+                'title' => 'Institutional Abbreviation Reviewer Packet',
+                'author' => [
+                    ['literal' => 'World Health Organization'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/institution-abbrev-source',
+            ],
+            [
+                'id' => 'institution-direct-short-source',
+                'type' => 'report',
+                'title' => 'Institutional Direct Short Packet',
+                'author' => [
+                    ['literal' => 'W.P. Migration Desk', 'short' => 'WPMD'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/institution-direct-short-source',
+            ],
+            [
+                'id' => 'institution-fallback-source',
+                'type' => 'report',
+                'title' => 'Institutional Fallback Reviewer Packet',
+                'author' => [
+                    ['literal' => 'Archive Review Council'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'URL' => 'https://example.test/institution-fallback-source',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Institution Abbreviation Review Style</title>
+    <id>https://example.test/styles/bounded-institution-abbreviation-review</id>
+    <updated>2026-06-09T04:54:15+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", ">
+          <name initialize-with=". "/>
+          <institution institution-parts="short">
+            <institution-part name="short" prefix="org " strip-periods="true" text-case="uppercase"/>
+          </institution>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <institution institution-parts="long-short" delimiter=" / ">
+          <institution-part name="long" prefix="Institution: " strip-periods="true" text-case="capitalize-all"/>
+          <institution-part name="short" prefix="abbr " text-case="uppercase"/>
+        </institution>
+      </names>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        )->withCslAbbreviations([
+            'default' => [
+                'institution' => [
+                    'World Health Organization' => 'WHO',
+                    'W.P. Migration Desk' => 'Mapped WPMD',
+                ],
+            ],
+        ]);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Institution Abbreviation Review Style', $summary['title'] ?? null);
+        $t->same('WHO', $summary['abbreviations']['institution']['World Health Organization'] ?? null);
+        $t->same('Mapped WPMD', $summary['abbreviations']['institution']['W.P. Migration Desk'] ?? null);
+
+        $t->same('(org WHO 2026; org WPMD 2025; org ARCHIVE REVIEW COUNCIL 2024)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'institution-abbrev-source', 'text' => '[@institution-abbrev-source]']),
+            new AstNode('citation', ['id' => 'institution-direct-short-source', 'text' => '[@institution-direct-short-source]']),
+            new AstNode('citation', ['id' => 'institution-fallback-source', 'text' => '[@institution-fallback-source]']),
+        ]));
+        $t->same('Institution: World Health Organization / abbr WHO :: Institutional Abbreviation Reviewer Packet :: https://example.test/institution-abbrev-source', $processor->renderBibliographyEntry('institution-abbrev-source'));
+        $t->same('Institution: WP Migration Desk / abbr WPMD :: Institutional Direct Short Packet :: https://example.test/institution-direct-short-source', $processor->renderBibliographyEntry('institution-direct-short-source'));
+        $t->same('Institution: Archive Review Council :: Institutional Fallback Reviewer Packet :: https://example.test/institution-fallback-source', $processor->renderBibliographyEntry('institution-fallback-source'));
+
+        $document = (new MarkdownReader())->read('Institution abbreviation [@institution-abbrev-source; @institution-direct-short-source; @institution-fallback-source] keeps compact organization labels readable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Institution abbreviation (org WHO 2026; org WPMD 2025; org ARCHIVE REVIEW COUNCIL 2024) keeps compact organization labels readable.</p>', $blocks);
+        $t->contains('<dt>org WHO 2026</dt><dd>Institution: World Health Organization / abbr WHO :: Institutional Abbreviation Reviewer Packet :: https://example.test/institution-abbrev-source</dd>', $blocks);
+        $t->contains('<dt>org WPMD 2025</dt><dd>Institution: WP Migration Desk / abbr WPMD :: Institutional Direct Short Packet :: https://example.test/institution-direct-short-source</dd>', $blocks);
+        $t->contains('<dt>org ARCHIVE REVIEW COUNCIL 2024</dt><dd>Institution: Archive Review Council :: Institutional Fallback Reviewer Packet :: https://example.test/institution-fallback-source</dd>', $blocks);
+    },
     'applies bounded csl names substitutes for missing primary creators' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
