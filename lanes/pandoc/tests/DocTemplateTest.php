@@ -5077,6 +5077,42 @@ HTML,
         ]), $output);
     },
 
+    'renders pandoc doctemplate digit-leading top-level metadata keys' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->renderResource('packets/review.html', [
+            'packets/review.html' => <<<'HTML'
+<article>
+Packet: $2026-review$
+Spin: $360-view.label$
+Model: $3d-model$
+Stages: $for(2026-stages)$$it.1st-pass$$sep$; $endfor$
+Cards: ${ 2026-stages:components/stage-row()[ | ] }
+$if(404-status)$Status: $404-status$$endif$
+</article>
+HTML,
+            'packets/components/stage-row.html' => '$2026-stages.1st-pass$=$it.2nd-pass$',
+        ], [
+            '2026-review' => 'Migration packet',
+            '360-view' => ['label' => 'Spin review'],
+            '3d-model' => 'Cover mesh',
+            '2026-stages' => [
+                ['1st-pass' => 'media', '2nd-pass' => 'links'],
+                ['1st-pass' => 'layout', '2nd-pass' => 'publish'],
+            ],
+            '404-status' => 'not found metadata',
+        ]);
+
+        $t->same(implode("\n", [
+            '<article>',
+            'Packet: Migration packet',
+            'Spin: Spin review',
+            'Model: Cover mesh',
+            'Stages: media; layout',
+            'Cards: media=links | layout=publish',
+            'Status: not found metadata',
+            '</article>',
+        ]), $output);
+    },
+
     'renders pandoc doctemplate child metadata keys named like controls' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->renderResource('packets/review.html', [
             'packets/review.html' => <<<'HTML'

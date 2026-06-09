@@ -1,0 +1,684 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Pandoc;
+
+final class BibtexCslProcessor
+{
+    /** @var array<string, string> */
+    private const MONTH_MACROS = [
+        'jan' => '1',
+        'feb' => '2',
+        'mar' => '3',
+        'apr' => '4',
+        'may' => '5',
+        'jun' => '6',
+        'jul' => '7',
+        'aug' => '8',
+        'sep' => '9',
+        'oct' => '10',
+        'nov' => '11',
+        'dec' => '12',
+    ];
+
+    /**
+     * @return array<string, array{id:string, type:string, fields:array<string, string>, csl:array<string, mixed>}>
+     */
+    public function parseBibtex(string $source): array
+    {
+        $entries = [];
+        $macros = self::MONTH_MACROS;
+        $offset = 0;
+
+        while (($at = strpos($source, '@', $offset)) !== false) {
+            $cursor = $at + 1;
+            $type = strtolower($this->readIdentifier($source, $cursor));
+            if ($type === '') {
+                $offset = $cursor;
+                continue;
+            }
+
+            $this->skipWhitespace($source, $cursor);
+            $open = $source[$cursor] ?? '';
+            if ($open !== '{' && $open !== '(') {
+                $offset = $cursor;
+                continue;
+            }
+
+            $close = $open === '{' ? '}' : ')';
+            $cursor++;
+            $bodyStart = $cursor;
+            $bodyEnd = $this->findBalancedEnd($source, $cursor, $open, $close);
+            if ($bodyEnd === null) {
+                break;
+            }
+
+            $body = substr($source, $bodyStart, $bodyEnd - $bodyStart);
+            $offset = $bodyEnd + 1;
+
+            if ($type === 'comment' || $type === 'preamble') {
+                continue;
+            }
+
+            [$key, $fields] = $this->parseEntryBody($body, $macros);
+            if ($type === 'string') {
+                foreach ($fields as $name => $value) {
+                    $macros[strtolower($name)] = $value;
+                }
+                continue;
+            }
+
+            if ($key === '') {
+                continue;
+            }
+
+            $entries[$key] = [
+                'id' => $key,
+                'type' => $type,
+                'fields' => $fields,
+                'csl' => $this->toCslItem($key, $type, $fields),
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    public function cslItems(string $source): array
+    {
+        $items = [];
+        foreach ($this->parseBibtex($source) as $key => $entry) {
+            $items[$key] = $entry['csl'];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function citedKeys(AstNode $document): array
+    {
+        $keys = [];
+        $seen = [];
+        $walk = function (AstNode $node) use (&$walk, &$keys, &$seen): void {
+            if ($node->type === 'citation') {
+                $nodeKeys = $node->attr('ids');
+                if (!is_array($nodeKeys)) {
+                    $nodeKeys = [(string) $node->attr('id', '')];
+                }
+
+                foreach ($nodeKeys as $key) {
+                    $key = (string) $key;
+                    if ($key === '' || isset($seen[$key])) {
+                        continue;
+                    }
+                    $seen[$key] = true;
+                    $keys[] = $key;
+                }
+            }
+
+            foreach ($node->children as $child) {
+                $walk($child);
+            }
+        };
+        $walk($document);
+
+        return $keys;
+    }
+
+    /**
+     * @return array{citedKeys:list<string>, missingKeys:list<string>, items:list<array<string, mixed>>, bibliography:AstNode}
+     */
+    public function citationHandoff(AstNode $document, string $bibtex): array
+    {
+        $itemsByKey = $this->cslItems($bibtex);
+        $citedKeys = $this->citedKeys($document);
+        $items = [];
+        $missing = [];
+
+        foreach ($citedKeys as $key) {
+            if (!isset($itemsByKey[$key])) {
+                $missing[] = $key;
+                continue;
+            }
+
+            $items[] = $itemsByKey[$key];
+        }
+
+        return [
+            'citedKeys' => $citedKeys,
+            'missingKeys' => $missing,
+            'items' => $items,
+            'bibliography' => $this->bibliographyNode($items, $missing),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $missing
+     */
+    public function bibliographyNode(array $items, array $missing = []): AstNode
+    {
+        $children = [];
+        foreach ($items as $item) {
+            $id = (string) ($item['id'] ?? '');
+            $text = $this->renderBibliographyText($item);
+            $children[] = new AstNode('definition_item', [
+                'term' => $id,
+                'cslItem' => $item,
+            ], [
+                new AstNode('term', ['text' => $id], [
+                    new AstNode('text', ['text' => $id]),
+                ]),
+                new AstNode('definition', [], [
+                    new AstNode('paragraph', ['text' => $text], [
+                        new AstNode('text', ['text' => $text]),
+                    ]),
+                ]),
+            ]);
+        }
+
+        foreach ($missing as $key) {
+            $text = 'Missing bibliography entry: ' . $key;
+            $children[] = new AstNode('definition_item', [
+                'term' => $key,
+                'missing' => true,
+            ], [
+                new AstNode('term', ['text' => $key], [
+                    new AstNode('text', ['text' => $key]),
+                ]),
+                new AstNode('definition', [], [
+                    new AstNode('paragraph', ['text' => $text], [
+                        new AstNode('text', ['text' => $text]),
+                    ]),
+                ]),
+            ]);
+        }
+
+        return new AstNode('definition_list', [
+            'class' => 'csl-bibliography',
+            'missingCitationKeys' => $missing,
+        ], $children);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    public function renderBibliographyText(array $item): string
+    {
+        $parts = [];
+        $authors = $this->renderNames($item['author'] ?? []);
+        if ($authors !== '') {
+            $parts[] = $authors;
+        }
+        if (($item['title'] ?? '') !== '') {
+            $parts[] = (string) $item['title'];
+        }
+
+        $container = (string) ($item['container-title'] ?? '');
+        $volume = (string) ($item['volume'] ?? '');
+        $issue = (string) ($item['issue'] ?? '');
+        if ($container !== '') {
+            $containerPart = $container;
+            if ($volume !== '') {
+                $containerPart .= ' ' . $volume;
+                if ($issue !== '') {
+                    $containerPart .= '(' . $issue . ')';
+                }
+            }
+            $parts[] = $containerPart;
+        } elseif (($item['publisher'] ?? '') !== '') {
+            $parts[] = (string) $item['publisher'];
+        }
+
+        $year = $this->issuedYear($item);
+        if ($year !== '') {
+            $parts[] = $year;
+        }
+        if (($item['page'] ?? '') !== '') {
+            $parts[] = (string) $item['page'];
+        }
+        if (($item['DOI'] ?? '') !== '') {
+            $parts[] = 'doi:' . (string) $item['DOI'];
+        }
+        if (($item['URL'] ?? '') !== '') {
+            $parts[] = (string) $item['URL'];
+        }
+
+        return implode('. ', $parts) . ($parts === [] ? '' : '.');
+    }
+
+    /**
+     * @param array<string, string> $macros
+     * @return array{0:string, 1:array<string, string>}
+     */
+    private function parseEntryBody(string $body, array $macros): array
+    {
+        $cursor = 0;
+        $length = strlen($body);
+        $firstComma = strpos($body, ',');
+        $firstEquals = strpos($body, '=');
+        $key = '';
+
+        if ($firstEquals === false || ($firstComma !== false && $firstComma < $firstEquals)) {
+            while ($cursor < $length && $body[$cursor] !== ',') {
+                $key .= $body[$cursor];
+                $cursor++;
+            }
+            $key = trim($key);
+            if (($body[$cursor] ?? '') === ',') {
+                $cursor++;
+            }
+        }
+
+        $fields = [];
+        while ($cursor < $length) {
+            $this->skipWhitespace($body, $cursor);
+            if (($body[$cursor] ?? '') === ',') {
+                $cursor++;
+                continue;
+            }
+
+            $name = strtolower($this->readFieldName($body, $cursor));
+            if ($name === '') {
+                break;
+            }
+
+            $this->skipWhitespace($body, $cursor);
+            if (($body[$cursor] ?? '') !== '=') {
+                break;
+            }
+            $cursor++;
+
+            $fields[$name] = $this->readFieldValue($body, $cursor, $macros);
+            $this->skipWhitespace($body, $cursor);
+            if (($body[$cursor] ?? '') === ',') {
+                $cursor++;
+            }
+        }
+
+        return [$key, $fields];
+    }
+
+    /**
+     * @param array<string, string> $macros
+     */
+    private function readFieldValue(string $body, int &$cursor, array $macros): string
+    {
+        $parts = [];
+        $length = strlen($body);
+
+        while ($cursor < $length) {
+            $this->skipWhitespace($body, $cursor);
+            $char = $body[$cursor] ?? '';
+
+            if ($char === '{') {
+                $end = $this->findBalancedEnd($body, $cursor + 1, '{', '}');
+                if ($end === null) {
+                    break;
+                }
+                $parts[] = $this->cleanValue(substr($body, $cursor + 1, $end - $cursor - 1), false);
+                $cursor = $end + 1;
+            } elseif ($char === '"') {
+                $parts[] = $this->cleanValue($this->readQuotedValue($body, $cursor), false);
+            } else {
+                $bare = $this->readBareValue($body, $cursor);
+                $parts[] = $macros[strtolower($bare)] ?? $this->cleanValue($bare);
+            }
+
+            $this->skipWhitespace($body, $cursor);
+            if (($body[$cursor] ?? '') !== '#') {
+                break;
+            }
+            $cursor++;
+        }
+
+        return trim(implode('', $parts));
+    }
+
+    private function readQuotedValue(string $body, int &$cursor): string
+    {
+        $cursor++;
+        $start = $cursor;
+        $depth = 0;
+        $length = strlen($body);
+
+        while ($cursor < $length) {
+            $char = $body[$cursor];
+            if ($char === '\\') {
+                $cursor += 2;
+                continue;
+            }
+            if ($char === '{') {
+                $depth++;
+            } elseif ($char === '}') {
+                $depth = max(0, $depth - 1);
+            } elseif ($char === '"' && $depth === 0) {
+                $value = substr($body, $start, $cursor - $start);
+                $cursor++;
+
+                return $value;
+            }
+            $cursor++;
+        }
+
+        return substr($body, $start);
+    }
+
+    private function readBareValue(string $body, int &$cursor): string
+    {
+        $start = $cursor;
+        $length = strlen($body);
+        while ($cursor < $length && !str_contains(",# \t\r\n", $body[$cursor])) {
+            $cursor++;
+        }
+
+        return substr($body, $start, $cursor - $start);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, mixed>
+     */
+    private function toCslItem(string $key, string $type, array $fields): array
+    {
+        $item = [
+            'id' => $key,
+            'type' => $this->cslType($type),
+            'rawBibtex' => [
+                'type' => $type,
+                'fields' => $fields,
+            ],
+        ];
+
+        $stringFields = [
+            'title' => ['title'],
+            'container-title' => ['journaltitle', 'journal', 'booktitle'],
+            'volume' => ['volume'],
+            'issue' => ['number', 'issue'],
+            'page' => ['pages', 'page'],
+            'DOI' => ['doi'],
+            'URL' => ['url'],
+            'publisher' => ['publisher', 'institution', 'organization'],
+            'publisher-place' => ['address', 'location', 'publisher-place'],
+        ];
+
+        foreach ($stringFields as $target => $names) {
+            $value = $this->firstField($fields, $names);
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
+        }
+
+        foreach (['author', 'editor'] as $creator) {
+            if (($fields[$creator] ?? '') !== '') {
+                $item[$creator] = $this->parseNames($fields[$creator]);
+            }
+        }
+
+        $date = $this->dateParts($fields);
+        if ($date !== null) {
+            $item['issued'] = ['date-parts' => [$date]];
+        }
+
+        return $item;
+    }
+
+    private function cslType(string $type): string
+    {
+        return match ($type) {
+            'article' => 'article-journal',
+            'book', 'mvbook' => 'book',
+            'inproceedings', 'conference', 'proceedings' => 'paper-conference',
+            'phdthesis', 'mastersthesis', 'thesis' => 'thesis',
+            'online', 'electronic', 'www' => 'webpage',
+            default => 'article',
+        };
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private function firstField(array $fields, array $names): ?string
+    {
+        foreach ($names as $name) {
+            if (($fields[$name] ?? '') !== '') {
+                return $fields[$name];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<int>|null
+     */
+    private function dateParts(array $fields): ?array
+    {
+        $date = $fields['date'] ?? '';
+        if ($date !== '' && preg_match('/^(-?\d{1,4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/', $date, $m) === 1) {
+            $parts = [(int) $m[1]];
+            if (($m[2] ?? '') !== '') {
+                $parts[] = (int) $m[2];
+            }
+            if (($m[3] ?? '') !== '') {
+                $parts[] = (int) $m[3];
+            }
+
+            return $parts;
+        }
+
+        if (($fields['year'] ?? '') === '') {
+            return null;
+        }
+
+        $parts = [(int) $fields['year']];
+        if (($fields['month'] ?? '') !== '' && ctype_digit($fields['month'])) {
+            $parts[] = (int) $fields['month'];
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function parseNames(string $value): array
+    {
+        $names = [];
+        foreach ($this->splitNames($value) as $name) {
+            $name = trim($name);
+            if ($name === '') {
+                continue;
+            }
+            if (strtolower($name) === 'others') {
+                $names[] = ['literal' => 'et al.'];
+                continue;
+            }
+            if (str_contains($name, ',')) {
+                [$family, $given] = array_map('trim', explode(',', $name, 2));
+                $names[] = array_filter(['family' => $family, 'given' => $given], static fn (string $part): bool => $part !== '');
+                continue;
+            }
+
+            $parts = preg_split('/\s+/', $name) ?: [];
+            if (count($parts) === 1) {
+                $names[] = ['family' => $name];
+                continue;
+            }
+            $family = array_pop($parts);
+            $names[] = ['family' => (string) $family, 'given' => implode(' ', $parts)];
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitNames(string $value): array
+    {
+        $names = [];
+        $buffer = '';
+        $depth = 0;
+        $length = strlen($value);
+
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            $char = $value[$cursor];
+            if ($char === '{') {
+                $depth++;
+            } elseif ($char === '}') {
+                $depth = max(0, $depth - 1);
+            }
+
+            if ($depth === 0 && substr($value, $cursor, 5) === ' and ') {
+                $names[] = $buffer;
+                $buffer = '';
+                $cursor += 4;
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+        $names[] = $buffer;
+
+        return $names;
+    }
+
+    /**
+     * @param mixed $names
+     */
+    private function renderNames(mixed $names): string
+    {
+        if (!is_array($names) || $names === []) {
+            return '';
+        }
+
+        $parts = [];
+        foreach ($names as $name) {
+            if (!is_array($name)) {
+                continue;
+            }
+            if (($name['literal'] ?? '') !== '') {
+                $parts[] = (string) $name['literal'];
+                continue;
+            }
+            $given = (string) ($name['given'] ?? '');
+            $family = (string) ($name['family'] ?? '');
+            $parts[] = trim($given . ' ' . $family);
+        }
+
+        return $this->joinHumanList(array_values(array_filter($parts, static fn (string $part): bool => $part !== '')));
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private function joinHumanList(array $parts): string
+    {
+        return match (count($parts)) {
+            0 => '',
+            1 => $parts[0],
+            2 => $parts[0] . ' and ' . $parts[1],
+            default => implode(', ', array_slice($parts, 0, -1)) . ', and ' . end($parts),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function issuedYear(array $item): string
+    {
+        $parts = $item['issued']['date-parts'][0] ?? [];
+        if (!is_array($parts) || !isset($parts[0])) {
+            return '';
+        }
+
+        return (string) $parts[0];
+    }
+
+    private function cleanValue(string $value, bool $trim = true): string
+    {
+        $value = $trim ? trim($value) : $value;
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+        $value = strtr($value, [
+            '\\&' => '&',
+            '\\%' => '%',
+            '\\_' => '_',
+            '\\#' => '#',
+            '\\$' => '$',
+            '\\{' => '{',
+            '\\}' => '}',
+            '~' => ' ',
+        ]);
+        $value = preg_replace('/[{}]/', '', $value) ?? $value;
+
+        return $trim ? trim($value) : $value;
+    }
+
+    private function readIdentifier(string $source, int &$cursor): string
+    {
+        $start = $cursor;
+        $length = strlen($source);
+        while ($cursor < $length && preg_match('/[A-Za-z0-9_-]/', $source[$cursor]) === 1) {
+            $cursor++;
+        }
+
+        return substr($source, $start, $cursor - $start);
+    }
+
+    private function readFieldName(string $source, int &$cursor): string
+    {
+        $start = $cursor;
+        $length = strlen($source);
+        while ($cursor < $length && preg_match('/[A-Za-z0-9_-]/', $source[$cursor]) === 1) {
+            $cursor++;
+        }
+
+        return substr($source, $start, $cursor - $start);
+    }
+
+    private function skipWhitespace(string $source, int &$cursor): void
+    {
+        $length = strlen($source);
+        while ($cursor < $length && ctype_space($source[$cursor])) {
+            $cursor++;
+        }
+    }
+
+    private function findBalancedEnd(string $source, int $cursor, string $open, string $close): ?int
+    {
+        $depth = 1;
+        $length = strlen($source);
+
+        while ($cursor < $length) {
+            $char = $source[$cursor];
+            if ($char === '\\') {
+                $cursor += 2;
+                continue;
+            }
+            if ($char === '"') {
+                $this->readQuotedValue($source, $cursor);
+                continue;
+            }
+            if ($char === $open) {
+                $depth++;
+            } elseif ($char === $close) {
+                $depth--;
+                if ($depth === 0) {
+                    return $cursor;
+                }
+            }
+            $cursor++;
+        }
+
+        return null;
+    }
+}

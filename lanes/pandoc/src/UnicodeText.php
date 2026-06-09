@@ -6046,10 +6046,13 @@ final class UnicodeText
                 }
             } else {
                 $valueOffset = $offset;
-                while ($offset < $length && !ctype_space($tag[$offset]) && $tag[$offset] !== '/' && $tag[$offset] !== '>') {
+                while ($offset < $length && !ctype_space($tag[$offset]) && $tag[$offset] !== '>') {
                     ++$offset;
                 }
                 $value = substr($tag, $valueOffset, $offset - $valueOffset);
+                if ($offset < $length && $tag[$offset] === '>' && str_ends_with($value, '/')) {
+                    $value = substr($value, 0, -1);
+                }
             }
 
             if ($attributeName === $target) {

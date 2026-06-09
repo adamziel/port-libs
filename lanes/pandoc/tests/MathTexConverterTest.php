@@ -1783,6 +1783,18 @@ return [
         $t->contains('<mi>a</mi><mo>←</mo><mi>b</mi><mo>↔</mo><mi>c</mi><mo>↦</mo><mi>d</mi><mo>∂</mo><mi>f</mi>', $arrowMathml);
         $t->contains('<mi>U</mi><mo>⊇</mo><mi>V</mi><mo>⊃</mo><mi>W</mi><mo>∨</mo><mi>a</mi><mo>≤</mo><mi>b</mi><mo>≥</mo><mi>c</mi><mo>≠</mo><mi>d</mi>', $aliasMathml);
     },
+    'converts bounded tex lnot logical alias to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $logicMathml = $converter->texToMathMl('\\lnot p \\lor \\neg q', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\lnot p');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $logicMathml);
+        $t->contains('<mo>¬</mo><mi>p</mi><mo>∨</mo><mo>¬</mo><mi>q</mi>', $logicMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\lnot p \\lor \\neg q</annotation>', $logicMathml);
+        $t->contains('alttext="not p"', $accessibleMathml);
+        $t->contains('intent="row(not,p)"', $accessibleMathml);
+        $t->true(!str_contains($logicMathml, '<mi>\\lnot</mi>'));
+    },
     'converts bounded tex not relation overlays to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $notRelationMathml = $converter->texToMathMl('p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + f \\not\\approx g + q \\not\\Rightarrow r', true);

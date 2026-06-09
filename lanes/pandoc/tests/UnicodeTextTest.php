@@ -1158,6 +1158,23 @@ return [
         $t->same(['unknown-charset-label-defaulted-to-utf-8'], $unknown['diagnostics']);
         $t->same(['encoding' => null, 'label' => null, 'source' => null, 'offset' => null, 'diagnostics' => []], $none);
     },
+    'detects unquoted html pragma charset content with mime slashes' => static function (TestRunner $t): void {
+        $html = '<meta http-equiv=Content-Type content=text/html;charset=windows-1252><p>Editor ' . "\x93quoted\x94" . '</p>';
+        $selfClosing = '<meta charset=utf-8/><p>Native text</p>';
+        $meta = UnicodeText::declaredCharset($html);
+        $decoded = UnicodeText::decodeBytes($html, $meta['encoding']);
+        $closed = UnicodeText::declaredCharset($selfClosing);
+
+        $t->same('html-meta-http-equiv', $meta['source']);
+        $t->same('windows-1252', $meta['label']);
+        $t->same('windows-1252', $meta['encoding']);
+        $t->same([], $meta['diagnostics']);
+        $t->contains("Editor \u{201C}quoted\u{201D}", $decoded['text']);
+        $t->same('html-meta-charset', $closed['source']);
+        $t->same('utf-8', $closed['label']);
+        $t->same('utf-8', $closed['encoding']);
+        $t->same([], $closed['diagnostics']);
+    },
     'detects unicode byte order marks before declared charset labels' => static function (TestRunner $t) use ($utf32le): void {
         $utf8 = UnicodeText::declaredCharset("\xEF\xBB\xBF<meta charset=windows-1252><p>x</p>", 'text/html; charset=windows-1252');
         $utf8Matched = UnicodeText::declaredCharset("\xEF\xBB\xBF<meta charset=utf-8><p>x</p>", 'text/html; charset=UTF-8');

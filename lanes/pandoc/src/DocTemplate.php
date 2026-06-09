@@ -6342,7 +6342,7 @@ CSS;
                     continue;
                 }
 
-                if (!$this->isVariableIdentifierPart($segment, false, false)) {
+                if (!$this->isVariableIdentifierPart($segment, true, false)) {
                     throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
                 }
 

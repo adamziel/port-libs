@@ -225,6 +225,7 @@ final class MathTexConverter
         'lneq' => '⪇',
         'lneqq' => '≨',
         'lnsim' => '⋦',
+        'lnot' => '¬',
         'lim' => 'lim',
         'lor' => '∨',
         'Longleftarrow' => '⇐',
