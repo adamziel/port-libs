@@ -4286,6 +4286,210 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     entryCount:int,
+     *     unicodeExtraFieldEntryCount:int,
+     *     centralUnicodePathEntryCount:int,
+     *     localUnicodePathEntryCount:int,
+     *     unicodeCommentEntryCount:int,
+     *     issueEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     issueEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function unicodeExtraFieldPolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before Unicode extra fields can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $issueEntries = [];
+        $issues = [];
+        $unicodeExtraFieldEntryCount = 0;
+        $centralUnicodePathEntryCount = 0;
+        $localUnicodePathEntryCount = 0;
+        $unicodeCommentEntryCount = 0;
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            $rawComment = substr($bytes, $variableStart + $nameLength + $extraLength, $commentLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $localHeader = self::localHeaderMetadataForPolicy($bytes, $localHeaderOffset, $index);
+            $centralUnicodePath = self::unicodeExtraFieldPolicySummary(
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                $rawName,
+                'unicode-path',
+                "central directory entry {$index} name"
+            );
+            $localUnicodePath = self::unicodeExtraFieldPolicySummary(
+                $localHeader['extraFieldData'],
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                $localHeader['rawName'],
+                'unicode-path',
+                "local file header entry {$index} name"
+            );
+            $unicodeComment = self::unicodeExtraFieldPolicySummary(
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_COMMENT_EXTRA_ID,
+                $rawComment,
+                'unicode-comment',
+                "central directory entry {$index} comment"
+            );
+
+            if ($centralUnicodePath['text'] !== null) {
+                try {
+                    self::assertSafePartName($centralUnicodePath['text']);
+                } catch (\RuntimeException) {
+                    $centralUnicodePath['issues'][] = 'unicode-path-extra-field-unsafe-name';
+                }
+            }
+            if ($localUnicodePath['text'] !== null) {
+                try {
+                    self::assertSafePartName($localUnicodePath['text']);
+                } catch (\RuntimeException) {
+                    $localUnicodePath['issues'][] = 'unicode-path-extra-field-unsafe-name';
+                }
+            }
+
+            $unicodePathMatchesLocalHeader = null;
+            $entryIssues = array_merge(
+                $centralUnicodePath['issues'],
+                $localUnicodePath['issues'],
+                $unicodeComment['issues']
+            );
+            if ($centralUnicodePath['text'] !== null) {
+                if (!$localUnicodePath['present']) {
+                    $entryIssues[] = 'unicode-path-local-extra-field-missing';
+                } elseif ($localUnicodePath['text'] === null || $centralUnicodePath['text'] !== $localUnicodePath['text']) {
+                    $entryIssues[] = 'unicode-path-local-extra-field-mismatch';
+                    $unicodePathMatchesLocalHeader = false;
+                } else {
+                    $unicodePathMatchesLocalHeader = true;
+                }
+            } elseif ($localUnicodePath['present']) {
+                $entryIssues[] = 'unicode-path-central-extra-field-missing';
+            }
+
+            $entryIssues = array_values(array_unique($entryIssues));
+            foreach ($entryIssues as $issue) {
+                if (!in_array($issue, $issues, true)) {
+                    $issues[] = $issue;
+                }
+            }
+
+            $hasUnicodeExtraField = $centralUnicodePath['present']
+                || $localUnicodePath['present']
+                || $unicodeComment['present'];
+            if ($hasUnicodeExtraField) {
+                $unicodeExtraFieldEntryCount++;
+            }
+            if ($centralUnicodePath['present']) {
+                $centralUnicodePathEntryCount++;
+            }
+            if ($localUnicodePath['present']) {
+                $localUnicodePathEntryCount++;
+            }
+            if ($unicodeComment['present']) {
+                $unicodeCommentEntryCount++;
+            }
+
+            $entry = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'rawCommentLength' => strlen($rawComment),
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'hasUnicodeExtraFields' => $hasUnicodeExtraField,
+                'hasCentralUnicodePath' => $centralUnicodePath['present'],
+                'hasLocalUnicodePath' => $localUnicodePath['present'],
+                'hasUnicodeComment' => $unicodeComment['present'],
+                'unicodePathMatchesLocalHeader' => $unicodePathMatchesLocalHeader,
+                'centralUnicodePath' => $centralUnicodePath,
+                'localUnicodePath' => $localUnicodePath,
+                'unicodeComment' => $unicodeComment,
+                'policy' => $entryIssues === [] ? 'metadata' : 'blocked',
+                'issues' => $entryIssues,
+            ];
+            $entries[] = $entry;
+            if ($entryIssues !== []) {
+                $issueEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            $index++;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'unicodeExtraFieldEntryCount' => $unicodeExtraFieldEntryCount,
+            'centralUnicodePathEntryCount' => $centralUnicodePathEntryCount,
+            'localUnicodePathEntryCount' => $localUnicodePathEntryCount,
+            'unicodeCommentEntryCount' => $unicodeCommentEntryCount,
+            'issueEntryCount' => count($issueEntries),
+            'isSupportedByBoundedReader' => $issueEntries === [],
+            'issues' => $issues,
+            'issueEntries' => $issueEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     eocdOffset:int,
      *     diskNumber:int,
      *     centralDirectoryDisk:int,
@@ -5510,6 +5714,7 @@ final class ZipPackage
      *     compressionMethods:?array<string, mixed>,
      *     creatorHostSystems:?array<string, mixed>,
      *     externalAttributes:?array<string, mixed>,
+     *     unicodeExtraFields:?array<string, mixed>,
      *     zip64ExtraFields:?array<string, mixed>,
      *     dataDescriptors:?array<string, mixed>,
      *     strictImport:?array<string, mixed>,
@@ -5606,6 +5811,7 @@ final class ZipPackage
                 'compressionMethods' => null,
                 'creatorHostSystems' => null,
                 'externalAttributes' => null,
+                'unicodeExtraFields' => null,
                 'zip64ExtraFields' => null,
                 'dataDescriptors' => null,
                 'strictImport' => null,
@@ -5632,6 +5838,7 @@ final class ZipPackage
         $compressionMethods = null;
         $creatorHostSystems = null;
         $externalAttributes = null;
+        $unicodeExtraFields = null;
         $zip64ExtraFields = null;
         $dataDescriptors = null;
         $strictImport = null;
@@ -5731,6 +5938,15 @@ final class ZipPackage
                 $addDiagnostics($externalAttributes['issues']);
             }
 
+            $unicodeExtraFields = $runPreflight(
+                'unicode-extra-field-policy',
+                static fn (): array => self::unicodeExtraFieldPolicyPreflight($bytes)
+            );
+            if ($unicodeExtraFields !== null && !$unicodeExtraFields['isSupportedByBoundedReader']) {
+                $addDiagnostic('unicode-extra-field-issues');
+                $addDiagnostics($unicodeExtraFields['issues']);
+            }
+
             $zip64ExtraFields = $runPreflight(
                 'zip64-extra-fields',
                 static fn (): array => self::zip64ExtraFieldPreflight($bytes)
@@ -5782,6 +5998,7 @@ final class ZipPackage
             ?? $compressionMethods['entryCount']
             ?? $creatorHostSystems['entryCount']
             ?? $externalAttributes['entryCount']
+            ?? $unicodeExtraFields['entryCount']
             ?? $archiveExtraDataRecords['entryCount']
             ?? $zip64ExtraFields['entryCount']
             ?? $dataDescriptors['entryCount']
@@ -5814,6 +6031,7 @@ final class ZipPackage
             'compressionMethods' => $compressionMethods,
             'creatorHostSystems' => $creatorHostSystems,
             'externalAttributes' => $externalAttributes,
+            'unicodeExtraFields' => $unicodeExtraFields,
             'zip64ExtraFields' => $zip64ExtraFields,
             'dataDescriptors' => $dataDescriptors,
             'strictImport' => $strictImport,
@@ -8556,6 +8774,130 @@ final class ZipPackage
         }
 
         return $ids;
+    }
+
+    /**
+     * @return list<array{id:int, data:string}>
+     */
+    private static function rawExtraFieldsForPolicy(string $extraFieldData, string $label): array
+    {
+        $fields = [];
+        $cursor = 0;
+        $length = strlen($extraFieldData);
+        while ($cursor < $length) {
+            if ($cursor + 4 > $length) {
+                throw new \RuntimeException("ZIP {$label} contains a truncated extra field header");
+            }
+
+            $id = self::readUInt16($extraFieldData, $cursor);
+            $fieldLength = self::readUInt16($extraFieldData, $cursor + 2);
+            $dataStart = $cursor + 4;
+            if ($dataStart + $fieldLength > $length) {
+                throw new \RuntimeException("ZIP {$label} contains a truncated extra field payload");
+            }
+
+            $fields[] = [
+                'id' => $id,
+                'data' => substr($extraFieldData, $dataStart, $fieldLength),
+            ];
+            $cursor = $dataStart + $fieldLength;
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @return array{
+     *     present:bool,
+     *     fieldCount:int,
+     *     version:?int,
+     *     crc32:?int,
+     *     crc32Hex:?string,
+     *     expectedCrc32:int,
+     *     expectedCrc32Hex:string,
+     *     text:?string,
+     *     textByteLength:?int,
+     *     issues:list<string>
+     * }
+     */
+    private static function unicodeExtraFieldPolicySummary(
+        string $extraFieldData,
+        int $fieldId,
+        string $rawBytes,
+        string $kind,
+        string $label
+    ): array {
+        $fields = [];
+        foreach (self::rawExtraFieldsForPolicy($extraFieldData, $label) as $field) {
+            if ($field['id'] === $fieldId) {
+                $fields[] = $field;
+            }
+        }
+
+        $expectedCrc32 = self::unsignedCrc32($rawBytes);
+        $summary = [
+            'present' => $fields !== [],
+            'fieldCount' => count($fields),
+            'version' => null,
+            'crc32' => null,
+            'crc32Hex' => null,
+            'expectedCrc32' => $expectedCrc32,
+            'expectedCrc32Hex' => sprintf('%08x', $expectedCrc32),
+            'text' => null,
+            'textByteLength' => null,
+            'issues' => [],
+        ];
+
+        if ($fields === []) {
+            return $summary;
+        }
+
+        if (count($fields) > 1) {
+            $summary['issues'][] = "{$kind}-extra-field-duplicate";
+        }
+
+        $data = $fields[0]['data'];
+        if (strlen($data) < 5) {
+            $summary['issues'][] = "{$kind}-extra-field-truncated";
+
+            return $summary;
+        }
+
+        $version = ord($data[0]);
+        $crc32 = self::readUInt32($data, 1);
+        $text = substr($data, 5);
+        $summary['version'] = $version;
+        $summary['crc32'] = $crc32;
+        $summary['crc32Hex'] = sprintf('%08x', $crc32);
+        $summary['textByteLength'] = strlen($text);
+
+        if ($version !== 1) {
+            $summary['issues'][] = "{$kind}-extra-field-unsupported-version";
+        }
+
+        if ($crc32 !== $expectedCrc32) {
+            $summary['issues'][] = "{$kind}-extra-field-crc32-mismatch";
+        }
+
+        $hasValidText = preg_match('//u', $text) === 1;
+        if (!$hasValidText) {
+            $summary['issues'][] = "{$kind}-extra-field-invalid-utf8";
+        } elseif ($text === '' && $rawBytes !== '') {
+            $summary['issues'][] = "{$kind}-extra-field-empty-replacement";
+        }
+
+        if (
+            $version === 1
+            && $crc32 === $expectedCrc32
+            && $hasValidText
+            && !($text === '' && $rawBytes !== '')
+        ) {
+            $summary['text'] = $text;
+        }
+
+        $summary['issues'] = array_values(array_unique($summary['issues']));
+
+        return $summary;
     }
 
     private static function deflateOptionFlagName(int $flags): ?string

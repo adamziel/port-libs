@@ -3510,9 +3510,12 @@ try {
 } catch (RuntimeException $exception) {
     $unicodePathRawNameProvenanceRejected = str_contains($exception->getMessage(), 'raw entry-name provenance');
 }
+$centralUnicodePathMissingLocalBytes = $buildCentralUnicodePathMissingLocalBackedPackage();
+$unicodeExtraFieldPolicyPreflight = ZipPackage::unicodeExtraFieldPolicyPreflight($centralUnicodePathMissingLocalBytes);
+$unicodeExtraFieldRawStrictPreflight = ZipPackage::rawStrictImportPreflight($centralUnicodePathMissingLocalBytes, 4096, 100.0, 4096);
 $centralUnicodePathMissingLocalRejected = false;
 try {
-    ZipPackage::fromString($buildCentralUnicodePathMissingLocalBackedPackage());
+    ZipPackage::fromString($centralUnicodePathMissingLocalBytes);
 } catch (RuntimeException $exception) {
     $centralUnicodePathMissingLocalRejected = str_contains($exception->getMessage(), 'Unicode path metadata is missing');
 }
@@ -6174,6 +6177,20 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected central-only ZIP Unicode path metadata to be rejected before media import');
     }
 
+    if (
+        ($unicodeExtraFieldPolicyPreflight['isSupportedByBoundedReader'] ?? null) !== false
+        || ($unicodeExtraFieldPolicyPreflight['entryCount'] ?? null) !== 1
+        || ($unicodeExtraFieldPolicyPreflight['centralUnicodePathEntryCount'] ?? null) !== 1
+        || ($unicodeExtraFieldPolicyPreflight['localUnicodePathEntryCount'] ?? null) !== 0
+        || ($unicodeExtraFieldPolicyPreflight['issues'] ?? null) !== ['unicode-path-local-extra-field-missing']
+        || ($unicodeExtraFieldRawStrictPreflight['unicodeExtraFields'] ?? null) !== $unicodeExtraFieldPolicyPreflight
+        || !in_array('unicode-extra-field-issues', $unicodeExtraFieldRawStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('unicode-path-local-extra-field-missing', $unicodeExtraFieldRawStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $unicodeExtraFieldRawStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP preflight to expose malformed Unicode extra-field policy before instantiation');
+    }
+
     if (!$utf8UnicodePathMismatchRejected) {
         throw new RuntimeException('Expected contradictory UTF-8 ZIP path metadata to be rejected before media import');
     }
@@ -6484,6 +6501,9 @@ echo 'unicodePath.rawNameProvenanceEntries=' . $unicodePathRawNamePreflight['pro
 echo 'unicodePath.rawNameProvenanceIssues=' . implode(',', $unicodePathRawNamePreflight['provenanceEntries'][0]['issues'] ?? []) . "\n";
 echo 'unicodePath.rawNameProvenancePolicy=' . ($unicodePathRawNameProvenanceRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'unicodePath.comment=' . $unicodePathEntry->comment . "\n";
+echo 'unicodeExtraFieldPolicy=' . ($unicodeExtraFieldPolicyPreflight['isSupportedByBoundedReader'] ? 'accepted' : 'rejected') . "\n";
+echo 'unicodeExtraFieldIssues=' . implode(',', $unicodeExtraFieldPolicyPreflight['issues']) . "\n";
+echo 'unicodeExtraFieldRawStrictDiagnostics=' . implode(',', $unicodeExtraFieldRawStrictPreflight['diagnostics']) . "\n";
 echo 'zipCentralUnicodePathMissingLocalPolicy=' . ($centralUnicodePathMissingLocalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUtf8UnicodePathMismatchPolicy=' . ($utf8UnicodePathMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUtf8UnicodeCommentMismatchPolicy=' . ($utf8UnicodeCommentMismatchRejected ? 'rejected' : 'not-rejected') . "\n";

@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 03:43:51 UTC",
-    "sourceCommit": "d4d127bd43e15d8bee02315d16c82a90ac53925e",
-    "sourceCommitShort": "d4d127bd43e1",
+    "generated": "2026-06-09 03:44:41 UTC",
+    "sourceCommit": "d4e874b5619d581020b0538667531530fab84533",
+    "sourceCommitShort": "d4e874b5619d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d4d127bd43e15d8bee02315d16c82a90ac53925e",
-    "dashboardCommitShort": "d4d127bd43e1",
+    "dashboardCommit": "d4e874b5619d581020b0538667531530fab84533",
+    "dashboardCommitShort": "d4e874b5619d",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,11 +137,11 @@
             "coverage": "2,656 / 2,276 (116.7%)",
             "mapPercent": "116.7%",
             "unmapped": "0",
-            "php": "2,249 pass / 0 fail",
+            "php": "2,250 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC archive compression current-base LZ4 source-boundary s...",
+            "audit": "2026-06-09 UTC ZIP package current-base Unicode extra-field slice on...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For archive compression follow-up, choose a non-overlapping n...",
+            "nextTarget": "For ZIP package follow-up, choose a non-overlapping bounded p...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ba..."
         },

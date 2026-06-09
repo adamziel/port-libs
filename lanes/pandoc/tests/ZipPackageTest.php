@@ -4747,6 +4747,101 @@ return [
         ])));
     },
 
+    'preflights info zip unicode extras before raw strict package import' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $rawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $rawComment = 'legacy reviewer comment';
+        $unicodeComment = "Unicode reviewer \u{2603} comment";
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $rawName, $unicodeName);
+        $unicodeCommentExtra = $buildUnicodeExtra(0x6375, $rawComment, $unicodeComment);
+
+        $safePolicy = ZipPackage::unicodeExtraFieldPolicyPreflight($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'valid unicode metadata',
+                'flags' => 0,
+                'comment' => $rawComment,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra . $unicodeCommentExtra,
+            ],
+        ]));
+
+        $t->same(true, $safePolicy['isSupportedByBoundedReader']);
+        $t->same(1, $safePolicy['entryCount']);
+        $t->same(1, $safePolicy['unicodeExtraFieldEntryCount']);
+        $t->same(1, $safePolicy['centralUnicodePathEntryCount']);
+        $t->same(1, $safePolicy['localUnicodePathEntryCount']);
+        $t->same(1, $safePolicy['unicodeCommentEntryCount']);
+        $t->same(0, $safePolicy['issueEntryCount']);
+        $t->same([], $safePolicy['issues']);
+        $t->same($unicodeName, $safePolicy['entries'][0]['centralUnicodePath']['text']);
+        $t->same($unicodeName, $safePolicy['entries'][0]['localUnicodePath']['text']);
+        $t->same(true, $safePolicy['entries'][0]['unicodePathMatchesLocalHeader']);
+        $t->same($unicodeComment, $safePolicy['entries'][0]['unicodeComment']['text']);
+
+        $badCentralPathExtra = $buildUnicodeExtra(0x7075, 'word/media/other.bin', $unicodeName);
+        $badCrcBytes = $buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'bad central unicode path crc',
+                'flags' => 0,
+                'centralExtra' => $badCentralPathExtra,
+            ],
+        ]);
+        $badCrcPolicy = ZipPackage::unicodeExtraFieldPolicyPreflight($badCrcBytes);
+        $badCrcRaw = ZipPackage::rawStrictImportPreflight($badCrcBytes, 512, 20.0, 512);
+
+        $t->same(false, $badCrcPolicy['isSupportedByBoundedReader']);
+        $t->same(1, $badCrcPolicy['issueEntryCount']);
+        $t->same(['unicode-path-extra-field-crc32-mismatch'], $badCrcPolicy['issues']);
+        $t->same(null, $badCrcPolicy['issueEntries'][0]['centralUnicodePath']['text']);
+        $t->same(false, $badCrcRaw['isValid']);
+        $t->same(false, $badCrcRaw['canInstantiate']);
+        $t->same($badCrcPolicy, $badCrcRaw['unicodeExtraFields']);
+        $t->contains('unicode-extra-field-issues', implode(',', $badCrcRaw['diagnostics']));
+        $t->contains('unicode-path-extra-field-crc32-mismatch', implode(',', $badCrcRaw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $badCrcRaw['diagnostics']));
+
+        $missingLocalBytes = $buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'central unicode path without matching local source metadata',
+                'flags' => 0,
+                'centralExtra' => $unicodePathExtra,
+            ],
+        ]);
+        $missingLocalPolicy = ZipPackage::unicodeExtraFieldPolicyPreflight($missingLocalBytes);
+        $missingLocalRaw = ZipPackage::rawStrictImportPreflight($missingLocalBytes, 512, 20.0, 512);
+
+        $t->same(false, $missingLocalPolicy['isSupportedByBoundedReader']);
+        $t->same(['unicode-path-local-extra-field-missing'], $missingLocalPolicy['issues']);
+        $t->same($unicodeName, $missingLocalPolicy['issueEntries'][0]['centralUnicodePath']['text']);
+        $t->same(false, $missingLocalRaw['canInstantiate']);
+        $t->same($missingLocalPolicy, $missingLocalRaw['unicodeExtraFields']);
+        $t->contains('unicode-path-local-extra-field-missing', implode(',', $missingLocalRaw['diagnostics']));
+
+        $emptyCommentExtra = $buildUnicodeExtra(0x6375, $rawComment, '');
+        $emptyCommentBytes = $buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'empty unicode comment replacement',
+                'flags' => 0,
+                'comment' => $rawComment,
+                'centralExtra' => $emptyCommentExtra,
+            ],
+        ]);
+        $emptyCommentPolicy = ZipPackage::unicodeExtraFieldPolicyPreflight($emptyCommentBytes);
+        $emptyCommentRaw = ZipPackage::rawStrictImportPreflight($emptyCommentBytes, 512, 20.0, 512);
+
+        $t->same(false, $emptyCommentPolicy['isSupportedByBoundedReader']);
+        $t->same(1, $emptyCommentPolicy['unicodeCommentEntryCount']);
+        $t->same(['unicode-comment-extra-field-empty-replacement'], $emptyCommentPolicy['issues']);
+        $t->same(null, $emptyCommentPolicy['issueEntries'][0]['unicodeComment']['text']);
+        $t->same(false, $emptyCommentRaw['canInstantiate']);
+        $t->same($emptyCommentPolicy, $emptyCommentRaw['unicodeExtraFields']);
+        $t->contains('unicode-comment-extra-field-empty-replacement', implode(',', $emptyCommentRaw['diagnostics']));
+    },
+
     'rejects duplicate info zip unicode path and comment extra fields before media handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $rawName = 'word/media/review-image.bin';
         $unicodeName = "word/media/review-\u{2603}.png";
