@@ -307,6 +307,10 @@ final class OdfReader
                     'dataPilotFieldCount' => (int) ($content['contentDeclarations']['dataPilotFieldCount'] ?? 0),
                     'dataPilotSubtotalCount' => (int) ($content['contentDeclarations']['dataPilotSubtotalCount'] ?? 0),
                     'dataPilotMemberCount' => (int) ($content['contentDeclarations']['dataPilotMemberCount'] ?? 0),
+                    'dataPilotDisplayInfoCount' => (int) ($content['contentDeclarations']['dataPilotDisplayInfoCount'] ?? 0),
+                    'dataPilotSortInfoCount' => (int) ($content['contentDeclarations']['dataPilotSortInfoCount'] ?? 0),
+                    'dataPilotLayoutInfoCount' => (int) ($content['contentDeclarations']['dataPilotLayoutInfoCount'] ?? 0),
+                    'dataPilotFieldReferenceCount' => (int) ($content['contentDeclarations']['dataPilotFieldReferenceCount'] ?? 0),
                     'tableTrackedChangeCount' => (int) ($content['contentDeclarations']['tableTrackedChangeCount'] ?? 0),
                     'ddeConnectionDeclarationCount' => (int) ($content['contentDeclarations']['ddeConnectionDeclarationCount'] ?? 0),
                     'drawLayerCount' => (int) ($content['contentDeclarations']['drawLayerCount'] ?? 0),
@@ -3945,6 +3949,10 @@ final class OdfReader
         $dataPilotFieldCount = 0;
         $dataPilotSubtotalCount = 0;
         $dataPilotMemberCount = 0;
+        $dataPilotDisplayInfoCount = 0;
+        $dataPilotSortInfoCount = 0;
+        $dataPilotLayoutInfoCount = 0;
+        $dataPilotFieldReferenceCount = 0;
         foreach ($dataPilotTables as $table) {
             $name = (string) ($table['name'] ?? '');
             if ($name !== '') {
@@ -3962,6 +3970,18 @@ final class OdfReader
                 }
                 $dataPilotSubtotalCount += $this->dataPilotFieldSubtotalCount($field);
                 $dataPilotMemberCount += $this->dataPilotFieldMemberCount($field);
+                if (is_array($field['displayInfo'] ?? null)) {
+                    $dataPilotDisplayInfoCount++;
+                }
+                if (is_array($field['sortInfo'] ?? null)) {
+                    $dataPilotSortInfoCount++;
+                }
+                if (is_array($field['layoutInfo'] ?? null)) {
+                    $dataPilotLayoutInfoCount++;
+                }
+                if (is_array($field['fieldReference'] ?? null)) {
+                    $dataPilotFieldReferenceCount++;
+                }
             }
         }
 
@@ -4051,6 +4071,10 @@ final class OdfReader
             'dataPilotFieldCount' => $dataPilotFieldCount,
             'dataPilotSubtotalCount' => $dataPilotSubtotalCount,
             'dataPilotMemberCount' => $dataPilotMemberCount,
+            'dataPilotDisplayInfoCount' => $dataPilotDisplayInfoCount,
+            'dataPilotSortInfoCount' => $dataPilotSortInfoCount,
+            'dataPilotLayoutInfoCount' => $dataPilotLayoutInfoCount,
+            'dataPilotFieldReferenceCount' => $dataPilotFieldReferenceCount,
             'dataPilotTables' => $dataPilotTables,
             'dataPilotTablesByName' => $dataPilotTablesByName,
             'tableTrackedChangeCount' => count($tableTrackedChanges),
@@ -4888,6 +4912,10 @@ final class OdfReader
 
         $subtotals = $this->dataPilotSubtotalsFromContainer($field);
         $members = $this->dataPilotMembersFromContainer($field);
+        $displayInfo = self::firstChildElement($field, 'data-pilot-display-info', self::TABLE_NS);
+        $sortInfo = self::firstChildElement($field, 'data-pilot-sort-info', self::TABLE_NS);
+        $layoutInfo = self::firstChildElement($field, 'data-pilot-layout-info', self::TABLE_NS);
+        $fieldReference = self::firstChildElement($field, 'data-pilot-field-reference', self::TABLE_NS);
 
         return self::withoutEmpty([
             'sourceFieldName' => self::nullable(self::attr($field, self::TABLE_NS, 'source-field-name')),
@@ -4895,12 +4923,65 @@ final class OdfReader
             'function' => self::nullable(self::attr($field, self::TABLE_NS, 'function')),
             'usedHierarchy' => self::nullableInt(self::attr($field, self::TABLE_NS, 'used-hierarchy')),
             'selectedPage' => self::nullable(self::attr($field, self::TABLE_NS, 'selected-page')),
+            'displayInfo' => $displayInfo instanceof \DOMElement ? $this->dataPilotDisplayInfoDefinition($displayInfo) : [],
+            'sortInfo' => $sortInfo instanceof \DOMElement ? $this->dataPilotSortInfoDefinition($sortInfo) : [],
+            'layoutInfo' => $layoutInfo instanceof \DOMElement ? $this->dataPilotLayoutInfoDefinition($layoutInfo) : [],
+            'fieldReference' => $fieldReference instanceof \DOMElement ? $this->dataPilotFieldReferenceDefinition($fieldReference) : [],
             'levels' => $levels,
             'levelCount' => $levels === [] ? null : count($levels),
             'subtotals' => $subtotals,
             'subtotalCount' => $subtotals === [] ? null : count($subtotals),
             'members' => $members,
             'memberCount' => $members === [] ? null : count($members),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotDisplayInfoDefinition(\DOMElement $displayInfo): array
+    {
+        return self::withoutEmpty([
+            'enabled' => self::nullableBool(self::attr($displayInfo, self::TABLE_NS, 'enabled')),
+            'displayMemberMode' => self::nullable(self::attr($displayInfo, self::TABLE_NS, 'display-member-mode')),
+            'memberCount' => self::nullableInt(self::attr($displayInfo, self::TABLE_NS, 'member-count')),
+            'dataField' => self::nullable(self::attr($displayInfo, self::TABLE_NS, 'data-field')),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotSortInfoDefinition(\DOMElement $sortInfo): array
+    {
+        return self::withoutEmpty([
+            'order' => self::nullable(self::attr($sortInfo, self::TABLE_NS, 'order')),
+            'sortMode' => self::nullable(self::attr($sortInfo, self::TABLE_NS, 'sort-mode')),
+            'dataField' => self::nullable(self::attr($sortInfo, self::TABLE_NS, 'data-field')),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotLayoutInfoDefinition(\DOMElement $layoutInfo): array
+    {
+        return self::withoutEmpty([
+            'layoutMode' => self::nullable(self::attr($layoutInfo, self::TABLE_NS, 'layout-mode')),
+            'addEmptyLines' => self::nullableBool(self::attr($layoutInfo, self::TABLE_NS, 'add-empty-lines')),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotFieldReferenceDefinition(\DOMElement $reference): array
+    {
+        return self::withoutEmpty([
+            'type' => self::nullable(self::attr($reference, self::TABLE_NS, 'type')),
+            'fieldName' => self::nullable(self::attr($reference, self::TABLE_NS, 'field-name')),
+            'memberType' => self::nullable(self::attr($reference, self::TABLE_NS, 'member-type')),
+            'memberName' => self::nullable(self::attr($reference, self::TABLE_NS, 'member-name')),
         ]);
     }
 

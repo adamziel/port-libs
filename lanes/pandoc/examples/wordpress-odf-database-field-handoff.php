@@ -59,6 +59,10 @@ $contentXml = <<<'XML'
         <table:data-pilot-table table:name="ReadyPostPivot" table:application-data="wp-import-review" table:target-range-address="Pivot.A1:Pivot.D8" table:buttons="true" table:show-filter-button="true" table:grand-total="both" table:ignore-empty-rows="true" table:identify-categories="false">
           <table:source-cell-range table:cell-range-address="Review.A1:Review.D12"/>
           <table:data-pilot-field table:source-field-name="status" table:orientation="row" table:used-hierarchy="1">
+            <table:data-pilot-display-info table:enabled="true" table:display-member-mode="from-top" table:member-count="5" table:data-field="total"/>
+            <table:data-pilot-sort-info table:order="descending" table:sort-mode="data" table:data-field="total"/>
+            <table:data-pilot-layout-info table:layout-mode="outline-subtotals-top" table:add-empty-lines="true"/>
+            <table:data-pilot-field-reference table:type="item-difference" table:field-name="previous_status" table:member-type="named" table:member-name="draft"/>
             <table:data-pilot-level table:show-empty="false" table:repeat-item-labels="true">
               <table:data-pilot-subtotals>
                 <table:data-pilot-subtotal table:function="count"/>
@@ -235,6 +239,12 @@ if (in_array('--self-test', $argv, true)) {
     if (($declarations['dataPilotMemberCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT data-pilot members to be counted in the import report');
     }
+    if (($declarations['dataPilotDisplayInfoCount'] ?? 0) !== 1
+        || ($declarations['dataPilotSortInfoCount'] ?? 0) !== 1
+        || ($declarations['dataPilotLayoutInfoCount'] ?? 0) !== 1
+        || ($declarations['dataPilotFieldReferenceCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT data-pilot field policy metadata to be counted in the import report');
+    }
     if (($declarations['contentValidationCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT content validation to be counted in the import report');
     }
@@ -259,6 +269,15 @@ if (in_array('--self-test', $argv, true)) {
     $statusLevel = is_array($pivotFields[0]['levels'][0] ?? null) ? $pivotFields[0]['levels'][0] : [];
     if (($pivotFields[0]['orientation'] ?? '') !== 'row' || ($pivotFields[1]['function'] ?? '') !== 'sum') {
         throw new RuntimeException('Expected ODT data-pilot field orientation and aggregation metadata to be preserved');
+    }
+    if (($pivotFields[0]['displayInfo']['displayMemberMode'] ?? '') !== 'from-top'
+        || ($pivotFields[0]['displayInfo']['memberCount'] ?? null) !== 5
+        || ($pivotFields[0]['sortInfo']['order'] ?? '') !== 'descending'
+        || ($pivotFields[0]['sortInfo']['sortMode'] ?? '') !== 'data'
+        || ($pivotFields[0]['layoutInfo']['layoutMode'] ?? '') !== 'outline-subtotals-top'
+        || ($pivotFields[0]['layoutInfo']['addEmptyLines'] ?? null) !== true
+        || ($pivotFields[0]['fieldReference']['memberName'] ?? '') !== 'draft') {
+        throw new RuntimeException('Expected ODT data-pilot field display, sort, layout, and reference metadata to be preserved');
     }
     if (($statusLevel['subtotals'][0]['function'] ?? '') !== 'count' || ($statusLevel['members'][0]['name'] ?? '') !== 'ready') {
         throw new RuntimeException('Expected ODT data-pilot level subtotals and members to be preserved');

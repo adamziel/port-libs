@@ -4906,6 +4906,83 @@ XML;
         $t->contains('Data pilot tables stay metadata-only.', $markdown);
         $t->contains('<p>Data pilot tables stay metadata-only.</p>', $blocksHtml);
     },
+    'maps ODT data pilot field display sort layout and reference metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithDataPilotFieldPolicy = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:data-pilot-tables>
+        <table:data-pilot-table table:name="ReviewPivot" table:target-range-address="Pivot.A1:Pivot.E12" table:grand-total="both">
+          <table:source-cell-range table:cell-range-address="Review.A1:Review.E42"/>
+          <table:data-pilot-field table:source-field-name="status" table:orientation="row" table:used-hierarchy="1" table:selected-page="ready">
+            <table:data-pilot-display-info table:enabled="true" table:display-member-mode="from-top" table:member-count="5" table:data-field="total"/>
+            <table:data-pilot-sort-info table:order="descending" table:sort-mode="data" table:data-field="total"/>
+            <table:data-pilot-layout-info table:layout-mode="outline-subtotals-top" table:add-empty-lines="true"/>
+            <table:data-pilot-field-reference table:type="item-difference" table:field-name="previous_status" table:member-type="named" table:member-name="draft"/>
+          </table:data-pilot-field>
+          <table:data-pilot-field table:source-field-name="month" table:orientation="column">
+            <table:data-pilot-display-info table:enabled="false" table:display-member-mode="from-bottom" table:member-count="3"/>
+            <table:data-pilot-sort-info table:order="ascending" table:sort-mode="name"/>
+            <table:data-pilot-layout-info table:layout-mode="tabular-layout" table:add-empty-lines="false"/>
+          </table:data-pilot-field>
+        </table:data-pilot-table>
+      </table:data-pilot-tables>
+      <text:p>Pivot field policy stays metadata-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDataPilotFieldPolicy));
+        $declarations = $result['contentDeclarations'];
+        $tablesByName = is_array($declarations['dataPilotTablesByName'] ?? null) ? $declarations['dataPilotTablesByName'] : [];
+        $reviewPivot = is_array($tablesByName['ReviewPivot'] ?? null) ? $tablesByName['ReviewPivot'] : [];
+        $fields = is_array($reviewPivot['fields'] ?? null) ? $reviewPivot['fields'] : [];
+        $statusField = is_array($fields[0] ?? null) ? $fields[0] : [];
+        $monthField = is_array($fields[1] ?? null) ? $fields[1] : [];
+
+        $t->same(1, $declarations['dataPilotTableCount']);
+        $t->same(2, $declarations['dataPilotFieldCount']);
+        $t->same(2, $declarations['dataPilotDisplayInfoCount']);
+        $t->same(2, $declarations['dataPilotSortInfoCount']);
+        $t->same(2, $declarations['dataPilotLayoutInfoCount']);
+        $t->same(1, $declarations['dataPilotFieldReferenceCount']);
+        $t->same('both', $reviewPivot['grandTotal'] ?? null);
+        $t->same('ready', $statusField['selectedPage'] ?? null);
+        $t->same(true, $statusField['displayInfo']['enabled'] ?? null);
+        $t->same('from-top', $statusField['displayInfo']['displayMemberMode'] ?? null);
+        $t->same(5, $statusField['displayInfo']['memberCount'] ?? null);
+        $t->same('total', $statusField['displayInfo']['dataField'] ?? null);
+        $t->same('descending', $statusField['sortInfo']['order'] ?? null);
+        $t->same('data', $statusField['sortInfo']['sortMode'] ?? null);
+        $t->same('total', $statusField['sortInfo']['dataField'] ?? null);
+        $t->same('outline-subtotals-top', $statusField['layoutInfo']['layoutMode'] ?? null);
+        $t->same(true, $statusField['layoutInfo']['addEmptyLines'] ?? null);
+        $t->same('item-difference', $statusField['fieldReference']['type'] ?? null);
+        $t->same('previous_status', $statusField['fieldReference']['fieldName'] ?? null);
+        $t->same('named', $statusField['fieldReference']['memberType'] ?? null);
+        $t->same('draft', $statusField['fieldReference']['memberName'] ?? null);
+        $t->same(false, $monthField['displayInfo']['enabled'] ?? null);
+        $t->same('from-bottom', $monthField['displayInfo']['displayMemberMode'] ?? null);
+        $t->same(3, $monthField['displayInfo']['memberCount'] ?? null);
+        $t->same('ascending', $monthField['sortInfo']['order'] ?? null);
+        $t->same('name', $monthField['sortInfo']['sortMode'] ?? null);
+        $t->same('tabular-layout', $monthField['layoutInfo']['layoutMode'] ?? null);
+        $t->same(false, $monthField['layoutInfo']['addEmptyLines'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['dataPilotDisplayInfoCount'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['dataPilotSortInfoCount'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['dataPilotLayoutInfoCount'] ?? null);
+        $t->same(1, $result['importReport']['contentDeclarations']['dataPilotFieldReferenceCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['dataPilotDisplayInfoCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['dataPilotSortInfoCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['dataPilotLayoutInfoCount'] ?? null);
+        $t->same(1, $result['importReport']['content']['dataPilotFieldReferenceCount'] ?? null);
+        $t->same($declarations, $result['document']->attr('contentDeclarations'));
+        $t->same('Pivot field policy stays metadata-only.', $result['document']->children[0]->attr('text'));
+    },
     'maps ODT named ranges and expressions into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNamedExpressions = <<<'XML'
 <office:document-content
