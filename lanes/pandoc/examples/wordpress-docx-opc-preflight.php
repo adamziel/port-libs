@@ -849,8 +849,8 @@ $caseEquivalentTargetContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/Word/Document.XML" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/Word/Styles.XML" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/_xmlsignatures/sig-case-equivalent.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
 XML;
@@ -901,6 +901,16 @@ $caseEquivalentTargetPackage = ZipPackage::fromParts([
 $caseEquivalentTargetRelationships = OpcRelationships::fromPackage($caseEquivalentTargetPackage, '/word/document.xml');
 $caseEquivalentTargetGraph = OpcRelationshipGraph::fromPackage($caseEquivalentTargetPackage);
 $caseEquivalentTargetRoot = $caseEquivalentTargetGraph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+$caseEquivalentContentTypeOverrides = [];
+foreach ($caseEquivalentTargetGraph->preflightContentTypeOverrides() as $override) {
+    $caseEquivalentContentTypeOverrides[$override['partName']] = [
+        'packagePartName' => $override['packagePartName'],
+        'partNameExactMatch' => $override['partNameExactMatch'],
+        'partNameEquivalentMatch' => $override['partNameEquivalentMatch'],
+        'valid' => $override['valid'],
+        'issues' => $override['issues'],
+    ];
+}
 $caseEquivalentTargetClosure = [];
 foreach ($caseEquivalentTargetGraph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
     $caseEquivalentTargetClosure[$target['id']] = [
@@ -2300,6 +2310,7 @@ $summary = [
         'partNameCaseCollisionGraphRejected' => $partNameCaseCollisionGraphRejected,
         'contentTypeOverrideCaseLookup' => $caseEquivalentTypes->contentTypeForPart('/word/document.xml'),
         'contentTypeOverrideDuplicateRejected' => $caseEquivalentOverrideDuplicateRejected,
+        'caseEquivalentContentTypeOverrides' => $caseEquivalentContentTypeOverrides,
         'caseEquivalentTargets' => $caseEquivalentTargets,
         'caseEquivalentSignatureTransforms' => $caseEquivalentSignatureTransforms,
         'caseInsensitiveRoleContentTypes' => $roleCaseContentTypeMatch,
@@ -3042,6 +3053,15 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['partNameCaseCollisionGraphRejected'] ?? null) !== true
         || ($summary['integrity']['contentTypeOverrideCaseLookup'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['integrity']['contentTypeOverrideDuplicateRejected'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentContentTypeOverrides']['/word/document.xml']['packagePartName'] ?? null) !== '/Word/Document.XML'
+        || ($summary['integrity']['caseEquivalentContentTypeOverrides']['/word/document.xml']['partNameExactMatch'] ?? null) !== false
+        || ($summary['integrity']['caseEquivalentContentTypeOverrides']['/word/document.xml']['partNameEquivalentMatch'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentContentTypeOverrides']['/word/document.xml']['valid'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentContentTypeOverrides']['/word/document.xml']['issues'] ?? null) !== []
+        || ($summary['integrity']['caseEquivalentContentTypeOverrides']['/word/styles.xml']['packagePartName'] ?? null) !== '/Word/Styles.XML'
+        || ($summary['integrity']['caseEquivalentContentTypeOverrides']['/word/styles.xml']['partNameExactMatch'] ?? null) !== false
+        || ($summary['integrity']['caseEquivalentContentTypeOverrides']['/word/styles.xml']['partNameEquivalentMatch'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentContentTypeOverrides']['/word/styles.xml']['valid'] ?? null) !== true
         || ($summary['integrity']['caseEquivalentTargets']['officeDocumentPart'] ?? null) !== '/Word/Document.XML'
         || ($summary['integrity']['caseEquivalentTargets']['lowercaseSourceRelationshipsLoaded'] ?? null) !== true
         || ($summary['integrity']['caseEquivalentTargets']['directLoaderHasLowercaseSource'] ?? null) !== true

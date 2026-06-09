@@ -59,6 +59,9 @@ final class OdfReader
     /** @var array<string, mixed> */
     private array $packageMetadata = [];
 
+    /** @var array<string, mixed> */
+    private array $packageSettings = [];
+
     /**
      * @return array{
      *     document:AstNode,
@@ -85,10 +88,10 @@ final class OdfReader
         $this->manifestByPart = $this->manifestByPart($manifest);
         $styleCatalog = $this->readStyles($package);
         $metadata = $this->readMeta($package);
-        $content = $this->readContent($package, $styleCatalog, $metadata);
+        $settings = $this->readSettings($package);
+        $content = $this->readContent($package, $styleCatalog, $metadata, $settings);
         $contentStats = $this->contentNodeStats($content['blocks']);
         $styleCatalog = $content['styleCatalog'];
-        $settings = $this->readSettings($package);
         $media = $this->mediaReport($package, $manifest);
         $encryptedItems = $this->encryptedManifestItems($manifest);
 
@@ -433,9 +436,10 @@ final class OdfReader
 
     /**
      * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
+     * @param array<string, mixed> $settings
      * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
      */
-    private function readContent(ZipPackage $package, array $styleCatalog, array $metadata): array
+    private function readContent(ZipPackage $package, array $styleCatalog, array $metadata, array $settings): array
     {
         if (!$package->has('content.xml')) {
             throw new \RuntimeException('ODT package is missing content.xml');
@@ -465,6 +469,7 @@ final class OdfReader
         $this->headingAnchorUses = [];
         $this->variableFieldValuesByName = [];
         $this->packageMetadata = $metadata;
+        $this->packageSettings = $settings;
 
         return [
             'blocks' => $this->blockNodes($text, $package, $styleCatalog),
@@ -5892,29 +5897,28 @@ final class OdfReader
      */
     private function fieldMetadataWithPackageMetadata(\DOMElement $field, array $metadata): array
     {
-        if ($this->packageMetadata === []) {
-            return $metadata;
+        $source = $this->senderFieldSettingsMetadata($field->localName);
+        if ($source === [] && $this->packageMetadata !== []) {
+            $source = match ($field->localName) {
+                'title' => $this->fieldStringMetadata('title'),
+                'subject' => $this->fieldStringMetadata('subject'),
+                'description' => $this->fieldStringMetadata('description'),
+                'keywords' => $this->fieldKeywordsMetadata(),
+                'author-name' => $this->fieldStringMetadata('creator'),
+                'initial-creator' => $this->fieldStringMetadata('initialCreator'),
+                'creation-date' => $this->fieldDateMetadata('created'),
+                'modification-date' => $this->fieldDateMetadata('modificationDate'),
+                'modification-time' => $this->fieldTimeMetadata('modificationTime'),
+                'printed-by' => $this->fieldStringMetadata('printedBy'),
+                'print-date' => $this->fieldDateMetadata('printDate'),
+                'print-time' => $this->fieldTimeMetadata('printTime'),
+                'editing-cycles' => $this->fieldStringMetadata('editingCycles'),
+                'editing-duration' => $this->fieldStringMetadata('editingDuration'),
+                'template-name' => $this->fieldTemplateMetadata(),
+                'user-defined' => $this->fieldUserDefinedPackageMetadata((string) ($metadata['name'] ?? '')),
+                default => [],
+            };
         }
-
-        $source = match ($field->localName) {
-            'title' => $this->fieldStringMetadata('title'),
-            'subject' => $this->fieldStringMetadata('subject'),
-            'description' => $this->fieldStringMetadata('description'),
-            'keywords' => $this->fieldKeywordsMetadata(),
-            'author-name' => $this->fieldStringMetadata('creator'),
-            'initial-creator' => $this->fieldStringMetadata('initialCreator'),
-            'creation-date' => $this->fieldDateMetadata('created'),
-            'modification-date' => $this->fieldDateMetadata('modificationDate'),
-            'modification-time' => $this->fieldTimeMetadata('modificationTime'),
-            'printed-by' => $this->fieldStringMetadata('printedBy'),
-            'print-date' => $this->fieldDateMetadata('printDate'),
-            'print-time' => $this->fieldTimeMetadata('printTime'),
-            'editing-cycles' => $this->fieldStringMetadata('editingCycles'),
-            'editing-duration' => $this->fieldStringMetadata('editingDuration'),
-            'template-name' => $this->fieldTemplateMetadata(),
-            'user-defined' => $this->fieldUserDefinedPackageMetadata((string) ($metadata['name'] ?? '')),
-            default => [],
-        };
 
         if ($source === []) {
             return $metadata;
@@ -5924,11 +5928,86 @@ final class OdfReader
         if (isset($source['stringValue']) && (!isset($metadata['stringValue']) || $metadata['stringValue'] === '')) {
             $metadata['stringValue'] = $source['stringValue'];
         }
-        if (!isset($metadata['metadataSource'])) {
+        foreach (['settingsSource', 'settingsSet', 'settingsName'] as $name) {
+            if (isset($source[$name]) && (!isset($metadata[$name]) || $metadata[$name] === '')) {
+                $metadata[$name] = $source[$name];
+            }
+        }
+        if (!isset($metadata['metadataSource']) && !isset($source['settingsSource'])) {
             $metadata['metadataSource'] = 'meta.xml';
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function senderFieldSettingsMetadata(string $fieldType): array
+    {
+        $settingNamesByField = [
+            'sender-firstname' => ['FirstName', 'GivenName'],
+            'sender-lastname' => ['LastName', 'FamilyName', 'Surname'],
+            'sender-initials' => ['Initials'],
+            'sender-title' => ['Title'],
+            'sender-position' => ['Position'],
+            'sender-email' => ['EMail', 'Email'],
+            'sender-phone-private' => ['TelephoneHome', 'PhonePrivate'],
+            'sender-phone-work' => ['TelephoneWork', 'PhoneWork'],
+            'sender-fax' => ['Fax'],
+            'sender-company' => ['Company'],
+            'sender-street' => ['Street'],
+            'sender-city' => ['City'],
+            'sender-postal-code' => ['Zip', 'PostalCode'],
+            'sender-country' => ['Country'],
+            'sender-state-or-province' => ['State', 'StateOrProvince'],
+        ];
+
+        $settingNames = $settingNamesByField[$fieldType] ?? [];
+        if ($settingNames === []) {
+            return [];
+        }
+
+        $setsByName = $this->packageSettings['setsByName'] ?? [];
+        if (!is_array($setsByName)) {
+            return [];
+        }
+
+        foreach (['ooo:user-settings', 'ooo:configuration-settings'] as $setName) {
+            $set = $setsByName[$setName] ?? null;
+            if (!is_array($set)) {
+                continue;
+            }
+
+            $items = $set['itemsByName'] ?? [];
+            if (!is_array($items)) {
+                continue;
+            }
+
+            foreach ($settingNames as $settingName) {
+                $item = $items[$settingName] ?? null;
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $value = $item['typedValue'] ?? $item['value'] ?? null;
+                if (is_bool($value)) {
+                    $value = $value ? 'true' : 'false';
+                }
+                if (!is_scalar($value) || (string) $value === '') {
+                    continue;
+                }
+
+                return [
+                    'stringValue' => (string) $value,
+                    'settingsSource' => 'settings.xml',
+                    'settingsSet' => $setName,
+                    'settingsName' => $settingName,
+                ];
+            }
+        }
+
+        return [];
     }
 
     /**

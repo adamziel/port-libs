@@ -223,6 +223,26 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\SIrange{1}{2}{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\qtyrange{1}{}{\\m}'));
     },
+    'converts bounded siunitx upstream unit aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $travelMathml = $converter->texToMathMl('\\si{\\km\\per\\hour} + \\qty{9.81}{\\metre\\per\\second\\squared}', true);
+        $mechanicalMathml = $converter->texToMathMl('\\SI{12}{\\newton\\metre} + \\unit{\\joule\\per\\mole\\per\\kelvin}');
+        $namedUnitsMathml = $converter->texToMathMl('\\si{\\pascal\\second} + \\si{\\liter\\per\\minute} + \\si{\\angstrom\\cubed}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\SI{273}{\\kelvin}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $travelMathml);
+        $t->contains('<mrow><mtext>km</mtext><mtext>/</mtext><mtext>h</mtext></mrow><mo>+</mo><mrow><mn>9.81</mn><mspace width="0.2222em"></mspace><mrow><mtext>m</mtext><mtext>/</mtext><msup><mtext>s</mtext><mn>2</mn></msup></mrow></mrow>', $travelMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\si{\\km\\per\\hour} + \\qty{9.81}{\\metre\\per\\second\\squared}</annotation>', $travelMathml);
+        $t->contains('<mrow><mn>12</mn><mspace width="0.2222em"></mspace><mrow><mtext>N</mtext><mtext>m</mtext></mrow></mrow><mo>+</mo><mrow><mtext>J</mtext><mtext>/</mtext><mtext>mol</mtext><mtext>/</mtext><mtext>K</mtext></mrow>', $mechanicalMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\SI{12}{\\newton\\metre} + \\unit{\\joule\\per\\mole\\per\\kelvin}</annotation>', $mechanicalMathml);
+        $t->contains('<mrow><mtext>Pa</mtext><mtext>s</mtext></mrow><mo>+</mo><mrow><mtext>L</mtext><mtext>/</mtext><mtext>min</mtext></mrow><mo>+</mo><msup><mtext>Å</mtext><mn>3</mn></msup>', $namedUnitsMathml);
+        $t->contains('alttext="273 space K"', $accessibleMathml);
+        $t->contains('intent="row(273,space,k)"', $accessibleMathml);
+        $t->true(!str_contains($travelMathml . $mechanicalMathml . $namedUnitsMathml, '<mi>\\km</mi>'));
+        $t->true(!str_contains($travelMathml . $mechanicalMathml . $namedUnitsMathml, '<mi>\\newton</mi>'));
+        $t->true(!str_contains($travelMathml . $mechanicalMathml . $namedUnitsMathml, '<mi>\\joule</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\si{\\unknownunit}'));
+    },
     'converts bounded tex binomial commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $binomialMathml = $converter->texToMathMl('\\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c}', true);

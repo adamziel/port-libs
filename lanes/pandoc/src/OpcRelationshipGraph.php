@@ -754,13 +754,16 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, contentType:string, exists:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>
+     * @return list<array{partName:string, contentType:string, exists:bool, packagePartName:?string, partNameExactMatch:bool, partNameEquivalentMatch:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>
      */
     public function preflightContentTypeOverrides(): array
     {
         $preflight = [];
         foreach ($this->contentTypes->overrides() as $partName => $contentType) {
-            $exists = $this->packagePartNameForEquivalent($partName) !== null;
+            $packagePartName = $this->packagePartNameForEquivalent($partName);
+            $exists = $packagePartName !== null;
+            $partNameExactMatch = $packagePartName === $partName;
+            $partNameEquivalentMatch = $packagePartName !== null && $packagePartName !== $partName;
             $relationshipPart = self::isRelationshipPartName($partName);
             $reservedRelationshipDirectoryPart = !$relationshipPart
                 && self::isReservedRelationshipDirectoryPartName($partName);
@@ -813,6 +816,9 @@ final class OpcRelationshipGraph
                 'partName' => $partName,
                 'contentType' => $contentType,
                 'exists' => $exists,
+                'packagePartName' => $packagePartName,
+                'partNameExactMatch' => $partNameExactMatch,
+                'partNameEquivalentMatch' => $partNameEquivalentMatch,
                 'relationshipPart' => $relationshipPart,
                 'relationshipSource' => $relationshipSource,
                 'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
@@ -1481,7 +1487,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, relationshipTypePoliciesValid:bool, packageParts:list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, relationshipPartLoadAction:?string, relationshipPartLoadReason:?string, sourceExists:?bool, valid:bool, issues:list<string>}>, contentTypeOverrides:list<array{partName:string, contentType:string, exists:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, relationshipTargets:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipTypePolicies:list<array{type:string, relationshipCount:int, sourceCount:int, sources:list<string>, idsBySource:array<string, list<string>>, internalCount:int, externalCount:int, validCount:int, invalidCount:int, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, targetParts:list<string>, contentTypes:list<string>, knownRole:?string, sourceScope:string, singletonScope:?string, policyValid:bool, policyIssues:list<string>, issues:list<string>}>}
+     * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, relationshipTypePoliciesValid:bool, packageParts:list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, relationshipPartLoadAction:?string, relationshipPartLoadReason:?string, sourceExists:?bool, valid:bool, issues:list<string>}>, contentTypeOverrides:list<array{partName:string, contentType:string, exists:bool, packagePartName:?string, partNameExactMatch:bool, partNameEquivalentMatch:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, relationshipTargets:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipTypePolicies:list<array{type:string, relationshipCount:int, sourceCount:int, sources:list<string>, idsBySource:array<string, list<string>>, internalCount:int, externalCount:int, validCount:int, invalidCount:int, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, targetParts:list<string>, contentTypes:list<string>, knownRole:?string, sourceScope:string, singletonScope:?string, policyValid:bool, policyIssues:list<string>, issues:list<string>}>}
      */
     public function preflightPackageConsistency(): array
     {

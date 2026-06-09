@@ -1530,6 +1530,34 @@ return [
         $t->same("\u{FFFD}0A", $malformedTrail['text']);
         $t->same(1, $malformedTrail['repairs']);
     },
+    'decodes bounded iso 2022 kr shift states into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "\x1B\$)C# \x0E\x47\x51\x31\x5B\x0F\n\n\x0E\x47\x51\x31\x5B\x0F ISO-2022-KR \x0E\x45\x57\x3D\x3A\x46\x2E\x0F, \x0E\x3C\x2D\x3F\x6F\x0F.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso2022kr');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csiso2022kr');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $invalidEscape = UnicodeText::decodeBytes("A\x1B(B", 'iso-2022-kr');
+        $unmappedPair = UnicodeText::decodeBytes("\x1B\$)C\x0E!!\x0F", 'iso-2022-kr');
+        $finalStateRepair = UnicodeText::decodeBytes("\x1B\$)C\x0E\x47\x51", 'iso-2022-kr');
+        $missingTrailBeforeShift = UnicodeText::decodeBytes("\x1B\$)C\x0E\x47\x0F", 'iso-2022-kr');
+
+        $t->same('iso-2022-kr', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# 한글\n\n한글 ISO-2022-KR 테스트, 서울.", $decoded['text']);
+        $t->same(['encoding' => 'iso-2022-kr', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('한글', $document->children[0]->attr('text'));
+        $t->same('한글 ISO-2022-KR 테스트, 서울.', $document->children[1]->attr('text'));
+        $t->same(30, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="한글">한글</h1>', $blocks);
+        $t->contains('<p>한글 ISO-2022-KR 테스트, 서울.</p>', $blocks);
+        $t->same("A\u{FFFD}", $invalidEscape['text']);
+        $t->same(1, $invalidEscape['repairs']);
+        $t->same("\u{FFFD}", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+        $t->same("한\u{FFFD}", $finalStateRepair['text']);
+        $t->same(1, $finalStateRepair['repairs']);
+        $t->same("\u{FFFD}", $missingTrailBeforeShift['text']);
+        $t->same(1, $missingTrailBeforeShift['repairs']);
+    },
     'decodes bounded hz gb 2312 escape states into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# ~{<rLe~}\n\n~{VPND~} HZ ~{2bJT#,11>)!#~}\nEscaped ~~ tilde and line~\njoin.";
         $decoded = UnicodeText::decodeBytes($bytes, 'hz-gb-2312');

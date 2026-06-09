@@ -4509,6 +4509,7 @@ final class UnicodeText
             || $normalized === 'gb18030'
             || $normalized === 'euc-kr'
             || $normalized === 'windows-949'
+            || $normalized === 'iso-2022-kr'
             || $normalized === 'hz-gb-2312'
         ) {
             [$text, $repairs] = match ($normalized) {
@@ -4520,6 +4521,7 @@ final class UnicodeText
                 'gb18030' => self::decodeGb18030($bytes),
                 'euc-kr' => self::decodeEucKr($bytes),
                 'windows-949' => self::decodeEucKr($bytes, true),
+                'iso-2022-kr' => self::decodeIso2022Kr($bytes),
                 default => self::decodeHzGb2312($bytes),
             };
 
@@ -5147,6 +5149,7 @@ final class UnicodeText
             'euckr', 'cseuckr', 'csksc56011987', 'korean', 'isoir149', 'ksc5601', 'ksc56011987',
             'ksc56011989' => 'euc-kr',
             'windows949', 'cp949', 'ms949', 'uhc' => 'windows-949',
+            'iso2022kr', 'csiso2022kr' => 'iso-2022-kr',
             'hzgb2312', 'hz' => 'hz-gb-2312',
             default => 'utf-8',
         };
@@ -6609,6 +6612,95 @@ final class UnicodeText
 
             $out .= self::fromCodepoint($codepoint);
             $offset++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeIso2022Kr(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $state = 'ascii';
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte === 0x1b) {
+                if (
+                    $offset + 3 < $length
+                    && ord($bytes[$offset + 1]) === 0x24
+                    && ord($bytes[$offset + 2]) === 0x29
+                    && ord($bytes[$offset + 3]) === 0x43
+                ) {
+                    $state = 'ascii';
+                    $offset += 3;
+                    continue;
+                }
+
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset += min(2, $length - $offset - 1);
+                $state = 'ascii';
+                continue;
+            }
+
+            if ($byte === 0x0e) {
+                $state = 'ksx1001';
+                continue;
+            }
+            if ($byte === 0x0f) {
+                $state = 'ascii';
+                continue;
+            }
+
+            if ($state === 'ascii') {
+                if ($byte <= 0x7f) {
+                    $out .= self::fromCodepoint($byte);
+                } else {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                }
+                continue;
+            }
+
+            if ($byte <= 0x20) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+            if ($byte < 0x21 || $byte > 0x7e || $offset + 1 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $trail = ord($bytes[$offset + 1]);
+            if ($trail < 0x21 || $trail > 0x7e) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                if ($trail > 0x7f) {
+                    $offset++;
+                }
+                continue;
+            }
+
+            $pair = (($byte + 0x80) << 8) | ($trail + 0x80);
+            if (!isset(self::EUC_KR_PAIRS[$pair])) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint(self::EUC_KR_PAIRS[$pair]);
+            $offset++;
+        }
+
+        if ($state !== 'ascii') {
+            $out .= self::REPLACEMENT;
+            $repairs++;
         }
 
         return [$out, $repairs];

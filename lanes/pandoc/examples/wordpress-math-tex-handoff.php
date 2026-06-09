@@ -154,6 +154,8 @@ Texmath command wrapper audit $\stackrel{\text{audit}}{p_i} + \ensuremath{q_i + 
 
 Math choice audit $\mathchoice{\text{display branch}}{\text{text branch}}{\text{script branch}}{\text{tiny branch}} + q_i$ stays style-aware.
 
+SI unit alias audit $\SI{9.81}{\metre\per\second\squared} + \si{\km\per\hour} + \unit{\joule\per\mole\per\kelvin}$ stays semantic.
+
 Equation wrapper audit:
 $$\begin{equation}r_i + s_i \label{eq:wrapped-env} \tag{WP-3}\end{equation}$$
 
@@ -309,6 +311,7 @@ $summary = [
     'starredMatrixAliasMathml' => $converter->texToMathMl('\\begin{pmatrix*}p_i & m_i \\\\ q_i & n_i\\end{pmatrix*} + \\begin{cases*}p_i & p_i \\in P \\\\ 0 & \\text{otherwise}\\end{cases*}', true),
     'texmathCommandWrapperMathml' => $converter->texToMathMl('\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}'),
     'mathChoiceMathml' => $converter->texToMathMl('\\mathchoice{\\text{display branch}}{\\text{text branch}}{\\text{script branch}}{\\text{tiny branch}} + q_i'),
+    'siunitxUnitAliasMathml' => $converter->texToMathMl('\\SI{9.81}{\\metre\\per\\second\\squared} + \\si{\\km\\per\\hour} + \\unit{\\joule\\per\\mole\\per\\kelvin}'),
     'equationWrapperMathml' => $converter->texToMathMl('\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}', true),
     'starredEquationWrapperMathml' => $converter->texToMathMl('\\begin{equation*}\\operatorname{review}(p_i) + \\eqref{eq:wrapped-env}\\end{equation*}', false, [], $equationReferenceLabels),
     'rowTaggedEnvironmentMathml' => $converter->texToMathMl('\\begin{align}p_i &= m_i \\tag{WP-1} \\\\ x_i &= y_i \\label{eq:row-review} \\tag*{review}\\end{align}', true),
@@ -452,6 +455,17 @@ if (($argv[1] ?? '') === '--self-test') {
 
     if (str_contains($summary['mathChoiceMathml'], '<mi>\\mathchoice</mi>') || !str_contains($summary['mathChoiceMathml'], '<mtext>text branch</mtext>')) {
         throw new RuntimeException('Math TeX handoff self-test did not select the inline mathchoice branch');
+    }
+
+    if (
+        str_contains($summary['siunitxUnitAliasMathml'], '<mi>\\km</mi>')
+        || str_contains($summary['siunitxUnitAliasMathml'], '<mi>\\joule</mi>')
+        || str_contains($summary['siunitxUnitAliasMathml'], '<mi>\\kelvin</mi>')
+        || !str_contains($summary['siunitxUnitAliasMathml'], '<mrow><mn>9.81</mn><mspace width="0.2222em"></mspace><mrow><mtext>m</mtext><mtext>/</mtext><msup><mtext>s</mtext><mn>2</mn></msup></mrow></mrow>')
+        || !str_contains($summary['siunitxUnitAliasMathml'], '<mrow><mtext>km</mtext><mtext>/</mtext><mtext>h</mtext></mrow>')
+        || !str_contains($summary['siunitxUnitAliasMathml'], '<mrow><mtext>J</mtext><mtext>/</mtext><mtext>mol</mtext><mtext>/</mtext><mtext>K</mtext></mrow>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map siunitx unit aliases');
     }
 
     if (
@@ -716,6 +730,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\begin{pmatrix*}p_i &amp; m_i \\\\ q_i &amp; n_i\\end{pmatrix*} + \\begin{cases*}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases*}\\)</span>',
         '<span class="math inline">\\(\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}\\)</span>',
         '<span class="math inline">\\(\\mathchoice{\\text{display branch}}{\\text{text branch}}{\\text{script branch}}{\\text{tiny branch}} + q_i\\)</span>',
+        '<span class="math inline">\\(\\SI{9.81}{\\metre\\per\\second\\squared} + \\si{\\km\\per\\hour} + \\unit{\\joule\\per\\mole\\per\\kelvin}\\)</span>',
+        '<annotation encoding="application/x-tex">\\SI{9.81}{\\metre\\per\\second\\squared} + \\si{\\km\\per\\hour} + \\unit{\\joule\\per\\mole\\per\\kelvin}</annotation>',
         '<span class="math display">\\[\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}\\]</span>',
         '<span class="math inline">\\(\\begin{equation*}\\operatorname{review}(p_i) + \\eqref{eq:wrapped-env}\\end{equation*}\\)</span>',
         '<span class="math inline">\\(\\begin{align}p_i &amp;= m_i \\tag{WP-1} \\\\ x_i &amp;= y_i \\label{eq:row-review} \\tag*{review}\\end{align}\\)</span>',

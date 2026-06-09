@@ -1124,6 +1124,64 @@ XML;
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $closureById['rIdStyles']['contentType']);
         $t->same(true, $closureById['rIdStyles']['valid']);
     },
+    'preflights OPC content type override part-name provenance' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/word/missing.xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => 'Word/Document.XML', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'Word/Styles.XML', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"/>'],
+        ]));
+
+        $overrides = [];
+        foreach ($graph->preflightContentTypeOverrides() as $override) {
+            $overrides[$override['partName']] = $override;
+        }
+
+        $t->same('/Word/Document.XML', $overrides['/word/document.xml']['packagePartName']);
+        $t->same(true, $overrides['/word/document.xml']['exists']);
+        $t->same(false, $overrides['/word/document.xml']['partNameExactMatch']);
+        $t->same(true, $overrides['/word/document.xml']['partNameEquivalentMatch']);
+        $t->same(true, $overrides['/word/document.xml']['valid']);
+        $t->same([], $overrides['/word/document.xml']['issues']);
+
+        $t->same('/Word/Styles.XML', $overrides['/word/styles.xml']['packagePartName']);
+        $t->same(false, $overrides['/word/styles.xml']['partNameExactMatch']);
+        $t->same(true, $overrides['/word/styles.xml']['partNameEquivalentMatch']);
+        $t->same(true, $overrides['/word/styles.xml']['valid']);
+
+        $t->same('/docProps/core.xml', $overrides['/docProps/core.xml']['packagePartName']);
+        $t->same(true, $overrides['/docProps/core.xml']['partNameExactMatch']);
+        $t->same(false, $overrides['/docProps/core.xml']['partNameEquivalentMatch']);
+        $t->same(true, $overrides['/docProps/core.xml']['valid']);
+
+        $t->same(null, $overrides['/word/missing.xml']['packagePartName']);
+        $t->same(false, $overrides['/word/missing.xml']['exists']);
+        $t->same(false, $overrides['/word/missing.xml']['partNameExactMatch']);
+        $t->same(false, $overrides['/word/missing.xml']['partNameEquivalentMatch']);
+        $t->same(false, $overrides['/word/missing.xml']['valid']);
+        $t->same(['override-target-missing-part'], $overrides['/word/missing.xml']['issues']);
+
+        $consistencyOverrides = [];
+        foreach ($graph->preflightPackageConsistency()['contentTypeOverrides'] as $override) {
+            $consistencyOverrides[$override['partName']] = $override;
+        }
+
+        $t->same('/Word/Document.XML', $consistencyOverrides['/word/document.xml']['packagePartName']);
+        $t->same(true, $consistencyOverrides['/word/document.xml']['partNameEquivalentMatch']);
+        $t->same(null, $consistencyOverrides['/word/missing.xml']['packagePartName']);
+        $t->same(false, $consistencyOverrides['/word/missing.xml']['exists']);
+    },
     'loads OPC relationships from source-equivalent package entries' => static function (TestRunner $t): void {
         $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">

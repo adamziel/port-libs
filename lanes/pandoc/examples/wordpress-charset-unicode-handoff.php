@@ -214,6 +214,9 @@ $gb18030RangeText = (string) $gb18030RangeSource->children[1]->attr('text');
 $eucKrBytes = (string) hex2bin('2320c7d1b1db0a0ac7d1b1db204555432d4b5220c5d7bdbac6ae2c20bcadbfef2e');
 $eucKrSource = (new MarkdownReader())->readBytes($eucKrBytes, 'ks_c_5601-1987');
 $eucKrText = (string) $eucKrSource->children[1]->attr('text');
+$iso2022KrBytes = "\x1B\$)C# \x0E\x47\x51\x31\x5B\x0F\n\n\x0E\x47\x51\x31\x5B\x0F ISO-2022-KR \x0E\x45\x57\x3D\x3A\x46\x2E\x0F, \x0E\x3C\x2D\x3F\x6F\x0F.";
+$iso2022KrSource = (new MarkdownReader())->readBytes($iso2022KrBytes, 'csiso2022kr');
+$iso2022KrText = (string) $iso2022KrSource->children[1]->attr('text');
 $windows949Bytes = "# UHC\n\nWindows-949 UHC \x81\x41\x81\x42\x81\x43 \x81\x51\x81\x52 \x81\xA1\x81\xA2.";
 $windows949Source = (new MarkdownReader())->readBytes($windows949Bytes, 'windows-949');
 $windows949Text = (string) $windows949Source->children[1]->attr('text');
@@ -870,6 +873,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucKrSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucKrText)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ISO-2022-KR source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $iso2022KrText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso2022KrSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso2022KrText)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Windows-949 UHC source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $windows949Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($windows949Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($windows949Text)])]),
@@ -1409,6 +1417,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>EUC-KR source</td><td>한글 EUC-KR 테스트, 서울.</td><td>euc-kr:25</td>')) {
         throw new RuntimeException('charset handoff self-test missing EUC-KR decode audit row');
+    }
+    if (($iso2022KrSource->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-2022-kr') {
+        throw new RuntimeException('charset handoff self-test missing ISO-2022-KR source encoding');
+    }
+    if (!str_contains($blocks, '<td>ISO-2022-KR source</td><td>한글 ISO-2022-KR 테스트, 서울.</td><td>iso-2022-kr:30</td>')) {
+        throw new RuntimeException('charset handoff self-test missing ISO-2022-KR decode audit row');
     }
     if (($windows949Source->attr('sourceEncoding')['encoding'] ?? '') !== 'windows-949') {
         throw new RuntimeException('charset handoff self-test missing Windows-949 source encoding');

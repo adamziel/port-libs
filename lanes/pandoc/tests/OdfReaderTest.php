@@ -5073,6 +5073,76 @@ XML;
         $t->contains('<span class="odf-field odf-field-page-number" data-odf-field-type="page-number" data-odf-field-style-name="PageDigits">7</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-sender-email" data-odf-field-type="sender-email" data-odf-field-style-name="SenderEmail">desk@example.test</span>', $blocksHtml);
     },
+    'maps empty ODT sender fields from settings XML into review spans' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $contentWithEmptySenderFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Sender <text:sender-firstname/> <text:sender-lastname/> &lt;<text:sender-email/>&gt; at <text:sender-company/> remains auditable.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <office:settings>
+    <config:config-item-set config:name="ooo:user-settings">
+      <config:config-item config:name="FirstName" config:type="string">Maya</config:config-item>
+      <config:config-item config:name="LastName" config:type="string">Editor</config:config-item>
+      <config:config-item config:name="EMail" config:type="string">desk@example.test</config:config-item>
+      <config:config-item config:name="Company" config:type="string">WordPress Migration Desk</config:config-item>
+    </config:config-item-set>
+  </office:settings>
+</office:document-settings>
+XML;
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithEmptySenderFields, $manifestWithSettings, null, null, [
+            ['name' => 'settings.xml', 'data' => $settingsXml],
+        ]));
+        $paragraph = $result['document']->children[0];
+        $firstName = $paragraph->children[1];
+        $lastName = $paragraph->children[3];
+        $email = $paragraph->children[5];
+        $company = $paragraph->children[7];
+
+        $t->same('Sender Maya Editor <desk@example.test> at WordPress Migration Desk remains auditable.', $paragraph->attr('text'));
+        $t->same('sender-firstname', $firstName->attr('fieldType'));
+        $t->same('Maya', $firstName->attr('fieldMetadata')['stringValue']);
+        $t->same('settings.xml', $firstName->attr('fieldMetadata')['settingsSource']);
+        $t->same('ooo:user-settings', $firstName->attr('fieldMetadata')['settingsSet']);
+        $t->same('FirstName', $firstName->attr('fieldMetadata')['settingsName']);
+        $t->same('Maya', $firstName->children[0]->attr('text'));
+        $t->same('settings.xml', $firstName->attr('attributes')['data-odf-field-settings-source']);
+        $t->same('ooo:user-settings', $firstName->attr('attributes')['data-odf-field-settings-set']);
+        $t->same('FirstName', $firstName->attr('attributes')['data-odf-field-settings-name']);
+
+        $t->same('sender-lastname', $lastName->attr('fieldType'));
+        $t->same('Editor', $lastName->attr('fieldMetadata')['stringValue']);
+        $t->same('LastName', $lastName->attr('fieldMetadata')['settingsName']);
+        $t->same('sender-email', $email->attr('fieldType'));
+        $t->same('desk@example.test', $email->attr('fieldMetadata')['stringValue']);
+        $t->same('EMail', $email->attr('fieldMetadata')['settingsName']);
+        $t->same('sender-company', $company->attr('fieldType'));
+        $t->same('WordPress Migration Desk', $company->attr('fieldMetadata')['stringValue']);
+        $t->same('Company', $company->attr('fieldMetadata')['settingsName']);
+        $t->same(4, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Maya]{.odf-field .odf-field-sender-firstname data-odf-field-type="sender-firstname" data-odf-field-string-value="Maya" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="FirstName"}', $markdown);
+        $t->contains('[desk@example.test]{.odf-field .odf-field-sender-email data-odf-field-type="sender-email" data-odf-field-string-value="desk@example.test" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="EMail"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-sender-firstname" data-odf-field-type="sender-firstname" data-odf-field-string-value="Maya" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="FirstName">Maya</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-sender-email" data-odf-field-type="sender-email" data-odf-field-string-value="desk@example.test" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="EMail">desk@example.test</span>', $blocksHtml);
+    },
     'maps ODT field number date and time format metadata into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithFormattedFields = <<<'XML'
 <office:document-content
