@@ -4935,6 +4935,9 @@ final class MarkdownReader
             }
 
             if (preg_match('/^(![A-Za-z0-9_.-]*!)(' . self::YAML_TAG_SUFFIX_PATTERN . ')(?=$|[ \t])/', $value, $m) === 1) {
+                if ($recordProvenance && !array_key_exists($m[1], $this->yamlMetadataTagHandles)) {
+                    $this->recordYamlUndefinedTagHandleDiagnostic($m[1], $m[2], $m[0]);
+                }
                 $tags[] = $this->expandYamlTagHandle($m[1], $m[2], $m[0]);
                 $value = ltrim(substr($value, strlen($m[0])));
                 continue;
@@ -4968,6 +4971,24 @@ final class MarkdownReader
         }
 
         return [$value, $anchorName, $tags];
+    }
+
+    private function recordYamlUndefinedTagHandleDiagnostic(string $handle, string $suffix, string $sourceTag): void
+    {
+        $diagnostic = [
+            'type' => 'yaml-tag',
+            'reason' => 'undefined-tag-handle',
+            'handle' => $handle,
+            'suffix' => $suffix,
+            'sourceTag' => $sourceTag,
+            'expected' => 'declared %TAG handle',
+        ];
+        $path = $this->currentYamlMetadataDiagnosticPath();
+        if ($path !== null) {
+            $diagnostic['path'] = $path;
+        }
+
+        $this->yamlMetadataDiagnostics[] = $diagnostic + $this->yamlMetadataSourceLineAttrs();
     }
 
     private function expandYamlTagHandle(string $handle, string $suffix, string $sourceTag): string

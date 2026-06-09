@@ -3812,6 +3812,62 @@ return [
         $t->same('tag-uri-suffix-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="tag-uri-suffix-body">Tag URI suffix body</h1>', $blocks);
     },
+    'records pandoc yaml undefined tag handle diagnostics without hiding metadata values' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.2',
+            '%TAG !known! tag:example.test,2026:',
+            '---',
+            'title: Undefined tag handle **Packet**',
+            'review:',
+            '  owner: !missing!reviewer Import Desk',
+            '  status: !known!state queued',
+            '  labels: [!missing!label migration, !missing!label wordpress]',
+            'flow-review: {owner: !missing!reviewer Flow Desk, state: !known!state approved}',
+            '...',
+            '',
+            '# Undefined tag handle body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = array_values(array_filter(
+            $document->attr('yamlMetadataDiagnostics', []),
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'undefined-tag-handle'
+        ));
+        $tagProvenance = $document->attr('yamlMetadataTagProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Undefined tag handle **Packet**', $meta['title']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['migration', 'wordpress'], $meta['review']['labels']);
+        $t->same('Flow Desk', $meta['flow-review']['owner']);
+        $t->same('approved', $meta['flow-review']['state']);
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same(4, count($diagnostics));
+        $t->same(['!missing!', '!missing!', '!missing!', '!missing!'], array_column($diagnostics, 'handle'));
+        $t->same(['reviewer', 'label', 'label', 'reviewer'], array_column($diagnostics, 'suffix'));
+        $t->same(['!missing!reviewer', '!missing!label', '!missing!label', '!missing!reviewer'], array_column($diagnostics, 'sourceTag'));
+        $t->same(['/review/owner', '/review/labels/0', '/review/labels/1', '/flow-review/owner'], array_column($diagnostics, 'path'));
+        $t->same(['7', '9', '9', '10'], array_column($diagnostics, 'sourceLine'));
+        $t->same(
+            ['declared %TAG handle', 'declared %TAG handle', 'declared %TAG handle', 'declared %TAG handle'],
+            array_column($diagnostics, 'expected')
+        );
+
+        $provenancePairs = array_map(
+            static fn (array $entry): string => ($entry['tag'] ?? '') . "\0" . ($entry['path'] ?? ''),
+            $tagProvenance
+        );
+        $t->true(in_array('!missing!reviewer' . "\0" . '/review/owner', $provenancePairs, true));
+        $t->true(in_array('!<tag:example.test,2026:state>' . "\0" . '/review/status', $provenancePairs, true));
+        $t->true(in_array('!missing!label' . "\0" . '/review/labels/0', $provenancePairs, true));
+        $t->true(in_array('!missing!label' . "\0" . '/review/labels/1', $provenancePairs, true));
+        $t->true(in_array('!missing!reviewer' . "\0" . '/flow-review/owner', $provenancePairs, true));
+        $t->true(in_array('!<tag:example.test,2026:state>' . "\0" . '/flow-review/state', $provenancePairs, true));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('undefined-tag-handle-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="undefined-tag-handle-body">Undefined tag handle body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit set tags in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

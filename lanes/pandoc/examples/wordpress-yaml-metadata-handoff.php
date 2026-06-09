@@ -145,6 +145,7 @@ tag-uri-suffix-review:
   fragment-owner: !wpd!source#fragment Fragment Desk
   scoped-owner: !wpd!source;kind=review&draft=false Scoped Desk
 flow-tag-uri-suffix-review: {owner: !wpd!flow%2Fowner Flow URI Desk, ? !wpd!key%2Fsource "source:key": !wpd!value?kind=flow metadata value}
+undefined-tag-handle-review: {owner: !missing!reviewer Missing Handle Desk, labels: [!missing!label undeclared, !missing!label review], flow-owner: !missing!reviewer Flow Missing Desk}
 non-specific-review:
   owner: ! "Import Desk"
   status: ! queued
@@ -614,6 +615,14 @@ $invalidOrderedPairDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-ordered-pair-member'
 ));
+$undefinedTagHandleDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'undefined-tag-handle'
+));
+$undefinedTagHandleReviewDiagnostics = array_values(array_filter(
+    $undefinedTagHandleDiagnostics,
+    static fn (array $diagnostic): bool => str_starts_with($diagnostic['path'] ?? '', '/undefined-tag-handle-review')
+));
 $duplicateSetDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'duplicate-key'
@@ -1079,6 +1088,32 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['flow-tag-uri-suffix-review']['source:key'] ?? '') !== 'metadata value') {
         throw new RuntimeException('YAML metadata self-test missing flow tag URI suffix explicit key metadata');
+    }
+    if (($meta['undefined-tag-handle-review']['owner'] ?? '') !== 'Missing Handle Desk') {
+        throw new RuntimeException('YAML metadata self-test missing undefined tag handle metadata owner');
+    }
+    if (($meta['undefined-tag-handle-review']['labels'] ?? []) !== ['undeclared', 'review']) {
+        throw new RuntimeException('YAML metadata self-test missing undefined tag handle metadata labels');
+    }
+    if (($meta['undefined-tag-handle-review']['flow-owner'] ?? '') !== 'Flow Missing Desk') {
+        throw new RuntimeException('YAML metadata self-test missing undefined tag handle flow owner');
+    }
+    if (count($undefinedTagHandleReviewDiagnostics) !== 4) {
+        throw new RuntimeException('YAML metadata self-test missing undefined tag handle diagnostics');
+    }
+    if (array_column($undefinedTagHandleReviewDiagnostics, 'handle') !== ['!missing!', '!missing!', '!missing!', '!missing!']) {
+        throw new RuntimeException('YAML metadata self-test missing undefined tag handle names');
+    }
+    if (array_column($undefinedTagHandleReviewDiagnostics, 'suffix') !== ['reviewer', 'label', 'label', 'reviewer']) {
+        throw new RuntimeException('YAML metadata self-test missing undefined tag handle suffixes');
+    }
+    if (array_column($undefinedTagHandleReviewDiagnostics, 'path') !== [
+        '/undefined-tag-handle-review/owner',
+        '/undefined-tag-handle-review/labels/0',
+        '/undefined-tag-handle-review/labels/1',
+        '/undefined-tag-handle-review/flow-owner',
+    ]) {
+        throw new RuntimeException('YAML metadata self-test missing undefined tag handle paths');
     }
     if (($meta['non-specific-review']['owner'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test leaked bare non-specific tag on owner metadata');
@@ -2508,6 +2543,7 @@ echo 'YAML diagnostics: ' . count($yamlDiagnostics) . "\n";
 echo 'YAML invalid TAG directives: ' . count($invalidTagDiagnostics) . "\n";
 echo 'YAML invalid merge diagnostics: ' . count($invalidMergeDiagnostics) . "\n";
 echo 'YAML invalid ordered pair diagnostics: ' . count($invalidOrderedPairDiagnostics) . "\n";
+echo 'YAML undefined tag handle diagnostics: ' . implode(', ', array_column($undefinedTagHandleReviewDiagnostics, 'path')) . "\n";
 echo 'YAML duplicate set diagnostics: ' . implode(', ', array_column($duplicateSetDiagnostics, 'path')) . "\n";
 echo 'YAML alias diagnostic paths: ' . implode(', ', array_column($aliasYamlDiagnostics, 'path')) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";

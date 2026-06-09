@@ -2795,9 +2795,11 @@ final class ZipPackage
      * document content or package assets.
      *
      * macOS archive tools commonly add __MACOSX directories, AppleDouble
-     * resource fork entries, and .DS_Store files. These entries are valid ZIP
-     * members, so raw ZIP reading remains permissive, but office/package
-     * readers should review or reject them before mapping media/content.
+     * resource fork entries, and .DS_Store files. Windows Explorer can also
+     * leave Thumbs.db thumbnail caches and desktop.ini folder metadata in
+     * copied trees. These entries are valid ZIP members, so raw ZIP reading
+     * remains permissive, but office/package readers should review or reject
+     * them before mapping media/content.
      *
      * @return array{
      *     entryCount:int,
@@ -2805,8 +2807,11 @@ final class ZipPackage
      *     macosSidecarEntryCount:int,
      *     appleDoubleEntryCount:int,
      *     finderMetadataEntryCount:int,
-     *     platformMetadataEntries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,issues:list<string>}>,
-     *     entries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,issues:list<string>}>
+     *     windowsSidecarEntryCount:int,
+     *     windowsThumbnailCacheEntryCount:int,
+     *     windowsDesktopIniEntryCount:int,
+     *     platformMetadataEntries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,isWindowsSidecar:bool,isWindowsThumbnailCache:bool,isWindowsDesktopIni:bool,issues:list<string>}>,
+     *     entries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,isWindowsSidecar:bool,isWindowsThumbnailCache:bool,isWindowsDesktopIni:bool,issues:list<string>}>
      * }
      */
     public function platformMetadataPreflight(): array
@@ -2816,6 +2821,9 @@ final class ZipPackage
         $macosSidecarEntryCount = 0;
         $appleDoubleEntryCount = 0;
         $finderMetadataEntryCount = 0;
+        $windowsSidecarEntryCount = 0;
+        $windowsThumbnailCacheEntryCount = 0;
+        $windowsDesktopIniEntryCount = 0;
 
         foreach ($this->entries as $entry) {
             $path = rtrim($entry->name, '/');
@@ -2823,6 +2831,8 @@ final class ZipPackage
             $isMacosSidecar = false;
             $isAppleDouble = false;
             $isFinderMetadata = false;
+            $isWindowsThumbnailCache = false;
+            $isWindowsDesktopIni = false;
 
             foreach ($segments as $index => $segment) {
                 $lowerSegment = strtolower($segment);
@@ -2837,6 +2847,14 @@ final class ZipPackage
 
                 if ($lowerSegment === '.ds_store') {
                     $isFinderMetadata = true;
+                }
+
+                if ($lowerSegment === 'thumbs.db') {
+                    $isWindowsThumbnailCache = true;
+                }
+
+                if ($lowerSegment === 'desktop.ini') {
+                    $isWindowsDesktopIni = true;
                 }
             }
 
@@ -2857,15 +2875,43 @@ final class ZipPackage
                 ++$finderMetadataEntryCount;
             }
 
+            if ($isWindowsThumbnailCache) {
+                $issues[] = 'windows-thumbnail-cache-entry';
+                ++$windowsThumbnailCacheEntryCount;
+            }
+
+            if ($isWindowsDesktopIni) {
+                $issues[] = 'windows-desktop-ini-entry';
+                ++$windowsDesktopIniEntryCount;
+            }
+
+            $isWindowsSidecar = $isWindowsThumbnailCache || $isWindowsDesktopIni;
+            if ($isWindowsSidecar) {
+                ++$windowsSidecarEntryCount;
+            }
+
+            $hasMacosMetadata = $isMacosSidecar || $isAppleDouble || $isFinderMetadata;
+            $platform = null;
+            if ($hasMacosMetadata && $isWindowsSidecar) {
+                $platform = 'mixed';
+            } elseif ($hasMacosMetadata) {
+                $platform = 'macos';
+            } elseif ($isWindowsSidecar) {
+                $platform = 'windows';
+            }
+
             $summary = [
                 'name' => $entry->name,
                 'path' => $path,
                 'isDirectory' => $entry->isDirectory(),
                 'segments' => $segments,
-                'platform' => $issues === [] ? null : 'macos',
+                'platform' => $platform,
                 'isMacosSidecar' => $isMacosSidecar,
                 'isAppleDouble' => $isAppleDouble,
                 'isFinderMetadata' => $isFinderMetadata,
+                'isWindowsSidecar' => $isWindowsSidecar,
+                'isWindowsThumbnailCache' => $isWindowsThumbnailCache,
+                'isWindowsDesktopIni' => $isWindowsDesktopIni,
                 'issues' => $issues,
             ];
 
@@ -2882,6 +2928,9 @@ final class ZipPackage
             'macosSidecarEntryCount' => $macosSidecarEntryCount,
             'appleDoubleEntryCount' => $appleDoubleEntryCount,
             'finderMetadataEntryCount' => $finderMetadataEntryCount,
+            'windowsSidecarEntryCount' => $windowsSidecarEntryCount,
+            'windowsThumbnailCacheEntryCount' => $windowsThumbnailCacheEntryCount,
+            'windowsDesktopIniEntryCount' => $windowsDesktopIniEntryCount,
             'platformMetadataEntries' => $platformMetadataEntries,
             'entries' => $entries,
         ];
@@ -2894,8 +2943,11 @@ final class ZipPackage
      *     macosSidecarEntryCount:int,
      *     appleDoubleEntryCount:int,
      *     finderMetadataEntryCount:int,
-     *     platformMetadataEntries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,issues:list<string>}>,
-     *     entries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,issues:list<string>}>
+     *     windowsSidecarEntryCount:int,
+     *     windowsThumbnailCacheEntryCount:int,
+     *     windowsDesktopIniEntryCount:int,
+     *     platformMetadataEntries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,isWindowsSidecar:bool,isWindowsThumbnailCache:bool,isWindowsDesktopIni:bool,issues:list<string>}>,
+     *     entries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,isWindowsSidecar:bool,isWindowsThumbnailCache:bool,isWindowsDesktopIni:bool,issues:list<string>}>
      * }
      */
     public function assertNoPlatformMetadataEntries(): array

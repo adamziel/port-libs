@@ -3327,11 +3327,15 @@ return [
         $t->same(2, $summary['macosSidecarEntryCount']);
         $t->same(2, $summary['appleDoubleEntryCount']);
         $t->same(1, $summary['finderMetadataEntryCount']);
+        $t->same(0, $summary['windowsSidecarEntryCount']);
+        $t->same(0, $summary['windowsThumbnailCacheEntryCount']);
+        $t->same(0, $summary['windowsDesktopIniEntryCount']);
         $t->same('word/media/review.png', $summary['entries'][1]['name']);
         $t->same(null, $summary['entries'][1]['platform']);
         $t->same(false, $summary['entries'][1]['isMacosSidecar']);
         $t->same(false, $summary['entries'][1]['isAppleDouble']);
         $t->same(false, $summary['entries'][1]['isFinderMetadata']);
+        $t->same(false, $summary['entries'][1]['isWindowsSidecar']);
         $t->same([], $summary['entries'][1]['issues']);
         $t->same('__MACOSX/', $summary['platformMetadataEntries'][0]['name']);
         $t->same('__MACOSX', $summary['platformMetadataEntries'][0]['path']);
@@ -3361,6 +3365,7 @@ return [
         $t->same(2, $strictSummary['platformMetadata']['macosSidecarEntryCount']);
         $t->same(2, $strictSummary['platformMetadata']['appleDoubleEntryCount']);
         $t->same(1, $strictSummary['platformMetadata']['finderMetadataEntryCount']);
+        $t->same(0, $strictSummary['platformMetadata']['windowsSidecarEntryCount']);
         $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertNoPlatformMetadataEntries());
         $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertStrictImportable(4096, 100.0, 4096));
 
@@ -3386,10 +3391,108 @@ return [
         $t->same(0, $safeSummary['macosSidecarEntryCount']);
         $t->same(0, $safeSummary['appleDoubleEntryCount']);
         $t->same(0, $safeSummary['finderMetadataEntryCount']);
+        $t->same(0, $safeSummary['windowsSidecarEntryCount']);
+        $t->same(0, $safeSummary['windowsThumbnailCacheEntryCount']);
+        $t->same(0, $safeSummary['windowsDesktopIniEntryCount']);
         $t->same([], $safeSummary['platformMetadataEntries']);
         $strictClean = $safePackage->assertStrictImportable(4096, 100.0, 4096);
         $t->same(true, $strictClean['isValid']);
         $t->same(0, $strictClean['platformMetadata']['platformMetadataEntryCount']);
+    },
+
+    'preflights windows platform metadata sidecars before office package media handoff' => static function (TestRunner $t): void {
+        $reviewPackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>windows platform metadata preflight</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "visible reviewer image placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/Thumbs.db',
+                'data' => "windows thumbnail cache should not import as document media\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'customXml/desktop.ini',
+                'data' => "[.ShellClassInfo]\nLocalizedResourceName=Custom XML\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/source-diagram.svg',
+                'data' => "<svg />\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $summary = $reviewPackage->platformMetadataPreflight();
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(2, $summary['platformMetadataEntryCount']);
+        $t->same(0, $summary['macosSidecarEntryCount']);
+        $t->same(0, $summary['appleDoubleEntryCount']);
+        $t->same(0, $summary['finderMetadataEntryCount']);
+        $t->same(2, $summary['windowsSidecarEntryCount']);
+        $t->same(1, $summary['windowsThumbnailCacheEntryCount']);
+        $t->same(1, $summary['windowsDesktopIniEntryCount']);
+        $t->same('word/media/review.png', $summary['entries'][1]['name']);
+        $t->same(null, $summary['entries'][1]['platform']);
+        $t->same(false, $summary['entries'][1]['isWindowsSidecar']);
+        $t->same(false, $summary['entries'][1]['isWindowsThumbnailCache']);
+        $t->same(false, $summary['entries'][1]['isWindowsDesktopIni']);
+        $t->same([], $summary['entries'][1]['issues']);
+        $t->same('word/media/Thumbs.db', $summary['platformMetadataEntries'][0]['name']);
+        $t->same('windows', $summary['platformMetadataEntries'][0]['platform']);
+        $t->same(false, $summary['platformMetadataEntries'][0]['isMacosSidecar']);
+        $t->same(true, $summary['platformMetadataEntries'][0]['isWindowsSidecar']);
+        $t->same(true, $summary['platformMetadataEntries'][0]['isWindowsThumbnailCache']);
+        $t->same(false, $summary['platformMetadataEntries'][0]['isWindowsDesktopIni']);
+        $t->same(['windows-thumbnail-cache-entry'], $summary['platformMetadataEntries'][0]['issues']);
+        $t->same('customXml/desktop.ini', $summary['platformMetadataEntries'][1]['name']);
+        $t->same('windows', $summary['platformMetadataEntries'][1]['platform']);
+        $t->same(false, $summary['platformMetadataEntries'][1]['isWindowsThumbnailCache']);
+        $t->same(true, $summary['platformMetadataEntries'][1]['isWindowsDesktopIni']);
+        $t->same(['windows-desktop-ini-entry'], $summary['platformMetadataEntries'][1]['issues']);
+        $t->same("windows thumbnail cache should not import as document media\n", $reviewPackage->read('/word/media/Thumbs.db'));
+
+        $strictSummary = $reviewPackage->strictImportPreflight(4096, 100.0, 4096);
+        $t->same(false, $strictSummary['isValid']);
+        $t->same(['platform-metadata-entries'], $strictSummary['diagnostics']);
+        $t->same(2, $strictSummary['platformMetadata']['platformMetadataEntryCount']);
+        $t->same(2, $strictSummary['platformMetadata']['windowsSidecarEntryCount']);
+        $t->same(1, $strictSummary['platformMetadata']['windowsThumbnailCacheEntryCount']);
+        $t->same(1, $strictSummary['platformMetadata']['windowsDesktopIniEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertNoPlatformMetadataEntries());
+        $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertStrictImportable(4096, 100.0, 4096));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>windows safe platform metadata</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/thumbs-up.png',
+                'data' => "ordinary image whose name is not Thumbs.db\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'docProps/core.xml',
+                'data' => "<cp:coreProperties />\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoPlatformMetadataEntries();
+        $t->same(3, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['platformMetadataEntryCount']);
+        $t->same(0, $safeSummary['windowsSidecarEntryCount']);
+        $t->same(0, $safeSummary['windowsThumbnailCacheEntryCount']);
+        $t->same(0, $safeSummary['windowsDesktopIniEntryCount']);
+        $t->same([], $safeSummary['platformMetadataEntries']);
+        $strictClean = $safePackage->assertStrictImportable(4096, 100.0, 4096);
+        $t->same(true, $strictClean['isValid']);
+        $t->same(0, $strictClean['platformMetadata']['windowsSidecarEntryCount']);
     },
 
     'rejects stored zip entry size mismatches before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {

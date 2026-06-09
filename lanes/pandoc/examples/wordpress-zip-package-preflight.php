@@ -3277,6 +3277,47 @@ try {
 } catch (RuntimeException $exception) {
     $platformMetadataStrictRejected = str_contains($exception->getMessage(), 'platform-metadata-entries');
 }
+$windowsPlatformMetadataPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Windows platform metadata review</w:p></w:body></w:document>',
+    ],
+    [
+        'name' => 'word/media/review.png',
+        'data' => "Visible reviewer attachment placeholder\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/Thumbs.db',
+        'data' => "Windows thumbnail cache should not import as document media\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'customXml/desktop.ini',
+        'data' => "[.ShellClassInfo]\nLocalizedResourceName=Custom XML\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/source-diagram.svg',
+        'data' => "<svg />\n",
+        'compressionMethod' => 0,
+    ],
+]);
+$windowsPlatformMetadataPreflight = $windowsPlatformMetadataPackage->platformMetadataPreflight();
+$windowsPlatformMetadataStrictPreflight = $windowsPlatformMetadataPackage->strictImportPreflight(4096, 100.0, 4096);
+$windowsPlatformMetadataRejected = false;
+try {
+    $windowsPlatformMetadataPackage->assertNoPlatformMetadataEntries();
+} catch (RuntimeException $exception) {
+    $windowsPlatformMetadataRejected = str_contains($exception->getMessage(), 'Thumbs.db')
+        && str_contains($exception->getMessage(), 'desktop.ini');
+}
+$windowsPlatformMetadataStrictRejected = false;
+try {
+    $windowsPlatformMetadataPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $windowsPlatformMetadataStrictRejected = str_contains($exception->getMessage(), 'platform-metadata-entries');
+}
 $caseInsensitiveNameCollisionPackage = ZipPackage::fromParts([
     [
         'name' => 'word/document.xml',
@@ -5051,6 +5092,7 @@ if (in_array('--self-test', $argv, true)) {
         || ($platformMetadataPreflight['macosSidecarEntryCount'] ?? null) !== 2
         || ($platformMetadataPreflight['appleDoubleEntryCount'] ?? null) !== 2
         || ($platformMetadataPreflight['finderMetadataEntryCount'] ?? null) !== 1
+        || ($platformMetadataPreflight['windowsSidecarEntryCount'] ?? null) !== 0
         || ($platformMetadataPreflight['entries'][1]['platform'] ?? null) !== null
         || ($platformMetadataPreflight['platformMetadataEntries'][0]['name'] ?? null) !== '__MACOSX/'
         || ($platformMetadataPreflight['platformMetadataEntries'][1]['issues'] ?? null) !== ['macos-sidecar-entry', 'appledouble-resource-entry']
@@ -5059,6 +5101,25 @@ if (in_array('--self-test', $argv, true)) {
         || $platformMetadataPackage->read('/word/media/review.png') !== "Visible reviewer attachment placeholder\n"
     ) {
         throw new RuntimeException('Expected macOS ZIP platform metadata sidecars to stay blocked for strict media import');
+    }
+
+    if (
+        !$windowsPlatformMetadataRejected
+        || !$windowsPlatformMetadataStrictRejected
+        || ($windowsPlatformMetadataPreflight['platformMetadataEntryCount'] ?? null) !== 2
+        || ($windowsPlatformMetadataPreflight['macosSidecarEntryCount'] ?? null) !== 0
+        || ($windowsPlatformMetadataPreflight['windowsSidecarEntryCount'] ?? null) !== 2
+        || ($windowsPlatformMetadataPreflight['windowsThumbnailCacheEntryCount'] ?? null) !== 1
+        || ($windowsPlatformMetadataPreflight['windowsDesktopIniEntryCount'] ?? null) !== 1
+        || ($windowsPlatformMetadataPreflight['platformMetadataEntries'][0]['name'] ?? null) !== 'word/media/Thumbs.db'
+        || ($windowsPlatformMetadataPreflight['platformMetadataEntries'][0]['platform'] ?? null) !== 'windows'
+        || ($windowsPlatformMetadataPreflight['platformMetadataEntries'][0]['issues'] ?? null) !== ['windows-thumbnail-cache-entry']
+        || ($windowsPlatformMetadataPreflight['platformMetadataEntries'][1]['issues'] ?? null) !== ['windows-desktop-ini-entry']
+        || ($windowsPlatformMetadataStrictPreflight['diagnostics'] ?? null) !== ['platform-metadata-entries']
+        || ($windowsPlatformMetadataStrictPreflight['platformMetadata']['windowsSidecarEntryCount'] ?? null) !== 2
+        || $windowsPlatformMetadataPackage->read('/word/media/Thumbs.db') !== "Windows thumbnail cache should not import as document media\n"
+    ) {
+        throw new RuntimeException('Expected Windows ZIP platform metadata sidecars to stay blocked for strict media import');
     }
 
     if (
@@ -6335,6 +6396,10 @@ echo 'zipPlatformMetadataPolicy=' . ($platformMetadataRejected && $platformMetad
 echo 'zipPlatformMetadataEntries=' . $platformMetadataPreflight['platformMetadataEntryCount'] . "\n";
 echo 'zipPlatformMetadataIssues=' . implode(',', $platformMetadataPreflight['platformMetadataEntries'][1]['issues'] ?? []) . "\n";
 echo 'zipPlatformMetadataDiagnostics=' . implode(',', $platformMetadataStrictPreflight['diagnostics']) . "\n";
+echo 'zipWindowsPlatformMetadataPolicy=' . ($windowsPlatformMetadataRejected && $windowsPlatformMetadataStrictRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipWindowsPlatformMetadataEntries=' . $windowsPlatformMetadataPreflight['platformMetadataEntryCount'] . "\n";
+echo 'zipWindowsPlatformMetadataSidecars=' . $windowsPlatformMetadataPreflight['windowsSidecarEntryCount'] . "\n";
+echo 'zipWindowsPlatformMetadataIssues=' . implode(',', $windowsPlatformMetadataPreflight['platformMetadataEntries'][0]['issues'] ?? []) . "\n";
 echo 'packageCaseInsensitiveNames.collisionEntryCount=' . $packageCaseInsensitiveNamePreflight['collisionEntryCount'] . "\n";
 echo 'packageArchive.eocdOffset=' . $packageArchivePreflight['eocdOffset'] . "\n";
 echo 'packageArchive.totalEntryCount=' . $packageArchivePreflight['totalEntryCount'] . "\n";
