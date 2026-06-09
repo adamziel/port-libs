@@ -12648,6 +12648,40 @@ HTML;
         $t->contains('<h1 id="parsed-after-boundary">Parsed after boundary</h1>', $blocks);
         $t->contains('<!-- wp:html -->' . "\n" . '</section>', $blocks);
     },
+    'maps commonmark generic raw html tag lines to blank-line boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<span data-review="commonmark-raw">',
+            '*raw emphasis stays raw*',
+            '</span>',
+            '',
+            'After **boundary**.',
+            '',
+            '</custom-review>',
+            '',
+            '<a href="http://foo.bar.baz">http://foo.bar.baz</a>',
+        ]));
+        $rawSpan = $document->children[0];
+        $parsedParagraph = $document->children[1];
+        $rawClosingTag = $document->children[2];
+        $anchorParagraph = $document->children[3];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $rawSpan->type);
+        $t->same(
+            '<span data-review="commonmark-raw">' . "\n" . '*raw emphasis stays raw*' . "\n" . '</span>',
+            $rawSpan->attr('html')
+        );
+        $t->same('paragraph', $parsedParagraph->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $parsedParagraph->children));
+        $t->same('raw_html', $rawClosingTag->type);
+        $t->same('</custom-review>', $rawClosingTag->attr('html'));
+        $t->same('paragraph', $anchorParagraph->type);
+        $t->same('raw_html_inline', $anchorParagraph->children[0]->type);
+        $t->contains('<!-- wp:html -->' . "\n" . '<span data-review="commonmark-raw">' . "\n" . '*raw emphasis stays raw*', $blocks);
+        $t->contains('<p>After <strong>boundary</strong>.</p>', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '</custom-review>', $blocks);
+        $t->contains('<p><a href="http://foo.bar.baz">http://foo.bar.baz</a></p>', $blocks);
+    },
     'maps upstream markdown raw email and emoji extension cases' => static function (TestRunner $t): void {
         $rawEmailDocument = (new MarkdownReader())->read('**@user**');
         $emojiDocument = (new MarkdownReader())->read(':smile: and :+1:');

@@ -8192,6 +8192,10 @@ final class MarkdownReader
             return new AstNode('raw_html', ['html' => trim($line)]);
         }
 
+        if ($this->isCommonMarkGenericRawHtmlBlockStart($line)) {
+            return $this->readRawHtmlUntilBlankLine($lines, $index);
+        }
+
         return null;
     }
 
@@ -13172,6 +13176,22 @@ final class MarkdownReader
             'track',
             'ul',
         ], true);
+    }
+
+    private function isCommonMarkGenericRawHtmlBlockStart(string $line): bool
+    {
+        $expanded = $this->expandTabsToSpaces($line);
+        if (
+            preg_match('/^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)/', $expanded, $m) === 1
+            && strtolower($m[1]) === 'informaltable'
+        ) {
+            return false;
+        }
+
+        return preg_match(
+            '~^ {0,3}(?:<[A-Za-z][A-Za-z0-9-]*(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>|</[A-Za-z][A-Za-z0-9-]*\s*>)[ \t]*$~u',
+            $expanded
+        ) === 1;
     }
 
     private function rawHtmlLineSelfClosesTag(string $line, string $tag): bool
