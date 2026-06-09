@@ -4859,6 +4859,10 @@ final class TableGeometry
         $captionSide = trim((string) ($source['captionSide'] ?? ''));
         if ($captionSide !== '') {
             $record['captionSide'] = $captionSide;
+            $captionSideSource = trim((string) ($source['captionSideSource'] ?? ''));
+            if ($captionSideSource !== '') {
+                $record['captionSideSource'] = $captionSideSource;
+            }
             $record['captionSideSupported'] = self::captionSideSupported($captionSide);
             $captionPlacement = self::captionPlacementFromSide($captionSide);
             if ($captionPlacement !== '') {
@@ -6226,6 +6230,7 @@ final class TableGeometry
                 ? (int) $captions['long']['sourceChildIndex']
                 : null,
             'captionSide' => (string) ($captions['long']['captionSide'] ?? ''),
+            'captionSideSource' => (string) ($captions['long']['captionSideSource'] ?? ''),
             'captionSideSupported' => (bool) ($captions['long']['captionSideSupported'] ?? false),
             'captionSideReviewRequired' => (bool) ($captions['long']['captionSideReviewRequired'] ?? false),
             'captionPlacement' => (string) ($captions['long']['captionPlacement'] ?? ''),
@@ -10922,6 +10927,7 @@ final class TableGeometry
                     'sourcePosition' => (string) ($long['sourcePosition'] ?? ''),
                     'sourceChildIndex' => is_numeric($long['sourceChildIndex'] ?? null) ? (int) $long['sourceChildIndex'] : null,
                     'captionSide' => (string) ($long['captionSide'] ?? ''),
+                    'captionSideSource' => (string) ($long['captionSideSource'] ?? ''),
                     'captionSideSupported' => (bool) ($long['captionSideSupported'] ?? false),
                     'captionSideReviewRequired' => true,
                     'captionPlacement' => $captionPlacement,
@@ -10947,6 +10953,7 @@ final class TableGeometry
                     'sourcePosition' => (string) ($long['sourcePosition'] ?? ''),
                     'sourceChildIndex' => is_numeric($long['sourceChildIndex'] ?? null) ? (int) $long['sourceChildIndex'] : null,
                     'captionSide' => (string) ($long['captionSide'] ?? ''),
+                    'captionSideSource' => (string) ($long['captionSideSource'] ?? ''),
                     'captionPlacement' => $captionPlacement,
                 ];
             }
@@ -10974,6 +10981,7 @@ final class TableGeometry
                     'sourcePosition' => (string) ($long['sourcePosition'] ?? ''),
                     'sourceChildIndex' => is_numeric($long['sourceChildIndex'] ?? null) ? (int) $long['sourceChildIndex'] : null,
                     'captionSide' => (string) ($long['captionSide'] ?? ''),
+                    'captionSideSource' => (string) ($long['captionSideSource'] ?? ''),
                     'captionPlacement' => $captionPlacement,
                     'attributeCount' => count($attributes),
                     'attributes' => $attributes,

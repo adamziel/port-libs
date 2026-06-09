@@ -372,6 +372,90 @@ HTML;
         $t->true(!str_contains($blocks, 'onclick='), 'Unsafe caption event attributes must not render');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'uses legacy html caption align as caption-side fallback for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $topHtml = <<<'HTML'
+<table id="legacy-align-top-grid" data-source="html-reader">
+<caption id="legacy-align-top-caption" class="caption-title" data-origin="legacy-doc" align="top" onclick="blocked()">Legacy <em>top</em> caption</caption>
+<tbody><tr><th>Scope</th><td>Ready</td></tr></tbody>
+</table>
+HTML;
+        $sideHtml = <<<'HTML'
+<table id="legacy-align-side-grid" data-source="html-reader">
+<caption id="legacy-align-side-caption" class="caption-title" data-origin="legacy-doc" align="right" onclick="blocked()">Legacy <em>side</em> caption</caption>
+<tbody><tr><th>Scope</th><td>Ready</td></tr></tbody>
+</table>
+HTML;
+
+        $topDocument = (new MarkdownReader())->read($topHtml);
+        $topTable = $topDocument->children[0];
+        $topCaptionSource = $topTable->attr('captionSource');
+        $topPacket = $topTable->attr('tableGeometry');
+        $topBlocks = (new WordPressBlockWriter())->write($topDocument);
+
+        $t->same('Legacy top caption', $topTable->attr('caption'));
+        $t->same(true, is_array($topCaptionSource));
+        $topCaptionSource = is_array($topCaptionSource) ? $topCaptionSource : [];
+        $t->same('top', $topCaptionSource['captionSide'] ?? null);
+        $t->same('align', $topCaptionSource['captionSideSource'] ?? null);
+        $t->same('top', $topCaptionSource['sourceAttributes']['htmlAttributes']['align'] ?? null);
+        $t->same('legacy-doc', $topCaptionSource['sourceAttributes']['htmlAttributes']['data-origin'] ?? null);
+
+        $t->same(true, is_array($topPacket));
+        $topPacket = is_array($topPacket) ? $topPacket : [];
+        $t->same('top', $topPacket['captions']['long']['captionSide'] ?? null);
+        $t->same('align', $topPacket['captions']['long']['captionSideSource'] ?? null);
+        $t->same('align', $topPacket['summary']['captionSideSource'] ?? null);
+        $t->same('before-table', $topPacket['summary']['captionPlacement'] ?? null);
+        $t->same(true, $topPacket['summary']['captionBeforeTable'] ?? null);
+        $topMarkdownDiagnostics = $topPacket['writerDowngrades']['markdown'] ?? [];
+        $topSideDiagnostics = array_values(array_filter(
+            $topMarkdownDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-caption-side-reordered'
+        ));
+        $t->same(1, count($topSideDiagnostics));
+        $t->same('align', $topSideDiagnostics[0]['captionSideSource'] ?? null);
+        $t->same('top', $topSideDiagnostics[0]['captionSide'] ?? null);
+        $t->contains('<figcaption id="legacy-align-top-caption" class="wp-element-caption caption-title" data-origin="legacy-doc">Legacy <em>top</em> caption</figcaption><table id="legacy-align-top-grid" data-source="html-reader">', $topBlocks);
+        $t->true(!str_contains($topBlocks, 'align='), 'Legacy caption align should drive geometry without rendering obsolete figcaption align');
+        $t->true(!str_contains($topBlocks, 'onclick='), 'Unsafe legacy caption event attributes must not render');
+        json_encode($topPacket, JSON_THROW_ON_ERROR);
+
+        $sideDocument = (new MarkdownReader())->read($sideHtml);
+        $sideTable = $sideDocument->children[0];
+        $sideCaptionSource = $sideTable->attr('captionSource');
+        $sidePacket = $sideTable->attr('tableGeometry');
+        $sideBlocks = (new WordPressBlockWriter())->write($sideDocument);
+
+        $t->same('Legacy side caption', $sideTable->attr('caption'));
+        $t->same(true, is_array($sideCaptionSource));
+        $sideCaptionSource = is_array($sideCaptionSource) ? $sideCaptionSource : [];
+        $t->same('right', $sideCaptionSource['captionSide'] ?? null);
+        $t->same('align', $sideCaptionSource['captionSideSource'] ?? null);
+        $t->same('right', $sideCaptionSource['sourceAttributes']['htmlAttributes']['align'] ?? null);
+
+        $t->same(true, is_array($sidePacket));
+        $sidePacket = is_array($sidePacket) ? $sidePacket : [];
+        $t->same('right', $sidePacket['captions']['long']['captionSide'] ?? null);
+        $t->same('align', $sidePacket['captions']['long']['captionSideSource'] ?? null);
+        $t->same('align', $sidePacket['summary']['captionSideSource'] ?? null);
+        $t->same(false, $sidePacket['summary']['captionSideSupported'] ?? null);
+        $t->same(true, $sidePacket['summary']['captionSideReviewRequired'] ?? null);
+        $t->same('after-table', $sidePacket['summary']['captionPlacementFallback'] ?? null);
+        $sideMarkdownDiagnostics = $sidePacket['writerDowngrades']['markdown'] ?? [];
+        $sideReviewDiagnostics = array_values(array_filter(
+            $sideMarkdownDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-caption-side-review-required'
+        ));
+        $t->same(1, count($sideReviewDiagnostics));
+        $t->same('right', $sideReviewDiagnostics[0]['captionSide'] ?? null);
+        $t->same('align', $sideReviewDiagnostics[0]['captionSideSource'] ?? null);
+        $t->same('after-table', $sideReviewDiagnostics[0]['captionPlacementFallback'] ?? null);
+        $t->contains('<table id="legacy-align-side-grid" data-source="html-reader">', $sideBlocks);
+        $t->contains('</table><figcaption id="legacy-align-side-caption" class="wp-element-caption caption-title" data-origin="legacy-doc">Legacy <em>side</em> caption</figcaption>', $sideBlocks);
+        $t->true(!str_contains($sideBlocks, 'align='), 'Legacy side caption align should stay metadata-only in sanitized WordPress output');
+        $t->true(!str_contains($sideBlocks, 'onclick='), 'Unsafe legacy side caption event attributes must not render');
+        json_encode($sidePacket, JSON_THROW_ON_ERROR);
+    },
     'counts html row header colspans as visual row-head columns' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="visual-rowhead-grid" data-source="html-reader">

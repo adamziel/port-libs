@@ -1699,6 +1699,55 @@ $buildDirectCharacterFormattingDocStreams = static function () use ($buildExtend
     ];
 };
 
+$buildHiddenTextFormattingDocStreams = static function () use ($buildExtendedFibWordDocument, $u16, $u32): array {
+    $visiblePrefix = 'Visible intro ';
+    $hiddenRunText = 'hidden reviewer note ';
+    $visibleSuffix = "visible close\r";
+    $text = $visiblePrefix . $hiddenRunText . $visibleSuffix;
+    $wordDocument = $buildExtendedFibWordDocument($text);
+    $textStartFc = 768;
+    $hiddenRunStartFc = $textStartFc + strlen($visiblePrefix);
+    $hiddenRunEndFc = $hiddenRunStartFc + strlen($hiddenRunText);
+    $textEndFc = $textStartFc + strlen($text);
+
+    $chpxFkpPage = intdiv(strlen($wordDocument) + 511, 512);
+    $chpxFkpOffset = $chpxFkpPage * 512;
+    $hiddenGrpprl = $u16(0x083c) . "\x01";
+    $hiddenChpxOffset = 64;
+    $chpxFkp = str_repeat("\0", 512);
+    $chpxFkp = substr_replace(
+        $chpxFkp,
+        $u32($textStartFc) . $u32($hiddenRunStartFc) . $u32($hiddenRunEndFc) . $u32($textEndFc),
+        0,
+        16
+    );
+    $chpxFkp = substr_replace(
+        $chpxFkp,
+        "\0" . chr(intdiv($hiddenChpxOffset, 2)) . "\0",
+        16,
+        3
+    );
+    $chpxFkp = substr_replace($chpxFkp, chr(strlen($hiddenGrpprl)) . $hiddenGrpprl, $hiddenChpxOffset, 1 + strlen($hiddenGrpprl));
+    $chpxFkp = substr_replace($chpxFkp, chr(3), 511, 1);
+    $wordDocument = str_pad($wordDocument, $chpxFkpOffset, "\0") . $chpxFkp;
+
+    $plcBteChpx = $u32($textStartFc)
+        . $u32($hiddenRunStartFc)
+        . $u32($hiddenRunEndFc)
+        . $u32($textEndFc)
+        . $u32($chpxFkpPage)
+        . $u32($chpxFkpPage)
+        . $u32($chpxFkpPage);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x00fa, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBteChpx)), 0x00fe, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $plcBteChpx,
+        'hiddenRunText' => $hiddenRunText,
+    ];
+};
+
 $buildRevisionMarkedFormattingDocStreams = static function (int $insertedAuthorIndex = 1, int $deletedAuthorIndex = 2) use ($buildExtendedFibWordDocument, $sttbUnicode, $u16, $u32, $dttm): array {
     $firstRunText = "Inserted review\r";
     $secondRunText = "Deleted review\r";
@@ -5982,6 +6031,66 @@ return [
         foreach (['sprmCFBold', 'sprmCFItalic', 'sprmCKul', 'sprmCFVanish', 'metadata-only-native-review'] as $metadataText) {
             $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into WordPress blocks');
             $t->true(!str_contains($markdown, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into Markdown');
+        }
+    },
+    'suppresses legacy DOC CHPX hidden text while preserving review metadata' => static function (TestRunner $t) use ($buildCfb, $buildHiddenTextFormattingDocStreams): void {
+        $streams = $buildHiddenTextFormattingDocStreams();
+        $hiddenRunText = (string) $streams['hiddenRunText'];
+        unset($streams['hiddenRunText']);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb($streams));
+        $document = $result['document'];
+        $runs = $result['formattingRuns'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(3, $metadata['formattingRunCount']);
+        $t->same(3, $metadata['characterFormattingRunCount']);
+        $t->same(1, $metadata['textPropertyFormattingRunCount']);
+        $t->same('metadata-only-native-review', $metadata['textPropertyFormattingPolicy']);
+        $t->same(1, $metadata['hiddenTextSuppressionCount']);
+        $t->same(strlen($hiddenRunText), $metadata['hiddenTextSuppressedCharacterCount']);
+        $t->same('suppressed-hidden-text-native-review', $metadata['hiddenTextSuppressionPolicy']);
+        $t->same($result['hiddenTextSuppressions'], $document->attr('hiddenTextSuppressions'));
+        $t->same([
+            [
+                'source' => 'ChpxFkp',
+                'formattingRunIndex' => 2,
+                'cpStart' => 14,
+                'cpEnd' => 35,
+                'characterCount' => 21,
+                'sourceSprms' => ['sprmCFVanish'],
+                'policy' => 'suppressed-hidden-text-native-review',
+            ],
+        ], $result['hiddenTextSuppressions']);
+
+        $hidden = $runs[1];
+        $t->same('character', $hidden['kind']);
+        $t->same(782, $hidden['startFc']);
+        $t->same(803, $hidden['endFc']);
+        $t->same(false, $hidden['canApplyFormatting']);
+        $t->same(1, $hidden['textPropertyCount']);
+        $t->same([
+            [
+                'name' => 'hidden',
+                'source' => 'ChpxFkp',
+                'sourceSprm' => 'sprmCFVanish',
+                'rawOperand' => 1,
+                'state' => 'on',
+                'enabled' => true,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+        ], $hidden['textProperties']);
+
+        $t->same(['text', 'text'], array_map(static fn (AstNode $node): string => $node->type, $document->children[0]->children));
+        $t->same('Visible intro ', $document->children[0]->children[0]->attr('text'));
+        $t->same('visible close', $document->children[0]->children[1]->attr('text'));
+        $t->contains('<p>Visible intro visible close</p>', $blocks);
+        $t->contains('Visible intro visible close', $markdown);
+        foreach ([$hiddenRunText, 'sprmCFVanish', 'suppressed-hidden-text-native-review'] as $hiddenText) {
+            $t->true(!str_contains($blocks, $hiddenText), 'Legacy DOC hidden text and suppression metadata should not render into WordPress blocks');
+            $t->true(!str_contains($markdown, $hiddenText), 'Legacy DOC hidden text and suppression metadata should not render into Markdown');
         }
     },
     'links legacy DOC CHPX revision-mark runs to SttbfRMark authors for review' => static function (TestRunner $t) use ($buildCfb, $buildRevisionMarkedFormattingDocStreams): void {

@@ -289,6 +289,77 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected javascript URLs to be stripped from extended attributes');
         $t->true(!str_contains($html, 'background="mailto:'), 'Expected mailto image-fetch URL to be stripped');
     },
+    'converts anchor target and download attributes into inert reviewer metadata' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<p>'
+            . '<a href="./source.html" target=" Review_Frame " download=" source-copy.html " ping="https://tracker.example.test/ping">Download source</a>'
+            . '<a href="./blank.html" target="_blank" download>Blank download</a>'
+            . '<a href="./bad.html" target="review&#10;<frame" download="bad&lt;file">Bad metadata</a>'
+            . '<a href="javascript:alert(1)" target="_self" download="bad.html">Bad link</a>'
+            . '</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/anchor-browsing-download-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $expected = '<p>'
+            . '<a href="https://source.example.test/import/posts/source.html" data-pandoc-link-target="Review_Frame" data-pandoc-link-download="source-copy.html">Download source</a>'
+            . '<a href="https://source.example.test/import/posts/blank.html" data-pandoc-link-target="_blank" data-pandoc-link-download="true">Blank download</a>'
+            . '<a href="https://source.example.test/import/posts/bad.html">Bad metadata</a>'
+            . '<a data-pandoc-link-target="_self" data-pandoc-link-download="bad.html">Bad link</a>'
+            . '</p>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Download sourceBlank downloadBad metadataBad link', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['download', 'href', 'ping', 'target'], $summary['filteredAttributes']);
+        $t->same([
+            'blocked-tag',
+            'link-browsing-review',
+            'link-browsing-review',
+            'unsafe-attribute',
+            'link-browsing-review',
+            'link-browsing-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'unsafe-url',
+            'link-browsing-review',
+            'link-browsing-review',
+        ], $policyDiagnostics);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/source.html',
+            'data-pandoc-link-target' => 'Review_Frame',
+            'data-pandoc-link-download' => 'source-copy.html',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/blank.html',
+            'data-pandoc-link-target' => '_blank',
+            'data-pandoc-link-download' => 'true',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same(['href' => 'https://source.example.test/import/posts/bad.html'], $nodes[0]['children'][2]['attrs']);
+        $t->same([
+            'data-pandoc-link-target' => '_self',
+            'data-pandoc-link-download' => 'bad.html',
+        ], $nodes[0]['children'][3]['attrs']);
+        $t->same('/migration/anchor-browsing-download-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' target=', ' download=', ' ping=', 'review&lt;frame', 'bad&lt;file', 'javascript:', 'tracker.example.test'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected anchor side-effect source to stay out of review HTML: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to omit anchor side-effect source: ' . $blocked);
+        }
+    },
     'normalizes control-separated URL attributes before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href=" https://source.example.test/import/posts/post.html ">'
@@ -5041,7 +5112,7 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $expected = '<p>'
-            . '<a href="https://source.example.test/import/posts/packet.html" rel="noopener noreferrer">packet</a>'
+            . '<a href="https://source.example.test/import/posts/packet.html" data-pandoc-link-target="_blank" rel="noopener noreferrer" data-pandoc-link-download="packet.html">packet</a>'
             . '<a href="https://source.example.test/import/posts/safe.html" rel="author tag">safe</a>'
             . '<a href="https://source.example.test/import/posts/map.html" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-alt="map" rel="nofollow">map</a>'
             . '</p>';
@@ -5057,11 +5128,13 @@ return [
         $t->same(['a', 'p'], $summary['elementNames']);
         $t->same(['area', 'base', 'map'], $summary['blockedTags']);
         $t->same(['download', 'rel', 'target'], $summary['filteredAttributes']);
-        $t->same(['blocked-tag', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'blocked-tag', 'blocked-tag', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same(['blocked-tag', 'link-browsing-review', 'unsafe-attribute', 'link-browsing-review', 'blocked-tag', 'blocked-tag', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
         $t->same('p', $nodes[0]['name']);
         $t->same([
             'href' => 'https://source.example.test/import/posts/packet.html',
+            'data-pandoc-link-target' => '_blank',
             'rel' => 'noopener noreferrer',
+            'data-pandoc-link-download' => 'packet.html',
         ], $nodes[0]['children'][0]['attrs']);
         $t->same([
             'href' => 'https://source.example.test/import/posts/safe.html',
@@ -5076,13 +5149,13 @@ return [
         ], $nodes[0]['children'][2]['attrs']);
         $t->same('/migration/navigation-side-effect-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
-        $t->true(!str_contains($html, 'target='), 'Expected browsing-context targets to be stripped');
-        $t->true(!str_contains($html, 'download='), 'Expected download side effects to be stripped');
+        $t->true(!str_contains($html, ' target='), 'Expected live browsing-context targets to be stripped');
+        $t->true(!str_contains($html, ' download='), 'Expected live download side effects to be stripped');
         $t->true(!str_contains($html, '<map'), 'Expected live image map wrapper to be stripped');
         $t->true(!str_contains($html, '<area'), 'Expected live image map area to be converted into an inert reviewer link');
         $t->same(0, preg_match('/(?:^|[\s"])opener(?:[\s"]|$)/', $html), 'Expected opener rel tokens to be stripped');
-        $t->true(!str_contains($blocks, 'target='), 'Expected WordPress blocks to omit target attributes');
-        $t->true(!str_contains($blocks, 'download='), 'Expected WordPress blocks to omit download attributes');
+        $t->true(!str_contains($blocks, ' target='), 'Expected WordPress blocks to omit live target attributes');
+        $t->true(!str_contains($blocks, ' download='), 'Expected WordPress blocks to omit live download attributes');
     },
     'converts element referrer policies into inert reviewer metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(

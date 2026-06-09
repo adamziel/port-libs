@@ -575,6 +575,24 @@ $sideCaptionTables = array_values(array_filter(
     $sideCaptionDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$legacyCaptionAlignDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="legacy-caption-align-top-grid" data-source="html-reader">
+<caption id="legacy-caption-align-top" class="caption-title" data-origin="legacy-doc" align="top" onclick="blocked()">Legacy <em>top</em> align caption</caption>
+<tbody>
+<tr><th>Scope</th><td>Ready</td></tr>
+</tbody>
+</table>
+<table id="legacy-caption-align-side-grid" data-source="html-reader">
+<caption id="legacy-caption-align-side" class="caption-title" data-origin="legacy-doc" align="right" onclick="blocked()">Legacy <em>side</em> align caption</caption>
+<tbody>
+<tr><th>Scope</th><td>Review</td></tr>
+</tbody>
+</table>
+HTML);
+$legacyCaptionAlignTables = array_values(array_filter(
+    $legacyCaptionAlignDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $summarySourceDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="summary-source-grid" summary="Legacy source table describes post counts by import state." data-source="html-reader">
 <caption>Summary source review</caption>
@@ -1710,6 +1728,7 @@ $document = new AstNode('document', [], [
     ...$multiBodyRowHeadTables,
     ...$captionSourceTables,
     ...$sideCaptionTables,
+    ...$legacyCaptionAlignTables,
     ...$axisSourceTables,
     ...$autoScopeTables,
     ...$captionMetadataTables,
@@ -4241,6 +4260,55 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing sanitized side caption WordPress fallback output');
     }
     json_encode($sideCaptionPacket, JSON_THROW_ON_ERROR);
+
+    $legacyCaptionAlignTopTable = null;
+    $legacyCaptionAlignSideTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type !== 'table') {
+            continue;
+        }
+
+        if ($node->attr('caption') === 'Legacy top align caption') {
+            $legacyCaptionAlignTopTable = $node;
+        } elseif ($node->attr('caption') === 'Legacy side align caption') {
+            $legacyCaptionAlignSideTable = $node;
+        }
+    }
+    $legacyCaptionAlignTopPacket = $legacyCaptionAlignTopTable instanceof AstNode ? $legacyCaptionAlignTopTable->attr('tableGeometry') : null;
+    $legacyCaptionAlignSidePacket = $legacyCaptionAlignSideTable instanceof AstNode ? $legacyCaptionAlignSideTable->attr('tableGeometry') : null;
+    $legacyCaptionAlignSideMarkdown = is_array($legacyCaptionAlignSidePacket)
+        ? array_values(array_filter(
+            $legacyCaptionAlignSidePacket['writerDowngrades']['markdown'] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-caption-side-review-required'
+        ))
+        : [];
+    if (
+        !is_array($legacyCaptionAlignTopPacket)
+        || ($legacyCaptionAlignTopPacket['summary']['captionSide'] ?? null) !== 'top'
+        || ($legacyCaptionAlignTopPacket['summary']['captionSideSource'] ?? null) !== 'align'
+        || ($legacyCaptionAlignTopPacket['summary']['captionBeforeTable'] ?? null) !== true
+        || ($legacyCaptionAlignTopPacket['captions']['long']['sourceAttributes']['htmlAttributes']['align'] ?? null) !== 'top'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing legacy caption align top placement metadata');
+    }
+    if (
+        !is_array($legacyCaptionAlignSidePacket)
+        || ($legacyCaptionAlignSidePacket['summary']['captionSide'] ?? null) !== 'right'
+        || ($legacyCaptionAlignSidePacket['summary']['captionSideSource'] ?? null) !== 'align'
+        || ($legacyCaptionAlignSidePacket['summary']['captionSideReviewRequired'] ?? null) !== true
+        || ($legacyCaptionAlignSidePacket['summary']['captionPlacementFallback'] ?? null) !== 'after-table'
+        || ($legacyCaptionAlignSideMarkdown[0]['captionSideSource'] ?? null) !== 'align'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing legacy caption align side review metadata');
+    }
+    if (
+        !str_contains($blocks, '<figcaption id="legacy-caption-align-top" class="wp-element-caption caption-title" data-origin="legacy-doc">Legacy <em>top</em> align caption</figcaption><table id="legacy-caption-align-top-grid" data-source="html-reader">')
+        || !str_contains($blocks, '</table><figcaption id="legacy-caption-align-side" class="wp-element-caption caption-title" data-origin="legacy-doc">Legacy <em>side</em> align caption</figcaption>')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for legacy caption align placement');
+    }
+    json_encode($legacyCaptionAlignTopPacket, JSON_THROW_ON_ERROR);
+    json_encode($legacyCaptionAlignSidePacket, JSON_THROW_ON_ERROR);
 
     $summarySourceTable = $summarySourceTables[0] ?? null;
     $summarySourcePacket = $summarySourceTable instanceof AstNode ? $summarySourceTable->attr('tableGeometry') : null;

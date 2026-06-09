@@ -209,6 +209,9 @@ final class LegacyDocReader
     /** @var list<array<string,mixed>> */
     private array $activeInlineTextFormattingApplications = [];
 
+    /** @var list<array<string,mixed>> */
+    private array $activeHiddenTextSuppressions = [];
+
     /**
      * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, formFieldDataReferences:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, mailMergeSettings:array<string,mixed>, routeSlip:array<string,mixed>}
      */
@@ -536,6 +539,15 @@ final class LegacyDocReader
             $metadata['inlineTextFormattingApplicationCount'] = count($inlineTextFormattingApplications);
             $metadata['inlineTextFormattingPolicy'] = 'semantic-inline-native-review';
         }
+        $hiddenTextSuppressions = $this->hiddenTextSuppressionApplications($formattingRuns, $fileCharacterRanges);
+        if ($hiddenTextSuppressions !== []) {
+            $metadata['hiddenTextSuppressionCount'] = count($hiddenTextSuppressions);
+            $metadata['hiddenTextSuppressedCharacterCount'] = array_sum(array_map(
+                static fn (array $suppression): int => (int) ($suppression['characterCount'] ?? 0),
+                $hiddenTextSuppressions
+            ));
+            $metadata['hiddenTextSuppressionPolicy'] = 'suppressed-hidden-text-native-review';
+        }
         $formFieldDataReferences = $this->formFieldDataReferenceReport($fields, $formattingRuns, $dataStream, $fileCharacterRanges);
         if ($formFieldDataReferences !== []) {
             $metadata['formFieldDataReferenceCount'] = count($formFieldDataReferences);
@@ -603,6 +615,7 @@ final class LegacyDocReader
             'fieldStories' => $fieldStories,
             'formFieldDataReferences' => $formFieldDataReferences,
             'inlineTextFormattingApplications' => $inlineTextFormattingApplications,
+            'hiddenTextSuppressions' => $hiddenTextSuppressions,
             'embeddedObjects' => $embeddedObjects,
             'embeddedObjectReferences' => $embeddedObjectReferences,
             'pictureReferences' => $pictureReferences,
@@ -623,12 +636,14 @@ final class LegacyDocReader
         $previousListOverrides = $this->activeListOverrides;
         $previousFormFieldDataReferences = $this->activeFormFieldDataReferences;
         $previousInlineTextFormattingApplications = $this->activeInlineTextFormattingApplications;
+        $previousHiddenTextSuppressions = $this->activeHiddenTextSuppressions;
         $this->activeAssociatedStrings = $associatedStrings;
         $this->activeExternalFileReferences = $externalFileReferences;
         $this->activeListFormats = $listFormats;
         $this->activeListOverrides = $listOverrides;
         $this->activeFormFieldDataReferences = $this->formFieldDataReferencesByBeginCp($formFieldDataReferences);
         $this->activeInlineTextFormattingApplications = $inlineTextFormattingApplications;
+        $this->activeHiddenTextSuppressions = $hiddenTextSuppressions;
         try {
             $documentChildren = $this->paragraphNodes(
                 $textResult['text'],
@@ -644,6 +659,7 @@ final class LegacyDocReader
             $this->activeListOverrides = $previousListOverrides;
             $this->activeFormFieldDataReferences = $previousFormFieldDataReferences;
             $this->activeInlineTextFormattingApplications = $previousInlineTextFormattingApplications;
+            $this->activeHiddenTextSuppressions = $previousHiddenTextSuppressions;
         }
 
         return [
@@ -672,6 +688,7 @@ final class LegacyDocReader
             'fields' => $fields,
             'fieldStories' => $fieldStories,
             'formFieldDataReferences' => $formFieldDataReferences,
+            'hiddenTextSuppressions' => $hiddenTextSuppressions,
             'embeddedObjects' => $embeddedObjects,
             'embeddedObjectReferences' => $embeddedObjectReferences,
             'pictureReferences' => $pictureReferences,
@@ -1592,14 +1609,17 @@ final class LegacyDocReader
                 $paragraphStartCp += $paragraphLength + 1;
                 continue;
             }
-            $nodes[] = new AstNode('paragraph', [], $this->inlineNodesWithBookmarks(
+            $paragraphChildren = $this->inlineNodesWithBookmarks(
                 $paragraph,
                 $paragraphStartCp,
                 $bookmarks,
                 $noteReferences,
                 $objectReferences,
                 $pictureReferences
-            ));
+            );
+            if ($paragraphChildren !== []) {
+                $nodes[] = new AstNode('paragraph', [], $paragraphChildren);
+            }
             $paragraphStartCp += $paragraphLength + 1;
         }
 
@@ -3481,6 +3501,100 @@ final class LegacyDocReader
      */
     private function formattedPlainTextNodes(string $text, int $segmentStartCp): array
     {
+        if ($this->activeInlineTextFormattingApplications === [] && $this->activeHiddenTextSuppressions === []) {
+            return [new AstNode('text', ['text' => $text])];
+        }
+
+        $nodes = [];
+        foreach ($this->visiblePlainTextSlices($text, $segmentStartCp) as $slice) {
+            array_push(
+                $nodes,
+                ...$this->formattedVisiblePlainTextNodes(
+                    (string) $slice['text'],
+                    (int) $slice['startCp']
+                )
+            );
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<array{text:string,startCp:int}>
+     */
+    private function visiblePlainTextSlices(string $text, int $segmentStartCp): array
+    {
+        if ($this->activeHiddenTextSuppressions === []) {
+            return [['text' => $text, 'startCp' => $segmentStartCp]];
+        }
+
+        $characters = $this->unicodeCharacters($text);
+        $segmentLength = count($characters);
+        if ($segmentLength === 0) {
+            return [];
+        }
+
+        $segmentEndCp = $segmentStartCp + $segmentLength;
+        $hiddenRanges = [];
+        foreach ($this->activeHiddenTextSuppressions as $suppression) {
+            $startCp = max((int) ($suppression['cpStart'] ?? 0), $segmentStartCp);
+            $endCp = min((int) ($suppression['cpEnd'] ?? 0), $segmentEndCp);
+            if ($endCp <= $startCp) {
+                continue;
+            }
+
+            $hiddenRanges[] = [
+                'start' => $startCp - $segmentStartCp,
+                'end' => $endCp - $segmentStartCp,
+            ];
+        }
+        if ($hiddenRanges === []) {
+            return [['text' => $text, 'startCp' => $segmentStartCp]];
+        }
+
+        usort(
+            $hiddenRanges,
+            static function (array $left, array $right): int {
+                $start = ((int) $left['start']) <=> ((int) $right['start']);
+                if ($start !== 0) {
+                    return $start;
+                }
+
+                return ((int) $left['end']) <=> ((int) $right['end']);
+            }
+        );
+
+        $slices = [];
+        $cursor = 0;
+        foreach ($hiddenRanges as $range) {
+            $start = max($cursor, (int) $range['start']);
+            $end = min($segmentLength, (int) $range['end']);
+            if ($start > $cursor) {
+                $slices[] = [
+                    'text' => $this->charactersToString(array_slice($characters, $cursor, $start - $cursor)),
+                    'startCp' => $segmentStartCp + $cursor,
+                ];
+            }
+            if ($end > $cursor) {
+                $cursor = $end;
+            }
+        }
+
+        if ($cursor < $segmentLength) {
+            $slices[] = [
+                'text' => $this->charactersToString(array_slice($characters, $cursor)),
+                'startCp' => $segmentStartCp + $cursor,
+            ];
+        }
+
+        return $slices;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function formattedVisiblePlainTextNodes(string $text, int $segmentStartCp): array
+    {
         if ($this->activeInlineTextFormattingApplications === []) {
             return [new AstNode('text', ['text' => $text])];
         }
@@ -4347,6 +4461,71 @@ final class LegacyDocReader
                 'nodeTypes' => $nodeTypes,
                 'sourceSprms' => array_values(array_unique($sourceSprms)),
                 'policy' => 'semantic-inline-native-review',
+            ];
+        }
+
+        usort(
+            $applications,
+            static function (array $left, array $right): int {
+                $start = ((int) $left['cpStart']) <=> ((int) $right['cpStart']);
+                if ($start !== 0) {
+                    return $start;
+                }
+
+                return ((int) $left['cpEnd']) <=> ((int) $right['cpEnd']);
+            }
+        );
+
+        return $applications;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $formattingRuns
+     * @param list<array<string,int>> $fileCharacterRanges
+     * @return list<array<string,mixed>>
+     */
+    private function hiddenTextSuppressionApplications(array $formattingRuns, array $fileCharacterRanges): array
+    {
+        $applications = [];
+        foreach ($formattingRuns as $run) {
+            if (($run['kind'] ?? null) !== 'character' || !is_array($run['textProperties'] ?? null)) {
+                continue;
+            }
+
+            $hiddenProperties = array_values(array_filter(
+                $run['textProperties'],
+                static fn (mixed $property): bool => is_array($property)
+                    && ($property['name'] ?? null) === 'hidden'
+                    && ($property['enabled'] ?? false) === true
+            ));
+            if ($hiddenProperties === []) {
+                continue;
+            }
+
+            $cpRange = $this->characterRangeForFileOffsets(
+                (int) ($run['startFc'] ?? -1),
+                (int) ($run['endFc'] ?? -1),
+                $fileCharacterRanges
+            );
+            if ($cpRange === null || $cpRange['cpEnd'] <= $cpRange['cpStart']) {
+                continue;
+            }
+
+            $sourceSprms = [];
+            foreach ($hiddenProperties as $property) {
+                if (isset($property['sourceSprm'])) {
+                    $sourceSprms[] = (string) $property['sourceSprm'];
+                }
+            }
+
+            $applications[] = [
+                'source' => 'ChpxFkp',
+                'formattingRunIndex' => (int) ($run['index'] ?? 0),
+                'cpStart' => $cpRange['cpStart'],
+                'cpEnd' => $cpRange['cpEnd'],
+                'characterCount' => $cpRange['cpEnd'] - $cpRange['cpStart'],
+                'sourceSprms' => array_values(array_unique($sourceSprms)),
+                'policy' => 'suppressed-hidden-text-native-review',
             ];
         }
 

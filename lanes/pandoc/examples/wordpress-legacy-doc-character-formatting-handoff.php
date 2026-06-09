@@ -57,8 +57,9 @@ $unallocatedDirectoryEntry = static function () use ($u32): string {
 };
 $buildCharacterFormattingDoc = static function () use ($u16, $u32, $padTo): array {
     $formattedRunText = 'Formatted review';
+    $hiddenRunText = ' hidden reviewer note';
     $plainRunText = " plain import\r";
-    $text = $formattedRunText . $plainRunText;
+    $text = $formattedRunText . $hiddenRunText . $plainRunText;
     $textBytes = iconv('UTF-8', 'Windows-1252//TRANSLIT', $text);
     if (!is_string($textBytes)) {
         throw new RuntimeException('Unable to encode simple WordDocument fixture text');
@@ -67,6 +68,7 @@ $buildCharacterFormattingDoc = static function () use ($u16, $u32, $padTo): arra
     $fibSize = 768;
     $textStartFc = $fibSize;
     $formattedRunEndFc = $textStartFc + strlen($formattedRunText);
+    $hiddenRunEndFc = $formattedRunEndFc + strlen($hiddenRunText);
     $textEndFc = $textStartFc + strlen($textBytes);
     $wordDocument = str_repeat("\0", $fibSize) . $textBytes;
     $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
@@ -77,32 +79,37 @@ $buildCharacterFormattingDoc = static function () use ($u16, $u32, $padTo): arra
     $formattedGrpprl = $u16(0x0835) . "\x01"
         . $u16(0x0836) . "\x01"
         . $u16(0x2a3e) . "\x01";
+    $hiddenGrpprl = $u16(0x083c) . "\x01";
     $plainGrpprl = $u16(0x083c) . "\x00";
     $chpxFkpPage = intdiv(strlen($wordDocument) + 511, 512);
     $chpxFkpOffset = $chpxFkpPage * 512;
     $formattedChpxOffset = 64;
     $plainChpxOffset = 96;
+    $hiddenChpxOffset = 128;
     $chpxFkp = str_repeat("\0", 512);
     $chpxFkp = substr_replace(
         $chpxFkp,
-        $u32($textStartFc) . $u32($formattedRunEndFc) . $u32($textEndFc),
+        $u32($textStartFc) . $u32($formattedRunEndFc) . $u32($hiddenRunEndFc) . $u32($textEndFc),
         0,
-        12
+        16
     );
     $chpxFkp = substr_replace(
         $chpxFkp,
-        chr(intdiv($formattedChpxOffset, 2)) . chr(intdiv($plainChpxOffset, 2)),
-        12,
-        2
+        chr(intdiv($formattedChpxOffset, 2)) . chr(intdiv($hiddenChpxOffset, 2)) . chr(intdiv($plainChpxOffset, 2)),
+        16,
+        3
     );
     $chpxFkp = substr_replace($chpxFkp, chr(strlen($formattedGrpprl)) . $formattedGrpprl, $formattedChpxOffset, 1 + strlen($formattedGrpprl));
+    $chpxFkp = substr_replace($chpxFkp, chr(strlen($hiddenGrpprl)) . $hiddenGrpprl, $hiddenChpxOffset, 1 + strlen($hiddenGrpprl));
     $chpxFkp = substr_replace($chpxFkp, chr(strlen($plainGrpprl)) . $plainGrpprl, $plainChpxOffset, 1 + strlen($plainGrpprl));
-    $chpxFkp = substr_replace($chpxFkp, chr(2), 511, 1);
+    $chpxFkp = substr_replace($chpxFkp, chr(3), 511, 1);
     $wordDocument = str_pad($wordDocument, $chpxFkpOffset, "\0") . $chpxFkp;
 
     $plcBteChpx = $u32($textStartFc)
         . $u32($formattedRunEndFc)
+        . $u32($hiddenRunEndFc)
         . $u32($textEndFc)
+        . $u32($chpxFkpPage)
         . $u32($chpxFkpPage)
         . $u32($chpxFkpPage);
     $wordDocument = substr_replace($wordDocument, $u32(0), 0x00fa, 4);
@@ -183,7 +190,7 @@ $summary = [
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
-    if (($result['metadata']['textPropertyFormattingRunCount'] ?? null) !== 2) {
+    if (($result['metadata']['textPropertyFormattingRunCount'] ?? null) !== 3) {
         throw new RuntimeException('Legacy DOC character-formatting smoke missing text-property run count');
     }
     $properties = $result['formattingRuns'][0]['textProperties'] ?? [];
@@ -195,13 +202,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['metadata']['inlineTextFormattingApplicationCount'] ?? null) !== 1) {
         throw new RuntimeException('Legacy DOC character-formatting smoke missing inline formatting application count');
     }
+    if (($result['metadata']['hiddenTextSuppressionCount'] ?? null) !== 1 || ($result['metadata']['hiddenTextSuppressionPolicy'] ?? null) !== 'suppressed-hidden-text-native-review') {
+        throw new RuntimeException('Legacy DOC character-formatting smoke missing hidden text suppression metadata');
+    }
     if (($result['formattingRuns'][0]['inlineFormattingPolicy'] ?? null) !== 'semantic-inline-native-review') {
         throw new RuntimeException('Legacy DOC character-formatting smoke missing semantic inline policy');
     }
     if (!str_contains($blocks, '<p><strong><em><u>Formatted review</u></em></strong> plain import</p>')) {
         throw new RuntimeException('Legacy DOC character-formatting smoke missing semantic WordPress formatting');
     }
-    foreach (['sprmCFBold', 'sprmCFItalic', 'sprmCKul', 'sprmCFVanish', 'metadata-only-native-review'] as $hidden) {
+    foreach (['hidden reviewer note', 'sprmCFBold', 'sprmCFItalic', 'sprmCKul', 'sprmCFVanish', 'metadata-only-native-review', 'suppressed-hidden-text-native-review'] as $hidden) {
         if (str_contains($blocks, $hidden)) {
             throw new RuntimeException('Legacy DOC character-formatting smoke rendered metadata into blocks: ' . $hidden);
         }

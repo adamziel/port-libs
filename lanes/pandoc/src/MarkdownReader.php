@@ -9784,9 +9784,10 @@ final class MarkdownReader
             $record['position'] = $this->htmlTableCaptionPosition($table, $childIndex);
         }
 
-        $captionSide = $this->htmlTableCaptionSide($caption);
-        if ($captionSide !== '') {
-            $record['captionSide'] = $captionSide;
+        $captionSide = $this->htmlTableCaptionSideRecord($caption);
+        if ($captionSide !== []) {
+            $record['captionSide'] = $captionSide['side'];
+            $record['captionSideSource'] = $captionSide['source'];
         }
 
         $sourceAttributes = $this->htmlElementPandocAttrs($caption);
@@ -9845,18 +9846,28 @@ final class MarkdownReader
         return 'between-table-sections';
     }
 
-    private function htmlTableCaptionSide(\DOMElement $caption): string
+    /**
+     * @return array{side:string, source:string}|array{}
+     */
+    private function htmlTableCaptionSideRecord(\DOMElement $caption): array
     {
         $style = $caption->getAttribute('style');
-        if ($style === '') {
-            return '';
+        if ($style !== '' && preg_match('/(?:^|;)\s*caption-side\s*:\s*([a-z-]+)/i', $style, $match) === 1) {
+            return [
+                'side' => strtolower($match[1]),
+                'source' => 'style',
+            ];
         }
 
-        if (preg_match('/(?:^|;)\s*caption-side\s*:\s*([a-z-]+)/i', $style, $match) !== 1) {
-            return '';
+        $align = strtolower(trim($caption->getAttribute('align')));
+        if (in_array($align, ['top', 'bottom', 'left', 'right'], true)) {
+            return [
+                'side' => $align,
+                'source' => 'align',
+            ];
         }
 
-        return strtolower($match[1]);
+        return [];
     }
 
     /**

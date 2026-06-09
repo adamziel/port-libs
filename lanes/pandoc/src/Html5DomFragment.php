@@ -246,7 +246,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review', 'link-browsing-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -6084,6 +6084,19 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && $foreignContext === null && strtolower($tagName) === 'a' && self::isHtmlAnchorBrowsingMetadataAttribute($name)) {
+                $linkBrowsingMetadata = self::normalizeHtmlAnchorBrowsingMetadataAttribute(
+                    $name,
+                    $value,
+                    $element,
+                    $diagnostics
+                );
+                foreach ($linkBrowsingMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isBlockedAttribute($name, $foreignContext)) {
                 $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
@@ -8583,6 +8596,91 @@ final class Html5DomFragment
         }
 
         return $normalized === [] ? null : implode(' ', $normalized);
+    }
+
+    private static function isHtmlAnchorBrowsingMetadataAttribute(string $name): bool
+    {
+        return in_array(strtolower($name), ['download', 'target'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlAnchorBrowsingMetadataAttribute(
+        string $name,
+        string $value,
+        \DOMElement $element,
+        array &$diagnostics
+    ): array {
+        $attribute = strtolower($name);
+        if ($attribute === 'target') {
+            $target = self::normalizeHtmlFormTargetAttribute($value);
+            if ($target === null) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'a',
+                    'attribute' => 'target',
+                    'reason' => 'invalid-link-browsing-target',
+                ], $element);
+
+                return [];
+            }
+
+            self::addHtmlAnchorBrowsingMetadataDiagnostic($diagnostics, $element, 'target', 'data-pandoc-link-target');
+
+            return ['data-pandoc-link-target' => $target];
+        }
+
+        $download = self::normalizeHtmlAnchorDownloadAttribute($value);
+        if ($download === null) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'a',
+                'attribute' => 'download',
+                'reason' => 'invalid-link-download-filename',
+            ], $element);
+
+            return [];
+        }
+
+        self::addHtmlAnchorBrowsingMetadataDiagnostic($diagnostics, $element, 'download', 'data-pandoc-link-download');
+
+        return ['data-pandoc-link-download' => $download];
+    }
+
+    private static function normalizeHtmlAnchorDownloadAttribute(string $value): ?string
+    {
+        $download = self::cleanHtmlMetadataAttribute($value);
+        if ($download === '') {
+            return 'true';
+        }
+        if (strlen($download) > 180 || preg_match('/[\x00-\x1F\x7F]/u', $download) === 1) {
+            return null;
+        }
+        if (strpbrk($download, '<>"\'`{}\\/') !== false) {
+            return null;
+        }
+
+        return $download;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlAnchorBrowsingMetadataDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attributeName,
+        string $metadataAttribute
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'link-browsing-review',
+            'tag' => 'a',
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'anchor-browsing-metadata-preserved-as-review-metadata',
+        ], $element);
     }
 
     private static function isHtmlResponsiveImageMetadataAttribute(string $tagName, string $name): bool
