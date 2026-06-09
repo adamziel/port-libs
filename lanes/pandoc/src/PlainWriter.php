@@ -31,6 +31,8 @@ final class PlainWriter
      *     maxOutputDisplayWidth:int,
      *     hardBreakCount:int,
      *     softBreakOpportunityCount:int,
+     *     protectedSeparatorCount:int,
+     *     lineEndingNormalizationCount:int,
      *     blocks:list<array{
      *       blockIndex:int,
      *       blockType:string,
@@ -38,7 +40,9 @@ final class PlainWriter
      *       outputLineCount:int,
      *       maxSourceDisplayWidth:int,
      *       maxOutputDisplayWidth:int,
-     *       wrapped:bool
+     *       wrapped:bool,
+     *       protectedSeparatorCount:int,
+     *       lineEndingNormalizationCount:int
      *     }>
      *   }
      * }
@@ -59,6 +63,8 @@ final class PlainWriter
         $maxOutputDisplayWidth = 0;
         $hardBreakCount = 0;
         $softBreakOpportunityCount = 0;
+        $protectedSeparatorCount = 0;
+        $lineEndingNormalizationCount = 0;
 
         foreach ($document->children as $index => $node) {
             if (!$node instanceof AstNode) {
@@ -70,7 +76,7 @@ final class PlainWriter
                 continue;
             }
 
-            $source = UnicodeText::normalizeLineEndings($source)[0];
+            [$source, $lineEndings] = UnicodeText::normalizeLineEndings($source);
             $sourceLines = explode("\n", $source);
             $wrappedLines = $this->wrapLines($source, $columns, $wrapMode, $ambiguousWidth);
             $output = implode("\n", $wrappedLines);
@@ -91,6 +97,8 @@ final class PlainWriter
             $opportunities = UnicodeText::lineBreakOpportunities($source, $ambiguousWidth);
             $hardBreakCount += $opportunities['hardBreakCount'];
             $softBreakOpportunityCount += $opportunities['softBreakCount'];
+            $protectedSeparatorCount += $opportunities['protectedSeparatorCount'];
+            $lineEndingNormalizationCount += $lineEndings['conversions'];
 
             $blockDiagnostics[] = [
                 'blockIndex' => $index,
@@ -100,6 +108,8 @@ final class PlainWriter
                 'maxSourceDisplayWidth' => $sourceMax,
                 'maxOutputDisplayWidth' => $outputMax,
                 'wrapped' => $wrapped,
+                'protectedSeparatorCount' => $opportunities['protectedSeparatorCount'],
+                'lineEndingNormalizationCount' => $lineEndings['conversions'],
             ];
         }
 
@@ -115,6 +125,8 @@ final class PlainWriter
                 'maxOutputDisplayWidth' => $maxOutputDisplayWidth,
                 'hardBreakCount' => $hardBreakCount,
                 'softBreakOpportunityCount' => $softBreakOpportunityCount,
+                'protectedSeparatorCount' => $protectedSeparatorCount,
+                'lineEndingNormalizationCount' => $lineEndingNormalizationCount,
                 'blocks' => $blockDiagnostics,
             ],
         ];

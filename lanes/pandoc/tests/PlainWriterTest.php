@@ -40,6 +40,8 @@ return [
         $t->same(22, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
         $t->same(9, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['protectedSeparatorCount']);
+        $t->same(0, $result['diagnostics']['lineEndingNormalizationCount']);
         $t->same([
             'blockIndex' => 0,
             'blockType' => 'paragraph',
@@ -48,6 +50,8 @@ return [
             'maxSourceDisplayWidth' => 51,
             'maxOutputDisplayWidth' => 22,
             'wrapped' => true,
+            'protectedSeparatorCount' => 0,
+            'lineEndingNormalizationCount' => 0,
         ], $result['diagnostics']['blocks'][0]);
         $t->same(false, $result['diagnostics']['blocks'][1]['wrapped']);
     },
@@ -65,5 +69,33 @@ return [
         $t->same(5, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(10, $result['diagnostics']['blocks'][0]['maxSourceDisplayWidth']);
         $t->same(5, $result['diagnostics']['blocks'][0]['maxOutputDisplayWidth']);
+    },
+    'reports protected separators and normalized line endings in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "Alpha beta\r\nLocked\u{00A0}phrase tail"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 16]))->writeWithDiagnostics($document);
+
+        $t->same("Alpha beta\nLocked\u{00A0}phrase\ntail", $result['text']);
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(3, $result['diagnostics']['outputLineCount']);
+        $t->same(13, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(1, $result['diagnostics']['hardBreakCount']);
+        $t->same(2, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['protectedSeparatorCount']);
+        $t->same(1, $result['diagnostics']['lineEndingNormalizationCount']);
+        $t->same([
+            'blockIndex' => 0,
+            'blockType' => 'code_block',
+            'sourceLineCount' => 2,
+            'outputLineCount' => 3,
+            'maxSourceDisplayWidth' => 18,
+            'maxOutputDisplayWidth' => 13,
+            'wrapped' => true,
+            'protectedSeparatorCount' => 1,
+            'lineEndingNormalizationCount' => 1,
+        ], $result['diagnostics']['blocks'][0]);
     },
 ];
