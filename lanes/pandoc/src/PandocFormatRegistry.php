@@ -626,6 +626,61 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return string|null
+     */
+    public static function inferRoffManualFormatFromExtension(string $extension): ?string
+    {
+        $normalized = strtolower($extension);
+        if ($normalized === '') {
+            return null;
+        }
+        if ($normalized[0] !== '.') {
+            $normalized = '.' . $normalized;
+        }
+
+        if (preg_match('/^\.[1-9]$/', $normalized) === 1) {
+            return 'man';
+        }
+
+        foreach (self::ROFF_MANUAL_EXTENSION_INFERENCE as $candidate => $format) {
+            if ($candidate === '.[1-9]') {
+                continue;
+            }
+            if ($normalized === $candidate) {
+                return $format;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function roffManualFormatsWithExtensionInference(): array
+    {
+        return array_values(array_unique(array_values(self::ROFF_MANUAL_EXTENSION_INFERENCE)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function roffManualFormatsWithoutExtensionInference(): array
+    {
+        $inferred = array_flip(self::roffManualFormatsWithExtensionInference());
+        $formats = array_values(array_unique(array_merge(self::ROFF_MANUAL_INPUT_FORMATS, self::ROFF_MANUAL_OUTPUT_FORMATS)));
+        $withoutInference = [];
+
+        foreach ($formats as $format) {
+            if (!array_key_exists($format, $inferred)) {
+                $withoutInference[] = $format;
+            }
+        }
+
+        return $withoutInference;
+    }
+
+    /**
      * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
      */
     public static function roffManualFormatDirections(): array
@@ -660,6 +715,71 @@ final class PandocFormatRegistry
     public static function roffManualOutputOnlyFormats(): array
     {
         return self::roffManualFormatsWithDirection('output-only');
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>},
+     *     extensionInference:array<string, string>,
+     *     extensionInferredFormats:list<string>,
+     *     nonExtensionInferredFormats:list<string>,
+     *     unsupportedInputFormats:list<string>,
+     *     unsupportedOutputFormats:list<string>,
+     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, extensionInferred:bool, extensions:list<string>, inputImplementation:string, outputImplementation:string}>
+     * }
+     */
+    public static function roffManualFormatReviewPacket(): array
+    {
+        $directions = self::roffManualFormatDirections();
+        $inputSupport = self::roffManualInputSupport();
+        $outputSupport = self::roffManualOutputSupport();
+        $extensionsByFormat = [];
+
+        foreach (self::ROFF_MANUAL_EXTENSION_INFERENCE as $extension => $format) {
+            $extensionsByFormat[$format][] = $extension;
+        }
+
+        $formats = [];
+        foreach ($directions as $format => $direction) {
+            $hasInput = $direction['input'];
+            $hasOutput = $direction['output'];
+
+            $formats[$format] = [
+                'input' => $hasInput,
+                'output' => $hasOutput,
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'extensionInferred' => array_key_exists($format, $extensionsByFormat),
+                'extensions' => $extensionsByFormat[$format] ?? [],
+                'inputImplementation' => $hasInput ? $inputSupport[$format]['implementation'] : '',
+                'outputImplementation' => $hasOutput ? $outputSupport[$format]['implementation'] : '',
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => self::ROFF_MANUAL_INPUT_FORMATS,
+            'outputFormats' => self::ROFF_MANUAL_OUTPUT_FORMATS,
+            'directionBuckets' => [
+                'inputOutput' => self::roffManualBidirectionalFormats(),
+                'inputOnly' => self::roffManualInputOnlyFormats(),
+                'outputOnly' => self::roffManualOutputOnlyFormats(),
+            ],
+            'extensionInference' => self::ROFF_MANUAL_EXTENSION_INFERENCE,
+            'extensionInferredFormats' => self::roffManualFormatsWithExtensionInference(),
+            'nonExtensionInferredFormats' => self::roffManualFormatsWithoutExtensionInference(),
+            'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
+            'unsupportedOutputFormats' => self::formatsWithStatus($outputSupport, 'unsupported'),
+            'formats' => $formats,
+        ];
     }
 
     /**

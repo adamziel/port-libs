@@ -145,6 +145,84 @@ return [
             $t->same($hasOutput ? 'unsupported' : 'not-applicable', $direction['outputStatus'], "Roff manual format {$format} output status mismatch");
         }
     },
+    'builds roff manual review packets with extension inference and unsupported parity' => static function (TestRunner $t): void {
+        $t->same('ms', PandocFormatRegistry::inferRoffManualFormatFromExtension('.ms'));
+        $t->same('ms', PandocFormatRegistry::inferRoffManualFormatFromExtension('MS'));
+        $t->same('ms', PandocFormatRegistry::inferRoffManualFormatFromExtension('.roff'));
+        $t->same('ms', PandocFormatRegistry::inferRoffManualFormatFromExtension('ROFF'));
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('.1'));
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('9'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension(''));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.0'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.10'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.mdoc'));
+
+        $packet = PandocFormatRegistry::roffManualFormatReviewPacket();
+
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same(PandocFormatRegistry::roffManualInputFormats(), $packet['inputFormats']);
+        $t->same(PandocFormatRegistry::roffManualOutputFormats(), $packet['outputFormats']);
+        $t->same([
+            'inputOutput' => ['man'],
+            'inputOnly' => ['mdoc'],
+            'outputOnly' => ['ms'],
+        ], $packet['directionBuckets']);
+        $t->same([
+            '.ms' => 'ms',
+            '.roff' => 'ms',
+            '.[1-9]' => 'man',
+        ], $packet['extensionInference']);
+        $t->same(['ms', 'man'], $packet['extensionInferredFormats']);
+        $t->same(['mdoc'], $packet['nonExtensionInferredFormats']);
+        $t->same(PandocFormatRegistry::roffManualInputFormats(), $packet['unsupportedInputFormats']);
+        $t->same(PandocFormatRegistry::roffManualOutputFormats(), $packet['unsupportedOutputFormats']);
+        $t->same([
+            'man',
+            'mdoc',
+            'ms',
+        ], array_keys($packet['formats']));
+
+        $t->same([
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'extensionInferred' => true,
+            'extensions' => ['.[1-9]'],
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $packet['formats']['man']);
+        $t->same([
+            'input' => true,
+            'output' => false,
+            'direction' => 'input-only',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'not-applicable',
+            'extensionInferred' => false,
+            'extensions' => [],
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $packet['formats']['mdoc']);
+        $t->same([
+            'input' => false,
+            'output' => true,
+            'direction' => 'output-only',
+            'inputStatus' => 'not-applicable',
+            'outputStatus' => 'unsupported',
+            'extensionInferred' => true,
+            'extensions' => ['.ms', '.roff'],
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $packet['formats']['ms']);
+
+        foreach ($packet['formats'] as $format => $review) {
+            $t->same('', $review['inputImplementation'], "Roff manual review packet {$format} must not register an input implementation");
+            $t->same('', $review['outputImplementation'], "Roff manual review packet {$format} must not register an output implementation");
+        }
+    },
     'tracks rich package formats and unsupported direct writer parity' => static function (TestRunner $t): void {
         $t->same([
             'docx',
