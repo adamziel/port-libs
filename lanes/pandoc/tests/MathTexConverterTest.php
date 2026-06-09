@@ -310,6 +310,30 @@ return [
         $t->true(!str_contains($resistanceMathml . $voltageForceMathml . $energyCapacitanceMathml . $doseMathml, '<mi>\\gray</mi>'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\si{\\qqV}'));
     },
+    'converts bounded siunitx extended upstream unit aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $frequencyVolumeMathml = $converter->texToMathMl('\\si{\\mHz\\per\\hL} + \\unit{\\hl\\per\\knot}', true);
+        $physicsMathml = $converter->texToMathMl('\\unit{\\TeV\\per\\mmHg} + \\qty{42}{\\becquerel\\per\\candela}');
+        $namedUnitMathml = $converter->texToMathMl('\\si{\\dalton\\per\\tonne} + \\si{\\neper\\per\\bel} + \\si{\\barn\\per\\katal}');
+        $prefixMathml = $converter->texToMathMl('\\si{\\yocto\\meter\\per\\zetta\\gram} + \\si{\\astronomicalunit\\per\\atomicmassunit}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\qty{42}{\\becquerel\\per\\candela}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $frequencyVolumeMathml);
+        $t->contains('<mrow><mtext>mHz</mtext><mtext>/</mtext><mtext>hL</mtext></mrow><mo>+</mo><mrow><mtext>hl</mtext><mtext>/</mtext><mtext>kn</mtext></mrow>', $frequencyVolumeMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\si{\\mHz\\per\\hL} + \\unit{\\hl\\per\\knot}</annotation>', $frequencyVolumeMathml);
+        $t->contains('<mrow><mtext>TeV</mtext><mtext>/</mtext><mtext>mmHg</mtext></mrow><mo>+</mo><mrow><mn>42</mn><mspace width="0.2222em"></mspace><mrow><mtext>Bq</mtext><mtext>/</mtext><mtext>cd</mtext></mrow></mrow>', $physicsMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\unit{\\TeV\\per\\mmHg} + \\qty{42}{\\becquerel\\per\\candela}</annotation>', $physicsMathml);
+        $t->contains('<mrow><mtext>Da</mtext><mtext>/</mtext><mtext>t</mtext></mrow><mo>+</mo><mrow><mtext>Np</mtext><mtext>/</mtext><mtext>B</mtext></mrow><mo>+</mo><mrow><mtext>b</mtext><mtext>/</mtext><mtext>kat</mtext></mrow>', $namedUnitMathml);
+        $t->contains('<mrow><mtext>y</mtext><mtext>m</mtext><mtext>/</mtext><mtext>Z</mtext><mtext>g</mtext></mrow><mo>+</mo><mrow><mtext>ua</mtext><mtext>/</mtext><mtext>u</mtext></mrow>', $prefixMathml);
+        $t->contains('alttext="42 space Bq slash cd"', $accessibleMathml);
+        $t->contains('intent="row(42,space,row(bq,slash,cd))"', $accessibleMathml);
+        $t->true(!str_contains($frequencyVolumeMathml . $physicsMathml . $namedUnitMathml . $prefixMathml, '<mi>\\mHz</mi>'));
+        $t->true(!str_contains($frequencyVolumeMathml . $physicsMathml . $namedUnitMathml . $prefixMathml, '<mi>\\TeV</mi>'));
+        $t->true(!str_contains($frequencyVolumeMathml . $physicsMathml . $namedUnitMathml . $prefixMathml, '<mi>\\becquerel</mi>'));
+        $t->true(!str_contains($frequencyVolumeMathml . $physicsMathml . $namedUnitMathml . $prefixMathml, '<mi>\\dalton</mi>'));
+        $t->true(!str_contains($frequencyVolumeMathml . $physicsMathml . $namedUnitMathml . $prefixMathml, '<mi>\\yocto</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\si{\\qqHz}'));
+    },
     'converts bounded tex binomial commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $binomialMathml = $converter->texToMathMl('\\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c}', true);

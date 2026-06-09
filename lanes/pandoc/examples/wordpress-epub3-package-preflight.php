@@ -36,8 +36,8 @@ $opfXml = <<<'XML'
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    <item id="chapter1" href="chapters/intro.xhtml" media-type="application/xhtml+xml" media-overlay="mo-intro"/>
-    <item id="chapter2" href="chapters/review.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter1" href="chapters/intro.xhtml" media-type="application/xhtml+xml" properties="mathml svg remote-resources" media-overlay="mo-intro"/>
+    <item id="chapter2" href="chapters/review.xhtml" media-type="application/xhtml+xml" properties="scripted switch"/>
     <item id="cover" href="media/cover.png" media-type="image/png" properties="cover-image"/>
     <item id="css" href="styles/import.css" media-type="text/css"/>
     <item id="creator-audio" href="audio/creator-name.mp3" media-type="audio/mpeg"/>
@@ -160,6 +160,11 @@ if (($argv[1] ?? '') === '--self-test') {
         ['/EPUB/audio/intro.mp3'],
         [true, 1, 1, 0, 1, 1, 0],
         ['review-widget', 'review-widget-handler', '/EPUB/widgets/review-widget.xhtml', 'application/xhtml+xml', 'css', '/EPUB/styles/import.css'],
+        [1, 1, 1, 1, 1, 2, 1, 3],
+        ['chapter1', 'chapter2', 'review-widget-handler'],
+        ['mathml', 'svg', 'remote-resources'],
+        ['scripted', 'switch'],
+        [true, 5, 8, 0, 0],
     ];
     $actual = [
         $summary['wordpressImport']['title'],
@@ -233,6 +238,26 @@ if (($argv[1] ?? '') === '--self-test') {
             $summary['wordpressImport']['manifestFallbacks']['itemsById']['review-widget']['fallbackTerminalMediaType'] ?? null,
             $summary['wordpressImport']['manifestFallbacks']['itemsById']['review-widget']['fallbackStyleTerminalId'] ?? null,
             $summary['wordpressImport']['manifestFallbacks']['itemsById']['review-widget']['fallbackStyleTerminalPartName'] ?? null,
+        ],
+        [
+            $summary['wordpressImport']['resourcePropertySummary']['navCount'] ?? null,
+            $summary['wordpressImport']['resourcePropertySummary']['coverImageCount'] ?? null,
+            $summary['wordpressImport']['resourcePropertySummary']['mathmlCount'] ?? null,
+            $summary['wordpressImport']['resourcePropertySummary']['svgCount'] ?? null,
+            $summary['wordpressImport']['resourcePropertySummary']['remoteResourcesCount'] ?? null,
+            $summary['wordpressImport']['resourcePropertySummary']['scriptedCount'] ?? null,
+            $summary['wordpressImport']['resourcePropertySummary']['switchCount'] ?? null,
+            $summary['wordpressImport']['resourcePropertySummary']['reviewRequiredCount'] ?? null,
+        ],
+        array_column($summary['wordpressImport']['resourcePropertyReviewItems'], 'id'),
+        $summary['wordpressImport']['resourceProperties']['itemsById']['chapter1']['reviewFlags'] ?? null,
+        $summary['wordpressImport']['resourceProperties']['itemsById']['chapter2']['reviewFlags'] ?? null,
+        [
+            $summary['wordpressImport']['resourceProperties']['propertyVocabulary']['present'] ?? null,
+            $summary['wordpressImport']['resourceProperties']['propertyVocabulary']['itemCount'] ?? null,
+            $summary['wordpressImport']['resourceProperties']['propertyVocabulary']['propertyTokenCount'] ?? null,
+            $summary['wordpressImport']['resourceProperties']['propertyVocabulary']['prefixedPropertyCount'] ?? null,
+            $summary['wordpressImport']['resourceProperties']['propertyVocabulary']['diagnosticCount'] ?? null,
         ],
     ];
 

@@ -49,6 +49,16 @@ XML],
       <w:r><w:fldChar w:fldCharType="end"/></w:r>
       <w:r><w:t> preserved.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Citation manager </w:t></w:r>
+      <w:fldSimple w:instr=' ADDIN ZOTERO_ITEM CSL_CITATION {"citationID":"source-note-1","citationItems":[{"id":"Smith2024"},{"id":"Jones2025"}],"properties":{"noteIndex":1}} '>
+        <w:r><w:t>(Smith 2024; Jones 2025)</w:t></w:r>
+      </w:fldSimple>
+      <w:r><w:t xml:space="preserve"> bibliography </w:t></w:r>
+      <w:fldSimple w:instr=' ADDIN ZOTERO_BIBL '><w:r><w:t>Smith. Source Packet.</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> endnote </w:t></w:r>
+      <w:fldSimple w:instr=' ADDIN EN.REFLIST '><w:r><w:t>EndNote sources.</w:t></w:r></w:fldSimple>
+    </w:p>
   </w:body>
 </w:document>
 XML],
@@ -72,6 +82,12 @@ if (in_array('--self-test', $argv, true)) {
         'data-docx-index-entry="Source Packet"',
         'data-docx-field-cross-reference="See source dossier"',
         'data-docx-field-yomi="sosupaketto"',
+        'class="docx-field docx-field-addin docx-addin-field docx-addin-csl-citation docx-addin-provider-zotero"',
+        'data-docx-addin-citation-id="source-note-1"',
+        'data-docx-addin-citation-item-count="2"',
+        'data-docx-addin-citation-item-ids="Smith2024,Jones2025"',
+        'class="docx-field docx-field-addin docx-addin-field docx-addin-csl-bibliography docx-addin-provider-zotero"',
+        'class="docx-field docx-field-addin docx-addin-field docx-addin-endnote-reference-list docx-addin-provider-endnote"',
     ] as $expected) {
         if (!str_contains($blocks, $expected)) {
             throw new RuntimeException('DOCX generated-field handoff did not preserve expected WordPress block metadata: ' . $expected);

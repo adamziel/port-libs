@@ -957,6 +957,84 @@ XML;
         $t->same(['missing-manifest-fallback-item', 'cyclic-manifest-fallback-chain', 'cyclic-manifest-fallback-chain', 'non-css-manifest-fallback-style', 'missing-manifest-fallback-style-item', 'cyclic-manifest-fallback-style-chain', 'cyclic-manifest-fallback-style-chain'], array_column($summary['wordpressImport']['manifestFallbackDiagnostics'], 'type'));
     },
 
+    'summarizes OPF manifest resource properties for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithResourceProperties = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en" prefix="schema: https://schema.org/ review: https://example.invalid/epub-review#">',
+            $epub3OpfXml
+        );
+        $opfWithResourceProperties = str_replace(
+            '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
+            '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav rendition:layout-pre-paginated"/>',
+            $opfWithResourceProperties
+        );
+        $opfWithResourceProperties = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" properties="mathml svg remote-resources schema:encodingFormat review:source-record unknown:review-flag"/>',
+            $opfWithResourceProperties
+        );
+        $opfWithResourceProperties = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml" properties="scripted switch"/>',
+            $opfWithResourceProperties
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithResourceProperties],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><math/><svg/></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><script>review()</script></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $report = $epub->resourceProperties();
+        $summary = $epub->summary();
+
+        $t->same(1, $report['summary']['navCount']);
+        $t->same(1, $report['summary']['coverImageCount']);
+        $t->same(1, $report['summary']['mathmlCount']);
+        $t->same(1, $report['summary']['svgCount']);
+        $t->same(1, $report['summary']['remoteResourcesCount']);
+        $t->same(1, $report['summary']['scriptedCount']);
+        $t->same(1, $report['summary']['switchCount']);
+        $t->same(2, $report['summary']['reviewRequiredCount']);
+
+        $t->same('chapter1', $report['itemsByProperty']['mathml'][0]['id']);
+        $t->same('chapter1', $report['itemsByProperty']['remote-resources'][0]['id']);
+        $t->same('chapter2', $report['itemsByProperty']['scripted'][0]['id']);
+        $t->same('/EPUB/text/chapter1.xhtml', $report['itemsById']['chapter1']['partName']);
+        $t->same(['mathml', 'svg', 'remote-resources'], $report['itemsById']['chapter1']['reviewFlags']);
+        $t->same(['scripted', 'switch'], $report['itemsById']['chapter2']['reviewFlags']);
+        $t->same(true, $report['itemsById']['chapter1']['reviewRequired']);
+        $t->same('chapter2', $report['reviewItems'][1]['id']);
+
+        $vocabulary = $report['propertyVocabulary'];
+        $t->same(true, $vocabulary['present']);
+        $t->same(4, $vocabulary['itemCount']);
+        $t->same(11, $vocabulary['propertyTokenCount']);
+        $t->same(4, $vocabulary['prefixedPropertyCount']);
+        $t->same(3, $vocabulary['resolvedPropertyCount']);
+        $t->same(1, $vocabulary['unresolvedPropertyCount']);
+        $t->same('http://www.idpf.org/vocab/rendition/#layout-pre-paginated', $vocabulary['itemsById']['nav']['propertyVocabulary']['items'][1]['vocabulary']['iri']);
+        $t->same('https://schema.org/encodingFormat', $report['itemsById']['chapter1']['propertyVocabulary']['items'][3]['vocabulary']['iri']);
+        $t->same('https://example.invalid/epub-review#source-record', $report['itemsById']['chapter1']['propertyVocabulary']['items'][4]['vocabulary']['iri']);
+        $t->same(['schema:encodingFormat'], $vocabulary['byPrefix']['schema']['properties']);
+        $t->same(['chapter1'], $vocabulary['byPrefix']['schema']['manifestIds']);
+        $t->same(['unknown:review-flag'], $vocabulary['byPrefix']['unknown']['properties']);
+        $t->same(1, $vocabulary['diagnosticCount']);
+        $t->same('unknown-manifest-property-prefix', $vocabulary['diagnostics'][0]['type']);
+        $t->same('unknown:review-flag', $vocabulary['diagnostics'][0]['property']);
+
+        $t->same($report, $summary['resourceProperties']);
+        $t->same($report, $summary['wordpressImport']['resourceProperties']);
+        $t->same($report['summary'], $summary['wordpressImport']['resourcePropertySummary']);
+        $t->same($report['reviewItems'], $summary['wordpressImport']['resourcePropertyReviewItems']);
+        $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['resourcePropertyDiagnostics']);
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],

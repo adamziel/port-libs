@@ -182,6 +182,8 @@ SI unit alias audit $\SI{9.81}{\metre\per\second\squared} + \si{\km\per\hour} + 
 
 Prefixed SI unit alias audit $\si{\mg\per\mL} + \qty{532}{\nm} + \SI{20}{\MHz} + \unit{\kPa} + \si{\us}$ stays semantic.
 
+Extended SI unit alias audit $\si{\mHz\per\hL} + \unit{\TeV\per\mmHg} + \qty{42}{\becquerel\per\candela} + \si{\dalton\per\tonne} + \si{\yocto\meter\per\zetta\gram}$ stays semantic.
+
 Equation wrapper audit:
 $$\begin{equation}r_i + s_i \label{eq:wrapped-env} \tag{WP-3}\end{equation}$$
 
@@ -357,6 +359,7 @@ $summary = [
     'siunitxUnitAliasMathml' => $converter->texToMathMl('\\SI{9.81}{\\metre\\per\\second\\squared} + \\si{\\km\\per\\hour} + \\unit{\\joule\\per\\mole\\per\\kelvin}'),
     'siunitxPrefixedUnitAliasMathml' => $converter->texToMathMl('\\si{\\mg\\per\\mL} + \\qty{532}{\\nm} + \\SI{20}{\\MHz} + \\unit{\\kPa} + \\si{\\us}'),
     'siunitxElectricEnergyUnitAliasMathml' => $converter->texToMathMl('\\si{\\mohm\\per\\kohm} + \\qty{12}{\\pV\\per\\uV} + \\SI{3}{\\MN} + \\si{\\meV\\per\\GeV} + \\unit{\\fF\\per\\pF} + \\qty{5}{\\gray\\per\\sievert}'),
+    'siunitxExtendedUnitAliasMathml' => $converter->texToMathMl('\\si{\\mHz\\per\\hL} + \\unit{\\TeV\\per\\mmHg} + \\qty{42}{\\becquerel\\per\\candela} + \\si{\\dalton\\per\\tonne} + \\si{\\yocto\\meter\\per\\zetta\\gram}'),
     'equationWrapperMathml' => $converter->texToMathMl('\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}', true),
     'starredEquationWrapperMathml' => $converter->texToMathMl('\\begin{equation*}\\operatorname{review}(p_i) + \\eqref{eq:wrapped-env}\\end{equation*}', false, [], $equationReferenceLabels),
     'rowTaggedEnvironmentMathml' => $converter->texToMathMl('\\begin{align}p_i &= m_i \\tag{WP-1} \\\\ x_i &= y_i \\label{eq:row-review} \\tag*{review}\\end{align}', true),
@@ -563,6 +566,21 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['siunitxElectricEnergyUnitAliasMathml'], '<mrow><mn>5</mn><mspace width="0.2222em"></mspace><mrow><mtext>Gy</mtext><mtext>/</mtext><mtext>Sv</mtext></mrow></mrow>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test did not map electric and energy siunitx unit aliases');
+    }
+
+    if (
+        str_contains($summary['siunitxExtendedUnitAliasMathml'], '<mi>\\mHz</mi>')
+        || str_contains($summary['siunitxExtendedUnitAliasMathml'], '<mi>\\TeV</mi>')
+        || str_contains($summary['siunitxExtendedUnitAliasMathml'], '<mi>\\becquerel</mi>')
+        || str_contains($summary['siunitxExtendedUnitAliasMathml'], '<mi>\\dalton</mi>')
+        || str_contains($summary['siunitxExtendedUnitAliasMathml'], '<mi>\\yocto</mi>')
+        || !str_contains($summary['siunitxExtendedUnitAliasMathml'], '<mrow><mtext>mHz</mtext><mtext>/</mtext><mtext>hL</mtext></mrow>')
+        || !str_contains($summary['siunitxExtendedUnitAliasMathml'], '<mrow><mtext>TeV</mtext><mtext>/</mtext><mtext>mmHg</mtext></mrow>')
+        || !str_contains($summary['siunitxExtendedUnitAliasMathml'], '<mrow><mn>42</mn><mspace width="0.2222em"></mspace><mrow><mtext>Bq</mtext><mtext>/</mtext><mtext>cd</mtext></mrow></mrow>')
+        || !str_contains($summary['siunitxExtendedUnitAliasMathml'], '<mrow><mtext>Da</mtext><mtext>/</mtext><mtext>t</mtext></mrow>')
+        || !str_contains($summary['siunitxExtendedUnitAliasMathml'], '<mrow><mtext>y</mtext><mtext>m</mtext><mtext>/</mtext><mtext>Z</mtext><mtext>g</mtext></mrow>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map extended siunitx unit aliases');
     }
 
     if (

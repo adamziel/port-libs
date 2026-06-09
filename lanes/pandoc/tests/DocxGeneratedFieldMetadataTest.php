@@ -60,6 +60,23 @@ $generatedFieldDocumentXml = <<<'XML'
       <w:fldSimple w:instr=' XE "Media Audit" \f "A" \r "media_bookmark" '/>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Citation manager </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> ADDIN ZOTERO_ITEM CSL_CITATION {"citationID":"source-note-1","citationItems":[{"id":"Smith2024"},{"id":"Jones2025"}],"properties":{"noteIndex":1}} </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>(Smith 2024; Jones 2025)</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> bibliography </w:t></w:r>
+      <w:fldSimple w:instr=' ADDIN ZOTERO_BIBL '><w:r><w:t>Smith. Source Packet.</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> mendeley </w:t></w:r>
+      <w:fldSimple w:instr=' ADDIN Mendeley Bibliography CSL_BIBLIOGRAPHY '><w:r><w:t>Mendeley source list.</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> endnote </w:t></w:r>
+      <w:fldSimple w:instr=' ADDIN EN.CITE &lt;Cite&gt;&lt;RecNum&gt;42&lt;/RecNum&gt;&lt;/Cite&gt; '><w:r><w:t>[EndNote 42]</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> refs </w:t></w:r>
+      <w:fldSimple w:instr=' ADDIN EN.REFLIST '><w:r><w:t>EndNote sources.</w:t></w:r></w:fldSimple>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
   </w:body>
 </w:document>
 XML;
@@ -243,5 +260,78 @@ return [
         $t->contains('data-docx-field-cross-reference="See source dossier"', $blocks);
         $t->contains('data-docx-field-yomi="sosupaketto"', $blocks);
         $t->contains('<span class="indexref docx-field docx-field-xe docx-index-entry" data-docx-field="xe" data-docx-field-instruction="XE &quot;Media Audit&quot; \f &quot;A&quot; \r &quot;media_bookmark&quot;" data-docx-index-entry="Media Audit"', $blocks);
+    },
+    'preserves DOCX ADDIN citation manager fields as review spans' => static function (TestRunner $t) use ($buildGeneratedFieldPackage): void {
+        $document = (new DocxReader())->readDocument($buildGeneratedFieldPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $cslPayload = '{"citationID":"source-note-1","citationItems":[{"id":"Smith2024"},{"id":"Jones2025"}],"properties":{"noteIndex":1}}';
+        $endNotePayload = '<Cite><RecNum>42</RecNum></Cite>';
+        $paragraph = $document->children[4];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Citation manager ', $paragraph->children[0]->attr('text'));
+
+        $citation = $paragraph->children[1];
+        $t->same('span', $citation->type);
+        $t->same([
+            'docx-field',
+            'docx-field-addin',
+            'docx-addin-field',
+            'docx-addin-csl-citation',
+            'docx-addin-provider-zotero',
+        ], $citation->attr('classes'));
+        $citationAttrs = $citation->attr('attributes');
+        $t->same('addin', $citationAttrs['data-docx-field']);
+        $t->same('csl-citation', $citationAttrs['data-docx-addin-type']);
+        $t->same('zotero', $citationAttrs['data-docx-addin-provider']);
+        $t->same('json', $citationAttrs['data-docx-addin-payload-kind']);
+        $t->same((string) strlen($cslPayload), $citationAttrs['data-docx-addin-payload-bytes']);
+        $t->same(hash('sha256', $cslPayload), $citationAttrs['data-docx-addin-payload-sha256']);
+        $t->same('true', $citationAttrs['data-docx-addin-csl-json-valid']);
+        $t->same('source-note-1', $citationAttrs['data-docx-addin-citation-id']);
+        $t->same('2', $citationAttrs['data-docx-addin-citation-item-count']);
+        $t->same('Smith2024,Jones2025', $citationAttrs['data-docx-addin-citation-item-ids']);
+        $t->same('(Smith 2024; Jones 2025)', $citation->children[0]->attr('text'));
+
+        $zoteroBibliography = $paragraph->children[3];
+        $t->same([
+            'docx-field',
+            'docx-field-addin',
+            'docx-addin-field',
+            'docx-addin-csl-bibliography',
+            'docx-addin-provider-zotero',
+        ], $zoteroBibliography->attr('classes'));
+        $t->same('csl-bibliography', $zoteroBibliography->attr('attributes')['data-docx-addin-type']);
+        $t->same('zotero', $zoteroBibliography->attr('attributes')['data-docx-addin-provider']);
+        $t->same('Smith. Source Packet.', $zoteroBibliography->children[0]->attr('text'));
+
+        $mendeleyBibliography = $paragraph->children[5];
+        $t->same('mendeley', $mendeleyBibliography->attr('attributes')['data-docx-addin-provider']);
+        $t->same('csl-bibliography', $mendeleyBibliography->attr('attributes')['data-docx-addin-type']);
+
+        $endNoteCitation = $paragraph->children[7];
+        $endNoteAttrs = $endNoteCitation->attr('attributes');
+        $t->same('endnote-citation', $endNoteAttrs['data-docx-addin-type']);
+        $t->same('endnote', $endNoteAttrs['data-docx-addin-provider']);
+        $t->same('xml', $endNoteAttrs['data-docx-addin-payload-kind']);
+        $t->same((string) strlen($endNotePayload), $endNoteAttrs['data-docx-addin-payload-bytes']);
+        $t->same(hash('sha256', $endNotePayload), $endNoteAttrs['data-docx-addin-payload-sha256']);
+        $t->same('[EndNote 42]', $endNoteCitation->children[0]->attr('text'));
+
+        $endNoteReferenceList = $paragraph->children[9];
+        $t->same('endnote-reference-list', $endNoteReferenceList->attr('attributes')['data-docx-addin-type']);
+        $t->same('endnote', $endNoteReferenceList->attr('attributes')['data-docx-addin-provider']);
+        $t->same('EndNote sources.', $endNoteReferenceList->children[0]->attr('text'));
+
+        $t->contains('[(Smith 2024; Jones 2025)]{.docx-field .docx-field-addin .docx-addin-field .docx-addin-csl-citation .docx-addin-provider-zotero', $markdown);
+        $t->contains('data-docx-addin-citation-item-count="2"', $markdown);
+        $t->contains('[Smith. Source Packet.]{.docx-field .docx-field-addin .docx-addin-field .docx-addin-csl-bibliography .docx-addin-provider-zotero', $markdown);
+        $t->contains('[\[EndNote 42\]]{.docx-field .docx-field-addin .docx-addin-field .docx-addin-endnote-citation .docx-addin-provider-endnote', $markdown);
+
+        $t->contains('<span class="docx-field docx-field-addin docx-addin-field docx-addin-csl-citation docx-addin-provider-zotero"', $blocks);
+        $t->contains('data-docx-addin-citation-item-ids="Smith2024,Jones2025"', $blocks);
+        $t->contains('<span class="docx-field docx-field-addin docx-addin-field docx-addin-csl-bibliography docx-addin-provider-mendeley"', $blocks);
+        $t->contains('<span class="docx-field docx-field-addin docx-addin-field docx-addin-endnote-reference-list docx-addin-provider-endnote"', $blocks);
     },
 ];

@@ -7429,6 +7429,10 @@ final class DocxReader
         ];
 
         $fieldName = strtoupper(array_shift($tokens));
+        if ($fieldName === 'ADDIN') {
+            return $this->addInFieldSpanAttrs($instruction);
+        }
+
         if ($fieldName === 'XE') {
             return $this->indexReferenceFieldSpanAttrs($tokens, $instruction);
         }
@@ -7536,7 +7540,6 @@ final class DocxReader
     }
 
     /**
-     * @param list<string> $tokens
      * @return array{classes:list<string>, attributes:array<string, string>}
      */
     private function dataFieldSpanAttrs(string $fieldKey, string $dataType, array $tokens, string $instruction): array
@@ -7569,6 +7572,93 @@ final class DocxReader
             if ($afterText !== null) {
                 $classes[] = 'docx-data-field-after-text';
                 $attributes['data-docx-data-field-after-text'] = $afterText;
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function addInFieldSpanAttrs(string $instruction): array
+    {
+        $classes = ['docx-field', 'docx-field-addin', 'docx-addin-field'];
+        $attributes = [
+            'data-docx-field' => 'addin',
+            'data-docx-field-instruction' => $this->normalizeFieldInstruction($instruction),
+        ];
+
+        $payload = trim((string) preg_replace('/^\s*ADDIN\s+/iu', '', $instruction, 1));
+        $provider = null;
+        $type = 'unknown';
+        $payloadKind = null;
+        $payloadBody = null;
+
+        if (preg_match('/^ZOTERO_ITEM\s+CSL_CITATION\s+(.+)$/isu', $payload, $matches) === 1) {
+            $provider = 'zotero';
+            $type = 'csl-citation';
+            $payloadKind = 'json';
+            $payloadBody = trim($matches[1]);
+        } elseif (preg_match('/^CSL_CITATION\s+(.+)$/isu', $payload, $matches) === 1) {
+            $provider = 'csl';
+            $type = 'csl-citation';
+            $payloadKind = 'json';
+            $payloadBody = trim($matches[1]);
+        } elseif (preg_match('/^ZOTERO_BIBL\b/iu', $payload) === 1) {
+            $provider = 'zotero';
+            $type = 'csl-bibliography';
+        } elseif (preg_match('/^Mendeley\s+Bibliography\s+CSL_BIBLIOGRAPHY\b/iu', $payload) === 1) {
+            $provider = 'mendeley';
+            $type = 'csl-bibliography';
+        } elseif (preg_match('/^EN\.CITE\s+(.+)$/isu', $payload, $matches) === 1) {
+            $provider = 'endnote';
+            $type = 'endnote-citation';
+            $payloadKind = 'xml';
+            $payloadBody = trim($matches[1]);
+        } elseif (preg_match('/^EN\.REFLIST\b/iu', $payload) === 1) {
+            $provider = 'endnote';
+            $type = 'endnote-reference-list';
+        }
+
+        $classes[] = 'docx-addin-' . $type;
+        $attributes['data-docx-addin-type'] = $type;
+        if ($provider !== null) {
+            $classes[] = 'docx-addin-provider-' . $provider;
+            $attributes['data-docx-addin-provider'] = $provider;
+        }
+
+        if ($payloadBody !== null && $payloadBody !== '') {
+            $attributes['data-docx-addin-payload-kind'] = $payloadKind ?? 'text';
+            $attributes['data-docx-addin-payload-bytes'] = (string) strlen($payloadBody);
+            $attributes['data-docx-addin-payload-sha256'] = hash('sha256', $payloadBody);
+        }
+
+        if ($type === 'csl-citation' && $payloadBody !== null && $payloadBody !== '') {
+            $citation = json_decode($payloadBody, true);
+            $attributes['data-docx-addin-csl-json-valid'] = is_array($citation) ? 'true' : 'false';
+            if (is_array($citation)) {
+                if (isset($citation['citationID']) && is_string($citation['citationID']) && $citation['citationID'] !== '') {
+                    $attributes['data-docx-addin-citation-id'] = $citation['citationID'];
+                }
+
+                $items = $citation['citationItems'] ?? null;
+                if (is_array($items)) {
+                    $attributes['data-docx-addin-citation-item-count'] = (string) count($items);
+                    $ids = [];
+                    foreach ($items as $item) {
+                        if (is_array($item) && isset($item['id']) && is_string($item['id']) && $item['id'] !== '') {
+                            $ids[] = $item['id'];
+                        }
+                    }
+                    if ($ids !== []) {
+                        $attributes['data-docx-addin-citation-item-ids'] = implode(',', $ids);
+                    }
+                }
             }
         }
 
