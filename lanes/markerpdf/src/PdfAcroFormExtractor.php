@@ -10210,7 +10210,47 @@ final class PdfAcroFormExtractor
             return false;
         }
 
-        return $this->valueAfterName($body, 'Kids') !== null;
+        $span = $this->lastTopLevelValueSpanAfterName($body, 'Kids');
+        if ($span === null) {
+            return false;
+        }
+
+        if ($this->topLevelValueSpanHasTrailingOperand($body, $span)) {
+            return true;
+        }
+
+        return !$this->pdfValueResolvesToNullObject($span['value'], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function pdfValueResolvesToNullObject(?string $value, array $objects, array $seen = []): bool
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return false;
+        }
+
+        if ($value === 'null') {
+            return true;
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return false;
+        }
+
+        $objectNumber = $reference['object'];
+        if (isset($seen[$objectNumber]) || !$this->referenceGenerationMatches($objectNumber, $reference['generation'], $objects)) {
+            return false;
+        }
+
+        $seen[$objectNumber] = true;
+        $resolved = $this->completePdfValueFromObjectBody($objects[$objectNumber] ?? '');
+
+        return $resolved !== null && $this->pdfValueResolvesToNullObject($resolved, $objects, $seen);
     }
 
     /**

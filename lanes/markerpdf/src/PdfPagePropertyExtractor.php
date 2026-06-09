@@ -1988,6 +1988,13 @@ final class PdfPagePropertyExtractor
             $objectNumber = $parentObjectNumber;
         }
 
+        if (isset($objects[$objectNumber], $seen[$objectNumber])) {
+            $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects, $lineage);
+            if ($catalogLineage !== []) {
+                return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+            }
+        }
+
         return $lineage;
     }
 

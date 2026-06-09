@@ -15,8 +15,12 @@ final class PdfJavaScriptActionInspector
      */
     public function reviewDocumentActions(string $pdfBytes, int $previewBytes = 160): array
     {
-        $objects = $this->parsedObjectValues($pdfBytes);
         $rawObjects = $this->rawObjects($pdfBytes);
+        foreach (array_keys(PdfXrefFreeObjectMap::freeObjectNumbers($pdfBytes)) as $objectNumber) {
+            unset($rawObjects[(int) $objectNumber]);
+        }
+
+        $objects = $this->parsedObjectValues($rawObjects);
         $catalog = $this->catalogDictionary($objects);
         $chainSafety = $this->emptyChainSafety();
         if ($catalog === null) {
@@ -431,12 +435,13 @@ final class PdfJavaScriptActionInspector
     }
 
     /**
+     * @param array<int, string> $rawObjects
      * @return array<int, mixed>
      */
-    private function parsedObjectValues(string $pdfBytes): array
+    private function parsedObjectValues(array $rawObjects): array
     {
         $values = [];
-        foreach ($this->rawObjects($pdfBytes) as $objectNumber => $body) {
+        foreach ($rawObjects as $objectNumber => $body) {
             $tokens = $this->tokens(trim($body));
             if ($tokens === []) {
                 continue;

@@ -9,6 +9,7 @@ use InvalidArgumentException;
 final class PdfTextDocumentExtractor
 {
     private const SUPPLIED_DICTIONARY_PAGE_LIST_KEYS = ['dictionary_output', 'pdftext', 'pages', 'page_map', 'pageMap'];
+    private const PDFTEXT_WORKER_PAGE_THRESHOLD = 10;
 
     private PdfTextBlockConverter $converter;
     private PdfPageArtifactSelector $artifactSelector;
@@ -84,26 +85,58 @@ final class PdfTextDocumentExtractor
 
         $pageRange = $pageCount > 0 ? range($startPage, $startPage + $pageCount - 1) : [];
 
+        $metadata = [
+            'pdf_toc' => array_values($toc),
+            'pages' => count($pages),
+            'source_pages' => $totalPages,
+            'start_page' => $startPage,
+            'max_pages' => $pageCount,
+            'pdftext_options' => array_filter([
+                'page_range' => $pageRange,
+                'keep_chars' => $keepChars,
+                'flatten_pdf' => $flattenPdf,
+                'workers' => $workers,
+                'sort' => $sort ? true : null,
+                'disable_links' => $disableLinks ? true : null,
+                'quote_loosebox' => $quoteLoosebox,
+            ], static fn (mixed $value): bool => $value !== null),
+        ];
+
+        $workerPlan = $this->pdftextWorkerPlan($workers, $pageCount);
+        if ($workerPlan !== null) {
+            $metadata['pdftext_worker_plan'] = $workerPlan;
+        }
+
         return [
             'pages' => $pages,
             'toc' => array_values($toc),
-            'metadata' => [
-                'pdf_toc' => array_values($toc),
-                'pages' => count($pages),
-                'source_pages' => $totalPages,
-                'start_page' => $startPage,
-                'max_pages' => $pageCount,
-                'pdftext_options' => array_filter([
-                    'page_range' => $pageRange,
-                    'keep_chars' => $keepChars,
-                    'flatten_pdf' => $flattenPdf,
-                    'workers' => $workers,
-                    'sort' => $sort ? true : null,
-                    'disable_links' => $disableLinks ? true : null,
-                    'quote_loosebox' => $quoteLoosebox,
-                ], static fn (mixed $value): bool => $value !== null),
-            ],
+            'metadata' => $metadata,
             'page_range' => $pageRange,
+        ];
+    }
+
+    /**
+     * pdftext clamps requested process workers to one worker per ten selected
+     * pages, then uses the sequential path when that effective count is 0 or 1.
+     *
+     * @return array{requested_workers: int, selected_pages: int, worker_page_threshold: int, effective_workers: int, uses_multiprocessing: bool, sequential_fallback: bool}|null
+     */
+    private function pdftextWorkerPlan(?int $workers, int $selectedPageCount): ?array
+    {
+        if ($workers === null) {
+            return null;
+        }
+
+        $selectedPageCount = max(0, $selectedPageCount);
+        $effectiveWorkers = min($workers, intdiv($selectedPageCount, self::PDFTEXT_WORKER_PAGE_THRESHOLD));
+
+        return [
+            'requested_workers' => $workers,
+            'selected_pages' => $selectedPageCount,
+            'worker_page_threshold' => self::PDFTEXT_WORKER_PAGE_THRESHOLD,
+            'effective_workers' => $effectiveWorkers,
+            'uses_multiprocessing' => $effectiveWorkers > 1,
+            'sequential_fallback' => $effectiveWorkers <= 1,
         ];
     }
 

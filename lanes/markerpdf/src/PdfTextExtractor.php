@@ -23328,6 +23328,15 @@ final class PdfTextExtractor
             $objectNumber = $parentObjectNumber;
         }
 
+        if (isset($objects[$objectNumber], $seen[$objectNumber])) {
+            $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
+            if ($catalogLineage !== []) {
+                $lineage = $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+            }
+
+            $blocked = true;
+        }
+
         return [
             'lineage' => $lineage,
             'blocked' => $blocked,
