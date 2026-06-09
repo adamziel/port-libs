@@ -1782,6 +1782,7 @@ XML;
         $t->same(true, $documentDiagnostics['present']);
         $t->same(2, $documentDiagnostics['primarySectionCount']);
         $t->same(0, $documentDiagnostics['missingHeadingSectionCount']);
+        $t->same(2, $documentDiagnostics['missingEntryLabelCount']);
         $t->same(2, $documentDiagnostics['missingPrimaryItemLabelCount']);
 
         $tocDiagnostic = $documentDiagnostics['diagnostics'][0];
@@ -1796,6 +1797,79 @@ XML;
         $t->same('print-pages', $pageDiagnostic['sectionId']);
         $t->same(['page-list'], $pageDiagnostic['sectionTypes']);
         $t->same('/EPUB/chapter1.xhtml#page-1', $pageDiagnostic['target']);
+        $t->same($documentDiagnostics, $summary['wordpressImport']['navDocumentDiagnostics']);
+    },
+
+    'reports compact EPUB nav entry label diagnostics for non primary sections' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithNavEntryLabelDiagnostics = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:nav-entry-label-diagnostics</dc:identifier>
+    <dc:title>Navigation entry label diagnostics</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-09T22:40:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter1"/>
+  </spine>
+</package>
+XML;
+        $navWithEntryLabelDiagnostics = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="main-toc" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><a href="chapter1.xhtml#review">Review packet</a></li>
+      </ol>
+    </nav>
+    <nav id="review-trails" epub:type="loa">
+      <h2>Review trails</h2>
+      <ol>
+        <li><a href="chapter1.xhtml#cover"><span class="icon"></span></a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithNavEntryLabelDiagnostics],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navWithEntryLabelDiagnostics],
+            ['name' => 'EPUB/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="review">Chapter 1</h1><figure id="cover"></figure></body></html>'],
+        ]));
+        $validation = $epub->validationReport();
+        $navigation = $validation['navigation'];
+        $documentDiagnostics = $navigation['documentDiagnostics'];
+        $summary = $epub->summary();
+
+        $t->same(false, $validation['valid']);
+        $t->same(['missing-nav-entry-label'], array_column($validation['diagnostics'], 'type'));
+        $t->same(1, $navigation['diagnosticCount']);
+        $t->same(1, $navigation['documentDiagnosticCount']);
+        $t->same(2, $navigation['entryCount']);
+        $t->same(2, $navigation['localTargetCount']);
+        $t->same(0, $navigation['missingTargetCount']);
+        $t->same(true, $documentDiagnostics['present']);
+        $t->same(1, $documentDiagnostics['primarySectionCount']);
+        $t->same(0, $documentDiagnostics['missingHeadingSectionCount']);
+        $t->same(0, $documentDiagnostics['missingOrderedListSectionCount']);
+        $t->same(1, $documentDiagnostics['missingEntryLabelCount']);
+        $t->same(0, $documentDiagnostics['missingPrimaryItemLabelCount']);
+
+        $entryDiagnostic = $documentDiagnostics['diagnostics'][0];
+        $t->same('review-trails', $entryDiagnostic['sectionId']);
+        $t->same(['loa'], $entryDiagnostic['sectionTypes']);
+        $t->same(0, $entryDiagnostic['entryIndex']);
+        $t->same('chapter1.xhtml#cover', $entryDiagnostic['href']);
+        $t->same('/EPUB/chapter1.xhtml#cover', $entryDiagnostic['target']);
+        $t->same(1, $entryDiagnostic['depth']);
         $t->same($documentDiagnostics, $summary['wordpressImport']['navDocumentDiagnostics']);
     },
 

@@ -873,6 +873,7 @@ final class EpubPackage
         $emptySectionCount = 0;
         $hiddenPrimarySectionCount = 0;
         $missingHeadingSectionCount = 0;
+        $missingEntryLabelCount = 0;
         $missingPrimaryItemLabelCount = 0;
         $missingOrderedListSectionCount = 0;
         $untypedSectionCount = 0;
@@ -961,6 +962,7 @@ final class EpubPackage
                     }
 
                     ++$missingPrimaryItemLabelCount;
+                    ++$missingEntryLabelCount;
                     $diagnostics[] = [
                         'type' => 'missing-primary-nav-item-label',
                         'part' => $part,
@@ -974,6 +976,37 @@ final class EpubPackage
                         'target' => is_string($entry['target'] ?? null) ? $entry['target'] : null,
                         'depth' => is_int($entry['depth'] ?? null) ? $entry['depth'] : null,
                         'message' => 'EPUB primary navigation item has no text label for review handoff',
+                    ];
+                }
+            } else {
+                foreach ($entries as $entryIndex => $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $label = is_string($entry['label'] ?? null) ? trim($entry['label']) : '';
+                    if ($label !== '') {
+                        continue;
+                    }
+
+                    $target = is_string($entry['target'] ?? null) ? $entry['target'] : null;
+                    $href = is_string($entry['href'] ?? null) ? $entry['href'] : null;
+                    if (($target === null || $target === '') && ($href === null || $href === '')) {
+                        continue;
+                    }
+
+                    ++$missingEntryLabelCount;
+                    $diagnostics[] = [
+                        'type' => 'missing-nav-entry-label',
+                        'part' => $part,
+                        'sectionIndex' => $sectionIndex,
+                        'entryIndex' => $entryIndex,
+                        'sectionId' => $sectionId,
+                        'sectionTypes' => $sectionTypes,
+                        'href' => $href,
+                        'target' => $target,
+                        'depth' => is_int($entry['depth'] ?? null) ? $entry['depth'] : null,
+                        'message' => 'EPUB navigation entry resolves a target without a reviewable text label',
                     ];
                 }
             }
@@ -1044,6 +1077,7 @@ final class EpubPackage
             'emptySectionCount' => $emptySectionCount,
             'hiddenPrimarySectionCount' => $hiddenPrimarySectionCount,
             'missingHeadingSectionCount' => $missingHeadingSectionCount,
+            'missingEntryLabelCount' => $missingEntryLabelCount,
             'missingPrimaryItemLabelCount' => $missingPrimaryItemLabelCount,
             'missingOrderedListSectionCount' => $missingOrderedListSectionCount,
             'untypedSectionCount' => $untypedSectionCount,
