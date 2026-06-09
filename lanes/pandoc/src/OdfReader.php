@@ -362,11 +362,19 @@ final class OdfReader
 
         $this->manifestVersion = self::attr($root, self::MANIFEST_NS, 'version');
         $items = [];
+        $seenFullPaths = [];
+        $seenParts = [];
+        $rootMediaType = null;
+        $hasContentXml = false;
         foreach (self::childElements($root, 'file-entry', self::MANIFEST_NS) as $entryElement) {
             $fullPath = self::attr($entryElement, self::MANIFEST_NS, 'full-path');
             if ($fullPath === '') {
                 throw new \RuntimeException('ODT manifest file-entry is missing manifest:full-path');
             }
+            if (isset($seenFullPaths[$fullPath])) {
+                throw new \RuntimeException('Duplicate ODT manifest full-path: ' . $fullPath);
+            }
+            $seenFullPaths[$fullPath] = true;
 
             $mediaType = self::attr($entryElement, self::MANIFEST_NS, 'media-type');
             $version = self::attr($entryElement, self::MANIFEST_NS, 'version');
@@ -375,6 +383,17 @@ final class OdfReader
             $encryptionElement = self::firstChildElement($entryElement, 'encryption-data', self::MANIFEST_NS);
             $encrypted = $encryptionElement instanceof \DOMElement;
             $part = $fullPath === '/' ? null : $this->manifestPackagePart($fullPath);
+            if (is_string($part) && $part !== '') {
+                if (isset($seenParts[$part])) {
+                    throw new \RuntimeException('Duplicate ODT manifest package part: ' . $part);
+                }
+                $seenParts[$part] = true;
+                if ($part === 'content.xml') {
+                    $hasContentXml = true;
+                }
+            } else {
+                $rootMediaType = $mediaType;
+            }
             $exists = $part === null ? true : $package->has($part);
             $zipEntry = $exists && $part !== null ? $package->entry($part) : null;
 
@@ -396,6 +415,15 @@ final class OdfReader
 
         if ($items === []) {
             throw new \RuntimeException('ODT manifest does not contain file entries');
+        }
+        if ($rootMediaType === null) {
+            throw new \RuntimeException('ODT manifest is missing root file-entry /');
+        }
+        if ($rootMediaType !== self::MIMETYPE) {
+            throw new \RuntimeException('ODT manifest root entry must declare application/vnd.oasis.opendocument.text');
+        }
+        if (!$hasContentXml) {
+            throw new \RuntimeException('ODT manifest is missing content.xml');
         }
 
         return $items;

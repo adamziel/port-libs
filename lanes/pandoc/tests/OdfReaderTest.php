@@ -8576,6 +8576,43 @@ XML;
         $t->same('odt', $result['document']->attr('source'));
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
     },
+    'rejects invalid ODT manifest root content and duplicate part declarations' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $reader = new OdfReader();
+
+        $manifestWithoutRoot = str_replace(
+            '  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:preferred-view-mode="edit"/>' . "\n",
+            '',
+            $manifestXml
+        );
+        $manifestWithWrongRoot = str_replace(
+            'manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"',
+            'manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"',
+            $manifestXml
+        );
+        $manifestWithoutContentXml = str_replace(
+            '  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>' . "\n",
+            '',
+            $manifestXml
+        );
+        $manifestWithDuplicateFullPath = str_replace(
+            '  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/jpeg"/>',
+            $manifestXml
+        );
+        $manifestWithDuplicateDecodedPart = str_replace(
+            '  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Pictures/hero%2Epng" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithoutRoot)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithWrongRoot)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithoutContentXml)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithDuplicateFullPath)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithDuplicateDecodedPart)));
+    },
     'rejects malformed ODT packages before conversion handoff' => static function (TestRunner $t) use ($buildOdtPackage, $buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml): void {
         $reader = new OdfReader();
 
