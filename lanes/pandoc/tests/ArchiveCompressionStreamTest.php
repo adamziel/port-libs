@@ -1651,6 +1651,82 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($singleZeroBlockEndMarker));
     },
 
+    'preflights tar end marker trailing bytes before package handoff' => static function (TestRunner $t) use ($rawTarHeader): void {
+        $content = "# End-marker packet\n\nReady for WordPress archive review.\n";
+        $clean = $rawTarHeader('packet/end-marker.md', '0', $content);
+        $zeroPadded = $clean . str_repeat("\0", 512);
+        $trailingPayload = "detached reviewer bytes after tar end marker\n";
+        $tailed = $clean . str_pad($trailingPayload, 512, "\0");
+        $gzip = GzipStream::build($tailed, [
+            'filename' => 'wordpress-end-marker-review.tar',
+            'comment' => 'non-zero tar tail stays review-only',
+        ]);
+
+        $cleanPolicy = ArchiveCompressionStream::inspectTarEndMarkerPolicy(
+            $zeroPadded,
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($zeroPadded)
+        );
+        $policy = ArchiveCompressionStream::inspectTarEndMarkerPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tailed)
+        );
+
+        $t->same('tar-end-marker-policy', $cleanPolicy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_TAR, $cleanPolicy['format']);
+        $t->same(true, $cleanPolicy['blockAligned']);
+        $t->same(true, $cleanPolicy['hasEndMarker']);
+        $t->same(1024, $cleanPolicy['endMarkerOffset']);
+        $t->same(2048, $cleanPolicy['endMarkerEndOffset']);
+        $t->same(1024, $cleanPolicy['requiredEndMarkerBytes']);
+        $t->same(512, $cleanPolicy['trailingByteCount']);
+        $t->same(512, $cleanPolicy['trailingZeroByteCount']);
+        $t->same(0, $cleanPolicy['trailingNonZeroByteCount']);
+        $t->same(null, $cleanPolicy['firstTrailingNonZeroOffset']);
+        $t->same(hash('sha256', str_repeat("\0", 512)), $cleanPolicy['trailingBytesSha256']);
+        $t->same(str_repeat('\\x00', 64), $cleanPolicy['trailingBytesPreview']);
+        $t->same('within-thresholds', $cleanPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $cleanPolicy['extractionPolicy']);
+        $t->same([], $cleanPolicy['diagnostics']);
+        $t->same($content, TarArchive::fromString($zeroPadded)->read('/packet/end-marker.md'));
+
+        $t->same('tar-end-marker-policy', $policy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $policy['format']);
+        $t->same(strlen($gzip), $policy['compressedSize']);
+        $t->same(strlen($tailed), $policy['uncompressedSize']);
+        $t->same(true, $policy['blockAligned']);
+        $t->same(true, $policy['hasEndMarker']);
+        $t->same(1024, $policy['endMarkerOffset']);
+        $t->same(2048, $policy['endMarkerEndOffset']);
+        $t->same(512, $policy['trailingByteCount']);
+        $t->same(strlen($trailingPayload), $policy['trailingNonZeroByteCount']);
+        $t->same(512 - strlen($trailingPayload), $policy['trailingZeroByteCount']);
+        $t->same(2048, $policy['firstTrailingNonZeroOffset']);
+        $t->same(0, $policy['firstTrailingNonZeroRelativeOffset']);
+        $t->same(hash('sha256', str_pad($trailingPayload, 512, "\0")), $policy['trailingBytesSha256']);
+        $t->same(
+            str_replace("\n", '\\x0a', $trailingPayload) . str_repeat('\\x00', 64 - strlen($trailingPayload)),
+            $policy['trailingBytesPreview']
+        );
+        $t->same('review-before-conversion', $policy['handoffPolicy']);
+        $t->same('tar-end-marker-review', $policy['extractionPolicy']);
+        $t->same(['tar-end-marker-trailing-non-zero-bytes'], $policy['diagnostics']);
+        $t->same('gzip', $policy['stream']['type']);
+        $t->same('wordpress-end-marker-review.tar', $policy['stream']['members'][0]['filename']);
+        $t->same('non-zero tar tail stays review-only', $policy['stream']['members'][0]['comment']);
+        $t->same(strlen($tailed), $policy['stream']['uncompressedSize']);
+        $t->same(false, array_key_exists('tarBytes', $policy));
+        $t->same(false, array_key_exists('archive', $policy));
+        $t->same(false, array_key_exists('entries', $policy));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($tailed));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tailed)
+        ));
+    },
+
     'rejects unsupported ustar version bytes before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $rewriteTarHeaderFields): void {
         $unsupportedVersion = $rewriteTarHeaderFields(
             $rawTarHeader('packet/bad-ustar-version.xml', '0', '<w:document/>'),

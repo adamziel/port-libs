@@ -2385,6 +2385,52 @@ final class ArchiveCompressionStream
 
     /**
      * @return array{
+     *     type:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     blockSize:int,
+     *     blockAligned:bool,
+     *     hasEndMarker:bool,
+     *     endMarkerOffset:?int,
+     *     endMarkerEndOffset:?int,
+     *     requiredEndMarkerBytes:int,
+     *     trailingByteCount:int,
+     *     trailingZeroByteCount:int,
+     *     trailingNonZeroByteCount:int,
+     *     firstTrailingNonZeroOffset:?int,
+     *     firstTrailingNonZeroRelativeOffset:?int,
+     *     trailingBytesSha256:?string,
+     *     trailingBytesPreview:?string,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectTarEndMarkerPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if (!in_array($format, self::supportedTarFormats(), true)) {
+            throw new \RuntimeException("TAR end-marker policy requires a TAR archive stream format: {$format}");
+        }
+
+        $tarBytes = self::decodeTarBytes($bytes, $format, $maxUncompressedBytes);
+
+        return [
+            'format' => $format,
+            'compressedSize' => strlen($bytes),
+            'uncompressedSize' => strlen($tarBytes),
+        ] + self::tarEndMarkerPolicySummary($tarBytes) + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array{
      *     format:string,
      *     tarBytes:string,
      *     uncompressedSize:int,
@@ -4275,6 +4321,131 @@ final class ArchiveCompressionStream
         }
 
         throw new \RuntimeException('TAR archive is missing the required two-block end marker');
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     blockSize:int,
+     *     blockAligned:bool,
+     *     hasEndMarker:bool,
+     *     endMarkerOffset:?int,
+     *     endMarkerEndOffset:?int,
+     *     requiredEndMarkerBytes:int,
+     *     trailingByteCount:int,
+     *     trailingZeroByteCount:int,
+     *     trailingNonZeroByteCount:int,
+     *     firstTrailingNonZeroOffset:?int,
+     *     firstTrailingNonZeroRelativeOffset:?int,
+     *     trailingBytesSha256:?string,
+     *     trailingBytesPreview:?string,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>
+     * }
+     */
+    private static function tarEndMarkerPolicySummary(string $tarBytes): array
+    {
+        $blockSize = 512;
+        $requiredEndMarkerBytes = $blockSize * 2;
+        $length = strlen($tarBytes);
+        $diagnostics = [];
+        $blockAligned = $length > 0 && $length % $blockSize === 0;
+        if ($length === 0) {
+            $diagnostics[] = 'tar-stream-empty';
+        }
+
+        if (!$blockAligned) {
+            $diagnostics[] = 'tar-record-size-unaligned';
+        }
+
+        $zeroBlock = str_repeat("\0", $blockSize);
+        $endMarkerOffset = null;
+        if ($blockAligned) {
+            for ($offset = 0; $offset + $requiredEndMarkerBytes <= $length; $offset += $blockSize) {
+                if (substr($tarBytes, $offset, $blockSize) === $zeroBlock
+                    && substr($tarBytes, $offset + $blockSize, $blockSize) === $zeroBlock
+                ) {
+                    $endMarkerOffset = $offset;
+                    break;
+                }
+            }
+        }
+
+        if ($endMarkerOffset === null) {
+            $diagnostics[] = 'tar-end-marker-missing';
+
+            return [
+                'type' => 'tar-end-marker-policy',
+                'blockSize' => $blockSize,
+                'blockAligned' => $blockAligned,
+                'hasEndMarker' => false,
+                'endMarkerOffset' => null,
+                'endMarkerEndOffset' => null,
+                'requiredEndMarkerBytes' => $requiredEndMarkerBytes,
+                'trailingByteCount' => 0,
+                'trailingZeroByteCount' => 0,
+                'trailingNonZeroByteCount' => 0,
+                'firstTrailingNonZeroOffset' => null,
+                'firstTrailingNonZeroRelativeOffset' => null,
+                'trailingBytesSha256' => null,
+                'trailingBytesPreview' => null,
+                'handoffPolicy' => 'review-before-conversion',
+                'extractionPolicy' => 'tar-end-marker-review',
+                'diagnostics' => array_values(array_unique($diagnostics)),
+            ];
+        }
+
+        $endMarkerEndOffset = $endMarkerOffset + $requiredEndMarkerBytes;
+        $trailingBytes = substr($tarBytes, $endMarkerEndOffset);
+        $trailingByteCount = strlen($trailingBytes);
+        $trailingZeroByteCount = 0;
+        $trailingNonZeroByteCount = 0;
+        $firstTrailingNonZeroRelativeOffset = null;
+
+        for ($index = 0; $index < $trailingByteCount; $index++) {
+            if ($trailingBytes[$index] === "\0") {
+                $trailingZeroByteCount++;
+                continue;
+            }
+
+            $trailingNonZeroByteCount++;
+            if ($firstTrailingNonZeroRelativeOffset === null) {
+                $firstTrailingNonZeroRelativeOffset = $index;
+            }
+        }
+
+        if ($trailingNonZeroByteCount > 0) {
+            $diagnostics[] = 'tar-end-marker-trailing-non-zero-bytes';
+        }
+
+        $handoffPolicy = $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion';
+
+        return [
+            'type' => 'tar-end-marker-policy',
+            'blockSize' => $blockSize,
+            'blockAligned' => $blockAligned,
+            'hasEndMarker' => true,
+            'endMarkerOffset' => $endMarkerOffset,
+            'endMarkerEndOffset' => $endMarkerEndOffset,
+            'requiredEndMarkerBytes' => $requiredEndMarkerBytes,
+            'trailingByteCount' => $trailingByteCount,
+            'trailingZeroByteCount' => $trailingZeroByteCount,
+            'trailingNonZeroByteCount' => $trailingNonZeroByteCount,
+            'firstTrailingNonZeroOffset' => $firstTrailingNonZeroRelativeOffset === null
+                ? null
+                : $endMarkerEndOffset + $firstTrailingNonZeroRelativeOffset,
+            'firstTrailingNonZeroRelativeOffset' => $firstTrailingNonZeroRelativeOffset,
+            'trailingBytesSha256' => $trailingByteCount === 0 ? null : hash('sha256', $trailingBytes),
+            'trailingBytesPreview' => $trailingByteCount === 0
+                ? null
+                : self::boundedPrintablePreview($trailingBytes, 64),
+            'handoffPolicy' => $handoffPolicy,
+            'extractionPolicy' => $handoffPolicy === 'within-thresholds'
+                ? 'metadata-only-no-extraction'
+                : 'tar-end-marker-review',
+            'diagnostics' => array_values(array_unique($diagnostics)),
+        ];
     }
 
     private static function zipPackageUncompressedSize(ZipPackage $package): int
