@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 05:59:58 UTC",
-    "sourceCommit": "7ed2f69b027c00a8c9af1b63d2dfcdebbab97ac6",
-    "sourceCommitShort": "7ed2f69b027c",
+    "generated": "2026-06-09 06:02:00 UTC",
+    "sourceCommit": "49449b82014bebc3fe4a8804677a95471733c503",
+    "sourceCommitShort": "49449b82014b",
     "sourceBranch": "unknown",
-    "dashboardCommit": "7ed2f69b027c00a8c9af1b63d2dfcdebbab97ac6",
-    "dashboardCommitShort": "7ed2f69b027c",
+    "dashboardCommit": "49449b82014bebc3fe4a8804677a95471733c503",
+    "dashboardCommitShort": "49449b82014b",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2803",
-            "coverage": "2,803 / 2,276 (123.2%)",
+            "mapped": "2804",
+            "coverage": "2,804 / 2,276 (123.2%)",
             "mapPercent": "123.2%",
             "unmapped": "0",
-            "php": "2,414 pass / 0 fail",
+            "php": "2,415 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC YAML metadata handoff current-base slice on base 2c84c...",
+            "audit": "2026-06-09 UTC doctemplates current-base slice on base 2c84ca27878846...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For YAML metadata follow-up, choose a non-overlapping native...",
-            "remainingGate": "No new native support component is needed for this YAML metadata slice.",
+            "nextTarget": "For doctemplates follow-up, choose a non-overlapping upstream...",
+            "remainingGate": "No new native support component is needed for this doctemplates slice.",
             "commit": "pending fast ba..."
         },
         {

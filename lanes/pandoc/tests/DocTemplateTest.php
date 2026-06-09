@@ -489,6 +489,40 @@ TPL, [
         ]), $output);
     },
 
+    'ends upstream pandoc doctemplate explicit nesting before dedented loop directives' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+$bim.zub$ $^$$foo$
+          bar $sup$
+$for(baz)$
+1. $^$Hello $if(it)$
+$it$
+$endif$
+$endfor$
+$^$hey $sup$
+hey $if(foo)$
+$foo$
+$endif$
+hey
+TPL, [
+            'foo' => 1,
+            'baz' => ['a', 'b'],
+            'bim' => ['zub' => 'sim'],
+            'sup' => "a multiline\nstring",
+        ]);
+
+        $t->same(implode("\n", [
+            'sim 1',
+            '    bar a multiline',
+            '    string',
+            '1. Hello a',
+            '1. Hello b',
+            'hey a multiline',
+            'string',
+            'hey 1',
+            'hey',
+        ]), $output);
+    },
+
     'ends explicit pandoc doctemplate nesting before dedented source lines' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->render(<<<'TPL'
 <section>

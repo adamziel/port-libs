@@ -4949,6 +4949,7 @@ CSS;
     {
         $output = '';
         $explicitNestColumn = null;
+        $explicitNestSourceColumn = null;
         $pendingBlockStart = null;
         $pendingBlockLines = null;
         $pendingBlockBlankLine = null;
@@ -4964,7 +4965,7 @@ CSS;
                     );
                 }
 
-                $this->appendRenderedChunk($output, $text, $explicitNestColumn, true, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+                $this->appendRenderedChunk($output, $text, $explicitNestColumn, $explicitNestSourceColumn, true, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
                 continue;
             }
 
@@ -4976,7 +4977,13 @@ CSS;
 
             if ($directive === '^') {
                 $explicitNestColumn = $this->currentColumn($output);
+                $explicitNestSourceColumn = (int) $token['column'];
                 continue;
+            }
+
+            if ($explicitNestColumn !== null && $explicitNestSourceColumn !== null && $this->directiveStartsBeforeExplicitNestColumn($token, $explicitNestSourceColumn, $output)) {
+                $explicitNestColumn = null;
+                $explicitNestSourceColumn = null;
             }
 
             $ifVariable = $this->controlVariable($directive, 'if');
@@ -4986,7 +4993,7 @@ CSS;
                 } catch (\UnexpectedValueException $exception) {
                     throw $this->withTokenLocation($exception, $token);
                 }
-                $this->appendRenderedChunk($output, $rendered, $explicitNestColumn, false, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+                $this->appendRenderedChunk($output, $rendered, $explicitNestColumn, $explicitNestSourceColumn, false, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
                 if ($skipFollowingLineEnding) {
                     $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
                 }
@@ -5001,7 +5008,7 @@ CSS;
                 } catch (\UnexpectedValueException $exception) {
                     throw $this->withTokenLocation($exception, $token);
                 }
-                $this->appendRenderedChunk($output, $rendered, $explicitNestColumn, false, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+                $this->appendRenderedChunk($output, $rendered, $explicitNestColumn, $explicitNestSourceColumn, false, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
                 if ($skipFollowingLineEnding) {
                     $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
                 }
@@ -5049,7 +5056,7 @@ CSS;
                 }
             }
 
-            $this->appendRenderedChunk($output, $rendered, $explicitNestColumn, false, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+            $this->appendRenderedChunk($output, $rendered, $explicitNestColumn, $explicitNestSourceColumn, false, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
         }
 
         $this->finalizePendingBlockOutput($output, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
@@ -6795,12 +6802,28 @@ CSS;
     }
 
     /**
+     * @param array<string, mixed> $token
+     */
+    private function directiveStartsBeforeExplicitNestColumn(array $token, int $sourceColumn, string $output): bool
+    {
+        if ((int) $token['column'] >= $sourceColumn) {
+            return false;
+        }
+
+        $lineStart = $this->lastLineEndingByteOffset($output);
+        $prefix = $lineStart === null ? $output : substr($output, $lineStart + 1);
+
+        return trim($prefix, " \t") === '';
+    }
+
+    /**
      * @param ?list<string> $pendingBlockLines
      */
     private function appendRenderedChunk(
         string &$output,
         string $chunk,
         ?int &$explicitNestColumn,
+        ?int &$explicitNestSourceColumn,
         bool $templateText,
         ?int &$pendingBlockStart,
         ?array &$pendingBlockLines,
@@ -6814,9 +6837,10 @@ CSS;
 
             if (strpbrk($chunk, "\r\n") !== false) {
                 if ($templateText) {
-                    [$chunk, $stillNested] = $this->nestTemplateTextChunk($chunk, $explicitNestColumn);
+                    [$chunk, $stillNested] = $this->nestTemplateTextChunk($chunk, $explicitNestColumn, $explicitNestSourceColumn);
                     if (!$stillNested) {
                         $explicitNestColumn = null;
+                        $explicitNestSourceColumn = null;
                     }
                 } else {
                     $chunk = $this->nestMultiline($chunk, str_repeat(' ', $explicitNestColumn));
@@ -7076,9 +7100,10 @@ CSS;
     /**
      * @return array{0:string, 1:bool}
      */
-    private function nestTemplateTextChunk(string $value, int $column): array
+    private function nestTemplateTextChunk(string $value, int $column, ?int $sourceColumn): array
     {
         $indent = str_repeat(' ', $column);
+        $sourceIndentColumn = $sourceColumn === null ? $column : max(0, $sourceColumn - 1);
         $output = '';
         $offset = 0;
         $length = strlen($value);
@@ -7116,7 +7141,7 @@ CSS;
                 continue;
             }
 
-            if (strlen($sourceIndent) < $column) {
+            if (strlen($sourceIndent) < $sourceIndentColumn) {
                 $output .= substr($value, $afterLineEnding);
                 return [$output, false];
             }

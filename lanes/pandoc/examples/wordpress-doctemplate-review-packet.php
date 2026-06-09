@@ -292,6 +292,26 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $dedentedLoopReviewPacket = $renderer->render(
+        '$source$ $^$$count$' . "\n"
+            . '          queued $details$' . "\n"
+            . '$for(reviewItems)$' . "\n"
+            . '1. $^$Review $if(it)$' . "\n"
+            . '$it$' . "\n"
+            . '$endif$' . "\n"
+            . '$endfor$',
+        [
+            'source' => 'wp',
+            'count' => 3,
+            'details' => "media packet\nlinks packet",
+            'reviewItems' => ['media', 'links'],
+        ],
+    );
+    if ($dedentedLoopReviewPacket !== "wp 3\n   queued media packet\n   links packet\n1. Review media\n1. Review links\n") {
+        fwrite(STDERR, "Unexpected doctemplate dedented loop continuation output\n");
+        exit(1);
+    }
+
     $blockPipeReviewPacket = $renderer->render(
         '$source/uppercase/left 8 "| " " | "$$details/left 20 "" "|"$',
         [
