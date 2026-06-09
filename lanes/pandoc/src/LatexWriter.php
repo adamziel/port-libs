@@ -43,8 +43,10 @@ final class LatexWriter
                 '\rule{0.5\linewidth}{0.5pt}',
                 '\end{center}',
             ],
+            'line_block' => $this->renderLineBlock($node),
             'bullet_list' => $this->renderList($node, false),
             'ordered_list' => $this->renderList($node, true),
+            'definition_list' => $this->renderDefinitionList($node),
             'raw_tex', 'raw_block' => $this->renderRawTexBlock($node),
             default => [],
         };
@@ -117,6 +119,34 @@ final class LatexWriter
     /**
      * @return list<string>
      */
+    private function renderLineBlock(AstNode $node): array
+    {
+        $lines = ['\begin{flushleft}'];
+        $lineNodes = array_values(array_filter(
+            $node->children,
+            static fn (AstNode $child): bool => $child->type === 'line'
+        ));
+        foreach ($lineNodes as $index => $line) {
+            $suffix = $index < count($lineNodes) - 1 ? '\\\\' : '';
+            $lines[] = $this->renderLineBlockLine($line) . $suffix;
+        }
+        $lines[] = '\end{flushleft}';
+
+        return $lines;
+    }
+
+    private function renderLineBlockLine(AstNode $node): string
+    {
+        if ($node->children !== []) {
+            return $this->renderInlines($node->children);
+        }
+
+        return $this->escapeText((string) $node->attr('text', ''));
+    }
+
+    /**
+     * @return list<string>
+     */
     private function renderList(AstNode $node, bool $ordered): array
     {
         $lines = [$ordered ? '\begin{enumerate}' : '\begin{itemize}'];
@@ -182,6 +212,72 @@ final class LatexWriter
         }
 
         return $paragraphs;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderDefinitionList(AstNode $node): array
+    {
+        $lines = ['\begin{description}'];
+        foreach ($node->children as $item) {
+            if ($item->type !== 'definition_item') {
+                continue;
+            }
+
+            array_push($lines, ...$this->renderDefinitionItem($item));
+        }
+        $lines[] = '\end{description}';
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderDefinitionItem(AstNode $item): array
+    {
+        $term = '';
+        $definitions = [];
+        foreach ($item->children as $child) {
+            if ($child->type === 'definition_term' || $child->type === 'term') {
+                $term = $child->children === []
+                    ? $this->escapeText((string) $child->attr('text', ''))
+                    : $this->renderInlines($child->children);
+                continue;
+            }
+
+            if ($child->type === 'definition') {
+                $definitions[] = $child;
+            }
+        }
+
+        if ($term === '') {
+            $term = $this->escapeText((string) $item->attr('term', ''));
+        }
+
+        $lines = [$term === '' ? '\item' : '\item[{' . $term . '}]'];
+        $hasDefinitionBody = false;
+        foreach ($definitions as $definition) {
+            $definitionLines = $this->renderBlockGroup($definition->children);
+            if ($definitionLines === []) {
+                continue;
+            }
+
+            if ($hasDefinitionBody) {
+                $lines[] = '';
+            }
+            $firstLine = array_shift($definitionLines);
+            if ($hasDefinitionBody) {
+                $lines[] = $firstLine;
+            } else {
+                $lines[count($lines) - 1] .= ' ' . $firstLine;
+            }
+            array_push($lines, ...$definitionLines);
+            $hasDefinitionBody = true;
+        }
+
+        return $lines;
     }
 
     /**
