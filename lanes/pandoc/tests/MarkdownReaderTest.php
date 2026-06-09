@@ -15358,6 +15358,58 @@ XML;
         $t->contains('<!-- wp:html -->' . "\n" . $search, $blocks);
         $t->true(!str_contains($blocks, '&lt;search'), 'Standalone search container should not be escaped into reviewer text');
     },
+    'maps upstream html reader svg fragments as raw review markup' => static function (TestRunner $t): void {
+        $svg = '<svg viewBox="0 0 10 10" data-source="batch-57"><path d="M0 0L10 10"></path></svg>';
+        $document = (new MarkdownReader())->read($svg . "\n\nAfter the svg.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($svg, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the svg.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $svg, $blocks);
+        $t->true(!str_contains($blocks, '&lt;svg'), 'Standalone svg fragment should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $svg . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineSvg = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<svg', $inlineSvg->attr('html'));
+        $t->contains('viewBox="0 0 10 10"', $inlineSvg->attr('html'));
+        $t->contains('<path d="M0 0L10 10"></path>', $inlineSvg->attr('html'));
+        $t->contains('<p>Before <svg', $htmlOutput);
+    },
+    'maps upstream html reader mathml fragments as raw review markup' => static function (TestRunner $t): void {
+        $math = '<math data-source="batch-57"><mi>x</mi><mo>=</mo><mn>1</mn></math>';
+        $document = (new MarkdownReader())->read($math . "\n\nAfter the MathML.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($math, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the MathML.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $math, $blocks);
+        $t->true(!str_contains($blocks, '&lt;math'), 'Standalone MathML fragment should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $math . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineMath = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<math', $inlineMath->attr('html'));
+        $t->contains('<mi>x</mi><mo>=</mo><mn>1</mn>', $inlineMath->attr('html'));
+        $t->contains('<p>Before <math', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before x=1'), 'HTML document MathML should not be flattened to plain paragraph text');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);

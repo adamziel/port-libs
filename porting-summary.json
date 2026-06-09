@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 09:58:08 UTC",
-    "sourceCommit": "375c98383f5099ff6cf43757d9c157cdc8456016",
-    "sourceCommitShort": "375c98383f50",
+    "generated": "2026-06-09 10:03:25 UTC",
+    "sourceCommit": "f5385252c125633b6f7c9a4c92874e723719d59b",
+    "sourceCommitShort": "f5385252c125",
     "sourceBranch": "unknown",
-    "dashboardCommit": "375c98383f5099ff6cf43757d9c157cdc8456016",
-    "dashboardCommitShort": "375c98383f50",
+    "dashboardCommit": "f5385252c125633b6f7c9a4c92874e723719d59b",
+    "dashboardCommitShort": "f5385252c125",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,10 +137,10 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,605 pass / 0 fail",
-            "phase": "native PHP Pandoc HTML5 reader review markup; flow containers now sur...",
-            "audit": "2026-06-09 UTC isolated pandoc-html-flow-containers current-base slic...",
-            "currentWork": "Pandoc HTML reader review now preserves flow containers including address, hgroup, me...",
+            "php": "2,607 pass / 0 fail",
+            "phase": "native PHP Pandoc HTML5 reader review markup; SVG and MathML fragment...",
+            "audit": "2026-06-09 UTC isolated pandoc-html-svg-mathml current-base slice on...",
+            "currentWork": "Pandoc HTML reader review now preserves SVG and MathML fragments as raw reviewer-visi...",
             "nextTarget": "Continue non-overlapping native conversion support under DOCX...",
             "remainingGate": "No new native support component is needed.",
             "commit": "pending fast ba..."
