@@ -909,6 +909,36 @@ return [
             $t->same(false, array_key_exists($format, $extensionInference), "Wiki format {$format} should not be file-extension inferred");
         }
     },
+    'summarizes wiki registry parity counts without registering converters' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::wikiFormatParitySummary();
+
+        $t->same([
+            'totalFormats' => 9,
+            'inputFormats' => 7,
+            'outputFormats' => 5,
+            'inputOutputFormats' => 3,
+            'inputOnlyFormats' => 4,
+            'outputOnlyFormats' => 2,
+            'extensionInferenceMappings' => 2,
+            'extensionInferredFormats' => 2,
+            'nonExtensionInferredFormats' => 7,
+            'unsupportedInputFormats' => 7,
+            'unsupportedOutputFormats' => 5,
+            'registeredInputImplementations' => 0,
+            'registeredOutputImplementations' => 0,
+            'directParityClaimed' => false,
+        ], $summary);
+
+        $packet = PandocFormatRegistry::wikiFormatReviewPacket();
+        $t->same(count($packet['formats']), $summary['totalFormats']);
+        $t->same(count($packet['directionBuckets']['inputOutput']), $summary['inputOutputFormats']);
+        $t->same(count($packet['directionBuckets']['inputOnly']), $summary['inputOnlyFormats']);
+        $t->same(count($packet['directionBuckets']['outputOnly']), $summary['outputOnlyFormats']);
+        $t->same(count($packet['extensionInference']), $summary['extensionInferenceMappings']);
+        $t->same(count($packet['unsupportedInputFormats']), $summary['unsupportedInputFormats']);
+        $t->same(count($packet['unsupportedOutputFormats']), $summary['unsupportedOutputFormats']);
+        $t->same(false, $summary['directParityClaimed']);
+    },
     'builds wiki format review packets without direct parity claims' => static function (TestRunner $t): void {
         $packet = PandocFormatRegistry::wikiFormatReviewPacket();
 

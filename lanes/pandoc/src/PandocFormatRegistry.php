@@ -674,6 +674,71 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array{
+     *     totalFormats:int,
+     *     inputFormats:int,
+     *     outputFormats:int,
+     *     inputOutputFormats:int,
+     *     inputOnlyFormats:int,
+     *     outputOnlyFormats:int,
+     *     extensionInferenceMappings:int,
+     *     extensionInferredFormats:int,
+     *     nonExtensionInferredFormats:int,
+     *     unsupportedInputFormats:int,
+     *     unsupportedOutputFormats:int,
+     *     registeredInputImplementations:int,
+     *     registeredOutputImplementations:int,
+     *     directParityClaimed:bool
+     * }
+     */
+    public static function wikiFormatParitySummary(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::wikiOutputSupport();
+        $registeredInputImplementations = 0;
+        $registeredOutputImplementations = 0;
+        $directParityClaimed = false;
+
+        foreach ($directions as $format => $direction) {
+            $inputImplementation = $direction['input'] ? $inputSupport[$format]['implementation'] : '';
+            $outputImplementation = $direction['output'] ? $outputSupport[$format]['implementation'] : '';
+
+            if ($inputImplementation !== '') {
+                ++$registeredInputImplementations;
+            }
+            if ($outputImplementation !== '') {
+                ++$registeredOutputImplementations;
+            }
+            if (
+                $inputImplementation !== ''
+                || $outputImplementation !== ''
+                || !in_array($direction['inputStatus'], ['unsupported', 'not-applicable'], true)
+                || !in_array($direction['outputStatus'], ['unsupported', 'not-applicable'], true)
+            ) {
+                $directParityClaimed = true;
+            }
+        }
+
+        return [
+            'totalFormats' => count($directions),
+            'inputFormats' => count(self::WIKI_INPUT_FORMATS),
+            'outputFormats' => count(self::WIKI_OUTPUT_FORMATS),
+            'inputOutputFormats' => count(self::wikiBidirectionalFormats()),
+            'inputOnlyFormats' => count(self::wikiInputOnlyFormats()),
+            'outputOnlyFormats' => count(self::wikiOutputOnlyFormats()),
+            'extensionInferenceMappings' => count(self::WIKI_EXTENSION_INFERENCE),
+            'extensionInferredFormats' => count(self::wikiFormatsWithExtensionInference()),
+            'nonExtensionInferredFormats' => count(self::wikiFormatsWithoutExtensionInference()),
+            'unsupportedInputFormats' => count(self::formatsWithStatus($inputSupport, 'unsupported')),
+            'unsupportedOutputFormats' => count(self::formatsWithStatus($outputSupport, 'unsupported')),
+            'registeredInputImplementations' => $registeredInputImplementations,
+            'registeredOutputImplementations' => $registeredOutputImplementations,
+            'directParityClaimed' => $directParityClaimed,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public static function wikiBidirectionalFormats(): array
