@@ -4979,6 +4979,19 @@ final class OdfReader
                 }
                 continue;
             }
+            if ($this->isElement($child, self::TEXT_NS, 'reference-mark-start')) {
+                $name = self::attr($child, self::TEXT_NS, 'name');
+                $range = $name === '' ? null : $this->referenceMarkRange($children, $index, $name);
+                if ($range !== null) {
+                    $inner = $this->coalesceTextNodes($this->inlineNodesFromNodeList($range['nodes'], $catalog, $package));
+                    $referenceMark = $this->referenceMarkAnchorNode($child, $inner);
+                    if ($referenceMark instanceof AstNode) {
+                        $nodes[] = $referenceMark;
+                    }
+                    $index = $range['endIndex'];
+                    continue;
+                }
+            }
             if ($this->isElement($child, self::TEXT_NS, 'reference-mark') || $this->isElement($child, self::TEXT_NS, 'reference-mark-start')) {
                 $referenceMark = $this->referenceMarkAnchorNode($child);
                 if ($referenceMark instanceof AstNode) {
@@ -6220,21 +6233,57 @@ final class OdfReader
         ]);
     }
 
-    private function referenceMarkAnchorNode(\DOMElement $referenceMark): ?AstNode
+    /**
+     * @param list<AstNode>|null $children
+     */
+    private function referenceMarkAnchorNode(\DOMElement $referenceMark, ?array $children = null): ?AstNode
     {
         $name = self::attr($referenceMark, self::TEXT_NS, 'name');
         if ($name === '') {
             return null;
         }
 
+        $isRange = $children !== null;
+        $attributes = [
+            'data-odf-reference-name' => $name,
+        ];
+        if ($isRange) {
+            $attributes['data-odf-reference-range'] = 'true';
+        }
+
         return new AstNode('span', [
             'sourceFormat' => 'odt',
             'id' => self::referenceId($name),
-            'classes' => ['anchor', 'odf-reference-mark'],
-            'attributes' => [
-                'data-odf-reference-name' => $name,
-            ],
-        ]);
+            'classes' => $isRange ? ['odf-reference-mark', 'odf-reference-mark-range'] : ['anchor', 'odf-reference-mark'],
+            'referenceName' => $name,
+            'referenceRange' => $isRange,
+            'attributes' => $attributes,
+        ], $children ?? []);
+    }
+
+    /**
+     * @param list<\DOMNode> $children
+     * @return ?array{nodes:list<\DOMNode>, endIndex:int}
+     */
+    private function referenceMarkRange(array $children, int $startIndex, string $name): ?array
+    {
+        $range = [];
+        for ($index = $startIndex + 1, $count = count($children); $index < $count; $index++) {
+            $child = $children[$index];
+            if ($child instanceof \DOMElement && $this->isElement($child, self::TEXT_NS, 'reference-mark-end')) {
+                $endName = self::attr($child, self::TEXT_NS, 'name');
+                if ($endName === $name) {
+                    return [
+                        'nodes' => $range,
+                        'endIndex' => $index,
+                    ];
+                }
+            }
+
+            $range[] = $child;
+        }
+
+        return null;
     }
 
     /**

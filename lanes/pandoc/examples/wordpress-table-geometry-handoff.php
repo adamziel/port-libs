@@ -2054,6 +2054,19 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('Table geometry self-test missing source-to-visual shift coverage metadata');
     }
+    $sourceShiftRecords = is_array($sourceShiftPacket['sourceCoordinateShifts'] ?? null)
+        ? $sourceShiftPacket['sourceCoordinateShifts']
+        : [];
+    if (
+        count($sourceShiftRecords) !== 2
+        || ($sourceShiftRecords[0]['text'] ?? null) !== 'Unexpected source cell'
+        || ($sourceShiftRecords[1]['text'] ?? null) !== 'Second conflict'
+        || ($sourceShiftRecords[0]['sourceColumns'] ?? null) !== [0]
+        || ($sourceShiftRecords[1]['columns'] ?? null) !== [3]
+        || ($sourceShiftRecords[0]['absoluteVisualShift'] ?? null) !== 2
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source-to-visual shift audit records');
+    }
     if (($sourceShiftPacket['summary']['diagnosticCodes'] ?? null) !== []) {
         throw new RuntimeException('Table geometry self-test incorrectly diagnosed normalized implicit source shifts');
     }

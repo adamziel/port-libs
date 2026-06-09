@@ -709,8 +709,8 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<a href="#review-anchor" class="odf-bookmark-ref" data-odf-ref-name="Review Anchor" data-odf-reference-format="text">internal reference</a>')) {
         throw new RuntimeException('Expected ODT bookmark reference to render in WordPress blocks');
     }
-    if (!str_contains($blocks, '<span id="source-claim" class="anchor odf-reference-mark" data-odf-reference-name="Source Claim"></span>source claim')) {
-        throw new RuntimeException('Expected ODT reference mark to render in WordPress blocks');
+    if (!str_contains($blocks, '<span id="source-claim" class="odf-reference-mark odf-reference-mark-range" data-odf-reference-name="Source Claim" data-odf-reference-range="true">source claim</span>')) {
+        throw new RuntimeException('Expected ODT reference mark range to render around source text in WordPress blocks');
     }
     if (!str_contains($blocks, '<a href="#source-claim" class="odf-reference-ref" data-odf-ref-name="Source Claim" data-odf-reference-format="text">source claim reference</a>')) {
         throw new RuntimeException('Expected ODT reference-ref to render in WordPress blocks');

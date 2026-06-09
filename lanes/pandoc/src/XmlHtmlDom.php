@@ -266,7 +266,7 @@ final class XmlHtmlDom
         self::assertSafeSource($html, $label);
         self::assertNoDoctype($html, $label);
         self::assertNoHtmlFragmentDeclarations($html, $label);
-        $html = self::protectHtmlRcdataElements($html);
+        $html = self::protectHtmlRcdataElements($html, protectTemplateContent: true);
 
         $wrapped = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div '
             . self::FRAGMENT_ROOT_ATTRIBUTE . '="1">' . $html . '</div></body></html>';
@@ -377,11 +377,13 @@ final class XmlHtmlDom
         return self::HTML5_FOREIGN_ATTRIBUTE_NAMES[$lowercaseName] ?? $lowercaseName;
     }
 
-    public static function protectHtmlRcdataElements(string $html): string
+    public static function protectHtmlRcdataElements(string $html, bool $protectTemplateContent = false): string
     {
         $offset = 0;
         $protected = '';
-        $pattern = '~<(?P<name>script|style|xmp|noembed|noframes|title|textarea|plaintext)(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
+        $rawTextNames = 'script|style|xmp|noembed|noframes|title|textarea|plaintext'
+            . ($protectTemplateContent ? '|template' : '');
+        $pattern = '~<(?P<name>' . $rawTextNames . ')(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
 
         while (preg_match($pattern, $html, $matches, PREG_OFFSET_CAPTURE, $offset) === 1) {
             $startTag = (string) $matches[0][0];

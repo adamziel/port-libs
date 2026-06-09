@@ -1592,6 +1592,38 @@ return [
         $t->contains('|               |     | Unexpected source cell | Second conflict |', $markdown);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'summarizes source-to-visual shift records for importer audits' => static function (TestRunner $t) use ($buildImplicitColumnRowspanOverlapDocument): void {
+        $document = $buildImplicitColumnRowspanOverlapDocument();
+        $table = $document->children[0];
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $shifts = is_array($packet['sourceCoordinateShifts'] ?? null)
+            ? $packet['sourceCoordinateShifts']
+            : [];
+
+        $t->same(2, count($shifts));
+        $t->same(2, $packet['summary']['sourceCoordinateShiftCount'] ?? null);
+        $t->same(2, $packet['summary']['maxVisualShift'] ?? null);
+        $t->same(['Unexpected source cell', 'Second conflict'], array_map(static fn (array $record): string => (string) ($record['text'] ?? ''), $shifts));
+        $t->same(['body', 'body'], array_map(static fn (array $record): string => (string) ($record['section'] ?? ''), $shifts));
+        $t->same(['body', 'body'], array_map(static fn (array $record): string => (string) ($record['rowRole'] ?? ''), $shifts));
+        $t->same([1, 1], array_map(static fn (array $record): int => (int) ($record['row'] ?? -1), $shifts));
+        $t->same([0, 1], array_map(static fn (array $record): int => (int) ($record['sourceCell'] ?? -1), $shifts));
+        $t->same([0, 1], array_map(static fn (array $record): int => (int) ($record['sourceColumn'] ?? -1), $shifts));
+        $t->same([1, 2], array_map(static fn (array $record): int => (int) ($record['sourceEndColumn'] ?? -1), $shifts));
+        $t->same([[0], [1]], array_map(static fn (array $record): array => $record['sourceColumns'] ?? [], $shifts));
+        $t->same([2, 3], array_map(static fn (array $record): int => (int) ($record['column'] ?? -1), $shifts));
+        $t->same([3, 4], array_map(static fn (array $record): int => (int) ($record['endColumn'] ?? -1), $shifts));
+        $t->same([[2], [3]], array_map(static fn (array $record): array => $record['columns'] ?? [], $shifts));
+        $t->same([2, 2], array_map(static fn (array $record): int => (int) ($record['visualShift'] ?? 0), $shifts));
+        $t->same([2, 2], array_map(static fn (array $record): int => (int) ($record['absoluteVisualShift'] ?? 0), $shifts));
+        $t->same([1, 1], array_map(static fn (array $record): int => (int) ($record['colspan'] ?? 0), $shifts));
+        $t->same([1, 1], array_map(static fn (array $record): int => (int) ($record['rowspan'] ?? 0), $shifts));
+        $t->same([false, false], array_map(static fn (array $record): bool => (bool) ($record['headerCell'] ?? true), $shifts));
+        $t->same([false, false], array_map(static fn (array $record): bool => (bool) ($record['headerRow'] ?? true), $shifts));
+        $t->same([0, 0], array_map(static fn (array $record): int => (int) ($record['rowHeadColumns'] ?? -1), $shifts));
+        $t->same(false, array_key_exists('node', $shifts[0] ?? []));
+        json_encode($shifts, JSON_THROW_ON_ERROR);
+    },
     'diagnoses malformed source span attributes while preserving normalized table output' => static function (TestRunner $t) use ($buildMalformedSpanNormalizationDocument): void {
         $document = $buildMalformedSpanNormalizationDocument();
         $table = $document->children[0];

@@ -4647,6 +4647,27 @@ TPL;
         );
     },
 
+    'rejects pandoc doctemplate conditional branches after else' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('$if(primary)$primary$else$fallback$else$second fallback$endif$', [
+                'primary' => false,
+            ]),
+            'Unexpected doctemplate conditional branch else after else at <template>:1:35',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('$if(primary)$primary$else$fallback$elseif(secondary)$secondary$endif$', [
+                'primary' => false,
+                'secondary' => true,
+            ]),
+            'Unexpected doctemplate conditional branch elseif after else at <template>:1:35',
+        );
+    },
+
     'reports pandoc doctemplate resource and partial parser locations' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
         $renderer = new DocTemplate();
 

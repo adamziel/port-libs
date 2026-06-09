@@ -5061,6 +5061,7 @@ CSS;
         $branchTrimLeadingLineEnding = $blockMultiline;
         $currentControlMultiline = $blockMultiline;
         $depth = 0;
+        $seenElse = false;
 
         for ($index = $start; $index < $end; $index++) {
             $token = $tokens[$index];
@@ -5100,6 +5101,13 @@ CSS;
 
             $elseifVariable = $this->controlVariable($directive, 'elseif');
             if ($elseifVariable !== null) {
+                if ($seenElse) {
+                    throw new \UnexpectedValueException(
+                        'Unexpected doctemplate conditional branch elseif after else at '
+                        . $token['source'] . ':' . $token['line'] . ':' . $token['column'],
+                    );
+                }
+
                 $branches[] = [
                     'variable' => $branchVariable,
                     'start' => $branchStart,
@@ -5114,6 +5122,13 @@ CSS;
             }
 
             if ($directive === 'else') {
+                if ($seenElse) {
+                    throw new \UnexpectedValueException(
+                        'Unexpected doctemplate conditional branch else after else at '
+                        . $token['source'] . ':' . $token['line'] . ':' . $token['column'],
+                    );
+                }
+
                 $branches[] = [
                     'variable' => $branchVariable,
                     'start' => $branchStart,
@@ -5123,6 +5138,7 @@ CSS;
                 $branchVariable = null;
                 $branchStart = $index + 1;
                 $branchTrimLeadingLineEnding = $currentControlMultiline;
+                $seenElse = true;
             }
         }
 

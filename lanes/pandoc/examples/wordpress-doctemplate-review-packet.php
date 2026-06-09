@@ -1628,6 +1628,20 @@ HTML);
     }
 
     try {
+        (new DocTemplate())->render('$if(primary)$primary$else$fallback$elseif(secondary)$secondary$endif$', [
+            'primary' => false,
+            'secondary' => true,
+        ]);
+        fwrite(STDERR, "Expected doctemplate conditional branch ordering rejection\n");
+        exit(1);
+    } catch (\UnexpectedValueException $exception) {
+        if (!str_contains($exception->getMessage(), 'Unexpected doctemplate conditional branch elseif after else at <template>:1:35')) {
+            fwrite(STDERR, "Unexpected doctemplate conditional branch diagnostic: {$exception->getMessage()}\n");
+            exit(1);
+        }
+    }
+
+    try {
         (new DocTemplate())->renderResource('review-packets/broken.html', [
             'review-packets/broken.html' => "<article>\n" . '${ components/broken-row() }' . "\n</article>",
             'review-packets/components/broken-row.html' => "<p>\n" . '$if(title)$Missing endif',

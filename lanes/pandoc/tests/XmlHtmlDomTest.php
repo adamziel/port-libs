@@ -352,6 +352,35 @@ return [
         $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected plaintext script-looking source to stay escaped');
         $t->true(!str_contains($html, '<p>after</p>'), 'Expected following paragraph source to stay plaintext text');
     },
+    'treats html template contents as inert escaped source text for raw handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<template data-source="legacy"><p>Template <script>drop()</script> &amp; <b>note</b></p></template><p>after</p>',
+            'template review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', ['source' => 'xml-html5-dom'], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/template-source-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expectedTemplateText = '<p>Template <script>drop()</script> &amp; <b>note</b></p>';
+        $expectedHtml = '<template data-source="legacy">&lt;p&gt;Template &lt;script&gt;drop()&lt;/script&gt; &amp;amp; &lt;b&gt;note&lt;/b&gt;&lt;/p&gt;</template><p>after</p>';
+
+        $t->same(2, count($summary));
+        $t->same('template', $summary[0]['name']);
+        $t->same(['data-source' => 'legacy'], $summary[0]['attributes']);
+        $t->same($expectedTemplateText, $summary[0]['text']);
+        $t->same('text', $summary[0]['children'][0]['type']);
+        $t->same($expectedTemplateText, $summary[0]['children'][0]['text']);
+        $t->same('p', $summary[1]['name']);
+        $t->same('after', $summary[1]['text']);
+        $t->same($expectedHtml, $html);
+        $t->contains($expectedHtml, $blocks);
+        $t->same('/migration/template-source-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<script>drop()</script>'), 'Expected script-looking template source to stay escaped');
+        $t->true(!str_contains($html, '<b>note</b>'), 'Expected inline tag-looking template source to stay escaped');
+    },
     'foster-parents invalid table children before deterministic html serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<table class="legacy"><caption>Review rows</caption><p>Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>',

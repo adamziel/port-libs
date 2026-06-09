@@ -3244,11 +3244,14 @@ XML;
 
         $t->same('span', $sourceAnchor->type);
         $t->same('source-claim', $sourceAnchor->attr('id'));
-        $t->same(['anchor', 'odf-reference-mark'], $sourceAnchor->attr('classes'));
+        $t->same(['odf-reference-mark', 'odf-reference-mark-range'], $sourceAnchor->attr('classes'));
         $t->same('Source Claim', $sourceAnchor->attr('attributes')['data-odf-reference-name']);
-        $t->same('source claim and point ', $blocks[0]->children[2]->attr('text'));
+        $t->same('true', $sourceAnchor->attr('attributes')['data-odf-reference-range']);
+        $t->same('source claim', $sourceAnchor->children[0]->attr('text'));
+        $t->same(' and point ', $blocks[0]->children[2]->attr('text'));
         $t->same('span', $pointAnchor->type);
         $t->same('point-review', $pointAnchor->attr('id'));
+        $t->same(['anchor', 'odf-reference-mark'], $pointAnchor->attr('classes'));
         $t->same('Point Review', $pointAnchor->attr('attributes')['data-odf-reference-name']);
         $t->same('Range source claim and point marker.', $blocks[0]->attr('text'));
 
@@ -3268,12 +3271,54 @@ XML;
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[]{#source-claim .anchor .odf-reference-mark data-odf-reference-name="Source Claim"}source claim', $markdown);
+        $t->contains('[source claim]{#source-claim .odf-reference-mark .odf-reference-mark-range data-odf-reference-name="Source Claim" data-odf-reference-range="true"}', $markdown);
         $t->contains('[source claim](#source-claim){.odf-reference-ref data-odf-ref-name="Source Claim" data-odf-reference-format="text"}', $markdown);
-        $t->contains('<span id="source-claim" class="anchor odf-reference-mark" data-odf-reference-name="Source Claim"></span>source claim', $blocksHtml);
+        $t->contains('<span id="source-claim" class="odf-reference-mark odf-reference-mark-range" data-odf-reference-name="Source Claim" data-odf-reference-range="true">source claim</span>', $blocksHtml);
         $t->contains('<a href="#source-claim" class="odf-reference-ref" data-odf-ref-name="Source Claim" data-odf-reference-format="text">source claim</a>', $blocksHtml);
         $t->contains('<span id="point-review" class="anchor odf-reference-mark" data-odf-reference-name="Point Review"></span>marker.', $blocksHtml);
         $t->contains('<a href="#point-review" class="odf-reference-ref" data-odf-ref-name="Point Review" data-odf-reference-format="page">point marker</a>', $blocksHtml);
+    },
+    'wraps ODT reference mark ranges around nested inline content' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithNestedReferenceMark = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p>Claim <text:reference-mark-start text:name="Styled Source Claim"/>styled <text:a xlink:href="https://example.test/source-claim">source link</text:a><text:reference-mark-end text:name="Styled Source Claim"/> survives.</text:p>
+      <text:p>Jump to <text:reference-ref text:ref-name="Styled Source Claim" text:reference-format="text">styled claim</text:reference-ref>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithNestedReferenceMark));
+        $paragraph = $result['document']->children[0];
+        $referenceMark = $paragraph->children[1];
+        $reference = $result['document']->children[1]->children[1];
+
+        $t->same('Claim styled source link survives.', $paragraph->attr('text'));
+        $t->same('span', $referenceMark->type);
+        $t->same('styled-source-claim', $referenceMark->attr('id'));
+        $t->same(['odf-reference-mark', 'odf-reference-mark-range'], $referenceMark->attr('classes'));
+        $t->same('Styled Source Claim', $referenceMark->attr('referenceName'));
+        $t->same(true, $referenceMark->attr('referenceRange'));
+        $t->same('true', $referenceMark->attr('attributes')['data-odf-reference-range']);
+        $t->same('styled ', $referenceMark->children[0]->attr('text'));
+        $t->same('link', $referenceMark->children[1]->type);
+        $t->same('https://example.test/source-claim', $referenceMark->children[1]->attr('url'));
+        $t->same('source link', $referenceMark->children[1]->children[0]->attr('text'));
+        $t->same('#styled-source-claim', $reference->attr('url'));
+        $t->same(1, $result['importReport']['content']['referenceMarkCount']);
+        $t->same(1, $result['importReport']['content']['referenceReferenceCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[styled [source link](https://example.test/source-claim)]{#styled-source-claim .odf-reference-mark .odf-reference-mark-range data-odf-reference-name="Styled Source Claim" data-odf-reference-range="true"}', $markdown);
+        $t->contains('[styled claim](#styled-source-claim){.odf-reference-ref data-odf-ref-name="Styled Source Claim" data-odf-reference-format="text"}', $markdown);
+        $t->contains('<span id="styled-source-claim" class="odf-reference-mark odf-reference-mark-range" data-odf-reference-name="Styled Source Claim" data-odf-reference-range="true">styled <a href="https://example.test/source-claim">source link</a></span>', $blocksHtml);
+        $t->contains('<a href="#styled-source-claim" class="odf-reference-ref" data-odf-ref-name="Styled Source Claim" data-odf-reference-format="text">styled claim</a>', $blocksHtml);
     },
     'maps ODT sequence fields into review spans and import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSequences = <<<'XML'

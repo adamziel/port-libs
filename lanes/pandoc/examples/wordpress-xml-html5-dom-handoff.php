@@ -19,6 +19,7 @@ $fragment = <<<'HTML'
   <svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="review-gradient"><stop offset="0"></stop></linearGradient><textPath href="#review-label">Logo</textPath></svg>
   <math><mi definitionURL="#review-x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>
   <figure><img src="media/review.png?rev=1&amp;post=42" alt="Review image"><figcaption>Review image</figcaption></figure>
+  <template data-review="legacy-template"><p>Template <script>drop()</script> &amp; <b>source</b></p></template>
   <textarea data-review="legacy-field">Reviewer <script>alert(1)</script> &amp; <b>note</b></textarea>
   <style disabled>.legacy-note > strong { color: #600; }</style>
   <script type="application/json" data-review="metadata">{"source":"legacy <html> & notes"}</script>
@@ -85,6 +86,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($html, '<math><mi definitionURL="#review-x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>')) {
         throw new RuntimeException('Expected MathML foreign-content casing to survive review handoff');
+    }
+    if (!str_contains($html, '<template data-review="legacy-template">&lt;p&gt;Template &lt;script&gt;drop()&lt;/script&gt; &amp;amp; &lt;b&gt;source&lt;/b&gt;&lt;/p&gt;</template>')) {
+        throw new RuntimeException('Expected template content to serialize as inert escaped source text');
+    }
+    if (str_contains($html, '<script>drop()</script>') || str_contains($html, '<b>source</b>')) {
+        throw new RuntimeException('Expected template source markup to remain escaped');
     }
     if (!str_contains($html, '<textarea data-review="legacy-field">Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;</textarea>')) {
         throw new RuntimeException('Expected textarea RCDATA to serialize as escaped review text');

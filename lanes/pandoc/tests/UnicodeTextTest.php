@@ -1995,6 +1995,22 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'Supplementary East Asian wide wrapped line exceeds requested width');
         }
     },
+    'keeps yijing hexagram symbols narrow inside cjk display ranges' => static function (TestRunner $t): void {
+        $hexagrams = "\u{4DC0}\u{4DDF}\u{4DFF}";
+        $han = "\u{4E00}";
+        $sample = $hexagrams . $han . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("Hex {$hexagrams} {$han} tail", 9, '  ');
+
+        $t->same(3, UnicodeText::displayWidth($hexagrams));
+        $t->same(6, UnicodeText::displayWidth($sample));
+        $t->same(["\u{4DC0}", "\u{4DDF}", "\u{4DFF}", $han, 'X'], UnicodeText::splitByDisplayBreakpoints($sample, [1, 2, 3, 5]));
+        $t->same(["\u{4DC0}\u{4DDF}", "\u{4DFF}{$han}X"], UnicodeText::splitAtDisplayWidth($sample, 2));
+        $t->same("\u{4DC0}   ", UnicodeText::padDisplay("\u{4DC0}", 4));
+        $t->same(["Hex {$hexagrams}", "  {$han} tail"], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 9, 'Yijing hexagram wrapped line exceeds requested width');
+        }
+    },
     'measures kana extended b letters as east asian wide' => static function (TestRunner $t): void {
         $kana = "\u{1AFF0}\u{1AFF5}\u{1AFFD}";
         $sample = $kana . 'X';

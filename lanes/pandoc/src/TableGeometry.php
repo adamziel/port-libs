@@ -1768,6 +1768,7 @@ final class TableGeometry
      *     captions:array<string, array<string, mixed>>,
      *     sections:list<array<string, mixed>>,
      *     coverage:list<array<string, mixed>>,
+     *     sourceCoordinateShifts:list<array<string, mixed>>,
      *     diagnostics:list<array<string, mixed>>,
      *     accessibility:array<string, array{id?:string,scope?:string,headers?:list<string>}>,
      *     headerAssociations:array<string, mixed>,
@@ -1784,6 +1785,7 @@ final class TableGeometry
         $sections = self::sectionGrids($table);
         $coverageRecords = self::cellCoverage($table);
         $coverage = self::serializableCoverage($coverageRecords);
+        $sourceCoordinateShifts = self::sourceCoordinateShiftRecords($coverageRecords);
         $diagnostics = self::diagnostics($table);
         $captions = self::captionMetadata($table);
         $widthSummary = self::columnWidthSummary($table, $columnCount);
@@ -1835,6 +1837,7 @@ final class TableGeometry
             'sections' => self::serializableSectionGrids($sections),
             'rowGroups' => $rowGroups,
             'coverage' => $coverage,
+            'sourceCoordinateShifts' => $sourceCoordinateShifts,
             'diagnostics' => $diagnostics,
             'writerDowngrades' => $writerDowngrades,
             'accessibility' => $accessibility,
@@ -4772,6 +4775,60 @@ final class TableGeometry
             }
 
             $records[] = $record;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
+    private static function sourceCoordinateShiftRecords(array $coverage): array
+    {
+        $records = [];
+        foreach ($coverage as $record) {
+            $visualShift = (int) ($record['visualShift'] ?? 0);
+            if ($visualShift === 0) {
+                continue;
+            }
+
+            $node = $record['node'] ?? null;
+            $shift = [
+                'section' => (string) ($record['section'] ?? ''),
+                'row' => (int) ($record['row'] ?? 0),
+                'rowRole' => (string) ($record['rowRole'] ?? ''),
+                'column' => (int) ($record['column'] ?? 0),
+                'endColumn' => (int) ($record['endColumn'] ?? 0),
+                'columns' => self::intList($record['columns'] ?? []),
+                'sourceCell' => (int) ($record['sourceCell'] ?? 0),
+                'sourceColumn' => (int) ($record['sourceColumn'] ?? 0),
+                'sourceEndColumn' => (int) ($record['sourceEndColumn'] ?? 0),
+                'sourceColumns' => self::intList($record['sourceColumns'] ?? []),
+                'visualShift' => $visualShift,
+                'absoluteVisualShift' => abs($visualShift),
+                'colspan' => max(1, (int) ($record['colspan'] ?? 1)),
+                'rawColspan' => (int) ($record['rawColspan'] ?? 1),
+                'rowspan' => max(1, (int) ($record['rowspan'] ?? 1)),
+                'rawRowspan' => (int) ($record['rawRowspan'] ?? 1),
+                'headerCell' => ($record['headerCell'] ?? false) === true,
+                'headerRow' => ($record['headerRow'] ?? false) === true,
+                'rowHeadColumns' => (int) ($record['rowHeadColumns'] ?? 0),
+            ];
+
+            if (($record['rowspanToEnd'] ?? false) === true) {
+                $shift['rowspanToEnd'] = true;
+            }
+
+            if ($node instanceof AstNode) {
+                $shift['text'] = self::plainText($node);
+                $sourceAttributes = self::sourceAttributeSummary($node);
+                if ($sourceAttributes !== []) {
+                    $shift['sourceAttributes'] = $sourceAttributes;
+                }
+            }
+
+            $records[] = $shift;
         }
 
         return $records;

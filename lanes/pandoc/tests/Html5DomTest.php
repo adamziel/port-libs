@@ -330,6 +330,35 @@ return [
         $t->true(!str_contains($serialized, '</body>'), 'Expected synthetic wrapper close tags not to leak into plaintext text');
         $t->true(!str_contains($serialized, '<p>hidden</p>'), 'Expected following paragraph source to stay plaintext text');
     },
+    'treats html template contents as inert escaped source during reader traversal' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<template data-source="legacy"><p>Template <script>drop()</script> &amp; <b>note</b></p></template><p>after</p>'
+        );
+        $template = Html5Dom::firstChildElement($body, 'template');
+        $paragraph = Html5Dom::firstChildElement($body, 'p');
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+        $expectedTemplateText = '<p>Template <script>drop()</script> &amp; <b>note</b></p>';
+        $expectedHtml = '<template data-source="legacy">&lt;p&gt;Template &lt;script&gt;drop()&lt;/script&gt; &amp;amp; &lt;b&gt;note&lt;/b&gt;&lt;/p&gt;</template><p>after</p>';
+
+        $t->true($template instanceof DOMElement, 'Expected template element to survive parser traversal');
+        $t->same(['data-source' => 'legacy'], $template instanceof DOMElement ? Html5Dom::attributes($template) : []);
+        $t->same($expectedTemplateText, $template instanceof DOMElement ? $template->textContent : null);
+        $t->same([], $template instanceof DOMElement ? Html5Dom::childElements($template) : []);
+        $t->true($paragraph instanceof DOMElement, 'Expected following paragraph to stay outside inert template text');
+        $t->same('after', $paragraph instanceof DOMElement ? Html5Dom::normalizedText($paragraph) : null);
+        $t->same($expectedHtml, $serialized);
+        $t->true(!str_contains($serialized, '<script>drop()</script>'), 'Expected template script-looking source to stay escaped');
+        $t->true(!str_contains($serialized, '<b>note</b>'), 'Expected template inline tag-looking source to stay escaped');
+
+        $document = Html5Dom::parseHtmlDocument(
+            '<!doctype html><html><body><template><img src="cover.png"></template><p>doc</p></body></html>'
+        );
+        $documentBody = $document->getElementsByTagName('body')->item(0);
+        $t->same(
+            '<template>&lt;img src="cover.png"&gt;</template><p>doc</p>',
+            $documentBody instanceof DOMElement ? Html5Dom::serializeHtmlChildren($documentBody) : ''
+        );
+    },
     'serializes invalid table-scope children before the table for html5 reader handoff' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<table class="legacy"><caption>Review rows</caption><p>Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>'
