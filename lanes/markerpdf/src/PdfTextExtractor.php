@@ -8526,8 +8526,8 @@ final class PdfTextExtractor
             'image_mask_paint_colors' => $imageMask ? $imageMaskPaintColors : [],
             'image_mask_paint_color_review_only' => $imageMask,
             'interpolate' => $this->pdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'Interpolate', $objects),
-            'rendering_intent' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Intent', $objects),
-            'image_name' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Name', $objects),
+            'rendering_intent' => $this->imageXObjectTopLevelNameMetadataValue($stream['dict'], 'Intent', $objects),
+            'image_name' => $this->imageXObjectTopLevelNameMetadataValue($stream['dict'], 'Name', $objects),
             'struct_parent' => $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParent', $objects),
             'struct_parents' => $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParents', $objects),
             'metadata_stream' => $metadataStream,
@@ -8595,6 +8595,21 @@ final class PdfTextExtractor
             'rgb_preview_boundary' => 'marker.pdf.images.render_image',
             'review_only' => true,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function imageXObjectTopLevelNameMetadataValue(string $dictionary, string $name, array $objects): ?string
+    {
+        if (
+            $this->duplicateTopLevelPdfNameDeclarationCount($dictionary, $name) > 0
+            || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, $name)
+        ) {
+            return null;
+        }
+
+        return $this->topLevelPdfNameValueAfterNameResolvingObjects($dictionary, $name, $objects);
     }
 
     /**
