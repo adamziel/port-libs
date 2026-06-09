@@ -4199,6 +4199,73 @@ return [
         $t->true(!str_contains($html, 'bad<token>'), 'Expected tag-looking crawler directives to stay hidden');
         $t->true(!str_contains($html, 'unknown-policy'), 'Expected unsupported crawler directives to stay hidden');
     },
+    'adds source line metadata to document metadata review nodes and diagnostics before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<section>\n"
+            . "<title>Imported packet</title>\n"
+            . "<meta charset=\"Windows-1252\">\n"
+            . "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src &#039;self&#039;; report-uri https://tracker.example.test/csp; script-src java&#10;script:alert(1)\">\n"
+            . "<meta name=\"referrer\" content=\"bad policy\">\n"
+            . "<meta name=\"robots\" content=\"index, url=javascript:alert(1), unsupported-policy\">\n"
+            . "<meta name=\"theme-color\" content=\"url(javascript:alert(1))\">\n"
+            . "<meta name=\"theme-color\" content=\"#123456\" media=\"screen and (background: url(javascript:alert(1)))\">\n"
+            . "<meta name=\"color-scheme\" content=\"dark bad-token light\">\n"
+            . "<meta property=\"og:title\" content=\"Share title\">\n"
+            . "<p>after</p>\n"
+            . '</section>'
+        );
+        $nodes = $fragment->nodes();
+        $children = isset($nodes[0]['children']) && is_array($nodes[0]['children']) ? $nodes[0]['children'] : [];
+        $metadataNodes = array_values(array_filter(
+            $children,
+            static fn (array $node): bool => ($node['type'] ?? '') === 'element'
+                && ($node['name'] ?? '') === 'span'
+                && str_starts_with((string) array_key_first(is_array($node['attrs'] ?? null) ? $node['attrs'] : []), 'data-pandoc-meta')
+        ));
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/document-metadata-lines-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $metadataDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'unsafe-attribute'
+                && ($diagnostic['tag'] ?? '') === 'meta'
+                && in_array((string) ($diagnostic['attribute'] ?? ''), ['content', 'media'], true)
+        ));
+        $astMetadataDiagnostics = array_values(array_filter(
+            $document->children[0]->attr('diagnostics'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'unsafe-attribute'
+                && ($diagnostic['tag'] ?? '') === 'meta'
+                && in_array((string) ($diagnostic['attribute'] ?? ''), ['content', 'media'], true)
+        ));
+
+        $t->contains('<span data-pandoc-meta-name="title" data-pandoc-meta-source="title" data-pandoc-meta-content="Imported packet">Title: Imported packet</span>', $html);
+        $t->contains('<span data-pandoc-meta-charset="windows-1252" data-pandoc-meta-source="charset">Charset: windows-1252</span>', $html);
+        $t->contains('<span data-pandoc-meta-http-equiv="content-security-policy" data-pandoc-meta-content="default-src &#039;self&#039;">Content security policy: default-src \'self\'</span>', $html);
+        $t->contains('<span data-pandoc-meta-name="robots" data-pandoc-meta-content="index">Robots: index</span>', $html);
+        $t->contains('<span data-pandoc-meta-name="theme-color" data-pandoc-meta-content="#123456">Theme color: #123456</span>', $html);
+        $t->contains('<span data-pandoc-meta-name="color-scheme" data-pandoc-meta-content="dark light">Color scheme: dark light</span>', $html);
+        $t->contains('<span data-pandoc-meta-property="og:title" data-pandoc-meta-content="Share title">Open Graph title: Share title</span>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/document-metadata-lines-review.html', $document->children[0]->attr('part'));
+        $t->same([2, 3, 4, 6, 8, 9, 10], array_map(static fn (array $node): ?int => $node['line'] ?? null, $metadataNodes));
+        $t->same(['span', 'span', 'span', 'span', 'span', 'span', 'span'], array_map(static fn (array $node): string => (string) ($node['name'] ?? ''), $metadataNodes));
+        $t->same(8, count($metadataDiagnostics));
+        $t->same(
+            ['content', 'content', 'content', 'content', 'content', 'content', 'media', 'content'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $metadataDiagnostics)
+        );
+        $t->same([4, 4, 5, 6, 6, 7, 8, 9], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $metadataDiagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $metadataDiagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astMetadataDiagnostics)
+        );
+        foreach (['tracker.example.test', 'javascript:', 'bad policy', 'unsupported-policy', 'bad-token', 'url('] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected unsafe document metadata to stay diagnostic-only: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to omit unsafe document metadata: ' . $blocked);
+        }
+    },
     'converts passive property metadata into reviewer spans and links before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

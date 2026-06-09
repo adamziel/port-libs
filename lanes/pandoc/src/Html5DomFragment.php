@@ -4379,7 +4379,7 @@ final class Html5DomFragment
             if ($charsetMetadata !== null) {
                 [$source, $charset] = $charsetMetadata;
 
-                return [[
+                return [self::nodeWithSourceLine([
                     'type' => 'element',
                     'name' => 'span',
                     'attrs' => [
@@ -4390,7 +4390,7 @@ final class Html5DomFragment
                         'type' => 'text',
                         'text' => 'Charset: ' . $charset,
                     ]],
-                ]];
+                ], $element)];
             }
 
             $urlMetadata = self::htmlMetaUrlMetadata($element);
@@ -4445,7 +4445,7 @@ final class Html5DomFragment
                     ? 'data-pandoc-meta-http-equiv'
                     : 'data-pandoc-meta-name';
 
-                return [[
+                return [self::nodeWithSourceLine([
                     'type' => 'element',
                     'name' => 'span',
                     'attrs' => [
@@ -4456,7 +4456,7 @@ final class Html5DomFragment
                         'type' => 'text',
                         'text' => self::htmlMetaReviewLabel($name) . ': ' . $content,
                     ]],
-                ]];
+                ], $element)];
             }
 
             $crawlerMetadata = self::htmlMetaCrawlerMetadata($element, $diagnostics);
@@ -4466,7 +4466,7 @@ final class Html5DomFragment
                     ? 'data-pandoc-meta-property'
                     : 'data-pandoc-meta-name';
 
-                return [[
+                return [self::nodeWithSourceLine([
                     'type' => 'element',
                     'name' => 'span',
                     'attrs' => [
@@ -4477,7 +4477,7 @@ final class Html5DomFragment
                         'type' => 'text',
                         'text' => self::htmlMetaReviewLabel($name) . ': ' . $content,
                     ]],
-                ]];
+                ], $element)];
             }
 
             $reviewMetadata = self::htmlMetaReviewMetadata($element, $diagnostics);
@@ -4497,7 +4497,7 @@ final class Html5DomFragment
                 $attrs[$metadataName] = $metadataValue;
             }
 
-            return [[
+            return [self::nodeWithSourceLine([
                 'type' => 'element',
                 'name' => 'span',
                 'attrs' => $attrs,
@@ -4505,7 +4505,7 @@ final class Html5DomFragment
                     'type' => 'text',
                     'text' => self::htmlMetaReviewLabel($name) . ': ' . $content,
                 ]],
-            ]];
+            ], $element)];
         }
 
         $normalizedTarget = self::normalizeUrlAttributeValue($target);
@@ -4578,17 +4578,17 @@ final class Html5DomFragment
      */
     private static function normalizeHtmlTitleElement(\DOMElement $element, array &$diagnostics): ?array
     {
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'blocked-tag',
             'tag' => 'title',
-        ];
+        ], $element);
 
         $title = self::cleanHtmlMetadataAttribute($element->textContent);
         if ($title === '') {
             return null;
         }
 
-        return [[
+        return [self::nodeWithSourceLine([
             'type' => 'element',
             'name' => 'span',
             'attrs' => [
@@ -4600,7 +4600,7 @@ final class Html5DomFragment
                 'type' => 'text',
                 'text' => 'Title: ' . $title,
             ]],
-        ]];
+        ], $element)];
     }
 
     /**
@@ -4652,14 +4652,14 @@ final class Html5DomFragment
 
         $httpEquiv = strtolower(self::cleanHtmlMetadataAttribute($element->getAttribute('http-equiv')));
         if ($httpEquiv === 'content-security-policy') {
-            $policy = self::normalizeHtmlContentSecurityPolicy($element->getAttribute('content'), $diagnostics);
+            $policy = self::normalizeHtmlContentSecurityPolicy($element->getAttribute('content'), $diagnostics, $element);
 
             return $policy === null ? null : ['http-equiv', 'content-security-policy', $policy];
         }
 
         $name = self::normalizeHtmlMetaName($element->getAttribute('name'));
         if ($name === 'referrer') {
-            $policy = self::normalizeHtmlReferrerMetaPolicy($element->getAttribute('content'), $diagnostics);
+            $policy = self::normalizeHtmlReferrerMetaPolicy($element->getAttribute('content'), $diagnostics, $element);
 
             return $policy === null ? null : ['name', 'referrer', $policy];
         }
@@ -4670,7 +4670,7 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlContentSecurityPolicy(string $value, array &$diagnostics): ?string
+    private static function normalizeHtmlContentSecurityPolicy(string $value, array &$diagnostics, \DOMElement $element): ?string
     {
         $content = self::cleanHtmlMetadataAttribute($value);
         if ($content === '') {
@@ -4686,12 +4686,12 @@ final class Html5DomFragment
 
             [$name, $sources] = self::splitHtmlContentSecurityPolicyDirective($directive);
             if (!self::isReviewableHtmlContentSecurityPolicyDirective($name, $sources)) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => 'meta',
                     'attribute' => 'content',
                     'directive' => $name,
-                ];
+                ], $element);
                 continue;
             }
 
@@ -4740,7 +4740,7 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlReferrerMetaPolicy(string $value, array &$diagnostics): ?string
+    private static function normalizeHtmlReferrerMetaPolicy(string $value, array &$diagnostics, \DOMElement $element): ?string
     {
         $policy = strtolower(self::cleanHtmlMetadataAttribute($value));
         if (in_array($policy, [
@@ -4757,12 +4757,12 @@ final class Html5DomFragment
         }
 
         if ($policy !== '') {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => 'meta',
                 'attribute' => 'content',
                 'value' => $policy,
-            ];
+            ], $element);
         }
 
         return null;
@@ -4783,7 +4783,7 @@ final class Html5DomFragment
             return null;
         }
 
-        $content = self::normalizeHtmlCrawlerDirectives($element->getAttribute('content'), $diagnostics);
+        $content = self::normalizeHtmlCrawlerDirectives($element->getAttribute('content'), $diagnostics, $element);
 
         return $content === null ? null : ['name', $name, $content];
     }
@@ -4791,7 +4791,7 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlCrawlerDirectives(string $value, array &$diagnostics): ?string
+    private static function normalizeHtmlCrawlerDirectives(string $value, array &$diagnostics, \DOMElement $element): ?string
     {
         $content = self::cleanHtmlMetadataAttribute($value);
         if ($content === '') {
@@ -4800,7 +4800,7 @@ final class Html5DomFragment
 
         $directives = [];
         foreach (explode(',', $content) as $directive) {
-            $normalized = self::normalizeHtmlCrawlerDirective($directive, $diagnostics);
+            $normalized = self::normalizeHtmlCrawlerDirective($directive, $diagnostics, $element);
             if ($normalized === null || in_array($normalized, $directives, true)) {
                 continue;
             }
@@ -4814,7 +4814,7 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlCrawlerDirective(string $directive, array &$diagnostics): ?string
+    private static function normalizeHtmlCrawlerDirective(string $directive, array &$diagnostics, \DOMElement $element): ?string
     {
         $value = strtolower(self::cleanHtmlMetadataAttribute($directive));
         if ($value === '') {
@@ -4823,12 +4823,12 @@ final class Html5DomFragment
 
         $compact = preg_replace('/[\x00-\x20]+/', '', $value) ?? $value;
         if (preg_match('/[<>{}`]/', $value) === 1 || preg_match('/(?:java|vb)script:/', $compact) === 1) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => 'meta',
                 'attribute' => 'content',
                 'directive' => $value,
-            ];
+            ], $element);
 
             return null;
         }
@@ -4857,12 +4857,12 @@ final class Html5DomFragment
             return 'max-image-preview:' . $matches[1];
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'unsafe-attribute',
             'tag' => 'meta',
             'attribute' => 'content',
             'directive' => $value,
-        ];
+        ], $element);
 
         return null;
     }
@@ -4993,12 +4993,12 @@ final class Html5DomFragment
     {
         $color = self::normalizeHtmlMetaThemeColorContent($element->getAttribute('content'));
         if ($color === null) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => 'meta',
                 'attribute' => 'content',
                 'name' => 'theme-color',
-            ];
+            ], $element);
 
             return null;
         }
@@ -5007,12 +5007,12 @@ final class Html5DomFragment
         if ($element->hasAttribute('media')) {
             $media = self::normalizeHtmlMetaThemeColorMedia($element->getAttribute('media'));
             if ($media === null) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => 'meta',
                     'attribute' => 'media',
                     'name' => 'theme-color',
-                ];
+                ], $element);
             } else {
                 $attrs['data-pandoc-meta-media'] = $media;
             }
@@ -5070,13 +5070,13 @@ final class Html5DomFragment
         $normalized = [];
         foreach ($tokens as $token) {
             if (!in_array($token, ['normal', 'light', 'dark', 'only'], true)) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => 'meta',
                     'attribute' => 'content',
                     'name' => 'color-scheme',
                     'token' => $token,
-                ];
+                ], $element);
                 continue;
             }
             if (!in_array($token, $normalized, true)) {

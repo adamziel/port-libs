@@ -58,6 +58,20 @@ $semanticMetadataLineFragment = Html5DomFragment::fromHtml(
     . '</article>',
     'https://source.example.test/import/posts/post.html'
 );
+$documentMetadataLineFragment = Html5DomFragment::fromHtml(
+    "<section>\n"
+    . "<title>Imported packet</title>\n"
+    . "<meta charset=\"Windows-1252\">\n"
+    . "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src &#039;self&#039;; report-uri https://tracker.example.test/csp; script-src java&#10;script:alert(1)\">\n"
+    . "<meta name=\"referrer\" content=\"bad policy\">\n"
+    . "<meta name=\"robots\" content=\"index, url=javascript:alert(1), unsupported-policy\">\n"
+    . "<meta name=\"theme-color\" content=\"url(javascript:alert(1))\">\n"
+    . "<meta name=\"theme-color\" content=\"#123456\" media=\"screen and (background: url(javascript:alert(1)))\">\n"
+    . "<meta name=\"color-scheme\" content=\"dark bad-token light\">\n"
+    . "<meta property=\"og:title\" content=\"Share title\">\n"
+    . "<p>after</p>\n"
+    . '</section>'
+);
 $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
     $fragment->toRawHtmlAst(['part' => '/migration/review-fragment.html']),
 ]);
@@ -74,7 +88,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<img src="/uploads/mapped-preview.png" dynsrc="/uploads/clip.avi" lowsrc="https://example.test/preview-low.jpg" usemap="#review-map" alt="Mapped preview">',
         '<a href="/review" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-alt="Review map">Review map</a>',
         '<a href="mailto:review@example.test">Mail reviewer</a><span data-pandoc-image-alt-fallback="true">Unsafe media link</span>',
-        '<p>Reviewer choice Keep visible label</p><p>Publication statusDraftFinalNeeds copyedit</p>Visible reviewer note',
+        '<p>Reviewer choice <span data-pandoc-button-type="submit">Keep visible label</span></p><p>Publication statusDraftFinalNeeds copyedit</p>Visible reviewer note',
         'Iframe fallback <b>caption</b>',
         '<p>Object fallback <a href="/review">review</a></p>',
         '<a href="/wp-content/uploads/review.pdf" data-pandoc-object-data="true" title="Embedded PDF source">Embedded PDF source</a><p>PDF fallback</p>',
@@ -85,7 +99,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Template fallback <a href="/review">review</a><a>bad</a></p><img src="/uploads/template.png" alt="Template">',
         'Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;b&gt;source&lt;/b&gt;',
         '<p data-review="loose-table">Loose table note</p>orphan table text<table class="legacy-table"><caption>Review rows</caption><tr><td>Cell A</td></tr><tr><td>Cell B</td></tr></table>',
-        '<details open><summary>Media review</summary><video controls muted playsinline loop><source type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>',
+        '<details open><summary>Media review</summary><video data-pandoc-media-controls="true" data-pandoc-media-muted="true" data-pandoc-media-playsinline="true" data-pandoc-media-loop="true"><source type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>',
         '<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>',
         '<title><p viewbox="title html"><textpath>Title fallback</textpath><svg viewBox="0 0 3 3"><linearGradient id="title-nested"></linearGradient></svg></p></title>',
         '<use href="#review-icon"></use><image xlink:href="https://example.test/review.svg"></image><feImage></feImage><textPath href="#review-label">Logo</textPath>',
@@ -169,6 +183,49 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('HTML5 DOM handoff self-test leaked unsafe semantic metadata source values');
     }
 
+    $documentMetadataLineHtml = $documentMetadataLineFragment->serialize();
+    $documentMetadataLineBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [
+        $documentMetadataLineFragment->toRawHtmlAst(['part' => '/migration/document-metadata-lines-review.html']),
+    ]));
+    $documentMetadataLineNodes = $documentMetadataLineFragment->nodes();
+    $documentMetadataLineChildren = isset($documentMetadataLineNodes[0]['children']) && is_array($documentMetadataLineNodes[0]['children']) ? $documentMetadataLineNodes[0]['children'] : [];
+    $documentMetadataLineMetadataNodes = array_values(array_filter(
+        $documentMetadataLineChildren,
+        static fn (array $node): bool => ($node['type'] ?? '') === 'element'
+            && ($node['name'] ?? '') === 'span'
+            && str_starts_with((string) array_key_first(is_array($node['attrs'] ?? null) ? $node['attrs'] : []), 'data-pandoc-meta')
+    ));
+    $documentMetadataLineDiagnostics = array_values(array_filter(
+        $documentMetadataLineFragment->diagnostics(),
+        static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'unsafe-attribute'
+            && ($diagnostic['tag'] ?? '') === 'meta'
+            && in_array((string) ($diagnostic['attribute'] ?? ''), ['content', 'media'], true)
+    ));
+    foreach ([
+        'data-pandoc-meta-source="title"',
+        'data-pandoc-meta-charset="windows-1252"',
+        'data-pandoc-meta-http-equiv="content-security-policy"',
+        'data-pandoc-meta-name="robots"',
+        'data-pandoc-meta-name="theme-color"',
+        'data-pandoc-meta-name="color-scheme"',
+        'data-pandoc-meta-property="og:title"',
+    ] as $expectedHtml) {
+        if (!str_contains($documentMetadataLineHtml, $expectedHtml) || !str_contains($documentMetadataLineBlocks, $expectedHtml)) {
+            throw new RuntimeException('HTML5 DOM handoff self-test did not preserve document metadata review node: ' . $expectedHtml);
+        }
+    }
+    if (array_map(static fn (array $node): ?int => $node['line'] ?? null, $documentMetadataLineMetadataNodes) !== [2, 3, 4, 6, 8, 9, 10]) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not carry source lines on document metadata review nodes');
+    }
+    if (array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $documentMetadataLineDiagnostics) !== [4, 4, 5, 6, 6, 7, 8, 9]) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not carry source lines on document metadata diagnostics');
+    }
+    foreach (['tracker.example.test', 'javascript:', 'bad policy', 'unsupported-policy', 'bad-token', 'url('] as $blockedMetadata) {
+        if (str_contains($documentMetadataLineHtml, $blockedMetadata) || str_contains($documentMetadataLineBlocks, $blockedMetadata)) {
+            throw new RuntimeException('HTML5 DOM handoff self-test leaked unsafe document metadata source value: ' . $blockedMetadata);
+        }
+    }
+
     if ($fragment->summary()['blockedTags'] !== ['applet', 'area', 'button', 'canvas', 'embed', 'form', 'iframe', 'input', 'map', 'noscript', 'object', 'optgroup', 'option', 'param', 'plaintext', 'script', 'select', 'template', 'textarea', 'xmp']) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/embed/noscript/template/script/plaintext tags');
     }
@@ -232,3 +289,4 @@ echo "controlBaseReview:\n" . $controlBaseFragment->serialize() . "\n";
 echo "unsafeBaseReview:\n" . $unsafeBaseFragment->serialize() . "\n";
 echo "duplicateBaseReview:\n" . $duplicateBaseFragment->serialize() . "\n";
 echo "semanticMetadataLineReview:\n" . $semanticMetadataLineFragment->serialize() . "\n";
+echo "documentMetadataLineReview:\n" . $documentMetadataLineFragment->serialize() . "\n";

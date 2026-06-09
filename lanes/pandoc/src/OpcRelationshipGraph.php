@@ -3274,7 +3274,7 @@ final class OpcRelationshipGraph
     /**
      * @param list<string> $sourceIds
      * @param list<string> $sourceTypes
-     * @return array{source:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, unmatchedSourceIds:list<string>, unmatchedSourceTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
+     * @return array{source:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, unmatchedSourceIds:list<string>, unmatchedSourceTypes:list<string>, selectorOverlappingRelationshipIds:list<string>, selectorOverlapCount:int, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightRelationshipSelector(string $sourcePartName = '/', array $sourceIds = [], array $sourceTypes = []): array
     {
@@ -3303,6 +3303,7 @@ final class OpcRelationshipGraph
         $knownIds = [];
         $knownTypes = [];
         $relationships = [];
+        $selectorOverlappingRelationshipIds = [];
 
         foreach ($targets as $target) {
             $knownIds[$target['id']] = true;
@@ -3312,6 +3313,10 @@ final class OpcRelationshipGraph
             $selectedBySourceType = in_array($target['type'], $validSourceTypes, true);
             if (!$selectedBySourceId && !$selectedBySourceType) {
                 continue;
+            }
+
+            if ($selectedBySourceId && $selectedBySourceType) {
+                $selectorOverlappingRelationshipIds[] = $target['id'];
             }
 
             $relationships[] = [
@@ -3372,6 +3377,7 @@ final class OpcRelationshipGraph
             $issues[] = 'unmatched-source-type';
         }
 
+        sort($selectorOverlappingRelationshipIds, SORT_STRING);
         $relationshipsValid = array_reduce(
             $relationships,
             static fn (bool $valid, array $relationship): bool => $valid && $relationship['valid'],
@@ -3386,6 +3392,8 @@ final class OpcRelationshipGraph
             'sourceTypeIssues' => $sourceTypeIssues,
             'unmatchedSourceIds' => $unmatchedSourceIds,
             'unmatchedSourceTypes' => $unmatchedSourceTypes,
+            'selectorOverlappingRelationshipIds' => $selectorOverlappingRelationshipIds,
+            'selectorOverlapCount' => count($selectorOverlappingRelationshipIds),
             'valid' => $issues === [] && $relationshipsValid,
             'issues' => $issues,
             'relationships' => $relationships,
@@ -3395,7 +3403,7 @@ final class OpcRelationshipGraph
     /**
      * @param list<string> $sourceIds
      * @param list<string> $sourceTypes
-     * @return array{source:string, relationshipPartName:string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, relationshipIds:list<string>, relationshipCount:int, selectorValid:bool, relationshipTargetsValid:bool, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string, relationshipXmlBytes:?int, relationshipXmlSha256:?string}
+     * @return array{source:string, relationshipPartName:string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorOverlappingRelationshipIds:list<string>, selectorOverlapCount:int, relationshipIds:list<string>, relationshipCount:int, selectorValid:bool, relationshipTargetsValid:bool, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string, relationshipXmlBytes:?int, relationshipXmlSha256:?string}
      */
     public function materializeRelationshipTransform(string $sourcePartName = '/', array $sourceIds = [], array $sourceTypes = []): array
     {
@@ -3446,6 +3454,8 @@ final class OpcRelationshipGraph
             'sourceTypes' => $selector['sourceTypes'],
             'invalidSourceTypes' => $selector['invalidSourceTypes'],
             'sourceTypeIssues' => $selector['sourceTypeIssues'],
+            'selectorOverlappingRelationshipIds' => $selector['selectorOverlappingRelationshipIds'],
+            'selectorOverlapCount' => $selector['selectorOverlapCount'],
             'relationshipIds' => array_map(
                 static fn (OpcRelationship $relationship): string => $relationship->id,
                 $selectedForTransform,
@@ -3463,7 +3473,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, duplicateSourceIds:list<string>, duplicateSourceTypes:list<string>, selectorDuplicateSourceIdCount:int, selectorDuplicateSourceTypeCount:int, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorChildCount:int, selectorRelationshipReferenceCount:int, selectorRelationshipGroupReferenceCount:int, selectorUnsupportedChildCount:int, selectorUnsupportedContentCount:int, followingCanonicalizationAlgorithm:?string, followingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, duplicateSourceIds:list<string>, duplicateSourceTypes:list<string>, selectorDuplicateSourceIdCount:int, selectorDuplicateSourceTypeCount:int, selectorOverlappingRelationshipIds:list<string>, selectorOverlapCount:int, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorChildCount:int, selectorRelationshipReferenceCount:int, selectorRelationshipGroupReferenceCount:int, selectorUnsupportedChildCount:int, selectorUnsupportedContentCount:int, followingCanonicalizationAlgorithm:?string, followingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>
      */
     public function preflightSignatureRelationshipTransforms(string $signaturePartName): array
     {
@@ -3566,6 +3576,8 @@ final class OpcRelationshipGraph
 
                 $relationshipIds = [];
                 $relationshipCount = 0;
+                $selectorOverlappingRelationshipIds = [];
+                $selectorOverlapCount = 0;
                 $selectorValid = null;
                 $relationshipTargetsValid = null;
                 $relationships = [];
@@ -3582,6 +3594,8 @@ final class OpcRelationshipGraph
                         );
                         $relationshipIds = $materialized['relationshipIds'];
                         $relationshipCount = $materialized['relationshipCount'];
+                        $selectorOverlappingRelationshipIds = $materialized['selectorOverlappingRelationshipIds'];
+                        $selectorOverlapCount = $materialized['selectorOverlapCount'];
                         $invalidSourceTypes = $materialized['invalidSourceTypes'];
                         $sourceTypeIssues = $materialized['sourceTypeIssues'];
                         $selectorValid = $materialized['selectorValid'];
@@ -3615,6 +3629,8 @@ final class OpcRelationshipGraph
                     'duplicateSourceTypes' => $selector['duplicateSourceTypes'],
                     'selectorDuplicateSourceIdCount' => $selector['selectorDuplicateSourceIdCount'],
                     'selectorDuplicateSourceTypeCount' => $selector['selectorDuplicateSourceTypeCount'],
+                    'selectorOverlappingRelationshipIds' => $selectorOverlappingRelationshipIds,
+                    'selectorOverlapCount' => $selectorOverlapCount,
                     'invalidSourceTypes' => $invalidSourceTypes,
                     'sourceTypeIssues' => $sourceTypeIssues,
                     'selectorChildCount' => $selector['selectorChildCount'],

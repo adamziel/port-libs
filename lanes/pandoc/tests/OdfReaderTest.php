@@ -3959,6 +3959,53 @@ XML;
         $t->contains('<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero">Figure 1</span>', $blocksHtml);
         $t->contains('<h2 id="appendix-a">Appendix <span class="odf-sequence" data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1">A</span></h2>', $blocksHtml);
     },
+    'maps ODT sequence and note reference fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithReferenceFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>References <text:sequence-ref text:ref-name="seq-hero" text:reference-format="category-and-value">Figure 1</text:sequence-ref> and footnote <text:note-ref text:ref-name="ftn-review" text:note-class="footnote" text:reference-format="text">1</text:note-ref> stay reviewable.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithReferenceFields));
+        $paragraph = $result['document']->children[0];
+        $sequenceRef = $paragraph->children[1];
+        $noteRef = $paragraph->children[3];
+
+        $t->same('References Figure 1 and footnote 1 stay reviewable.', $paragraph->attr('text'));
+        $t->same('span', $sequenceRef->type);
+        $t->same(['odf-field', 'odf-field-sequence-ref'], $sequenceRef->attr('classes'));
+        $t->same('sequence-ref', $sequenceRef->attr('fieldType'));
+        $t->same('seq-hero', $sequenceRef->attr('fieldMetadata')['refName']);
+        $t->same('category-and-value', $sequenceRef->attr('fieldMetadata')['referenceFormat']);
+        $t->same('seq-hero', $sequenceRef->attr('attributes')['data-odf-field-ref-name']);
+        $t->same('category-and-value', $sequenceRef->attr('attributes')['data-odf-field-reference-format']);
+        $t->same('Figure 1', $sequenceRef->children[0]->attr('text'));
+
+        $t->same('span', $noteRef->type);
+        $t->same(['odf-field', 'odf-field-note-ref'], $noteRef->attr('classes'));
+        $t->same('note-ref', $noteRef->attr('fieldType'));
+        $t->same('ftn-review', $noteRef->attr('fieldMetadata')['refName']);
+        $t->same('footnote', $noteRef->attr('fieldMetadata')['noteClass']);
+        $t->same('text', $noteRef->attr('fieldMetadata')['referenceFormat']);
+        $t->same('ftn-review', $noteRef->attr('attributes')['data-odf-field-ref-name']);
+        $t->same('footnote', $noteRef->attr('attributes')['data-odf-field-note-class']);
+        $t->same('text', $noteRef->attr('attributes')['data-odf-field-reference-format']);
+        $t->same('1', $noteRef->children[0]->attr('text'));
+        $t->same(2, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Figure 1]{.odf-field .odf-field-sequence-ref data-odf-field-type="sequence-ref" data-odf-field-ref-name="seq-hero" data-odf-field-reference-format="category-and-value"}', $markdown);
+        $t->contains('[1]{.odf-field .odf-field-note-ref data-odf-field-type="note-ref" data-odf-field-ref-name="ftn-review" data-odf-field-reference-format="text" data-odf-field-note-class="footnote"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-sequence-ref" data-odf-field-type="sequence-ref" data-odf-field-ref-name="seq-hero" data-odf-field-reference-format="category-and-value">Figure 1</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-note-ref" data-odf-field-type="note-ref" data-odf-field-ref-name="ftn-review" data-odf-field-reference-format="text" data-odf-field-note-class="footnote">1</span>', $blocksHtml);
+    },
     'preserves ODT soft page breaks as review markers' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSoftPageBreak = <<<'XML'
 <office:document-content

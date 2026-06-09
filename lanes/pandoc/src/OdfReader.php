@@ -6090,6 +6090,8 @@ final class OdfReader
             'variable-input',
             'user-field-get',
             'user-field-input',
+            'sequence-ref',
+            'note-ref',
             'expression',
             'measure',
             'text-input',
@@ -6397,6 +6399,8 @@ final class OdfReader
             'kind' => self::nullable(self::attr($field, self::TEXT_NS, 'kind')),
             'description' => self::nullable(self::attr($field, self::TEXT_NS, 'description')),
             'refName' => self::nullable(self::attr($field, self::TEXT_NS, 'ref-name')),
+            'referenceFormat' => self::nullable(self::attr($field, self::TEXT_NS, 'reference-format')),
+            'noteClass' => self::nullable(self::attr($field, self::TEXT_NS, 'note-class')),
             'formula' => self::nullable(self::attr($field, self::TEXT_NS, 'formula')),
             'condition' => self::nullable(self::attr($field, self::TEXT_NS, 'condition')),
             'display' => self::nullable(self::attr($field, self::TEXT_NS, 'display')),
@@ -6898,7 +6902,7 @@ final class OdfReader
             return $text;
         }
 
-        foreach (['selectedValue', 'stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'currentValue', 'dateValue', 'timeValue', 'booleanValue', 'rowNumber', 'databaseName'] as $name) {
+        foreach (['selectedValue', 'stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'currentValue', 'dateValue', 'timeValue', 'booleanValue', 'rowNumber', 'databaseName', 'refName'] as $name) {
             $value = $metadata[$name] ?? null;
             if (is_bool($value)) {
                 return $value ? 'true' : 'false';
