@@ -232,6 +232,18 @@ final class MarkdownReader
                 array_push($blocks, ...$rawHtmlContainer);
                 continue;
             }
+            if (
+                $paragraph !== []
+                && $listStack === []
+                && $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line)
+            ) {
+                $this->flushParagraph($paragraph, $blocks);
+                $rawHtmlBlock = $this->tryReadRawHtmlBlock($lines, $index);
+                if ($rawHtmlBlock !== null) {
+                    $blocks[] = $rawHtmlBlock;
+                    continue;
+                }
+            }
             $rawHtmlBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlBlock($lines, $index) : null;
             if ($rawHtmlBlock !== null) {
                 $blocks[] = $rawHtmlBlock;
@@ -8233,6 +8245,10 @@ final class MarkdownReader
             return $this->readRawHtmlUntilMarker($lines, $index, ']]>');
         }
 
+        if (preg_match('/^ {0,3}<(script|pre|style)(?:[ \t]|>|$)/i', $line, $m) === 1) {
+            return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
+        }
+
         if (preg_match('/^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)(?=\s|>|\/>)(?:\s+[^>]*)?\/?>/i', $line, $m) === 1) {
             $tag = strtolower($m[1]);
             if ($this->isCommonMarkBlankTerminatedRawHtmlTag($tag)) {
@@ -13279,6 +13295,29 @@ final class MarkdownReader
     private function rawHtmlLineSelfClosesTag(string $line, string $tag): bool
     {
         return preg_match('/^ {0,3}<' . preg_quote($tag, '/') . '(?:\s+[^>]*)?\/>[ \t]*$/i', $line) === 1;
+    }
+
+    private function isCommonMarkParagraphInterruptingRawHtmlBlockStart(string $line): bool
+    {
+        $expanded = $this->expandTabsToSpaces($line);
+        if (
+            preg_match('/^ {0,3}<!--/', $expanded) === 1
+            || preg_match('/^ {0,3}<\?/', $expanded) === 1
+            || preg_match('/^ {0,3}<![A-Za-z]/', $expanded) === 1
+            || preg_match('/^ {0,3}<!\[CDATA\[/', $expanded) === 1
+        ) {
+            return true;
+        }
+
+        if (preg_match('/^ {0,3}<(script|pre|style)(?:[ \t]|>|$)/i', $expanded) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)(?=\s|>|\/>)/i', $expanded, $m) !== 1) {
+            return false;
+        }
+
+        return $this->isCommonMarkBlankTerminatedRawHtmlTag(strtolower($m[1]));
     }
 
     private function normalizeRawHtmlLine(string $line): string

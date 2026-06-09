@@ -12784,6 +12784,36 @@ HTML;
         $t->contains('<h1 id="parsed-after-boundary">Parsed after boundary</h1>', $blocks);
         $t->contains('<!-- wp:html -->' . "\n" . '</section>', $blocks);
     },
+    'maps commonmark paragraph interrupting raw html block boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Intro paragraph.',
+            '<section data-source="commonmark-interrupt">',
+            '*raw emphasis stays raw*',
+            '',
+            '<script>',
+            '# raw script stays raw',
+            '</script>',
+            'After **script** boundary.',
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Intro paragraph.', $document->children[0]->attr('text'));
+        $t->same('raw_html', $document->children[1]->type);
+        $t->same(
+            '<section data-source="commonmark-interrupt">' . "\n" . '*raw emphasis stays raw*',
+            $document->children[1]->attr('html')
+        );
+        $t->same('raw_html', $document->children[2]->type);
+        $t->same("<script>\n# raw script stays raw\n</script>", $document->children[2]->attr('html'));
+        $t->same('paragraph', $document->children[3]->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $document->children[3]->children));
+        $t->contains('<p>Intro paragraph.</p>', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '<section data-source="commonmark-interrupt">' . "\n" . '*raw emphasis stays raw*', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '<script>' . "\n" . '# raw script stays raw' . "\n" . '</script>', $blocks);
+        $t->contains('<p>After <strong>script</strong> boundary.</p>', $blocks);
+    },
     'maps commonmark generic raw html tag lines to blank-line boundaries' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '<span data-review="commonmark-raw">',
