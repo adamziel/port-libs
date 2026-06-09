@@ -14602,12 +14602,11 @@ final class DocxReader
      */
     private function loadNumbering(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
     {
-        $numberingPart = $graph->firstTargetOfType(self::REL_TYPE_NUMBERING, $documentPart);
+        $numberingPart = $this->numberingPartName($package, $graph, $documentPart);
         if ($numberingPart === null) {
             return [];
         }
 
-        $numberingPart = OpcPackagePath::stripQueryAndFragment($numberingPart);
         if (!$package->has($numberingPart)) {
             return [];
         }
@@ -14686,6 +14685,20 @@ final class DocxReader
         }
 
         return $numbering;
+    }
+
+    private function numberingPartName(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): ?string
+    {
+        $relationshipTarget = $graph->firstTargetOfType(self::REL_TYPE_NUMBERING, $documentPart);
+        if ($relationshipTarget !== null) {
+            return OpcPackagePath::stripQueryAndFragment($relationshipTarget);
+        }
+
+        $documentPart = OpcPackagePath::canonicalPartName($documentPart);
+        $documentDirectory = dirname($documentPart);
+        $fallbackPart = ($documentDirectory === '/' ? '' : $documentDirectory) . '/numbering.xml';
+
+        return $package->has($fallbackPart) ? $fallbackPart : null;
     }
 
     /**

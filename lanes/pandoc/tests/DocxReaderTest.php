@@ -908,6 +908,12 @@ $stylesNumberingDocumentRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$stylesOnlyDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+XML;
+
 $numberingRelationshipContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -4639,6 +4645,24 @@ $buildNumberingRelationshipWrongContentTypePackage = static function () use (
     ]);
 };
 
+$buildConventionalNumberingFallbackPackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesOnlyDocumentRelationshipsXml,
+    $stylesNumberingDocumentXml,
+    $stylesXml,
+    $numberingXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $stylesNumberingDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesOnlyDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $stylesXml],
+        ['name' => 'word/numbering.xml', 'data' => $numberingXml],
+    ]);
+};
+
 $buildNumberingStyleLinkPackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -6893,6 +6917,28 @@ return [
         $t->contains('<h2 id="review-steps">Review Steps</h2>', $blocks);
         $t->contains('<ul><li>Confirm media map</li><li>Preserve footnotes</li></ul>', $blocks);
         $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
+        $t->contains('<ol start="3" type="a"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
+    },
+    'keeps conventional DOCX numbering fallback when no relationship is present' => static function (TestRunner $t) use ($buildConventionalNumberingFallbackPackage): void {
+        $result = (new DocxReader())->readPackage($buildConventionalNumberingFallbackPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $bulletList = $document->children[1];
+        $orderedList = $document->children[2];
+        $t->same('bullet_list', $bulletList->type);
+        $t->same('11', $bulletList->attr('numId'));
+        $t->same('Confirm media map', $bulletList->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('ordered_list', $orderedList->type);
+        $t->same('12', $orderedList->attr('numId'));
+        $t->same('lower_alpha', $orderedList->attr('style'));
+        $t->same(3, $orderedList->attr('start'));
+        $t->true(!isset($result['metadata']['docxNumbering']), 'fallback numbering should not invent relationship provenance');
+        $t->same([], $result['importReport']['numbering']);
+
+        $t->contains('- Confirm media map', $markdown);
+        $t->contains('c)  Legal review', $markdown);
         $t->contains('<ol start="3" type="a"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
     },
     'reports DOCX numbering relationship provenance while resolving list definitions' => static function (TestRunner $t) use ($buildNumberingRelationshipPackage): void {
