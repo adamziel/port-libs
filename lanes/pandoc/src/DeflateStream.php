@@ -73,6 +73,98 @@ final class DeflateStream
      *     windowSize:int,
      *     compressionLevelHint:string,
      *     hasPresetDictionary:bool,
+     *     uncompressedSize:int,
+     *     compressedSize:int,
+     *     compressedPayloadSize:int,
+     *     headerSize:int,
+     *     compressedPayloadOffset:int,
+     *     trailerOffset:int,
+     *     trailerSize:int,
+     *     consumedBytes:int,
+     *     adler32:int,
+     *     adler32Hex:string,
+     *     storedAdler32:int,
+     *     storedAdler32Hex:string,
+     *     computedAdler32:int,
+     *     computedAdler32Hex:string,
+     *     adler32Matches:bool,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>
+     * }
+     */
+    public static function adler32IntegrityPreflight(string $bytes, ?int $maxUncompressedBytes = null): array
+    {
+        self::assertLimit($maxUncompressedBytes, 'DEFLATE max uncompressed byte limit');
+        if (strlen($bytes) < 6) {
+            throw new \RuntimeException('ZLIB stream is too short to contain a DEFLATE header and trailer');
+        }
+
+        $cmf = ord($bytes[0]);
+        $flg = ord($bytes[1]);
+        if ((($cmf << 8) + $flg) % 31 !== 0) {
+            throw new \RuntimeException('ZLIB stream header check bits do not match');
+        }
+
+        $compressionMethod = $cmf & 0x0f;
+        if ($compressionMethod !== self::ZLIB_COMPRESSION_METHOD_DEFLATE) {
+            throw new \RuntimeException("Unsupported ZLIB compression method {$compressionMethod}");
+        }
+
+        $windowCode = ($cmf >> 4) & 0x0f;
+        if ($windowCode > 7) {
+            throw new \RuntimeException('ZLIB DEFLATE window size is outside the supported range');
+        }
+
+        $hasPresetDictionary = ($flg & self::ZLIB_PRESET_DICTIONARY_FLAG) !== 0;
+        if ($hasPresetDictionary) {
+            throw new \RuntimeException('Preset-dictionary ZLIB streams require the preset dictionary policy preflight');
+        }
+
+        $headerSize = 2;
+        $trailerSize = 4;
+        $compressedPayloadSize = strlen($bytes) - $headerSize - $trailerSize;
+        $compressedPayload = substr($bytes, $headerSize, $compressedPayloadSize);
+        $inflated = self::inflateComplete($compressedPayload, ZLIB_ENCODING_RAW, 'ZLIB compressed payload');
+        $data = $inflated['data'];
+        self::assertDecodedSize($data, $maxUncompressedBytes, 'ZLIB stream');
+
+        $storedAdler32 = self::readUInt32BE($bytes, strlen($bytes) - $trailerSize);
+        $computedAdler32 = self::adler32($data);
+        $adler32Matches = $storedAdler32 === $computedAdler32;
+
+        return [
+            'format' => self::FORMAT_ZLIB,
+            'compressionMethod' => $compressionMethod,
+            'windowSize' => 1 << ($windowCode + 8),
+            'compressionLevelHint' => self::compressionLevelHint(($flg >> 6) & 0x03),
+            'hasPresetDictionary' => false,
+            'uncompressedSize' => strlen($data),
+            'compressedSize' => $compressedPayloadSize,
+            'compressedPayloadSize' => $compressedPayloadSize,
+            'headerSize' => $headerSize,
+            'compressedPayloadOffset' => $headerSize,
+            'trailerOffset' => strlen($bytes) - $trailerSize,
+            'trailerSize' => $trailerSize,
+            'consumedBytes' => $headerSize + $inflated['consumedBytes'] + $trailerSize,
+            'adler32' => $storedAdler32,
+            'adler32Hex' => sprintf('%08x', $storedAdler32),
+            'storedAdler32' => $storedAdler32,
+            'storedAdler32Hex' => sprintf('%08x', $storedAdler32),
+            'computedAdler32' => $computedAdler32,
+            'computedAdler32Hex' => sprintf('%08x', $computedAdler32),
+            'adler32Matches' => $adler32Matches,
+            'extractionPolicy' => $adler32Matches ? 'metadata-only-no-extraction' : 'zlib-adler32-integrity-review',
+            'diagnostics' => $adler32Matches ? [] : ['zlib-adler32-mismatch'],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     compressionMethod:int,
+     *     windowSize:int,
+     *     compressionLevelHint:string,
+     *     hasPresetDictionary:bool,
      *     presetDictionaryId:?int,
      *     presetDictionaryIdHex:?string,
      *     dictionaryStreamCount:int,

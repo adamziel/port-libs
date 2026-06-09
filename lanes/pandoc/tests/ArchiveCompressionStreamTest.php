@@ -9232,6 +9232,132 @@ return [
         );
     },
 
+    'preflights zlib adler32 integrity before package bytes are exposed' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"zlib-adler32-integrity","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# ZLIB Adler-32 integrity\n\nReady for archive review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $zipBytes = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>ZLIB Adler integrity</w:p></w:body></w:document>',
+            ],
+        ])->bytes();
+        $zlibTar = DeflateStream::build($tarBytes, [
+            'format' => DeflateStream::FORMAT_ZLIB,
+            'compressionLevel' => 9,
+        ]);
+        $zlibZip = DeflateStream::build($zipBytes, [
+            'format' => DeflateStream::FORMAT_ZLIB,
+            'compressionLevel' => 9,
+        ]);
+        $computedTarAdler32 = intval(hash('adler32', $tarBytes), 16);
+        $badTarAdler32 = $computedTarAdler32 === 0 ? 1 : $computedTarAdler32 - 1;
+        $corruptZlibTar = substr_replace($zlibTar, pack('N', $badTarAdler32), -4, 4);
+
+        $validTarPolicy = ArchiveCompressionStream::inspectZlibAdler32IntegrityPolicy(
+            $zlibTar,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            strlen($tarBytes)
+        );
+        $corruptTarPolicy = ArchiveCompressionStream::inspectZlibAdler32IntegrityPolicy(
+            $corruptZlibTar,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            strlen($tarBytes)
+        );
+        $validZipPolicy = ArchiveCompressionStream::inspectZlibAdler32IntegrityPolicy(
+            $zlibZip,
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('archive-zlib-adler32-integrity-policy', $validTarPolicy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZLIB_TAR, $validTarPolicy['format']);
+        $t->same('zlib', $validTarPolicy['wrapperKind']);
+        $t->same(strlen($zlibTar), $validTarPolicy['compressedSize']);
+        $t->same(strlen($zlibTar) - 6, $validTarPolicy['compressedPayloadSize']);
+        $t->same(strlen($tarBytes), $validTarPolicy['uncompressedSize']);
+        $t->same(1, $validTarPolicy['memberCount']);
+        $t->same(2, $validTarPolicy['headerSize']);
+        $t->same(2, $validTarPolicy['compressedPayloadOffset']);
+        $t->same(strlen($zlibTar) - 4, $validTarPolicy['trailerOffset']);
+        $t->same(4, $validTarPolicy['trailerSize']);
+        $t->same(strlen($zlibTar), $validTarPolicy['consumedBytes']);
+        $t->same('adler32', $validTarPolicy['checksumAlgorithm']);
+        $t->same($computedTarAdler32, $validTarPolicy['adler32']);
+        $t->same(sprintf('%08x', $computedTarAdler32), $validTarPolicy['adler32Hex']);
+        $t->same($computedTarAdler32, $validTarPolicy['storedAdler32']);
+        $t->same($computedTarAdler32, $validTarPolicy['computedAdler32']);
+        $t->same(sprintf('%08x', $computedTarAdler32), $validTarPolicy['storedAdler32Hex']);
+        $t->same(sprintf('%08x', $computedTarAdler32), $validTarPolicy['computedAdler32Hex']);
+        $t->same(true, $validTarPolicy['adler32Matches']);
+        $t->same(32768, $validTarPolicy['windowSize']);
+        $t->same(8, $validTarPolicy['compressionMethod']);
+        $t->same('maximum', $validTarPolicy['compressionLevelHint']);
+        $t->same('within-thresholds', $validTarPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $validTarPolicy['extractionPolicy']);
+        $t->same([], $validTarPolicy['diagnostics']);
+        $t->same('zlib-deflate', $validTarPolicy['stream']['type']);
+        $t->same(true, $validTarPolicy['stream']['adler32Matches']);
+        $t->same(false, isset($validTarPolicy['stream']['data']));
+        $t->same(false, array_key_exists('tarBytes', $validTarPolicy));
+        $t->same(false, array_key_exists('archive', $validTarPolicy));
+
+        $t->same(ArchiveCompressionStream::FORMAT_ZLIB_TAR, $corruptTarPolicy['format']);
+        $t->same($badTarAdler32, $corruptTarPolicy['storedAdler32']);
+        $t->same($computedTarAdler32, $corruptTarPolicy['computedAdler32']);
+        $t->same(sprintf('%08x', $badTarAdler32), $corruptTarPolicy['storedAdler32Hex']);
+        $t->same(sprintf('%08x', $computedTarAdler32), $corruptTarPolicy['computedAdler32Hex']);
+        $t->same(false, $corruptTarPolicy['adler32Matches']);
+        $t->same('review-before-conversion', $corruptTarPolicy['handoffPolicy']);
+        $t->same('zlib-adler32-integrity-review', $corruptTarPolicy['extractionPolicy']);
+        $t->same(['zlib-adler32-mismatch'], $corruptTarPolicy['diagnostics']);
+        $t->same(['zlib-adler32-mismatch'], $corruptTarPolicy['stream']['diagnostics']);
+        $t->same(false, isset($corruptTarPolicy['stream']['data']));
+        $t->same(false, array_key_exists('tarBytes', $corruptTarPolicy));
+        $t->same(false, array_key_exists('archive', $corruptTarPolicy));
+
+        $t->same(ArchiveCompressionStream::FORMAT_ZLIB_ZIP, $validZipPolicy['format']);
+        $t->same(strlen($zipBytes), $validZipPolicy['uncompressedSize']);
+        $t->same(intval(hash('adler32', $zipBytes), 16), $validZipPolicy['computedAdler32']);
+        $t->same(true, $validZipPolicy['adler32Matches']);
+        $t->same('metadata-only-no-extraction', $validZipPolicy['extractionPolicy']);
+        $t->same(false, isset($validZipPolicy['stream']['data']));
+        $t->same(false, array_key_exists('zipBytes', $validZipPolicy));
+        $t->same(false, array_key_exists('package', $validZipPolicy));
+
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): string => DeflateStream::decode($corruptZlibTar)
+        );
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): TarArchive => ArchiveCompressionStream::openTar(
+                $corruptZlibTar,
+                ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+                strlen($tarBytes)
+            )
+        );
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZlibAdler32IntegrityPolicy(
+                $zlibTar,
+                ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR
+            )
+        );
+    },
+
     'rejects malformed deflate streams and bounded decode overflows' => static function (TestRunner $t): void {
         $zlib = DeflateStream::build('review packet', [
             'format' => DeflateStream::FORMAT_ZLIB,

@@ -2953,6 +2953,107 @@ final class ArchiveCompressionStream
      * @return array{
      *     type:string,
      *     format:string,
+     *     wrapperKind:string,
+     *     compressedSize:int,
+     *     compressedPayloadSize:int,
+     *     uncompressedSize:int,
+     *     memberCount:int,
+     *     headerSize:int,
+     *     compressedPayloadOffset:int,
+     *     trailerOffset:int,
+     *     trailerSize:int,
+     *     consumedBytes:int,
+     *     checksumAlgorithm:string,
+     *     adler32:int,
+     *     adler32Hex:string,
+     *     storedAdler32:int,
+     *     storedAdler32Hex:string,
+     *     computedAdler32:int,
+     *     computedAdler32Hex:string,
+     *     adler32Matches:bool,
+     *     windowSize:int,
+     *     compressionMethod:int,
+     *     compressionLevelHint:string,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectZlibAdler32IntegrityPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_ZLIB_TAR && $format !== self::FORMAT_ZLIB_ZIP) {
+            throw new \RuntimeException("ZLIB Adler-32 integrity policy requires a zlib archive stream format: {$format}");
+        }
+
+        $stream = DeflateStream::adler32IntegrityPreflight($bytes, $maxUncompressedBytes);
+        $diagnostics = $stream['adler32Matches'] ? [] : ['zlib-adler32-mismatch'];
+        $handoffPolicy = $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion';
+
+        return [
+            'type' => 'archive-zlib-adler32-integrity-policy',
+            'format' => $format,
+            'wrapperKind' => 'zlib',
+            'compressedSize' => strlen($bytes),
+            'compressedPayloadSize' => $stream['compressedPayloadSize'],
+            'uncompressedSize' => $stream['uncompressedSize'],
+            'memberCount' => 1,
+            'headerSize' => $stream['headerSize'],
+            'compressedPayloadOffset' => $stream['compressedPayloadOffset'],
+            'trailerOffset' => $stream['trailerOffset'],
+            'trailerSize' => $stream['trailerSize'],
+            'consumedBytes' => $stream['consumedBytes'],
+            'checksumAlgorithm' => 'adler32',
+            'adler32' => $stream['adler32'],
+            'adler32Hex' => $stream['adler32Hex'],
+            'storedAdler32' => $stream['storedAdler32'],
+            'storedAdler32Hex' => $stream['storedAdler32Hex'],
+            'computedAdler32' => $stream['computedAdler32'],
+            'computedAdler32Hex' => $stream['computedAdler32Hex'],
+            'adler32Matches' => $stream['adler32Matches'],
+            'windowSize' => $stream['windowSize'],
+            'compressionMethod' => $stream['compressionMethod'],
+            'compressionLevelHint' => $stream['compressionLevelHint'],
+            'handoffPolicy' => $handoffPolicy,
+            'extractionPolicy' => $handoffPolicy === 'within-thresholds'
+                ? 'metadata-only-no-extraction'
+                : 'zlib-adler32-integrity-review',
+            'diagnostics' => $diagnostics,
+            'stream' => [
+                'type' => 'zlib-deflate',
+                'memberCount' => 1,
+                'compressedSize' => strlen($bytes),
+                'compressedPayloadSize' => $stream['compressedPayloadSize'],
+                'uncompressedSize' => $stream['uncompressedSize'],
+                'headerSize' => $stream['headerSize'],
+                'compressedPayloadOffset' => $stream['compressedPayloadOffset'],
+                'trailerOffset' => $stream['trailerOffset'],
+                'trailerSize' => $stream['trailerSize'],
+                'consumedBytes' => $stream['consumedBytes'],
+                'compressionMethod' => $stream['compressionMethod'],
+                'windowSize' => $stream['windowSize'],
+                'compressionLevelHint' => $stream['compressionLevelHint'],
+                'adler32' => $stream['adler32'],
+                'adler32Hex' => $stream['adler32Hex'],
+                'storedAdler32' => $stream['storedAdler32'],
+                'storedAdler32Hex' => $stream['storedAdler32Hex'],
+                'computedAdler32' => $stream['computedAdler32'],
+                'computedAdler32Hex' => $stream['computedAdler32Hex'],
+                'adler32Matches' => $stream['adler32Matches'],
+                'extractionPolicy' => $stream['extractionPolicy'],
+                'diagnostics' => $stream['diagnostics'],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     format:string,
      *     sourceName:?string,
      *     candidateKind:?string,
      *     candidateFormat:?string,
