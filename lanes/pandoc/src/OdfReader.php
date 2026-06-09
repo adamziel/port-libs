@@ -476,7 +476,7 @@ final class OdfReader
     }
 
     /**
-     * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
+     * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>}
      */
     private function readStyles(ZipPackage $package): array
     {
@@ -488,6 +488,7 @@ final class OdfReader
             'tableTemplates' => [],
             'pageLayouts' => [],
             'masterPages' => [],
+            'diagnostics' => [],
         ];
 
         if (!$package->has('styles.xml')) {
@@ -506,9 +507,9 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $styleCatalog
      * @param array<string, mixed> $settings
-     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
+     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
      */
     private function readContent(ZipPackage $package, array $styleCatalog, array $metadata, array $settings): array
     {
@@ -8804,11 +8805,13 @@ final class OdfReader
 
     /**
      * @param array<string, array<string, mixed>> $inheritedFontFaces
-     * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
+     * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>}
      */
     private function styleCollectionsFromRoot(\DOMElement $root, array $inheritedFontFaces = []): array
     {
-        $fontFaces = array_replace($inheritedFontFaces, $this->fontFaceDeclarations($root));
+        $diagnostics = [];
+        $localFontFaces = $this->fontFaceDeclarations($root, $diagnostics);
+        $fontFaces = array_replace($inheritedFontFaces, $localFontFaces);
 
         $styles = [];
         foreach ($root->getElementsByTagNameNS(self::STYLE_NS, 'style') as $style) {
@@ -8819,7 +8822,14 @@ final class OdfReader
             if ($name === '') {
                 continue;
             }
-            $styles[$name] = $this->styleDefinition($style, $fontFaces);
+            $this->putStyleCollectionItem(
+                $styles,
+                $diagnostics,
+                'odf-style-duplicate-name',
+                'styleName',
+                $name,
+                $this->styleDefinition($style, $fontFaces)
+            );
         }
 
         $listStyles = [];
@@ -8831,10 +8841,17 @@ final class OdfReader
             if ($name === '') {
                 continue;
             }
-            $listStyles[$name] = $this->listStyleDefinition($listStyle, $fontFaces);
+            $this->putStyleCollectionItem(
+                $listStyles,
+                $diagnostics,
+                'odf-list-style-duplicate-name',
+                'listStyleName',
+                $name,
+                $this->listStyleDefinition($listStyle, $fontFaces)
+            );
         }
 
-        $dataStyles = $this->dataStyleDefinitions($root);
+        $dataStyles = $this->dataStyleDefinitions($root, $diagnostics);
 
         $tableTemplates = [];
         foreach ($root->getElementsByTagNameNS(self::TABLE_NS, 'table-template') as $tableTemplate) {
@@ -8845,7 +8862,14 @@ final class OdfReader
             if ($name === '') {
                 continue;
             }
-            $tableTemplates[$name] = $this->tableTemplateDefinition($tableTemplate);
+            $this->putStyleCollectionItem(
+                $tableTemplates,
+                $diagnostics,
+                'odf-table-template-duplicate-name',
+                'tableTemplateName',
+                $name,
+                $this->tableTemplateDefinition($tableTemplate)
+            );
         }
 
         $pageLayouts = [];
@@ -8857,7 +8881,14 @@ final class OdfReader
             if ($name === '') {
                 continue;
             }
-            $pageLayouts[$name] = $this->pageLayoutDefinition($pageLayout);
+            $this->putStyleCollectionItem(
+                $pageLayouts,
+                $diagnostics,
+                'odf-page-layout-duplicate-name',
+                'pageLayoutName',
+                $name,
+                $this->pageLayoutDefinition($pageLayout)
+            );
         }
 
         $masterPages = [];
@@ -8869,24 +8900,33 @@ final class OdfReader
             if ($name === '') {
                 continue;
             }
-            $masterPages[$name] = $this->masterPageDefinition($masterPage);
+            $this->putStyleCollectionItem(
+                $masterPages,
+                $diagnostics,
+                'odf-master-page-duplicate-name',
+                'masterPageName',
+                $name,
+                $this->masterPageDefinition($masterPage)
+            );
         }
 
         return [
             'styles' => $styles,
-            'fontFaces' => $fontFaces,
+            'fontFaces' => $localFontFaces,
             'listStyles' => $listStyles,
             'dataStyles' => $dataStyles,
             'tableTemplates' => $tableTemplates,
             'pageLayouts' => $pageLayouts,
             'masterPages' => $masterPages,
+            'diagnostics' => $diagnostics,
         ];
     }
 
     /**
+     * @param list<array<string, mixed>> $diagnostics
      * @return array<string, array<string, mixed>>
      */
-    private function fontFaceDeclarations(\DOMElement $root): array
+    private function fontFaceDeclarations(\DOMElement $root, array &$diagnostics): array
     {
         $container = self::firstChildElement($root, 'font-face-decls', self::OFFICE_NS);
         if (!$container instanceof \DOMElement) {
@@ -8900,43 +8940,59 @@ final class OdfReader
                 continue;
             }
 
-            $fontFaces[$name] = self::withoutEmpty([
-                'name' => $name,
-                'fontFamily' => self::nullable(self::attr($fontFace, self::SVG_NS, 'font-family')),
-                'fontFamilyGeneric' => self::nullable(self::attr($fontFace, self::STYLE_NS, 'font-family-generic')),
-                'fontPitch' => self::nullable(strtolower(self::attr($fontFace, self::STYLE_NS, 'font-pitch'))),
-                'fontCharset' => self::nullable(self::attr($fontFace, self::STYLE_NS, 'font-charset')),
-            ]);
+            $this->putStyleCollectionItem(
+                $fontFaces,
+                $diagnostics,
+                'odf-font-face-duplicate-name',
+                'fontFaceName',
+                $name,
+                self::withoutEmpty([
+                    'name' => $name,
+                    'fontFamily' => self::nullable(self::attr($fontFace, self::SVG_NS, 'font-family')),
+                    'fontFamilyGeneric' => self::nullable(self::attr($fontFace, self::STYLE_NS, 'font-family-generic')),
+                    'fontPitch' => self::nullable(strtolower(self::attr($fontFace, self::STYLE_NS, 'font-pitch'))),
+                    'fontCharset' => self::nullable(self::attr($fontFace, self::STYLE_NS, 'font-charset')),
+                ])
+            );
         }
 
         return $fontFaces;
     }
 
     /**
+     * @param list<array<string, mixed>> $diagnostics
      * @return array<string, array<string, mixed>>
      */
-    private function dataStyleDefinitions(\DOMElement $root): array
+    private function dataStyleDefinitions(\DOMElement $root, array &$diagnostics): array
     {
         $styles = [];
-        $this->collectDataStyleDefinitions($root, $styles);
+        $this->collectDataStyleDefinitions($root, $styles, $diagnostics);
 
         return $styles;
     }
 
     /**
      * @param array<string, array<string, mixed>> $styles
+     * @param list<array<string, mixed>> $diagnostics
      */
-    private function collectDataStyleDefinitions(\DOMElement $element, array &$styles): void
+    private function collectDataStyleDefinitions(\DOMElement $element, array &$styles, array &$diagnostics): void
     {
         foreach (self::childElements($element) as $child) {
             if ($child->namespaceURI === self::NUMBER_NS && $this->isDataStyleElementName($child->localName)) {
                 $name = self::attr($child, self::STYLE_NS, 'name');
                 if ($name !== '') {
-                    $styles[$name] = $this->dataStyleDefinition($child);
+                    $this->putStyleCollectionItem(
+                        $styles,
+                        $diagnostics,
+                        'odf-data-style-duplicate-name',
+                        'dataStyleName',
+                        $name,
+                        $this->dataStyleDefinition($child)
+                    );
                 }
             }
 
-            $this->collectDataStyleDefinitions($child, $styles);
+            $this->collectDataStyleDefinitions($child, $styles, $diagnostics);
         }
     }
 
@@ -9499,12 +9555,12 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $catalog
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics?:list<array<string, mixed>>} $catalog
      * @return list<array<string, mixed>>
      */
     private function styleDiagnostics(array $catalog): array
     {
-        $diagnostics = [];
+        $diagnostics = $catalog['diagnostics'] ?? [];
 
         foreach ($catalog['styles'] as $styleName => $style) {
             $this->appendMissingNamedReferenceDiagnostic(
@@ -9845,32 +9901,59 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $target
-     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $source
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $target
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics?:list<array<string, mixed>>} $source
      */
     private function mergeStyleCollections(array &$target, array $source): void
     {
-        foreach ($source['styles'] as $name => $style) {
-            $target['styles'][$name] = $style;
+        array_push($target['diagnostics'], ...($source['diagnostics'] ?? []));
+        $this->mergeStyleCollectionItems($target['styles'], $source['styles'], $target['diagnostics'], 'odf-style-duplicate-name', 'styleName');
+        $this->mergeStyleCollectionItems($target['fontFaces'], $source['fontFaces'], $target['diagnostics'], 'odf-font-face-duplicate-name', 'fontFaceName');
+        $this->mergeStyleCollectionItems($target['listStyles'], $source['listStyles'], $target['diagnostics'], 'odf-list-style-duplicate-name', 'listStyleName');
+        $this->mergeStyleCollectionItems($target['dataStyles'], $source['dataStyles'], $target['diagnostics'], 'odf-data-style-duplicate-name', 'dataStyleName');
+        $this->mergeStyleCollectionItems($target['tableTemplates'], $source['tableTemplates'], $target['diagnostics'], 'odf-table-template-duplicate-name', 'tableTemplateName');
+        $this->mergeStyleCollectionItems($target['pageLayouts'], $source['pageLayouts'], $target['diagnostics'], 'odf-page-layout-duplicate-name', 'pageLayoutName');
+        $this->mergeStyleCollectionItems($target['masterPages'], $source['masterPages'], $target['diagnostics'], 'odf-master-page-duplicate-name', 'masterPageName');
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $target
+     * @param array<string, array<string, mixed>> $source
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function mergeStyleCollectionItems(array &$target, array $source, array &$diagnostics, string $code, string $nameKey): void
+    {
+        foreach ($source as $name => $item) {
+            $this->putStyleCollectionItem($target, $diagnostics, $code, $nameKey, (string) $name, $item);
         }
-        foreach ($source['fontFaces'] as $name => $fontFace) {
-            $target['fontFaces'][$name] = $fontFace;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $target
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, mixed> $item
+     */
+    private function putStyleCollectionItem(array &$target, array &$diagnostics, string $code, string $nameKey, string $name, array $item): void
+    {
+        if (isset($target[$name])) {
+            $diagnostic = [
+                'code' => $code,
+                $nameKey => $name,
+            ];
+            foreach (['family', 'type', 'element'] as $field) {
+                $previous = $target[$name][$field] ?? null;
+                $replacement = $item[$field] ?? null;
+                if (is_scalar($previous) && (string) $previous !== '') {
+                    $diagnostic['previous' . ucfirst($field)] = (string) $previous;
+                }
+                if (is_scalar($replacement) && (string) $replacement !== '') {
+                    $diagnostic['replacement' . ucfirst($field)] = (string) $replacement;
+                }
+            }
+            $diagnostics[] = $diagnostic;
         }
-        foreach ($source['listStyles'] as $name => $style) {
-            $target['listStyles'][$name] = $style;
-        }
-        foreach ($source['dataStyles'] as $name => $style) {
-            $target['dataStyles'][$name] = $style;
-        }
-        foreach ($source['tableTemplates'] as $name => $template) {
-            $target['tableTemplates'][$name] = $template;
-        }
-        foreach ($source['pageLayouts'] as $name => $layout) {
-            $target['pageLayouts'][$name] = $layout;
-        }
-        foreach ($source['masterPages'] as $name => $page) {
-            $target['masterPages'][$name] = $page;
-        }
+
+        $target[$name] = $item;
     }
 
     /**
