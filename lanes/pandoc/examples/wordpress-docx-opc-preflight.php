@@ -1664,6 +1664,31 @@ $relationshipSourceClosureSummary = [
     'stops' => $relationshipSourceClosureStops,
 ];
 $officeDocumentRelationshipReadiness = $graph->preflightOfficeDocumentRelationshipReadiness();
+$relationshipRoleTargetPolicy = $graph->preflightRelationshipRoleTargets();
+$relationshipRoleTargetPolicyInvalidRelationships = [];
+foreach ($relationshipRoleTargetPolicy['relationships'] as $relationship) {
+    if ($relationship['valid']) {
+        continue;
+    }
+
+    $relationshipRoleTargetPolicyInvalidRelationships[] = [
+        'source' => $relationship['source'],
+        'id' => $relationship['id'],
+        'role' => $relationship['role'],
+        'target' => $relationship['target'],
+        'targetPart' => $relationship['targetPart'],
+        'contentType' => $relationship['contentType'],
+        'expectedContentType' => $relationship['expectedContentType'],
+        'expectedContentTypes' => $relationship['expectedContentTypes'],
+        'expectedContentTypePrefix' => $relationship['expectedContentTypePrefix'],
+        'expectedSource' => $relationship['expectedSource'],
+        'expectedSourceContentTypes' => $relationship['expectedSourceContentTypes'],
+        'expectedExternal' => $relationship['expectedExternal'],
+        'external' => $relationship['external'],
+        'valid' => $relationship['valid'],
+        'issues' => $relationship['issues'],
+    ];
+}
 
 $relationshipPreflight = [];
 foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
@@ -2530,6 +2555,16 @@ $summary = [
             'invalidRelationshipRoleIssues' => $officeDocumentRelationshipReadiness['invalidRelationshipRoleIssues'],
             'relationshipClosure' => $officeDocumentRelationshipReadiness['relationshipClosure'],
         ],
+        'relationshipRoleTargetPolicy' => [
+            'valid' => $relationshipRoleTargetPolicy['valid'],
+            'roleTargetCount' => $relationshipRoleTargetPolicy['roleTargetCount'],
+            'validRoleTargetCount' => $relationshipRoleTargetPolicy['validRoleTargetCount'],
+            'invalidRoleTargetCount' => $relationshipRoleTargetPolicy['invalidRoleTargetCount'],
+            'roleCounts' => $relationshipRoleTargetPolicy['roleCounts'],
+            'issueCounts' => $relationshipRoleTargetPolicy['issueCounts'],
+            'issues' => $relationshipRoleTargetPolicy['issues'],
+            'invalidRelationships' => $relationshipRoleTargetPolicyInvalidRelationships,
+        ],
         'externalTargets' => array_values(array_map(
             static fn (array $target): array => [
                 'id' => $target['id'],
@@ -3134,6 +3169,40 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['officeDocumentRelationshipReadiness']['relationshipRoleCount'] ?? null) !== 12
         || ($summary['wordpressImport']['officeDocumentRelationshipReadiness']['invalidRelationshipRoleCount'] ?? null) !== 4
         || ($summary['wordpressImport']['officeDocumentRelationshipReadiness']['relationshipClosure']['unloadedStopCount'] ?? null) !== 9
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['valid'] ?? null) !== false
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['roleTargetCount'] ?? null) !== 25
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['validRoleTargetCount'] ?? null) !== 21
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['invalidRoleTargetCount'] ?? null) !== 4
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['roleCounts'] ?? null) !== [
+            'core-properties' => 1,
+            'custom-properties' => 1,
+            'custom-xml' => 3,
+            'custom-xml-properties' => 1,
+            'digital-signature-origin' => 1,
+            'digital-signature-signature' => 1,
+            'embedded-object' => 1,
+            'embedded-package' => 1,
+            'encrypted-package' => 1,
+            'extended-properties' => 1,
+            'footnotes' => 1,
+            'hyperlink' => 5,
+            'image' => 4,
+            'office-document' => 1,
+            'styles' => 1,
+            'thumbnail' => 1,
+        ]
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['issueCounts'] ?? null) !== [
+            'external-target-network-path-base-uri' => 1,
+            'external-target-unsafe-scheme' => 1,
+            'internal-hyperlink-target' => 1,
+            'invalid-custom-xml-content-type' => 1,
+        ]
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['issues'] ?? null) !== ['external-target-network-path-base-uri', 'external-target-unsafe-scheme', 'internal-hyperlink-target', 'invalid-custom-xml-content-type']
+        || array_column($summary['wordpressImport']['relationshipRoleTargetPolicy']['invalidRelationships'] ?? [], 'id') !== ['rIdInternalBookmark', 'rIdInternalReviewState', 'rIdSchemeRelativeReviewer', 'rIdUnsafeReviewer']
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['invalidRelationships'][0]['role'] ?? null) !== 'hyperlink'
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['invalidRelationships'][0]['expectedExternal'] ?? null) !== true
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['invalidRelationships'][1]['expectedContentType'] ?? null) !== 'application/xml'
+        || ($summary['wordpressImport']['relationshipRoleTargetPolicy']['invalidRelationships'][1]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSourceLoaded'] ?? null) !== true
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipPartLoadAction'] ?? null) !== 'loaded'

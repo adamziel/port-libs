@@ -279,6 +279,19 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $sourceContinuationReviewPacket = $renderer->render(
+        '$source$ $^$$count$' . "\n" . '          queued $details$',
+        [
+            'source' => 'wp',
+            'count' => 3,
+            'details' => "media packet\nlinks packet",
+        ],
+    );
+    if ($sourceContinuationReviewPacket !== "wp 3\n   queued media packet\n   links packet") {
+        fwrite(STDERR, "Unexpected doctemplate source-aligned continuation output\n");
+        exit(1);
+    }
+
     $blockPipeReviewPacket = $renderer->render(
         '$source/uppercase/left 8 "| " " | "$$details/left 20 "" "|"$',
         [

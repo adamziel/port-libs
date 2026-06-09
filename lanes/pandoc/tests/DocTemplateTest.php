@@ -472,6 +472,23 @@ TPL, [
         ]), $output);
     },
 
+    'matches upstream pandoc doctemplate nested literal continuation after scalar interpolation' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+$bim.zub$ $^$$foo$
+          bar $sup$
+TPL, [
+            'bim' => ['zub' => 'sim'],
+            'foo' => 1,
+            'sup' => "a multiline\nstring",
+        ]);
+
+        $t->same(implode("\n", [
+            'sim 1',
+            '    bar a multiline',
+            '    string',
+        ]), $output);
+    },
+
     'ends explicit pandoc doctemplate nesting before dedented source lines' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->render(<<<'TPL'
 <section>

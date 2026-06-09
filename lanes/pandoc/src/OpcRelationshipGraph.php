@@ -1762,6 +1762,160 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{valid:bool, source:?string, roleTargetCount:int, validRoleTargetCount:int, invalidRoleTargetCount:int, roleCounts:array<string,int>, issueCounts:array<string,int>, issues:list<string>, relationships:list<array<string,mixed>>}
+     */
+    public function preflightRelationshipRoleTargets(?string $sourcePartName = null): array
+    {
+        $sourceFilter = $sourcePartName === null
+            ? null
+            : $this->relationshipSourceNameForEquivalent($sourcePartName);
+        $sources = $sourceFilter === null ? $this->sourcePartNames() : [$sourceFilter];
+        $relationships = [];
+
+        /**
+         * @param list<array<string,mixed>> $rows
+         * @param array<string,mixed> $extra
+         */
+        $appendRows = function (array $rows, ?string $roleOverride = null, array $extra = []) use (&$relationships): void {
+            foreach ($rows as $row) {
+                $source = (string) ($row['source'] ?? $extra['source'] ?? '/');
+                $role = (string) ($roleOverride ?? $row['role'] ?? $row['kind'] ?? $extra['role'] ?? 'relationship');
+                $relationships[] = [
+                    'source' => $source,
+                    'sourceContentType' => $row['sourceContentType'] ?? (
+                        $source === '/' ? null : $this->contentTypes->contentTypeForPart($source)
+                    ),
+                    'id' => (string) $row['id'],
+                    'role' => $role,
+                    'type' => (string) $row['type'],
+                    'target' => (string) $row['target'],
+                    'targetPart' => $row['targetPart'] ?? null,
+                    'contentType' => $row['contentType'] ?? null,
+                    'expectedContentType' => $row['expectedContentType'] ?? $extra['expectedContentType'] ?? null,
+                    'expectedContentTypes' => $row['expectedContentTypes'] ?? $extra['expectedContentTypes'] ?? null,
+                    'expectedContentTypePrefix' => $row['expectedContentTypePrefix'] ?? $extra['expectedContentTypePrefix'] ?? null,
+                    'expectedSource' => $row['expectedSource'] ?? $extra['expectedSource'] ?? null,
+                    'sourceAllowed' => $row['sourceAllowed'] ?? $extra['sourceAllowed'] ?? null,
+                    'expectedSourceContentTypes' => $row['expectedSourceContentTypes'] ?? $extra['expectedSourceContentTypes'] ?? null,
+                    'expectedExternal' => $row['expectedExternal'] ?? $extra['expectedExternal'] ?? null,
+                    'external' => (bool) $row['external'],
+                    'exists' => $row['exists'] ?? null,
+                    'relationshipPartTarget' => (bool) ($row['relationshipPartTarget'] ?? false),
+                    'relationshipTypeKind' => (string) ($row['relationshipTypeKind'] ?? 'unknown'),
+                    'relationshipTypeScheme' => $row['relationshipTypeScheme'] ?? null,
+                    'relationshipTypeValid' => (bool) ($row['relationshipTypeValid'] ?? true),
+                    'relationshipTypeIssues' => $row['relationshipTypeIssues'] ?? [],
+                    'externalTargetKind' => $row['externalTargetKind'] ?? null,
+                    'externalTargetScheme' => $row['externalTargetScheme'] ?? null,
+                    'externalTargetAllowed' => $row['externalTargetAllowed'] ?? null,
+                    'externalTargetRequiresBaseUri' => $row['externalTargetRequiresBaseUri'] ?? null,
+                    'externalTargetRewriteBasePart' => $row['externalTargetRewriteBasePart'] ?? null,
+                    'externalTargetRewriteReason' => $row['externalTargetRewriteReason'] ?? null,
+                    'valid' => (bool) $row['valid'],
+                    'issues' => array_values(array_unique($row['issues'] ?? [])),
+                ];
+            }
+        };
+
+        if ($sourceFilter === null || $sourceFilter === '/') {
+            $officeDocument = $this->preflightOfficeDocumentRoot(self::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+            $appendRows(
+                $officeDocument['relationships'],
+                'office-document',
+                [
+                    'expectedSource' => '/',
+                    'expectedContentTypes' => $officeDocument['expectedContentTypes'],
+                    'expectedExternal' => false,
+                ],
+            );
+
+            $documentProperties = $this->preflightDocumentProperties();
+            foreach ([
+                'core' => 'core-properties',
+                'extended' => 'extended-properties',
+                'custom' => 'custom-properties',
+            ] as $propertyRole => $roleName) {
+                $property = $documentProperties['roles'][$propertyRole];
+                $appendRows(
+                    $property['relationships'],
+                    $roleName,
+                    [
+                        'expectedSource' => '/',
+                        'expectedContentType' => $property['expectedContentType'],
+                        'expectedExternal' => false,
+                    ],
+                );
+            }
+        }
+
+        $digitalSignatureRoles = $this->preflightDigitalSignatureRelationshipRoles();
+        foreach ($digitalSignatureRoles['roles'] as $role) {
+            if ($sourceFilter !== null && $role['source'] !== $sourceFilter) {
+                continue;
+            }
+
+            $appendRows([$role]);
+        }
+
+        $appendRows($this->preflightEncryptedPackages($sourceFilter));
+        $appendRows($this->preflightThumbnails($sourceFilter), 'thumbnail', ['expectedExternal' => false]);
+
+        foreach ($sources as $source) {
+            $appendRows($this->preflightEmbeddedPackages($source));
+            $appendRows($this->preflightWordprocessingDocumentRelationships($source));
+        }
+
+        usort(
+            $relationships,
+            static fn (array $left, array $right): int => [
+                $left['source'],
+                $left['id'],
+                $left['role'],
+                $left['type'],
+            ] <=> [
+                $right['source'],
+                $right['id'],
+                $right['role'],
+                $right['type'],
+            ],
+        );
+
+        $roleCounts = [];
+        $issueCounts = [];
+        $issues = [];
+        $validRoleTargetCount = 0;
+        foreach ($relationships as $relationship) {
+            $role = $relationship['role'];
+            $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+
+            if ($relationship['valid']) {
+                $validRoleTargetCount++;
+            }
+
+            foreach ($relationship['issues'] as $issue) {
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                self::appendUniqueString($issues, $issue);
+            }
+        }
+
+        ksort($roleCounts, SORT_STRING);
+        ksort($issueCounts, SORT_STRING);
+        sort($issues, SORT_STRING);
+
+        return [
+            'valid' => $validRoleTargetCount === count($relationships),
+            'source' => $sourceFilter,
+            'roleTargetCount' => count($relationships),
+            'validRoleTargetCount' => $validRoleTargetCount,
+            'invalidRoleTargetCount' => count($relationships) - $validRoleTargetCount,
+            'roleCounts' => $roleCounts,
+            'issueCounts' => $issueCounts,
+            'issues' => $issues,
+            'relationships' => $relationships,
+        ];
+    }
+
+    /**
      * @return array{relationshipCount:int, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightCoreProperties(): array

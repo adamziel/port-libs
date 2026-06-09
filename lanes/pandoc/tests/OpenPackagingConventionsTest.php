@@ -8004,6 +8004,178 @@ XML;
         $t->same(true, $commentRoles['rIdCommentImage']['valid']);
         $t->same([], $commentRoles['rIdCommentImage']['issues']);
     },
+    'summarizes package-wide OPC relationship role target policies for importer review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/numbering.xml" ContentType="application/xml"/>
+  <Override PartName="/word/media/not-image.xml" ContentType="application/xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/word/embeddings/review.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+  <Override PartName="/word/embeddings/oleObject1.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/EncryptedPackage" ContentType="application/octet-stream"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdEncrypted" Type="http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package" Target="EncryptedPackage"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdNotImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/not-image.xml"/>
+  <Relationship Id="rIdBookmark" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#bookmark"/>
+  <Relationship Id="rIdChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/chart1.xml"/>
+  <Relationship Id="rIdEmbeddedPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/review.xlsx"/>
+  <Relationship Id="rIdEmbeddedObject" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/oleObject1.bin"/>
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles/>'],
+            ['name' => 'word/numbering.xml', 'data' => '<w:numbering/>'],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/media/not-image.xml', 'data' => '<not-image/>'],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/charts/chart1.xml', 'data' => '<c:chart/>'],
+            ['name' => 'word/embeddings/review.xlsx', 'data' => 'PK'],
+            ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLE'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'EncryptedPackage', 'data' => 'encrypted'],
+        ]));
+
+        $roleTargets = $graph->preflightRelationshipRoleTargets();
+        $byKey = [];
+        foreach ($roleTargets['relationships'] as $relationship) {
+            $byKey[$relationship['source'] . ':' . $relationship['id']] = $relationship;
+        }
+
+        $t->same(false, $roleTargets['valid']);
+        $t->same(null, $roleTargets['source']);
+        $t->same(13, $roleTargets['roleTargetCount']);
+        $t->same(8, $roleTargets['validRoleTargetCount']);
+        $t->same(5, $roleTargets['invalidRoleTargetCount']);
+        $t->same([
+            'chart' => 1,
+            'comments' => 1,
+            'core-properties' => 1,
+            'embedded-object' => 1,
+            'embedded-package' => 1,
+            'encrypted-package' => 1,
+            'hyperlink' => 1,
+            'image' => 2,
+            'numbering' => 1,
+            'office-document' => 1,
+            'styles' => 2,
+        ], $roleTargets['roleCounts']);
+        $t->same([
+            'internal-hyperlink-target' => 1,
+            'invalid-encrypted-package-content-type' => 1,
+            'invalid-image-content-type' => 1,
+            'invalid-numbering-content-type' => 1,
+            'invalid-styles-source-content-type' => 1,
+        ], $roleTargets['issueCounts']);
+        $t->same([
+            'internal-hyperlink-target',
+            'invalid-encrypted-package-content-type',
+            'invalid-image-content-type',
+            'invalid-numbering-content-type',
+            'invalid-styles-source-content-type',
+        ], $roleTargets['issues']);
+
+        $t->same('office-document', $byKey['/:rIdDocument']['role']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES, $byKey['/:rIdDocument']['expectedContentTypes']);
+        $t->same(false, $byKey['/:rIdDocument']['expectedExternal']);
+        $t->same('/word/document.xml', $byKey['/:rIdDocument']['targetPart']);
+        $t->same(true, $byKey['/:rIdDocument']['valid']);
+
+        $t->same('core-properties', $byKey['/:rIdCore']['role']);
+        $t->same('application/vnd.openxmlformats-package.core-properties+xml', $byKey['/:rIdCore']['expectedContentType']);
+        $t->same('/', $byKey['/:rIdCore']['expectedSource']);
+        $t->same(true, $byKey['/:rIdCore']['valid']);
+
+        $t->same('encrypted-package', $byKey['/:rIdEncrypted']['role']);
+        $t->same('application/vnd.openxmlformats-package.encrypted-package', $byKey['/:rIdEncrypted']['expectedContentType']);
+        $t->same(true, $byKey['/:rIdEncrypted']['sourceAllowed']);
+        $t->same('application/octet-stream', $byKey['/:rIdEncrypted']['contentType']);
+        $t->same(false, $byKey['/:rIdEncrypted']['valid']);
+        $t->same(['invalid-encrypted-package-content-type'], $byKey['/:rIdEncrypted']['issues']);
+
+        $t->same('numbering', $byKey['/word/document.xml:rIdNumbering']['role']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $byKey['/word/document.xml:rIdNumbering']['expectedContentType']);
+        $t->same('application/xml', $byKey['/word/document.xml:rIdNumbering']['contentType']);
+        $t->same(false, $byKey['/word/document.xml:rIdNumbering']['valid']);
+        $t->same(['invalid-numbering-content-type'], $byKey['/word/document.xml:rIdNumbering']['issues']);
+
+        $t->same('image', $byKey['/word/document.xml:rIdNotImage']['role']);
+        $t->same('image/', $byKey['/word/document.xml:rIdNotImage']['expectedContentTypePrefix']);
+        $t->same('application/xml', $byKey['/word/document.xml:rIdNotImage']['contentType']);
+        $t->same(false, $byKey['/word/document.xml:rIdNotImage']['valid']);
+        $t->same(['invalid-image-content-type'], $byKey['/word/document.xml:rIdNotImage']['issues']);
+
+        $t->same('hyperlink', $byKey['/word/document.xml:rIdBookmark']['role']);
+        $t->same(true, $byKey['/word/document.xml:rIdBookmark']['expectedExternal']);
+        $t->same(false, $byKey['/word/document.xml:rIdBookmark']['external']);
+        $t->same(false, $byKey['/word/document.xml:rIdBookmark']['valid']);
+        $t->same(['internal-hyperlink-target'], $byKey['/word/document.xml:rIdBookmark']['issues']);
+
+        $t->same('embedded-package', $byKey['/word/document.xml:rIdEmbeddedPackage']['role']);
+        $t->same('application/vnd.openxmlformats-officedocument.package', $byKey['/word/document.xml:rIdEmbeddedPackage']['expectedContentType']);
+        $t->same('/word/embeddings/review.xlsx', $byKey['/word/document.xml:rIdEmbeddedPackage']['targetPart']);
+        $t->same(true, $byKey['/word/document.xml:rIdEmbeddedPackage']['valid']);
+
+        $t->same('embedded-object', $byKey['/word/document.xml:rIdEmbeddedObject']['role']);
+        $t->same('application/vnd.openxmlformats-officedocument.oleObject', $byKey['/word/document.xml:rIdEmbeddedObject']['expectedContentType']);
+        $t->same('/word/embeddings/oleObject1.bin', $byKey['/word/document.xml:rIdEmbeddedObject']['targetPart']);
+        $t->same(true, $byKey['/word/document.xml:rIdEmbeddedObject']['valid']);
+
+        $t->same('styles', $byKey['/word/comments.xml:rIdCommentStyles']['role']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $byKey['/word/comments.xml:rIdCommentStyles']['sourceContentType']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES, $byKey['/word/comments.xml:rIdCommentStyles']['expectedSourceContentTypes']);
+        $t->same(false, $byKey['/word/comments.xml:rIdCommentStyles']['valid']);
+        $t->same(['invalid-styles-source-content-type'], $byKey['/word/comments.xml:rIdCommentStyles']['issues']);
+
+        $documentOnly = $graph->preflightRelationshipRoleTargets('/word/document.xml');
+        $t->same('/word/document.xml', $documentOnly['source']);
+        $t->same(9, $documentOnly['roleTargetCount']);
+        $t->same(3, $documentOnly['invalidRoleTargetCount']);
+        $t->same([
+            'rIdBookmark',
+            'rIdChart',
+            'rIdComments',
+            'rIdEmbeddedObject',
+            'rIdEmbeddedPackage',
+            'rIdHero',
+            'rIdNotImage',
+            'rIdNumbering',
+            'rIdStyles',
+        ], array_column($documentOnly['relationships'], 'id'));
+    },
     'preflights WordprocessingML custom XML properties relationship roles' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

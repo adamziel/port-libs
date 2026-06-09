@@ -7113,7 +7113,10 @@ CSS;
                 return [$output, false];
             }
 
-            $output .= $indent . $this->dropSourceIndentColumns($sourceIndent, $column);
+            // Upstream doctemplates treats source-aligned continuation text
+            // as nested at the active column, not as nested plus surplus
+            // template-source indentation.
+            $output .= $indent;
             $offset = $indentEnd;
         }
 
@@ -7123,23 +7126,6 @@ CSS;
     private function containsOnlyLineEndings(string $value): bool
     {
         return $value !== '' && strspn($value, "\r\n") === strlen($value);
-    }
-
-    private function dropSourceIndentColumns(string $indent, int $columns): string
-    {
-        $offset = 0;
-        $length = strlen($indent);
-
-        while ($offset < $length && $columns > 0) {
-            if ($indent[$offset] !== ' ' && $indent[$offset] !== "\t") {
-                break;
-            }
-
-            $offset++;
-            $columns--;
-        }
-
-        return substr($indent, $offset);
     }
 
     /**
