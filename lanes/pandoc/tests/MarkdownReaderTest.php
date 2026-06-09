@@ -13102,6 +13102,28 @@ HTML;
         $t->contains('<h2 id="parsed-after-pre-raw-block">Parsed after pre raw block</h2>', $blocks);
         $t->contains('<p>Tail <strong>paragraph</strong>.</p>', $blocks);
     },
+    'maps commonmark source raw html blocks to blank-line boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<source src="review.webm" type="video/webm">',
+            '# Raw source fallback stays raw',
+            '',
+            'After **source** boundary.',
+        ]));
+        $rawSource = $document->children[0];
+        $paragraph = $document->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+        $t->same('raw_html', $rawSource->type);
+        $t->same(
+            '<source src="review.webm" type="video/webm">' . "\n" . '# Raw source fallback stays raw',
+            $rawSource->attr('html')
+        );
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<!-- wp:html -->' . "\n" . '<source src="review.webm" type="video/webm">' . "\n" . '# Raw source fallback stays raw', $blocks);
+        $t->contains('<p>After <strong>source</strong> boundary.</p>', $blocks);
+    },
     'maps upstream markdown raw email and emoji extension cases' => static function (TestRunner $t): void {
         $rawEmailDocument = (new MarkdownReader())->read('**@user**');
         $emojiDocument = (new MarkdownReader())->read(':smile: and :+1:');

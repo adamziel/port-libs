@@ -13411,6 +13411,7 @@ final class MarkdownReader
             'param',
             'search',
             'section',
+            'source',
             'summary',
             'table',
             'tbody',
