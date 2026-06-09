@@ -2084,6 +2084,67 @@ XML;
         $t->same($nav, $result['importReport']['nav']);
         $t->same($navigation, $result['document']->attr('navigation'));
     },
+    'reports EPUB nav document structure diagnostics for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithDocumentDiagnostics = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="hidden-toc" epub:type="toc" hidden="hidden">
+      <h1>Hidden source contents</h1>
+    </nav>
+    <nav id="visible-toc" epub:type="toc">
+      <h2>Visible contents</h2>
+      <ol>
+        <li><a href="text/chapter1.xhtml#intro">Imported packet</a></li>
+      </ol>
+    </nav>
+    <nav id="untyped-review">
+      <ol>
+        <li><a href="text/chapter2.xhtml#media">Untyped review trail</a></li>
+      </ol>
+    </nav>
+    <nav id="print-pages" epub:type="page-list">
+      <h2>Print page list</h2>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNavXhtml: $navWithDocumentDiagnostics,
+        ));
+
+        $report = $result['nav']['documentDiagnostics'];
+        $t->same(true, $report['present']);
+        $t->same('/OEBPS/nav.xhtml', $report['part']);
+        $t->same(4, $report['sectionCount']);
+        $t->same(3, $report['primarySectionCount']);
+        $t->same(2, $report['tocSectionCount']);
+        $t->same(0, $report['landmarksSectionCount']);
+        $t->same(1, $report['pageListSectionCount']);
+        $t->same(1, $report['duplicatePrimaryTypeCount']);
+        $t->same(2, $report['emptySectionCount']);
+        $t->same(1, $report['hiddenPrimarySectionCount']);
+        $t->same(2, $report['missingOrderedListSectionCount']);
+        $t->same(1, $report['untypedSectionCount']);
+        $t->same(7, $report['diagnosticCount']);
+        $t->same([
+            'hidden-primary-nav-section',
+            'missing-nav-section-ordered-list',
+            'empty-nav-section',
+            'missing-nav-section-type',
+            'missing-nav-section-ordered-list',
+            'empty-nav-section',
+            'duplicate-primary-nav-section',
+        ], array_column($report['diagnostics'], 'type'));
+        $t->same('hidden-toc', $report['diagnostics'][0]['sectionId']);
+        $t->same(['toc'], $report['diagnostics'][0]['sectionTypes']);
+        $t->same('untyped-review', $report['diagnostics'][3]['sectionId']);
+        $t->same('toc', $report['diagnostics'][6]['sectionType']);
+        $t->same([0, 1], $report['diagnostics'][6]['sectionIndexes']);
+        $t->same(['hidden-toc', 'visible-toc'], $report['diagnostics'][6]['sectionIds']);
+        $t->same(7, $result['nav']['documentDiagnosticCount']);
+        $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
+    },
     'reconciles EPUB navigation targets with resolved spine coverage' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $coverageNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
