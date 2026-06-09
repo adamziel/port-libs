@@ -2829,6 +2829,7 @@ final class BibtexCslParser
         $value = str_replace(["\r\n", "\r", "\n"], ' ', $value);
         $value = self::decodeLatexText($value);
         $value = str_replace('~', ' ', $value);
+        $value = self::restoreLatexLiteralTilde($value);
         $value = preg_replace('/\\\\([&%$#_{}])/', '$1', $value) ?? $value;
         $value = self::stripLatexTextWrappers($value);
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
@@ -2846,6 +2847,7 @@ final class BibtexCslParser
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
         $value = preg_replace('/[{}]/', '', $value) ?? $value;
         $value = preg_replace('/~(?!(?:\s*\/|\s*\z))/', ' ', $value) ?? $value;
+        $value = self::restoreLatexLiteralTilde($value);
 
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
     }
@@ -2863,14 +2865,25 @@ final class BibtexCslParser
         $map = [
             'dots' => "\u{2026}",
             'ldots' => "\u{2026}",
+            'textasciicircum' => '^',
+            'textasciitilde' => "\u{E000}",
+            'textbackslash' => '\\',
+            'textbar' => '|',
+            'textcopyright' => "\u{00A9}",
+            'textdegree' => "\u{00B0}",
             'textellipsis' => "\u{2026}",
             'textemdash' => "\u{2014}",
+            'textgreater' => '>',
+            'textless' => '<',
+            'textnumero' => "\u{2116}",
             'textquoteleft' => "\u{2018}",
             'textquoteright' => "\u{2019}",
             'textquotedblleft' => "\u{201C}",
             'textquotedblright' => "\u{201D}",
             'textquotesingle' => "'",
             'textquotedbl' => '"',
+            'textregistered' => "\u{00AE}",
+            'texttrademark' => "\u{2122}",
         ];
         $macros = array_keys($map);
         usort($macros, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
@@ -2899,6 +2912,11 @@ final class BibtexCslParser
         ) ?? $value;
 
         return str_replace(['``', "''"], ["\u{201C}", "\u{201D}"], $value);
+    }
+
+    private static function restoreLatexLiteralTilde(string $value): string
+    {
+        return str_replace("\u{E000}", '~', $value);
     }
 
     private static function stripLatexTextWrappers(string $value): string

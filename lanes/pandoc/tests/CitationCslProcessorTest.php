@@ -409,6 +409,61 @@ XML);
         $t->contains('<p>Punctuation source [“Source Review” — import notes… | Review ‘Desk’ | ‘queued’ — source …] keeps TeX title punctuation readable.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>“Source Review” — import notes… :: Review ‘Desk’ :: ‘queued’ — source …</dd>', $blocks);
     },
+    'decodes bounded latex text symbol macros in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{text-symbol-source,
+  author    = {Ng, Nia},
+  title     = {Path \textbackslash{} assets \textless{}review\textgreater{}},
+  publisher = {Audit \textcopyright{} Team},
+  note      = {packet\textasciitilde{}draft \textregistered{} \texttrademark{} \textnumero{}7 \textdegree{}C \textbar{} phase \textasciicircum{}2},
+  date      = {2026},
+  url       = {https://example.test/text-symbol-source}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Path \\ assets <review>', $items[0]['title'] ?? null);
+        $t->same('Audit © Team', $items[0]['publisher'] ?? null);
+        $t->same('packet~draft ® ™ №7 °C | phase ^2', $items[0]['note'] ?? null);
+        $t->same('Path \\textbackslash{} assets \\textless{}review\\textgreater{}', $items[0]['rawBibtex']['fields']['title'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('text-symbol-source');
+        $t->same('Path \\ assets <review>', $item['title'] ?? null);
+        $t->same('Audit © Team', $item['publisher'] ?? null);
+        $t->same('packet~draft ® ™ №7 °C | phase ^2', $item['note'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="publisher"/>
+        <text variable="note"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher"/>
+      <text variable="note"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Path \\ assets <review> | Audit © Team | packet~draft ® ™ №7 °C | phase ^2]', $styled->renderCitationCluster([$citation('text-symbol-source', '[@text-symbol-source]')]));
+        $t->same('Path \\ assets <review> :: Audit © Team :: packet~draft ® ™ №7 °C | phase ^2', $styled->renderBibliographyEntry('text-symbol-source'));
+
+        $document = (new MarkdownReader())->read('Text symbol source [@text-symbol-source] keeps BibTeX path and rights symbols readable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Text symbol source [Path \ assets &lt;review&gt; | Audit © Team | packet~draft ® ™ №7 °C | phase ^2] keeps BibTeX path and rights symbols readable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Path \ assets &lt;review&gt; :: Audit © Team :: packet~draft ® ™ №7 °C | phase ^2</dd>', $blocks);
+    },
     'inherits bounded bibtex crossref fields into child csl items' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @proceedings{conf2026,
