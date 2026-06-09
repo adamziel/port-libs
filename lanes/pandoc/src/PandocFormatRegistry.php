@@ -164,6 +164,12 @@ final class PandocFormatRegistry
         'zimwiki',
     ];
 
+    /** @var array<string, string> */
+    private const WIKI_EXTENSION_INFERENCE = [
+        '.dokuwiki' => 'dokuwiki',
+        '.wiki' => 'mediawiki',
+    ];
+
     /** @var list<string> */
     private const ROFF_MANUAL_INPUT_FORMATS = [
         'man',
@@ -441,6 +447,56 @@ final class PandocFormatRegistry
     public static function wikiOutputFormats(): array
     {
         return self::WIKI_OUTPUT_FORMATS;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function wikiExtensionInference(): array
+    {
+        return self::WIKI_EXTENSION_INFERENCE;
+    }
+
+    /**
+     * @return string|null
+     */
+    public static function inferWikiFormatFromExtension(string $extension): ?string
+    {
+        $normalized = strtolower($extension);
+        if ($normalized === '') {
+            return null;
+        }
+        if ($normalized[0] !== '.') {
+            $normalized = '.' . $normalized;
+        }
+
+        return self::WIKI_EXTENSION_INFERENCE[$normalized] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function wikiFormatsWithExtensionInference(): array
+    {
+        return array_values(array_unique(array_values(self::WIKI_EXTENSION_INFERENCE)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function wikiFormatsWithoutExtensionInference(): array
+    {
+        $inferred = array_flip(self::wikiFormatsWithExtensionInference());
+        $formats = array_values(array_unique(array_merge(self::WIKI_INPUT_FORMATS, self::WIKI_OUTPUT_FORMATS)));
+        $withoutInference = [];
+
+        foreach ($formats as $format) {
+            if (!array_key_exists($format, $inferred)) {
+                $withoutInference[] = $format;
+            }
+        }
+
+        return $withoutInference;
     }
 
     /**

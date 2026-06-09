@@ -259,4 +259,44 @@ return [
             $t->same($hasOutput ? 'unsupported' : 'not-applicable', $direction['outputStatus'], "Wiki format {$format} output status mismatch");
         }
     },
+    'tracks wiki file extension inference without direct parity claims' => static function (TestRunner $t): void {
+        $t->same([
+            '.dokuwiki' => 'dokuwiki',
+            '.wiki' => 'mediawiki',
+        ], PandocFormatRegistry::wikiExtensionInference());
+
+        $t->same('dokuwiki', PandocFormatRegistry::inferWikiFormatFromExtension('.dokuwiki'));
+        $t->same('dokuwiki', PandocFormatRegistry::inferWikiFormatFromExtension('DOKUWIKI'));
+        $t->same('mediawiki', PandocFormatRegistry::inferWikiFormatFromExtension('.wiki'));
+        $t->same('mediawiki', PandocFormatRegistry::inferWikiFormatFromExtension('WIKI'));
+        $t->same(null, PandocFormatRegistry::inferWikiFormatFromExtension(''));
+        $t->same(null, PandocFormatRegistry::inferWikiFormatFromExtension('.xwiki'));
+        $t->same(null, PandocFormatRegistry::inferWikiFormatFromExtension('.zimwiki'));
+
+        $t->same([
+            'dokuwiki',
+            'mediawiki',
+        ], PandocFormatRegistry::wikiFormatsWithExtensionInference());
+        $t->same([
+            'creole',
+            'jira',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+            'xwiki',
+            'zimwiki',
+        ], PandocFormatRegistry::wikiFormatsWithoutExtensionInference());
+
+        $directions = PandocFormatRegistry::wikiFormatDirections();
+        foreach (PandocFormatRegistry::wikiFormatsWithExtensionInference() as $format) {
+            $t->same(true, array_key_exists($format, $directions), "Wiki extension-inferred format {$format} must remain in direction accounting");
+            $t->same('unsupported', $directions[$format]['inputStatus'], "Wiki extension-inferred format {$format} must not claim input parity");
+            $t->same('unsupported', $directions[$format]['outputStatus'], "Wiki extension-inferred format {$format} must not claim output parity");
+        }
+
+        $extensionInference = array_flip(PandocFormatRegistry::wikiExtensionInference());
+        foreach (PandocFormatRegistry::wikiFormatsWithoutExtensionInference() as $format) {
+            $t->same(false, array_key_exists($format, $extensionInference), "Wiki format {$format} should not be file-extension inferred");
+        }
+    },
 ];
