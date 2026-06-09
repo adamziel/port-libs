@@ -179,6 +179,74 @@ return [
         $t->same(['chapter1', 'chapter2'], array_column($epub->spine(), 'idref'));
     },
 
+    'preserves OPF metadata refinements for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithRefinements = str_replace(
+            '<dc:title>WordPress Migration Guide</dc:title>',
+            '<dc:title id="main-title" xml:lang="en">WordPress Migration Guide</dc:title>
+    <dc:title id="subtitle-title" xml:lang="es" dir="ltr">Guia de migracion</dc:title>',
+            $epub3OpfXml
+        );
+        $opfWithRefinements = str_replace(
+            '</metadata>',
+            '    <meta refines="#main-title" property="title-type">main</meta>
+    <meta refines="#main-title" property="file-as">WordPress Migration Guide, The</meta>
+    <meta refines="#main-title" property="display-seq">1</meta>
+    <meta refines="#subtitle-title" property="title-type">subtitle</meta>
+    <meta refines="#subtitle-title" property="alternate-script" xml:lang="en" dir="ltr">Migration guide subtitle</meta>
+    <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
+    <meta refines="#creator" property="file-as">Team, Data Liberation</meta>
+    <meta refines="#bookid" property="identifier-type" scheme="onix:codelist5">15</meta>
+  </metadata>',
+            $opfWithRefinements
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithRefinements],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+
+        $t->same('WordPress Migration Guide', $metadata['title']);
+        $t->same(['WordPress Migration Guide', 'Guia de migracion'], $metadata['titles']);
+        $t->same('main', $metadata['mainTitle']['titleType']);
+        $t->same('WordPress Migration Guide, The', $metadata['mainTitle']['fileAs']);
+        $t->same('1', $metadata['mainTitle']['displaySeq']);
+        $t->same('en', $metadata['mainTitle']['language']);
+        $t->same('WordPress Migration Guide, The', $metadata['sortTitle']);
+        $t->same('subtitle', $metadata['subtitle']['titleType']);
+        $t->same('Guia de migracion', $metadata['titlesByType']['subtitle'][0]['text']);
+        $t->same('Migration guide subtitle', $metadata['subtitle']['alternateScripts'][0]['text']);
+        $t->same('en', $metadata['subtitle']['alternateScripts'][0]['language']);
+        $t->same('ltr', $metadata['subtitle']['alternateScripts'][0]['direction']);
+
+        $t->same('Data Liberation Team', $metadata['creatorDetails'][0]['text']);
+        $t->same('Team, Data Liberation', $metadata['creatorDetails'][0]['fileAs']);
+        $t->same(['aut'], $metadata['creatorDetails'][0]['roleValues']);
+        $t->same('aut', $metadata['creatorDetails'][0]['primaryRole']);
+        $t->same('Data Liberation Team', $metadata['creatorsByRole']['aut'][0]['text']);
+
+        $t->same('urn:isbn:9780000000001', $metadata['identifierDetails'][0]['value']);
+        $t->same('bookid', $metadata['identifierDetails'][0]['id']);
+        $t->same('15', $metadata['identifierDetails'][0]['identifierType']);
+        $t->same('onix:codelist5', $metadata['identifierDetails'][0]['identifierTypes'][0]['scheme']);
+        $t->same('urn:isbn:9780000000001', $metadata['identifiersByType']['15'][0]['value']);
+        $t->same('#bookid', $metadata['refinementsById']['bookid']['identifier-type'][0]['refines']);
+        $t->same('#main-title', $metadata['refinementsById']['main-title']['file-as'][0]['refines']);
+
+        $t->same('WordPress Migration Guide, The', $summary['wordpressImport']['metadataDetails']['sortTitle']);
+        $t->same('Guia de migracion', $summary['wordpressImport']['metadataDetails']['titlesByType']['subtitle'][0]['text']);
+        $t->same('Data Liberation Team', $summary['wordpressImport']['metadataDetails']['creatorsByRole']['aut'][0]['text']);
+        $t->same('urn:isbn:9780000000001', $summary['wordpressImport']['metadataDetails']['identifiersByType']['15'][0]['value']);
+    },
+
     'preserves OPF guide references and XHTML nav sections for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithGuide = str_replace(
             '</spine>',

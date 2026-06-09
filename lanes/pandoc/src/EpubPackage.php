@@ -248,6 +248,19 @@ final class EpubPackage
                 'title' => $this->metadata['title'],
                 'creators' => $this->metadata['creators'],
                 'language' => $this->metadata['language'],
+                'metadataDetails' => [
+                    'titleDetails' => $this->metadata['titleDetails'] ?? [],
+                    'titlesByType' => $this->metadata['titlesByType'] ?? [],
+                    'mainTitle' => $this->metadata['mainTitle'] ?? null,
+                    'subtitle' => $this->metadata['subtitle'] ?? null,
+                    'shortTitle' => $this->metadata['shortTitle'] ?? null,
+                    'sortTitle' => $this->metadata['sortTitle'] ?? null,
+                    'creatorDetails' => $this->metadata['creatorDetails'] ?? [],
+                    'creatorsByRole' => $this->metadata['creatorsByRole'] ?? [],
+                    'identifierDetails' => $this->metadata['identifierDetails'] ?? [],
+                    'identifiersByType' => $this->metadata['identifiersByType'] ?? [],
+                    'refinementsById' => $this->metadata['refinementsById'] ?? [],
+                ],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
                 'navigationLabels' => array_values(array_map(
                     static fn (array $entry): string => $entry['label'],
@@ -371,8 +384,11 @@ final class EpubPackage
         $creators = [];
         $languages = [];
         $identifiers = [];
+        $dc = [];
         $meta = [];
+        $metaProperties = [];
         $propertyValues = [];
+        $refinementsById = [];
         $coverImageId = null;
 
         foreach (self::childElements($metadataElement) as $child) {
@@ -381,6 +397,17 @@ final class EpubPackage
                 if ($value === '') {
                     continue;
                 }
+
+                $entry = [
+                    'name' => $child->localName,
+                    'text' => $value,
+                    'id' => self::emptyToNull($child->getAttribute('id')),
+                    'scheme' => self::metadataElementScheme($child),
+                    'language' => self::metadataElementLanguage($child),
+                    'direction' => self::metadataElementDirection($child),
+                    'refinements' => [],
+                ];
+                $dc[$child->localName][] = $entry;
 
                 if ($child->localName === 'title') {
                     $titles[] = $value;
@@ -399,11 +426,9 @@ final class EpubPackage
 
                 if ($child->localName === 'identifier') {
                     $identifiers[] = [
-                        'id' => $child->hasAttribute('id') ? $child->getAttribute('id') : null,
+                        'id' => $entry['id'],
                         'value' => $value,
-                        'scheme' => $child->hasAttributeNS(self::OPF_NAMESPACE, 'scheme')
-                            ? $child->getAttributeNS(self::OPF_NAMESPACE, 'scheme')
-                            : null,
+                        'scheme' => $entry['scheme'],
                     ];
                 }
 
@@ -417,22 +442,41 @@ final class EpubPackage
             $property = $child->hasAttribute('property') ? $child->getAttribute('property') : null;
             $name = $child->hasAttribute('name') ? $child->getAttribute('name') : null;
             $content = $child->hasAttribute('content') ? $child->getAttribute('content') : self::normalizeText($child->textContent);
+            $refines = $child->hasAttribute('refines') ? $child->getAttribute('refines') : null;
+            $subjectId = self::metadataRefinementSubject($refines);
             $entry = [
                 'property' => $property,
                 'name' => $name,
                 'content' => $content,
-                'refines' => $child->hasAttribute('refines') ? $child->getAttribute('refines') : null,
+                'text' => self::normalizeText($child->textContent),
+                'id' => self::emptyToNull($child->getAttribute('id')),
+                'scheme' => self::emptyToNull($child->getAttribute('scheme')),
+                'refines' => $refines,
+                'subjectId' => $subjectId,
+                'language' => self::metadataElementLanguage($child),
+                'direction' => self::metadataElementDirection($child),
             ];
             $meta[] = $entry;
 
             if ($property !== null && $property !== '') {
                 $propertyValues[$property][] = $content;
+                $metaProperties[$property][] = $entry;
+                if ($subjectId !== null) {
+                    $refinementsById[$subjectId][$property][] = $entry;
+                }
             }
 
             if ($name === 'cover' && $content !== '') {
                 $coverImageId = $content;
             }
         }
+
+        $dc = self::attachMetadataRefinements($dc, $refinementsById);
+        $titleDetails = self::metadataTitleDetails($dc['title'] ?? []);
+        $mainTitle = self::firstMetadataTitleByType($titleDetails, 'main') ?? ($titleDetails[0] ?? null);
+        $creatorDetails = self::metadataAgentDetails($dc['creator'] ?? [], 'creator');
+        $contributorDetails = self::metadataAgentDetails($dc['contributor'] ?? [], 'contributor');
+        $identifierDetails = self::metadataIdentifierDetails($dc['identifier'] ?? []);
 
         $uniqueIdentifierId = $packageElement->hasAttribute('unique-identifier')
             ? $packageElement->getAttribute('unique-identifier')
@@ -453,16 +497,328 @@ final class EpubPackage
             'uniqueIdentifierId' => $uniqueIdentifierId,
             'identifier' => $identifier,
             'identifiers' => $identifiers,
+            'identifierDetails' => $identifierDetails,
+            'identifiersByType' => self::metadataDetailsByField($identifierDetails, 'identifierType'),
+            'identifiersByScheme' => self::metadataDetailsByField($identifierDetails, 'scheme'),
             'title' => $titles[0] ?? '',
             'titles' => $titles,
+            'titleDetails' => $titleDetails,
+            'titlesByType' => self::metadataTitlesByType($titleDetails),
+            'mainTitle' => $mainTitle,
+            'subtitle' => self::firstMetadataTitleByType($titleDetails, 'subtitle'),
+            'shortTitle' => self::firstMetadataTitleByType($titleDetails, 'short'),
+            'sortTitle' => is_array($mainTitle) ? $mainTitle['fileAs'] : null,
             'creators' => $creators,
+            'creatorDetails' => $creatorDetails,
+            'creatorsByRole' => self::metadataAgentsByRole($creatorDetails),
+            'contributors' => array_map(static fn (array $entry): string => $entry['text'], $dc['contributor'] ?? []),
+            'contributorDetails' => $contributorDetails,
+            'contributorsByRole' => self::metadataAgentsByRole($contributorDetails),
             'language' => $languages[0] ?? '',
             'languages' => $languages,
             'modified' => $propertyValues['dcterms:modified'][0] ?? null,
             'properties' => $propertyValues,
+            'dc' => $dc,
+            'metaProperties' => $metaProperties,
             'meta' => $meta,
+            'refinementsById' => $refinementsById,
             'coverImageId' => $coverImageId,
         ];
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $dc
+     * @param array<string, array<string, list<array<string, mixed>>>> $refinementsById
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function attachMetadataRefinements(array $dc, array $refinementsById): array
+    {
+        foreach ($dc as $name => $entries) {
+            foreach ($entries as $index => $entry) {
+                $id = is_string($entry['id'] ?? null) ? $entry['id'] : null;
+                $dc[$name][$index]['refinements'] = $id !== null && isset($refinementsById[$id])
+                    ? $refinementsById[$id]
+                    : [];
+            }
+        }
+
+        return $dc;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataTitleDetails(array $entries): array
+    {
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $details[] = [
+                'kind' => 'title',
+                'index' => $index,
+                'text' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'titleType' => self::firstMetadataRefinementValue($refinements, 'title-type'),
+                'fileAs' => self::firstMetadataRefinementValue($refinements, 'file-as'),
+                'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                'alternateScripts' => self::metadataRefinementEntries($refinements, 'alternate-script'),
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataTitlesByType(array $details): array
+    {
+        $byType = [];
+        foreach ($details as $detail) {
+            $type = $detail['titleType'] ?? null;
+            if (is_string($type) && $type !== '') {
+                $byType[$type][] = $detail;
+            }
+        }
+
+        return $byType;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function firstMetadataTitleByType(array $details, string $type): ?array
+    {
+        foreach ($details as $detail) {
+            if (($detail['titleType'] ?? null) === $type) {
+                return $detail;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataAgentDetails(array $entries, string $kind): array
+    {
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $roles = self::metadataRefinementEntries($refinements, 'role');
+            $roleValues = array_map(static fn (array $role): string => (string) $role['value'], $roles);
+            $details[] = [
+                'kind' => $kind,
+                'index' => $index,
+                'text' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'fileAs' => self::firstMetadataRefinementValue($refinements, 'file-as'),
+                'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                'roles' => $roles,
+                'roleValues' => $roleValues,
+                'primaryRole' => $roleValues[0] ?? null,
+                'alternateScripts' => self::metadataRefinementEntries($refinements, 'alternate-script'),
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataIdentifierDetails(array $entries): array
+    {
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $identifierTypes = self::metadataRefinementEntries($refinements, 'identifier-type');
+            $details[] = [
+                'kind' => 'identifier',
+                'index' => $index,
+                'value' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'identifierType' => $identifierTypes[0]['value'] ?? null,
+                'identifierTypes' => $identifierTypes,
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataDetailsByField(array $details, string $field): array
+    {
+        $byField = [];
+        foreach ($details as $detail) {
+            $value = $detail[$field] ?? null;
+            if (is_string($value) && $value !== '') {
+                $byField[$value][] = $detail;
+            }
+        }
+
+        return $byField;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataAgentsByRole(array $details): array
+    {
+        $byRole = [];
+        foreach ($details as $detail) {
+            foreach ($detail['roleValues'] ?? [] as $role) {
+                if (is_string($role) && $role !== '') {
+                    $byRole[$role][] = $detail;
+                }
+            }
+        }
+
+        return $byRole;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $refinements
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataRefinementEntries(array $refinements, string $property): array
+    {
+        $entries = [];
+        foreach ($refinements[$property] ?? [] as $entry) {
+            $value = self::metadataRefinementValue($entry);
+            if ($value === '') {
+                continue;
+            }
+
+            $entries[] = [
+                'property' => is_string($entry['property'] ?? null) ? $entry['property'] : $property,
+                'value' => $value,
+                'text' => $value,
+                'content' => is_string($entry['content'] ?? null) ? $entry['content'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'refines' => is_string($entry['refines'] ?? null) ? $entry['refines'] : null,
+                'subjectId' => is_string($entry['subjectId'] ?? null) ? $entry['subjectId'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $refinements
+     */
+    private static function firstMetadataRefinementValue(array $refinements, string $property): ?string
+    {
+        foreach ($refinements[$property] ?? [] as $entry) {
+            $value = self::metadataRefinementValue($entry);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function metadataRefinementValue(array $entry): string
+    {
+        $content = $entry['content'] ?? null;
+        if (is_string($content) && $content !== '') {
+            return $content;
+        }
+
+        $text = $entry['text'] ?? null;
+
+        return is_string($text) ? $text : '';
+    }
+
+    private static function metadataRefinementSubject(?string $refines): ?string
+    {
+        if ($refines === null) {
+            return null;
+        }
+
+        $refines = trim($refines);
+        if ($refines === '') {
+            return null;
+        }
+
+        if (str_starts_with($refines, '#')) {
+            $subject = substr($refines, 1);
+
+            return $subject === '' ? null : $subject;
+        }
+
+        $fragmentOffset = strpos($refines, '#');
+        if ($fragmentOffset === false) {
+            return null;
+        }
+
+        $subject = substr($refines, $fragmentOffset + 1);
+
+        return $subject === '' ? null : $subject;
+    }
+
+    private static function metadataElementScheme(\DOMElement $element): ?string
+    {
+        if ($element->hasAttributeNS(self::OPF_NAMESPACE, 'scheme')) {
+            return self::emptyToNull($element->getAttributeNS(self::OPF_NAMESPACE, 'scheme'));
+        }
+
+        return self::emptyToNull($element->getAttribute('scheme'));
+    }
+
+    private static function metadataElementLanguage(\DOMElement $element): ?string
+    {
+        if ($element->hasAttributeNS('http://www.w3.org/XML/1998/namespace', 'lang')) {
+            return self::emptyToNull($element->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'lang'));
+        }
+
+        return self::emptyToNull($element->getAttribute('xml:lang'));
+    }
+
+    private static function metadataElementDirection(\DOMElement $element): ?string
+    {
+        return self::emptyToNull($element->getAttribute('dir'));
+    }
+
+    private static function emptyToNull(string $value): ?string
+    {
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
     }
 
     /**

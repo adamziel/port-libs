@@ -19,9 +19,13 @@ $opfXml = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="bookid">urn:uuid:wordpress-import-epub</dc:identifier>
-    <dc:title>WordPress EPUB Import Packet</dc:title>
-    <dc:creator>Data Liberation Team</dc:creator>
+    <dc:title id="main-title">WordPress EPUB Import Packet</dc:title>
+    <dc:creator id="creator">Data Liberation Team</dc:creator>
     <dc:language>en</dc:language>
+    <meta refines="#main-title" property="title-type">main</meta>
+    <meta refines="#main-title" property="file-as">WordPress EPUB Import Packet</meta>
+    <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
+    <meta refines="#bookid" property="identifier-type" scheme="onix:codelist5">15</meta>
     <meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
   </metadata>
   <manifest>
@@ -89,6 +93,9 @@ if (($argv[1] ?? '') === '--self-test') {
         ['/EPUB/chapters/intro.xhtml', '/EPUB/media/cover.png'],
         ['/EPUB/chapters/intro.xhtml'],
         ['/EPUB/chapters/review.xhtml#page-2'],
+        'WordPress EPUB Import Packet',
+        'Data Liberation Team',
+        'urn:uuid:wordpress-import-epub',
     ];
     $actual = [
         $summary['wordpressImport']['title'],
@@ -99,6 +106,9 @@ if (($argv[1] ?? '') === '--self-test') {
         array_column($summary['wordpressImport']['guideReferences'], 'target'),
         array_column($summary['wordpressImport']['landmarkTargets'], 'target'),
         array_column($summary['wordpressImport']['pageListTargets'], 'target'),
+        $summary['wordpressImport']['metadataDetails']['sortTitle'],
+        $summary['wordpressImport']['metadataDetails']['creatorsByRole']['aut'][0]['text'] ?? null,
+        $summary['wordpressImport']['metadataDetails']['identifiersByType']['15'][0]['value'] ?? null,
     ];
 
     if ($actual !== $expected) {
