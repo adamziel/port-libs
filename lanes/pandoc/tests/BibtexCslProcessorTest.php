@@ -91,6 +91,57 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'maps obscure biblatex entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@software{tool,
+  author = {Ng, Nia},
+  title  = {Converter Tool},
+  year   = {2026},
+  url    = {https://example.test/tool}
+}
+@dataset{set,
+  author = {Roe, Pat},
+  title  = {Fixture Dataset},
+  year   = {2025},
+  doi    = {10.5555/dataset}
+}
+@inreference{term,
+  author    = {Curator, Eli},
+  title     = {Glossary Term},
+  booktitle = {Migration Reference},
+  year      = {2024},
+  pages     = {7--8}
+}
+@letter{mail,
+  author = {Smith, Ada},
+  title  = {Review Letter},
+  year   = {2023},
+  note   = {Mailbox import}
+}
+@jurisdiction{case-note,
+  title = {Migration Tribunal Note},
+  year  = {2022}
+}
+@unpublished{draft,
+  title = {Detached Draft},
+  year  = {2021}
+}
+BIB;
+
+        $items = (new BibtexCslProcessor())->cslItems($source);
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($items['tool']);
+
+        $t->same('software', $items['tool']['type']);
+        $t->same('dataset', $items['set']['type']);
+        $t->same('entry-encyclopedia', $items['term']['type']);
+        $t->same('personal_communication', $items['mail']['type']);
+        $t->same('legal_case', $items['case-note']['type']);
+        $t->same('manuscript', $items['draft']['type']);
+        $t->same('Migration Reference', $items['term']['container-title']);
+        $t->same('7-8', $items['term']['page']);
+        $t->same('Mailbox import', $items['mail']['note']);
+        $t->same('Nia Ng. Converter Tool. 2026. https://example.test/tool.', $bibliography);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
