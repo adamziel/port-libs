@@ -692,8 +692,8 @@ XML;
         $t->contains('> Quoted migration decision.', $markdown);
         $t->contains('> Inherited quoted detail.', $markdown);
         $t->contains('Indented but not quoted.', $markdown);
-        $t->contains('<blockquote class="wp-block-quote"><p>Quoted migration decision.</p></blockquote>', $blocksHtml);
-        $t->contains('<blockquote class="wp-block-quote"><p>Inherited quoted detail.</p></blockquote>', $blocksHtml);
+        $t->contains('<blockquote class="wp-block-quote odf-blockquote"><p>Quoted migration decision.</p></blockquote>', $blocksHtml);
+        $t->contains('<blockquote class="wp-block-quote odf-blockquote"><p>Inherited quoted detail.</p></blockquote>', $blocksHtml);
         $t->contains('<p>Indented but not quoted.</p>', $blocksHtml);
     },
     'does not turn indented ODT list paragraphs into block quotes' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -748,7 +748,7 @@ XML;
         $t->contains('> Top-level quote remains a quote.', $markdown);
         $t->contains('1.  Indented checklist paragraph stays in the list item.', $markdown);
         $t->true(!str_contains($markdown, "1.  >"), 'ODT list paragraph indentation must not become a nested blockquote');
-        $t->contains('<blockquote class="wp-block-quote"><p>Top-level quote remains a quote.</p></blockquote>', $blocksHtml);
+        $t->contains('<blockquote class="wp-block-quote odf-blockquote"><p>Top-level quote remains a quote.</p></blockquote>', $blocksHtml);
         $t->contains('<ol><li>Indented checklist paragraph stays in the list item.</li></ol>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, '<li><blockquote'), 'WordPress list output must not wrap the indented list paragraph in a quote');
     },

@@ -53,7 +53,7 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderParagraphBlock($node);
             } elseif ($node->type === 'plain') {
                 $blocks[] = '<!-- wp:paragraph -->'
-                    . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
+                    . "\n" . '<p' . $this->renderParagraphAttrs($node) . '>' . $this->renderInlines($node) . '</p>'
                     . "\n" . '<!-- /wp:paragraph -->';
             } elseif ($node->type === 'bullet_list') {
                 $blocks[] = $this->renderList($node, false);
@@ -105,8 +105,13 @@ final class WordPressBlockWriter
         }
 
         return '<!-- wp:paragraph -->'
-            . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
+            . "\n" . '<p' . $this->renderParagraphAttrs($node) . '>' . $this->renderInlines($node) . '</p>'
             . "\n" . '<!-- /wp:paragraph -->';
+    }
+
+    private function renderParagraphAttrs(AstNode $node): string
+    {
+        return $this->renderHtmlWriterAttrs($node, includeIdentity: true);
     }
 
     /**
@@ -2412,8 +2417,36 @@ final class WordPressBlockWriter
     private function renderBlockQuote(AstNode $node): string
     {
         return '<!-- wp:quote -->'
-            . "\n" . '<blockquote class="wp-block-quote">' . $this->renderBlocksAsHtml($node->children) . '</blockquote>'
+            . "\n" . '<blockquote' . $this->renderBlockQuoteAttrs($node, true) . '>' . $this->renderBlocksAsHtml($node->children) . '</blockquote>'
             . "\n" . '<!-- /wp:quote -->';
+    }
+
+    private function renderBlockQuoteAttrs(AstNode $node, bool $includeDefaultClass): string
+    {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        $classes = $includeDefaultClass ? ['wp-block-quote'] : [];
+        if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
+            foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+                $classes[] = $class;
+            }
+        }
+
+        $attrs = $classes === [] ? '' : ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'class' || !$this->isAllowedHtmlWriterAttr($name) || !is_scalar($value)) {
+                continue;
+            }
+
+            $value = (string) $value;
+            if ($value === '') {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderLineBlockBlock(AstNode $node): string
@@ -2504,11 +2537,14 @@ final class WordPressBlockWriter
         $html = '';
         foreach ($blocks as $block) {
             if ($block->type === 'paragraph') {
-                $html .= '<p>' . $this->renderInlines($block) . '</p>';
+                $html .= '<p' . $this->renderParagraphAttrs($block) . '>' . $this->renderInlines($block) . '</p>';
                 continue;
             }
             if ($block->type === 'plain') {
-                $html .= $this->renderInlines($block);
+                $attrs = $this->renderParagraphAttrs($block);
+                $html .= $attrs === ''
+                    ? $this->renderInlines($block)
+                    : '<p' . $attrs . '>' . $this->renderInlines($block) . '</p>';
                 continue;
             }
             if ($block->type === 'heading') {
@@ -2545,7 +2581,7 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'blockquote') {
-                $html .= '<blockquote>' . $this->renderBlocksAsHtml($block->children) . '</blockquote>';
+                $html .= '<blockquote' . $this->renderBlockQuoteAttrs($block, false) . '>' . $this->renderBlocksAsHtml($block->children) . '</blockquote>';
                 continue;
             }
             if ($block->type === 'line_block') {

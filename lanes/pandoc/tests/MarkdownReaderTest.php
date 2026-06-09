@@ -16848,6 +16848,54 @@ XML;
         $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers should not survive HTML writer attribute handoff');
         $t->true(!str_contains($blocks, 'style="color:red"'), 'Unsafe heading style attributes should not survive HTML writer attribute handoff');
     },
+    'writes wordpress html writer attributes for paragraphs and quotes' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [
+                'id' => 'paragraph-attrs',
+                'classes' => ['lead', 'review-copy'],
+                'attributes' => [
+                    'data-pandoc-block' => 'paragraph',
+                    'aria-label' => 'Imported paragraph',
+                    'lang' => 'en',
+                    'onclick' => 'alert(1)',
+                    'style' => 'color:red',
+                ],
+            ], [new AstNode('text', ['text' => 'Paragraph & attributes'])]),
+            new AstNode('plain', [
+                'id' => 'plain-attrs',
+                'classes' => ['plain-review'],
+                'attributes' => [
+                    'data-pandoc-block' => 'plain',
+                ],
+            ], [new AstNode('text', ['text' => 'Plain writer attributes'])]),
+            new AstNode('blockquote', [
+                'id' => 'quote-attrs',
+                'classes' => ['review-quote'],
+                'attributes' => [
+                    'data-pandoc-block' => 'quote',
+                    'title' => 'Quote "review"',
+                    'onmouseover' => 'alert(1)',
+                    'style' => 'border:0',
+                ],
+            ], [
+                new AstNode('paragraph', [
+                    'id' => 'quoted-paragraph',
+                    'classes' => ['quoted-copy'],
+                    'attributes' => [
+                        'data-pandoc-block' => 'quote-paragraph',
+                    ],
+                ], [new AstNode('text', ['text' => 'Quoted paragraph'])]),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<p id="paragraph-attrs" class="lead review-copy" data-pandoc-block="paragraph" aria-label="Imported paragraph" lang="en">Paragraph &amp; attributes</p>', $blocks);
+        $t->contains('<p id="plain-attrs" class="plain-review" data-pandoc-block="plain">Plain writer attributes</p>', $blocks);
+        $t->contains('<blockquote class="wp-block-quote review-quote" id="quote-attrs" data-pandoc-block="quote" title="Quote &quot;review&quot;"><p id="quoted-paragraph" class="quoted-copy" data-pandoc-block="quote-paragraph">Quoted paragraph</p></blockquote>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe paragraph event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'onmouseover'), 'Unsafe quote event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'style="color:red"') && !str_contains($blocks, 'style="border:0"'), 'Unsafe style attributes should not survive paragraph or quote handoff');
+    },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');
         $blocks = (new WordPressBlockWriter())->write($document);

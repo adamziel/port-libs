@@ -11729,6 +11729,7 @@ return [
 
         $plainTextSecondParagraph = $document->children[3];
         $t->same('paragraph', $plainTextSecondParagraph->type);
+        $t->same('rIdTextChunk', $plainTextSecondParagraph->attr('id'));
         $t->same('Final checkpoint.', $plainTextSecondParagraph->children[0]->attr('text'));
         $t->same('After alternative chunk.', $document->children[4]->children[0]->attr('text'));
 
@@ -11737,8 +11738,8 @@ return [
         $t->contains('Final checkpoint.', $markdown);
         $t->contains('<!-- wp:html -->', $blocks);
         $t->contains('<section data-review="docx-alt"><h2>Embedded review HTML</h2><p>Imported <strong>chunk</strong> &amp; reviewer note.</p><ul><li>Media map</li></ul></section>', $blocks);
-        $t->contains('<p>Plain review note<br/>Second line</p>', $blocks);
-        $t->contains('<p>Final checkpoint.</p>', $blocks);
+        $t->contains('<p id="rIdTextChunk">Plain review note<br/>Second line</p>', $blocks);
+        $t->contains('<p id="rIdTextChunk">Final checkpoint.</p>', $blocks);
         $t->true(!str_contains($blocks, 'unsupported reviewer chunk'), 'Unsupported altChunk data should not render');
 
         $alternativeFormats = $result['importReport']['alternativeFormats'];
