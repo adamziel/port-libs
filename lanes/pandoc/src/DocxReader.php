@@ -81,6 +81,8 @@ final class DocxReader
     public const REL_TYPE_CUSTOM_XML_PROPS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
     public const CUSTOM_XML_DATASTORE_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
 
+    private const WORDPROCESSINGML_NUMBERING_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+
     /**
      * Bounded subset of Pandoc's DOCX symbol font table for common review
      * markers. Keys are post-F000-normalized font codepoints.
@@ -14495,7 +14497,7 @@ final class DocxReader
 
     /**
      * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>> $numbering
-     * @return array{relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, exists:?bool, contentType:?string, issues:list<string>}, definitionCount:int, levelCount:int, styleLinkedLevelCount:int}|array{}
+     * @return array{relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, definitionCount:int, levelCount:int, styleLinkedLevelCount:int}|array{}
      */
     private function numberingImportSummary(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart, array $numbering): array
     {
@@ -14525,6 +14527,10 @@ final class DocxReader
             $contentType = $this->contentTypeForPackagePart($package, $targetPart);
             if (!$exists) {
                 $issues[] = 'missing-in-package';
+            } elseif ($contentType === null) {
+                $issues[] = 'missing-content-type';
+            } elseif (strcasecmp($contentType, self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE) !== 0) {
+                $issues[] = 'invalid-numbering-content-type';
             }
         }
 
@@ -14551,6 +14557,7 @@ final class DocxReader
                 'targetPart' => $targetPart,
                 'exists' => $exists,
                 'contentType' => $contentType,
+                'expectedContentType' => self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE,
                 'issues' => $issues,
             ],
             'definitionCount' => count($numbering),

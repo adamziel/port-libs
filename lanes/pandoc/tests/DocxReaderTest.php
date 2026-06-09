@@ -4589,6 +4589,31 @@ $buildNumberingRelationshipPackage = static function () use (
     ]);
 };
 
+$buildNumberingRelationshipWrongContentTypePackage = static function () use (
+    $numberingRelationshipContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $numberingRelationshipDocumentRelationshipsXml,
+    $stylesNumberingDocumentXml,
+    $stylesXml,
+    $relationshipNumberingXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        [
+            'name' => '[Content_Types].xml',
+            'data' => str_replace(
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml',
+                'application/xml',
+                $numberingRelationshipContentTypesXml
+            ),
+        ],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $stylesNumberingDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $numberingRelationshipDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $stylesXml],
+        ['name' => 'word/lists/review-numbering.xml', 'data' => $relationshipNumberingXml],
+    ]);
+};
+
 $buildNumberingStyleLinkPackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -6888,6 +6913,25 @@ return [
         $t->contains('vi) Legal review', $markdown);
         $t->contains('<ul><li>Confirm media map</li><li>Preserve footnotes</li></ul>', $blocks);
         $t->contains('<ol start="6" type="i"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
+    },
+    'reports DOCX numbering relationship content type mismatches for review' => static function (TestRunner $t) use ($buildNumberingRelationshipWrongContentTypePackage): void {
+        $result = (new DocxReader())->readPackage($buildNumberingRelationshipWrongContentTypePackage());
+        $document = $result['document'];
+
+        $t->same(3, count($document->children));
+        $t->same('bullet_list', $document->children[1]->type);
+        $t->same('ordered_list', $document->children[2]->type);
+        $t->same('lower_roman', $document->children[2]->attr('style'));
+        $t->same(6, $document->children[2]->attr('start'));
+
+        $relationship = $result['metadata']['docxNumbering']['relationship'];
+        $t->same('rIdReviewNumbering', $relationship['id']);
+        $t->same('/word/lists/review-numbering.xml', $relationship['targetPart']);
+        $t->same(true, $relationship['exists']);
+        $t->same('application/xml', $relationship['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $relationship['expectedContentType']);
+        $t->same(['invalid-numbering-content-type'], $relationship['issues']);
+        $t->same($result['metadata']['docxNumbering'], $result['importReport']['numbering']);
     },
     'resolves DOCX numbering levels linked to paragraph styles into AST lists' => static function (TestRunner $t) use ($buildNumberingStyleLinkPackage): void {
         $document = (new DocxReader())->readDocument($buildNumberingStyleLinkPackage());
