@@ -1583,6 +1583,36 @@ return [
         $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned data-pandoc hidden metadata to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe links inside hidden content to be stripped');
     },
+    'adds source line metadata to html review state diagnostics' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<article>\n"
+            . "<section hidden><p>Hidden packet</p></section>\n"
+            . "<aside inert><p>Inactive packet</p></aside>\n"
+            . "<details><summary>Closed notes</summary><p>Review body</p></details>\n"
+            . "<dialog open><p>Dialog note</p></dialog>\n"
+            . '</article>'
+        );
+        $diagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => in_array((string) ($diagnostic['code'] ?? ''), [
+                'hidden-content-review',
+                'inert-content-review',
+                'closed-details-review',
+                'dialog-review',
+            ], true)
+        ));
+
+        $t->same([
+            'hidden-content-review',
+            'inert-content-review',
+            'closed-details-review',
+            'dialog-review',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $diagnostics));
+        $t->same([2, 3, 4, 5], array_map(static fn (array $diagnostic): int => (int) ($diagnostic['line'] ?? 0), $diagnostics));
+        $t->same(['section', 'aside', 'details', 'dialog'], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['tag'] ?? ''), $diagnostics));
+        $t->same('closed', $fragment->nodes()[0]['children'][5]['attrs']['data-pandoc-details-state'] ?? null);
+        $t->same('open', $fragment->nodes()[0]['children'][7]['attrs']['data-pandoc-dialog-state'] ?? null);
+    },
     'converts popover states into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

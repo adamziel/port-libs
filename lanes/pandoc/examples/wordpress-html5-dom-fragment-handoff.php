@@ -223,6 +223,22 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('Expected URL repair diagnostics to include source line metadata');
         }
     }
+    $reviewStateDiagnostics = array_values(array_filter(
+        $fragment->diagnostics(),
+        static fn (array $diagnostic): bool => in_array((string) ($diagnostic['code'] ?? ''), [
+            'closed-details-review',
+            'hidden-content-review',
+            'inert-content-review',
+        ], true)
+    ));
+    if (count($reviewStateDiagnostics) !== 4) {
+        throw new RuntimeException('Expected disclosure and hidden-state review diagnostics');
+    }
+    foreach ($reviewStateDiagnostics as $diagnostic) {
+        if (($diagnostic['line'] ?? 0) <= 0) {
+            throw new RuntimeException('Expected disclosure and hidden-state diagnostics to include source line metadata');
+        }
+    }
     foreach (['<html', '<body', '<base', '<title', '<link', '<meta', '<iframe', '<portal', '<map', '<area', '<template', '<slot', '<legacy-', '<datalist', '<option', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'background:url', 'calc(50vw + url', 'calc(100vw + url', ' target=', 'download=', 'rel="opener"', ' referrerpolicy=', ' loading=', ' decoding=', ' fetchpriority=', ' crossorigin=', ' popover=', 'popovertarget=', 'popovertargetaction=', ' contenteditable=', ' spellcheck=', ' draggable=', ' tabindex=', ' accesskey=', ' autofocus', ' translate=', ' lang=', ' xml:lang=', ' dir=', ' role=', ' aria-label=', ' aria-describedby=', ' aria-expanded=', ' aria-current=', ' aria-busy=', ' is=', ' part=', ' exportparts=', ' align=', ' cite=', ' datetime=', ' value=', ' min=', ' max=', ' low=', ' high=', ' optimum=', ' for=', ' method=', ' action=', ' autocomplete=', ' shadowrootmode=', ' shadowrootdelegatesfocus', ' shadowrootclonable', ' shadowrootserializable', ' disabled name=', ' name=" import-settings "', ' name="total-score"', ' name="comment-form"', ' form="legacy-form"', 'javascript:', 'ja/**/vascript', 'report-uri', 'tracker.example.test', 'bad policy', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'orphan-source.avif', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'private-token', 'Bad frame', 'Bad map region', 'bad-role', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml', ' itemscope', ' itemtype=', ' itemid=', ' itemref=', ' itemprop=', ' property=', ' typeof=', ' about=', ' resource=', ' vocab=', ' prefix='] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);

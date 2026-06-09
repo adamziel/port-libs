@@ -1008,23 +1008,23 @@ final class Html5DomFragment
         if ($element->hasAttribute('hidden')) {
             unset($attrs['hidden']);
             $attrs['data-pandoc-hidden-state'] = self::normalizeHtmlHiddenState($element->getAttribute('hidden'));
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'hidden-content-review',
                 'tag' => $tagName,
                 'attribute' => 'hidden',
                 'reason' => 'hidden-content-preserved',
-            ];
+            ], $element);
         }
 
         if ($element->hasAttribute('inert')) {
             unset($attrs['inert']);
             $attrs['data-pandoc-inert-state'] = 'true';
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'inert-content-review',
                 'tag' => $tagName,
                 'attribute' => 'inert',
                 'reason' => 'inert-content-preserved',
-            ];
+            ], $element);
         }
     }
 
@@ -1996,7 +1996,7 @@ final class Html5DomFragment
             $diagnostic['attribute'] = 'open';
         }
 
-        $diagnostics[] = $diagnostic;
+        $diagnostics[] = self::diagnosticWithSourceLine($diagnostic, $element);
     }
 
     /**
@@ -2027,11 +2027,11 @@ final class Html5DomFragment
             break;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'closed-details-review',
             'tag' => 'details',
             'reason' => 'collapsed-content-preserved',
-        ];
+        ], $element);
     }
 
     /**
