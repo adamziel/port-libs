@@ -679,6 +679,43 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
+     */
+    public static function richPackageFormatDirections(): array
+    {
+        return self::formatDirections(
+            self::richPackageInputSupport(),
+            self::richPackageOutputSupport(),
+            self::RICH_PACKAGE_INPUT_FORMATS,
+            self::RICH_PACKAGE_OUTPUT_FORMATS
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function richPackageBidirectionalFormats(): array
+    {
+        return self::richPackageFormatsWithDirection('input-output');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function richPackageInputOnlyFormats(): array
+    {
+        return self::richPackageFormatsWithDirection('input-only');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function richPackageOutputOnlyFormats(): array
+    {
+        return self::richPackageFormatsWithDirection('output-only');
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function inputAliases(): array
@@ -897,5 +934,13 @@ final class PandocFormatRegistry
     private static function roffManualFormatsWithDirection(string $direction): array
     {
         return self::formatsWithDirection(self::roffManualFormatDirections(), $direction);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function richPackageFormatsWithDirection(string $direction): array
+    {
+        return self::formatsWithDirection(self::richPackageFormatDirections(), $direction);
     }
 }

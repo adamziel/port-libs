@@ -214,6 +214,55 @@ return [
         $t->same(34, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
+    'tracks rich package input output direction buckets without direct writer parity claims' => static function (TestRunner $t): void {
+        $directions = PandocFormatRegistry::richPackageFormatDirections();
+        $inputFormats = PandocFormatRegistry::richPackageInputFormats();
+        $outputFormats = PandocFormatRegistry::richPackageOutputFormats();
+
+        $t->same([
+            'docx',
+            'epub',
+            'ipynb',
+            'odt',
+            'pptx',
+            'xlsx',
+            'chunkedhtml',
+            'epub2',
+            'epub3',
+            'icml',
+            'opendocument',
+            'pdf',
+        ], array_keys($directions));
+        $t->same([
+            'docx',
+            'epub',
+            'ipynb',
+            'odt',
+            'pptx',
+        ], PandocFormatRegistry::richPackageBidirectionalFormats());
+        $t->same(['xlsx'], PandocFormatRegistry::richPackageInputOnlyFormats());
+        $t->same([
+            'chunkedhtml',
+            'epub2',
+            'epub3',
+            'icml',
+            'opendocument',
+            'pdf',
+        ], PandocFormatRegistry::richPackageOutputOnlyFormats());
+
+        foreach ($directions as $format => $direction) {
+            $hasInput = in_array($format, $inputFormats, true);
+            $hasOutput = in_array($format, $outputFormats, true);
+            $expectedDirection = $hasInput && $hasOutput ? 'input-output' : ($hasInput ? 'input-only' : 'output-only');
+            $expectedInputStatus = in_array($format, ['docx', 'epub', 'odt'], true) ? 'partial' : ($hasInput ? 'unsupported' : 'not-applicable');
+
+            $t->same($hasInput, $direction['input'], "Rich package format {$format} input direction mismatch");
+            $t->same($hasOutput, $direction['output'], "Rich package format {$format} output direction mismatch");
+            $t->same($expectedDirection, $direction['direction'], "Rich package format {$format} direction bucket mismatch");
+            $t->same($expectedInputStatus, $direction['inputStatus'], "Rich package format {$format} input status mismatch");
+            $t->same($hasOutput ? 'unsupported' : 'not-applicable', $direction['outputStatus'], "Rich package format {$format} output status mismatch");
+        }
+    },
     'tracks wiki format input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
         $directions = PandocFormatRegistry::wikiFormatDirections();
         $inputFormats = PandocFormatRegistry::wikiInputFormats();
