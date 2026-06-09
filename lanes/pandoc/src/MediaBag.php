@@ -141,7 +141,8 @@ final class MediaBag
     public function fillDocument(AstNode $document, array $resources): array
     {
         $diagnostics = [];
-        $document = $this->mapImages($document, function (AstNode $image) use ($resources, &$diagnostics): AstNode {
+        $resourcesByCanonicalSource = self::canonicalResourceMap($resources);
+        $document = $this->mapImages($document, function (AstNode $image) use ($resources, $resourcesByCanonicalSource, &$diagnostics): AstNode {
             $source = (string) $image->attr('url', '');
             if ($source === '' || $this->has($source)) {
                 return $image;
@@ -154,7 +155,8 @@ final class MediaBag
                 return $image;
             }
 
-            $resource = $resources[$source] ?? $resources[self::canonicalizeSource($source)] ?? null;
+            $canonicalSource = self::canonicalizeSource($source);
+            $resource = $resources[$source] ?? $resources[$canonicalSource] ?? $resourcesByCanonicalSource[$canonicalSource] ?? null;
             if ($resource !== null) {
                 $contents = is_array($resource)
                     ? (string) ($resource['contents'] ?? $resource['data'] ?? '')
@@ -223,11 +225,20 @@ final class MediaBag
 
     private static function canonicalizeSource(string $source): string
     {
-        if (str_starts_with($source, 'data:') || self::isUri($source)) {
+        if (str_starts_with($source, 'data:')) {
             return $source;
         }
 
-        return self::normalizePath(str_replace('\\', '/', $source));
+        $pathSource = str_replace('\\', '/', $source);
+        if (self::isWindowsDrivePath($pathSource)) {
+            return self::normalizePath($pathSource);
+        }
+
+        if (self::isUri($source)) {
+            return $source;
+        }
+
+        return self::normalizePath($pathSource);
     }
 
     private static function normalizePath(string $path): string
@@ -263,7 +274,13 @@ final class MediaBag
 
     private static function isUri(string $source): bool
     {
-        return preg_match('/\A[A-Za-z][A-Za-z0-9+.-]*:/', $source) === 1;
+        return !self::isWindowsDrivePath(str_replace('\\', '/', $source))
+            && preg_match('/\A[A-Za-z][A-Za-z0-9+.-]*:/', $source) === 1;
+    }
+
+    private static function isWindowsDrivePath(string $source): bool
+    {
+        return preg_match('/\A[A-Za-z]:\//', $source) === 1;
     }
 
     private static function uriPathOrSource(string $source, string $decodedSource): string
@@ -358,6 +375,24 @@ final class MediaBag
         }
 
         return rtrim($destination, '/');
+    }
+
+    /**
+     * @param array<string, string|array{contents?:string, data?:string, mimeType?:string|null}> $resources
+     * @return array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>
+     */
+    private static function canonicalResourceMap(array $resources): array
+    {
+        $canonical = [];
+        foreach ($resources as $source => $resource) {
+            if (!is_string($source)) {
+                continue;
+            }
+
+            $canonical[self::canonicalizeSource($source)] = $resource;
+        }
+
+        return $canonical;
     }
 
     private function placeholderFor(AstNode $image): AstNode

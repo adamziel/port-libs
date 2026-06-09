@@ -106,6 +106,60 @@ return [
         $t->same('image/png', $escaped['mimeType']);
     },
 
+    'loads resource map entries by canonicalized media source keys' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $relativeBytes = "canonical diagram bytes\n";
+        $windowsBytes = "windows source cover bytes\n";
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => 'assets/diagram.png',
+                    'title' => 'Canonical diagram',
+                ], [new AstNode('text', ['text' => 'Canonical diagram'])]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => 'C:/imports/source cover.jpg',
+                    'title' => 'Windows source cover',
+                ], [new AstNode('text', ['text' => 'Windows source cover'])]),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            'assets\\draft\\..\\diagram.png' => [
+                'contents' => $relativeBytes,
+                'mimeType' => 'image/png',
+            ],
+            'C:\\imports\\source cover.jpg' => $windowsBytes,
+        ]);
+
+        $directoryBySource = [];
+        foreach ($bag->directory() as $entry) {
+            $directoryBySource[$entry['source']] = $entry;
+        }
+
+        $windowsPath = sha1($windowsBytes) . '.jpg';
+        $t->same([
+            'media-resource-loaded:assets/diagram.png',
+            'media-resource-loaded:C:/imports/source cover.jpg',
+        ], $filled['diagnostics']);
+        $t->same('assets/diagram.png', $directoryBySource['assets/diagram.png']['path']);
+        $t->same('image/png', $directoryBySource['assets/diagram.png']['mimeType']);
+        $t->same(strlen($relativeBytes), $directoryBySource['assets/diagram.png']['byteLength']);
+        $t->same($windowsPath, $directoryBySource['C:/imports/source cover.jpg']['path']);
+        $t->same('image/jpeg', $directoryBySource['C:/imports/source cover.jpg']['mimeType']);
+
+        $extracted = $bag->extractMedia($filled['document'], 'bag-media');
+        $mappedDocument = $extracted['document'];
+        $t->same('bag-media/assets/diagram.png', $mappedDocument->children[0]->children[0]->attr('url'));
+        $t->same('bag-media/' . $windowsPath, $mappedDocument->children[1]->children[0]->attr('url'));
+        $t->same([
+            'media-resource-mapped:assets/diagram.png',
+            'media-resource-mapped:C:/imports/source cover.jpg',
+        ], $extracted['diagnostics']);
+    },
+
     'deletes mapped media resources by canonical source key' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $keptBytes = "kept vector bytes\n";
