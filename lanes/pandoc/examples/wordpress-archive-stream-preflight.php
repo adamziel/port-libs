@@ -386,6 +386,23 @@ $gzipTimestampPolicyInspection = ArchiveCompressionStream::inspectGzipTimestampP
     ArchiveCompressionStream::FORMAT_GZIP_TAR,
     strlen($archive->bytes())
 );
+$gzipPlatformPolicySplitOffset = 1024;
+$gzipPlatformPolicyUpload = GzipStream::build(substr($archive->bytes(), 0, $gzipPlatformPolicySplitOffset), [
+    'filename' => 'wordpress-platform-policy-part-1.tar',
+    'comment' => 'unix platform segment',
+    'extraFlags' => 2,
+    'operatingSystem' => 3,
+]) . GzipStream::build(substr($archive->bytes(), $gzipPlatformPolicySplitOffset), [
+    'filename' => 'wordpress-platform-policy-part-2.tar',
+    'comment' => 'ntfs platform segment',
+    'extraFlags' => 4,
+    'operatingSystem' => 11,
+]);
+$gzipPlatformPolicyInspection = ArchiveCompressionStream::inspectGzipPlatformMetadataPolicy(
+    $gzipPlatformPolicyUpload,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($archive->bytes())
+);
 $boundaryFirstArchive = TarArchive::fromEntries([
     [
         'name' => 'packet/first.md',
@@ -1499,6 +1516,38 @@ if (in_array('--self-test', $argv, true)) {
         ],
         'gzipTimestampPolicies' => ['metadata', 'review-before-conversion'],
         'gzipTimestampMemberDiagnostics' => [[], ['gzip-member-mtime-present']],
+        'gzipPlatformPolicyType' => 'archive-gzip-platform-metadata-policy',
+        'gzipPlatformPolicy' => 'review-before-conversion',
+        'gzipPlatformExtractionPolicy' => 'metadata-only-no-extraction',
+        'gzipPlatformDiagnostics' => [
+            'gzip-platform-metadata-present',
+            'gzip-platform-operating-system-varies',
+            'gzip-compression-strategy-metadata-present',
+        ],
+        'gzipPlatformMemberCount' => 2,
+        'gzipPlatformMetadataCount' => 2,
+        'gzipPlatformKnownOsCount' => 2,
+        'gzipPlatformUnknownOsCount' => 0,
+        'gzipPlatformOptimizedCount' => 2,
+        'gzipPlatformOsNames' => ['unix', 'ntfs-filesystem'],
+        'gzipPlatformExtraFlags' => ['maximum-compression', 'fastest-compression'],
+        'gzipPlatformFilenames' => [
+            'wordpress-platform-policy-part-1.tar',
+            'wordpress-platform-policy-part-2.tar',
+        ],
+        'gzipPlatformPolicies' => ['review-before-conversion', 'review-before-conversion'],
+        'gzipPlatformMemberDiagnostics' => [
+            [
+                'gzip-member-operating-system-present',
+                'gzip-member-extra-flags-present',
+                'gzip-member-operating-system-varies',
+            ],
+            [
+                'gzip-member-operating-system-present',
+                'gzip-member-extra-flags-present',
+                'gzip-member-operating-system-varies',
+            ],
+        ],
         'gzipMemberBoundaryPolicy' => 'review-before-conversion',
         'gzipMemberBoundaryDiagnostics' => [
             'gzip-combined-package-decode-failed',
@@ -1926,6 +1975,26 @@ if (in_array('--self-test', $argv, true)) {
         || isset($gzipTimestampPolicyInspection['members'][1]['data'])
         || isset($gzipTimestampPolicyInspection['archive'])
         || isset($gzipTimestampPolicyInspection['tarBytes'])
+        || $gzipPlatformPolicyInspection['type'] !== $expected['gzipPlatformPolicyType']
+        || $gzipPlatformPolicyInspection['handoffPolicy'] !== $expected['gzipPlatformPolicy']
+        || $gzipPlatformPolicyInspection['extractionPolicy'] !== $expected['gzipPlatformExtractionPolicy']
+        || $gzipPlatformPolicyInspection['diagnostics'] !== $expected['gzipPlatformDiagnostics']
+        || $gzipPlatformPolicyInspection['memberCount'] !== $expected['gzipPlatformMemberCount']
+        || $gzipPlatformPolicyInspection['platformMetadataMemberCount'] !== $expected['gzipPlatformMetadataCount']
+        || $gzipPlatformPolicyInspection['knownOperatingSystemMemberCount'] !== $expected['gzipPlatformKnownOsCount']
+        || $gzipPlatformPolicyInspection['unknownOperatingSystemMemberCount'] !== $expected['gzipPlatformUnknownOsCount']
+        || $gzipPlatformPolicyInspection['optimizedCompressionMemberCount'] !== $expected['gzipPlatformOptimizedCount']
+        || $gzipPlatformPolicyInspection['knownOperatingSystemNames'] !== $expected['gzipPlatformOsNames']
+        || $gzipPlatformPolicyInspection['extraFlagsMeanings'] !== $expected['gzipPlatformExtraFlags']
+        || array_column($gzipPlatformPolicyInspection['members'], 'filename') !== $expected['gzipPlatformFilenames']
+        || array_column($gzipPlatformPolicyInspection['members'], 'operatingSystemName') !== $expected['gzipPlatformOsNames']
+        || array_column($gzipPlatformPolicyInspection['members'], 'extraFlagsMeaning') !== $expected['gzipPlatformExtraFlags']
+        || array_column($gzipPlatformPolicyInspection['members'], 'policy') !== $expected['gzipPlatformPolicies']
+        || array_column($gzipPlatformPolicyInspection['members'], 'diagnostics') !== $expected['gzipPlatformMemberDiagnostics']
+        || ($gzipPlatformPolicyInspection['members'][1]['decodedDataOffset'] ?? null) !== $gzipPlatformPolicySplitOffset
+        || isset($gzipPlatformPolicyInspection['members'][0]['data'])
+        || isset($gzipPlatformPolicyInspection['archive'])
+        || isset($gzipPlatformPolicyInspection['tarBytes'])
         || $gzipMemberBoundaryInspection['policy'] !== $expected['gzipMemberBoundaryPolicy']
         || $gzipMemberBoundaryInspection['diagnostics'] !== $expected['gzipMemberBoundaryDiagnostics']
         || $gzipMemberBoundaryInspection['standalonePackageMemberCount'] !== $expected['gzipMemberBoundaryStandaloneCount']
@@ -2503,6 +2572,10 @@ echo 'gzipTimestamp.timestampedMemberCount=' . $gzipTimestampPolicyInspection['t
 echo 'gzipTimestamp.unknownModifiedAtMemberCount=' . $gzipTimestampPolicyInspection['unknownModifiedAtMemberCount'] . "\n";
 echo 'gzipTimestamp.latestModifiedAtText=' . $gzipTimestampPolicyInspection['latestModifiedAtText'] . "\n";
 echo 'gzipTimestamp.memberPolicies=' . implode(',', array_column($gzipTimestampPolicyInspection['members'], 'policy')) . "\n";
+echo 'gzipPlatform.handoffPolicy=' . $gzipPlatformPolicyInspection['handoffPolicy'] . "\n";
+echo 'gzipPlatform.knownOperatingSystems=' . implode(',', $gzipPlatformPolicyInspection['knownOperatingSystemNames']) . "\n";
+echo 'gzipPlatform.extraFlags=' . implode(',', $gzipPlatformPolicyInspection['extraFlagsMeanings']) . "\n";
+echo 'gzipPlatform.memberPolicies=' . implode(',', array_column($gzipPlatformPolicyInspection['members'], 'policy')) . "\n";
 echo 'gzipMemberBoundary.policy=' . $gzipMemberBoundaryInspection['policy'] . "\n";
 echo 'gzipMemberBoundary.standalonePackageMemberCount=' . $gzipMemberBoundaryInspection['standalonePackageMemberCount'] . "\n";
 echo 'gzipMemberBoundary.diagnostics=' . implode(',', $gzipMemberBoundaryInspection['diagnostics']) . "\n";

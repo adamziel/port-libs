@@ -289,6 +289,15 @@ final class TableGeometry
      *     verticalAlignment:string,
      *     columnAlignments:list<string>,
      *     widths:list<?float>,
+     *     normalizedWidths:list<?float>,
+     *     percentWidths:list<?float>,
+     *     widthTotal:float,
+     *     normalizedWidthTotal:float,
+     *     percentWidthTotal:float,
+     *     widthColumnCount:int,
+     *     missingWidthColumnCount:int,
+     *     hasCompleteWidths:bool,
+     *     hasPartialWidths:bool,
      *     declaredColumns:list<bool>,
      *     columnSources?:list<array<string, mixed>|null>,
      *     occupiedSlots:list<array{row:int,column:int,covering:string}>,
@@ -324,6 +333,13 @@ final class TableGeometry
                     $columns = [];
                     $columnAlignments = [];
                     $widths = [];
+                    $normalizedWidths = [];
+                    $percentWidths = [];
+                    $widthTotal = 0.0;
+                    $normalizedWidthTotal = 0.0;
+                    $percentWidthTotal = 0.0;
+                    $widthColumnCount = 0;
+                    $missingWidthColumnCount = 0;
                     $declaredColumns = [];
                     $columnSources = [];
                     $hasColumnSources = false;
@@ -331,11 +347,30 @@ final class TableGeometry
                         $spec = $columnSpecs[$column] ?? [
                             'alignment' => 'default',
                             'width' => null,
+                            'normalizedWidth' => null,
+                            'percentWidth' => null,
                             'declared' => false,
                         ];
+                        $width = isset($spec['width']) && is_numeric($spec['width']) ? (float) $spec['width'] : null;
+                        $normalizedWidth = isset($spec['normalizedWidth']) && is_numeric($spec['normalizedWidth']) ? (float) $spec['normalizedWidth'] : null;
+                        $percentWidth = isset($spec['percentWidth']) && is_numeric($spec['percentWidth']) ? (float) $spec['percentWidth'] : null;
                         $columns[] = $column;
                         $columnAlignments[] = (string) $spec['alignment'];
-                        $widths[] = $spec['width'];
+                        $widths[] = $width;
+                        $normalizedWidths[] = $normalizedWidth;
+                        $percentWidths[] = $percentWidth;
+                        if ($width !== null) {
+                            $widthTotal += $width;
+                            $widthColumnCount++;
+                        } else {
+                            $missingWidthColumnCount++;
+                        }
+                        if ($normalizedWidth !== null) {
+                            $normalizedWidthTotal += $normalizedWidth;
+                        }
+                        if ($percentWidth !== null) {
+                            $percentWidthTotal += $percentWidth;
+                        }
                         $declaredColumns[] = (bool) $spec['declared'];
                         $source = isset($spec['source']) && is_array($spec['source']) ? $spec['source'] : null;
                         $columnSources[] = $source;
@@ -388,6 +423,15 @@ final class TableGeometry
                         'verticalAlignment' => self::cellVerticalAlignment($cell['node']),
                         'columnAlignments' => $columnAlignments,
                         'widths' => $widths,
+                        'normalizedWidths' => $normalizedWidths,
+                        'percentWidths' => $percentWidths,
+                        'widthTotal' => self::roundWidth($widthTotal),
+                        'normalizedWidthTotal' => self::roundWidth($normalizedWidthTotal),
+                        'percentWidthTotal' => self::roundWidth($percentWidthTotal),
+                        'widthColumnCount' => $widthColumnCount,
+                        'missingWidthColumnCount' => $missingWidthColumnCount,
+                        'hasCompleteWidths' => $columns !== [] && $missingWidthColumnCount === 0,
+                        'hasPartialWidths' => $widthColumnCount > 0 && $missingWidthColumnCount > 0,
                         'declaredColumns' => $declaredColumns,
                         'occupiedSlots' => self::occupiedSlotRecords(
                             $rowIndex,

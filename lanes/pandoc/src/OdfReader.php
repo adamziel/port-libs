@@ -1253,7 +1253,7 @@ final class OdfReader
                 ],
             ], [$node]);
         }
-        if ($this->isBlockquoteParagraphStyle($style)) {
+        if ($this->currentListLevel === 0 && $this->isBlockquoteParagraphStyle($style)) {
             $quoteAttrs = $attrs;
             $quoteAttrs['classes'] = ['odf-blockquote'];
 

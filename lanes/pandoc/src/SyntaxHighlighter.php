@@ -314,10 +314,17 @@ final class SyntaxHighlighter
         'swift' => 'swift',
         'swift-source' => 'swift',
         'swiftui' => 'swift',
+        'expect' => 'tcl',
         'terraform' => 'hcl',
+        'tcl' => 'tcl',
+        'tcl/tk' => 'tcl',
+        'tclsh' => 'tcl',
+        'tcl-tk' => 'tcl',
+        'tcltk' => 'tcl',
         'tex' => 'tex',
         'tf' => 'hcl',
         'tfvars' => 'hcl',
+        'tk' => 'tcl',
         'tab-separated-values' => 'tsv',
         'toml' => 'toml',
         'tsv' => 'tsv',
@@ -823,6 +830,7 @@ final class SyntaxHighlighter
             'sed' => $this->tokenizeSed($code),
             'sql' => $this->tokenizeSql($code),
             'swift' => $this->tokenizeSwift($code),
+            'tcl' => $this->tokenizeTcl($code),
             'tex' => $this->tokenizeTex($code),
             'toml' => $this->tokenizeToml($code),
             'tsv' => $this->tokenizeDelimitedText($code, "\t"),
@@ -3388,6 +3396,29 @@ final class SyntaxHighlighter
             ['variable', '/^\$[A-Za-z_][A-Za-z0-9_]*/'],
             ['variable', '/^\b[A-Za-z_][A-Za-z0-9_-]*\b/'],
             ['operator', '/^(?:\\\\|&&|\|\||[{}()[\];,.+*\/=!<>?:|&$^-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeTcl(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['variable', '/^\$\{[^}\n]+\}/'],
+            ['variable', '/^\$[A-Za-z_][A-Za-z0-9_:]*(?:\([^)\n]*\))?/'],
+            ['variable', '/^\$[0-9]+/'],
+            ['keyword', '/^\b(?:after|append|array|break|catch|continue|dict|else|elseif|error|eval|expr|for|foreach|global|if|incr|lappend|namespace|package|proc|regexp|regsub|rename|require|return|set|source|switch|then|throw|trace|try|unset|uplevel|upvar|variable|while)\b/'],
+            ['constant', '/^\b(?:false|no|off|on|true|yes)\b/i'],
+            ['function', '/^\b(?:cd|close|concat|encoding|eof|exec|file|flush|format|gets|glob|join|lindex|linsert|list|llength|lrange|lreplace|open|pid|puts|pwd|read|scan|seek|split|string|subst|tell|time|update|wp)\b(?=\s|$|[;{}\[\]])/'],
+            ['number', '/^-?\b(?:0[xX][0-9A-Fa-f]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/'],
+            ['attribute', '/^--?[A-Za-z][A-Za-z0-9_-]*/'],
+            ['function', '/^(?:::)?[A-Za-z_][A-Za-z0-9_:.-]*(?=\s+\{)/'],
+            ['operator', '/^\b(?:eq|ne|in|ni)\b/'],
+            ['variable', '/^(?:::)?[A-Za-z_][A-Za-z0-9_:.-]*\b/'],
+            ['operator', '/^(?:==|!=|<=|>=|&&|\|\||\beq\b|\bne\b|\bin\b|\bni\b|[{}()[\];,.+*\/%=!<>?:|&$^-])/'],
         ]);
     }
 

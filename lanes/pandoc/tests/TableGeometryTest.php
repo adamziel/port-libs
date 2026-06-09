@@ -2027,6 +2027,13 @@ return [
         $t->same([0, 1], $coverage[0]['columns']);
         $t->same(['left', 'center'], $coverage[0]['columnAlignments']);
         $t->same([0.15, 0.2], $coverage[0]['widths']);
+        $t->same([0.15, 0.2], $coverage[0]['normalizedWidths']);
+        $t->same([15.0, 20.0], $coverage[0]['percentWidths']);
+        $t->same(0.35, $coverage[0]['widthTotal']);
+        $t->same(0.35, $coverage[0]['normalizedWidthTotal']);
+        $t->same(35.0, $coverage[0]['percentWidthTotal']);
+        $t->same(true, $coverage[0]['hasCompleteWidths']);
+        $t->same(false, $coverage[0]['hasPartialWidths']);
         $t->same([true, true], $coverage[0]['declaredColumns']);
         $t->same(2, $coverage[0]['colspan']);
         $t->same(2, $coverage[0]['rawColspan']);
@@ -2055,8 +2062,19 @@ return [
         $t->same(5, $needsMedia['rawEndColumn']);
         $t->same(['center', 'right', 'default', 'default'], $needsMedia['columnAlignments']);
         $t->same([0.2, 0.25, 0.4, null], $needsMedia['widths']);
+        $t->same([0.2, 0.25, 0.4, null], $needsMedia['normalizedWidths']);
+        $t->same([20.0, 25.0, 40.0, null], $needsMedia['percentWidths']);
+        $t->same(0.85, $needsMedia['widthTotal']);
+        $t->same(0.85, $needsMedia['normalizedWidthTotal']);
+        $t->same(85.0, $needsMedia['percentWidthTotal']);
+        $t->same(false, $needsMedia['hasCompleteWidths']);
+        $t->same(true, $needsMedia['hasPartialWidths']);
         $t->same([true, true, true, false], $needsMedia['declaredColumns']);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $t->same($coverage[0]['normalizedWidths'], $packet['coverage'][0]['normalizedWidths'] ?? null);
+        $t->same($coverage[5]['percentWidthTotal'], $packet['coverage'][5]['percentWidthTotal'] ?? null);
         $t->contains('<tr><td colspan="4" style="text-align:center">Needs media</td></tr>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'marks pandoc body-local head rows in geometry audits and wordpress tbody output' => static function (TestRunner $t) use ($buildBodyHeadRowRoleDocument): void {
         $document = $buildBodyHeadRowRoleDocument();

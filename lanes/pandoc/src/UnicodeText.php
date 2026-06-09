@@ -2981,6 +2981,18 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const MAC_ROMANIA_REPLACEMENTS = [
+        0xae => 0x0102,
+        0xaf => 0x015e,
+        0xbd => 0x2126,
+        0xbe => 0x0103,
+        0xbf => 0x015f,
+        0xdb => 0x00a4,
+        0xde => 0x0162,
+        0xdf => 0x0163,
+    ];
+
+    /** @var array<int, int> */
     private const MAC_CENTRAL_EUROPE_REPLACEMENTS = [
         0x80 => 0x00c4,
         0x81 => 0x0100,
@@ -3774,6 +3786,7 @@ final class UnicodeText
             || $normalized === 'macintosh'
             || $normalized === 'mac-turkish'
             || $normalized === 'mac-iceland'
+            || $normalized === 'mac-romania'
             || $normalized === 'mac-central-europe'
             || $normalized === 'mac-cyrillic'
             || $normalized === 'mac-greek'
@@ -4422,6 +4435,9 @@ final class UnicodeText
             'turkish-mac', 'csmacturkish' => 'mac-turkish',
             'maciceland', 'mac-iceland', 'xmaciceland', 'x-mac-iceland',
             'macicelandic', 'mac-icelandic', 'xmacicelandic', 'x-mac-icelandic' => 'mac-iceland',
+            'macromania', 'mac-romania', 'xmacromania', 'x-mac-romania',
+            'macromanian', 'mac-romanian', 'xmacromanian', 'x-mac-romanian',
+            'csmacintoshromanian' => 'mac-romania',
             'maccenteuro', 'xmaccenteuro', 'maccenteurope', 'xmaccenteurope',
             'maccentraleurope', 'xmaccentraleurope', 'maccentraleuropean', 'xmaccentraleuropean',
             'macce', 'xmacce' => 'mac-central-europe',
@@ -5255,6 +5271,10 @@ final class UnicodeText
             }
             if ($encoding === 'mac-iceland' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::MAC_ICELAND_REPLACEMENTS[$byte] ?? self::MAC_ROMAN_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'mac-romania' && $byte >= 0x80) {
+                $out .= self::fromCodepoint(self::MAC_ROMANIA_REPLACEMENTS[$byte] ?? self::MAC_ROMAN_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'mac-central-europe' && $byte >= 0x80) {

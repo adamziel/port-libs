@@ -611,6 +611,62 @@ XML;
         $t->contains('<blockquote class="wp-block-quote"><p>Inherited quoted detail.</p></blockquote>', $blocksHtml);
         $t->contains('<p>Indented but not quoted.</p>', $blocksHtml);
     },
+    'does not turn indented ODT list paragraphs into block quotes' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithIndentedListParagraphs = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="ReviewQuote" style:family="paragraph" style:display-name="Review Quote">
+      <style:paragraph-properties fo:margin-left="8mm"/>
+    </style:style>
+    <text:list-style style:name="ReviewSteps">
+      <text:list-level-style-number text:level="1" style:num-format="1" text:start-value="1"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithIndentedListParagraphs = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p text:style-name="ReviewQuote">Top-level quote remains a quote.</text:p>
+      <text:list text:style-name="ReviewSteps">
+        <text:list-item><text:p text:style-name="ReviewQuote">Indented checklist paragraph stays in the list item.</text:p></text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithIndentedListParagraphs, null, $stylesWithIndentedListParagraphs));
+        $blocks = $result['document']->children;
+        $topLevelQuote = $blocks[0];
+        $list = $blocks[1];
+        $listItemParagraph = $list->children[0]->children[0];
+
+        $t->same('blockquote', $topLevelQuote->type);
+        $t->same(['odf-blockquote'], $topLevelQuote->attr('classes'));
+        $t->same('Top-level quote remains a quote.', $topLevelQuote->children[0]->attr('text'));
+        $t->same('ordered_list', $list->type);
+        $t->same('paragraph', $listItemParagraph->type);
+        $t->same('ReviewQuote', $listItemParagraph->attr('styleName'));
+        $t->same('Indented checklist paragraph stays in the list item.', $listItemParagraph->attr('text'));
+        $t->same(1, $result['importReport']['content']['blockquoteCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('> Top-level quote remains a quote.', $markdown);
+        $t->contains('1.  Indented checklist paragraph stays in the list item.', $markdown);
+        $t->true(!str_contains($markdown, "1.  >"), 'ODT list paragraph indentation must not become a nested blockquote');
+        $t->contains('<blockquote class="wp-block-quote"><p>Top-level quote remains a quote.</p></blockquote>', $blocksHtml);
+        $t->contains('<ol><li>Indented checklist paragraph stays in the list item.</li></ol>', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, '<li><blockquote'), 'WordPress list output must not wrap the indented list paragraph in a quote');
+    },
     'maps ODT preformatted paragraph styles into code blocks' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithPreformattedParagraph = <<<'XML'
 <office:document-styles

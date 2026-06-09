@@ -21,6 +21,8 @@ Accented .bib names such as @accented-source remain readable in bibliography rev
 
 The xdata-backed glossary entry @source-glossary keeps reviewer packet metadata attached.
 
+The PDF alias entry @pdf-alias-source keeps JabRef-style attachment metadata visible for review.
+
 A BibLaTeX entry set @migration-review-set keeps data-only member summaries available for review.
 
 The related manual @related-manual keeps companion entry metadata attached to the source packet.
@@ -191,6 +193,14 @@ $bibtex = <<<'BIB'
   booktitle = {Migration Reference},
   url       = {https://example.test/glossary},
   xdata     = {shared-review-packet, attachment-review-packet}
+}
+
+@online{pdf-alias-source,
+  author = {Ng, Nia},
+  title  = {PDF Alias Source},
+  date   = {2026-06-07},
+  url    = {https://example.test/pdf-alias-source},
+  pdf    = {Reviewer PDF:attachments/pdf-alias.pdf:application/pdf; Remote PDF:https://example.test/pdf-alias.pdf:application/pdf}
 }
 
 @set{migration-review-set,
@@ -875,6 +885,13 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (array_column($sourceGlossary['sourceFileDiagnostics'] ?? [], 'reason') !== ['remote-uri', 'path-traversal', 'windows-drive-path']) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve unsafe attachment diagnostics');
+    }
+    $pdfAliasSource = $processor->item('pdf-alias-source');
+    if (($pdfAliasSource['sourceFiles'][0]['path'] ?? null) !== 'attachments/pdf-alias.pdf') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve pdf alias attachment metadata');
+    }
+    if (array_column($pdfAliasSource['sourceFileDiagnostics'] ?? [], 'reason') !== ['remote-uri']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve pdf alias unsafe attachment diagnostics');
     }
     $reviewSet = $processor->item('migration-review-set');
     if (($reviewSet['raw']['entrySet'] ?? null) !== ['set-audit-paper', 'set-archived-site', 'missing-source']) {

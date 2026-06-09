@@ -1099,6 +1099,159 @@ final class ArchiveCompressionStream
 
     /**
      * @return array{
+     *     type:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     memberCount:int,
+     *     platformMetadataMemberCount:int,
+     *     knownOperatingSystemMemberCount:int,
+     *     unknownOperatingSystemMemberCount:int,
+     *     optimizedCompressionMemberCount:int,
+     *     unknownExtraFlagsMemberCount:int,
+     *     knownOperatingSystemNames:list<string>,
+     *     extraFlagsMeanings:list<string>,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     members:list<array<string, mixed>>
+     * }
+     */
+    public static function inspectGzipPlatformMetadataPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_GZIP_TAR && $format !== self::FORMAT_GZIP_ZIP) {
+            throw new \RuntimeException("GZIP platform metadata policy requires a GZIP archive stream format: {$format}");
+        }
+
+        $inspection = GzipStream::inspect($bytes, $maxUncompressedBytes);
+        $knownOperatingSystemNames = [];
+        $extraFlagsMeanings = [];
+
+        foreach ($inspection['members'] as $member) {
+            if ((int) $member['operatingSystem'] !== 255) {
+                $operatingSystemName = (string) $member['operatingSystemName'];
+                if (!in_array($operatingSystemName, $knownOperatingSystemNames, true)) {
+                    $knownOperatingSystemNames[] = $operatingSystemName;
+                }
+            }
+
+            if ((int) $member['extraFlags'] !== 0) {
+                $extraFlagsMeaning = (string) $member['extraFlagsMeaning'];
+                if (!in_array($extraFlagsMeaning, $extraFlagsMeanings, true)) {
+                    $extraFlagsMeanings[] = $extraFlagsMeaning;
+                }
+            }
+        }
+
+        $operatingSystemVaries = count($knownOperatingSystemNames) > 1;
+        $members = [];
+        $platformMetadataMemberCount = 0;
+        $knownOperatingSystemMemberCount = 0;
+        $unknownOperatingSystemMemberCount = 0;
+        $optimizedCompressionMemberCount = 0;
+        $unknownExtraFlagsMemberCount = 0;
+
+        foreach ($inspection['members'] as $index => $member) {
+            $operatingSystem = (int) $member['operatingSystem'];
+            $extraFlags = (int) $member['extraFlags'];
+            $extraFlagsMeaning = (string) $member['extraFlagsMeaning'];
+            $hasPlatformMetadata = false;
+            $memberDiagnostics = [];
+
+            if ($operatingSystem === 255) {
+                $unknownOperatingSystemMemberCount++;
+            } else {
+                $knownOperatingSystemMemberCount++;
+                $hasPlatformMetadata = true;
+                $memberDiagnostics[] = 'gzip-member-operating-system-present';
+            }
+
+            if ($extraFlags !== 0) {
+                $hasPlatformMetadata = true;
+                $memberDiagnostics[] = 'gzip-member-extra-flags-present';
+                if ($extraFlags === 2 || $extraFlags === 4) {
+                    $optimizedCompressionMemberCount++;
+                } else {
+                    $unknownExtraFlagsMemberCount++;
+                    $memberDiagnostics[] = 'gzip-member-extra-flags-unknown';
+                }
+            }
+
+            if ($operatingSystem !== 255 && $operatingSystemVaries) {
+                $memberDiagnostics[] = 'gzip-member-operating-system-varies';
+            }
+
+            if ($hasPlatformMetadata) {
+                $platformMetadataMemberCount++;
+            }
+
+            $members[] = [
+                'memberIndex' => $index,
+                'filename' => $member['filename'],
+                'filenameText' => $member['filenameText'],
+                'filenameEncoding' => $member['filenameEncoding'],
+                'comment' => $member['comment'],
+                'commentText' => $member['commentText'],
+                'commentEncoding' => $member['commentEncoding'],
+                'flags' => $member['flags'],
+                'extraFlags' => $extraFlags,
+                'extraFlagsMeaning' => $extraFlagsMeaning,
+                'operatingSystem' => $operatingSystem,
+                'operatingSystemName' => $member['operatingSystemName'],
+                'decodedDataOffset' => $member['decodedDataOffset'],
+                'decodedDataEndOffset' => $member['decodedDataEndOffset'],
+                'uncompressedSize' => $member['uncompressedSize'],
+                'compressedSize' => $member['compressedSize'],
+                'memberOffset' => $member['memberOffset'],
+                'nextMemberOffset' => $member['nextMemberOffset'],
+                'policy' => $memberDiagnostics === [] ? 'metadata' : 'review-before-conversion',
+                'diagnostics' => $memberDiagnostics,
+            ];
+        }
+
+        $diagnostics = [];
+        if ($platformMetadataMemberCount > 0) {
+            $diagnostics[] = 'gzip-platform-metadata-present';
+        }
+
+        if ($operatingSystemVaries) {
+            $diagnostics[] = 'gzip-platform-operating-system-varies';
+        }
+
+        if ($optimizedCompressionMemberCount > 0) {
+            $diagnostics[] = 'gzip-compression-strategy-metadata-present';
+        }
+
+        if ($unknownExtraFlagsMemberCount > 0) {
+            $diagnostics[] = 'gzip-extra-flags-unknown';
+        }
+
+        return [
+            'type' => 'archive-gzip-platform-metadata-policy',
+            'format' => $format,
+            'compressedSize' => strlen($bytes),
+            'uncompressedSize' => $inspection['uncompressedSize'],
+            'memberCount' => $inspection['memberCount'],
+            'platformMetadataMemberCount' => $platformMetadataMemberCount,
+            'knownOperatingSystemMemberCount' => $knownOperatingSystemMemberCount,
+            'unknownOperatingSystemMemberCount' => $unknownOperatingSystemMemberCount,
+            'optimizedCompressionMemberCount' => $optimizedCompressionMemberCount,
+            'unknownExtraFlagsMemberCount' => $unknownExtraFlagsMemberCount,
+            'knownOperatingSystemNames' => $knownOperatingSystemNames,
+            'extraFlagsMeanings' => $extraFlagsMeanings,
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'diagnostics' => $diagnostics,
+            'members' => $members,
+        ];
+    }
+
+    /**
+     * @return array{
      *     kind:string,
      *     format:string,
      *     compressedSize:int,

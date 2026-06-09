@@ -1397,6 +1397,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($cellCoverage[0]['columnAlignments'] ?? null) !== ['left', 'right'] || ($cellCoverage[0]['widths'] ?? null) !== [0.25, 0.25]) {
         throw new RuntimeException('Table geometry self-test missing covered column specs');
     }
+    if (
+        ($cellCoverage[0]['normalizedWidths'] ?? null) !== [0.25, 0.25]
+        || ($cellCoverage[0]['percentWidths'] ?? null) !== [25.0, 25.0]
+        || ($cellCoverage[0]['widthTotal'] ?? null) !== 0.5
+        || ($cellCoverage[0]['normalizedWidthTotal'] ?? null) !== 0.5
+        || ($cellCoverage[0]['percentWidthTotal'] ?? null) !== 50.0
+        || ($cellCoverage[0]['hasCompleteWidths'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Table geometry self-test missing normalized cell span width metadata');
+    }
     if (($cellCoverage[2]['section'] ?? null) !== 'body' || ($cellCoverage[2]['rowspan'] ?? null) !== 2 || ($cellCoverage[2]['columns'] ?? null) !== [0]) {
         throw new RuntimeException('Table geometry self-test missing rowspanned body cell coverage report');
     }
@@ -1431,6 +1441,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($migrationPacket['writerDowngrades']['markdown'][2]['flattenedSlots'] ?? null) !== [['row' => 0, 'column' => 1, 'covering' => 'colspan']]) {
         throw new RuntimeException('Table geometry self-test missing flattened span slot report');
+    }
+    if (($migrationPacket['coverage'][0]['normalizedWidths'] ?? null) !== [0.25, 0.25] || ($migrationPacket['coverage'][0]['percentWidthTotal'] ?? null) !== 50.0) {
+        throw new RuntimeException('Table geometry self-test missing review-packet cell span width metadata');
     }
     if (($migrationPacket['sections'][0]['summary']['rowVisualWidths'] ?? null) !== [3] || ($migrationPacket['sections'][0]['summary']['rowSlotCounts'] ?? null) !== [4]) {
         throw new RuntimeException('Table geometry self-test missing section row occupancy widths');

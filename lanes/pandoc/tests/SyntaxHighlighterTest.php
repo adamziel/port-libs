@@ -256,6 +256,10 @@ return [
         $t->same('typst', SyntaxHighlighter::normalizeLanguage('typst'));
         $t->same('typst', SyntaxHighlighter::normalizeLanguage('typ'));
         $t->same('typst', SyntaxHighlighter::normalizeLanguage('language-typst-source'));
+        $t->same('tcl', SyntaxHighlighter::normalizeLanguage('tcl'));
+        $t->same('tcl', SyntaxHighlighter::normalizeLanguage('tclsh'));
+        $t->same('tcl', SyntaxHighlighter::normalizeLanguage('Tcl/Tk'));
+        $t->same('tcl', SyntaxHighlighter::normalizeLanguage('language-expect'));
         $t->same('vue', SyntaxHighlighter::normalizeLanguage('vue'));
         $t->same('vue', SyntaxHighlighter::normalizeLanguage('vue-sfc'));
         $t->same('vue', SyntaxHighlighter::normalizeLanguage('language-html-vue'));
@@ -3867,6 +3871,55 @@ return [
         $t->same('protocol-buffer', $directProto['requestedLanguage']);
         $t->contains('<span class="kw">message</span> <span class="dt">ImportReview</span> <span class="op">{</span> <span class="kw">optional</span> <span class="dt">string</span> <span class="ot">title</span> <span class="op">=</span> <span class="dv">1</span>', $directProto['html']);
         $t->contains('<span class="op">[</span><span class="kw">default</span> <span class="op">=</span> <span class="st">&quot;Untitled&quot;</span><span class="op">];</span>', $directProto['html']);
+    },
+    'highlights tcl import review scripts with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[80] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Tcl import review script code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directTcl = $highlighter->highlight(
+            'if {$title ne ""} { puts [string trim $title] }',
+            'tclsh'
+        );
+
+        $t->same('tcl', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('tcl', SyntaxHighlighter::normalizeLanguage('tcl'));
+        $t->same('tcl', SyntaxHighlighter::normalizeLanguage('tclsh'));
+        $t->same('tcl', SyntaxHighlighter::normalizeLanguage('Tcl/Tk'));
+        $t->same('tcl', SyntaxHighlighter::normalizeLanguage('expect'));
+        $t->same('tcl', $highlighted['language']);
+        $t->same('tcl', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1260, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource tcl numberLines"><code class="sourceCode tcl" style="counter-reset: source-line 1259;">', $highlighted['html']);
+        $t->contains('<span id="tcl-review-1260"><a href="#tcl-review-1260"></a><span class="co"># Tcl WordPress import review script</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">package</span> <span class="kw">require</span> <span class="va">json</span>', $highlighted['html']);
+        $t->contains('<span class="kw">proc</span> <span class="fu">normalize_title</span> <span class="op">{</span><span class="va">packet</span><span class="op">}</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">set</span> <span class="va">title</span> <span class="op">[</span><span class="kw">dict</span> <span class="va">get</span> <span class="va">$packet</span> <span class="va">title</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">{</span><span class="va">$title</span> <span class="op">eq</span> <span class="st">&quot;&quot;</span><span class="op">}</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="st">&quot;Untitled&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="op">[</span><span class="fu">string</span> <span class="va">trim</span> <span class="va">$title</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">set</span> <span class="va">source_id</span> <span class="dv">42</span>', $highlighted['html']);
+        $t->contains('<span class="kw">set</span> <span class="va">packet</span> <span class="op">[</span><span class="kw">dict</span> <span class="va">create</span> <span class="va">title</span> <span class="st">&quot; Legacy &quot;</span> <span class="va">source_id</span> <span class="va">$source_id</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="fu">exec</span> <span class="fu">wp</span> <span class="va">post</span> <span class="va">meta</span> <span class="fu">update</span> <span class="va">$source_id</span> <span class="va">import_title</span> <span class="va">$title</span>', $highlighted['html']);
+        $t->contains('<span class="fu">puts</span> <span class="op">[</span><span class="va">json::write</span> <span class="va">object</span> <span class="va">title</span> <span class="va">$title</span> <span class="va">source_id</span> <span class="va">$source_id</span> <span class="va">dry_run</span> <span class="cn">true</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="fu">exec</span> <span class="fu">wp</span> <span class="va">post</span> <span class="va">meta</span>', $wordpressBlock);
+        $t->same('tcl', $directTcl['language']);
+        $t->same('tclsh', $directTcl['requestedLanguage']);
+        $t->contains('<span class="kw">if</span> <span class="op">{</span><span class="va">$title</span> <span class="op">ne</span> <span class="st">&quot;&quot;</span><span class="op">}</span>', $directTcl['html']);
+        $t->contains('<span class="fu">puts</span> <span class="op">[</span><span class="fu">string</span> <span class="va">trim</span> <span class="va">$title</span><span class="op">]</span>', $directTcl['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

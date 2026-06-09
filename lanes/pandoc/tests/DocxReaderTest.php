@@ -231,6 +231,57 @@ $pictureNonVisualDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$pictureEffectsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPictureEffects" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/effects-picture.png"/>
+</Relationships>
+XML;
+
+$pictureEffectsDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="32" name="Picture effects" descr="Picture effects alt" title="Picture effects title"/>
+            <a:graphic>
+              <a:graphicData>
+                <pic:pic>
+                  <pic:blipFill>
+                    <a:blip r:embed="rIdPictureEffects">
+                      <a:alphaModFix amt="65000"/>
+                      <a:lum bright="12000" contrast="-8000"/>
+                      <a:duotone>
+                        <a:srgbClr val="336699"/>
+                        <a:schemeClr val="accent2"/>
+                      </a:duotone>
+                    </a:blip>
+                  </pic:blipFill>
+                  <pic:spPr>
+                    <a:effectLst>
+                      <a:outerShdw blurRad="57150" dist="38100" dir="5400000" algn="ctr" rotWithShape="0">
+                        <a:srgbClr val="112233"/>
+                      </a:outerShdw>
+                      <a:softEdge rad="19050"/>
+                      <a:reflection blurRad="63500" dist="12700" dir="2700000" stA="45000" endA="0"/>
+                    </a:effectLst>
+                  </pic:spPr>
+                </pic:pic>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $captionedDrawingContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -3501,6 +3552,21 @@ $buildPictureNonVisualPackage = static function () use (
     ]);
 };
 
+$buildPictureEffectsPackage = static function () use (
+    $drawingHyperlinkContentTypesXml,
+    $packageRelationshipsXml,
+    $pictureEffectsRelationshipsXml,
+    $pictureEffectsDocumentXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $drawingHyperlinkContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $pictureEffectsDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $pictureEffectsRelationshipsXml],
+        ['name' => 'word/media/effects-picture.png', 'data' => 'EFFECTPNG'],
+    ]);
+};
+
 $buildCaptionedDrawingPackage = static function () use (
     $captionedDrawingContentTypesXml,
     $packageRelationshipsXml,
@@ -4708,6 +4774,75 @@ return [
         $t->same(1, $media['items'][0]['usedCount']);
         $t->same(['Picture-level alt text'], $media['items'][0]['altTexts']);
         $t->same(['Picture-level title'], $media['items'][0]['titles']);
+    },
+    'preserves DOCX DrawingML picture effect metadata for review' => static function (TestRunner $t) use ($buildPictureEffectsPackage): void {
+        $result = (new DocxReader())->readPackage($buildPictureEffectsPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(1, count($paragraph->children));
+
+        $image = $paragraph->children[0];
+        $t->same('image', $image->type);
+        $t->same('word/media/effects-picture.png', $image->attr('url'));
+        $t->same('/word/media/effects-picture.png', $image->attr('sourcePart'));
+        $t->same('rIdPictureEffects', $image->attr('relationshipId'));
+        $t->same('Picture effects alt', $image->attr('alt'));
+        $t->same('Picture effects title', $image->attr('title'));
+        $t->same(9, $image->attr('bytes'));
+        $t->same([
+            'docx-picture-effect',
+            'docx-picture-blip-effect',
+            'docx-picture-alpha-mod-fix',
+            'docx-picture-luminance',
+            'docx-picture-duotone',
+            'docx-picture-shape-effect',
+            'docx-picture-outer-shadow',
+            'docx-picture-soft-edge',
+            'docx-picture-reflection',
+        ], $image->attr('classes'));
+
+        $attrs = $image->attr('attributes');
+        $t->same('alphaModFix lum duotone', $attrs['data-docx-picture-blip-effects']);
+        $t->same('65000', $attrs['data-docx-picture-alpha-mod-fix-amount']);
+        $t->same('12000', $attrs['data-docx-picture-luminance-brightness']);
+        $t->same('-8000', $attrs['data-docx-picture-luminance-contrast']);
+        $t->same('srgb:336699', $attrs['data-docx-picture-duotone-color-1']);
+        $t->same('scheme:accent2', $attrs['data-docx-picture-duotone-color-2']);
+        $t->same('outerShdw softEdge reflection', $attrs['data-docx-picture-shape-effects']);
+        $t->same('57150', $attrs['data-docx-picture-shadow-outer-blur-radius-emu']);
+        $t->same('38100', $attrs['data-docx-picture-shadow-outer-distance-emu']);
+        $t->same('5400000', $attrs['data-docx-picture-shadow-outer-direction']);
+        $t->same('ctr', $attrs['data-docx-picture-shadow-outer-alignment']);
+        $t->same('false', $attrs['data-docx-picture-shadow-outer-rotate-with-shape']);
+        $t->same('srgb:112233', $attrs['data-docx-picture-shadow-outer-color']);
+        $t->same('19050', $attrs['data-docx-picture-soft-edge-radius-emu']);
+        $t->same('63500', $attrs['data-docx-picture-reflection-blur-radius-emu']);
+        $t->same('12700', $attrs['data-docx-picture-reflection-distance-emu']);
+        $t->same('2700000', $attrs['data-docx-picture-reflection-direction']);
+        $t->same('45000', $attrs['data-docx-picture-reflection-start-alpha']);
+        $t->same('0', $attrs['data-docx-picture-reflection-end-alpha']);
+
+        $t->contains('![Picture effects alt](word/media/effects-picture.png "Picture effects title"){.docx-picture-effect .docx-picture-blip-effect .docx-picture-alpha-mod-fix .docx-picture-luminance .docx-picture-duotone .docx-picture-shape-effect .docx-picture-outer-shadow .docx-picture-soft-edge .docx-picture-reflection', $markdown);
+        $t->contains('data-docx-picture-duotone-color-2="scheme:accent2"', $markdown);
+        $t->contains('data-docx-picture-shadow-outer-color="srgb:112233"', $markdown);
+        $t->contains('data-docx-picture-reflection-start-alpha="45000"', $markdown);
+
+        $t->contains('<img src="word/media/effects-picture.png" alt="Picture effects alt" title="Picture effects title" class="docx-picture-effect docx-picture-blip-effect docx-picture-alpha-mod-fix docx-picture-luminance docx-picture-duotone docx-picture-shape-effect docx-picture-outer-shadow docx-picture-soft-edge docx-picture-reflection"', $blocks);
+        $t->contains('data-docx-picture-alpha-mod-fix-amount="65000"', $blocks);
+        $t->contains('data-docx-picture-soft-edge-radius-emu="19050"', $blocks);
+        $t->contains('data-docx-picture-reflection-end-alpha="0"', $blocks);
+
+        $media = $result['importReport']['media'];
+        $t->same(1, $media['count']);
+        $t->same(1, $media['embeddedCount']);
+        $t->same(0, $media['missingCount']);
+        $t->same(1, $media['items'][0]['usedCount']);
+        $t->same(['Picture effects alt'], $media['items'][0]['altTexts']);
+        $t->same(['Picture effects title'], $media['items'][0]['titles']);
     },
     'groups DOCX image drawings followed by Caption-style paragraphs as figures' => static function (TestRunner $t) use ($buildCaptionedDrawingPackage): void {
         $reader = new DocxReader();

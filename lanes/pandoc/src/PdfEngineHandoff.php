@@ -314,6 +314,7 @@ final class PdfEngineHandoff
      *     pdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pdfPageOutputIntents: list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pdfOutputIntentPolicy: array<string, mixed>,
+     *     pdfConformancePolicy: array<string, mixed>,
      *     pdfLanguage: string|null,
      *     pdfPageLayout: string|null,
      *     pdfPageMode: string|null,
@@ -772,6 +773,7 @@ final class PdfEngineHandoff
         $pdfOutputIntents = [];
         $pdfPageOutputIntents = [];
         $pdfOutputIntentPolicy = [];
+        $pdfConformancePolicy = [];
         $pdfLanguage = null;
         $pdfPageLayout = null;
         $pdfPageMode = null;
@@ -888,6 +890,7 @@ final class PdfEngineHandoff
                 $pdfOutputIntents = $pdfInspection['outputIntents'];
                 $pdfPageOutputIntents = $pdfInspection['pageOutputIntents'];
                 $pdfOutputIntentPolicy = $pdfInspection['outputIntentPolicy'];
+                $pdfConformancePolicy = $pdfInspection['conformancePolicy'];
                 $pdfLanguage = $pdfInspection['language'];
                 $pdfPageLayout = $pdfInspection['pageLayout'];
                 $pdfPageMode = $pdfInspection['pageMode'];
@@ -1775,6 +1778,35 @@ final class PdfEngineHandoff
                         ksort($issueCounts);
                         foreach ($issueCounts as $issue => $count) {
                             $diagnostics[] = 'pdf-byte-output-intent-policy-issue:' . $issue . ':' . $count;
+                        }
+                    }
+                }
+                if ($pdfConformancePolicy !== []) {
+                    $policyStatus = is_string($pdfConformancePolicy['reviewStatus'] ?? null)
+                        ? $pdfConformancePolicy['reviewStatus']
+                        : 'unknown';
+                    $diagnostics[] = 'pdf-byte-conformance-policy:' . $policyStatus;
+                    if (($pdfConformancePolicy['pdfaClaimed'] ?? false) === true) {
+                        $pdfaPart = is_string($pdfConformancePolicy['pdfaPart'] ?? null) ? $pdfConformancePolicy['pdfaPart'] : '';
+                        $pdfaConformance = is_string($pdfConformancePolicy['pdfaConformance'] ?? null) ? $pdfConformancePolicy['pdfaConformance'] : '';
+                        $diagnostics[] = 'pdf-byte-conformance-policy-pdfa:' . $pdfaPart . ':' . $pdfaConformance;
+                    }
+                    if (($pdfConformancePolicy['pdfuaClaimed'] ?? false) === true) {
+                        $pdfuaPart = is_string($pdfConformancePolicy['pdfuaPart'] ?? null) ? $pdfConformancePolicy['pdfuaPart'] : '';
+                        $diagnostics[] = 'pdf-byte-conformance-policy-pdfua:' . $pdfuaPart;
+                    }
+                    if (isset($pdfConformancePolicy['issues']) && is_array($pdfConformancePolicy['issues']) && $pdfConformancePolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-conformance-policy-issues:' . count($pdfConformancePolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfConformancePolicy['issues'] as $issue) {
+                            if (!is_string($issue) || $issue === '') {
+                                continue;
+                            }
+                            $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-conformance-policy-issue:' . $issue . ':' . $count;
                         }
                     }
                 }
@@ -2964,6 +2996,7 @@ final class PdfEngineHandoff
             'pdfOutputIntents' => $pdfOutputIntents,
             'pdfPageOutputIntents' => $pdfPageOutputIntents,
             'pdfOutputIntentPolicy' => $pdfOutputIntentPolicy,
+            'pdfConformancePolicy' => $pdfConformancePolicy,
             'pdfLanguage' => $pdfLanguage,
             'pdfPageLayout' => $pdfPageLayout,
             'pdfPageMode' => $pdfPageMode,
@@ -3101,6 +3134,7 @@ final class PdfEngineHandoff
      *     finalPdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     finalPdfPageOutputIntents: list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     finalPdfOutputIntentPolicy: array<string, mixed>,
+     *     finalPdfConformancePolicy: array<string, mixed>,
      *     finalPdfLanguage: string|null,
      *     finalPdfPageLayout: string|null,
      *     finalPdfPageMode: string|null,
@@ -3351,6 +3385,7 @@ final class PdfEngineHandoff
             'finalPdfOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfOutputIntents'] ?? null) ? $finalRun['pdfOutputIntents'] : [],
             'finalPdfPageOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfPageOutputIntents'] ?? null) ? $finalRun['pdfPageOutputIntents'] : [],
             'finalPdfOutputIntentPolicy' => is_array($finalRun) && is_array($finalRun['pdfOutputIntentPolicy'] ?? null) ? $finalRun['pdfOutputIntentPolicy'] : [],
+            'finalPdfConformancePolicy' => is_array($finalRun) && is_array($finalRun['pdfConformancePolicy'] ?? null) ? $finalRun['pdfConformancePolicy'] : [],
             'finalPdfLanguage' => is_array($finalRun) && is_string($finalRun['pdfLanguage'] ?? null) ? $finalRun['pdfLanguage'] : null,
             'finalPdfPageLayout' => is_array($finalRun) && is_string($finalRun['pdfPageLayout'] ?? null) ? $finalRun['pdfPageLayout'] : null,
             'finalPdfPageMode' => is_array($finalRun) && is_string($finalRun['pdfPageMode'] ?? null) ? $finalRun['pdfPageMode'] : null,
@@ -4483,6 +4518,8 @@ final class PdfEngineHandoff
      *     webCaptureMetadata:list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}>,
      *     outputIntents:list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pageOutputIntents:list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
+     *     outputIntentPolicy:array<string, mixed>,
+     *     conformancePolicy:array<string, mixed>,
      *     language:string|null,
      *     pageLayout:string|null,
      *     pageMode:string|null,
@@ -4584,6 +4621,9 @@ final class PdfEngineHandoff
         $xmpMetadata = $this->extractPdfXmpMetadata($pdfBytes, $catalog);
         $outputIntents = $this->extractPdfOutputIntents($pdfBytes, $catalog);
         $pageOutputIntents = $this->extractPdfPageOutputIntents($pdfBytes, $catalog);
+        $language = $this->extractPdfCatalogLanguage($pdfBytes, $catalog);
+        $taggingMetadata = $this->extractPdfTaggingMetadata($pdfBytes, $catalog);
+        $encryption = $this->extractPdfEncryptionInfo($pdfBytes);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
         foreach ($embeddedFiles as $embeddedFile) {
             if (($embeddedFile['name'] ?? '') !== '') {
@@ -4643,7 +4683,8 @@ final class PdfEngineHandoff
             'outputIntents' => $outputIntents,
             'pageOutputIntents' => $pageOutputIntents,
             'outputIntentPolicy' => $this->summarizePdfOutputIntentPolicy($xmpMetadata, $outputIntents, $pageOutputIntents),
-            'language' => $this->extractPdfCatalogLanguage($pdfBytes, $catalog),
+            'conformancePolicy' => $this->summarizePdfConformancePolicy($xmpMetadata, $outputIntents, $language, $taggingMetadata, $encryption),
+            'language' => $language,
             'pageLayout' => $this->extractPdfCatalogName($catalog, 'PageLayout'),
             'pageMode' => $this->extractPdfCatalogName($catalog, 'PageMode'),
             'openAction' => $this->extractPdfOpenAction($pdfBytes, $catalog),
@@ -4655,7 +4696,7 @@ final class PdfEngineHandoff
             'needsRendering' => $this->extractPdfNeedsRendering($catalog),
             'catalogRequirements' => $this->extractPdfCatalogRequirements($pdfBytes, $catalog),
             'legalAttestationMetadata' => $this->extractPdfLegalAttestationMetadata($pdfBytes, $catalog),
-            'taggingMetadata' => $this->extractPdfTaggingMetadata($pdfBytes, $catalog),
+            'taggingMetadata' => $taggingMetadata,
             'structureParentTree' => $this->extractPdfStructureParentTree($pdfBytes, $catalog),
             'structureIdTree' => $this->extractPdfStructureIdTree($pdfBytes, $catalog),
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
@@ -4693,7 +4734,7 @@ final class PdfEngineHandoff
             'formFieldActions' => $formFieldActions,
             'formFieldActionTargets' => $formFieldActionTargets,
             'formFieldActionTypes' => $this->summarizePdfFormFieldActionTypes($formFieldActions),
-            'encryption' => $this->extractPdfEncryptionInfo($pdfBytes),
+            'encryption' => $encryption,
             'headerVersion' => $headerVersion,
             'catalogVersion' => $catalogVersion,
             'effectiveVersion' => $this->effectivePdfVersion($headerVersion, $catalogVersion),
@@ -7046,6 +7087,91 @@ final class PdfEngineHandoff
         }
 
         return $intents;
+    }
+
+    /**
+     * @param array<string, mixed> $xmpMetadata
+     * @param list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}> $outputIntents
+     * @param array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{} $taggingMetadata
+     * @param array<string, mixed> $encryption
+     * @return array<string, mixed>
+     */
+    private function summarizePdfConformancePolicy(
+        array $xmpMetadata,
+        array $outputIntents,
+        ?string $language,
+        array $taggingMetadata,
+        array $encryption
+    ): array
+    {
+        $pdfaIdentification = isset($xmpMetadata['pdfaIdentification']) && is_array($xmpMetadata['pdfaIdentification'])
+            ? $xmpMetadata['pdfaIdentification']
+            : [];
+        $pdfaPart = is_string($pdfaIdentification['part'] ?? null) && $pdfaIdentification['part'] !== ''
+            ? $pdfaIdentification['part']
+            : null;
+        $pdfaConformance = is_string($pdfaIdentification['conformance'] ?? null) && $pdfaIdentification['conformance'] !== ''
+            ? $pdfaIdentification['conformance']
+            : null;
+        $pdfaClaimed = $pdfaPart !== null || $pdfaConformance !== null;
+
+        $pdfuaIdentification = isset($xmpMetadata['pdfuaIdentification']) && is_array($xmpMetadata['pdfuaIdentification'])
+            ? $xmpMetadata['pdfuaIdentification']
+            : [];
+        $pdfuaPart = is_string($pdfuaIdentification['part'] ?? null) && $pdfuaIdentification['part'] !== ''
+            ? $pdfuaIdentification['part']
+            : null;
+        $pdfuaAmendment = is_string($pdfuaIdentification['amendment'] ?? null) && $pdfuaIdentification['amendment'] !== ''
+            ? $pdfuaIdentification['amendment']
+            : null;
+        $pdfuaCorrigendum = is_string($pdfuaIdentification['corrigendum'] ?? null) && $pdfuaIdentification['corrigendum'] !== ''
+            ? $pdfuaIdentification['corrigendum']
+            : null;
+        $pdfuaClaimed = $pdfuaPart !== null || $pdfuaAmendment !== null || $pdfuaCorrigendum !== null;
+
+        if (!$pdfaClaimed && !$pdfuaClaimed) {
+            return [];
+        }
+
+        $encrypted = ($encryption['encrypted'] ?? false) === true;
+        $tagged = is_bool($taggingMetadata['marked'] ?? null) ? $taggingMetadata['marked'] : null;
+        $structTreeRoot = is_string($taggingMetadata['structTreeRoot'] ?? null) && $taggingMetadata['structTreeRoot'] !== ''
+            ? $taggingMetadata['structTreeRoot']
+            : null;
+
+        $issues = [];
+        if ($pdfaClaimed && $encrypted) {
+            $issues[] = 'pdfa-output-encrypted';
+        }
+        if ($pdfaClaimed && $outputIntents === []) {
+            $issues[] = 'pdfa-missing-output-intent';
+        }
+        if ($pdfuaClaimed && $tagged !== true) {
+            $issues[] = 'pdfua-not-marked';
+        }
+        if ($pdfuaClaimed && $structTreeRoot === null) {
+            $issues[] = 'pdfua-missing-structure-tree';
+        }
+        if ($pdfuaClaimed && ($language === null || $language === '')) {
+            $issues[] = 'pdfua-missing-language';
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'pdfaClaimed' => $pdfaClaimed,
+            'pdfaPart' => $pdfaPart,
+            'pdfaConformance' => $pdfaConformance,
+            'pdfuaClaimed' => $pdfuaClaimed,
+            'pdfuaPart' => $pdfuaPart,
+            'pdfuaAmendment' => $pdfuaAmendment,
+            'pdfuaCorrigendum' => $pdfuaCorrigendum,
+            'encrypted' => $encrypted,
+            'language' => $language,
+            'tagged' => $tagged,
+            'structTreeRoot' => $structTreeRoot,
+            'outputIntentCount' => count($outputIntents),
+            'issues' => $issues,
+        ];
     }
 
     /**

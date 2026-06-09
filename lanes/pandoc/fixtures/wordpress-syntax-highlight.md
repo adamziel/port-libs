@@ -1520,3 +1520,22 @@ service ImportReview {
   rpc Queue(ReviewPacket) returns (ReviewPacket);
 }
 ```
+
+``` {.tcl #tcl-review .numberLines startFrom=1260}
+# Tcl WordPress import review script
+package require json
+
+proc normalize_title {packet} {
+    set title [dict get $packet title]
+    if {$title eq ""} {
+        return "Untitled"
+    }
+    return [string trim $title]
+}
+
+set source_id 42
+set packet [dict create title " Legacy " source_id $source_id]
+set title [normalize_title $packet]
+exec wp post meta update $source_id import_title $title
+puts [json::write object title $title source_id $source_id dry_run true]
+```

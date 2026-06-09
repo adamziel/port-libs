@@ -2858,6 +2858,109 @@ return [
         ));
     },
 
+    'preflights gzip platform metadata before package handoff' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-platform-policy","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP platform policy\n\nReady for WordPress archive review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $splitOffset = 1024;
+        $gzip = GzipStream::build(substr($tarBytes, 0, $splitOffset), [
+            'filename' => 'wordpress-platform-part-1.tar',
+            'comment' => 'unix maximum compression segment',
+            'extraFlags' => 2,
+            'operatingSystem' => 3,
+        ]) . GzipStream::build(substr($tarBytes, $splitOffset), [
+            'filename' => 'wordpress-platform-part-2.tar',
+            'comment' => 'ntfs fastest compression segment',
+            'extraFlags' => 4,
+            'operatingSystem' => 11,
+        ]);
+        $cleanGzip = GzipStream::build($tarBytes, [
+            'filename' => 'wordpress-platform-clean.tar',
+        ]);
+
+        $policy = ArchiveCompressionStream::inspectGzipPlatformMetadataPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+        $cleanPolicy = ArchiveCompressionStream::inspectGzipPlatformMetadataPolicy(
+            $cleanGzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+        $roundTrip = ArchiveCompressionStream::openTar(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+
+        $t->same('archive-gzip-platform-metadata-policy', $policy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $policy['format']);
+        $t->same(strlen($gzip), $policy['compressedSize']);
+        $t->same(strlen($tarBytes), $policy['uncompressedSize']);
+        $t->same(2, $policy['memberCount']);
+        $t->same(2, $policy['platformMetadataMemberCount']);
+        $t->same(2, $policy['knownOperatingSystemMemberCount']);
+        $t->same(0, $policy['unknownOperatingSystemMemberCount']);
+        $t->same(2, $policy['optimizedCompressionMemberCount']);
+        $t->same(0, $policy['unknownExtraFlagsMemberCount']);
+        $t->same(['unix', 'ntfs-filesystem'], $policy['knownOperatingSystemNames']);
+        $t->same(['maximum-compression', 'fastest-compression'], $policy['extraFlagsMeanings']);
+        $t->same('review-before-conversion', $policy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $policy['extractionPolicy']);
+        $t->same([
+            'gzip-platform-metadata-present',
+            'gzip-platform-operating-system-varies',
+            'gzip-compression-strategy-metadata-present',
+        ], $policy['diagnostics']);
+        $t->same([
+            'wordpress-platform-part-1.tar',
+            'wordpress-platform-part-2.tar',
+        ], array_column($policy['members'], 'filename'));
+        $t->same(['unix', 'ntfs-filesystem'], array_column($policy['members'], 'operatingSystemName'));
+        $t->same(['maximum-compression', 'fastest-compression'], array_column($policy['members'], 'extraFlagsMeaning'));
+        $t->same(['review-before-conversion', 'review-before-conversion'], array_column($policy['members'], 'policy'));
+        $t->same([
+            [
+                'gzip-member-operating-system-present',
+                'gzip-member-extra-flags-present',
+                'gzip-member-operating-system-varies',
+            ],
+            [
+                'gzip-member-operating-system-present',
+                'gzip-member-extra-flags-present',
+                'gzip-member-operating-system-varies',
+            ],
+        ], array_column($policy['members'], 'diagnostics'));
+        $t->same([0, $splitOffset], array_column($policy['members'], 'decodedDataOffset'));
+        $t->same([$splitOffset, strlen($tarBytes)], array_column($policy['members'], 'decodedDataEndOffset'));
+        $t->same(false, isset($policy['members'][0]['data']));
+        $t->same(false, isset($policy['archive']));
+        $t->same(false, isset($policy['tarBytes']));
+        $t->same("# GZIP platform policy\n\nReady for WordPress archive review.\n", $roundTrip->read('/packet/content.md'));
+
+        $t->same('within-thresholds', $cleanPolicy['handoffPolicy']);
+        $t->same(0, $cleanPolicy['platformMetadataMemberCount']);
+        $t->same(0, $cleanPolicy['knownOperatingSystemMemberCount']);
+        $t->same(1, $cleanPolicy['unknownOperatingSystemMemberCount']);
+        $t->same(0, $cleanPolicy['optimizedCompressionMemberCount']);
+        $t->same([], $cleanPolicy['diagnostics']);
+        $t->same('metadata', $cleanPolicy['members'][0]['policy']);
+        $t->same([], $cleanPolicy['members'][0]['diagnostics']);
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipPlatformMetadataPolicy(
+            $tarBytes,
+            ArchiveCompressionStream::FORMAT_TAR
+        ));
+    },
+
     'accepts nul-padded gzip package streams and rejects nonzero trailers' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

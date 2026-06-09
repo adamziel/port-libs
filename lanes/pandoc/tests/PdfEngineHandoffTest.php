@@ -9537,6 +9537,102 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfDocumentSecurityStore']);
     },
 
+    'fake runner summarizes pdfa and pdfua conformance review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['outputPath' => 'packets/claimed-conformance.pdf']);
+        $xmp = implode("\n", [
+            '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+            '<rdf:Description xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">',
+            '<pdfaid:part>2</pdfaid:part>',
+            '<pdfaid:conformance>B</pdfaid:conformance>',
+            '<pdfuaid:part>1</pdfuaid:part>',
+            '</rdf:Description>',
+            '</rdf:RDF>',
+            '</x:xmpmeta>',
+            '<?xpacket end="w"?>',
+        ]);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . ' >>',
+            'stream',
+            $xmp,
+            'endstream',
+            'endobj',
+            '6 0 obj',
+            '<< /Filter /Standard /V 4 /R 4 /Length 128 /P -44 >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R /Encrypt 6 0 R >>',
+            'startxref',
+            '2048',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/claimed-conformance.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/claimed-conformance.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'reviewStatus' => 'review',
+            'pdfaClaimed' => true,
+            'pdfaPart' => '2',
+            'pdfaConformance' => 'B',
+            'pdfuaClaimed' => true,
+            'pdfuaPart' => '1',
+            'pdfuaAmendment' => null,
+            'pdfuaCorrigendum' => null,
+            'encrypted' => true,
+            'language' => null,
+            'tagged' => null,
+            'structTreeRoot' => null,
+            'outputIntentCount' => 0,
+            'issues' => [
+                'pdfa-output-encrypted',
+                'pdfa-missing-output-intent',
+                'pdfua-not-marked',
+                'pdfua-missing-structure-tree',
+                'pdfua-missing-language',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(false, $result['ok']);
+        $t->same('pdf-output-encrypted', $result['reason']);
+        $t->same($expected, $result['pdfConformancePolicy']);
+        $t->contains('pdf-byte-pdfa:2:B', $diagnostics);
+        $t->contains('pdf-byte-pdfua:1', $diagnostics);
+        $t->contains('pdf-byte-conformance-policy:review', $diagnostics);
+        $t->contains('pdf-byte-conformance-policy-pdfa:2:B', $diagnostics);
+        $t->contains('pdf-byte-conformance-policy-pdfua:1', $diagnostics);
+        $t->contains('pdf-byte-conformance-policy-issues:5', $diagnostics);
+        $t->contains('pdf-byte-conformance-policy-issue:pdfa-output-encrypted:1', $diagnostics);
+        $t->contains('pdf-byte-conformance-policy-issue:pdfua-missing-structure-tree:1', $diagnostics);
+        $t->same(false, $sequence['ok']);
+        $t->same('attempt-1-pdf-output-encrypted', $sequence['reason']);
+        $t->same($expected, $sequence['finalPdfConformancePolicy']);
+    },
+
     'rejects unsafe pdf handoff engine path and option inputs' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
 

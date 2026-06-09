@@ -533,6 +533,40 @@ BIB;
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-diagnostic', 'sourceFileDiagnostics' => 'bad']]));
     },
+    'maps bounded biblatex pdf aliases into source file attachment metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{pdf-alias-source,
+  author = {Ng, Nia},
+  title  = {PDF Alias Source},
+  date   = {2026-06-07},
+  url    = {https://example.test/pdf-alias-source},
+  pdf    = {Reviewer PDF:attachments/pdf-alias.pdf:application/pdf; Remote PDF:https://example.test/pdf-alias.pdf:application/pdf}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same([
+            ['label' => 'Reviewer PDF', 'path' => 'attachments/pdf-alias.pdf', 'mediaType' => 'application/pdf'],
+        ], $items[0]['sourceFiles'] ?? null);
+        $diagnostics = $items[0]['sourceFileDiagnostics'] ?? [];
+        $t->same(1, count($diagnostics));
+        $t->same('remote-uri', $diagnostics[0]['reason'] ?? null);
+        $t->same('Remote PDF', $diagnostics[0]['label'] ?? null);
+        $t->same('Reviewer PDF:attachments/pdf-alias.pdf:application/pdf; Remote PDF:https://example.test/pdf-alias.pdf:application/pdf', $items[0]['rawBibtex']['fields']['pdf'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('pdf-alias-source');
+        $t->same('attachments/pdf-alias.pdf', $item['sourceFiles'][0]['path'] ?? null);
+        $t->same('remote-uri', $item['sourceFileDiagnostics'][0]['reason'] ?? null);
+        $t->same('(Ng 2026)', $processor->renderCitationCluster([$citation('pdf-alias-source', '[@pdf-alias-source]')]));
+        $t->same('Ng, Nia. PDF Alias Source. 2026. https://example.test/pdf-alias-source.', $processor->renderBibliographyEntry('pdf-alias-source'));
+
+        $document = (new MarkdownReader())->read('PDF alias source @pdf-alias-source keeps JabRef-style attachment metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>PDF alias source Ng (2026) keeps JabRef-style attachment metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. PDF Alias Source. 2026. https://example.test/pdf-alias-source.</dd>', $blocks);
+    },
     'preserves bounded biblatex entry sets and related entry metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @set{migration-review-set,

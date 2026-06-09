@@ -801,7 +801,7 @@ final class BibtexCslParser
             $item['keyword'] = $keywords;
         }
 
-        $sourceFileField = self::firstField($fields, ['file']);
+        $sourceFileField = self::firstField($fields, ['file', 'pdf']);
         $sourceFiles = self::sourceFilesFromField($sourceFileField);
         if ($sourceFiles !== []) {
             $item['sourceFiles'] = $sourceFiles;

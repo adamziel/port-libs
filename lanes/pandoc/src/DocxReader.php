@@ -8115,6 +8115,12 @@ final class DocxReader
             $attributes += $nonVisual['attributes'] ?? [];
         }
 
+        $effects = $this->drawingPictureEffectMetadataAttrs($picture, $blip);
+        if ($effects !== []) {
+            array_push($classes, ...($effects['classes'] ?? []));
+            $attributes += $effects['attributes'] ?? [];
+        }
+
         $blipFill = $this->firstChildElement($picture, self::DRAWINGML_PICTURE_NS, 'blipFill');
         $sourceRectangle = $blipFill instanceof \DOMElement
             ? $this->firstChildElement($blipFill, self::DRAWINGML_MAIN_NS, 'srcRect')
@@ -8212,6 +8218,309 @@ final class DocxReader
             'classes' => array_values(array_unique($classes)),
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>}
+     */
+    private function drawingPictureEffectMetadataAttrs(\DOMElement $picture, \DOMElement $blip): array
+    {
+        $blipEffects = $this->drawingBlipEffectMetadataAttrs($blip);
+        $shapeEffects = $this->drawingShapeEffectMetadataAttrs($picture);
+        if ($blipEffects === [] && $shapeEffects === []) {
+            return [];
+        }
+
+        $classes = ['docx-picture-effect'];
+        $attributes = [];
+
+        if ($blipEffects !== []) {
+            $classes[] = 'docx-picture-blip-effect';
+            array_push($classes, ...($blipEffects['classes'] ?? []));
+            $attributes += $blipEffects['attributes'] ?? [];
+        }
+
+        if ($shapeEffects !== []) {
+            $classes[] = 'docx-picture-shape-effect';
+            array_push($classes, ...($shapeEffects['classes'] ?? []));
+            $attributes += $shapeEffects['attributes'] ?? [];
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>}
+     */
+    private function drawingBlipEffectMetadataAttrs(\DOMElement $blip): array
+    {
+        $effectNames = [];
+        $classes = [];
+        $attributes = [];
+
+        foreach ($blip->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAWINGML_MAIN_NS) {
+                continue;
+            }
+
+            if ($child->localName === 'alphaModFix') {
+                $effectNames[] = 'alphaModFix';
+                $classes[] = 'docx-picture-alpha-mod-fix';
+                $this->appendDrawingAttribute($child, 'amt', $attributes, 'data-docx-picture-alpha-mod-fix-amount');
+                continue;
+            }
+
+            if ($child->localName === 'alphaMod') {
+                $effectNames[] = 'alphaMod';
+                $classes[] = 'docx-picture-alpha-mod';
+                $this->appendDrawingAttribute($child, 'amt', $attributes, 'data-docx-picture-alpha-mod-amount');
+                continue;
+            }
+
+            if ($child->localName === 'lum') {
+                $effectNames[] = 'lum';
+                $classes[] = 'docx-picture-luminance';
+                $this->appendDrawingAttribute($child, 'bright', $attributes, 'data-docx-picture-luminance-brightness');
+                $this->appendDrawingAttribute($child, 'contrast', $attributes, 'data-docx-picture-luminance-contrast');
+                continue;
+            }
+
+            if ($child->localName === 'duotone') {
+                $effectNames[] = 'duotone';
+                $classes[] = 'docx-picture-duotone';
+                $colors = $this->drawingColorValues($child);
+                foreach ($colors as $index => $color) {
+                    $attributes['data-docx-picture-duotone-color-' . ($index + 1)] = $color;
+                }
+                continue;
+            }
+
+            if ($child->localName === 'grayscl') {
+                $effectNames[] = 'grayscl';
+                $classes[] = 'docx-picture-grayscale';
+                continue;
+            }
+
+            if ($child->localName === 'biLevel') {
+                $effectNames[] = 'biLevel';
+                $classes[] = 'docx-picture-bi-level';
+                $this->appendDrawingAttribute($child, 'thresh', $attributes, 'data-docx-picture-bi-level-threshold');
+            }
+        }
+
+        if ($effectNames === []) {
+            return [];
+        }
+
+        $attributes['data-docx-picture-blip-effects'] = implode(' ', array_values(array_unique($effectNames)));
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>}
+     */
+    private function drawingShapeEffectMetadataAttrs(\DOMElement $picture): array
+    {
+        $shapeProperties = $this->firstChildElement($picture, self::DRAWINGML_PICTURE_NS, 'spPr');
+        $effectList = $shapeProperties instanceof \DOMElement
+            ? $this->firstChildElement($shapeProperties, self::DRAWINGML_MAIN_NS, 'effectLst')
+            : null;
+        if (!$effectList instanceof \DOMElement) {
+            return [];
+        }
+
+        $effectNames = [];
+        $classes = [];
+        $attributes = [];
+
+        foreach ($effectList->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAWINGML_MAIN_NS) {
+                continue;
+            }
+
+            if ($child->localName === 'outerShdw') {
+                $effectNames[] = 'outerShdw';
+                $classes[] = 'docx-picture-outer-shadow';
+                $this->appendDrawingShadowEffectAttrs($child, 'outer', $attributes);
+                continue;
+            }
+
+            if ($child->localName === 'innerShdw') {
+                $effectNames[] = 'innerShdw';
+                $classes[] = 'docx-picture-inner-shadow';
+                $this->appendDrawingShadowEffectAttrs($child, 'inner', $attributes);
+                continue;
+            }
+
+            if ($child->localName === 'softEdge') {
+                $effectNames[] = 'softEdge';
+                $classes[] = 'docx-picture-soft-edge';
+                $this->appendDrawingAttribute($child, 'rad', $attributes, 'data-docx-picture-soft-edge-radius-emu');
+                continue;
+            }
+
+            if ($child->localName === 'reflection') {
+                $effectNames[] = 'reflection';
+                $classes[] = 'docx-picture-reflection';
+                $this->appendDrawingReflectionEffectAttrs($child, $attributes);
+                continue;
+            }
+
+            if ($child->localName === 'glow') {
+                $effectNames[] = 'glow';
+                $classes[] = 'docx-picture-glow';
+                $this->appendDrawingAttribute($child, 'rad', $attributes, 'data-docx-picture-glow-radius-emu');
+                $this->appendDrawingColorAttribute($child, $attributes, 'data-docx-picture-glow-color');
+                continue;
+            }
+
+            if ($child->localName === 'blur') {
+                $effectNames[] = 'blur';
+                $classes[] = 'docx-picture-blur';
+                $this->appendDrawingAttribute($child, 'rad', $attributes, 'data-docx-picture-blur-radius-emu');
+                $this->appendDrawingOnOffAttribute($child, 'grow', $attributes, 'data-docx-picture-blur-grow');
+            }
+        }
+
+        if ($effectNames === []) {
+            return [];
+        }
+
+        $attributes['data-docx-picture-shape-effects'] = implode(' ', array_values(array_unique($effectNames)));
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendDrawingShadowEffectAttrs(\DOMElement $shadow, string $kind, array &$attributes): void
+    {
+        $prefix = 'data-docx-picture-shadow-' . $kind . '-';
+        foreach ([
+            'blurRad' => 'blur-radius-emu',
+            'dist' => 'distance-emu',
+            'dir' => 'direction',
+            'algn' => 'alignment',
+        ] as $source => $suffix) {
+            $this->appendDrawingAttribute($shadow, $source, $attributes, $prefix . $suffix);
+        }
+
+        $this->appendDrawingOnOffAttribute($shadow, 'rotWithShape', $attributes, $prefix . 'rotate-with-shape');
+        $this->appendDrawingColorAttribute($shadow, $attributes, $prefix . 'color');
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendDrawingReflectionEffectAttrs(\DOMElement $reflection, array &$attributes): void
+    {
+        foreach ([
+            'blurRad' => 'data-docx-picture-reflection-blur-radius-emu',
+            'dist' => 'data-docx-picture-reflection-distance-emu',
+            'dir' => 'data-docx-picture-reflection-direction',
+            'stA' => 'data-docx-picture-reflection-start-alpha',
+            'endA' => 'data-docx-picture-reflection-end-alpha',
+            'stPos' => 'data-docx-picture-reflection-start-position',
+            'endPos' => 'data-docx-picture-reflection-end-position',
+            'algn' => 'data-docx-picture-reflection-alignment',
+        ] as $source => $target) {
+            $this->appendDrawingAttribute($reflection, $source, $attributes, $target);
+        }
+
+        $this->appendDrawingOnOffAttribute($reflection, 'rotWithShape', $attributes, 'data-docx-picture-reflection-rotate-with-shape');
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendDrawingAttribute(\DOMElement $element, string $source, array &$attributes, string $target): void
+    {
+        $value = trim($element->getAttribute($source));
+        if ($value !== '') {
+            $attributes[$target] = $value;
+        }
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendDrawingOnOffAttribute(\DOMElement $element, string $source, array &$attributes, string $target): void
+    {
+        $value = $this->normalizedOnOffAttribute($element, $source);
+        if ($value !== null) {
+            $attributes[$target] = $value;
+        }
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendDrawingColorAttribute(\DOMElement $element, array &$attributes, string $target): void
+    {
+        $color = $this->drawingFirstColorValue($element);
+        if ($color !== null) {
+            $attributes[$target] = $color;
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function drawingColorValues(\DOMElement $element): array
+    {
+        $colors = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAWINGML_MAIN_NS) {
+                continue;
+            }
+
+            $color = $this->drawingColorValue($child);
+            if ($color !== null) {
+                $colors[] = $color;
+            }
+        }
+
+        return $colors;
+    }
+
+    private function drawingFirstColorValue(\DOMElement $element): ?string
+    {
+        foreach ($this->drawingColorValues($element) as $color) {
+            return $color;
+        }
+
+        return null;
+    }
+
+    private function drawingColorValue(\DOMElement $color): ?string
+    {
+        $value = trim($color->getAttribute('val'));
+        if ($value === '' && $color->localName === 'sysClr') {
+            $value = trim($color->getAttribute('lastClr'));
+        }
+
+        if ($value === '') {
+            return null;
+        }
+
+        return match ($color->localName) {
+            'srgbClr' => 'srgb:' . $value,
+            'schemeClr' => 'scheme:' . $value,
+            'prstClr' => 'preset:' . $value,
+            'sysClr' => 'system:' . $value,
+            default => null,
+        };
     }
 
     /**

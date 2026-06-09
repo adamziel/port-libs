@@ -502,6 +502,12 @@ if (!$protobufCodeBlock instanceof PortLibs\Pandoc\AstNode || $protobufCodeBlock
 }
 $protobuf = $highlighter->highlightCodeBlock($protobufCodeBlock, 'tango');
 $protobufWordpressBlock = $highlighter->wordpressHtmlBlock($protobufCodeBlock, 'tango');
+$tclCodeBlock = $document->children[80] ?? null;
+if (!$tclCodeBlock instanceof PortLibs\Pandoc\AstNode || $tclCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Tcl import review script code block');
+}
+$tcl = $highlighter->highlightCodeBlock($tclCodeBlock, 'breezedark');
+$tclWordpressBlock = $highlighter->wordpressHtmlBlock($tclCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2192,6 +2198,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($protobufWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
         throw new RuntimeException('Expected Protobuf WordPress style metadata');
     }
+    if (($tcl['language'] ?? '') !== 'tcl') {
+        throw new RuntimeException('Expected Tcl language alias handoff');
+    }
+    if (($tcl['lineNumbering']['start'] ?? null) !== 1260) {
+        throw new RuntimeException('Expected Tcl line-number start handoff');
+    }
+    if (!str_contains($tcl['html'], '<span class="kw">proc</span> <span class="fu">normalize_title</span>')) {
+        throw new RuntimeException('Expected Tcl procedure token handoff');
+    }
+    if (!str_contains($tcl['html'], '<span class="kw">if</span> <span class="op">{</span><span class="va">$title</span> <span class="op">eq</span>')) {
+        throw new RuntimeException('Expected Tcl expression operator token handoff');
+    }
+    if (!str_contains($tcl['html'], '<span class="fu">exec</span> <span class="fu">wp</span> <span class="va">post</span> <span class="va">meta</span>')) {
+        throw new RuntimeException('Expected Tcl WordPress CLI command token handoff');
+    }
+    if (!str_contains($tclWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected Tcl WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2291,6 +2315,7 @@ echo "fennelHighlightedHtml:\n" . $fennel['html'] . "\n";
 echo "mesonHighlightedHtml:\n" . $meson['html'] . "\n";
 echo "justHighlightedHtml:\n" . $just['html'] . "\n";
 echo "protobufHighlightedHtml:\n" . $protobuf['html'] . "\n";
+echo "tclHighlightedHtml:\n" . $tcl['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2361,4 +2386,5 @@ echo "fennelWordpressBlock:\n" . $fennelWordpressBlock . "\n";
 echo "mesonWordpressBlock:\n" . $mesonWordpressBlock . "\n";
 echo "justWordpressBlock:\n" . $justWordpressBlock . "\n";
 echo "protobufWordpressBlock:\n" . $protobufWordpressBlock . "\n";
+echo "tclWordpressBlock:\n" . $tclWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
