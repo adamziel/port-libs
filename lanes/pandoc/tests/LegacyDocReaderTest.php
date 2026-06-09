@@ -1796,6 +1796,75 @@ $buildParagraphRevisionMarkedFormattingDocStreams = static function (int $author
     ];
 };
 
+$buildParagraphLayoutFormattingDocStreams = static function () use ($buildExtendedFibWordDocument, $u16, $u32): array {
+    $firstParagraphText = "Centered layout paragraph\r";
+    $secondParagraphText = "Plain paragraph\r";
+    $text = $firstParagraphText . $secondParagraphText;
+    $wordDocument = $buildExtendedFibWordDocument($text);
+    $textStartFc = 768;
+    $firstParagraphEndFc = $textStartFc + strlen($firstParagraphText);
+    $textEndFc = $textStartFc + strlen($text);
+
+    $paragraphLayoutGrpprl = $u16(0x2461) . "\x03" // sprmPJc both
+        . $u16(0x2405) . "\x01" // sprmPFKeep
+        . $u16(0x2406) . "\x01" // sprmPFKeepFollow
+        . $u16(0x2407) . "\x01" // sprmPFPageBreakBefore
+        . $u16(0x845e) . pack('v', 720) // sprmPDxaLeft
+        . $u16(0x8460) . pack('v', 0xfe98) // sprmPDxaLeft1, -360 twips
+        . $u16(0x845d) . pack('v', 240) // sprmPDxaRight
+        . $u16(0xa413) . $u16(120) // sprmPDyaBefore
+        . $u16(0xa414) . $u16(240) // sprmPDyaAfter
+        . $u16(0x6412) . $u16(480) . $u16(1); // sprmPDyaLine, double spacing
+    $firstPapxPayload = $u16(0) . $paragraphLayoutGrpprl;
+    $plainPapxPayload = $u16(0);
+
+    $papxFkpPage = intdiv(strlen($wordDocument) + 511, 512);
+    $papxFkpOffset = $papxFkpPage * 512;
+    $firstPapxOffset = 384;
+    $plainPapxOffset = 456;
+    $papxFkp = str_repeat("\0", 512);
+    $papxFkp = substr_replace(
+        $papxFkp,
+        $u32($textStartFc) . $u32($firstParagraphEndFc) . $u32($textEndFc),
+        0,
+        12
+    );
+    $papxFkp = substr_replace(
+        $papxFkp,
+        chr(intdiv($firstPapxOffset, 2)) . str_repeat("\0", 12)
+            . chr(intdiv($plainPapxOffset, 2)) . str_repeat("\0", 12),
+        12,
+        26
+    );
+    $papxFkp = substr_replace(
+        $papxFkp,
+        "\0" . chr(intdiv(strlen($firstPapxPayload), 2)) . $firstPapxPayload,
+        $firstPapxOffset,
+        2 + strlen($firstPapxPayload)
+    );
+    $papxFkp = substr_replace(
+        $papxFkp,
+        "\0" . chr(intdiv(strlen($plainPapxPayload), 2)) . $plainPapxPayload,
+        $plainPapxOffset,
+        2 + strlen($plainPapxPayload)
+    );
+    $papxFkp = substr_replace($papxFkp, chr(2), 511, 1);
+    $wordDocument = str_pad($wordDocument, $papxFkpOffset, "\0") . $papxFkp;
+
+    $plcBtePapx = $u32($textStartFc)
+        . $u32($firstParagraphEndFc)
+        . $u32($textEndFc)
+        . $u32($papxFkpPage)
+        . $u32($papxFkpPage);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x0102, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBtePapx)), 0x0106, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $plcBtePapx,
+    ];
+};
+
 $buildPictureDataFormattingDocStreams = static function (int $picLocation = 8) use ($buildSimpleWordDocument, $u16, $u32): array {
     $text = "Inline picture \x01 keeps Data stream provenance\r";
     $pictureCp = strpos($text, "\x01");
@@ -5653,6 +5722,123 @@ return [
         $t->true(!str_contains($markdown, 'Migration Lead'), 'PAPX revision authors must stay metadata-only in Markdown');
 
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($buildParagraphRevisionMarkedFormattingDocStreams(9))));
+    },
+    'preserves legacy DOC PAPX direct paragraph layout properties as metadata-only review state' => static function (TestRunner $t) use ($buildCfb, $buildParagraphLayoutFormattingDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildParagraphLayoutFormattingDocStreams()));
+        $document = $result['document'];
+        $runs = $result['formattingRuns'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same($runs, $document->attr('formattingRuns'));
+        $t->same($runs, $metadata['formattingRuns']);
+        $t->same(2, $metadata['formattingRunCount']);
+        $t->same(2, $metadata['paragraphFormattingRunCount']);
+        $t->same(0, $metadata['characterFormattingRunCount']);
+        $t->same(1, $metadata['paragraphPropertyFormattingRunCount']);
+        $t->same('metadata-only-native-review', $metadata['paragraphPropertyFormattingPolicy']);
+
+        $formatted = $runs[0];
+        $t->same('paragraph', $formatted['kind']);
+        $t->same('PlcBtePapx', $formatted['table']);
+        $t->same(768, $formatted['startFc']);
+        $t->same(794, $formatted['endFc']);
+        $t->same(2, $formatted['fkpRunCount']);
+        $t->same(0, $formatted['paragraphStyleIndex']);
+        $t->same(10, $formatted['paragraphPropertyCount']);
+        $t->same('metadata-only-native-review', $formatted['paragraphPropertyExtractionPolicy']);
+        $t->same([
+            [
+                'name' => 'justification',
+                'source' => 'PapxFkp',
+                'sourceSprm' => 'sprmPJc',
+                'rawOperand' => 3,
+                'value' => 'both',
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'keep-lines',
+                'source' => 'PapxFkp',
+                'sourceSprm' => 'sprmPFKeep',
+                'rawOperand' => 1,
+                'enabled' => true,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'keep-with-next',
+                'source' => 'PapxFkp',
+                'sourceSprm' => 'sprmPFKeepFollow',
+                'rawOperand' => 1,
+                'enabled' => true,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'page-break-before',
+                'source' => 'PapxFkp',
+                'sourceSprm' => 'sprmPFPageBreakBefore',
+                'rawOperand' => 1,
+                'enabled' => true,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'left-indent',
+                'source' => 'PapxFkp',
+                'sourceSprm' => 'sprmPDxaLeft',
+                'twips' => 720,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'first-line-indent',
+                'source' => 'PapxFkp',
+                'sourceSprm' => 'sprmPDxaLeft1',
+                'twips' => -360,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'right-indent',
+                'source' => 'PapxFkp',
+                'sourceSprm' => 'sprmPDxaRight',
+                'twips' => 240,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'space-before',
+                'source' => 'PapxFkp',
+                'sourceSprm' => 'sprmPDyaBefore',
+                'twips' => 120,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'space-after',
+                'source' => 'PapxFkp',
+                'sourceSprm' => 'sprmPDyaAfter',
+                'twips' => 240,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'line-spacing',
+                'source' => 'PapxFkp',
+                'sourceSprm' => 'sprmPDyaLine',
+                'rawDyaLine' => 480,
+                'fMultLinespace' => true,
+                'mode' => 'multiple',
+                'multiple' => 2.0,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+        ], $formatted['paragraphProperties']);
+
+        $plain = $runs[1];
+        $t->same(794, $plain['startFc']);
+        $t->same(810, $plain['endFc']);
+        $t->true(!isset($plain['paragraphProperties']), 'Plain PAPX run should not invent paragraph properties');
+        $t->contains('<p>Centered layout paragraph</p>', $blocks);
+        $t->contains('<p>Plain paragraph</p>', $blocks);
+        $t->contains('Centered layout paragraph', $markdown);
+        foreach (['sprmPJc', 'sprmPDxaLeft', 'sprmPDyaLine', 'metadata-only-native-review'] as $metadataText) {
+            $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC PAPX paragraph metadata should not render into WordPress blocks');
+            $t->true(!str_contains($markdown, $metadataText), 'Legacy DOC PAPX paragraph metadata should not render into Markdown');
+        }
     },
     'rejects malformed legacy DOC formatting table BTE ranges before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildFormattingTableDocStreams, $u32): void {
         $reader = new LegacyDocReader();

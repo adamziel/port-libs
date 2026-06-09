@@ -960,7 +960,7 @@ final class CitationCslProcessor
         $page = self::stringField($item, 'page');
         $containerTitleShort = self::firstStringField($item, ['container-title-short', 'containerTitleShort', 'journalAbbreviation', 'journal-abbreviation']);
         $publisher = self::stringField($item, 'publisher');
-        $publisherPlace = self::stringField($item, 'publisher-place');
+        $publisherPlace = self::firstStringField($item, ['publisher-place', 'publisherPlace']);
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'origpublisher']);
         $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'origlocation', 'origaddress']);
         $archive = self::stringField($item, 'archive');
@@ -1083,14 +1083,14 @@ final class CitationCslProcessor
             'extraTitle' => self::firstStringField($item, ['extra-title', 'extraTitle', 'extratitle']),
             'title' => self::stringField($item, 'title'),
             'shortTitle' => self::firstStringField($item, ['short-title', 'title-short', 'shortTitle', 'titleShort']),
-            'titleAddon' => self::stringField($item, 'title-addon'),
+            'titleAddon' => self::firstStringField($item, ['title-addon', 'titleAddon', 'titleaddon']),
             'translatedTitle' => self::firstStringField($item, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
             'reviewedTitle' => self::firstStringField($item, ['reviewed-title', 'reviewedTitle', 'reviewtitle']),
             'reprintTitle' => self::firstStringField($item, ['reprint-title', 'reprintTitle', 'reprinttitle']),
-            'containerTitle' => self::stringField($item, 'container-title'),
+            'containerTitle' => self::firstStringField($item, ['container-title', 'containerTitle', 'containertitle']),
             'containerTitleShort' => $containerTitleShort,
             'journalAbbreviation' => $containerTitleShort,
-            'containerTitleAddon' => self::stringField($item, 'container-title-addon'),
+            'containerTitleAddon' => self::firstStringField($item, ['container-title-addon', 'containerTitleAddon', 'containertitleaddon']),
             'mainTitle' => self::firstStringField($item, ['main-title', 'mainTitle']),
             'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon']),
             'volumeTitle' => self::firstStringField($item, ['volume-title', 'volumeTitle', 'volumetitle']),

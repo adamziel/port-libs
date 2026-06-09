@@ -21888,6 +21888,100 @@ XML);
         $t->contains('<p>Periodical issue source [periodical issue | Migration Review Issue | Journal of Migration Review | 42 | 1-96 | Complete issue queued for import] keeps journal-article routing stable.</p>', $blocks);
         $t->contains('<dt>Curator 2026</dt><dd>periodical issue :: Migration Review Issue :: Journal of Migration Review :: 42 :: 1-96 :: Complete issue queued for import</dd>', $blocks);
     },
+    'renders bounded csl camelcase title and publication aliases from direct items' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'camel-chapter',
+                'type' => 'chapter',
+                'title' => 'Direct Alias Chapter',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'titleAddon' => 'review copy',
+                'containerTitle' => 'Migration Handbook',
+                'containerTitleAddon' => 'editor packet',
+                'publisherPlace' => 'Portland',
+            ],
+            [
+                'id' => 'camel-article',
+                'type' => 'article-journal',
+                'title' => 'Direct Alias Article',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'titleAddon' => 'metadata appendix',
+                'containerTitle' => 'Review Journal',
+                'containerTitleAddon' => 'online packet',
+                'publisherPlace' => 'Remote',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Camel Alias Publication Review</title>
+    <id>https://example.test/styles/bounded-camel-alias-publication-review</id>
+    <updated>2026-06-09T06:16:50+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <choose>
+        <if variable="title-addon container-title container-title-addon publisher-place" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="title-addon"/>
+            <text variable="container-title"/>
+            <text variable="container-title-addon"/>
+            <text variable="publisher-place"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-alias"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="title-addon"/>
+      <text variable="container-title"/>
+      <text variable="container-title-addon"/>
+      <text variable="publisher-place"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $chapter = $processor->item('camel-chapter');
+        $article = $processor->item('camel-article');
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Camel Alias Publication Review', $summary['title'] ?? null);
+        $t->same(['title-addon', 'container-title', 'container-title-addon', 'publisher-place'], $branch['variables'] ?? null);
+        $t->same('review copy', $chapter['titleAddon'] ?? null);
+        $t->same('Migration Handbook', $chapter['containerTitle'] ?? null);
+        $t->same('editor packet', $chapter['containerTitleAddon'] ?? null);
+        $t->same('Portland', $chapter['publisherPlace'] ?? null);
+        $t->same('metadata appendix', $article['titleAddon'] ?? null);
+        $t->same('Review Journal', $article['containerTitle'] ?? null);
+        $t->same('online packet', $article['containerTitleAddon'] ?? null);
+        $t->same('Remote', $article['publisherPlace'] ?? null);
+
+        $t->same('(Smith | review copy | Migration Handbook | editor packet | Portland; Ng | metadata appendix | Review Journal | online packet | Remote)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'camel-chapter', 'text' => '[@camel-chapter]']),
+            new AstNode('citation', ['id' => 'camel-article', 'text' => '[@camel-article]']),
+        ]));
+        $t->same('Direct Alias Chapter :: review copy :: Migration Handbook :: editor packet :: Portland', $processor->renderBibliographyEntry('camel-chapter'));
+        $t->same('Direct Alias Article :: metadata appendix :: Review Journal :: online packet :: Remote', $processor->renderBibliographyEntry('camel-article'));
+
+        $document = (new MarkdownReader())->read('Camel alias sources [@camel-chapter; @camel-article] preserve direct publication metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Camel alias sources (Smith | review copy | Migration Handbook | editor packet | Portland; Ng | metadata appendix | Review Journal | online packet | Remote) preserve direct publication metadata.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Direct Alias Chapter :: review copy :: Migration Handbook :: editor packet :: Portland</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Direct Alias Article :: metadata appendix :: Review Journal :: online packet :: Remote</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

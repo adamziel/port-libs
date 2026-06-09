@@ -77,6 +77,16 @@ final class LegacyDocReader
     private const FIB_LCB_PLF_LST = 0x02e6;
     private const FIB_FC_PLF_LFO = 0x02ea;
     private const FIB_LCB_PLF_LFO = 0x02ee;
+    private const SPRM_PF_KEEP = 0x2405;
+    private const SPRM_PF_KEEP_FOLLOW = 0x2406;
+    private const SPRM_PF_PAGE_BREAK_BEFORE = 0x2407;
+    private const SPRM_PDYA_LINE = 0x6412;
+    private const SPRM_PDYA_BEFORE = 0xa413;
+    private const SPRM_PDYA_AFTER = 0xa414;
+    private const SPRM_PDXA_RIGHT = 0x845d;
+    private const SPRM_PDXA_LEFT = 0x845e;
+    private const SPRM_PDXA_LEFT1 = 0x8460;
+    private const SPRM_PJC = 0x2461;
     private const SPRM_CFR_MARK_DEL = 0x0800;
     private const SPRM_CFR_MARK_INS = 0x0801;
     private const SPRM_CF_BOLD = 0x0835;
@@ -411,6 +421,14 @@ final class LegacyDocReader
             if ($textPropertyFormattingRunCount > 0) {
                 $metadata['textPropertyFormattingRunCount'] = $textPropertyFormattingRunCount;
                 $metadata['textPropertyFormattingPolicy'] = 'metadata-only-native-review';
+            }
+            $paragraphPropertyFormattingRunCount = count(array_filter(
+                $formattingRuns,
+                static fn (array $run): bool => isset($run['paragraphProperties']) && is_array($run['paragraphProperties']) && $run['paragraphProperties'] !== []
+            ));
+            if ($paragraphPropertyFormattingRunCount > 0) {
+                $metadata['paragraphPropertyFormattingRunCount'] = $paragraphPropertyFormattingRunCount;
+                $metadata['paragraphPropertyFormattingPolicy'] = 'metadata-only-native-review';
             }
             $metadata['formattingRuns'] = $formattingRuns;
         }
@@ -9176,6 +9194,12 @@ final class LegacyDocReader
                 );
                 if ($papx !== null) {
                     $run['paragraphStyleIndex'] = $papx['styleIndex'];
+                    $paragraphProperties = $this->parsePapxParagraphProperties($papx['grpprl']);
+                    if ($paragraphProperties !== []) {
+                        $run['paragraphProperties'] = $paragraphProperties;
+                        $run['paragraphPropertyCount'] = count($paragraphProperties);
+                        $run['paragraphPropertyExtractionPolicy'] = 'metadata-only-native-review';
+                    }
                     $revisionMarks = $this->parsePapxPropertyRevisionMarks($papx['grpprl'], $revisionAuthors);
                     if ($revisionMarks !== []) {
                         $run['revisionMarks'] = $revisionMarks;
@@ -9513,6 +9537,184 @@ final class LegacyDocReader
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    private function parsePapxParagraphProperties(string $grpprl): array
+    {
+        $length = strlen($grpprl);
+        $cursor = 0;
+        $properties = [];
+
+        while ($cursor < $length) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC PAPX paragraph property metadata contains a truncated SPRM');
+            }
+
+            $sprm = self::u16($grpprl, $cursor);
+            $cursor += 2;
+            $operandByteCount = $this->sprmOperandByteCount($sprm, $grpprl, $cursor);
+            if ($cursor + $operandByteCount > $length) {
+                throw new \RuntimeException('Legacy DOC PAPX paragraph property metadata contains a truncated SPRM operand');
+            }
+
+            $operandOffset = $cursor;
+            $cursor += $operandByteCount;
+
+            $property = match ($sprm) {
+                self::SPRM_PJC => $this->papxJustificationProperty(ord($grpprl[$operandOffset])),
+                self::SPRM_PF_KEEP => $this->papxBoolProperty('keep-lines', 'sprmPFKeep', ord($grpprl[$operandOffset])),
+                self::SPRM_PF_KEEP_FOLLOW => $this->papxBoolProperty('keep-with-next', 'sprmPFKeepFollow', ord($grpprl[$operandOffset])),
+                self::SPRM_PF_PAGE_BREAK_BEFORE => $this->papxBoolProperty('page-break-before', 'sprmPFPageBreakBefore', ord($grpprl[$operandOffset])),
+                self::SPRM_PDXA_LEFT => $this->papxTwipsProperty('left-indent', 'sprmPDxaLeft', self::signed16(self::u16($grpprl, $operandOffset))),
+                self::SPRM_PDXA_LEFT1 => $this->papxTwipsProperty('first-line-indent', 'sprmPDxaLeft1', self::signed16(self::u16($grpprl, $operandOffset))),
+                self::SPRM_PDXA_RIGHT => $this->papxTwipsProperty('right-indent', 'sprmPDxaRight', self::signed16(self::u16($grpprl, $operandOffset))),
+                self::SPRM_PDYA_BEFORE => $this->papxSpacingProperty('space-before', 'sprmPDyaBefore', self::u16($grpprl, $operandOffset)),
+                self::SPRM_PDYA_AFTER => $this->papxSpacingProperty('space-after', 'sprmPDyaAfter', self::u16($grpprl, $operandOffset)),
+                self::SPRM_PDYA_LINE => $this->papxLineSpacingProperty(
+                    self::u16($grpprl, $operandOffset),
+                    self::u16($grpprl, $operandOffset + 2)
+                ),
+                default => null,
+            };
+
+            if ($property !== null) {
+                $properties[] = $property;
+            }
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function papxJustificationProperty(int $code): array
+    {
+        if ($code > 9) {
+            throw new \RuntimeException('Legacy DOC PAPX paragraph justification value is invalid');
+        }
+
+        return [
+            'name' => 'justification',
+            'source' => 'PapxFkp',
+            'sourceSprm' => 'sprmPJc',
+            'rawOperand' => $code,
+            'value' => $this->legacyDocParagraphJustificationName($code),
+            'extractionPolicy' => 'metadata-only-native-review',
+        ];
+    }
+
+    private function legacyDocParagraphJustificationName(int $code): string
+    {
+        return match ($code) {
+            0 => 'left',
+            1 => 'center',
+            2 => 'right',
+            3 => 'both',
+            4 => 'distribute',
+            5 => 'medium-kashida',
+            6 => 'indent',
+            7 => 'high-kashida',
+            8 => 'low-kashida',
+            9 => 'thai-distribute',
+        };
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function papxBoolProperty(string $name, string $sourceSprm, int $rawOperand): array
+    {
+        if ($rawOperand !== 0 && $rawOperand !== 1) {
+            throw new \RuntimeException('Legacy DOC PAPX ' . $sourceSprm . ' Bool8 operand is invalid');
+        }
+
+        return [
+            'name' => $name,
+            'source' => 'PapxFkp',
+            'sourceSprm' => $sourceSprm,
+            'rawOperand' => $rawOperand,
+            'enabled' => $rawOperand === 1,
+            'extractionPolicy' => 'metadata-only-native-review',
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function papxTwipsProperty(string $name, string $sourceSprm, int $twips): array
+    {
+        return [
+            'name' => $name,
+            'source' => 'PapxFkp',
+            'sourceSprm' => $sourceSprm,
+            'twips' => $twips,
+            'extractionPolicy' => 'metadata-only-native-review',
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function papxSpacingProperty(string $name, string $sourceSprm, int $twips): array
+    {
+        if ($twips > 0x7bc0) {
+            throw new \RuntimeException('Legacy DOC PAPX ' . $sourceSprm . ' spacing value is outside the supported twips range');
+        }
+
+        return [
+            'name' => $name,
+            'source' => 'PapxFkp',
+            'sourceSprm' => $sourceSprm,
+            'twips' => $twips,
+            'extractionPolicy' => 'metadata-only-native-review',
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function papxLineSpacingProperty(int $rawDyaLine, int $fMultLinespace): array
+    {
+        if ($fMultLinespace !== 0 && $fMultLinespace !== 1) {
+            throw new \RuntimeException('Legacy DOC PAPX line-spacing multiplier flag is invalid');
+        }
+        if ($rawDyaLine > 0x7bc0 && $rawDyaLine < 0x8440) {
+            throw new \RuntimeException('Legacy DOC PAPX line-spacing value is outside the supported range');
+        }
+
+        $record = [
+            'name' => 'line-spacing',
+            'source' => 'PapxFkp',
+            'sourceSprm' => 'sprmPDyaLine',
+            'rawDyaLine' => $rawDyaLine,
+            'fMultLinespace' => $fMultLinespace === 1,
+        ];
+
+        if ($rawDyaLine >= 0x8440) {
+            $record['mode'] = 'exact';
+            $record['twips'] = 0x10000 - $rawDyaLine;
+            $record['extractionPolicy'] = 'metadata-only-native-review';
+
+            return $record;
+        }
+
+        if ($fMultLinespace === 1) {
+            $record['mode'] = 'multiple';
+            $record['multiple'] = (float) ($rawDyaLine / 240);
+            $record['extractionPolicy'] = 'metadata-only-native-review';
+
+            return $record;
+        }
+
+        $record['mode'] = 'at-least';
+        $record['twips'] = $rawDyaLine;
+        $record['extractionPolicy'] = 'metadata-only-native-review';
+
+        return $record;
+    }
+
+    /**
      * @param list<array<string,mixed>> $revisionAuthors
      * @return list<array<string,mixed>>
      */
@@ -9670,7 +9872,7 @@ final class LegacyDocReader
     private function variableSprmOperandByteCount(string $grpprl, int $operandOffset): int
     {
         if ($operandOffset >= strlen($grpprl)) {
-            throw new \RuntimeException('Legacy DOC CHPX revision metadata contains a truncated variable SPRM operand');
+            throw new \RuntimeException('Legacy DOC SPRM metadata contains a truncated variable SPRM operand');
         }
 
         return 1 + ord($grpprl[$operandOffset]);
