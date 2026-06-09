@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 06:23:20 UTC",
-    "sourceCommit": "290a367a396a80bc0e74747e925af4c445b3d29c",
-    "sourceCommitShort": "290a367a396a",
+    "generated": "2026-06-09 06:24:41 UTC",
+    "sourceCommit": "bcafc50217ae00bb05a39872f717f702f0e4174b",
+    "sourceCommitShort": "bcafc50217ae",
     "sourceBranch": "unknown",
-    "dashboardCommit": "290a367a396a80bc0e74747e925af4c445b3d29c",
-    "dashboardCommitShort": "290a367a396a",
+    "dashboardCommit": "bcafc50217ae00bb05a39872f717f702f0e4174b",
+    "dashboardCommitShort": "bcafc50217ae",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2828",
-            "coverage": "2,828 / 2,276 (124.3%)",
+            "mapped": "2830",
+            "coverage": "2,830 / 2,276 (124.3%)",
             "mapPercent": "124.3%",
             "unmapped": "0",
-            "php": "2,440 pass / 0 fail",
+            "php": "2,442 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC ODF/OpenDocument current-base page-continuation slice...",
+            "audit": "2026-06-09 UTC DOCX/OpenXML current-base duplicate mail-merge setting...",
             "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence plus...",
-            "nextTarget": "For ODF/OpenDocument follow-up, choose a non-overlapping nati...",
-            "remainingGate": "No new native support component is needed for this ODF/OpenDocument s...",
+            "nextTarget": "For DOCX/OpenXML follow-up, choose a non-overlapping native g...",
+            "remainingGate": "No new native support component is needed for this DOCX/OpenXML mail-...",
             "commit": "pending fast ba..."
         },
         {

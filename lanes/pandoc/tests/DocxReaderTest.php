@@ -4211,6 +4211,8 @@ XML;
 $settingsRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="file:///C:/source-templates/review.dotx" TargetMode="External"/>
+  <Relationship Id="rIdMergeSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource" Target="file:///C:/source-data/review.xlsx" TargetMode="External"/>
+  <Relationship Id="rIdMergeHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource" Target="../mailmerge/header-source.xml"/>
 </Relationships>
 XML;
 
@@ -4236,6 +4238,21 @@ $settingsXml = <<<'XML'
     <w:docVar w:name="" w:val="ignored-empty-name"/>
   </w:docVars>
   <w:attachedTemplate r:id="rIdTemplate"/>
+  <w:mailMerge>
+    <w:mainDocumentType w:val="email"/>
+    <w:destination w:val="email"/>
+    <w:dataType w:val="native"/>
+    <w:connectString w:val="Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\source-data\review.xlsx;Mode=Read"/>
+    <w:query w:val="SELECT * FROM [SourcePackets$] WHERE [NeedsReview] = 1"/>
+    <w:dataSource r:id="rIdMergeSource"/>
+    <w:headerSource r:id="rIdMergeHeader"/>
+    <w:viewMergedData/>
+    <w:linkToQuery/>
+    <w:doNotSuppressBlankLines w:val="0"/>
+    <w:activeRecord w:val="3"/>
+    <w:mailSubject w:val="Migration packet review"/>
+    <w:checkErrors w:val="1"/>
+  </w:mailMerge>
   <w:compat>
     <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>
     <w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>
@@ -5378,6 +5395,7 @@ $buildSettingsPackage = static function () use (
         ['name' => 'word/_rels/document.xml.rels', 'data' => $settingsDocumentRelationshipsXml],
         ['name' => 'word/settings.xml', 'data' => $settingsXml],
         ['name' => 'word/_rels/settings.xml.rels', 'data' => $settingsRelationshipsXml],
+        ['name' => 'mailmerge/header-source.xml', 'data' => '<headers><field name="ReviewerEmail"/><field name="SourcePacket"/></headers>'],
     ]);
 };
 
@@ -11840,6 +11858,51 @@ return [
         $t->same(false, $docVars['items'][3]['duplicate']);
 
         $t->same($docVars, $result['importReport']['settings']['documentVariables']);
+    },
+    'reports DOCX mail-merge settings and preflights external data sources' => static function (TestRunner $t) use ($buildSettingsPackage): void {
+        $result = (new DocxReader())->readPackage($buildSettingsPackage());
+        $settings = $result['metadata']['docxSettings'];
+        $mailMerge = $settings['mailMerge'];
+        $connectString = 'Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\source-data\review.xlsx;Mode=Read';
+
+        $t->same('email', $mailMerge['mainDocumentType']);
+        $t->same('email', $mailMerge['destination']);
+        $t->same('native', $mailMerge['dataType']);
+        $t->same(true, $mailMerge['connectStringPresent']);
+        $t->same(strlen($connectString), $mailMerge['connectStringLength']);
+        $t->same(hash('sha256', $connectString), $mailMerge['connectStringSha256']);
+        $t->true(!isset($mailMerge['connectString']), 'DOCX mail-merge settings should not expose raw connection strings');
+        $t->same('SELECT * FROM [SourcePackets$] WHERE [NeedsReview] = 1', $mailMerge['query']);
+        $t->same(true, $mailMerge['viewMergedData']);
+        $t->same(true, $mailMerge['linkToQuery']);
+        $t->same(false, $mailMerge['doNotSuppressBlankLines']);
+        $t->same(3, $mailMerge['activeRecord']);
+        $t->same('Migration packet review', $mailMerge['mailSubject']);
+        $t->same(1, $mailMerge['checkErrors']);
+        $t->same(2, $mailMerge['relationshipCount']);
+        $t->same(1, $mailMerge['issueCount']);
+
+        $dataSource = $mailMerge['dataSource'];
+        $t->same('rIdMergeSource', $dataSource['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource', $dataSource['relationshipType']);
+        $t->same('file:///C:/source-data/review.xlsx', $dataSource['target']);
+        $t->same(true, $dataSource['external']);
+        $t->same('absolute-uri', $dataSource['externalTargetKind']);
+        $t->same('file', $dataSource['externalTargetScheme']);
+        $t->same(false, $dataSource['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $dataSource['issues']);
+
+        $headerSource = $mailMerge['headerSource'];
+        $t->same('rIdMergeHeader', $headerSource['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource', $headerSource['relationshipType']);
+        $t->same('/mailmerge/header-source.xml', $headerSource['target']);
+        $t->same('/mailmerge/header-source.xml', $headerSource['targetPart']);
+        $t->same('application/xml', $headerSource['contentType']);
+        $t->same(false, $headerSource['external']);
+        $t->same(true, $headerSource['exists']);
+        $t->same([], $headerSource['issues']);
+
+        $t->same($mailMerge, $result['importReport']['settings']['mailMerge']);
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();

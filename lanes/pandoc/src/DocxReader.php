@@ -14907,6 +14907,11 @@ final class DocxReader
             $settings['documentVariables'] = $documentVariables;
         }
 
+        $mailMerge = $this->settingsMailMerge($root, $package, $graph, $relationshipSummary['targetPart']);
+        if ($mailMerge !== []) {
+            $settings['mailMerge'] = $mailMerge;
+        }
+
         $zoom = $this->settingsZoom($root);
         if ($zoom !== []) {
             $settings['zoom'] = $zoom;
@@ -15278,6 +15283,187 @@ final class DocxReader
             'byName' => $byName,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function settingsMailMerge(
+        \DOMElement $settings,
+        ZipPackage $package,
+        OpcRelationshipGraph $graph,
+        string $settingsPart
+    ): array {
+        $mailMerge = $this->firstChildElement($settings, self::WORDPROCESSINGML_NS, 'mailMerge');
+        if (!$mailMerge instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        foreach ([
+            'mainDocumentType' => 'mainDocumentType',
+            'destination' => 'destination',
+            'dataType' => 'dataType',
+            'query' => 'query',
+            'mailSubject' => 'mailSubject',
+        ] as $source => $target) {
+            $value = $this->settingsStringChildValue($mailMerge, $source);
+            if ($value !== null) {
+                $metadata[$target] = $value;
+            }
+        }
+
+        $connectString = $this->settingsStringChildValue($mailMerge, 'connectString');
+        if ($connectString !== null) {
+            $metadata['connectStringPresent'] = true;
+            $metadata['connectStringLength'] = strlen($connectString);
+            $metadata['connectStringSha256'] = hash('sha256', $connectString);
+        }
+
+        foreach ([
+            'viewMergedData' => 'viewMergedData',
+            'linkToQuery' => 'linkToQuery',
+            'doNotSuppressBlankLines' => 'doNotSuppressBlankLines',
+        ] as $source => $target) {
+            $value = $this->settingsOnOffChildValue($mailMerge, $source);
+            if ($value !== null) {
+                $metadata[$target] = $value;
+            }
+        }
+
+        foreach ([
+            'activeRecord' => 'activeRecord',
+            'checkErrors' => 'checkErrors',
+        ] as $source => $target) {
+            $value = $this->settingsIntChildValue($mailMerge, $source);
+            if ($value !== null) {
+                $metadata[$target] = $value;
+            }
+        }
+
+        $relationshipCount = 0;
+        $issueCount = 0;
+        foreach ([
+            'dataSource' => 'dataSource',
+            'headerSource' => 'headerSource',
+        ] as $source => $target) {
+            $summary = $this->settingsRelationshipChildSummary($mailMerge, $source, $package, $graph, $settingsPart);
+            if ($summary === null) {
+                continue;
+            }
+
+            $metadata[$target] = $summary;
+            $relationshipCount++;
+            if (($summary['issues'] ?? []) !== []) {
+                $issueCount++;
+            }
+        }
+
+        $metadata['relationshipCount'] = $relationshipCount;
+        $metadata['issueCount'] = $issueCount;
+
+        return $metadata;
+    }
+
+    private function settingsOnOffChildValue(\DOMElement $element, string $localName): ?bool
+    {
+        $child = $this->firstChildElement($element, self::WORDPROCESSINGML_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->onOffWordAttr($child, 'val', true);
+    }
+
+    /**
+     * @return array{id:?string, relationshipType:?string, target:?string, targetPart:?string, contentType:?string, external:?bool, exists:?bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, issues:list<string>}|null
+     */
+    private function settingsRelationshipChildSummary(
+        \DOMElement $owner,
+        string $localName,
+        ZipPackage $package,
+        OpcRelationshipGraph $graph,
+        string $settingsPart
+    ): ?array {
+        $child = $this->firstChildElement($owner, self::WORDPROCESSINGML_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $id = $this->relationshipAttr($child, 'id');
+        $summary = [
+            'id' => $id,
+            'relationshipType' => null,
+            'target' => null,
+            'targetPart' => null,
+            'contentType' => null,
+            'external' => null,
+            'exists' => null,
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'issues' => [],
+        ];
+
+        if ($id === null || $id === '') {
+            $summary['issues'][] = 'missing-relationship-id';
+
+            return $summary;
+        }
+
+        $relationships = $graph->relationshipsForSource($settingsPart);
+        if (!$relationships instanceof OpcRelationships) {
+            $summary['issues'][] = 'missing-relationships';
+
+            return $summary;
+        }
+
+        $relationship = $relationships->byId($id);
+        if (!$relationship instanceof OpcRelationship) {
+            $summary['issues'][] = 'unknown-relationship';
+
+            return $summary;
+        }
+
+        $summary['relationshipType'] = $relationship->type;
+        if ($relationship->isExternal()) {
+            $externalTarget = $relationship->externalTargetPreflight();
+            $summary['target'] = $relationship->target;
+            $summary['external'] = true;
+            $summary['externalTargetKind'] = $externalTarget['kind'];
+            $summary['externalTargetScheme'] = $externalTarget['scheme'];
+            $summary['externalTargetAllowed'] = $externalTarget['allowed'];
+            $summary['issues'] = array_values(array_unique(array_merge($summary['issues'], $externalTarget['issues'])));
+
+            return $summary;
+        }
+
+        try {
+            $target = $relationships->resolveTarget($relationship);
+        } catch (\InvalidArgumentException) {
+            $summary['external'] = false;
+            $summary['issues'][] = 'invalid-target';
+
+            return $summary;
+        }
+
+        $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+        $summary['target'] = $target;
+        $summary['targetPart'] = $targetPart;
+        $summary['contentType'] = $this->contentTypeForPackagePart($package, $targetPart);
+        $summary['external'] = false;
+        $summary['exists'] = $package->has($targetPart);
+
+        if ($summary['exists'] !== true) {
+            $summary['issues'][] = 'missing-in-package';
+        }
+        if ($summary['contentType'] === null) {
+            $summary['issues'][] = 'missing-content-type';
+        }
+
+        $summary['issues'] = array_values(array_unique($summary['issues']));
+
+        return $summary;
     }
 
     /**

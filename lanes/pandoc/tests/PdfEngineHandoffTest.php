@@ -4814,6 +4814,116 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfTaggingMetadata']);
     },
 
+    'fake runner summarizes bounded pdf structure role map usage from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/role-map.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R 11 0 R 12 0 R 13 0 R] /RoleMap << /Chapter /Sect /ReviewFigure /Figure /CustomAside /ReviewAside /LoopA /LoopB /LoopB /LoopA >> >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /Chapter /P 9 0 R /K 0 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /StructElem /S /ReviewFigure /P 9 0 R /K 1 >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /StructElem /S /CustomAside /P 9 0 R /K 2 >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Type /StructElem /S /LoopA /P 9 0 R /K 3 >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/role-map.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/role-map.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'object' => '10 0 R',
+                'type' => 'Chapter',
+                'mappedType' => 'Sect',
+                'roleChain' => ['Chapter', 'Sect'],
+                'mappedByRoleMap' => true,
+                'standardRole' => true,
+                'cycle' => false,
+                'issues' => [],
+            ],
+            [
+                'object' => '11 0 R',
+                'type' => 'ReviewFigure',
+                'mappedType' => 'Figure',
+                'roleChain' => ['ReviewFigure', 'Figure'],
+                'mappedByRoleMap' => true,
+                'standardRole' => true,
+                'cycle' => false,
+                'issues' => [],
+            ],
+            [
+                'object' => '12 0 R',
+                'type' => 'CustomAside',
+                'mappedType' => 'ReviewAside',
+                'roleChain' => ['CustomAside', 'ReviewAside'],
+                'mappedByRoleMap' => true,
+                'standardRole' => false,
+                'cycle' => false,
+                'issues' => ['role-map-nonstandard-terminal'],
+            ],
+            [
+                'object' => '13 0 R',
+                'type' => 'LoopA',
+                'mappedType' => 'LoopA',
+                'roleChain' => ['LoopA', 'LoopB', 'LoopA'],
+                'mappedByRoleMap' => true,
+                'standardRole' => false,
+                'cycle' => true,
+                'issues' => ['role-map-cycle'],
+            ],
+        ];
+
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureRoleMapUsage']);
+        $t->contains('pdf-byte-structure-role-map:5', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-usage:4', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-mapped:4', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-standard:2', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-cycles:1', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-terminal:Figure:1', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-terminal:LoopA:1', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-terminal:ReviewAside:1', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-terminal:Sect:1', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-issues:2', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-issue:role-map-cycle:1', $diagnostics);
+        $t->contains('pdf-byte-structure-role-map-issue:role-map-nonstandard-terminal:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureRoleMapUsage']);
+    },
+
     'fake runner extracts bounded pdf structure parent tree number mappings from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/parent-tree.pdf']);

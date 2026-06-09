@@ -347,6 +347,7 @@ final class PdfEngineHandoff
      *     pdfStructureUserProperties: list<array{object:string, type:string|null, attributeObject:string, propertyName:string, value:string|int|float|bool|null, valueType:string, formatted:string|null, hidden:bool|null}>,
      *     pdfStructureClassMap: list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     pdfStructureClassUsage: list<array{object:string, type:string|null, classNames:list<string>, missingClasses:list<string>, mappedAttributeCounts:array<string, int>}>,
+     *     pdfStructureRoleMapUsage: list<array{object:string, type:string, mappedType:string, roleChain:list<string>, mappedByRoleMap:bool, standardRole:bool, cycle:bool, issues:list<string>}>,
      *     pdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     pdfMarkedContentArtifacts: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
@@ -822,6 +823,7 @@ final class PdfEngineHandoff
         $pdfStructureUserProperties = [];
         $pdfStructureClassMap = [];
         $pdfStructureClassUsage = [];
+        $pdfStructureRoleMapUsage = [];
         $pdfMarkedContentProperties = [];
         $pdfMarkedContentArtifacts = [];
         $pdfOptionalContentGroups = [];
@@ -955,6 +957,7 @@ final class PdfEngineHandoff
                 $pdfStructureUserProperties = $pdfInspection['structureUserProperties'];
                 $pdfStructureClassMap = $pdfInspection['structureClassMap'];
                 $pdfStructureClassUsage = $pdfInspection['structureClassUsage'];
+                $pdfStructureRoleMapUsage = $pdfInspection['structureRoleMapUsage'];
                 $pdfMarkedContentProperties = $pdfInspection['markedContentProperties'];
                 $pdfMarkedContentArtifacts = $pdfInspection['markedContentArtifacts'];
                 $pdfOptionalContentGroups = $pdfInspection['optionalContentGroups'];
@@ -2433,6 +2436,55 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-structure-class-attributes:' . $mappedAttributeCount;
                     }
                 }
+                if ($pdfStructureRoleMapUsage !== []) {
+                    $diagnostics[] = 'pdf-byte-structure-role-map-usage:' . count($pdfStructureRoleMapUsage);
+                    $mappedRoleCount = 0;
+                    $standardRoleCount = 0;
+                    $cycleCount = 0;
+                    $terminalRoles = [];
+                    $roleIssues = [];
+                    foreach ($pdfStructureRoleMapUsage as $usage) {
+                        if (($usage['mappedByRoleMap'] ?? false) === true) {
+                            $mappedRoleCount++;
+                        }
+                        if (($usage['standardRole'] ?? false) === true) {
+                            $standardRoleCount++;
+                        }
+                        if (($usage['cycle'] ?? false) === true) {
+                            $cycleCount++;
+                        }
+                        if (is_string($usage['mappedType'] ?? null) && $usage['mappedType'] !== '') {
+                            $terminalRoles[$usage['mappedType']] = ($terminalRoles[$usage['mappedType']] ?? 0) + 1;
+                        }
+                        if (isset($usage['issues']) && is_array($usage['issues'])) {
+                            foreach ($usage['issues'] as $issue) {
+                                if (is_string($issue) && $issue !== '') {
+                                    $roleIssues[$issue] = ($roleIssues[$issue] ?? 0) + 1;
+                                }
+                            }
+                        }
+                    }
+                    if ($mappedRoleCount > 0) {
+                        $diagnostics[] = 'pdf-byte-structure-role-map-mapped:' . $mappedRoleCount;
+                    }
+                    if ($standardRoleCount > 0) {
+                        $diagnostics[] = 'pdf-byte-structure-role-map-standard:' . $standardRoleCount;
+                    }
+                    if ($cycleCount > 0) {
+                        $diagnostics[] = 'pdf-byte-structure-role-map-cycles:' . $cycleCount;
+                    }
+                    ksort($terminalRoles);
+                    foreach ($terminalRoles as $terminalRole => $count) {
+                        $diagnostics[] = 'pdf-byte-structure-role-map-terminal:' . $terminalRole . ':' . $count;
+                    }
+                    if ($roleIssues !== []) {
+                        $diagnostics[] = 'pdf-byte-structure-role-map-issues:' . array_sum($roleIssues);
+                        ksort($roleIssues);
+                        foreach ($roleIssues as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-structure-role-map-issue:' . $issue . ':' . $count;
+                        }
+                    }
+                }
                 if ($pdfStructureIdTree !== []) {
                     $diagnostics[] = 'pdf-byte-structure-id-tree:' . count($pdfStructureIdTree);
                     $idValues = [];
@@ -3736,6 +3788,7 @@ final class PdfEngineHandoff
             'pdfStructureUserProperties' => $pdfStructureUserProperties,
             'pdfStructureClassMap' => $pdfStructureClassMap,
             'pdfStructureClassUsage' => $pdfStructureClassUsage,
+            'pdfStructureRoleMapUsage' => $pdfStructureRoleMapUsage,
             'pdfMarkedContentProperties' => $pdfMarkedContentProperties,
             'pdfMarkedContentArtifacts' => $pdfMarkedContentArtifacts,
             'pdfOptionalContentGroups' => $pdfOptionalContentGroups,
@@ -3890,6 +3943,7 @@ final class PdfEngineHandoff
      *     finalPdfStructureUserProperties: list<array{object:string, type:string|null, attributeObject:string, propertyName:string, value:string|int|float|bool|null, valueType:string, formatted:string|null, hidden:bool|null}>,
      *     finalPdfStructureClassMap: list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     finalPdfStructureClassUsage: list<array{object:string, type:string|null, classNames:list<string>, missingClasses:list<string>, mappedAttributeCounts:array<string, int>}>,
+     *     finalPdfStructureRoleMapUsage: list<array{object:string, type:string, mappedType:string, roleChain:list<string>, mappedByRoleMap:bool, standardRole:bool, cycle:bool, issues:list<string>}>,
      *     finalPdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     finalPdfMarkedContentArtifacts: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
@@ -4158,6 +4212,7 @@ final class PdfEngineHandoff
             'finalPdfStructureUserProperties' => is_array($finalRun) && is_array($finalRun['pdfStructureUserProperties'] ?? null) ? $finalRun['pdfStructureUserProperties'] : [],
             'finalPdfStructureClassMap' => is_array($finalRun) && is_array($finalRun['pdfStructureClassMap'] ?? null) ? $finalRun['pdfStructureClassMap'] : [],
             'finalPdfStructureClassUsage' => is_array($finalRun) && is_array($finalRun['pdfStructureClassUsage'] ?? null) ? $finalRun['pdfStructureClassUsage'] : [],
+            'finalPdfStructureRoleMapUsage' => is_array($finalRun) && is_array($finalRun['pdfStructureRoleMapUsage'] ?? null) ? $finalRun['pdfStructureRoleMapUsage'] : [],
             'finalPdfMarkedContentProperties' => is_array($finalRun) && is_array($finalRun['pdfMarkedContentProperties'] ?? null) ? $finalRun['pdfMarkedContentProperties'] : [],
             'finalPdfMarkedContentArtifacts' => is_array($finalRun) && is_array($finalRun['pdfMarkedContentArtifacts'] ?? null) ? $finalRun['pdfMarkedContentArtifacts'] : [],
             'finalPdfOptionalContentGroups' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentGroups'] ?? null) ? $finalRun['pdfOptionalContentGroups'] : [],
@@ -5302,6 +5357,7 @@ final class PdfEngineHandoff
      *     structureUserProperties:list<array{object:string, type:string|null, attributeObject:string, propertyName:string, value:string|int|float|bool|null, valueType:string, formatted:string|null, hidden:bool|null}>,
      *     structureClassMap:list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     structureClassUsage:list<array{object:string, type:string|null, classNames:list<string>, missingClasses:list<string>, mappedAttributeCounts:array<string, int>}>,
+     *     structureRoleMapUsage:list<array{object:string, type:string, mappedType:string, roleChain:list<string>, mappedByRoleMap:bool, standardRole:bool, cycle:bool, issues:list<string>}>,
      *     markedContentProperties:list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     markedContentArtifacts:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
@@ -5408,6 +5464,10 @@ final class PdfEngineHandoff
         $structureParentTree = $this->extractPdfStructureParentTree($pdfBytes, $catalog);
         $structureIdTree = $this->extractPdfStructureIdTree($pdfBytes, $catalog);
         $structureElements = $this->extractPdfStructureElements($pdfBytes);
+        $structureRoleMapUsage = $this->summarizePdfStructureRoleMapUsage(
+            $structureElements,
+            is_array($taggingMetadata['roleMap'] ?? null) ? $taggingMetadata['roleMap'] : []
+        );
         $markedContentProperties = $this->extractPdfMarkedContentProperties($pdfBytes, $catalog);
         $markedContentArtifacts = $this->extractPdfMarkedContentArtifacts($pdfBytes, $catalog);
         $structureParentTreePolicy = $this->summarizePdfStructureParentTreePolicy(
@@ -5507,6 +5567,7 @@ final class PdfEngineHandoff
             'structureUserProperties' => $this->extractPdfStructureUserProperties($pdfBytes),
             'structureClassMap' => $this->extractPdfStructureClassMap($pdfBytes, $catalog),
             'structureClassUsage' => $this->extractPdfStructureClassUsage($pdfBytes, $catalog),
+            'structureRoleMapUsage' => $structureRoleMapUsage,
             'markedContentProperties' => $markedContentProperties,
             'markedContentArtifacts' => $markedContentArtifacts,
             'optionalContentGroups' => $optionalContent['groups'],
@@ -11845,6 +11906,160 @@ final class PdfEngineHandoff
         ksort($mapped);
 
         return $mapped;
+    }
+
+    /**
+     * @param list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, id:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}> $structureElements
+     * @param array<string, string> $roleMap
+     * @return list<array{object:string, type:string, mappedType:string, roleChain:list<string>, mappedByRoleMap:bool, standardRole:bool, cycle:bool, issues:list<string>}>
+     */
+    private function summarizePdfStructureRoleMapUsage(array $structureElements, array $roleMap): array
+    {
+        $usage = [];
+        foreach ($structureElements as $element) {
+            $object = is_string($element['object'] ?? null) ? trim($element['object']) : '';
+            $type = is_string($element['type'] ?? null) ? trim($element['type']) : '';
+            if ($object === '' || $type === '') {
+                continue;
+            }
+
+            $roleChain = $this->pdfStructureRoleMapChain($type, $roleMap);
+            $mappedType = $roleChain[count($roleChain) - 1] ?? $type;
+            $cycle = $this->pdfStructureRoleMapChainHasCycle($roleChain);
+            $standardRole = $this->isPdfStandardStructureRole($mappedType);
+            $issues = [];
+            if ($cycle) {
+                $issues[] = 'role-map-cycle';
+            } elseif (!$standardRole && count($roleChain) > 1) {
+                $issues[] = 'role-map-nonstandard-terminal';
+            } elseif (!$standardRole) {
+                $issues[] = 'structure-role-unmapped-custom';
+            }
+
+            $usage[] = [
+                'object' => $object,
+                'type' => $type,
+                'mappedType' => $mappedType,
+                'roleChain' => $roleChain,
+                'mappedByRoleMap' => count($roleChain) > 1,
+                'standardRole' => $standardRole,
+                'cycle' => $cycle,
+                'issues' => $issues,
+            ];
+        }
+
+        usort($usage, fn (array $a, array $b): int => $this->pdfReferenceSortKey($a['object']) <=> $this->pdfReferenceSortKey($b['object']));
+
+        return $usage;
+    }
+
+    /**
+     * @param array<string, string> $roleMap
+     * @return list<string>
+     */
+    private function pdfStructureRoleMapChain(string $role, array $roleMap): array
+    {
+        $role = trim($role);
+        if ($role === '') {
+            return [];
+        }
+
+        $chain = [$role];
+        $seen = [$role => true];
+        $current = $role;
+        for ($depth = 0; $depth < 16; $depth++) {
+            $next = isset($roleMap[$current]) ? trim($roleMap[$current]) : '';
+            if ($next === '' || $next === $current) {
+                break;
+            }
+
+            $chain[] = $next;
+            if (isset($seen[$next])) {
+                break;
+            }
+
+            $seen[$next] = true;
+            $current = $next;
+        }
+
+        return $chain;
+    }
+
+    /**
+     * @param list<string> $roleChain
+     */
+    private function pdfStructureRoleMapChainHasCycle(array $roleChain): bool
+    {
+        $seen = [];
+        foreach ($roleChain as $role) {
+            if (isset($seen[$role])) {
+                return true;
+            }
+
+            $seen[$role] = true;
+        }
+
+        return false;
+    }
+
+    private function isPdfStandardStructureRole(string $role): bool
+    {
+        static $roles = null;
+        if ($roles === null) {
+            $roles = array_fill_keys([
+                'Document',
+                'Part',
+                'Art',
+                'Sect',
+                'Div',
+                'BlockQuote',
+                'Caption',
+                'TOC',
+                'TOCI',
+                'Index',
+                'NonStruct',
+                'Private',
+                'P',
+                'H',
+                'H1',
+                'H2',
+                'H3',
+                'H4',
+                'H5',
+                'H6',
+                'L',
+                'LI',
+                'Lbl',
+                'LBody',
+                'Table',
+                'TR',
+                'TH',
+                'TD',
+                'THead',
+                'TBody',
+                'TFoot',
+                'Span',
+                'Quote',
+                'Note',
+                'Reference',
+                'BibEntry',
+                'Code',
+                'Link',
+                'Annot',
+                'Ruby',
+                'RB',
+                'RT',
+                'RP',
+                'Warichu',
+                'WT',
+                'WP',
+                'Figure',
+                'Formula',
+                'Form',
+            ], true);
+        }
+
+        return isset($roles[$role]);
     }
 
     /**
