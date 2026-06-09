@@ -975,6 +975,89 @@ BIB;
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-diagnostic', 'sourceFileDiagnostics' => 'bad']]));
     },
+    'renders bounded csl source file attachment summaries for wordpress review' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'attachment-review',
+                'type' => 'webpage',
+                'title' => 'Attachment Review Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 7]]],
+                'sourceFiles' => [
+                    ['label' => 'Review PDF', 'path' => 'attachments/source-audit.pdf', 'mediaType' => 'application/pdf'],
+                    ['label' => 'Reviewer Notes', 'path' => 'attachments/reviewer notes.html', 'mediaType' => 'text/html'],
+                    ['label' => 'Remote PDF', 'path' => 'https://example.test/source-audit.pdf', 'mediaType' => 'application/pdf'],
+                    ['label' => 'Absolute PDF', 'path' => '/var/private/source-audit.pdf', 'mediaType' => 'application/pdf'],
+                ],
+            ],
+            [
+                'id' => 'manual-attachment',
+                'type' => 'document',
+                'title' => 'Manual Attachment Packet',
+                'issued' => ['date-parts' => [[2025]]],
+                'sourceFiles' => ['attachments/manual.pdf'],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Source File Review</title>
+    <id>https://example.test/styles/bounded-source-file-review</id>
+    <updated>2026-06-09T07:33:58+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if variable="source-file-summary" match="any">
+          <group delimiter=" | ">
+            <text variable="title"/>
+            <text variable="source-file-summary"/>
+            <text variable="source-file-diagnostic-summary"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-source-file-summary"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="source-file-paths"/>
+      <text variable="source-file-media-types"/>
+      <text variable="source-file-diagnostic-reasons"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $item = $processor->item('attachment-review');
+        $manual = $processor->item('manual-attachment');
+        $t->same('Bounded Source File Review', $summary['title'] ?? null);
+        $t->same(['source-file-summary'], $summary['citationRendering'][0]['branches'][0]['variables'] ?? null);
+        $t->same(2, count($item['sourceFiles'] ?? []));
+        $t->same(2, count($item['sourceFileDiagnostics'] ?? []));
+        $t->same('attachments/source-audit.pdf', $item['sourceFiles'][0]['path'] ?? null);
+        $t->same('remote-uri', $item['sourceFileDiagnostics'][0]['reason'] ?? null);
+        $t->same('attachments/manual.pdf', $manual['sourceFiles'][0]['path'] ?? null);
+
+        $t->same('[Attachment Review Packet | Review PDF: attachments/source-audit.pdf (application/pdf); Reviewer Notes: attachments/reviewer notes.html (text/html) | Remote PDF: remote-uri (https://example.test/source-audit.pdf); Absolute PDF: absolute-path (/var/private/source-audit.pdf); Manual Attachment Packet | attachments/manual.pdf]', $processor->renderCitationCluster([
+            $citation('attachment-review', '[@attachment-review]'),
+            $citation('manual-attachment', '[@manual-attachment]'),
+        ]));
+        $t->same('Attachment Review Packet :: attachments/source-audit.pdf; attachments/reviewer notes.html :: application/pdf; text/html :: remote-uri; absolute-path', $processor->renderBibliographyEntry('attachment-review'));
+        $t->same('Manual Attachment Packet :: attachments/manual.pdf', $processor->renderBibliographyEntry('manual-attachment'));
+
+        $document = (new MarkdownReader())->read('Attachment source [@attachment-review; @manual-attachment] keeps source files visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Attachment source [Attachment Review Packet | Review PDF: attachments/source-audit.pdf (application/pdf); Reviewer Notes: attachments/reviewer notes.html (text/html) | Remote PDF: remote-uri (https://example.test/source-audit.pdf); Absolute PDF: absolute-path (/var/private/source-audit.pdf); Manual Attachment Packet | attachments/manual.pdf] keeps source files visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Attachment Review Packet :: attachments/source-audit.pdf; attachments/reviewer notes.html :: application/pdf; text/html :: remote-uri; absolute-path</dd>', $blocks);
+        $t->contains('<dt>Manual Attachment Packet 2025</dt><dd>Manual Attachment Packet :: attachments/manual.pdf</dd>', $blocks);
+    },
     'maps bounded biblatex pdf aliases into source file attachment metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{pdf-alias-source,

@@ -8597,6 +8597,12 @@ final class CitationCslProcessor
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
             'source' => (string) ($item['source'] ?? ''),
+            'source-file-summary', 'source-files-summary', 'source-files', 'source-attachment-summary', 'source-attachments' => $this->sourceFileSummary($item),
+            'source-file-paths', 'source-file-path' => $this->sourceFilePaths($item),
+            'source-file-labels', 'source-file-label' => $this->sourceFileLabels($item),
+            'source-file-media-types', 'source-file-media-type' => $this->sourceFileMediaTypes($item),
+            'source-file-diagnostic-summary', 'source-file-diagnostics', 'source-file-policy-summary' => $this->sourceFileDiagnosticSummary($item),
+            'source-file-diagnostic-reasons', 'source-file-policy-reasons' => $this->sourceFileDiagnosticReasons($item),
             'citation-aliases', 'citation-alias' => implode(', ', is_array($item['citationAliases'] ?? null) ? $item['citationAliases'] : []),
             'citation-alias-summary', 'citation-aliases-summary' => (string) ($item['citationAliasSummary'] ?? ''),
             'citation-label' => (string) $item['citationLabel'],
@@ -9146,6 +9152,199 @@ final class CitationCslProcessor
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sourceFileSummary(array $item): string
+    {
+        return implode('; ', array_values(array_filter(
+            array_map(
+                fn (array $file): string => $this->sourceFileDisplay($file),
+                $this->sourceFilesForRendering($item)
+            ),
+            static fn (string $value): bool => $value !== ''
+        )));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sourceFilePaths(array $item): string
+    {
+        return $this->sourceFileListValue($item, 'path');
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sourceFileLabels(array $item): string
+    {
+        return $this->sourceFileListValue($item, 'label');
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sourceFileMediaTypes(array $item): string
+    {
+        return $this->sourceFileListValue($item, 'mediaType');
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sourceFileDiagnosticSummary(array $item): string
+    {
+        return implode('; ', array_values(array_filter(
+            array_map(
+                fn (array $diagnostic): string => $this->sourceFileDiagnosticDisplay($diagnostic),
+                $this->sourceFileDiagnosticsForRendering($item)
+            ),
+            static fn (string $value): bool => $value !== ''
+        )));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sourceFileDiagnosticReasons(array $item): string
+    {
+        return $this->sourceFileDiagnosticListValue($item, 'reason');
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<array{label:string, path:string, mediaType:string}>
+     */
+    private function sourceFilesForRendering(array $item): array
+    {
+        $files = $item['sourceFiles'] ?? [];
+        if (!is_array($files)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($files as $file) {
+            if (!is_array($file)) {
+                continue;
+            }
+
+            $path = trim((string) ($file['path'] ?? ''));
+            if ($path === '') {
+                continue;
+            }
+
+            $normalized[] = [
+                'label' => trim((string) ($file['label'] ?? '')),
+                'path' => $path,
+                'mediaType' => trim((string) ($file['mediaType'] ?? '')),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<array{label:string, path:string, mediaType:string, reason:string, importable:bool}>
+     */
+    private function sourceFileDiagnosticsForRendering(array $item): array
+    {
+        $diagnostics = $item['sourceFileDiagnostics'] ?? [];
+        if (!is_array($diagnostics)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($diagnostics as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $reason = trim((string) ($diagnostic['reason'] ?? ''));
+            if ($reason === '') {
+                continue;
+            }
+
+            $normalized[] = [
+                'label' => trim((string) ($diagnostic['label'] ?? '')),
+                'path' => trim((string) ($diagnostic['path'] ?? '')),
+                'mediaType' => trim((string) ($diagnostic['mediaType'] ?? '')),
+                'reason' => $reason,
+                'importable' => ($diagnostic['importable'] ?? false) === true,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array{label:string, path:string, mediaType:string} $file
+     */
+    private function sourceFileDisplay(array $file): string
+    {
+        $path = trim($file['path']);
+        if ($path === '') {
+            return '';
+        }
+
+        $label = trim($file['label']);
+        $mediaType = trim($file['mediaType']);
+        $display = $label !== '' ? $label . ': ' . $path : $path;
+
+        return $mediaType !== '' ? $display . ' (' . $mediaType . ')' : $display;
+    }
+
+    /**
+     * @param array{label:string, path:string, mediaType:string, reason:string, importable:bool} $diagnostic
+     */
+    private function sourceFileDiagnosticDisplay(array $diagnostic): string
+    {
+        $reason = trim($diagnostic['reason']);
+        if ($reason === '') {
+            return '';
+        }
+
+        $label = trim($diagnostic['label']);
+        $path = trim($diagnostic['path']);
+        $display = $label !== '' ? $label . ': ' . $reason : $reason;
+
+        return $path !== '' ? $display . ' (' . $path . ')' : $display;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sourceFileListValue(array $item, string $key): string
+    {
+        return implode('; ', $this->uniqueSourceFileValues($this->sourceFilesForRendering($item), $key));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sourceFileDiagnosticListValue(array $item, string $key): string
+    {
+        return implode('; ', $this->uniqueSourceFileValues($this->sourceFileDiagnosticsForRendering($item), $key));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private function uniqueSourceFileValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            $value = trim((string) ($record[$key] ?? ''));
+            if ($value !== '' && !in_array($value, $values, true)) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
     }
 
     private function formatCslLocatorRanges(string $value): string

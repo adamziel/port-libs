@@ -1761,6 +1761,34 @@ return [
         $t->same("\u{FFFD}A", $unmappedSymbol['text']);
         $t->same(1, $unmappedSymbol['repairs']);
     },
+    'decodes gb2312 enclosed number and box drawing symbols into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# GB2312 Enclosed\n\nEnclosed \xA2\xB1\xA2\xB2\xA2\xB3 \xA2\xC5\xA2\xC6\xA2\xC7 \xA2\xD9\xA2\xDA \xA2\xE5\xA2\xE6 \xA2\xF1\xA2\xF2; box \xA9\xA4\xA9\xA5\xA9\xA6\xA9\xA7\xA9\xA8\xA9\xA9.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'euc-cn');
+        $document = (new MarkdownReader())->readBytes($bytes, 'gb2312');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $gb18030Comparison = UnicodeText::decodeBytes("\xA2\xB1\xA2\xC5\xA2\xD9\xA2\xE5\xA2\xF1\xA9\xA4", 'gb18030');
+        $gb12345Comparison = UnicodeText::decodeBytes("\xA2\xB2\xA2\xC6\xA2\xDA\xA2\xE6\xA2\xF2\xA9\xA5", 'gb12345');
+        $unmappedNeighbor = UnicodeText::decodeBytes("\xA2\xA1A", 'gb2312');
+        $text = 'Enclosed ⒈⒉⒊ ⑴⑵⑶ ①② ㈠㈡ ⅠⅡ; box ─━│┃┄┅.';
+
+        $t->same('gbk', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# GB2312 Enclosed\n\n{$text}", $decoded['text']);
+        $t->same('⒈⑴①㈠Ⅰ─', $gb18030Comparison['text']);
+        $t->same(0, $gb18030Comparison['repairs']);
+        $t->same('⒉⑵②㈡Ⅱ━', $gb12345Comparison['text']);
+        $t->same(0, $gb12345Comparison['repairs']);
+        $t->same(['encoding' => 'gbk', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('GB2312 Enclosed', $document->children[0]->attr('text'));
+        $t->same($text, $document->children[1]->attr('text'));
+        $t->same(40, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(56, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->same(['⒈⒉⒊', '⑴⑵⑶', '①②', '㈠㈡', 'ⅠⅡ─━│┃┄┅'], UnicodeText::splitByDisplayBreakpoints('⒈⒉⒊⑴⑵⑶①②㈠㈡ⅠⅡ─━│┃┄┅', [6, 12, 16, 20], 'wide'));
+        $t->contains('<h1 id="gb2312-enclosed">GB2312 Enclosed</h1>', $blocks);
+        $t->contains("<p>{$text}</p>", $blocks);
+        $t->same("\u{FFFD}A", $unmappedNeighbor['text']);
+        $t->same(1, $unmappedNeighbor['repairs']);
+    },
     'decodes gb1988 yen overline and halfwidth punctuation into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# GB1988\n\nCurrency \$~ halfwidth \xA1\xB0\xDF ASCII.";
         $decoded = UnicodeText::decodeBytes($bytes, 'gb_1988-80');
