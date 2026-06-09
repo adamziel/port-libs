@@ -441,6 +441,75 @@ return [
         $t->same($metadata['dateSummary'], $summary['wordpressImport']['metadataDetails']['dateSummary']);
     },
 
+    'summarizes OPF source provenance metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithSources = str_replace(
+            '<dc:language>en-US</dc:language>',
+            '<dc:language>en-US</dc:language>
+    <dc:source id="print-source" scheme="ISBN" xml:lang="en">9781491905012</dc:source>
+    <dc:source id="archive-source" xml:lang="fr" dir="ltr">Archive scan packet A</dc:source>',
+            $epub3OpfXml
+        );
+        $opfWithSources = str_replace(
+            '</metadata>',
+            '    <meta refines="#print-source" property="source-of">pagination</meta>
+    <meta refines="#print-source" property="identifier-type" scheme="onix:codelist5">15</meta>
+    <meta refines="#print-source" property="display-seq">1</meta>
+    <meta refines="#archive-source" property="source-of">transcription</meta>
+    <meta refines="#archive-source" property="alternate-script" xml:lang="en" dir="ltr">Archive scan packet A translated</meta>
+  </metadata>',
+            $opfWithSources
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithSources],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $sourceDetails = $metadata['sourceDetails'];
+
+        $t->same(['9781491905012', 'Archive scan packet A'], $metadata['sources']);
+        $t->same('9781491905012', $metadata['source']);
+        $t->same(2, count($sourceDetails));
+        $t->same('print-source', $sourceDetails[0]['id']);
+        $t->same('ISBN', $sourceDetails[0]['scheme']);
+        $t->same('en', $sourceDetails[0]['language']);
+        $t->same('pagination', $sourceDetails[0]['sourceOf']);
+        $t->same(['pagination'], $sourceDetails[0]['sourceOfValues']);
+        $t->same('15', $sourceDetails[0]['identifierType']);
+        $t->same('onix:codelist5', $sourceDetails[0]['identifierTypes'][0]['scheme']);
+        $t->same('1', $sourceDetails[0]['displaySeq']);
+        $t->same('archive-source', $sourceDetails[1]['id']);
+        $t->same('fr', $sourceDetails[1]['language']);
+        $t->same('ltr', $sourceDetails[1]['direction']);
+        $t->same('transcription', $sourceDetails[1]['sourceOf']);
+        $t->same('Archive scan packet A translated', $sourceDetails[1]['alternateScripts'][0]['text']);
+        $t->same('en', $sourceDetails[1]['alternateScripts'][0]['language']);
+        $t->same('9781491905012', $metadata['sourcesByType']['pagination'][0]['text']);
+        $t->same('Archive scan packet A', $metadata['sourcesByType']['transcription'][0]['text']);
+        $t->same([
+            'present' => true,
+            'count' => 2,
+            'typedCount' => 2,
+            'schemeCount' => 1,
+            'identifierTypeCount' => 1,
+            'sourceOfValues' => ['pagination', 'transcription'],
+            'identifierTypes' => ['15'],
+            'schemes' => ['ISBN'],
+        ], $metadata['sourceSummary']);
+
+        $t->same($sourceDetails, $summary['wordpressImport']['metadataDetails']['sourceDetails']);
+        $t->same($metadata['sourcesByType'], $summary['wordpressImport']['metadataDetails']['sourcesByType']);
+        $t->same($metadata['sourceSummary'], $summary['wordpressImport']['metadataDetails']['sourceSummary']);
+    },
+
     'preserves OPF guide references and XHTML nav sections for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithGuide = str_replace(
             '</spine>',

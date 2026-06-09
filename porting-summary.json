@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 11:11:14 UTC",
-    "sourceCommit": "d82bf82bace0eb995e9c0485ebc6dd14077842a4",
-    "sourceCommitShort": "d82bf82bace0",
+    "generated": "2026-06-09 11:12:54 UTC",
+    "sourceCommit": "e88a503a6aade05df3f1a09165987152ae3ff9f5",
+    "sourceCommitShort": "e88a503a6aad",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d82bf82bace0eb995e9c0485ebc6dd14077842a4",
-    "dashboardCommitShort": "d82bf82bace0",
+    "dashboardCommit": "e88a503a6aade05df3f1a09165987152ae3ff9f5",
+    "dashboardCommitShort": "e88a503a6aad",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,10 +137,10 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,694 pass / 0 fail",
-            "phase": "native PHP Pandoc DOCX/OpenXML settings provenance handoff; settings...",
-            "audit": "2026-06-09 UTC rebased pandoc-docx-settings-provenance slice on accep...",
-            "currentWork": "Pandoc DOCX settings review metadata now records the source settings part and relatio...",
+            "php": "2,695 pass / 0 fail",
+            "phase": "native PHP Pandoc EPUB3/OPF package metadata handoff; OPF source prov...",
+            "audit": "2026-06-09 UTC rebased pandoc-epub-source-provenance slice on accepte...",
+            "currentWork": "Pandoc EPUB3 package preflight now preserves OPF source provenance and source refinem...",
             "nextTarget": "Continue non-overlapping native conversion support under ODF/...",
             "remainingGate": "No external converter is needed.",
             "commit": "pending fast ba..."

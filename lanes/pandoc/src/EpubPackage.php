@@ -401,6 +401,9 @@ final class EpubPackage
                     'dateDetails' => $this->metadata['dateDetails'] ?? [],
                     'datesByEvent' => $this->metadata['datesByEvent'] ?? [],
                     'dateSummary' => $this->metadata['dateSummary'] ?? [],
+                    'sourceDetails' => $this->metadata['sourceDetails'] ?? [],
+                    'sourcesByType' => $this->metadata['sourcesByType'] ?? [],
+                    'sourceSummary' => $this->metadata['sourceSummary'] ?? [],
                     'refinementsById' => $this->metadata['refinementsById'] ?? [],
                 ],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
@@ -684,6 +687,7 @@ final class EpubPackage
         $identifierSummary = self::metadataIdentifierSummary($identifierDetails, $uniqueIdentifier);
         $identifierDiagnostics = array_merge($uniqueIdentifier['diagnostics'], $identifierSummary['diagnostics']);
         $dateDetails = self::metadataDateDetails($dc['date'] ?? []);
+        $sourceDetails = self::metadataSourceDetails($dc['source'] ?? []);
         $identifier = is_string($uniqueIdentifier['value'] ?? null) ? $uniqueIdentifier['value'] : '';
 
         return [
@@ -718,6 +722,11 @@ final class EpubPackage
             'dateDetails' => $dateDetails,
             'datesByEvent' => self::metadataDetailsByField($dateDetails, 'event'),
             'dateSummary' => self::metadataDateSummary($dateDetails),
+            'source' => $sourceDetails[0]['text'] ?? null,
+            'sources' => array_map(static fn (array $entry): string => (string) $entry['text'], $dc['source'] ?? []),
+            'sourceDetails' => $sourceDetails,
+            'sourcesByType' => self::metadataSourcesByType($sourceDetails),
+            'sourceSummary' => self::metadataSourceSummary($sourceDetails),
             'modified' => $propertyValues['dcterms:modified'][0] ?? null,
             'properties' => $propertyValues,
             'dc' => $dc,
@@ -1205,6 +1214,110 @@ final class EpubPackage
             'count' => count($dateDetails),
             'eventCount' => count($events),
             'events' => array_values($events),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataSourceDetails(array $entries): array
+    {
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $sourceOf = self::metadataRefinementEntries($refinements, 'source-of');
+            $sourceOfValues = array_map(static fn (array $source): string => (string) $source['value'], $sourceOf);
+            $identifierTypes = self::metadataRefinementEntries($refinements, 'identifier-type');
+
+            $details[] = [
+                'kind' => 'source',
+                'index' => $index,
+                'text' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'sourceOf' => $sourceOfValues[0] ?? null,
+                'sourceOfValues' => $sourceOfValues,
+                'sourceOfEntries' => $sourceOf,
+                'identifierType' => $identifierTypes[0]['value'] ?? null,
+                'identifierTypes' => $identifierTypes,
+                'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                'alternateScripts' => self::metadataRefinementEntries($refinements, 'alternate-script'),
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sourceDetails
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataSourcesByType(array $sourceDetails): array
+    {
+        $byType = [];
+        foreach ($sourceDetails as $detail) {
+            foreach ($detail['sourceOfValues'] ?? [] as $type) {
+                if (is_string($type) && $type !== '') {
+                    $byType[$type][] = $detail;
+                }
+            }
+        }
+
+        return $byType;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sourceDetails
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataSourceSummary(array $sourceDetails): array
+    {
+        $schemes = [];
+        $sourceOfValues = [];
+        $identifierTypes = [];
+        $typedCount = 0;
+
+        foreach ($sourceDetails as $detail) {
+            $scheme = is_string($detail['scheme'] ?? null) ? trim($detail['scheme']) : '';
+            if ($scheme !== '') {
+                $schemes[$scheme] = $scheme;
+            }
+
+            $sourceTypes = [];
+            foreach ($detail['sourceOfValues'] ?? [] as $sourceOf) {
+                if (is_string($sourceOf) && $sourceOf !== '') {
+                    $sourceTypes[$sourceOf] = $sourceOf;
+                    $sourceOfValues[$sourceOf] = $sourceOf;
+                }
+            }
+            if ($sourceTypes !== []) {
+                ++$typedCount;
+            }
+
+            foreach ($detail['identifierTypes'] ?? [] as $identifierType) {
+                $value = is_string($identifierType['value'] ?? null) ? trim($identifierType['value']) : '';
+                if ($value !== '') {
+                    $identifierTypes[$value] = $value;
+                }
+            }
+        }
+
+        return [
+            'present' => $sourceDetails !== [],
+            'count' => count($sourceDetails),
+            'typedCount' => $typedCount,
+            'schemeCount' => count($schemes),
+            'identifierTypeCount' => count($identifierTypes),
+            'sourceOfValues' => array_values($sourceOfValues),
+            'identifierTypes' => array_values($identifierTypes),
+            'schemes' => array_values($schemes),
         ];
     }
 
