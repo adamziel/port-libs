@@ -262,11 +262,20 @@ final class EpubPackage
     /**
      * @return array<string, mixed>
      */
+    public function remoteResourcePolicy(): array
+    {
+        return self::remoteResourcePolicyReport($this->packageLinks, $this->collections);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function summary(): array
     {
         $assetSummary = $this->assetSummary();
         $navigationEntries = $this->navigation['entries'] ?? [];
         $packageLinkReport = self::collectionLinkReport($this->packageLinks);
+        $remoteResourcePolicy = $this->remoteResourcePolicy();
 
         return [
             'opfPart' => $this->opfPartName,
@@ -284,6 +293,7 @@ final class EpubPackage
             'navigation' => $this->navigation,
             'navigationSections' => $this->navigationSections,
             'assets' => $assetSummary,
+            'remoteResourcePolicy' => $remoteResourcePolicy,
             'wordpressImport' => [
                 'title' => $this->metadata['title'],
                 'creators' => $this->metadata['creators'],
@@ -315,6 +325,9 @@ final class EpubPackage
                 'packageLinksByRel' => $packageLinkReport['linksByRel'],
                 'packageLinkTargets' => self::packageLinkTargets($this->packageLinks),
                 'packageLinkDiagnostics' => $packageLinkReport['diagnostics'],
+                'remoteResourcePolicy' => $remoteResourcePolicy,
+                'remoteResourceExternalTargets' => $remoteResourcePolicy['externalTargets'],
+                'remoteResourcePolicyDiagnostics' => $remoteResourcePolicy['diagnostics'],
                 'mediaTypeBindings' => $this->bindings['items'],
                 'mediaTypeBindingDiagnostics' => $this->bindings['diagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
@@ -1577,6 +1590,183 @@ final class EpubPackage
         }
 
         return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $packageLinks
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return array<string, mixed>
+     */
+    private static function remoteResourcePolicyReport(array $packageLinks, array $collections): array
+    {
+        $items = [];
+        foreach ($packageLinks as $linkIndex => $link) {
+            $items[] = self::remoteResourcePolicyItem($link, 'package-link', $linkIndex, null, []);
+        }
+
+        self::appendCollectionRemoteResourcePolicyItems($collections, [], $items);
+
+        $policyCounts = [];
+        $itemsByPolicy = [];
+        $localTargets = [];
+        $externalTargets = [];
+        $missingTargets = [];
+        $diagnostics = [];
+        $packageLinkCount = 0;
+        $collectionLinkCount = 0;
+
+        foreach ($items as $item) {
+            $policy = (string) $item['policy'];
+            $policyCounts[$policy] = ($policyCounts[$policy] ?? 0) + 1;
+            $itemsByPolicy[$policy][] = $item;
+
+            if ($item['source'] === 'package-link') {
+                ++$packageLinkCount;
+            } elseif ($item['source'] === 'collection-link') {
+                ++$collectionLinkCount;
+            }
+
+            $target = is_string($item['target'] ?? null) ? $item['target'] : null;
+            if ($target !== null && $target !== '') {
+                if ($policy === 'local-package') {
+                    $localTargets[] = $target;
+                } elseif ($policy === 'remote-no-fetch') {
+                    $externalTargets[] = $target;
+                } elseif ($policy === 'missing-package') {
+                    $missingTargets[] = $target;
+                }
+            }
+
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'source' => $item['source'],
+                    'sourceIndex' => $item['sourceIndex'],
+                    'collectionPath' => $item['collectionPath'],
+                    'collectionId' => $item['collectionId'],
+                    'id' => $item['id'],
+                    'policy' => $policy,
+                ] + $diagnostic;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'packageLinkCount' => $packageLinkCount,
+            'collectionLinkCount' => $collectionLinkCount,
+            'localTargetCount' => $policyCounts['local-package'] ?? 0,
+            'externalTargetCount' => $policyCounts['remote-no-fetch'] ?? 0,
+            'remoteNoFetchCount' => $policyCounts['remote-no-fetch'] ?? 0,
+            'missingTargetCount' => $policyCounts['missing-package'] ?? 0,
+            'unresolvedTargetCount' => $policyCounts['unresolved'] ?? 0,
+            'policyCounts' => $policyCounts,
+            'localTargets' => $localTargets,
+            'externalTargets' => $externalTargets,
+            'missingTargets' => $missingTargets,
+            'items' => $items,
+            'itemsByPolicy' => $itemsByPolicy,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     * @param list<int> $collectionPath
+     * @param list<array<string, mixed>> $items
+     */
+    private static function appendCollectionRemoteResourcePolicyItems(
+        array $collections,
+        array $collectionPath,
+        array &$items
+    ): void {
+        foreach ($collections as $collectionIndex => $collection) {
+            if (!is_array($collection)) {
+                continue;
+            }
+
+            $currentPath = array_merge($collectionPath, [$collectionIndex]);
+            foreach (is_array($collection['links'] ?? null) ? $collection['links'] : [] as $linkIndex => $link) {
+                if (!is_array($link)) {
+                    continue;
+                }
+
+                $items[] = self::remoteResourcePolicyItem(
+                    $link,
+                    'collection-link',
+                    $linkIndex,
+                    $collection,
+                    $currentPath,
+                );
+            }
+
+            self::appendCollectionRemoteResourcePolicyItems(
+                is_array($collection['children'] ?? null) ? $collection['children'] : [],
+                $currentPath,
+                $items,
+            );
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $link
+     * @param array<string, mixed>|null $collection
+     * @param list<int> $collectionPath
+     *
+     * @return array<string, mixed>
+     */
+    private static function remoteResourcePolicyItem(
+        array $link,
+        string $source,
+        int $sourceIndex,
+        ?array $collection,
+        array $collectionPath
+    ): array {
+        $external = ($link['external'] ?? false) === true;
+        $exists = ($link['exists'] ?? false) === true;
+        $partName = is_string($link['partName'] ?? null) ? $link['partName'] : null;
+        $target = is_string($link['target'] ?? null) ? $link['target'] : null;
+        $href = is_string($link['href'] ?? null) ? $link['href'] : null;
+        $policy = 'unresolved';
+
+        if ($external) {
+            $policy = 'remote-no-fetch';
+        } elseif ($exists && $partName !== null) {
+            $policy = 'local-package';
+        } elseif ($target !== null || $partName !== null || $href !== null) {
+            $policy = 'missing-package';
+        }
+
+        return [
+            'source' => $source,
+            'sourceIndex' => $sourceIndex,
+            'collectionPath' => $source === 'collection-link' ? $collectionPath : null,
+            'collectionId' => is_array($collection) && is_string($collection['id'] ?? null)
+                ? $collection['id']
+                : null,
+            'collectionRole' => is_array($collection) && is_string($collection['role'] ?? null)
+                ? $collection['role']
+                : null,
+            'id' => is_string($link['id'] ?? null) ? $link['id'] : null,
+            'rel' => is_array($link['rel'] ?? null) ? array_values($link['rel']) : [],
+            'href' => $href,
+            'target' => $target,
+            'partName' => $partName,
+            'external' => $external,
+            'exists' => $exists,
+            'mediaType' => is_string($link['mediaType'] ?? null) ? $link['mediaType'] : null,
+            'manifestId' => is_string($link['manifestId'] ?? null) ? $link['manifestId'] : null,
+            'manifestMediaType' => is_string($link['manifestMediaType'] ?? null)
+                ? $link['manifestMediaType']
+                : null,
+            'properties' => is_array($link['properties'] ?? null) ? array_values($link['properties']) : [],
+            'policy' => $policy,
+            'diagnostics' => is_array($link['diagnostics'] ?? null) ? array_values($link['diagnostics']) : [],
+        ];
     }
 
     /**

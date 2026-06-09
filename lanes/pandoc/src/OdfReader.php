@@ -11,6 +11,7 @@ final class OdfReader
     private const TEXT_NS = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
     private const STYLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:style:1.0';
     private const TABLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
+    private const NUMBER_NS = 'urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0';
     private const DRAW_NS = 'urn:oasis:names:tc:opendocument:xmlns:drawing:1.0';
     private const FORM_NS = 'urn:oasis:names:tc:opendocument:xmlns:form:1.0';
     private const SVG_NS = 'urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0';
@@ -70,6 +71,7 @@ final class OdfReader
      *     styles:array<string, mixed>,
      *     fontFaces:array<string, mixed>,
      *     listStyles:array<string, mixed>,
+     *     dataStyles:array<string, mixed>,
      *     tableTemplates:array<string, mixed>,
      *     pageLayouts:array<string, mixed>,
      *     masterPages:array<string, mixed>,
@@ -116,6 +118,10 @@ final class OdfReader
                 'count' => count($styleCatalog['listStyles']),
                 'items' => array_values($styleCatalog['listStyles']),
             ],
+            'dataStyles' => [
+                'count' => count($styleCatalog['dataStyles']),
+                'items' => array_values($styleCatalog['dataStyles']),
+            ],
             'tableTemplates' => [
                 'count' => count($styleCatalog['tableTemplates']),
                 'items' => array_values($styleCatalog['tableTemplates']),
@@ -143,6 +149,7 @@ final class OdfReader
             'styles' => $styleCatalog['styles'],
             'fontFaces' => $styleCatalog['fontFaces'],
             'listStyles' => $styleCatalog['listStyles'],
+            'dataStyles' => $styleCatalog['dataStyles'],
             'tableTemplates' => $styleCatalog['tableTemplates'],
             'pageLayouts' => $styleCatalog['pageLayouts'],
             'masterPages' => $styleCatalog['masterPages'],
@@ -170,6 +177,8 @@ final class OdfReader
                     'pageLayoutCount' => count($styleCatalog['pageLayouts']),
                     'masterPageCount' => count($styleCatalog['masterPages']),
                     'tableTemplateCount' => count($styleCatalog['tableTemplates']),
+                    'dataStyleCount' => count($styleCatalog['dataStyles']),
+                    'dataStyles' => array_values($styleCatalog['dataStyles']),
                     'fontFaceCount' => count($styleCatalog['fontFaces']),
                     'fontFaces' => array_values($styleCatalog['fontFaces']),
                     'styleMapCount' => $this->styleMapCount($styleCatalog['styles']),
@@ -271,6 +280,7 @@ final class OdfReader
                     'tableCellDetectiveOperationCount' => $contentStats['tableCellDetectiveOperationCount'],
                     'tableStyledCellCount' => $contentStats['tableStyledCellCount'],
                     'tableDataStyledCellCount' => $contentStats['tableDataStyledCellCount'],
+                    'tableDataStyleDefinitionCellCount' => $contentStats['tableDataStyleDefinitionCellCount'],
                     'tableProtectedCellCount' => $contentStats['tableProtectedCellCount'],
                     'tablePrintHiddenCellCount' => $contentStats['tablePrintHiddenCellCount'],
                     'frameCaptionCount' => $contentStats['frameCaptionCount'],
@@ -417,7 +427,7 @@ final class OdfReader
     }
 
     /**
-     * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
+     * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
      */
     private function readStyles(ZipPackage $package): array
     {
@@ -425,6 +435,7 @@ final class OdfReader
             'styles' => [],
             'fontFaces' => [],
             'listStyles' => [],
+            'dataStyles' => [],
             'tableTemplates' => [],
             'pageLayouts' => [],
             'masterPages' => [],
@@ -446,9 +457,9 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
      * @param array<string, mixed> $settings
-     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
+     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
      */
     private function readContent(ZipPackage $package, array $styleCatalog, array $metadata, array $settings): array
     {
@@ -485,7 +496,7 @@ final class OdfReader
         return [
             'blocks' => $this->blockNodes($text, $package, $styleCatalog),
             'styleCatalog' => $styleCatalog,
-            'automaticStyleCount' => count($contentStyles['styles']) + count($contentStyles['listStyles']) + count($contentStyles['tableTemplates']) + count($contentStyles['pageLayouts']) + count($contentStyles['masterPages']),
+            'automaticStyleCount' => count($contentStyles['styles']) + count($contentStyles['listStyles']) + count($contentStyles['dataStyles']) + count($contentStyles['tableTemplates']) + count($contentStyles['pageLayouts']) + count($contentStyles['masterPages']),
             'trackedChanges' => array_values($this->trackedChanges),
             'contentDeclarations' => $this->contentDeclarations,
         ];
@@ -2696,6 +2707,22 @@ final class OdfReader
         if ($dataStyleName !== '') {
             $attrs['odfCellDataStyleName'] = $dataStyleName;
             $htmlAttributes['data-odf-cell-data-style-name'] = $dataStyleName;
+            $dataStyle = $this->dataStyleByName($dataStyleName, $catalog);
+            if ($dataStyle !== null) {
+                $attrs['odfCellDataStyle'] = $dataStyle;
+                $attrs['odfCellDataStyleType'] = (string) ($dataStyle['type'] ?? '');
+                $attrs['odfCellDataStyleComponentCount'] = (int) ($dataStyle['componentCount'] ?? 0);
+                $attrs['odfCellDataStyleSignature'] = (string) ($dataStyle['formatSignature'] ?? '');
+                if ((string) ($dataStyle['type'] ?? '') !== '') {
+                    $htmlAttributes['data-odf-cell-data-style-type'] = (string) $dataStyle['type'];
+                }
+                if ((int) ($dataStyle['componentCount'] ?? 0) > 0) {
+                    $htmlAttributes['data-odf-cell-data-style-component-count'] = (string) $dataStyle['componentCount'];
+                }
+                if ((string) ($dataStyle['formatSignature'] ?? '') !== '') {
+                    $htmlAttributes['data-odf-cell-data-style-signature'] = (string) $dataStyle['formatSignature'];
+                }
+            }
             $classes[] = 'odf-table-cell-data-style';
         }
         $styleMaps = is_array($style['styleMaps'] ?? null) ? $style['styleMaps'] : [];
@@ -2939,6 +2966,24 @@ final class OdfReader
         }
 
         return $validationsByName[$name];
+    }
+
+    /**
+     * @param array{dataStyles?:array<string, array<string, mixed>>} $catalog
+     * @return array<string, mixed>|null
+     */
+    private function dataStyleByName(string $name, array $catalog): ?array
+    {
+        if ($name === '') {
+            return null;
+        }
+
+        $dataStyles = $catalog['dataStyles'] ?? [];
+        if (!is_array($dataStyles) || !is_array($dataStyles[$name] ?? null)) {
+            return null;
+        }
+
+        return $dataStyles[$name];
     }
 
     /**
@@ -8321,7 +8366,7 @@ final class OdfReader
 
     /**
      * @param array<string, array<string, mixed>> $inheritedFontFaces
-     * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
+     * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
      */
     private function styleCollectionsFromRoot(\DOMElement $root, array $inheritedFontFaces = []): array
     {
@@ -8350,6 +8395,8 @@ final class OdfReader
             }
             $listStyles[$name] = $this->listStyleDefinition($listStyle, $fontFaces);
         }
+
+        $dataStyles = $this->dataStyleDefinitions($root);
 
         $tableTemplates = [];
         foreach ($root->getElementsByTagNameNS(self::TABLE_NS, 'table-template') as $tableTemplate) {
@@ -8391,6 +8438,7 @@ final class OdfReader
             'styles' => $styles,
             'fontFaces' => $fontFaces,
             'listStyles' => $listStyles,
+            'dataStyles' => $dataStyles,
             'tableTemplates' => $tableTemplates,
             'pageLayouts' => $pageLayouts,
             'masterPages' => $masterPages,
@@ -8424,6 +8472,136 @@ final class OdfReader
         }
 
         return $fontFaces;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function dataStyleDefinitions(\DOMElement $root): array
+    {
+        $styles = [];
+        $this->collectDataStyleDefinitions($root, $styles);
+
+        return $styles;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     */
+    private function collectDataStyleDefinitions(\DOMElement $element, array &$styles): void
+    {
+        foreach (self::childElements($element) as $child) {
+            if ($child->namespaceURI === self::NUMBER_NS && $this->isDataStyleElementName($child->localName)) {
+                $name = self::attr($child, self::STYLE_NS, 'name');
+                if ($name !== '') {
+                    $styles[$name] = $this->dataStyleDefinition($child);
+                }
+            }
+
+            $this->collectDataStyleDefinitions($child, $styles);
+        }
+    }
+
+    private function isDataStyleElementName(string $localName): bool
+    {
+        return in_array($localName, [
+            'number-style',
+            'currency-style',
+            'percentage-style',
+            'date-style',
+            'time-style',
+            'boolean-style',
+            'text-style',
+        ], true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataStyleDefinition(\DOMElement $style): array
+    {
+        $components = [];
+        foreach (self::childElements($style) as $child) {
+            if ($child->namespaceURI !== self::NUMBER_NS) {
+                continue;
+            }
+
+            $component = $this->dataStyleComponentDefinition($child);
+            if ($component !== []) {
+                $components[] = $component;
+            }
+        }
+
+        $definition = self::withoutEmpty(array_merge([
+            'name' => self::nullable(self::attr($style, self::STYLE_NS, 'name')),
+            'displayName' => self::nullable(self::attr($style, self::STYLE_NS, 'display-name')),
+            'element' => $style->localName,
+            'type' => preg_replace('/-style$/', '', $style->localName) ?? $style->localName,
+            'components' => $components,
+            'componentCount' => $components === [] ? null : count($components),
+            'formatSignature' => $this->dataStyleFormatSignature($components),
+        ], $this->odfElementMetadataAttributes($style, [self::NUMBER_NS, self::STYLE_NS])));
+
+        return $definition;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataStyleComponentDefinition(\DOMElement $component): array
+    {
+        $definition = array_merge([
+            'element' => $component->localName,
+            'type' => $component->localName,
+        ], $this->odfElementMetadataAttributes($component, [self::NUMBER_NS, self::STYLE_NS]));
+
+        if ($component->textContent !== '') {
+            $definition['text'] = $component->textContent;
+        }
+
+        return self::withoutEmpty($definition);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $components
+     */
+    private function dataStyleFormatSignature(array $components): string
+    {
+        $parts = [];
+        foreach ($components as $component) {
+            $type = (string) ($component['type'] ?? '');
+            if ($type === '') {
+                continue;
+            }
+
+            if (isset($component['text']) && is_scalar($component['text']) && (string) $component['text'] !== '') {
+                $parts[] = $type . ':' . (string) $component['text'];
+                continue;
+            }
+
+            $attributes = [];
+            foreach ($component as $name => $value) {
+                if (in_array($name, ['element', 'type', 'text'], true) || !is_scalar($value)) {
+                    continue;
+                }
+
+                $attributes[$name] = is_bool($value) ? ($value ? 'true' : 'false') : (string) $value;
+            }
+            ksort($attributes);
+
+            if ($attributes === []) {
+                $parts[] = $type;
+                continue;
+            }
+
+            $pairs = [];
+            foreach ($attributes as $name => $value) {
+                $pairs[] = $name . '=' . $value;
+            }
+            $parts[] = $type . '[' . implode(',', $pairs) . ']';
+        }
+
+        return implode('|', $parts);
     }
 
     /**
@@ -8883,8 +9061,8 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $target
-     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $source
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $target
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $source
      */
     private function mergeStyleCollections(array &$target, array $source): void
     {
@@ -8896,6 +9074,9 @@ final class OdfReader
         }
         foreach ($source['listStyles'] as $name => $style) {
             $target['listStyles'][$name] = $style;
+        }
+        foreach ($source['dataStyles'] as $name => $style) {
+            $target['dataStyles'][$name] = $style;
         }
         foreach ($source['tableTemplates'] as $name => $template) {
             $target['tableTemplates'][$name] = $template;
@@ -9270,6 +9451,7 @@ final class OdfReader
             'tableCellDetectiveOperationCount' => 0,
             'tableStyledCellCount' => 0,
             'tableDataStyledCellCount' => 0,
+            'tableDataStyleDefinitionCellCount' => 0,
             'tableProtectedCellCount' => 0,
             'tablePrintHiddenCellCount' => 0,
             'frameLayerReferenceCount' => 0,
@@ -9375,6 +9557,9 @@ final class OdfReader
             }
             if ($node->type === 'table_cell' && (string) $node->attr('odfCellDataStyleName', '') !== '') {
                 $stats['tableDataStyledCellCount']++;
+                if (is_array($node->attr('odfCellDataStyle', null))) {
+                    $stats['tableDataStyleDefinitionCellCount']++;
+                }
             }
             $cellAnnotations = $node->attr('odfCellAnnotations', []);
             if ($node->type === 'table_cell' && is_array($cellAnnotations)) {

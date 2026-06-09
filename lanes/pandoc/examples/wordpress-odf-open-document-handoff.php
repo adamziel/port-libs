@@ -41,6 +41,7 @@ $stylesXml = <<<'XML'
   xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
   xmlns:xlink="http://www.w3.org/1999/xlink"
   xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
   xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
   <office:font-face-decls>
     <style:font-face style:name="SourceMono" svg:font-family="'Source Code Pro'" style:font-family-generic="modern" style:font-pitch="fixed"/>
@@ -61,6 +62,11 @@ $stylesXml = <<<'XML'
     <style:style style:name="Preformatted_20_Text" style:family="paragraph" style:display-name="Preformatted Text"/>
     <style:style style:name="SourceCode" style:family="paragraph" style:parent-style-name="Preformatted_20_Text" style:display-name="Source Code"/>
     <style:style style:name="Table" style:family="paragraph" style:display-name="Table"/>
+    <number:currency-style style:name="ReviewCurrencyFormat" style:display-name="Review Currency" number:language="en" number:country="US">
+      <number:currency-symbol number:language="en" number:country="US">$</number:currency-symbol>
+      <number:number number:decimal-places="2" number:min-integer-digits="1" number:grouping="true"/>
+      <number:text> reviewed</number:text>
+    </number:currency-style>
     <style:style style:name="BaseProtectedCell" style:family="table-cell">
       <style:table-cell-properties style:cell-protect="protected" style:print-content="false"/>
     </style:style>
@@ -1083,18 +1089,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['importReport']['content']['tableStyledCellCount'] ?? 0) !== 2
         || ($result['importReport']['content']['tableDataStyledCellCount'] ?? 0) !== 1
+        || ($result['importReport']['content']['tableDataStyleDefinitionCellCount'] ?? 0) !== 1
         || ($result['importReport']['content']['tableProtectedCellCount'] ?? 0) !== 1
         || ($result['importReport']['content']['tablePrintHiddenCellCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT styled/protected/print-hidden table cell metadata to be counted in the import report');
     }
-    if (($result['importReport']['styles']['styleMapCount'] ?? 0) !== 1) {
-        throw new RuntimeException('Expected ODT table-cell style-map metadata to be counted in the import report');
+    if (($result['importReport']['styles']['styleMapCount'] ?? 0) !== 1
+        || ($result['importReport']['styles']['dataStyleCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT table-cell style-map and data-style metadata to be counted in the import report');
     }
     if (($result['styles']['ReviewStatusCell']['tableCellProperties']['backgroundColor'] ?? '') !== '#fff4cc') {
         throw new RuntimeException('Expected ODT table-cell background style to survive style parsing');
     }
     if (($result['styles']['ReviewStatusCell']['dataStyleName'] ?? '') !== 'ReviewCurrencyFormat') {
         throw new RuntimeException('Expected ODT table-cell data-style-name metadata to survive style parsing');
+    }
+    if (($result['dataStyles']['ReviewCurrencyFormat']['type'] ?? '') !== 'currency'
+        || ($result['dataStyles']['ReviewCurrencyFormat']['formatSignature'] ?? '') !== 'currency-symbol:$|number[decimalPlaces=2,grouping=true,minIntegerDigits=1]|text: reviewed') {
+        throw new RuntimeException('Expected ODT currency data-style grammar to survive style parsing');
     }
     $reviewTable = null;
     foreach ($result['document']->children as $block) {
@@ -1121,6 +1133,9 @@ if (($argv[1] ?? '') === '--self-test') {
     $statusCellAttributes = $reviewCoverage[1]['sourceAttributes']['htmlAttributes'] ?? [];
     if (($statusCellAttributes['data-odf-cell-style-name'] ?? '') !== 'ReviewStatusCell'
         || ($statusCellAttributes['data-odf-cell-data-style-name'] ?? '') !== 'ReviewCurrencyFormat'
+        || ($statusCellAttributes['data-odf-cell-data-style-type'] ?? '') !== 'currency'
+        || ($statusCellAttributes['data-odf-cell-data-style-component-count'] ?? '') !== '3'
+        || ($statusCellAttributes['data-odf-cell-data-style-signature'] ?? '') !== 'currency-symbol:$|number[decimalPlaces=2,grouping=true,minIntegerDigits=1]|text: reviewed'
         || ($statusCellAttributes['data-odf-cell-background-color'] ?? '') !== '#fff4cc'
         || ($statusCellAttributes['data-odf-cell-protect'] ?? '') !== 'protected'
         || ($statusCellAttributes['data-odf-cell-style-map-1-apply-style-name'] ?? '') !== 'ReadyCell') {
@@ -1155,6 +1170,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, 'class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle odf-table-cell-data-style odf-table-cell-style-map"')
         || !str_contains($blocks, 'data-odf-cell-data-style-name="ReviewCurrencyFormat"')
+        || !str_contains($blocks, 'data-odf-cell-data-style-type="currency"')
+        || !str_contains($blocks, 'data-odf-cell-data-style-component-count="3"')
+        || !str_contains($blocks, 'data-odf-cell-data-style-signature="currency-symbol:$|number[decimalPlaces=2,grouping=true,minIntegerDigits=1]|text: reviewed"')
         || !str_contains($blocks, 'data-odf-cell-style-map-count="1"')
         || !str_contains($blocks, 'data-odf-cell-style-map-1-condition="cell-content()=&quot;Status&quot;"')
         || !str_contains($blocks, 'data-odf-cell-style-map-1-apply-style-name="ReadyCell"')
@@ -1178,6 +1196,7 @@ echo 'creator=' . ($result['metadata']['creator'] ?? '') . "\n";
 echo 'manifestItems=' . count($result['manifest']) . "\n";
 echo 'mediaItems=' . count($result['media']) . "\n";
 echo 'styleCount=' . count($result['styles']) . "\n";
+echo 'dataStyleCount=' . count($result['dataStyles']) . "\n";
 echo 'pageLayoutCount=' . count($result['pageLayouts']) . "\n";
 echo 'masterPageCount=' . count($result['masterPages']) . "\n";
 echo 'settingsSets=' . ($result['settings']['count'] ?? 0) . "\n";

@@ -130,6 +130,9 @@ if (($argv[1] ?? '') === '--self-test') {
         'external-package-link-target',
         'creator-voicing',
         'creator-audio',
+        ['local-package' => 3, 'remote-no-fetch' => 2, 'missing-package' => 1],
+        ['https://metadata.example.invalid/onix.xml', 'https://example.invalid/epub/series.json'],
+        ['external-package-link-target', 'missing-package-link-target', 'external-collection-link-target'],
     ];
     $actual = [
         $summary['wordpressImport']['title'],
@@ -153,6 +156,12 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['wordpressImport']['packageLinkDiagnostics'][0]['type'] ?? null,
         $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['id'] ?? null,
         $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['manifestId'] ?? null,
+        $summary['wordpressImport']['remoteResourcePolicy']['policyCounts'],
+        $summary['wordpressImport']['remoteResourceExternalTargets'],
+        array_map(
+            static fn (array $diagnostic): string => (string) $diagnostic['type'],
+            $summary['wordpressImport']['remoteResourcePolicyDiagnostics'],
+        ),
     ];
 
     if ($actual !== $expected) {

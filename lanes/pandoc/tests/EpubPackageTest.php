@@ -513,6 +513,74 @@ return [
         $t->same('creator-voicing', $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['id']);
     },
 
+    'summarizes OPF package and collection remote link policy for preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithLinks = str_replace(
+            '</metadata>',
+            '    <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer"/>
+    <link id="remote-onix" rel="record" href="https://metadata.example.invalid/onix.xml" media-type="application/xml"/>
+    <link id="missing-record" rel="record" href="meta/missing-record.json" media-type="application/json"/>
+  </metadata>',
+            $epub3OpfXml
+        );
+        $opfWithLinks = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="series" role="series">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Migration packets</dc:title></metadata>
+    <link id="series-record" rel="record" href="meta/series.json" media-type="application/ld+json"/>
+    <link id="remote-series" rel="alternate" href="https://example.invalid/epub/series.json" media-type="application/json"/>
+    <link id="missing-sample" rel="sample" href="text/missing.xhtml" media-type="application/xhtml+xml"/>
+  </collection>',
+            $opfWithLinks
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithLinks],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/review-record.json', 'data' => '{"name":"package record"}'],
+            ['name' => 'EPUB/meta/series.json', 'data' => '{"name":"series record"}'],
+        ]));
+
+        $summary = $epub->summary();
+        $policy = $summary['remoteResourcePolicy'];
+
+        $t->same(true, $policy['present']);
+        $t->same(6, $policy['itemCount']);
+        $t->same(3, $policy['packageLinkCount']);
+        $t->same(3, $policy['collectionLinkCount']);
+        $t->same(2, $policy['localTargetCount']);
+        $t->same(2, $policy['externalTargetCount']);
+        $t->same(2, $policy['missingTargetCount']);
+        $t->same(2, $policy['remoteNoFetchCount']);
+        $t->same(['/EPUB/meta/review-record.json', '/EPUB/meta/series.json'], $policy['localTargets']);
+        $t->same(['https://metadata.example.invalid/onix.xml', 'https://example.invalid/epub/series.json'], $policy['externalTargets']);
+        $t->same(['/EPUB/meta/missing-record.json', '/EPUB/text/missing.xhtml'], $policy['missingTargets']);
+        $t->same(['local-package' => 2, 'remote-no-fetch' => 2, 'missing-package' => 2], $policy['policyCounts']);
+
+        $t->same('package-link', $policy['items'][0]['source']);
+        $t->same('review-record', $policy['items'][0]['id']);
+        $t->same('local-package', $policy['items'][0]['policy']);
+        $t->same('package-link', $policy['items'][1]['source']);
+        $t->same('remote-no-fetch', $policy['items'][1]['policy']);
+        $t->same('missing-package', $policy['items'][2]['policy']);
+        $t->same('collection-link', $policy['items'][3]['source']);
+        $t->same('series', $policy['items'][3]['collectionId']);
+        $t->same([0], $policy['items'][3]['collectionPath']);
+        $t->same('local-package', $policy['items'][3]['policy']);
+        $t->same('remote-no-fetch', $policy['items'][4]['policy']);
+        $t->same('missing-package', $policy['items'][5]['policy']);
+        $t->same(['external-package-link-target', 'missing-package-link-target', 'external-collection-link-target', 'missing-collection-link-target'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $policy['diagnostics']));
+        $t->same($policy, $summary['wordpressImport']['remoteResourcePolicy']);
+        $t->same($policy['externalTargets'], $summary['wordpressImport']['remoteResourceExternalTargets']);
+        $t->same($policy['diagnostics'], $summary['wordpressImport']['remoteResourcePolicyDiagnostics']);
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],

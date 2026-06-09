@@ -1610,6 +1610,96 @@ XML;
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('<td class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle odf-table-cell-data-style" data-odf-cell-style-name="ReviewStatusCell" data-odf-cell-background-color="#fff4cc" data-odf-cell-vertical-align="middle" data-odf-cell-writing-mode="tb-rl" data-odf-cell-protect="protected" data-odf-cell-print-content="false" data-odf-cell-repeat-content="false" data-odf-cell-shrink-to-fit="true" data-odf-cell-data-style-name="ReviewCurrencyFormat" style="background-color:#fff4cc; vertical-align:middle; border:0.5pt solid #999999; padding-left:3pt"><p>Source note</p></td>', $blocksHtml);
     },
+    'maps ODT number date and currency data styles into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithDataStyles = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0">
+  <office:styles>
+    <number:currency-style style:name="ReviewCurrencyFormat" style:display-name="Review Currency" number:language="en" number:country="US">
+      <number:currency-symbol number:language="en" number:country="US">$</number:currency-symbol>
+      <number:number number:decimal-places="2" number:min-integer-digits="1" number:grouping="true"/>
+      <number:text> reviewed</number:text>
+    </number:currency-style>
+    <number:date-style style:name="ReviewDateFormat" number:format-source="fixed" number:language="en" number:country="US">
+      <number:day number:style="long"/>
+      <number:text>/</number:text>
+      <number:month number:style="long"/>
+      <number:text>/</number:text>
+      <number:year number:style="long"/>
+    </number:date-style>
+    <style:style style:name="CurrencyCell" style:family="table-cell" style:data-style-name="ReviewCurrencyFormat"/>
+    <style:style style:name="DateCell" style:family="table-cell" style:data-style-name="ReviewDateFormat"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithDataStyledCells = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="Data Style Review">
+        <table:table-row>
+          <table:table-cell table:style-name="CurrencyCell" office:value-type="currency" office:value="42.5" office:currency="USD"><text:p>$42.50 reviewed</text:p></table:table-cell>
+          <table:table-cell table:style-name="DateCell" office:value-type="date" office:date-value="2026-06-09"><text:p>09/06/2026</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDataStyledCells, null, $stylesWithDataStyles));
+        $table = $result['document']->children[0];
+        $currencyCell = $table->children[0]->children[0]->children[0];
+        $dateCell = $table->children[0]->children[0]->children[1];
+        $geometry = $table->attr('tableGeometry');
+        $coverage = is_array($geometry) ? ($geometry['coverage'] ?? []) : [];
+
+        $t->same(2, count($result['dataStyles']));
+        $t->same(2, $result['importReport']['styles']['dataStyleCount']);
+        $t->same('currency', $result['dataStyles']['ReviewCurrencyFormat']['type']);
+        $t->same('Review Currency', $result['dataStyles']['ReviewCurrencyFormat']['displayName']);
+        $t->same('en', $result['dataStyles']['ReviewCurrencyFormat']['language']);
+        $t->same('US', $result['dataStyles']['ReviewCurrencyFormat']['country']);
+        $t->same(3, $result['dataStyles']['ReviewCurrencyFormat']['componentCount']);
+        $t->same('$', $result['dataStyles']['ReviewCurrencyFormat']['components'][0]['text']);
+        $t->same(true, $result['dataStyles']['ReviewCurrencyFormat']['components'][1]['grouping']);
+        $t->same(2, $result['dataStyles']['ReviewCurrencyFormat']['components'][1]['decimalPlaces']);
+        $t->same('currency-symbol:$|number[decimalPlaces=2,grouping=true,minIntegerDigits=1]|text: reviewed', $result['dataStyles']['ReviewCurrencyFormat']['formatSignature']);
+
+        $t->same('date', $result['dataStyles']['ReviewDateFormat']['type']);
+        $t->same('fixed', $result['dataStyles']['ReviewDateFormat']['formatSource']);
+        $t->same(5, $result['dataStyles']['ReviewDateFormat']['componentCount']);
+        $t->same('day[style=long]|text:/|month[style=long]|text:/|year[style=long]', $result['dataStyles']['ReviewDateFormat']['formatSignature']);
+
+        $t->same('ReviewCurrencyFormat', $currencyCell->attr('odfCellDataStyleName'));
+        $t->same('currency', $currencyCell->attr('odfCellDataStyleType'));
+        $t->same('currency', $currencyCell->attr('odfCellDataStyle')['type']);
+        $t->same(3, $currencyCell->attr('odfCellDataStyleComponentCount'));
+        $t->same('currency-symbol:$|number[decimalPlaces=2,grouping=true,minIntegerDigits=1]|text: reviewed', $currencyCell->attr('odfCellDataStyleSignature'));
+        $t->same(['odf-table-cell-value', 'odf-table-cell-data-style'], $currencyCell->attr('classes'));
+        $t->same('currency', $currencyCell->attr('htmlAttributes')['data-odf-cell-data-style-type']);
+        $t->same('3', $currencyCell->attr('htmlAttributes')['data-odf-cell-data-style-component-count']);
+        $t->same('currency-symbol:$|number[decimalPlaces=2,grouping=true,minIntegerDigits=1]|text: reviewed', $currencyCell->attr('htmlAttributes')['data-odf-cell-data-style-signature']);
+
+        $t->same('ReviewDateFormat', $dateCell->attr('odfCellDataStyleName'));
+        $t->same('date', $dateCell->attr('odfCellDataStyleType'));
+        $t->same(2, $result['importReport']['content']['tableDataStyledCellCount']);
+        $t->same(2, $result['importReport']['content']['tableDataStyleDefinitionCellCount']);
+        $t->same('date', $coverage[1]['sourceAttributes']['htmlAttributes']['data-odf-cell-data-style-type'] ?? null);
+        $t->same('day[style=long]|text:/|month[style=long]|text:/|year[style=long]', $coverage[1]['sourceAttributes']['htmlAttributes']['data-odf-cell-data-style-signature'] ?? null);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('data-odf-cell-data-style-type="currency"', $blocksHtml);
+        $t->contains('data-odf-cell-data-style-component-count="3"', $blocksHtml);
+        $t->contains('data-odf-cell-data-style-signature="currency-symbol:$|number[decimalPlaces=2,grouping=true,minIntegerDigits=1]|text: reviewed"', $blocksHtml);
+        $t->contains('data-odf-cell-data-style-type="date"', $blocksHtml);
+        $t->contains('data-odf-cell-data-style-signature="day[style=long]|text:/|month[style=long]|text:/|year[style=long]"', $blocksHtml);
+    },
     'applies ODT row and column default cell styles before table review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithDefaultCellStyles = <<<'XML'
 <office:document-styles
