@@ -242,6 +242,22 @@ $rowBackgroundTables = array_values(array_filter(
     $rowBackgroundDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$rowBorderPresentationDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="row-border-presentation-grid" data-source="html-reader">
+<caption>Row border presentation review</caption>
+<thead>
+<tr style="border-color: #336699; border-style: dashed; border-width: 2px"><th>Source</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr style="border-right: thick double green"><td>Posts</td><td>Ready</td></tr>
+<tr style="border-bottom-width: 3px; border-bottom-style: dotted; border-bottom-color: #123"><td>Media</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML);
+$rowBorderPresentationTables = array_values(array_filter(
+    $rowBorderPresentationDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $cellBackgroundDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="cell-background-grid" data-source="html-reader">
 <caption>Cell background review</caption>
@@ -1539,6 +1555,7 @@ $document = new AstNode('document', [], [
     ...$legacySpacingTables,
     ...$cellNoWrapTables,
     ...$rowBackgroundTables,
+    ...$rowBorderPresentationTables,
     ...$cellBackgroundTables,
     ...$cellBorderPresentationTables,
     ...$cellSideBorderPresentationTables,
@@ -3031,6 +3048,62 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($rowBackgroundPacket, JSON_THROW_ON_ERROR);
     json_encode($rowBackgroundDowngrades, JSON_THROW_ON_ERROR);
+
+    $rowBorderPresentationTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'row-border-presentation-grid') {
+            $rowBorderPresentationTable = $node;
+            break;
+        }
+    }
+    $rowBorderPresentationPacket = $rowBorderPresentationTable instanceof AstNode ? $rowBorderPresentationTable->attr('tableGeometry') : null;
+    $rowBorderPresentationDowngrades = $rowBorderPresentationTable instanceof AstNode ? TableGeometry::reviewPacket($rowBorderPresentationTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $rowBorderPresentationDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $rowBorderPresentationDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'row-border-presentation'
+        ));
+        $rowBorderPresentationDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$rowBorderPresentationTable instanceof AstNode
+        || !is_array($rowBorderPresentationPacket)
+        || ($rowBorderPresentationPacket['summary']['hasRowBorderPresentations'] ?? null) !== true
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationCount'] ?? null) !== 3
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationRows'] ?? null) !== [0, 1]
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationGlobalRows'] ?? null) !== [0, 1, 2]
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationSections'] ?? null) !== ['head', 'body']
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationColors'] ?? null) !== ['#336699']
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationStyles'] ?? null) !== ['dashed']
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationWidths'] ?? null) !== ['2px']
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationEdgeCount'] ?? null) !== 2
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationEdges'] ?? null) !== ['right', 'bottom']
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationEdgeColors'] ?? null) !== ['green', '#112233']
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationEdgeStyles'] ?? null) !== ['double', 'dotted']
+        || ($rowBorderPresentationPacket['summary']['rowBorderPresentationEdgeWidths'] ?? null) !== ['thick', '3px']
+        || ($rowBorderPresentationPacket['rowBorderPresentations'][0]['attributes'] ?? null) !== ['border-color' => '#336699', 'border-style' => 'dashed', 'border-width' => '2px']
+        || ($rowBorderPresentationPacket['rowBorderPresentations'][1]['borderEdges'][0]['borderColor'] ?? null) !== 'green'
+        || ($rowBorderPresentationPacket['rowBorderPresentations'][2]['borderEdges'][0]['attributes'] ?? null) !== ['border-bottom-color' => '#112233', 'border-bottom-style' => 'dotted', 'border-bottom-width' => '3px']
+        || ($rowBorderPresentationDiagnostics['markdown']['code'] ?? null) !== 'markdown-row-border-presentation-require-raw-html'
+        || ($rowBorderPresentationDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-row-border-presentation-review-required'
+        || ($rowBorderPresentationDiagnostics['latex']['code'] ?? null) !== 'latex-row-border-presentation-review-required'
+        || ($rowBorderPresentationDiagnostics['markdown']['requiredFeature'] ?? null) !== 'raw-html-row-border-presentation'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML row border presentation metadata');
+    }
+    if (
+        !str_contains($blocks, '<tr style="border-color: #336699; border-style: dashed; border-width: 2px"><th>Source</th><th>Status</th></tr>')
+        || !str_contains($blocks, '<tr style="border-right: thick double green"><td>Posts</td><td>Ready</td></tr>')
+        || !str_contains($blocks, '<tr style="border-bottom-width: 3px; border-bottom-style: dotted; border-bottom-color: #123"><td>Media</td><td>Review</td></tr>')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing WordPress row border presentation output');
+    }
+    json_encode($rowBorderPresentationPacket, JSON_THROW_ON_ERROR);
+    json_encode($rowBorderPresentationDowngrades, JSON_THROW_ON_ERROR);
 
     $cellBackgroundTable = null;
     foreach ($document->children as $node) {
