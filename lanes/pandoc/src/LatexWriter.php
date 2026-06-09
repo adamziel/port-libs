@@ -30,14 +30,14 @@ final class LatexWriter
     /**
      * @return list<string>
      */
-    private function renderBlock(AstNode $node): array
+    private function renderBlock(AstNode $node, int $listDepth = 0): array
     {
         return match ($node->type) {
             'paragraph', 'plain' => [$this->renderInlines($node->children)],
             'heading' => $this->renderHeading($node),
             'figure' => $this->renderFigure($node),
             'blockquote' => $this->renderBlockQuote($node),
-            'div' => $this->renderBlockGroup($node->children),
+            'div' => $this->renderBlockGroup($node->children, $listDepth),
             'code_block' => $this->renderCodeBlock($node),
             'table' => $this->renderTable($node),
             'horizontal_rule' => [
@@ -46,8 +46,8 @@ final class LatexWriter
                 '\end{center}',
             ],
             'line_block' => $this->renderLineBlock($node),
-            'bullet_list' => $this->renderList($node, false),
-            'ordered_list' => $this->renderList($node, true),
+            'bullet_list' => $this->renderList($node, false, $listDepth),
+            'ordered_list' => $this->renderList($node, true, $listDepth),
             'definition_list' => $this->renderDefinitionList($node),
             'raw_tex', 'raw_block' => $this->renderRawTexBlock($node),
             default => [],
@@ -58,11 +58,11 @@ final class LatexWriter
      * @param list<AstNode> $nodes
      * @return list<string>
      */
-    private function renderBlockGroup(array $nodes): array
+    private function renderBlockGroup(array $nodes, int $listDepth = 0): array
     {
         $lines = [];
         foreach ($nodes as $node) {
-            $block = $this->renderBlock($node);
+            $block = $this->renderBlock($node, $listDepth);
             if ($block === []) {
                 continue;
             }
@@ -179,12 +179,16 @@ final class LatexWriter
     /**
      * @return list<string>
      */
-    private function renderList(AstNode $node, bool $ordered): array
+    private function renderList(AstNode $node, bool $ordered, int $listDepth): array
     {
         $lines = [$ordered ? '\begin{enumerate}' : '\begin{itemize}'];
+        if ($ordered) {
+            array_push($lines, ...$this->orderedListSetupLines($node, $listDepth));
+        }
+
         foreach ($node->children as $item) {
             if ($item->type === 'list_item') {
-                array_push($lines, ...$this->renderListItem($item));
+                array_push($lines, ...$this->renderListItem($item, $listDepth));
             }
         }
         $lines[] = $ordered ? '\end{enumerate}' : '\end{itemize}';
@@ -195,7 +199,7 @@ final class LatexWriter
     /**
      * @return list<string>
      */
-    private function renderListItem(AstNode $item): array
+    private function renderListItem(AstNode $item, int $listDepth): array
     {
         $task = $item->attr('taskChecked', null);
         if (is_bool($task)) {
@@ -214,11 +218,64 @@ final class LatexWriter
 
         foreach ($item->children as $child) {
             if ($child->type === 'bullet_list' || $child->type === 'ordered_list') {
-                array_push($lines, ...$this->renderBlock($child));
+                array_push($lines, ...$this->renderBlock($child, $listDepth + 1));
             }
         }
 
         return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function orderedListSetupLines(AstNode $node, int $listDepth): array
+    {
+        $counter = $this->orderedListCounter($listDepth);
+        $lines = [];
+
+        $label = $this->orderedListLabel($node, $counter);
+        if ($label !== null) {
+            $lines[] = '\renewcommand{\label' . $counter . '}{' . $label . '}';
+        }
+
+        $start = $node->attr('start', null);
+        if (is_int($start) && $start !== 1) {
+            $lines[] = '\setcounter{' . $counter . '}{' . ($start - 1) . '}';
+        }
+
+        return $lines;
+    }
+
+    private function orderedListCounter(int $listDepth): string
+    {
+        return ['enumi', 'enumii', 'enumiii', 'enumiv'][min(3, max(0, $listDepth))];
+    }
+
+    private function orderedListLabel(AstNode $node, string $counter): ?string
+    {
+        $styleAttr = $node->attr('style', null);
+        $delimiterAttr = $node->attr('delimiter', null);
+        $style = is_string($styleAttr) ? $styleAttr : '';
+        $delimiter = is_string($delimiterAttr) ? $delimiterAttr : '';
+        $hasStyle = $styleAttr !== null && $style !== '' && $style !== 'default';
+        $hasDelimiter = $delimiterAttr !== null && $delimiter !== '' && $delimiter !== 'default';
+        if (!$hasStyle && !$hasDelimiter) {
+            return null;
+        }
+
+        $number = match ($style) {
+            'lower_alpha' => '\alph{' . $counter . '}',
+            'upper_alpha' => '\Alph{' . $counter . '}',
+            'lower_roman' => '\roman{' . $counter . '}',
+            'upper_roman' => '\Roman{' . $counter . '}',
+            default => '\arabic{' . $counter . '}',
+        };
+
+        return match ($delimiter) {
+            'one_paren' => $number . ')',
+            'two_parens' => '(' . $number . ')',
+            default => $number . '.',
+        };
     }
 
     /**

@@ -185,4 +185,58 @@ return [
             ]),
         ]), (new LatexWriter())->write($document));
     },
+    'renders ordered list labels counters and task item commands' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('ordered_list', ['start' => 3, 'style' => 'upper_alpha', 'delimiter' => 'one_paren'], [
+                new AstNode('list_item', [], [
+                    new AstNode('paragraph', [], [$text('Review source')]),
+                ]),
+                new AstNode('list_item', [], [
+                    new AstNode('paragraph', [], [$text('Approve packet')]),
+                    new AstNode('ordered_list', ['start' => 2, 'style' => 'lower_roman', 'delimiter' => 'two_parens'], [
+                        new AstNode('list_item', [], [
+                            new AstNode('plain', [], [$text('Nested check')]),
+                        ]),
+                    ]),
+                ]),
+            ]),
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', ['taskChecked' => false], [
+                    new AstNode('plain', [], [$text('Missing alt text')]),
+                ]),
+                new AstNode('list_item', ['taskChecked' => true], [
+                    new AstNode('plain', [], [$text('Images reconciled')]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '\begin{enumerate}',
+                '\renewcommand{\labelenumi}{\Alph{enumi})}',
+                '\setcounter{enumi}{2}',
+                '\item',
+                '  Review source',
+                '\item',
+                '  Approve packet',
+                '\begin{enumerate}',
+                '\renewcommand{\labelenumii}{(\roman{enumii})}',
+                '\setcounter{enumii}{1}',
+                '\item',
+                '  Nested check',
+                '\end{enumerate}',
+                '\end{enumerate}',
+            ]),
+            implode("\n", [
+                '\begin{itemize}',
+                '\item[$\square$]',
+                '  Missing alt text',
+                '\item[$\boxtimes$]',
+                '  Images reconciled',
+                '\end{itemize}',
+            ]),
+        ]), (new LatexWriter())->write($document));
+    },
 ];
