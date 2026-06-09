@@ -93,6 +93,25 @@ $colgroupAlignmentTables = array_values(array_filter(
     $colgroupAlignmentDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$columnBackgroundDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="column-background-grid" data-source="html-reader">
+<caption>Column background review</caption>
+<colgroup data-source="legacy-doc" bgcolor="#FFF4CC" style="background-color: #e6ffed; background-image:url(javascript:alert(1))">
+<col span="2" width="25%" data-origin="metric-columns" />
+<col width="50%" bgcolor="yellow" style="background-color: rgb(230, 255, 237); background-image:url(javascript:alert(1))" data-origin="state-column" />
+</colgroup>
+<thead>
+<tr><th>Scope</th><th>Items</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$columnBackgroundTables = array_values(array_filter(
+    $columnBackgroundDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $decimalAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="decimal-alignment-grid" data-source="html-reader">
 <caption>Decimal alignment review</caption>
@@ -1564,6 +1583,7 @@ $document = new AstNode('document', [], [
     ]),
     ...$rowspanZeroTables,
     ...$colgroupAlignmentTables,
+    ...$columnBackgroundTables,
     ...$decimalAlignmentTables,
     ...$cellDecimalAlignmentTables,
     ...$colgroupMismatchTables,
@@ -2647,6 +2667,60 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($colgroupAlignmentPacket, JSON_THROW_ON_ERROR);
     json_encode($colgroupWriterPacket, JSON_THROW_ON_ERROR);
+
+    $columnBackgroundTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'column-background-grid') {
+            $columnBackgroundTable = $node;
+            break;
+        }
+    }
+    $columnBackgroundPacket = $columnBackgroundTable instanceof AstNode ? $columnBackgroundTable->attr('tableGeometry') : null;
+    $columnBackgrounds = is_array($columnBackgroundPacket) && is_array($columnBackgroundPacket['columnBackgrounds'] ?? null)
+        ? $columnBackgroundPacket['columnBackgrounds']
+        : [];
+    if (
+        !$columnBackgroundTable instanceof AstNode
+        || count($columnBackgrounds) !== 2
+        || ($columnBackgroundPacket['summary']['hasColumnBackgrounds'] ?? null) !== true
+        || ($columnBackgroundPacket['summary']['columnBackgroundColumns'] ?? null) !== [0, 1, 2]
+        || ($columnBackgroundPacket['summary']['columnBackgroundColors'] ?? null) !== ['#e6ffed', 'rgb(230, 255, 237)']
+        || ($columnBackgrounds[0]['sourceElement'] ?? null) !== 'colgroup'
+        || ($columnBackgrounds[0]['columns'] ?? null) !== [0, 1]
+        || ($columnBackgrounds[0]['legacyBackgroundColor'] ?? null) !== '#fff4cc'
+        || ($columnBackgrounds[1]['sourceElement'] ?? null) !== 'col'
+        || ($columnBackgrounds[1]['backgroundColor'] ?? null) !== 'rgb(230, 255, 237)'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing column background handoff metadata');
+    }
+    $columnBackgroundWriterPacket = TableGeometry::reviewPacket($columnBackgroundTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoctor', 'xelatex', 'wordpress'],
+    ]);
+    $columnBackgroundDiagnostics = array_values(array_filter(
+        $columnBackgroundWriterPacket['writerDowngrades']['markdown'] ?? [],
+        static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'column-background'
+    ));
+    if (
+        count($columnBackgroundDiagnostics) !== 1
+        || ($columnBackgroundDiagnostics[0]['code'] ?? null) !== 'markdown-column-background-require-raw-html'
+        || ($columnBackgroundDiagnostics[0]['requiredFeature'] ?? null) !== 'raw-html-column-background'
+        || ($columnBackgroundDiagnostics[0]['columns'] ?? null) !== [0, 1, 2]
+        || ($columnBackgroundWriterPacket['writerDowngrades']['asciidoc'][1]['requiredFeature'] ?? null) !== 'column-background-review'
+        || ($columnBackgroundWriterPacket['writerDowngrades']['latex'][1]['requiredFeature'] ?? null) !== 'table-column-background-comments'
+        || ($columnBackgroundWriterPacket['writerDowngrades']['wordpress'] ?? null) !== []
+    ) {
+        throw new RuntimeException('Table geometry self-test missing column background writer diagnostics');
+    }
+    $columnBackgroundBlocks = (new WordPressBlockWriter())->write($columnBackgroundDocument);
+    if (!str_contains($columnBackgroundBlocks, '<colgroup bgcolor="#FFF4CC" data-source="legacy-doc"><col data-origin="metric-columns" style="width:25%; background-color:#e6ffed"/><col data-origin="metric-columns" style="width:25%; background-color:#e6ffed"/><col bgcolor="yellow" data-origin="state-column" style="width:50%; background-color:rgb(230, 255, 237)"/></colgroup>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for column background metadata');
+    }
+    if (str_contains($columnBackgroundBlocks, 'javascript:')) {
+        throw new RuntimeException('Table geometry self-test rendered unsafe column background style');
+    }
+    json_encode($columnBackgroundPacket, JSON_THROW_ON_ERROR);
+    json_encode($columnBackgroundWriterPacket, JSON_THROW_ON_ERROR);
 
     $decimalAlignmentTable = null;
     foreach ($document->children as $node) {

@@ -1373,6 +1373,40 @@ TPL;
         ]));
     },
 
+    'suppresses standalone pandoc doctemplate partial source line endings after newline-terminated partials' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+---
+  $boilerplate()$
+---
+$for(employee)$
+$it:name()$
+$endfor$
+END
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'employee' => [
+                ['name' => ['first' => 'John', 'last' => 'Doe']],
+                ['name' => ['first' => 'Omar', 'last' => 'Smith']],
+                ['name' => ['first' => 'Sara', 'last' => 'Chen']],
+            ],
+        ], [
+            'boilerplate' => "BOILERPLATE\nHERE\n\n",
+            'name' => '($it.name.first$) $it.name.last$' . "\n",
+        ]);
+
+        $t->same(implode("\n", [
+            '---',
+            '  BOILERPLATE',
+            '  HERE',
+            '---',
+            '(John) Doe',
+            '(Omar) Smith',
+            '(Sara) Chen',
+            'END',
+        ]), $output);
+    },
+
     'applies pandoc doctemplate partials to variables arrays and pipes' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Cards:

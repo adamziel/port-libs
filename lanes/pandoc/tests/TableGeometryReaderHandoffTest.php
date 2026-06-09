@@ -714,6 +714,76 @@ HTML;
         $t->true(!str_contains($blocks, 'onclick='), 'Unsafe colgroup and col event attributes must not render');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'normalizes html column background metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="column-background-grid" data-source="html-reader">
+<caption>Column background review</caption>
+<colgroup data-source="legacy-doc" bgcolor="#FFF4CC" style="background-color: #e6ffed; background-image:url(javascript:alert(1))">
+<col span="2" width="25%" data-origin="metric-columns" />
+<col width="50%" bgcolor="yellow" style="background-color: rgb(230, 255, 237); background-image:url(javascript:alert(1))" data-origin="state-column" />
+</colgroup>
+<thead>
+<tr><th>Scope</th><th>Items</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $backgrounds = is_array($packet['columnBackgrounds'] ?? null) ? $packet['columnBackgrounds'] : [];
+        $t->same(2, count($backgrounds));
+        $t->same(true, $packet['summary']['hasColumnBackgrounds'] ?? null);
+        $t->same(2, $packet['summary']['columnBackgroundCount'] ?? null);
+        $t->same([0, 1, 2], $packet['summary']['columnBackgroundColumns'] ?? null);
+        $t->same(['#e6ffed', 'rgb(230, 255, 237)'], $packet['summary']['columnBackgroundColors'] ?? null);
+        $t->same(['style'], $packet['summary']['columnBackgroundSources'] ?? null);
+        $t->same(['colgroup', 'col'], $packet['summary']['columnBackgroundSourceElements'] ?? null);
+
+        $t->same([0, 1], $backgrounds[0]['columns'] ?? null);
+        $t->same(0, $backgrounds[0]['startColumn'] ?? null);
+        $t->same(2, $backgrounds[0]['endColumn'] ?? null);
+        $t->same('colgroup', $backgrounds[0]['sourceElement'] ?? null);
+        $t->same('#e6ffed', $backgrounds[0]['backgroundColor'] ?? null);
+        $t->same('#fff4cc', $backgrounds[0]['legacyBackgroundColor'] ?? null);
+        $t->same('#e6ffed', $backgrounds[0]['cssBackgroundColor'] ?? null);
+        $t->same(['background-color' => '#e6ffed', 'bgcolor' => '#fff4cc'], $backgrounds[0]['attributes'] ?? null);
+        $t->same('#FFF4CC', $backgrounds[0]['sourceAttributes']['htmlAttributes']['bgcolor'] ?? null);
+        $t->same('background-color: #e6ffed; background-image:url(javascript:alert(1))', $backgrounds[0]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+
+        $t->same([2], $backgrounds[1]['columns'] ?? null);
+        $t->same(2, $backgrounds[1]['startColumn'] ?? null);
+        $t->same(3, $backgrounds[1]['endColumn'] ?? null);
+        $t->same('col', $backgrounds[1]['sourceElement'] ?? null);
+        $t->same(1, $backgrounds[1]['colIndex'] ?? null);
+        $t->same('rgb(230, 255, 237)', $backgrounds[1]['backgroundColor'] ?? null);
+        $t->same('yellow', $backgrounds[1]['legacyBackgroundColor'] ?? null);
+        $t->same('rgb(230, 255, 237)', $backgrounds[1]['cssBackgroundColor'] ?? null);
+        $t->same('state-column', $backgrounds[1]['sourceAttributes']['htmlAttributes']['data-origin'] ?? null);
+
+        $markdownDiagnostics = array_values(array_filter(
+            $packet['writerDowngrades']['markdown'] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'column-background'
+        ));
+        $t->same(1, count($markdownDiagnostics));
+        $t->same('markdown-column-background-require-raw-html', $markdownDiagnostics[0]['code'] ?? null);
+        $t->same('raw-html-column-background', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['columnBackgroundCount'] ?? null);
+        $t->same([0, 1, 2], $markdownDiagnostics[0]['columns'] ?? null);
+        $t->same(['#e6ffed', 'rgb(230, 255, 237)'], $markdownDiagnostics[0]['colors'] ?? null);
+        $t->same(['colgroup', 'col'], $markdownDiagnostics[0]['sourceElements'] ?? null);
+
+        $t->contains('<colgroup bgcolor="#FFF4CC" data-source="legacy-doc"><col data-origin="metric-columns" style="width:25%; background-color:#e6ffed"/><col data-origin="metric-columns" style="width:25%; background-color:#e6ffed"/><col bgcolor="yellow" data-origin="state-column" style="width:50%; background-color:rgb(230, 255, 237)"/></colgroup>', $blocks);
+        $t->true(!str_contains($blocks, 'javascript:'), 'Unsafe column background URLs must not render');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'carries html column decimal alignment provenance into geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="decimal-alignment-grid" data-source="html-reader">

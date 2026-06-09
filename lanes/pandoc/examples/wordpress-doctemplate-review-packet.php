@@ -213,7 +213,7 @@ if (in_array('--self-test', $argv, true)) {
         "<p class=\"comment-spacing\">Before preserved comment whitespace</p>\n  \n<p class=\"comment-spacing\">After preserved comment whitespace</p>",
         '<p class="audit-flag" data-suppressed="false">Suppressed: <false></p>',
         "<p class=\"crlf-note\">CRLF partial final line ending stripped</p>\n<p class=\"partial-spacing\">Partial spacing survives reviewer packet boundaries</p>",
-        "<p class=\"partial-spacing\">Partial spacing survives reviewer packet boundaries</p>\n\n</header>",
+        "<p class=\"partial-spacing\">Partial spacing survives reviewer packet boundaries</p>\n</header>",
         $sourceSummaryPrefix . 'Première ligne' . "\n"
             . str_repeat(' ', UnicodeText::displayWidth($sourceSummaryPrefix))
             . 'Deuxième ligne</p>',

@@ -1842,6 +1842,7 @@ final class TableGeometry
      *     columns:list<array{column:int,alignment:string,width:?float,declared:bool}>,
      *     columnGroups:list<array<string, mixed>>,
      *     columnDecimalAlignments:list<array<string, mixed>>,
+     *     columnBackgrounds:list<array<string, mixed>>,
      *     cellDecimalAlignments:list<array<string, mixed>>,
      *     directionality:array<string, mixed>,
      *     tableLayout?:array<string, mixed>,
@@ -1880,6 +1881,7 @@ final class TableGeometry
         $widthSummary = self::columnWidthSummary($table, $columnCount);
         $columnGroups = self::columnGroups($table, $columnCount);
         $columnDecimalAlignments = self::columnDecimalAlignments($columnGroups);
+        $columnBackgrounds = self::columnBackgrounds($columnGroups);
         $cellDecimalAlignments = self::cellDecimalAlignments($coverageRecords);
         $cellNoWraps = self::cellNoWraps($coverageRecords);
         $sectionBackgrounds = self::sectionBackgrounds($sections);
@@ -1925,6 +1927,7 @@ final class TableGeometry
             'columns' => self::columnSpecs($table, $columnCount),
             'columnGroups' => $columnGroups,
             'columnDecimalAlignments' => $columnDecimalAlignments,
+            'columnBackgrounds' => $columnBackgrounds,
             'cellDecimalAlignments' => $cellDecimalAlignments,
             'cellNoWraps' => $cellNoWraps,
             'sectionBackgrounds' => $sectionBackgrounds,
@@ -1955,6 +1958,7 @@ final class TableGeometry
                 $captions,
                 $columnGroups,
                 $columnDecimalAlignments,
+                $columnBackgrounds,
                 $cellDecimalAlignments,
                 $cellNoWraps,
                 $sectionBackgrounds,
@@ -5154,6 +5158,7 @@ final class TableGeometry
      * @param array{long:array<string, mixed>,short:array<string, mixed>} $captions
      * @param list<array<string, mixed>> $columnGroups
      * @param list<array<string, mixed>> $columnDecimalAlignments
+     * @param list<array<string, mixed>> $columnBackgrounds
      * @param list<array<string, mixed>> $cellDecimalAlignments
      * @param list<array<string, mixed>> $cellNoWraps
      * @param list<array<string, mixed>> $sectionBackgrounds
@@ -5185,6 +5190,7 @@ final class TableGeometry
         array $captions,
         array $columnGroups,
         array $columnDecimalAlignments,
+        array $columnBackgrounds,
         array $cellDecimalAlignments,
         array $cellNoWraps,
         array $sectionBackgrounds,
@@ -5535,6 +5541,12 @@ final class TableGeometry
             'columnDecimalAlignmentColumns' => self::columnDecimalAlignmentColumns($columnDecimalAlignments),
             'columnDecimalAlignmentChars' => self::columnDecimalAlignmentStringValues($columnDecimalAlignments, 'char'),
             'columnDecimalAlignmentOffsets' => self::columnDecimalAlignmentStringValues($columnDecimalAlignments, 'charoff'),
+            'columnBackgroundCount' => count($columnBackgrounds),
+            'hasColumnBackgrounds' => $columnBackgrounds !== [],
+            'columnBackgroundColumns' => self::columnBackgroundColumns($columnBackgrounds),
+            'columnBackgroundColors' => self::columnBackgroundStringValues($columnBackgrounds, 'backgroundColor'),
+            'columnBackgroundSources' => self::columnBackgroundStringValues($columnBackgrounds, 'backgroundColorSource'),
+            'columnBackgroundSourceElements' => self::columnBackgroundStringValues($columnBackgrounds, 'sourceElement'),
             'cellDecimalAlignmentCount' => count($cellDecimalAlignments),
             'hasCellDecimalAlignments' => $cellDecimalAlignments !== [],
             'cellDecimalAlignmentColumns' => self::cellDecimalAlignmentColumns($cellDecimalAlignments),
@@ -5994,6 +6006,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::columnBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
@@ -6083,6 +6096,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::columnBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
@@ -6188,6 +6202,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::columnBackgroundWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
@@ -6821,6 +6836,212 @@ final class TableGeometry
             'chars' => self::columnDecimalAlignmentStringValues($records, 'char'),
             'charOffsets' => self::columnDecimalAlignmentStringValues($records, 'charoff'),
             'alignments' => $records,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columnGroups
+     * @return list<array<string, mixed>>
+     */
+    private static function columnBackgrounds(array $columnGroups): array
+    {
+        $records = [];
+        foreach ($columnGroups as $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+
+            $source = is_array($group['source'] ?? null) ? $group['source'] : [];
+            $background = self::columnBackgroundFromSource($source);
+            if ($background === []) {
+                continue;
+            }
+
+            $columns = self::intList($group['columns'] ?? []);
+            if ($columns === []) {
+                continue;
+            }
+
+            $record = [
+                'source' => 'html-table-column-background',
+                'kind' => (string) ($group['kind'] ?? ''),
+                'startColumn' => min($columns),
+                'endColumn' => max($columns) + 1,
+                'span' => count($columns),
+                'columns' => $columns,
+                'sourceElement' => (string) ($background['sourceElement'] ?? ''),
+                'backgroundColor' => (string) ($background['backgroundColor'] ?? ''),
+                'backgroundColorSource' => (string) ($background['backgroundColorSource'] ?? ''),
+            ];
+
+            foreach (['colgroupIndex', 'colIndex', 'sourceSpan'] as $key) {
+                if (isset($group[$key]) && is_numeric($group[$key])) {
+                    $record[$key] = (int) $group[$key];
+                }
+            }
+
+            $spanOffsets = self::intList($group['spanOffsets'] ?? []);
+            if ($spanOffsets !== []) {
+                $record['spanOffsets'] = $spanOffsets;
+            }
+
+            foreach (['legacyBackgroundColor', 'cssBackgroundColor'] as $key) {
+                $value = trim((string) ($background[$key] ?? ''));
+                if ($value !== '') {
+                    $record[$key] = $value;
+                }
+            }
+
+            foreach (['attributes', 'sourceAttributes'] as $key) {
+                $attributes = is_array($background[$key] ?? null) ? $background[$key] : [];
+                if ($attributes !== []) {
+                    $record[$key] = $attributes;
+                }
+            }
+
+            $records[] = $record;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @return array<string, mixed>
+     */
+    private static function columnBackgroundFromSource(array $source): array
+    {
+        $colAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
+        $background = self::columnBackgroundFromSourceAttributes($colAttributes, 'col');
+        if ($background !== []) {
+            return $background;
+        }
+
+        $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null) ? $source['colgroupAttributes'] : [];
+
+        return self::columnBackgroundFromSourceAttributes($colgroupAttributes, 'colgroup');
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttributes
+     * @return array<string, mixed>
+     */
+    private static function columnBackgroundFromSourceAttributes(array $sourceAttributes, string $sourceElement): array
+    {
+        $htmlAttributes = self::stringAttributeMap($sourceAttributes['htmlAttributes'] ?? [], true);
+        if ($htmlAttributes === []) {
+            return [];
+        }
+
+        $legacyBackgroundColor = self::normalizeTableBackgroundColorAttribute((string) ($htmlAttributes['bgcolor'] ?? ''));
+        $cssBackgroundColor = self::normalizeTableBackgroundStyleAttribute((string) ($htmlAttributes['style'] ?? ''));
+        if ($legacyBackgroundColor === '' && $cssBackgroundColor === '') {
+            return [];
+        }
+
+        $attributes = [];
+        if ($cssBackgroundColor !== '') {
+            $attributes['background-color'] = $cssBackgroundColor;
+        }
+        if ($legacyBackgroundColor !== '') {
+            $attributes['bgcolor'] = $legacyBackgroundColor;
+        }
+
+        $record = [
+            'source' => 'html-table-column-background',
+            'sourceElement' => $sourceElement,
+            'attributes' => $attributes,
+            'backgroundColor' => $cssBackgroundColor !== '' ? $cssBackgroundColor : $legacyBackgroundColor,
+            'backgroundColorSource' => $cssBackgroundColor !== '' ? 'style' : 'bgcolor',
+            'sourceAttributes' => $sourceAttributes,
+        ];
+
+        if ($legacyBackgroundColor !== '') {
+            $record['legacyBackgroundColor'] = $legacyBackgroundColor;
+        }
+        if ($cssBackgroundColor !== '') {
+            $record['cssBackgroundColor'] = $cssBackgroundColor;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<int>
+     */
+    private static function columnBackgroundColumns(array $records): array
+    {
+        $columns = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            foreach (self::intList($record['columns'] ?? []) as $column) {
+                $columns[] = $column;
+            }
+        }
+
+        return array_values(array_unique($columns));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function columnBackgroundStringValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $value = trim((string) ($record[$key] ?? ''));
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function columnBackgroundWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-column-background-require-raw-html', 'raw-html-column-background'],
+            'asciidoc' => ['asciidoc-column-background-review-required', 'column-background-review'],
+            'latex' => ['latex-column-background-review-required', 'table-column-background-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $records = self::columnBackgrounds(self::columnGroups($table, self::columnCount($table)));
+        if ($records === []) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'column-background',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-column-background',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'columnBackgroundCount' => count($records),
+            'columns' => self::columnBackgroundColumns($records),
+            'colors' => self::columnBackgroundStringValues($records, 'backgroundColor'),
+            'backgroundColorSources' => self::columnBackgroundStringValues($records, 'backgroundColorSource'),
+            'sourceElements' => self::columnBackgroundStringValues($records, 'sourceElement'),
+            'backgrounds' => $records,
         ]];
     }
 

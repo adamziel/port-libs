@@ -5043,6 +5043,9 @@ CSS;
                     }
 
                     $rendered = $this->nestMultiline($rendered, $autoNestPrefix);
+                    if ($isBarePartial && $this->endsWithLineEnding($rendered)) {
+                        $this->dropLeadingLineEndingAt($tokens, $index + 1, $end);
+                    }
                 }
             }
 
@@ -5505,6 +5508,11 @@ CSS;
         }
 
         return null;
+    }
+
+    private function endsWithLineEnding(string $value): bool
+    {
+        return str_ends_with($value, "\n") || str_ends_with($value, "\r");
     }
 
     /**

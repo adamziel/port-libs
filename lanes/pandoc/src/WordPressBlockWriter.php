@@ -866,11 +866,56 @@ final class WordPressBlockWriter
             $attrs = $this->renderSourceColumnDecimalAlignmentAttr($colAttributes)
                 . $this->renderSourceAttributeSummaryAttrs($colAttributes, false, ['align', 'span', 'style', 'width']);
             $width = isset($spec['width']) && is_numeric($spec['width']) ? (float) $spec['width'] : 0.0;
-            $attrs .= ' style="width:' . $this->esc($this->formatTableWidth($width)) . '"';
+            $styles = ['width:' . $this->formatTableWidth($width)];
+            $backgroundColor = $this->sourceColumnBackgroundColor($source);
+            if ($backgroundColor !== '') {
+                $styles[] = 'background-color:' . $backgroundColor;
+            }
+            $attrs .= ' style="' . $this->esc(implode('; ', $styles)) . '"';
             $html .= '<col' . $attrs . '/>';
         }
 
         return $currentGroupKey === null ? '' : $html . '</colgroup>';
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private function sourceColumnBackgroundColor(array $source): string
+    {
+        $colAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
+        $color = $this->sourceAttributeBackgroundColor($colAttributes);
+        if ($color !== '') {
+            return $color;
+        }
+
+        $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null) ? $source['colgroupAttributes'] : [];
+
+        return $this->sourceAttributeBackgroundColor($colgroupAttributes);
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttributes
+     */
+    private function sourceAttributeBackgroundColor(array $sourceAttributes): string
+    {
+        $attributes = $this->sourceAttributeSummaryMap($sourceAttributes);
+        $style = (string) ($attributes['style'] ?? '');
+        if ($style !== '') {
+            foreach (explode(';', $style) as $declaration) {
+                [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+                if (strtolower(trim($name)) !== 'background-color') {
+                    continue;
+                }
+
+                $color = $this->legacyTableBackgroundColorValue($value);
+                if ($color !== '') {
+                    return $color;
+                }
+            }
+        }
+
+        return $this->legacyTableBackgroundColorValue((string) ($attributes['bgcolor'] ?? ''));
     }
 
     /**
