@@ -13504,12 +13504,28 @@ final class PdfMetadataExtractor
             $cryptFilterSelection['selected_recipient_sha256'] ?? [],
             static fn (mixed $hash): bool => is_string($hash)
         ));
+        $selectedRecipientDeclarationFailClosed = (bool) ($cryptFilterSelection['selected_recipient_declaration_fail_closed'] ?? false);
+        $selectedRecipientEntryStatuses = is_array($cryptFilterSelection['selected_recipient_entry_statuses'] ?? null)
+            ? array_values(array_filter(
+                $cryptFilterSelection['selected_recipient_entry_statuses'],
+                static fn (mixed $status): bool => is_string($status)
+            ))
+            : [];
+        $selectedRecipientTrailingOperandCount = (int) ($cryptFilterSelection['selected_recipient_trailing_operand_count'] ?? 0);
         $selectedRecipientSources = [];
         if ($topLevelRecipientsSelected && $topLevelRecipients !== null) {
             $selectedRecipientSources[] = 'encryption_dictionary_recipients';
             $selectedRecipientCount += (int) ($topLevelRecipients['recipient_count'] ?? 0);
             $selectedRecipientBytes += (int) ($topLevelRecipients['recipient_bytes'] ?? 0);
             $selectedUnresolvedRecipientCount += (int) ($topLevelRecipients['unresolved_recipient_count'] ?? 0);
+            $selectedRecipientDeclarationFailClosed = $selectedRecipientDeclarationFailClosed
+                || (bool) ($topLevelRecipients['recipient_declaration_fail_closed'] ?? false);
+            $selectedRecipientTrailingOperandCount += (int) ($topLevelRecipients['recipient_trailing_operand_count'] ?? 0);
+            foreach ($topLevelRecipients['recipient_entry_statuses'] ?? [] as $status) {
+                if (is_string($status) && !in_array($status, $selectedRecipientEntryStatuses, true)) {
+                    $selectedRecipientEntryStatuses[] = $status;
+                }
+            }
             foreach ($topLevelRecipients['recipient_sha256'] ?? [] as $hash) {
                 if (is_string($hash) && !in_array($hash, $selectedRecipientHashes, true)) {
                     $selectedRecipientHashes[] = $hash;
@@ -13523,16 +13539,16 @@ final class PdfMetadataExtractor
 
         $selectedRecipientPermissionsMissing = $recipientCount > 0
             && $selectedRecipientCount === 0
-            && $recipientDeclarationSummary['recipient_declaration_fail_closed'] !== true
+            && !$selectedRecipientDeclarationFailClosed
             && !$cryptFilterRoleDeclarationFailClosed;
         $permissionDecodeStatus = 'public_key_recipient_envelopes_missing';
-        if ($recipientDeclarationSummary['recipient_declaration_fail_closed'] === true) {
+        if ($selectedRecipientDeclarationFailClosed) {
             $permissionDecodeStatus = 'public_key_recipient_declaration_malformed_review';
         } elseif ($cryptFilterRoleDeclarationFailClosed) {
             $permissionDecodeStatus = 'public_key_crypt_filter_role_declaration_malformed_review';
         } elseif ($selectedRecipientPermissionsMissing) {
             $permissionDecodeStatus = 'public_key_selected_recipient_envelopes_missing';
-        } elseif ($recipientCount > 0) {
+        } elseif ($selectedRecipientCount > 0 || $recipientCount > 0) {
             $permissionDecodeStatus = 'cms_pkcs7_permission_decode_unavailable';
         }
 
@@ -13562,6 +13578,9 @@ final class PdfMetadataExtractor
             'selected_recipient_sha256' => $selectedRecipientHashes,
             'selected_recipient_sources' => $selectedRecipientSources,
             'selected_recipient_source_policy' => $this->publicKeySelectedRecipientSourcePolicy($selectedRecipientSources),
+            'selected_recipient_declaration_fail_closed' => $selectedRecipientDeclarationFailClosed,
+            'selected_recipient_entry_statuses' => $selectedRecipientEntryStatuses,
+            'selected_recipient_trailing_operand_count' => $selectedRecipientTrailingOperandCount,
             'crypt_filter_selection' => $cryptFilterSelection,
             'crypt_filter_role_declaration_fail_closed' => $cryptFilterRoleDeclarationFailClosed,
             'crypt_filter_role_fail_closed_role_names' => $cryptFilterRoleFailClosedRoleNames,
@@ -13578,10 +13597,11 @@ final class PdfMetadataExtractor
             'recipient_trailing_operand_shapes' => $recipientDeclarationSummary['recipient_trailing_operand_shapes'],
             'recipient_trailing_operand_previews' => $recipientDeclarationSummary['recipient_trailing_operand_previews'],
             'recipient_declaration_reviews' => $recipientDeclarationSummary['recipient_declaration_reviews'],
-            'permissions_available_in_recipient_envelopes' => $recipientCount > 0
-                && $recipientDeclarationSummary['recipient_declaration_fail_closed'] !== true,
+            'permissions_available_in_recipient_envelopes' => $selectedRecipientCount > 0
+                ? !$selectedRecipientDeclarationFailClosed
+                : ($recipientCount > 0 && $recipientDeclarationSummary['recipient_declaration_fail_closed'] !== true),
             'selected_permissions_available_in_recipient_envelopes' => $selectedRecipientCount > 0
-                && $recipientDeclarationSummary['recipient_declaration_fail_closed'] !== true,
+                && !$selectedRecipientDeclarationFailClosed,
             'selected_recipient_permissions_missing' => $selectedRecipientPermissionsMissing,
             'permissions_decoded' => false,
             'permission_decode_status' => $permissionDecodeStatus,

@@ -2005,12 +2005,96 @@ final class PdfActionReviewExtractor
 
     private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
     {
-        while (($candidate = strpos($pdfBytes, 'trailer', $offset)) !== false) {
-            if ($this->pdfKeywordAt($pdfBytes, $candidate, 'trailer')) {
-                return $candidate;
+        $length = strlen($pdfBytes);
+        while ($offset < $length) {
+            $char = $pdfBytes[$offset];
+
+            if (substr($pdfBytes, $offset, 5) === '%%EOF' || $this->pdfKeywordAt($pdfBytes, $offset, 'startxref')) {
+                return null;
             }
 
-            $offset = $candidate + 1;
+            if ($char === '%') {
+                $this->skipPdfCommentLine($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->skipPdfLiteralStringAt($pdfBytes, $offset);
+                if ($end === null) {
+                    return null;
+                }
+
+                $offset = $end;
+                continue;
+            }
+
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = $this->skipPdfHexStringAt($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $offset, 'trailer')) {
+                $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $offset + strlen('trailer'));
+                if (substr($pdfBytes, $dictionaryOffset, 2) === '<<') {
+                    return $offset;
+                }
+            }
+
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private function skipPdfCommentLine(string $pdfBytes, int &$offset): void
+    {
+        $length = strlen($pdfBytes);
+        while ($offset < $length && $pdfBytes[$offset] !== "\n" && $pdfBytes[$offset] !== "\r") {
+            $offset++;
+        }
+    }
+
+    private function skipPdfLiteralStringAt(string $pdfBytes, int $offset): ?int
+    {
+        if (($pdfBytes[$offset] ?? '') !== '(') {
+            return null;
+        }
+
+        $cursor = $offset;
+        $this->readLiteralToken($pdfBytes, $cursor);
+
+        return $cursor > $offset ? $cursor : null;
+    }
+
+    private function skipPdfHexStringAt(string $pdfBytes, int $offset): ?int
+    {
+        if (($pdfBytes[$offset] ?? '') !== '<' || ($pdfBytes[$offset + 1] ?? '') === '<') {
+            return null;
+        }
+
+        $cursor = $offset;
+        $this->readHexToken($pdfBytes, $cursor);
+
+        return $cursor > $offset ? $cursor : null;
+    }
+
+    private function skipPdfCompositeTokenAt(string $pdfBytes, int $offset): ?int
+    {
+        if (($pdfBytes[$offset] ?? '') === '[') {
+            return $this->arrayEndOffset($pdfBytes, $offset);
+        }
+
+        if (substr($pdfBytes, $offset, 2) === '<<') {
+            return $this->dictionaryEndOffset($pdfBytes, $offset);
         }
 
         return null;

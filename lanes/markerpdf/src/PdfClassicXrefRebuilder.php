@@ -483,15 +483,51 @@ final class PdfClassicXrefRebuilder
 
     private static function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
     {
-        while (($candidate = strpos($pdfBytes, 'trailer', $offset)) !== false) {
-            if (
-                self::pdfKeywordAt($pdfBytes, $candidate, 'trailer')
-                && !self::tokenStartsInPdfCommentLine($pdfBytes, $candidate)
-            ) {
-                return $candidate;
+        $length = strlen($pdfBytes);
+        while ($offset < $length) {
+            $char = $pdfBytes[$offset];
+
+            if (substr($pdfBytes, $offset, 5) === '%%EOF' || self::pdfKeywordAt($pdfBytes, $offset, 'startxref')) {
+                return null;
             }
 
-            $offset = $candidate + 1;
+            if ($char === '%') {
+                self::skipPdfComment($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = self::skipPdfLiteralStringAt($pdfBytes, $offset);
+                if ($end === null) {
+                    return null;
+                }
+
+                $offset = $end;
+                continue;
+            }
+
+            $compositeEnd = self::skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = self::skipPdfHexStringBoundaryAt($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            if (self::pdfKeywordAt($pdfBytes, $offset, 'trailer')) {
+                $dictionaryOffset = self::skipPdfWhitespace($pdfBytes, $offset + strlen('trailer'));
+                if (substr($pdfBytes, $dictionaryOffset, 2) === '<<') {
+                    return $offset;
+                }
+            }
+
+            $offset++;
         }
 
         return null;
