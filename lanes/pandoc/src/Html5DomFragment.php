@@ -645,6 +645,9 @@ final class Html5DomFragment
 
             return $children === [] ? null : $children;
         }
+        if ($mode === 'html' && $elementForeignContext === null) {
+            self::markHtmlMicrodataValueMetadata($node, $name, $attrs, $children, $diagnostics);
+        }
 
         $element = [
             'type' => 'element',
@@ -8085,6 +8088,93 @@ final class Html5DomFragment
             'tag' => $tagName,
             'attribute' => $attributeName,
         ], $element);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlMicrodataValueMetadata(
+        \DOMElement $element,
+        string $tagName,
+        array &$attrs,
+        array $children,
+        array &$diagnostics
+    ): void {
+        if (!array_key_exists('data-pandoc-microdata-property', $attrs)) {
+            return;
+        }
+        if (array_key_exists('data-pandoc-microdata-scope', $attrs)) {
+            return;
+        }
+
+        $value = self::htmlMicrodataItemValue($tagName, $attrs, $children);
+        if ($value === null) {
+            return;
+        }
+
+        $attrs['data-pandoc-microdata-value'] = $value;
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'microdata-value-review',
+            'tag' => $tagName,
+            'attribute' => 'itemprop',
+            'metadataAttribute' => 'data-pandoc-microdata-value',
+            'reason' => 'microdata-item-value-preserved-as-review-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $children
+     */
+    private static function htmlMicrodataItemValue(string $tagName, array $attrs, array $children): ?string
+    {
+        $tag = strtolower($tagName);
+        $value = match ($tag) {
+            'a', 'area', 'link' => $attrs['href'] ?? null,
+            'audio', 'embed', 'iframe', 'img', 'source', 'track', 'video' => $attrs['src'] ?? null,
+            'object' => $attrs['data'] ?? null,
+            'data' => $attrs['data-pandoc-data-value'] ?? null,
+            'meter' => $attrs['data-pandoc-meter-value'] ?? null,
+            'time' => $attrs['data-pandoc-time-datetime'] ?? null,
+            default => self::textFromNormalizedNodes($children),
+        };
+
+        if ($value === null) {
+            return null;
+        }
+
+        return self::normalizeHtmlMicrodataItemValue($value);
+    }
+
+    private static function normalizeHtmlMicrodataItemValue(string $value): ?string
+    {
+        $value = self::cleanHtmlMetadataAttribute($value);
+        if ($value === '' || strlen($value) > 512) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     */
+    private static function textFromNormalizedNodes(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'text') {
+                $text .= (string) ($node['text'] ?? '');
+                continue;
+            }
+            if (($node['type'] ?? '') === 'element' && is_array($node['children'] ?? null)) {
+                $text .= self::textFromNormalizedNodes($node['children']);
+            }
+        }
+
+        return $text;
     }
 
     /**

@@ -2340,7 +2340,7 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article https://source.example.test/import/posts/types/Local" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline author">'
-            . '<h1 data-pandoc-microdata-property="headline schema:name">Title</h1>'
+            . '<h1 data-pandoc-microdata-property="headline schema:name" data-pandoc-microdata-value="Title">Title</h1>'
             . '<a data-pandoc-rdfa-property="schema:url og:url" data-pandoc-rdfa-typeof="schema:Article https://schema.org/NewsArticle" data-pandoc-rdfa-about="https://source.example.test/import/posts/post.html#article" data-pandoc-rdfa-resource="https://source.example.test/import/posts/canonical.html" data-pandoc-rdfa-vocab="https://schema.org/" data-pandoc-rdfa-prefix="schema: https://schema.org/ og: https://ogp.me/ns#" href="https://source.example.test/import/posts/canonical.html">Canonical</a>'
             . '<span data-pandoc-rdfa-property="og:title">Social</span></article>';
         $policyDiagnostics = array_values(array_filter(
@@ -2363,6 +2363,7 @@ return [
             'semantic-metadata-review',
             'unsafe-attribute',
             'semantic-metadata-review',
+            'microdata-value-review',
             'semantic-metadata-review',
             'semantic-metadata-review',
             'semantic-metadata-review',
@@ -2381,7 +2382,10 @@ return [
             'data-pandoc-microdata-id' => 'https://source.example.test/import/posts/articles/42',
             'data-pandoc-microdata-ref' => 'headline author',
         ], $nodes[0]['attrs']);
-        $t->same(['data-pandoc-microdata-property' => 'headline schema:name'], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'data-pandoc-microdata-property' => 'headline schema:name',
+            'data-pandoc-microdata-value' => 'Title',
+        ], $nodes[0]['children'][0]['attrs']);
         $t->same([
             'data-pandoc-rdfa-property' => 'schema:url og:url',
             'data-pandoc-rdfa-typeof' => 'schema:Article https://schema.org/NewsArticle',
@@ -2399,6 +2403,74 @@ return [
         }
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe semantic metadata URLs to be stripped');
         $t->true(!str_contains($html, 'bad&lt;tag'), 'Expected malformed semantic term tokens to be stripped');
+    },
+    'derives microdata item values into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article itemscope itemtype="https://schema.org/Article">'
+            . '<h1 itemprop="headline"> Review title </h1>'
+            . '<a itemprop="url" href="./posts/42.html">Permalink</a>'
+            . '<img itemprop="image" src="./cover.jpg" alt="Cover">'
+            . '<time itemprop="datePublished" datetime="2026-06-09 16:57Z">June 9</time>'
+            . '<data itemprop="wordCount" value=" 1250 ">1,250 words</data>'
+            . '<meter itemprop="ratingValue" value=".75" min="0" max="1">Rating</meter>'
+            . '<span itemprop="description"> Summary <em>with emphasis</em> </span>'
+            . '<section itemprop="author" itemscope itemtype="https://schema.org/Person"><span itemprop="name">Ada Lovelace</span></section>'
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/microdata-value-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article">'
+            . '<h1 data-pandoc-microdata-property="headline" data-pandoc-microdata-value="Review title"> Review title </h1>'
+            . '<a data-pandoc-microdata-property="url" href="https://source.example.test/import/posts/posts/42.html" data-pandoc-microdata-value="https://source.example.test/import/posts/posts/42.html">Permalink</a>'
+            . '<img data-pandoc-microdata-property="image" src="https://source.example.test/import/posts/cover.jpg" alt="Cover" data-pandoc-microdata-value="https://source.example.test/import/posts/cover.jpg">'
+            . '<time data-pandoc-microdata-property="datePublished" data-pandoc-time-datetime="2026-06-09T16:57Z" data-pandoc-time-kind="global-datetime" data-pandoc-microdata-value="2026-06-09T16:57Z">June 9</time>'
+            . '<data data-pandoc-microdata-property="wordCount" data-pandoc-data-value="1250" data-pandoc-microdata-value="1250">1,250 words</data>'
+            . '<meter data-pandoc-microdata-property="ratingValue" data-pandoc-meter-value="0.75" data-pandoc-meter-min="0" data-pandoc-meter-max="1" data-pandoc-microdata-value="0.75">Rating</meter>'
+            . '<span data-pandoc-microdata-property="description" data-pandoc-microdata-value="Summary with emphasis"> Summary <em>with emphasis</em> </span>'
+            . '<section data-pandoc-microdata-property="author" data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Person"><span data-pandoc-microdata-property="name" data-pandoc-microdata-value="Ada Lovelace">Ada Lovelace</span></section>'
+            . '</article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(' Review title PermalinkJune 91,250 wordsRating Summary with emphasis Ada Lovelace', $fragment->textContent());
+        $t->same(['a', 'article', 'data', 'em', 'h1', 'img', 'meter', 'section', 'span', 'time'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(26, count($policyDiagnostics));
+        $t->same(8, count(array_filter(
+            $policyDiagnostics,
+            static fn (string $code): bool => $code === 'microdata-value-review'
+        )));
+        $t->same([
+            'data-pandoc-microdata-scope' => 'true',
+            'data-pandoc-microdata-type' => 'https://schema.org/Article',
+        ], $nodes[0]['attrs']);
+        $t->same('Review title', $nodes[0]['children'][0]['attrs']['data-pandoc-microdata-value']);
+        $t->same('https://source.example.test/import/posts/posts/42.html', $nodes[0]['children'][1]['attrs']['data-pandoc-microdata-value']);
+        $t->same('https://source.example.test/import/posts/cover.jpg', $nodes[0]['children'][2]['attrs']['data-pandoc-microdata-value']);
+        $t->same('2026-06-09T16:57Z', $nodes[0]['children'][3]['attrs']['data-pandoc-microdata-value']);
+        $t->same('1250', $nodes[0]['children'][4]['attrs']['data-pandoc-microdata-value']);
+        $t->same('0.75', $nodes[0]['children'][5]['attrs']['data-pandoc-microdata-value']);
+        $t->same('Summary with emphasis', $nodes[0]['children'][6]['attrs']['data-pandoc-microdata-value']);
+        $t->true(!array_key_exists('data-pandoc-microdata-value', $nodes[0]['children'][7]['attrs']));
+        $t->same('Ada Lovelace', $nodes[0]['children'][7]['children'][0]['attrs']['data-pandoc-microdata-value']);
+        $t->same('/migration/microdata-value-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' itemprop=', ' itemscope', ' itemtype=', ' datetime=', ' value=', ' min=', ' max='] as $sourceAttribute) {
+            $t->true(!str_contains($html, $sourceAttribute), 'Expected source microdata/value attribute to be replaced: ' . $sourceAttribute);
+            $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source microdata/value attribute: ' . $sourceAttribute);
+        }
     },
     'adds source line metadata to semantic metadata diagnostics before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
@@ -2446,7 +2518,7 @@ return [
         ));
 
         $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline">' . "\n"
-            . '<h1 data-pandoc-microdata-property="headline">Title</h1>' . "\n"
+            . '<h1 data-pandoc-microdata-property="headline" data-pandoc-microdata-value="Title">Title</h1>' . "\n"
             . '<a data-pandoc-rdfa-property="schema:url" data-pandoc-rdfa-about="https://source.example.test/import/posts/article" data-pandoc-rdfa-prefix="schema: https://source.example.test/import/posts/schema" href="https://source.example.test/import/posts/canonical.html">Canonical</a>' . "\n"
             . '</article>';
 
