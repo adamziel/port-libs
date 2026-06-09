@@ -34,6 +34,8 @@ final class PlainWriter
      *     maxOutputDisplayWidth:int,
      *     overColumnLineCount:int,
      *     maxOverColumnDisplayWidth:int,
+     *     forcedWrapBreakCount:int,
+     *     maxForcedWrapSegmentDisplayWidth:int,
      *     hardBreakCount:int,
      *     lineFeedBreakCount:int,
      *     lineSeparatorBreakCount:int,
@@ -60,6 +62,8 @@ final class PlainWriter
      *       maxOutputDisplayWidth:int,
      *       overColumnLineCount:int,
      *       maxOverColumnDisplayWidth:int,
+     *       forcedWrapBreakCount:int,
+     *       maxForcedWrapSegmentDisplayWidth:int,
      *       wrapped:bool,
      *       softWrapBreakCount:int,
      *       lineFeedBreakCount:int,
@@ -98,6 +102,8 @@ final class PlainWriter
         $maxOutputDisplayWidth = 0;
         $overColumnLineCount = 0;
         $maxOverColumnDisplayWidth = 0;
+        $forcedWrapBreakCount = 0;
+        $maxForcedWrapSegmentDisplayWidth = 0;
         $hardBreakCount = 0;
         $lineFeedBreakCount = 0;
         $lineSeparatorBreakCount = 0;
@@ -144,9 +150,15 @@ final class PlainWriter
             $sourceMax = $this->maxDisplayWidth($sourceLines, $ambiguousWidth);
             $outputMax = $this->maxDisplayWidth($wrappedLines, $ambiguousWidth);
             $overColumn = $this->overColumnLineMetrics($wrappedLines, $columns, $ambiguousWidth);
+            $forcedWrap = $this->forcedWrapMetrics($sourceLines, $columns, $wrapMode, $ambiguousWidth);
             $maxOutputDisplayWidth = max($maxOutputDisplayWidth, $outputMax);
             $overColumnLineCount += $overColumn['count'];
             $maxOverColumnDisplayWidth = max($maxOverColumnDisplayWidth, $overColumn['maxDisplayWidth']);
+            $forcedWrapBreakCount += $forcedWrap['forcedWrapBreakCount'];
+            $maxForcedWrapSegmentDisplayWidth = max(
+                $maxForcedWrapSegmentDisplayWidth,
+                $forcedWrap['maxForcedWrapSegmentDisplayWidth']
+            );
             $outputLineCount += $this->nonEmptyLineCount($wrappedLines);
             $blankSourceLineCount += $blockBlankSourceLineCount;
             $blankOutputLineCount += $blockBlankOutputLineCount;
@@ -180,6 +192,8 @@ final class PlainWriter
                 'maxOutputDisplayWidth' => $outputMax,
                 'overColumnLineCount' => $overColumn['count'],
                 'maxOverColumnDisplayWidth' => $overColumn['maxDisplayWidth'],
+                'forcedWrapBreakCount' => $forcedWrap['forcedWrapBreakCount'],
+                'maxForcedWrapSegmentDisplayWidth' => $forcedWrap['maxForcedWrapSegmentDisplayWidth'],
                 'wrapped' => $wrapped,
                 'softWrapBreakCount' => $blockSoftWrapBreakCount,
                 'lineFeedBreakCount' => $typeCounts['lineFeed'],
@@ -213,6 +227,8 @@ final class PlainWriter
                 'maxOutputDisplayWidth' => $maxOutputDisplayWidth,
                 'overColumnLineCount' => $overColumnLineCount,
                 'maxOverColumnDisplayWidth' => $maxOverColumnDisplayWidth,
+                'forcedWrapBreakCount' => $forcedWrapBreakCount,
+                'maxForcedWrapSegmentDisplayWidth' => $maxForcedWrapSegmentDisplayWidth,
                 'hardBreakCount' => $hardBreakCount,
                 'lineFeedBreakCount' => $lineFeedBreakCount,
                 'lineSeparatorBreakCount' => $lineSeparatorBreakCount,
@@ -539,6 +555,117 @@ final class PlainWriter
         }
 
         return max(1, count($lines));
+    }
+
+    /**
+     * @param list<string> $sourceLines
+     * @return array{forcedWrapBreakCount:int, maxForcedWrapSegmentDisplayWidth:int}
+     */
+    private function forcedWrapMetrics(array $sourceLines, int $columns, string $wrapMode, string $ambiguousWidth): array
+    {
+        if ($wrapMode !== 'auto' || $columns <= 0) {
+            return ['forcedWrapBreakCount' => 0, 'maxForcedWrapSegmentDisplayWidth' => 0];
+        }
+
+        $breaks = 0;
+        $maxSegmentWidth = 0;
+        foreach ($sourceLines as $line) {
+            foreach ($this->unbreakableWrapSegments($line) as $segment) {
+                $segmentWidth = UnicodeText::displayWidth($segment, $ambiguousWidth);
+                $segmentBreaks = $this->forcedWrapBreaksForSegment($segment, $columns, $ambiguousWidth);
+                if ($segmentBreaks === 0) {
+                    continue;
+                }
+
+                $breaks += $segmentBreaks;
+                $maxSegmentWidth = max($maxSegmentWidth, $segmentWidth);
+            }
+        }
+
+        return [
+            'forcedWrapBreakCount' => $breaks,
+            'maxForcedWrapSegmentDisplayWidth' => $maxSegmentWidth,
+        ];
+    }
+
+    private function forcedWrapBreaksForSegment(string $segment, int $columns, string $ambiguousWidth): int
+    {
+        $breaks = 0;
+        $remaining = $segment;
+        while ($remaining !== '' && UnicodeText::displayWidth($remaining, $ambiguousWidth) > $columns) {
+            [, $tail] = UnicodeText::splitAtDisplayWidth($remaining, $columns, $ambiguousWidth);
+            if ($tail === '') {
+                break;
+            }
+
+            ++$breaks;
+            $remaining = $tail;
+        }
+
+        return $breaks;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function unbreakableWrapSegments(string $line): array
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return [];
+        }
+
+        $segments = [];
+        $buffer = '';
+        foreach (UnicodeText::characters($line) as $char) {
+            if ($this->isDiagnosticWrapWhitespace($char) || $char === "\u{200B}" || $char === "\u{00AD}") {
+                $this->appendDiagnosticSegment($segments, $buffer);
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+            if ($char === "\u{0F0B}") {
+                $this->appendDiagnosticSegment($segments, $buffer);
+                $buffer = '';
+            }
+        }
+        $this->appendDiagnosticSegment($segments, $buffer);
+
+        return $segments;
+    }
+
+    /**
+     * @param list<string> $segments
+     */
+    private function appendDiagnosticSegment(array &$segments, string $segment): void
+    {
+        if ($segment !== '') {
+            $segments[] = $segment;
+        }
+    }
+
+    private function isDiagnosticWrapWhitespace(string $char): bool
+    {
+        return in_array($char, [
+            ' ',
+            "\t",
+            "\x0B",
+            "\x0C",
+            "\u{1680}",
+            "\u{2000}",
+            "\u{2001}",
+            "\u{2002}",
+            "\u{2003}",
+            "\u{2004}",
+            "\u{2005}",
+            "\u{2006}",
+            "\u{2008}",
+            "\u{2009}",
+            "\u{200A}",
+            "\u{205F}",
+            "\u{3000}",
+        ], true);
     }
 
     /**

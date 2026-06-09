@@ -39,6 +39,8 @@ return [
         $t->same(2, $result['diagnostics']['softWrapBreakCount']);
         $t->same(5, $result['diagnostics']['outputLineCount']);
         $t->same(22, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(0, $result['diagnostics']['forcedWrapBreakCount']);
+        $t->same(0, $result['diagnostics']['maxForcedWrapSegmentDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
         $t->same(9, $result['diagnostics']['softBreakOpportunityCount']);
         $t->same(9, $result['diagnostics']['spaceBreakOpportunityCount']);
@@ -62,6 +64,8 @@ return [
             'maxOutputDisplayWidth' => 22,
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
+            'forcedWrapBreakCount' => 0,
+            'maxForcedWrapSegmentDisplayWidth' => 0,
             'wrapped' => true,
             'softWrapBreakCount' => 2,
             'lineFeedBreakCount' => 0,
@@ -110,6 +114,8 @@ return [
             'maxOutputDisplayWidth' => 33,
             'overColumnLineCount' => 2,
             'maxOverColumnDisplayWidth' => 33,
+            'forcedWrapBreakCount' => 0,
+            'maxForcedWrapSegmentDisplayWidth' => 0,
             'wrapped' => false,
             'softWrapBreakCount' => 0,
             'lineFeedBreakCount' => 2,
@@ -159,6 +165,8 @@ return [
             'maxOutputDisplayWidth' => 9,
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
+            'forcedWrapBreakCount' => 0,
+            'maxForcedWrapSegmentDisplayWidth' => 0,
             'wrapped' => true,
             'softWrapBreakCount' => 2,
             'lineFeedBreakCount' => 1,
@@ -204,6 +212,8 @@ return [
             'maxOutputDisplayWidth' => 16,
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
+            'forcedWrapBreakCount' => 0,
+            'maxForcedWrapSegmentDisplayWidth' => 0,
             'wrapped' => true,
             'softWrapBreakCount' => 1,
             'lineFeedBreakCount' => 0,
@@ -270,6 +280,8 @@ return [
             'maxOutputDisplayWidth' => 13,
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
+            'forcedWrapBreakCount' => 0,
+            'maxForcedWrapSegmentDisplayWidth' => 0,
             'wrapped' => true,
             'softWrapBreakCount' => 1,
             'lineFeedBreakCount' => 1,
@@ -324,6 +336,8 @@ return [
             'maxOutputDisplayWidth' => 8,
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
+            'forcedWrapBreakCount' => 0,
+            'maxForcedWrapSegmentDisplayWidth' => 0,
             'wrapped' => true,
             'softWrapBreakCount' => 5,
             'lineFeedBreakCount' => 0,
@@ -358,6 +372,8 @@ return [
         $t->same(1, $result['diagnostics']['wrappedBlockCount']);
         $t->same(2, $result['diagnostics']['softWrapBreakCount']);
         $t->same(4, $result['diagnostics']['outputLineCount']);
+        $t->same(0, $result['diagnostics']['forcedWrapBreakCount']);
+        $t->same(0, $result['diagnostics']['maxForcedWrapSegmentDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
         $t->same(1, $result['diagnostics']['lineFeedBreakCount']);
         $t->same(4, $result['diagnostics']['softBreakOpportunityCount']);
@@ -365,6 +381,8 @@ return [
         $t->same(4, $result['diagnostics']['blocks'][0]['outputLineCount']);
         $t->same(true, $result['diagnostics']['blocks'][0]['wrapped']);
         $t->same(2, $result['diagnostics']['blocks'][0]['softWrapBreakCount']);
+        $t->same(0, $result['diagnostics']['blocks'][0]['forcedWrapBreakCount']);
+        $t->same(0, $result['diagnostics']['blocks'][0]['maxForcedWrapSegmentDisplayWidth']);
         $t->same(1, $result['diagnostics']['blocks'][0]['lineFeedBreakCount']);
     },
     'reports blank lines in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
@@ -382,6 +400,8 @@ return [
         $t->same(1, $result['diagnostics']['blankSourceLineCount']);
         $t->same(1, $result['diagnostics']['blankOutputLineCount']);
         $t->same(5, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(0, $result['diagnostics']['forcedWrapBreakCount']);
+        $t->same(0, $result['diagnostics']['maxForcedWrapSegmentDisplayWidth']);
         $t->same(2, $result['diagnostics']['hardBreakCount']);
         $t->same(2, $result['diagnostics']['lineFeedBreakCount']);
         $t->same(2, $result['diagnostics']['softBreakOpportunityCount']);
@@ -397,6 +417,8 @@ return [
             'maxOutputDisplayWidth' => 5,
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
+            'forcedWrapBreakCount' => 0,
+            'maxForcedWrapSegmentDisplayWidth' => 0,
             'wrapped' => true,
             'softWrapBreakCount' => 2,
             'lineFeedBreakCount' => 2,
@@ -427,6 +449,8 @@ return [
         $t->same(0, $result['diagnostics']['softWrapBreakCount']);
         $t->same(4, $result['diagnostics']['outputLineCount']);
         $t->same(10, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(0, $result['diagnostics']['forcedWrapBreakCount']);
+        $t->same(0, $result['diagnostics']['maxForcedWrapSegmentDisplayWidth']);
         $t->same(3, $result['diagnostics']['hardBreakCount']);
         $t->same(1, $result['diagnostics']['lineFeedBreakCount']);
         $t->same(1, $result['diagnostics']['lineSeparatorBreakCount']);
@@ -447,6 +471,8 @@ return [
             'maxOutputDisplayWidth' => 10,
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
+            'forcedWrapBreakCount' => 0,
+            'maxForcedWrapSegmentDisplayWidth' => 0,
             'wrapped' => true,
             'softWrapBreakCount' => 0,
             'lineFeedBreakCount' => 1,
@@ -462,6 +488,67 @@ return [
             'visibleBreakAfterOpportunityCount' => 0,
             'protectedSeparatorCount' => 0,
             'lineEndingNormalizationCount' => 1,
+        ], $result['diagnostics']['blocks'][0]);
+    },
+    'reports forced token splits in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', [
+                'text' => "ReviewerQueueIdentifierNeedsManualInspection short\nLocked\u{00A0}phrase\u{00A0}without\u{00A0}breaks",
+            ]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 10]))->writeWithDiagnostics($document);
+
+        $t->same(implode("\n", [
+            'ReviewerQu',
+            'eueIdentif',
+            'ierNeedsMa',
+            'nualInspec',
+            'tion short',
+            "Locked\u{00A0}phr",
+            "ase\u{00A0}withou",
+            "t\u{00A0}breaks",
+        ]), $result['text']);
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(8, $result['diagnostics']['outputLineCount']);
+        $t->same(10, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(0, $result['diagnostics']['overColumnLineCount']);
+        $t->same(0, $result['diagnostics']['maxOverColumnDisplayWidth']);
+        $t->same(6, $result['diagnostics']['forcedWrapBreakCount']);
+        $t->same(44, $result['diagnostics']['maxForcedWrapSegmentDisplayWidth']);
+        $t->same(6, $result['diagnostics']['softWrapBreakCount']);
+        $t->same(1, $result['diagnostics']['hardBreakCount']);
+        $t->same(1, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(3, $result['diagnostics']['protectedSeparatorCount']);
+        $t->same([
+            'blockIndex' => 0,
+            'blockType' => 'code_block',
+            'sourceLineCount' => 2,
+            'outputLineCount' => 8,
+            'blankSourceLineCount' => 0,
+            'blankOutputLineCount' => 0,
+            'maxSourceDisplayWidth' => 50,
+            'maxOutputDisplayWidth' => 10,
+            'overColumnLineCount' => 0,
+            'maxOverColumnDisplayWidth' => 0,
+            'forcedWrapBreakCount' => 6,
+            'maxForcedWrapSegmentDisplayWidth' => 44,
+            'wrapped' => true,
+            'softWrapBreakCount' => 6,
+            'lineFeedBreakCount' => 1,
+            'lineSeparatorBreakCount' => 0,
+            'paragraphSeparatorBreakCount' => 0,
+            'spaceBreakOpportunityCount' => 1,
+            'unicodeSpaceBreakOpportunityCount' => 0,
+            'maxUnicodeSpaceDisplayAdvance' => 0,
+            'tabBreakOpportunityCount' => 0,
+            'maxTabDisplayAdvance' => 0,
+            'zeroWidthSpaceBreakOpportunityCount' => 0,
+            'softHyphenBreakOpportunityCount' => 0,
+            'visibleBreakAfterOpportunityCount' => 0,
+            'protectedSeparatorCount' => 3,
+            'lineEndingNormalizationCount' => 0,
         ], $result['diagnostics']['blocks'][0]);
     },
 ];
