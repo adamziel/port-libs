@@ -119,4 +119,70 @@ return [
             ]),
         ]), (new LatexWriter())->write($document));
     },
+    'renders figure and table commands without dropping native ast nodes' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $space = static fn (): AstNode => new AstNode('space');
+        $cell = static fn (array $children = [], array $attrs = []): AstNode => new AstNode('table_cell', $attrs, $children);
+
+        $document = new AstNode('document', [], [
+            new AstNode('figure', [
+                'caption' => 'Reviewer gallery',
+                'attributes' => ['latex-placement' => 'htbp'],
+            ], [
+                new AstNode('image', ['url' => 'media/review_1.png'], [$text('Gallery alt')]),
+            ]),
+            new AstNode('table', [
+                'captionInlines' => [
+                    $text('Migration'),
+                    $space(),
+                    new AstNode('emph', [], [$text('queue')]),
+                ],
+                'alignments' => ['left', 'right', 'center'],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', [], [
+                        $cell([$text('Metric')]),
+                        $cell([$text('State & owner')]),
+                        $cell([$text('Notes')]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        $cell([new AstNode('strong', [], [$text('Posts')])]),
+                        $cell([
+                            $text('Ready % complete'),
+                        ], ['colspan' => 2, 'align' => 'center']),
+                    ]),
+                ]),
+                new AstNode('table_foot', [], [
+                    new AstNode('table_row', [], [
+                        $cell([$text('Totals')]),
+                        $cell([$text('42')]),
+                        $cell([$text('Done')]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '\begin{figure}[htbp]',
+                '\centering',
+                '\includegraphics[alt={Gallery alt}]{media/review\_1.png}',
+                '\caption{Reviewer gallery}',
+                '\end{figure}',
+            ]),
+            implode("\n", [
+                '\begin{longtable}{lrc}',
+                '\caption{Migration \emph{queue}}\\\\',
+                '\hline',
+                'Metric & State \& owner & Notes\\\\',
+                '\hline',
+                '\textbf{Posts} & \multicolumn{2}{c}{Ready \% complete}\\\\',
+                '\hline',
+                'Totals & 42 & Done\\\\',
+                '\end{longtable}',
+            ]),
+        ]), (new LatexWriter())->write($document));
+    },
 ];
