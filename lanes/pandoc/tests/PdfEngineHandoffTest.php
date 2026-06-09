@@ -584,6 +584,39 @@ MARKDOWN);
         $t->contains('produced-engine-artifacts:3', implode(',', $result['diagnostics']));
     },
 
+    'fake runner classifies tex overfull and underfull boxes as layout warnings' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'lualatex', 'outputPath' => 'review.pdf']);
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff with TeX layout diagnostics\n%%EOF\n";
+        $log = implode("\n", [
+            'This is LuaHBTeX, Version 1.18.0',
+            'Overfull \hbox (12.345pt too wide) in paragraph at lines 8--10',
+            '[]\TU/SourceSerif4(0)/m/n/10 Review packet title',
+            'Underfull \vbox (badness 10000) has occurred while \output is active',
+            'Underfull \hbox (badness 10000) in paragraph at lines 14--15',
+            'Output written on review.pdf (1 page, ' . strlen($pdfBytes) . ' bytes).',
+            '',
+        ]);
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'review.tex' => (string) $plan['sourceBytes'],
+                'review.log' => $log,
+                'review.pdf' => $pdfBytes,
+            ],
+        ]);
+
+        $warnings = implode("\n", $result['engineWarnings']);
+
+        $t->same(true, $result['ok']);
+        $t->same(3, count($result['engineWarnings']));
+        $t->contains('Overfull \hbox (12.345pt too wide)', $warnings);
+        $t->contains('Underfull \vbox (badness 10000)', $warnings);
+        $t->contains('Underfull \hbox (badness 10000)', $warnings);
+        $t->contains('engine-log-warnings:3', implode(',', $result['diagnostics']));
+        $t->contains('engine-log-warnings:3', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+    },
+
     'fake runner exposes tex artifact provenance review metadata' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'lualatex', 'outputPath' => 'review.pdf']);

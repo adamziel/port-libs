@@ -5778,6 +5778,10 @@ final class PdfEngineHandoff
 
     private function isEngineWarningLine(string $line): bool
     {
+        if (preg_match('/\b(?:Overfull|Underfull)\s+\\\\[hv]box\b/i', $line) === 1) {
+            return true;
+        }
+
         return preg_match('/\bwarning\b|\bwarning:/i', $line) === 1
             && preg_match('/\b0\s+warnings?\b/i', $line) !== 1;
     }
