@@ -5512,6 +5512,8 @@ final class OdfReader
             'page-variable-get',
             'chapter',
             'file-name',
+            'template-name',
+            'line-number',
             'word-count',
             'sentence-count',
             'paragraph-count',

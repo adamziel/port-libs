@@ -4722,6 +4722,49 @@ XML;
         $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M00S">09:30</span>', $blocksHtml);
     },
+    'maps ODT template and line number fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTemplateAndLineFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Template <text:template-name text:display="full">Templates/import-review.ott</text:template-name> source line <text:line-number style:num-format="1">37</text:line-number>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTemplateAndLineFields));
+        $paragraph = $result['document']->children[0];
+        $template = $paragraph->children[1];
+        $lineNumber = $paragraph->children[3];
+
+        $t->same('Template Templates/import-review.ott source line 37.', $paragraph->attr('text'));
+        $t->same('span', $template->type);
+        $t->same(['odf-field', 'odf-field-template-name'], $template->attr('classes'));
+        $t->same('template-name', $template->attr('fieldType'));
+        $t->same('full', $template->attr('fieldMetadata')['display']);
+        $t->same('template-name', $template->attr('attributes')['data-odf-field-type']);
+        $t->same('full', $template->attr('attributes')['data-odf-field-display']);
+        $t->same('Templates/import-review.ott', $template->children[0]->attr('text'));
+
+        $t->same('span', $lineNumber->type);
+        $t->same(['odf-field', 'odf-field-line-number'], $lineNumber->attr('classes'));
+        $t->same('line-number', $lineNumber->attr('fieldType'));
+        $t->same('1', $lineNumber->attr('fieldMetadata')['numFormat']);
+        $t->same('1', $lineNumber->attr('attributes')['data-odf-field-num-format']);
+        $t->same('37', $lineNumber->children[0]->attr('text'));
+        $t->same(2, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Templates/import-review.ott]{.odf-field .odf-field-template-name data-odf-field-type="template-name" data-odf-field-display="full"}', $markdown);
+        $t->contains('[37]{.odf-field .odf-field-line-number data-odf-field-type="line-number" data-odf-field-num-format="1"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-template-name" data-odf-field-type="template-name" data-odf-field-display="full">Templates/import-review.ott</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-line-number" data-odf-field-type="line-number" data-odf-field-num-format="1">37</span>', $blocksHtml);
+    },
     'maps ODT inline meta spans into review metadata spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithInlineMeta = <<<'XML'
 <office:document-content
