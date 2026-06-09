@@ -112,8 +112,316 @@ final class NativeReader
         return match ($block['t']) {
             'Para' => $this->inlineBlock('paragraph', $attrs, $block['c'] ?? []),
             'Plain' => $this->inlineBlock('plain', $attrs, $block['c'] ?? []),
+            'Table' => $this->tableBlock($attrs, $block['c'] ?? []),
             default => new AstNode('native_block', $attrs),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function tableBlock(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 6, 'Pandoc native JSON Table content');
+        $attrs = array_replace(
+            $attrs,
+            $this->attrsFromTuple($tuple[0]),
+            $this->tableCaptionAttrs($tuple[1]),
+            $this->tableColumnSpecAttrs($tuple[2])
+        );
+
+        $children = [];
+        $head = $this->tableSection($tuple[3], 'TableHead', 'table_head');
+        if ($this->tableSectionHasContent($head)) {
+            $children[] = $head;
+        }
+
+        foreach ($this->listContent($tuple[4], 'Pandoc native JSON Table bodies') as $body) {
+            $bodyNode = $this->tableBody($body);
+            if ($this->tableSectionHasContent($bodyNode)) {
+                $children[] = $bodyNode;
+            }
+        }
+
+        $foot = $this->tableSection($tuple[5], 'TableFoot', 'table_foot');
+        if ($this->tableSectionHasContent($foot)) {
+            $children[] = $foot;
+        }
+
+        return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableCaptionAttrs(mixed $caption): array
+    {
+        $content = $this->constructorContent($caption, 'Caption', 'Pandoc native JSON Table caption', false);
+        $tuple = $this->tuple($content, 2, 'Pandoc native JSON Table caption');
+        $attrs = [];
+
+        $shortCaptionInlines = $this->shortCaptionInlines($tuple[0]);
+        if ($shortCaptionInlines !== []) {
+            $attrs['shortCaptionInlines'] = $shortCaptionInlines;
+            $attrs['shortCaption'] = $this->plainTextFromInlines($shortCaptionInlines);
+        }
+
+        $captionBlocks = $this->blockNodes($tuple[1]);
+        if ($captionBlocks === []) {
+            $attrs['caption'] = '';
+
+            return $attrs;
+        }
+
+        $attrs['captionBlocks'] = $captionBlocks;
+        $attrs['caption'] = $this->plainTextFromBlocks($captionBlocks);
+
+        $captionInlines = $this->singleInlineCaptionBlock($captionBlocks);
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function shortCaptionInlines(mixed $shortCaption): array
+    {
+        if ($shortCaption === null || $shortCaption === []) {
+            return [];
+        }
+
+        $content = $this->constructorContent($shortCaption, 'ShortCaption', 'Pandoc native JSON Table short caption', false);
+
+        return $this->inlines($content);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function singleInlineCaptionBlock(array $blocks): array
+    {
+        if (count($blocks) !== 1) {
+            return [];
+        }
+
+        $block = $blocks[0];
+        if (!in_array($block->type, ['plain', 'paragraph'], true)) {
+            return [];
+        }
+
+        return $block->children;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableColumnSpecAttrs(mixed $colSpecs): array
+    {
+        $alignments = [];
+        $widths = [];
+        foreach ($this->listContent($colSpecs, 'Pandoc native JSON Table column specs') as $colSpec) {
+            $tuple = $this->tuple($colSpec, 2, 'Pandoc native JSON Table column spec');
+            $alignments[] = $this->tableAlignment($tuple[0]);
+            $widths[] = $this->tableColumnWidth($tuple[1]);
+        }
+
+        if ($alignments === []) {
+            return [];
+        }
+
+        return [
+            'alignments' => $alignments,
+            'widths' => $widths,
+        ];
+    }
+
+    private function tableSection(mixed $section, string $constructor, string $type): AstNode
+    {
+        $content = $this->constructorContent($section, $constructor, "Pandoc native JSON {$constructor}", false);
+        $tuple = $this->tuple($content, 2, "Pandoc native JSON {$constructor}");
+
+        return new AstNode($type, $this->attrsFromTuple($tuple[0]), $this->tableRows($tuple[1]));
+    }
+
+    private function tableBody(mixed $body): AstNode
+    {
+        $content = $this->constructorContent($body, 'TableBody', 'Pandoc native JSON TableBody', false);
+        $tuple = $this->tuple($content, 4, 'Pandoc native JSON TableBody');
+        $attrs = $this->attrsFromTuple($tuple[0]);
+
+        $rowHeadColumns = $this->taggedInteger($tuple[1], 'RowHeadColumns', 'Pandoc native JSON RowHeadColumns');
+        if ($rowHeadColumns > 0) {
+            $attrs['rowHeadColumns'] = $rowHeadColumns;
+        }
+
+        $headRows = $this->tableRows($tuple[2]);
+        if ($headRows !== []) {
+            $attrs['headRows'] = $headRows;
+        }
+
+        return new AstNode('table_body', $attrs, $this->tableRows($tuple[3]));
+    }
+
+    private function tableSectionHasContent(AstNode $section): bool
+    {
+        if ($section->children !== []) {
+            return true;
+        }
+
+        if ($section->type === 'table_body') {
+            $headRows = $section->attr('headRows', []);
+            if (is_array($headRows) && $headRows !== []) {
+                return true;
+            }
+        }
+
+        return $section->attrs !== [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableRows(mixed $rows): array
+    {
+        $nodes = [];
+        foreach ($this->listContent($rows, 'Pandoc native JSON table rows') as $row) {
+            $content = $this->constructorContent($row, 'Row', 'Pandoc native JSON Row', false);
+            $tuple = $this->tuple($content, 2, 'Pandoc native JSON Row');
+            $nodes[] = new AstNode('table_row', $this->attrsFromTuple($tuple[0]), $this->tableCells($tuple[1]));
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCells(mixed $cells): array
+    {
+        $nodes = [];
+        foreach ($this->listContent($cells, 'Pandoc native JSON table cells') as $cell) {
+            $nodes[] = $this->tableCell($cell);
+        }
+
+        return $nodes;
+    }
+
+    private function tableCell(mixed $cell): AstNode
+    {
+        $content = $this->constructorContent($cell, 'Cell', 'Pandoc native JSON Cell', false);
+        $tuple = $this->tuple($content, 5, 'Pandoc native JSON Cell');
+        $attrs = $this->attrsFromTuple($tuple[0]);
+
+        $alignment = $this->tableAlignment($tuple[1]);
+        if ($alignment !== 'default') {
+            $attrs['align'] = $alignment;
+        }
+
+        $rowspan = $this->taggedInteger($tuple[2], 'RowSpan', 'Pandoc native JSON RowSpan');
+        if ($rowspan > 1) {
+            $attrs['rowspan'] = $rowspan;
+        }
+
+        $colspan = $this->taggedInteger($tuple[3], 'ColSpan', 'Pandoc native JSON ColSpan');
+        if ($colspan > 1) {
+            $attrs['colspan'] = $colspan;
+        }
+
+        $blocks = $this->blockNodes($tuple[4]);
+        $text = $this->plainTextFromBlocks($blocks);
+        if ($text !== '') {
+            $attrs['text'] = $text;
+        }
+
+        return new AstNode('table_cell', $attrs, $this->tableCellChildren($blocks));
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function tableCellChildren(array $blocks): array
+    {
+        if (count($blocks) === 1 && in_array($blocks[0]->type, ['plain', 'paragraph'], true)) {
+            return $blocks[0]->children;
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function blockNodes(mixed $blocks): array
+    {
+        $nodes = [];
+        foreach ($this->blocks($blocks) as $block) {
+            $nodes[] = $this->block($block);
+        }
+
+        return $nodes;
+    }
+
+    private function tableAlignment(mixed $alignment): string
+    {
+        return match ($this->constructorTag($alignment, 'Pandoc native JSON table alignment')) {
+            'AlignLeft' => 'left',
+            'AlignRight' => 'right',
+            'AlignCenter' => 'center',
+            'AlignDefault' => 'default',
+            default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON table alignment'),
+        };
+    }
+
+    private function tableColumnWidth(mixed $width): ?float
+    {
+        if (is_int($width) || is_float($width)) {
+            return (float) $width;
+        }
+
+        $tag = $this->constructorTag($width, 'Pandoc native JSON table column width');
+        if ($tag === 'ColWidthDefault') {
+            return null;
+        }
+
+        if ($tag !== 'ColWidth') {
+            throw new \InvalidArgumentException('Unsupported Pandoc native JSON table column width');
+        }
+
+        $content = $this->constructorContent($width, 'ColWidth', 'Pandoc native JSON table column width');
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+        if (!is_int($content) && !is_float($content)) {
+            throw new \InvalidArgumentException('Pandoc native JSON ColWidth must be numeric');
+        }
+
+        return (float) $content;
+    }
+
+    private function taggedInteger(mixed $value, string $tag, string $context): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_array($value) && array_is_list($value) && count($value) === 1 && is_int($value[0])) {
+            return $value[0];
+        }
+
+        $content = $this->constructorContent($value, $tag, $context);
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+        if (!is_int($content)) {
+            throw new \InvalidArgumentException("{$context} must contain an integer");
+        }
+
+        return $content;
     }
 
     /**
@@ -182,6 +490,7 @@ final class NativeReader
             'Strong' => new AstNode('strong', $attrs, $this->inlines($inline['c'] ?? [])),
             'Code' => $this->codeInline($attrs, $inline['c'] ?? []),
             'Link' => $this->linkInline($attrs, $inline['c'] ?? []),
+            'Span' => $this->spanInline($attrs, $inline['c'] ?? []),
             default => new AstNode('native_inline', $attrs),
         };
     }
@@ -221,6 +530,75 @@ final class NativeReader
         ]);
 
         return new AstNode('link', $attrs, $this->inlines($content[1]));
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function spanInline(array $attrs, mixed $content): AstNode
+    {
+        if (!is_array($content) || !isset($content[0], $content[1])) {
+            throw new \InvalidArgumentException('Pandoc native JSON Span inline content must contain attributes and inlines');
+        }
+
+        $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]));
+
+        return new AstNode('span', $attrs, $this->inlines($content[1]));
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function listContent(mixed $value, string $context): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new \InvalidArgumentException("{$context} content must be a list");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function tuple(mixed $value, int $size, string $context): array
+    {
+        $tuple = $this->listContent($value, $context);
+        if (count($tuple) !== $size) {
+            throw new \InvalidArgumentException("{$context} must have {$size} entries");
+        }
+
+        return $tuple;
+    }
+
+    private function constructorTag(mixed $value, string $context): string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if (!is_array($value) || !is_string($value['t'] ?? null)) {
+            throw new \InvalidArgumentException("{$context} must be a tagged constructor");
+        }
+
+        return $value['t'];
+    }
+
+    private function constructorContent(mixed $value, string $tag, string $context, bool $requireTag = true): mixed
+    {
+        if (!is_array($value) || !is_string($value['t'] ?? null)) {
+            if ($requireTag) {
+                throw new \InvalidArgumentException("{$context} must be a {$tag} constructor");
+            }
+
+            return $value;
+        }
+
+        if ($value['t'] !== $tag) {
+            throw new \InvalidArgumentException("{$context} must be a {$tag} constructor");
+        }
+
+        return $value['c'] ?? null;
     }
 
     /**
@@ -290,6 +668,22 @@ final class NativeReader
         }
 
         return $text;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function plainTextFromBlocks(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            $text = trim($this->plainTextFromInlines($block->children));
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return implode("\n", $parts);
     }
 
     /**
