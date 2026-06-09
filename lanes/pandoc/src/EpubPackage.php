@@ -13,11 +13,13 @@ final class EpubPackage
     public const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
     public const NCX_NAMESPACE = 'http://www.daisy.org/z3986/2005/ncx/';
     public const SMIL_NAMESPACE = 'http://www.w3.org/ns/SMIL';
+    public const XMLENC_NAMESPACE = 'http://www.w3.org/2001/04/xmlenc#';
     public const EPUB_MIMETYPE = 'application/epub+zip';
     public const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     public const XHTML_MEDIA_TYPE = 'application/xhtml+xml';
     public const NCX_MEDIA_TYPE = 'application/x-dtbncx+xml';
     public const SMIL_MEDIA_TYPE = 'application/smil+xml';
+    public const IDPF_FONT_OBFUSCATION_ALGORITHM = 'http://www.idpf.org/2008/embedding';
     private const RESERVED_PACKAGE_PREFIXES = [
         'a11y' => 'http://www.idpf.org/epub/vocab/package/a11y/#',
         'dcterms' => 'http://purl.org/dc/terms/',
@@ -71,6 +73,7 @@ final class EpubPackage
      * @param array<string, mixed> $bindings
      * @param array<string, mixed> $mediaOverlays
      * @param array<string, mixed> $manifestFallbacks
+     * @param array<string, mixed> $encryption
      * @param array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null $navigation
      * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}> $navigationSections
      */
@@ -88,6 +91,7 @@ final class EpubPackage
         private readonly array $bindings,
         private readonly array $mediaOverlays,
         private readonly array $manifestFallbacks,
+        private readonly array $encryption,
         private readonly ?array $navigation,
         private readonly array $navigationSections,
     ) {
@@ -140,6 +144,7 @@ final class EpubPackage
             $opf['bindings'],
             $opf['mediaOverlays'],
             $opf['manifestFallbacks'],
+            $opf['encryption'],
             $navigation['navigation'],
             $navigation['sections'],
         );
@@ -249,6 +254,14 @@ final class EpubPackage
     public function manifestFallbacks(): array
     {
         return $this->manifestFallbacks;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function encryption(): array
+    {
+        return $this->encryption;
     }
 
     /**
@@ -375,6 +388,7 @@ final class EpubPackage
             'bindings' => $this->bindings,
             'mediaOverlays' => $this->mediaOverlays,
             'manifestFallbacks' => $manifestFallbacks,
+            'encryption' => $this->encryption,
             'resourceProperties' => $resourceProperties,
             'navigation' => $this->navigation,
             'navigationSections' => $this->navigationSections,
@@ -442,6 +456,9 @@ final class EpubPackage
                 'manifestFallbackItems' => $manifestFallbacks['fallbackItems'],
                 'manifestFallbackStyleItems' => $manifestFallbacks['fallbackStyleItems'],
                 'manifestFallbackDiagnostics' => $manifestFallbacks['diagnostics'],
+                'encryption' => $this->encryption,
+                'encryptedResourceExposure' => $this->encryption['exposure'],
+                'encryptedResourceDiagnostics' => $this->encryption['diagnostics'],
                 'resourceProperties' => $resourceProperties,
                 'resourcePropertySummary' => $resourceProperties['summary'],
                 'resourcePropertyReviewItems' => $resourceProperties['reviewItems'],
@@ -524,6 +541,7 @@ final class EpubPackage
      *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
      *     manifestFallbacks:array<string, mixed>,
+     *     encryption:array<string, mixed>,
      *     spineTocId:?string
      * }
      */
@@ -545,6 +563,9 @@ final class EpubPackage
 
         $metadata = self::parseMetadata($metadataElement, $root);
         [$manifestById, $manifestItems] = self::parseManifest($manifestElement, $opfPartName, $package);
+        $encryption = self::parseEncryption($package, $manifestById);
+        $manifestById = self::attachEncryptionToManifest($manifestById, $encryption);
+        $manifestItems = array_values($manifestById);
         $packageLinks = self::parsePackageLinks(
             $metadataElement,
             $opfPartName,
@@ -576,6 +597,7 @@ final class EpubPackage
             'bindings' => $bindings,
             'mediaOverlays' => $mediaOverlays,
             'manifestFallbacks' => $manifestFallbacks,
+            'encryption' => $encryption,
             'spineTocId' => $spineElement->hasAttribute('toc') ? $spineElement->getAttribute('toc') : null,
         ];
     }
@@ -3475,6 +3497,381 @@ final class EpubPackage
             'fallbackId' => self::nullableManifestId($item['fallback'] ?? null),
             'fallbackStyleId' => self::nullableManifestId($item['fallbackStyle'] ?? null),
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array<string, mixed>
+     */
+    private static function parseEncryption(ZipPackage $package, array $manifestById): array
+    {
+        $encryptionPart = '/META-INF/encryption.xml';
+        if (!$package->has($encryptionPart)) {
+            return [
+                'present' => false,
+                'part' => null,
+                'items' => [],
+                'encryptedParts' => [],
+                'obfuscatedFonts' => [],
+                'exposure' => self::encryptionExposureReport([]),
+                'diagnostics' => [],
+            ];
+        }
+
+        $dom = self::loadXml($package->read($encryptionPart), 'EPUB OCF encryption.xml');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'encryption' || $root->namespaceURI !== self::OCF_CONTAINER_NAMESPACE) {
+            throw new \InvalidArgumentException('EPUB encryption.xml must use the OCF container namespace');
+        }
+
+        $manifestByPart = self::manifestByPart($manifestById);
+        $items = [];
+        $diagnostics = [];
+
+        foreach (self::encryptedDataElements($dom) as $index => $encryptedData) {
+            $method = self::firstChildElement($encryptedData, 'EncryptionMethod', self::XMLENC_NAMESPACE);
+            $cipherData = self::firstChildElement($encryptedData, 'CipherData', self::XMLENC_NAMESPACE);
+            $cipherReference = $cipherData instanceof \DOMElement
+                ? self::firstChildElement($cipherData, 'CipherReference', self::XMLENC_NAMESPACE)
+                : null;
+            $uri = $cipherReference instanceof \DOMElement ? trim($cipherReference->getAttribute('URI')) : '';
+
+            if ($uri === '') {
+                $diagnostics[] = [
+                    'type' => 'missing-cipher-reference',
+                    'index' => $index,
+                    'message' => 'EncryptedData entry is missing CipherReference URI',
+                ];
+                continue;
+            }
+
+            try {
+                $partName = self::encryptionCipherPart($uri);
+            } catch (\InvalidArgumentException $exception) {
+                $diagnostics[] = [
+                    'type' => 'invalid-cipher-reference',
+                    'index' => $index,
+                    'uri' => $uri,
+                    'message' => $exception->getMessage(),
+                ];
+                continue;
+            }
+
+            $manifestItem = $manifestByPart[$partName] ?? null;
+            $mediaType = is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null;
+            $properties = is_array($manifestItem) && is_array($manifestItem['properties'] ?? null)
+                ? array_values($manifestItem['properties'])
+                : [];
+            $algorithm = $method instanceof \DOMElement ? self::emptyToNull($method->getAttribute('Algorithm')) : null;
+            $obfuscatedFont = self::isObfuscatedFont($algorithm, $mediaType, $partName);
+            $isCoverImage = in_array('cover-image', $properties, true);
+            $item = [
+                'index' => $index,
+                'uri' => $uri,
+                'partName' => $partName,
+                'algorithm' => $algorithm,
+                'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : null,
+                'mediaType' => $mediaType,
+                'role' => self::encryptedResourceRole($mediaType, $partName, $properties),
+                'exists' => $package->has($partName),
+                'obfuscatedFont' => $obfuscatedFont,
+                'canExposeBytes' => false,
+                'reviewPolicy' => $obfuscatedFont ? 'obfuscated-font-review' : 'encrypted-resource-review',
+                'byteExposurePolicy' => $obfuscatedFont ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked',
+                'attachmentCandidateBlocked' => self::isAttachmentCandidate($mediaType, $partName, $isCoverImage),
+            ];
+
+            if (!is_array($manifestItem)) {
+                $diagnostics[] = [
+                    'type' => 'encrypted-resource-not-in-manifest',
+                    'index' => $index,
+                    'partName' => $partName,
+                    'message' => 'Encrypted OCF resource is not listed in the OPF manifest',
+                ];
+            }
+
+            if ($item['exists'] !== true) {
+                $diagnostics[] = [
+                    'type' => 'encrypted-resource-missing',
+                    'index' => $index,
+                    'partName' => $partName,
+                    'message' => 'Encrypted OCF resource is missing from the ZIP package',
+                ];
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'present' => true,
+            'part' => $encryptionPart,
+            'items' => $items,
+            'encryptedParts' => array_map(static fn (array $item): string => (string) $item['partName'], $items),
+            'obfuscatedFonts' => array_values(array_filter(
+                $items,
+                static fn (array $item): bool => ($item['obfuscatedFont'] ?? false) === true,
+            )),
+            'exposure' => self::encryptionExposureReport($items),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function encryptedDataElements(\DOMDocument $dom): array
+    {
+        $elements = [];
+        foreach ($dom->getElementsByTagNameNS(self::XMLENC_NAMESPACE, 'EncryptedData') as $element) {
+            if ($element instanceof \DOMElement) {
+                $elements[] = $element;
+            }
+        }
+
+        return $elements;
+    }
+
+    private static function encryptionCipherPart(string $uri): string
+    {
+        if (self::isAbsoluteUri($uri) || str_starts_with($uri, '//')) {
+            throw new \InvalidArgumentException('EPUB encryption CipherReference URI must be package-relative');
+        }
+
+        if (str_contains($uri, '?') || str_contains($uri, '#')) {
+            throw new \InvalidArgumentException('EPUB encryption CipherReference URI must identify a package part without query or fragment');
+        }
+
+        return OpcPackagePath::canonicalPartName($uri);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, mixed> $encryption
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function attachEncryptionToManifest(array $manifestById, array $encryption): array
+    {
+        $encryptionByPart = [];
+        foreach (is_array($encryption['items'] ?? null) ? $encryption['items'] : [] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $partName = $item['partName'] ?? null;
+            if (!is_string($partName) || $partName === '') {
+                continue;
+            }
+
+            $encryptionByPart[$partName][] = $item;
+        }
+
+        foreach ($manifestById as $id => $item) {
+            $entries = $encryptionByPart[(string) ($item['partName'] ?? '')] ?? [];
+            if ($entries === []) {
+                continue;
+            }
+
+            $obfuscatedFont = self::containsObfuscatedFont($entries);
+            $manifestById[$id]['encrypted'] = true;
+            $manifestById[$id]['canExposeBytes'] = false;
+            $manifestById[$id]['encryption'] = [
+                'items' => $entries,
+                'algorithm' => $entries[0]['algorithm'] ?? null,
+                'role' => $entries[0]['role'] ?? self::encryptedResourceRole(
+                    is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                    (string) ($item['partName'] ?? ''),
+                    is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
+                ),
+                'obfuscatedFont' => $obfuscatedFont,
+                'canExposeBytes' => false,
+                'reviewPolicy' => $obfuscatedFont ? 'obfuscated-font-review' : 'encrypted-resource-review',
+                'byteExposurePolicy' => $obfuscatedFont ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked',
+                'attachmentCandidateBlocked' => count(array_filter(
+                    $entries,
+                    static fn (array $entry): bool => ($entry['attachmentCandidateBlocked'] ?? false) === true,
+                )) > 0,
+            ];
+        }
+
+        return $manifestById;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return array<string, mixed>
+     */
+    private static function encryptionExposureReport(array $items): array
+    {
+        $reportItems = [];
+        $roleCounts = [];
+        $obfuscatedFontParts = [];
+        $nonObfuscatedEncryptedParts = [];
+        $blockedByteExposureCount = 0;
+        $attachmentCandidateBlockedCount = 0;
+
+        foreach ($items as $item) {
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            $role = is_string($item['role'] ?? null) ? $item['role'] : 'asset';
+            $obfuscatedFont = ($item['obfuscatedFont'] ?? false) === true;
+            $canExposeBytes = ($item['canExposeBytes'] ?? false) === true;
+            $attachmentCandidateBlocked = ($item['attachmentCandidateBlocked'] ?? false) === true;
+
+            $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            if (!$canExposeBytes) {
+                ++$blockedByteExposureCount;
+            }
+            if ($attachmentCandidateBlocked) {
+                ++$attachmentCandidateBlockedCount;
+            }
+            if ($partName !== null && $partName !== '') {
+                if ($obfuscatedFont) {
+                    $obfuscatedFontParts[] = $partName;
+                } else {
+                    $nonObfuscatedEncryptedParts[] = $partName;
+                }
+            }
+
+            $reportItems[] = [
+                'index' => (int) ($item['index'] ?? 0),
+                'uri' => is_string($item['uri'] ?? null) ? $item['uri'] : null,
+                'partName' => $partName,
+                'manifestId' => is_string($item['manifestId'] ?? null) ? $item['manifestId'] : null,
+                'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                'role' => $role,
+                'algorithm' => is_string($item['algorithm'] ?? null) ? $item['algorithm'] : null,
+                'exists' => ($item['exists'] ?? false) === true,
+                'obfuscatedFont' => $obfuscatedFont,
+                'canExposeBytes' => $canExposeBytes,
+                'reviewPolicy' => is_string($item['reviewPolicy'] ?? null)
+                    ? $item['reviewPolicy']
+                    : ($obfuscatedFont ? 'obfuscated-font-review' : 'encrypted-resource-review'),
+                'byteExposurePolicy' => is_string($item['byteExposurePolicy'] ?? null)
+                    ? $item['byteExposurePolicy']
+                    : ($obfuscatedFont ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked'),
+                'attachmentCandidateBlocked' => $attachmentCandidateBlocked,
+            ];
+        }
+
+        ksort($roleCounts);
+        $obfuscatedFontParts = array_values(array_unique($obfuscatedFontParts));
+        $nonObfuscatedEncryptedParts = array_values(array_unique($nonObfuscatedEncryptedParts));
+        sort($obfuscatedFontParts, SORT_STRING);
+        sort($nonObfuscatedEncryptedParts, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'blockedByteExposureCount' => $blockedByteExposureCount,
+            'obfuscatedFontCount' => count($obfuscatedFontParts),
+            'nonObfuscatedEncryptedCount' => count($nonObfuscatedEncryptedParts),
+            'attachmentCandidateBlockedCount' => $attachmentCandidateBlockedCount,
+            'roles' => array_keys($roleCounts),
+            'roleCounts' => $roleCounts,
+            'items' => $reportItems,
+            'obfuscatedFontParts' => $obfuscatedFontParts,
+            'nonObfuscatedEncryptedParts' => $nonObfuscatedEncryptedParts,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @param list<string> $properties
+     */
+    private static function encryptedResourceRole(?string $mediaType, string $partName, array $properties = []): string
+    {
+        if (in_array('cover-image', $properties, true)) {
+            return 'cover-image';
+        }
+
+        $baseMediaType = $mediaType === null || trim($mediaType) === '' ? '' : self::mediaTypeBase($mediaType);
+        if ($baseMediaType === self::XHTML_MEDIA_TYPE) {
+            return 'xhtml';
+        }
+        if ($baseMediaType === self::NCX_MEDIA_TYPE) {
+            return 'navigation';
+        }
+        if ($baseMediaType === self::SMIL_MEDIA_TYPE) {
+            return 'media-overlay';
+        }
+        if ($baseMediaType === 'text/css') {
+            return 'stylesheet';
+        }
+        if (str_starts_with($baseMediaType, 'image/')) {
+            return 'image';
+        }
+        if (str_starts_with($baseMediaType, 'audio/')) {
+            return 'audio';
+        }
+        if (str_starts_with($baseMediaType, 'video/')) {
+            return 'video';
+        }
+        if (self::isFontResource($baseMediaType, $partName)) {
+            return 'font';
+        }
+
+        return 'asset';
+    }
+
+    private static function isObfuscatedFont(?string $algorithm, ?string $mediaType, string $partName): bool
+    {
+        if ($algorithm !== self::IDPF_FONT_OBFUSCATION_ALGORITHM) {
+            return false;
+        }
+
+        return self::isFontResource($mediaType, $partName);
+    }
+
+    private static function isFontResource(?string $mediaType, string $partName): bool
+    {
+        $baseMediaType = $mediaType === null ? '' : self::mediaTypeBase($mediaType);
+        if (in_array($baseMediaType, [
+            'application/font-sfnt',
+            'application/font-woff',
+            'application/vnd.ms-opentype',
+            'application/x-font-opentype',
+            'application/x-font-otf',
+            'application/x-font-ttf',
+            'font/otf',
+            'font/sfnt',
+            'font/ttf',
+            'font/woff',
+            'font/woff2',
+        ], true)) {
+            return true;
+        }
+
+        return in_array(strtolower(pathinfo($partName, PATHINFO_EXTENSION)), ['otf', 'ttf', 'woff', 'woff2'], true);
+    }
+
+    private static function isAttachmentCandidate(?string $mediaType, string $partName, bool $isCoverImage): bool
+    {
+        if ($isCoverImage) {
+            return true;
+        }
+
+        $baseMediaType = $mediaType === null ? '' : self::mediaTypeBase($mediaType);
+
+        return str_starts_with($baseMediaType, 'image/')
+            || str_starts_with($baseMediaType, 'audio/')
+            || str_starts_with($baseMediaType, 'video/')
+            || self::isFontResource($baseMediaType, $partName);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     */
+    private static function containsObfuscatedFont(array $entries): bool
+    {
+        foreach ($entries as $entry) {
+            if (($entry['obfuscatedFont'] ?? false) === true) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function nullableManifestId(mixed $value): ?string

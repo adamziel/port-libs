@@ -6186,6 +6186,65 @@ XML;
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('<span class="odf-field odf-field-sentence-count" data-odf-field-type="sentence-count" data-odf-field-current-value="9" data-odf-field-metadata-source="meta.xml">9</span>', $blocksHtml);
     },
+    'fills empty ODT extended statistic fields from meta xml document statistics' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithExtendedStatisticFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Readable totals <text:non-whitespace-character-count/> non-space characters and <text:syllable-count/> syllables.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $metaWithExtendedStatistics = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+  <office:meta>
+    <meta:document-statistic
+      meta:non-whitespace-character-count="600"
+      meta:syllable-count="210"/>
+  </office:meta>
+</office:document-meta>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithExtendedStatisticFields, null, null, $metaWithExtendedStatistics));
+        $paragraph = $result['document']->children[0];
+        $nonWhitespaceCount = $paragraph->children[1];
+        $syllableCount = $paragraph->children[3];
+
+        $t->same(600, $result['metadata']['statistics']['nonWhitespaceCharacterCount']);
+        $t->same(210, $result['metadata']['statistics']['syllableCount']);
+        $t->same('Readable totals 600 non-space characters and 210 syllables.', $paragraph->attr('text'));
+
+        $t->same('span', $nonWhitespaceCount->type);
+        $t->same(['odf-field', 'odf-field-non-whitespace-character-count'], $nonWhitespaceCount->attr('classes'));
+        $t->same('non-whitespace-character-count', $nonWhitespaceCount->attr('fieldType'));
+        $t->same('600', $nonWhitespaceCount->attr('fieldMetadata')['currentValue']);
+        $t->same('meta.xml', $nonWhitespaceCount->attr('fieldMetadata')['metadataSource']);
+        $t->same('600', $nonWhitespaceCount->attr('attributes')['data-odf-field-current-value']);
+        $t->same('meta.xml', $nonWhitespaceCount->attr('attributes')['data-odf-field-metadata-source']);
+        $t->same('600', $nonWhitespaceCount->children[0]->attr('text'));
+
+        $t->same('span', $syllableCount->type);
+        $t->same(['odf-field', 'odf-field-syllable-count'], $syllableCount->attr('classes'));
+        $t->same('syllable-count', $syllableCount->attr('fieldType'));
+        $t->same('210', $syllableCount->attr('fieldMetadata')['currentValue']);
+        $t->same('meta.xml', $syllableCount->attr('fieldMetadata')['metadataSource']);
+        $t->same('210', $syllableCount->attr('attributes')['data-odf-field-current-value']);
+        $t->same('meta.xml', $syllableCount->attr('attributes')['data-odf-field-metadata-source']);
+        $t->same('210', $syllableCount->children[0]->attr('text'));
+        $t->same(2, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[600]{.odf-field .odf-field-non-whitespace-character-count data-odf-field-type="non-whitespace-character-count" data-odf-field-current-value="600" data-odf-field-metadata-source="meta.xml"}', $markdown);
+        $t->contains('[210]{.odf-field .odf-field-syllable-count data-odf-field-type="syllable-count" data-odf-field-current-value="210" data-odf-field-metadata-source="meta.xml"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-non-whitespace-character-count" data-odf-field-type="non-whitespace-character-count" data-odf-field-current-value="600" data-odf-field-metadata-source="meta.xml">600</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-syllable-count" data-odf-field-type="syllable-count" data-odf-field-current-value="210" data-odf-field-metadata-source="meta.xml">210</span>', $blocksHtml);
+    },
     'maps ODT page continuation fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPageContinuationFields = <<<'XML'
 <office:document-content

@@ -6144,6 +6144,8 @@ final class OdfReader
             'sentence-count',
             'paragraph-count',
             'character-count',
+            'non-whitespace-character-count',
+            'syllable-count',
             'table-count',
             'image-count',
             'object-count',
@@ -6601,7 +6603,9 @@ final class OdfReader
                 'paragraph-count',
                 'word-count',
                 'sentence-count',
-                'character-count' => $this->fieldStatisticMetadata($field->localName),
+                'character-count',
+                'non-whitespace-character-count',
+                'syllable-count' => $this->fieldStatisticMetadata($field->localName),
                 default => [],
             };
         }

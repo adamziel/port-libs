@@ -1005,17 +1005,23 @@ $styleDefinition = static function (
     int $basedOnIstd,
     int $nextIstd,
     int $cupx,
-    int $sti = 0x0ffe
+    int $sti = 0x0ffe,
+    array $upxPayloads = []
 ) use ($u16, $utf16le): string {
     $nameBytes = $utf16le($name);
     $xstzName = $u16(intdiv(strlen($nameBytes), 2)) . $nameBytes . $u16(0);
-    $cbStd = 10 + strlen($xstzName);
+    $upxBytes = '';
+    foreach ($upxPayloads as $upxPayload) {
+        $upxBytes .= $u16(strlen($upxPayload)) . $upxPayload . (strlen($upxPayload) % 2 === 0 ? '' : "\0");
+    }
+    $cbStd = 10 + strlen($xstzName) + strlen($upxBytes);
     $std = $u16($sti & 0x0fff)
         . $u16(($styleType & 0x000f) | (($basedOnIstd & 0x0fff) << 4))
         . $u16(($cupx & 0x000f) | (($nextIstd & 0x0fff) << 4))
         . $u16($cbStd)
         . $u16(0)
-        . $xstzName;
+        . $xstzName
+        . $upxBytes;
 
     return $u16(strlen($std)) . $std . (strlen($std) % 2 === 0 ? '' : "\0");
 };
@@ -5762,6 +5768,79 @@ return [
         $t->same(1, $styles[2]['cupx']);
         $t->same(10 + 2 + strlen("Migration Emphasis") * 2 + 2, $styles[2]['cbStd']);
         $t->same($styles[2]['cbStd'], $styles[2]['bchUpe']);
+    },
+    'extracts legacy DOC stylesheet UPX PAPX and CHPX formatting metadata as review data' => static function (TestRunner $t) use ($buildCfb, $buildStyleSheetDocStreams, $styleDefinition, $u16): void {
+        $paragraphUpx = $u16(0x2461) . "\x02"
+            . $u16(0x845e) . $u16(720);
+        $paragraphCharacterUpx = $u16(0x0835) . "\x01"
+            . $u16(0x2a3e) . "\x01";
+        $characterStyleUpx = $u16(0x0836) . "\x01"
+            . $u16(0x083c) . "\x00";
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildStyleSheetDocStreams([
+            15 => $styleDefinition('Styled Review', 1, 0x0fff, 16, 2, 0x0ffe, [$paragraphUpx, $paragraphCharacterUpx]),
+            16 => $styleDefinition('Style Emphasis', 2, 0x0fff, 16, 1, 0x0ffe, [$characterStyleUpx]),
+        ])));
+        $document = $result['document'];
+        $styles = $result['styles'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same($styles, $document->attr('styles'));
+        $t->same(2, $metadata['styleCount']);
+        $t->same(2, $metadata['styleParagraphPropertyCount']);
+        $t->same(4, $metadata['styleTextPropertyCount']);
+        $t->same('metadata-only-native-review', $metadata['styleFormattingPolicy']);
+
+        $paragraphStyle = $styles[0];
+        $t->same('Styled Review', $paragraphStyle['name']);
+        $t->same(2, $paragraphStyle['upxRecordCount']);
+        $t->same(13, $paragraphStyle['upxByteCount']);
+        $t->same([
+            ['index' => 1, 'kind' => 'paragraph', 'byteCount' => 7],
+            ['index' => 2, 'kind' => 'character', 'byteCount' => 6],
+        ], $paragraphStyle['upxRecords']);
+        $t->same(false, $paragraphStyle['canApplyStyleFormatting']);
+        $t->same(2, $paragraphStyle['paragraphPropertyCount']);
+        $t->same('metadata-only-native-review', $paragraphStyle['paragraphPropertyExtractionPolicy']);
+        $t->same('justification', $paragraphStyle['paragraphProperties'][0]['name']);
+        $t->same('Stshf', $paragraphStyle['paragraphProperties'][0]['source']);
+        $t->same('STD', $paragraphStyle['paragraphProperties'][0]['sourceRecord']);
+        $t->same('PAPX', $paragraphStyle['paragraphProperties'][0]['sourceUpx']);
+        $t->same('sprmPJc', $paragraphStyle['paragraphProperties'][0]['sourceSprm']);
+        $t->same('right', $paragraphStyle['paragraphProperties'][0]['value']);
+        $t->same('left-indent', $paragraphStyle['paragraphProperties'][1]['name']);
+        $t->same(720, $paragraphStyle['paragraphProperties'][1]['twips']);
+        $t->same(2, $paragraphStyle['textPropertyCount']);
+        $t->same('metadata-only-native-review', $paragraphStyle['textPropertyExtractionPolicy']);
+        $t->same('bold', $paragraphStyle['textProperties'][0]['name']);
+        $t->same('Stshf', $paragraphStyle['textProperties'][0]['source']);
+        $t->same('STD', $paragraphStyle['textProperties'][0]['sourceRecord']);
+        $t->same('CHPX', $paragraphStyle['textProperties'][0]['sourceUpx']);
+        $t->same(true, $paragraphStyle['textProperties'][0]['enabled']);
+        $t->same('underline', $paragraphStyle['textProperties'][1]['name']);
+        $t->same('single', $paragraphStyle['textProperties'][1]['style']);
+
+        $characterStyle = $styles[1];
+        $t->same('character', $characterStyle['type']);
+        $t->same(1, $characterStyle['upxRecordCount']);
+        $t->same(6, $characterStyle['upxByteCount']);
+        $t->same('character', $characterStyle['upxRecords'][0]['kind']);
+        $t->same(2, $characterStyle['textPropertyCount']);
+        $t->same('italic', $characterStyle['textProperties'][0]['name']);
+        $t->same(true, $characterStyle['textProperties'][0]['enabled']);
+        $t->same('hidden', $characterStyle['textProperties'][1]['name']);
+        $t->same(false, $characterStyle['textProperties'][1]['enabled']);
+
+        foreach (['sprmPJc', 'sprmPDxaLeft', 'sprmCFBold', 'sprmCFItalic', 'metadata-only-native-review'] as $metadataText) {
+            $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC stylesheet formatting metadata should not render into WordPress blocks');
+            $t->true(!str_contains($markdown, $metadataText), 'Legacy DOC stylesheet formatting metadata should not render into Markdown');
+        }
+
+        $badUpx = $buildStyleSheetDocStreams([
+            15 => $styleDefinition('Bad Style UPX', 1, 0x0fff, 15, 1, 0x0ffe, [$u16(0x2461)]),
+        ]);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($badUpx)));
     },
     'reports legacy DOC paragraph and character formatting table FKP ranges for review' => static function (TestRunner $t) use ($buildCfb, $buildFormattingTableDocStreams): void {
         $result = (new LegacyDocReader())->readBytes($buildCfb($buildFormattingTableDocStreams()));

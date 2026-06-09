@@ -387,6 +387,16 @@ final class LegacyDocReader
         if ($styles !== []) {
             $metadata['styleCount'] = count($styles);
             $metadata['styles'] = $styles;
+            $styleFormattingCounts = $this->styleFormattingCounts($styles);
+            if ($styleFormattingCounts['paragraphProperties'] > 0 || $styleFormattingCounts['textProperties'] > 0) {
+                $metadata['styleFormattingPolicy'] = 'metadata-only-native-review';
+                if ($styleFormattingCounts['paragraphProperties'] > 0) {
+                    $metadata['styleParagraphPropertyCount'] = $styleFormattingCounts['paragraphProperties'];
+                }
+                if ($styleFormattingCounts['textProperties'] > 0) {
+                    $metadata['styleTextPropertyCount'] = $styleFormattingCounts['textProperties'];
+                }
+            }
         }
         $revisionAuthors = $this->revisionAuthorReport($wordDocument, $tableStream);
         if ($revisionAuthors !== []) {
@@ -9430,7 +9440,161 @@ final class LegacyDocReader
             $style['aliases'] = array_slice($nameParts, 1);
         }
 
+        $upxOffset = $stdfBaseBytes + $bytesRead;
+        if ($upxOffset > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC stylesheet style UPX groups point outside the LPStd record');
+        }
+        if (($upxOffset % 2) !== 0) {
+            $upxOffset++;
+        }
+        if ($upxOffset < strlen($bytes)) {
+            $style += $this->parseStyleDefinitionUpxs($bytes, $upxOffset, (string) $style['type'], (int) $style['cupx']);
+        }
+
         return $style;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function parseStyleDefinitionUpxs(string $bytes, int $offset, string $styleType, int $cupx): array
+    {
+        if ($cupx <= 0) {
+            throw new \RuntimeException('Legacy DOC stylesheet style contains UPX bytes but declares no UPX groups');
+        }
+
+        $length = strlen($bytes);
+        $cursor = $offset;
+        $upxRecords = [];
+        $paragraphProperties = [];
+        $textProperties = [];
+        $upxByteCount = 0;
+
+        for ($index = 0; $index < $cupx; $index++) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC stylesheet style UPX group is truncated');
+            }
+
+            $byteCount = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if ($cursor + $byteCount > $length) {
+                throw new \RuntimeException('Legacy DOC stylesheet style UPX group points outside the LPStd record');
+            }
+
+            $payload = substr($bytes, $cursor, $byteCount);
+            $cursor += $byteCount;
+            if (($byteCount % 2) !== 0) {
+                if ($cursor >= $length || $bytes[$cursor] !== "\0") {
+                    throw new \RuntimeException('Legacy DOC stylesheet style UPX group is missing its even-byte padding');
+                }
+                $cursor++;
+            }
+
+            $kind = $this->styleDefinitionUpxKind($styleType, $index);
+            $upxRecords[] = [
+                'index' => $index + 1,
+                'kind' => $kind,
+                'byteCount' => $byteCount,
+            ];
+            $upxByteCount += $byteCount;
+
+            if ($payload === '') {
+                continue;
+            }
+
+            if ($kind === 'paragraph') {
+                foreach ($this->styleFormattingProperties($this->parsePapxParagraphProperties($payload), 'PAPX') as $property) {
+                    $paragraphProperties[] = $property;
+                }
+                continue;
+            }
+
+            if ($kind === 'character') {
+                foreach ($this->styleFormattingProperties($this->parseChpxTextProperties($payload), 'CHPX') as $property) {
+                    $textProperties[] = $property;
+                }
+            }
+        }
+
+        if ($cursor !== $length) {
+            throw new \RuntimeException('Legacy DOC stylesheet style contains trailing bytes after its UPX groups');
+        }
+
+        $report = [
+            'upxRecordCount' => count($upxRecords),
+            'upxByteCount' => $upxByteCount,
+            'upxRecords' => $upxRecords,
+            'canApplyStyleFormatting' => false,
+        ];
+        if ($paragraphProperties !== []) {
+            $report['paragraphProperties'] = $paragraphProperties;
+            $report['paragraphPropertyCount'] = count($paragraphProperties);
+            $report['paragraphPropertyExtractionPolicy'] = 'metadata-only-native-review';
+        }
+        if ($textProperties !== []) {
+            $report['textProperties'] = $textProperties;
+            $report['textPropertyCount'] = count($textProperties);
+            $report['textPropertyExtractionPolicy'] = 'metadata-only-native-review';
+        }
+
+        return $report;
+    }
+
+    private function styleDefinitionUpxKind(string $styleType, int $index): string
+    {
+        return match ($styleType) {
+            'paragraph' => match ($index) {
+                0 => 'paragraph',
+                1 => 'character',
+                default => 'extra',
+            },
+            'character' => $index === 0 ? 'character' : 'extra',
+            'table' => match ($index) {
+                0 => 'table',
+                1 => 'paragraph',
+                2 => 'character',
+                default => 'extra',
+            },
+            'numbering' => $index === 0 ? 'paragraph' : 'extra',
+            default => 'extra',
+        };
+    }
+
+    /**
+     * @param list<array<string,mixed>> $properties
+     * @return list<array<string,mixed>>
+     */
+    private function styleFormattingProperties(array $properties, string $sourceUpx): array
+    {
+        return array_map(
+            static function (array $property) use ($sourceUpx): array {
+                $property['source'] = 'Stshf';
+                $property['sourceRecord'] = 'STD';
+                $property['sourceUpx'] = $sourceUpx;
+
+                return $property;
+            },
+            $properties
+        );
+    }
+
+    /**
+     * @param list<array<string,mixed>> $styles
+     * @return array{paragraphProperties:int,textProperties:int}
+     */
+    private function styleFormattingCounts(array $styles): array
+    {
+        $paragraphProperties = 0;
+        $textProperties = 0;
+        foreach ($styles as $style) {
+            $paragraphProperties += count(is_array($style['paragraphProperties'] ?? null) ? $style['paragraphProperties'] : []);
+            $textProperties += count(is_array($style['textProperties'] ?? null) ? $style['textProperties'] : []);
+        }
+
+        return [
+            'paragraphProperties' => $paragraphProperties,
+            'textProperties' => $textProperties,
+        ];
     }
 
     private function styleTypeName(int $stk): string

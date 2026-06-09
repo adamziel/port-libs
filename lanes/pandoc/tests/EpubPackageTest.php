@@ -1259,6 +1259,107 @@ XML;
         $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['resourcePropertyDiagnostics']);
     },
 
+    'summarizes OCF encrypted resource exposure for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithEncryptedResources = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/book.css" media-type="text/css"/>
+    <item id="locked-style" href="styles/locked.css" media-type="text/css"/>
+    <item id="locked-audio" href="audio/locked.mp3" media-type="audio/mpeg"/>
+    <item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>',
+            $epub3OpfXml
+        );
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/images/cover.png"/></CipherData>
+  </EncryptedData>
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/styles/locked.css"/></CipherData>
+  </EncryptedData>
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/audio/locked.mp3"/></CipherData>
+  </EncryptedData>
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData><CipherReference URI="EPUB/fonts/source.otf"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithEncryptedResources],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/styles/locked.css', 'data' => 'body { color: red; }'],
+            ['name' => 'EPUB/audio/locked.mp3', 'data' => 'LOCKED-MP3'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
+        ]));
+
+        $encryption = $epub->encryption();
+        $summary = $epub->summary();
+        $exposure = $encryption['exposure'];
+        $itemsByPart = [];
+        foreach ($exposure['items'] as $item) {
+            $itemsByPart[$item['partName']] = $item;
+        }
+
+        $t->same(true, $encryption['present']);
+        $t->same('/META-INF/encryption.xml', $encryption['part']);
+        $t->same(['/EPUB/images/cover.png', '/EPUB/styles/locked.css', '/EPUB/audio/locked.mp3', '/EPUB/fonts/source.otf'], $encryption['encryptedParts']);
+        $t->same('/EPUB/fonts/source.otf', $encryption['obfuscatedFonts'][0]['partName']);
+        $t->same([], $encryption['diagnostics']);
+
+        $t->same(true, $exposure['present']);
+        $t->same(4, $exposure['itemCount']);
+        $t->same(4, $exposure['blockedByteExposureCount']);
+        $t->same(1, $exposure['obfuscatedFontCount']);
+        $t->same(3, $exposure['nonObfuscatedEncryptedCount']);
+        $t->same(3, $exposure['attachmentCandidateBlockedCount']);
+        $t->same(['audio', 'cover-image', 'font', 'stylesheet'], $exposure['roles']);
+        $t->same([
+            'audio' => 1,
+            'cover-image' => 1,
+            'font' => 1,
+            'stylesheet' => 1,
+        ], $exposure['roleCounts']);
+        $t->same(['/EPUB/fonts/source.otf'], $exposure['obfuscatedFontParts']);
+        $t->same(['/EPUB/audio/locked.mp3', '/EPUB/images/cover.png', '/EPUB/styles/locked.css'], $exposure['nonObfuscatedEncryptedParts']);
+
+        $t->same('stylesheet', $itemsByPart['/EPUB/styles/locked.css']['role']);
+        $t->same('encrypted-resource-review', $itemsByPart['/EPUB/styles/locked.css']['reviewPolicy']);
+        $t->same('encrypted-resource-bytes-blocked', $itemsByPart['/EPUB/styles/locked.css']['byteExposurePolicy']);
+        $t->same(false, $itemsByPart['/EPUB/styles/locked.css']['attachmentCandidateBlocked']);
+        $t->same('cover-image', $itemsByPart['/EPUB/images/cover.png']['role']);
+        $t->same(true, $itemsByPart['/EPUB/images/cover.png']['attachmentCandidateBlocked']);
+        $t->same('audio', $itemsByPart['/EPUB/audio/locked.mp3']['role']);
+        $t->same(true, $itemsByPart['/EPUB/audio/locked.mp3']['attachmentCandidateBlocked']);
+        $t->same('font', $itemsByPart['/EPUB/fonts/source.otf']['role']);
+        $t->same('obfuscated-font-review', $itemsByPart['/EPUB/fonts/source.otf']['reviewPolicy']);
+        $t->same('obfuscated-font-bytes-blocked', $itemsByPart['/EPUB/fonts/source.otf']['byteExposurePolicy']);
+
+        $t->same(true, $epub->manifestItem('cover')['encrypted']);
+        $t->same(false, $epub->manifestItem('cover')['canExposeBytes']);
+        $t->same('cover-image', $epub->manifestItem('cover')['encryption']['role']);
+        $t->same('stylesheet', $epub->manifestItem('locked-style')['encryption']['role']);
+        $t->same('audio', $epub->manifestItem('locked-audio')['encryption']['role']);
+        $t->same('font', $epub->manifestItem('font-main')['encryption']['role']);
+        $t->same('obfuscated-font-review', $epub->manifestItem('font-main')['encryption']['reviewPolicy']);
+
+        $t->same($encryption, $summary['encryption']);
+        $t->same($encryption, $summary['wordpressImport']['encryption']);
+        $t->same($exposure, $summary['wordpressImport']['encryptedResourceExposure']);
+        $t->same([], $summary['wordpressImport']['encryptedResourceDiagnostics']);
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],

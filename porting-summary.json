@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 11:37:51 UTC",
-    "sourceCommit": "40be33e035b6d3addfa6a325be67fa046228f1e1",
-    "sourceCommitShort": "40be33e035b6",
+    "generated": "2026-06-09 11:42:53 UTC",
+    "sourceCommit": "6015fe7e84dc103ae25bd946b46459a21033d320",
+    "sourceCommitShort": "6015fe7e84dc",
     "sourceBranch": "unknown",
-    "dashboardCommit": "40be33e035b6d3addfa6a325be67fa046228f1e1",
-    "dashboardCommitShort": "40be33e035b6",
+    "dashboardCommit": "6015fe7e84dc103ae25bd946b46459a21033d320",
+    "dashboardCommitShort": "6015fe7e84dc",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,919 / 2,276 (128.3%)",
             "mapPercent": "128.3%",
             "unmapped": "0",
-            "php": "2,712 pass / 0 fail",
-            "phase": "native PHP Pandoc DOCX field metadata handoff",
-            "audit": "2026-06-09 UTC current-base DOCX field slice: preserve TOC SEQ field...",
-            "currentWork": "DOCX review packets preserve TOC sequence field metadata without office tooling.",
+            "php": "2,715 pass / 0 fail",
+            "phase": "native PHP Pandoc ODF/OpenDocument metadata handoff",
+            "audit": "2026-06-09 UTC current-base ODF extended statistics slice: fill non-w...",
+            "currentWork": "ODF field review fills extended statistic fields from package meta.xml without extern...",
             "nextTarget": "Continue non-overlapping native conversion support under ODF/...",
-            "remainingGate": "No Word, Pandoc, model, or GPU path used.",
+            "remainingGate": "No LibreOffice, Pandoc, model, or GPU path used.",
             "commit": "pending fast ba..."
         },
         {
