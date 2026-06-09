@@ -4859,11 +4859,18 @@ final class TableGeometry
         $captionSide = trim((string) ($source['captionSide'] ?? ''));
         if ($captionSide !== '') {
             $record['captionSide'] = $captionSide;
+            $record['captionSideSupported'] = self::captionSideSupported($captionSide);
             $captionPlacement = self::captionPlacementFromSide($captionSide);
             if ($captionPlacement !== '') {
                 $record['captionPlacement'] = $captionPlacement;
                 $record['captionBeforeTable'] = $captionPlacement === 'before-table';
                 $record['captionAfterTable'] = $captionPlacement === 'after-table';
+            } else {
+                $record['captionSideReviewRequired'] = true;
+                $record['captionPlacement'] = 'after-table';
+                $record['captionPlacementFallback'] = 'after-table';
+                $record['captionBeforeTable'] = false;
+                $record['captionAfterTable'] = true;
             }
         }
 
@@ -4882,6 +4889,11 @@ final class TableGeometry
             'bottom' => 'after-table',
             default => '',
         };
+    }
+
+    private static function captionSideSupported(string $captionSide): bool
+    {
+        return in_array(strtolower(trim($captionSide)), ['top', 'bottom'], true);
     }
 
     /**
@@ -6214,7 +6226,10 @@ final class TableGeometry
                 ? (int) $captions['long']['sourceChildIndex']
                 : null,
             'captionSide' => (string) ($captions['long']['captionSide'] ?? ''),
+            'captionSideSupported' => (bool) ($captions['long']['captionSideSupported'] ?? false),
+            'captionSideReviewRequired' => (bool) ($captions['long']['captionSideReviewRequired'] ?? false),
             'captionPlacement' => (string) ($captions['long']['captionPlacement'] ?? ''),
+            'captionPlacementFallback' => (string) ($captions['long']['captionPlacementFallback'] ?? ''),
             'captionBeforeTable' => (bool) ($captions['long']['captionBeforeTable'] ?? false),
             'captionAfterTable' => (bool) ($captions['long']['captionAfterTable'] ?? false),
             'hasSourceSummary' => $sourceSummary !== '',
@@ -10884,7 +10899,33 @@ final class TableGeometry
         }
 
         $captionPlacement = (string) ($long['captionPlacement'] ?? '');
-        if ($captionPlacement === 'before-table') {
+        $captionSideReviewRequired = (bool) ($long['captionSideReviewRequired'] ?? false);
+        if ($captionSideReviewRequired) {
+            $captionSideRequirements = [
+                'markdown' => ['markdown-caption-side-review-required', 'raw-html-caption-side'],
+                'asciidoc' => ['asciidoc-caption-side-review-required', 'table-caption-side-review'],
+                'latex' => ['latex-caption-side-review-required', 'caption-position-review'],
+            ];
+            if (isset($captionSideRequirements[$writer])) {
+                [$code, $requiredFeature] = $captionSideRequirements[$writer];
+                $diagnostics[] = [
+                    'code' => $code,
+                    'writer' => $writer,
+                    'reason' => 'caption-side',
+                    'requiredFeature' => $requiredFeature,
+                    'caption' => (string) ($long['text'] ?? ''),
+                    'captionSource' => (string) ($long['source'] ?? 'none'),
+                    'sourceElement' => (string) ($long['sourceElement'] ?? ''),
+                    'sourcePosition' => (string) ($long['sourcePosition'] ?? ''),
+                    'sourceChildIndex' => is_numeric($long['sourceChildIndex'] ?? null) ? (int) $long['sourceChildIndex'] : null,
+                    'captionSide' => (string) ($long['captionSide'] ?? ''),
+                    'captionSideSupported' => (bool) ($long['captionSideSupported'] ?? false),
+                    'captionSideReviewRequired' => true,
+                    'captionPlacement' => $captionPlacement,
+                    'captionPlacementFallback' => (string) ($long['captionPlacementFallback'] ?? ''),
+                ];
+            }
+        } elseif ($captionPlacement === 'before-table') {
             $captionSideRequirements = [
                 'markdown' => ['markdown-caption-side-reordered', 'table-caption-top-placement'],
                 'asciidoc' => ['asciidoc-caption-side-review-required', 'table-caption-top-placement'],

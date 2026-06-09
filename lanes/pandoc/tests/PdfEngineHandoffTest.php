@@ -10359,6 +10359,138 @@ MARKDOWN);
         $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
     },
 
+    'fake runner surfaces bounded pdf uri active actions from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/uri-active-actions.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OpenAction << /S /URI /URI (https://example.test/review/open) >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /AA << /O << /S /URI /URI (mailto:review@example.test) >> >> /Annots [8 0 R] >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Annot /Subtype /Link /A << /S /URI /URI (https://example.test/review/annotation) >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/uri-active-actions.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/uri-active-actions.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expectedActiveActions = [
+            [
+                'source' => 'annotation:8 0 R.A',
+                'type' => 'URI',
+                'target' => 'https://example.test/review/annotation',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.OpenAction',
+                'type' => 'URI',
+                'target' => 'https://example.test/review/open',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'page:3 0 R.AA.O',
+                'type' => 'URI',
+                'target' => 'mailto:review@example.test',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+        ];
+        $expectedActivePolicy = [
+            'reviewStatus' => 'review',
+            'actionCount' => 3,
+            'sourceCount' => 3,
+            'sourceCategories' => [
+                'annotation' => 1,
+                'catalog' => 1,
+                'page' => 1,
+            ],
+            'actionTypes' => ['URI' => 3],
+            'chainedActionCount' => 0,
+            'maxNextDepth' => 0,
+            'scriptActionCount' => 0,
+            'remoteTargetCount' => 3,
+            'launchActionCount' => 0,
+            'formActionCount' => 0,
+            'issues' => [
+                'remote-action-target',
+                'uri-action',
+            ],
+        ];
+        $expectedPageActions = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'trigger' => 'O',
+                'triggerLabel' => 'page-open',
+                'source' => 'page:3 0 R.AA.O',
+                'actionType' => 'URI',
+                'actionTarget' => 'mailto:review@example.test',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+        ];
+        $expectedPagePolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 1,
+            'actionCount' => 1,
+            'pagesWithActions' => [1],
+            'openActionPages' => [1],
+            'closeActionPages' => [],
+            'triggerCounts' => ['O' => 1],
+            'actionTypes' => ['URI' => 1],
+            'scriptActionCount' => 0,
+            'remoteTargetCount' => 1,
+            'launchActionCount' => 0,
+            'issues' => [
+                'page-open-action',
+                'remote-action-target',
+                'uri-action',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same(['type' => 'URI', 'target' => 'https://example.test/review/open'], $result['pdfOpenAction']);
+        $t->same($expectedActiveActions, $result['pdfActiveActions']);
+        $t->same(['URI' => 3], $result['pdfActiveActionTypes']);
+        $t->same($expectedActivePolicy, $result['pdfActiveActionPolicy'] ?? null);
+        $t->same($expectedPageActions, $result['pdfPageActions'] ?? null);
+        $t->same($expectedPagePolicy, $result['pdfPageActionPolicy'] ?? null);
+        $t->contains('pdf-byte-active-action-type:URI:3', $diagnostics);
+        $t->contains('pdf-byte-active-action-policy-remote-targets:3', $diagnostics);
+        $t->contains('pdf-byte-active-action-policy-issue:uri-action:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-type:URI:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-type:URI:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-issue:uri-action:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedActiveActions, $sequence['finalPdfActiveActions']);
+        $t->same($expectedActivePolicy, $sequence['finalPdfActiveActionPolicy'] ?? null);
+        $t->same($expectedPageActions, $sequence['finalPdfPageActions'] ?? null);
+        $t->same($expectedPagePolicy, $sequence['finalPdfPageActionPolicy'] ?? null);
+    },
+
     'fake runner extracts bounded pdf page lifecycle actions from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-actions.pdf']);

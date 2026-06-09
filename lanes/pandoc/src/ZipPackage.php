@@ -3938,6 +3938,219 @@ final class ZipPackage
         return $this->read($partName, $maxUncompressedBytes);
     }
 
+    /**
+     * @param list<string|array{name:string, required?:bool, kind?:string, role?:string, maxUncompressedBytes?:int|null}> $requests
+     * @return array{
+     *     requestedEntryCount:int,
+     *     requiredEntryCount:int,
+     *     optionalEntryCount:int,
+     *     presentEntryCount:int,
+     *     missingEntryCount:int,
+     *     missingRequiredEntryCount:int,
+     *     missingOptionalEntryCount:int,
+     *     handoffEntryCount:int,
+     *     readableEntryCount:int,
+     *     failedEntryCount:int,
+     *     directoryMismatchEntryCount:int,
+     *     oversizedEntryCount:int,
+     *     unreadableEntryCount:int,
+     *     maxEntryUncompressedBytes:?int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     missingEntries:list<array<string, mixed>>,
+     *     failedEntries:list<array<string, mixed>>,
+     *     handoffEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public function entryHandoffPreflight(array $requests, ?int $maxEntryUncompressedBytes = null): array
+    {
+        self::assertReadLimit($maxEntryUncompressedBytes, 'selected package entry handoff preflight');
+
+        $entries = [];
+        $missingEntries = [];
+        $failedEntries = [];
+        $handoffEntries = [];
+        $issues = [];
+        $presentNames = [];
+        $requiredEntryCount = 0;
+        $optionalEntryCount = 0;
+        $missingRequiredEntryCount = 0;
+        $missingOptionalEntryCount = 0;
+        $directoryMismatchEntryCount = 0;
+        $oversizedEntryCount = 0;
+        $unreadableEntryCount = 0;
+
+        foreach ($requests as $requestIndex => $request) {
+            if (is_string($request)) {
+                $requestedName = $request;
+                $required = true;
+                $expectedKind = 'file';
+                $role = null;
+                $entryMaxUncompressedBytes = $maxEntryUncompressedBytes;
+            } elseif (is_array($request) && isset($request['name']) && is_string($request['name'])) {
+                $requestedName = $request['name'];
+                $required = (bool) ($request['required'] ?? true);
+                $expectedKind = $request['kind'] ?? 'file';
+                if (!is_string($expectedKind)) {
+                    throw new \InvalidArgumentException('ZIP selected entry handoff kind must be a string');
+                }
+                $role = isset($request['role']) && is_string($request['role']) ? $request['role'] : null;
+                $entryMaxUncompressedBytes = array_key_exists('maxUncompressedBytes', $request)
+                    ? $request['maxUncompressedBytes']
+                    : $maxEntryUncompressedBytes;
+            } else {
+                throw new \InvalidArgumentException('ZIP selected entry handoff requests must be entry names or arrays with a name');
+            }
+
+            if (!in_array($expectedKind, ['file', 'directory', 'any'], true)) {
+                throw new \InvalidArgumentException('ZIP selected entry handoff kind must be file, directory, or any');
+            }
+
+            if ($entryMaxUncompressedBytes !== null && !is_int($entryMaxUncompressedBytes)) {
+                throw new \InvalidArgumentException('ZIP selected entry handoff maximum uncompressed size must be an integer or null');
+            }
+            self::assertReadLimit($entryMaxUncompressedBytes, $requestedName);
+
+            $required ? $requiredEntryCount++ : $optionalEntryCount++;
+
+            $name = $this->normalizeLookupPartName($requestedName);
+            $entry = $this->entriesByName[$name] ?? null;
+            $entryIssues = [];
+            $error = null;
+            $bytesRead = null;
+            $contentSha256 = null;
+            $isReadable = false;
+            $status = 'ready';
+            $isDirectory = null;
+
+            $summary = [
+                'requestIndex' => $requestIndex,
+                'requestedName' => $requestedName,
+                'name' => $name,
+                'role' => $role,
+                'required' => $required,
+                'expectedKind' => $expectedKind,
+                'exists' => $entry !== null,
+                'isDirectory' => null,
+                'compressionMethod' => null,
+                'compressedSize' => null,
+                'uncompressedSize' => null,
+                'crc32' => null,
+                'crc32Hex' => null,
+                'maxUncompressedBytes' => $entryMaxUncompressedBytes,
+                'isReadable' => false,
+                'bytesRead' => null,
+                'contentSha256' => null,
+                'status' => 'ready',
+                'error' => null,
+                'issues' => [],
+            ];
+
+            if ($entry === null) {
+                $status = $required ? 'missing-required' : 'missing-optional';
+                $summary['status'] = $status;
+                if ($required) {
+                    $entryIssues[] = 'missing-required-entry';
+                    $missingRequiredEntryCount++;
+                    self::appendUniqueIssue($issues, 'missing-required-entry');
+                } else {
+                    $missingOptionalEntryCount++;
+                }
+                $summary['issues'] = $entryIssues;
+                $missingEntries[] = $summary;
+                if ($entryIssues !== []) {
+                    $failedEntries[] = $summary;
+                }
+                $entries[] = $summary;
+                continue;
+            }
+
+            $presentNames[$name] = true;
+            $isDirectory = $entry->isDirectory();
+            $summary['isDirectory'] = $isDirectory;
+            $summary['compressionMethod'] = $entry->compressionMethod;
+            $summary['compressedSize'] = $entry->compressedSize;
+            $summary['uncompressedSize'] = $entry->uncompressedSize;
+            $summary['crc32'] = $entry->crc32;
+            $summary['crc32Hex'] = $entry->crc32Hex();
+
+            if ($expectedKind === 'file' && $isDirectory) {
+                $entryIssues[] = 'directory-entry-not-file';
+                $directoryMismatchEntryCount++;
+                self::appendUniqueIssue($issues, 'directory-entry-not-file');
+            } elseif ($expectedKind === 'directory' && !$isDirectory) {
+                $entryIssues[] = 'file-entry-not-directory';
+                $directoryMismatchEntryCount++;
+                self::appendUniqueIssue($issues, 'file-entry-not-directory');
+            }
+
+            if (
+                $entryMaxUncompressedBytes !== null
+                && $entry->uncompressedSize > $entryMaxUncompressedBytes
+            ) {
+                $entryIssues[] = 'entry-uncompressed-size-exceeds-limit';
+                $oversizedEntryCount++;
+                self::appendUniqueIssue($issues, 'entry-uncompressed-size-exceeds-limit');
+            }
+
+            if ($entryIssues === []) {
+                try {
+                    $contents = $this->read($entry->name, $entryMaxUncompressedBytes);
+                    $bytesRead = strlen($contents);
+                    $contentSha256 = hash('sha256', $contents);
+                    $isReadable = true;
+                } catch (\RuntimeException $exception) {
+                    $entryIssues[] = 'unreadable-entry';
+                    $error = $exception->getMessage();
+                    $unreadableEntryCount++;
+                    self::appendUniqueIssue($issues, 'unreadable-entry');
+                }
+            }
+
+            if ($entryIssues !== []) {
+                $status = 'blocked';
+            }
+
+            $summary['isReadable'] = $isReadable;
+            $summary['bytesRead'] = $bytesRead;
+            $summary['contentSha256'] = $contentSha256;
+            $summary['status'] = $status;
+            $summary['error'] = $error;
+            $summary['issues'] = $entryIssues;
+
+            if ($entryIssues === []) {
+                $handoffEntries[] = $summary;
+            } else {
+                $failedEntries[] = $summary;
+            }
+            $entries[] = $summary;
+        }
+
+        return [
+            'requestedEntryCount' => count($requests),
+            'requiredEntryCount' => $requiredEntryCount,
+            'optionalEntryCount' => $optionalEntryCount,
+            'presentEntryCount' => count($presentNames),
+            'missingEntryCount' => count($missingEntries),
+            'missingRequiredEntryCount' => $missingRequiredEntryCount,
+            'missingOptionalEntryCount' => $missingOptionalEntryCount,
+            'handoffEntryCount' => count($handoffEntries),
+            'readableEntryCount' => count($handoffEntries),
+            'failedEntryCount' => count($failedEntries),
+            'directoryMismatchEntryCount' => $directoryMismatchEntryCount,
+            'oversizedEntryCount' => $oversizedEntryCount,
+            'unreadableEntryCount' => $unreadableEntryCount,
+            'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'missingEntries' => $missingEntries,
+            'failedEntries' => $failedEntries,
+            'handoffEntries' => $handoffEntries,
+            'entries' => $entries,
+        ];
+    }
+
     public function centralDirectoryOffset(): int
     {
         return $this->centralDirectoryOffset;
@@ -10738,6 +10951,16 @@ final class ZipPackage
         self::assertSafePartName($name);
 
         return $name;
+    }
+
+    /**
+     * @param list<string> $issues
+     */
+    private static function appendUniqueIssue(array &$issues, string $issue): void
+    {
+        if (!in_array($issue, $issues, true)) {
+            $issues[] = $issue;
+        }
     }
 
     private static function caseFoldZipEntryName(string $name): string

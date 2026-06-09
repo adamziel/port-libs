@@ -5908,13 +5908,14 @@ final class Html5DomFragment
                 $attrs['data-pandoc-popover-state'] = self::normalizeHtmlPopoverAttribute(
                     $value,
                     $tagName,
+                    $element,
                     $diagnostics
                 );
                 continue;
             }
 
             if ($mode === 'html' && self::isHtmlEditingStateAttribute($name)) {
-                $editingMetadata = self::normalizeHtmlEditingStateAttribute($name, $value, $tagName, $diagnostics);
+                $editingMetadata = self::normalizeHtmlEditingStateAttribute($name, $value, $tagName, $element, $diagnostics);
                 if ($editingMetadata !== null) {
                     [$metadataName, $metadataValue] = $editingMetadata;
                     $attrs[$metadataName] = $metadataValue;
@@ -5923,7 +5924,7 @@ final class Html5DomFragment
             }
 
             if ($mode === 'html' && strtolower($name) === 'translate') {
-                $translationState = self::normalizeHtmlTranslationStateAttribute($value, $tagName, $diagnostics);
+                $translationState = self::normalizeHtmlTranslationStateAttribute($value, $tagName, $element, $diagnostics);
                 if ($translationState !== null) {
                     $attrs['data-pandoc-translate-state'] = $translationState;
                 }
@@ -5972,6 +5973,7 @@ final class Html5DomFragment
                     $name,
                     $value,
                     $tagName,
+                    $element,
                     $diagnostics
                 );
                 foreach ($focusNavigationMetadata as $metadataName => $metadataValue) {
@@ -6008,6 +6010,7 @@ final class Html5DomFragment
                     $name,
                     $value,
                     $tagName,
+                    $element,
                     $diagnostics
                 );
                 if ($languageDirectionMetadata !== null) {
@@ -6462,6 +6465,7 @@ final class Html5DomFragment
         string $name,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?array {
         $attribute = strtolower($name);
@@ -6470,46 +6474,46 @@ final class Html5DomFragment
             if ($direction === null) {
                 $sourceDirection = strtolower(self::cleanHtmlMetadataAttribute($value));
                 if ($sourceDirection !== '') {
-                    $diagnostics[] = [
+                    $diagnostics[] = self::diagnosticWithSourceLine([
                         'code' => 'unsafe-attribute',
                         'tag' => $tagName,
                         'attribute' => 'dir',
                         'value' => $sourceDirection,
-                    ];
+                    ], $element);
                 }
 
                 return null;
             }
 
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'language-direction-review',
                 'tag' => $tagName,
                 'attribute' => 'dir',
                 'direction' => $direction,
                 'reason' => 'language-direction-preserved-as-metadata',
-            ];
+            ], $element);
 
             return ['data-pandoc-dir', $direction];
         }
 
         $language = self::normalizeHtmlLanguageTag($value);
         if ($language === null) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => $attribute,
-            ];
+            ], $element);
 
             return null;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'language-direction-review',
             'tag' => $tagName,
             'attribute' => $attribute,
             'language' => $language,
             'reason' => 'language-direction-preserved-as-metadata',
-        ];
+        ], $element);
 
         return ['data-pandoc-lang', $language];
     }
@@ -6517,7 +6521,7 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlPopoverAttribute(string $value, string $tagName, array &$diagnostics): string
+    private static function normalizeHtmlPopoverAttribute(string $value, string $tagName, \DOMElement $element, array &$diagnostics): string
     {
         $state = strtolower(self::cleanHtmlMetadataAttribute($value));
         if ($state === '') {
@@ -6525,22 +6529,22 @@ final class Html5DomFragment
         }
 
         if (!in_array($state, ['auto', 'manual', 'hint'], true)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => 'popover',
                 'value' => $state,
-            ];
+            ], $element);
             $state = 'manual';
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'popover-review',
             'tag' => $tagName,
             'attribute' => 'popover',
             'state' => $state,
             'reason' => 'popover-content-preserved',
-        ];
+        ], $element);
 
         return $state;
     }
@@ -6558,6 +6562,7 @@ final class Html5DomFragment
         string $name,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?array {
         $attribute = strtolower($name);
@@ -6574,23 +6579,23 @@ final class Html5DomFragment
         };
 
         if (!in_array($state, $allowedStates, true)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => $attribute,
                 'value' => $state,
-            ];
+            ], $element);
 
             return null;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'editing-state-review',
             'tag' => $tagName,
             'attribute' => $attribute,
             'state' => $state,
             'reason' => 'live-editing-attribute-preserved-as-metadata',
-        ];
+        ], $element);
 
         return ['data-pandoc-' . $attribute . '-state', $state];
     }
@@ -6601,6 +6606,7 @@ final class Html5DomFragment
     private static function normalizeHtmlTranslationStateAttribute(
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?string {
         $state = strtolower(self::cleanHtmlMetadataAttribute($value));
@@ -6609,23 +6615,23 @@ final class Html5DomFragment
         }
 
         if (!in_array($state, ['yes', 'no'], true)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => 'translate',
                 'value' => $state,
-            ];
+            ], $element);
 
             return null;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'translation-state-review',
             'tag' => $tagName,
             'attribute' => 'translate',
             'state' => $state,
             'reason' => 'translation-state-preserved-as-metadata',
-        ];
+        ], $element);
 
         return $state;
     }
@@ -6643,6 +6649,7 @@ final class Html5DomFragment
         string $name,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): array {
         $attribute = strtolower($name);
@@ -6651,7 +6658,8 @@ final class Html5DomFragment
                 $diagnostics,
                 $tagName,
                 $attribute,
-                'data-pandoc-autofocus-state'
+                'data-pandoc-autofocus-state',
+                $element
             );
 
             return ['data-pandoc-autofocus-state' => 'true'];
@@ -6660,22 +6668,22 @@ final class Html5DomFragment
         if ($attribute === 'tabindex') {
             $tabIndex = self::normalizeHtmlTabIndexAttribute($value);
             if ($tabIndex === null) {
-                self::addHtmlInvalidFocusNavigationDiagnostic($diagnostics, $tagName, $attribute);
+                self::addHtmlInvalidFocusNavigationDiagnostic($diagnostics, $tagName, $attribute, $element);
 
                 return [];
             }
 
-            self::addHtmlFocusNavigationDiagnostic($diagnostics, $tagName, $attribute, 'data-pandoc-tabindex');
+            self::addHtmlFocusNavigationDiagnostic($diagnostics, $tagName, $attribute, 'data-pandoc-tabindex', $element);
 
             return ['data-pandoc-tabindex' => $tabIndex];
         }
 
-        $accessKeys = self::normalizeHtmlAccessKeyAttribute($value, $tagName, $diagnostics);
+        $accessKeys = self::normalizeHtmlAccessKeyAttribute($value, $tagName, $element, $diagnostics);
         if ($accessKeys === null) {
             return [];
         }
 
-        self::addHtmlFocusNavigationDiagnostic($diagnostics, $tagName, $attribute, 'data-pandoc-accesskey');
+        self::addHtmlFocusNavigationDiagnostic($diagnostics, $tagName, $attribute, 'data-pandoc-accesskey', $element);
 
         return ['data-pandoc-accesskey' => $accessKeys];
     }
@@ -6701,11 +6709,12 @@ final class Html5DomFragment
     private static function normalizeHtmlAccessKeyAttribute(
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?string {
         $tokens = self::splitHtmlSemanticTokens($value);
         if ($tokens === []) {
-            self::addHtmlInvalidFocusNavigationDiagnostic($diagnostics, $tagName, 'accesskey');
+            self::addHtmlInvalidFocusNavigationDiagnostic($diagnostics, $tagName, 'accesskey', $element);
 
             return null;
         }
@@ -6713,7 +6722,7 @@ final class Html5DomFragment
         $normalized = [];
         foreach ($tokens as $token) {
             if (!self::isSafeHtmlAccessKeyToken($token)) {
-                self::addHtmlInvalidFocusNavigationDiagnostic($diagnostics, $tagName, 'accesskey', $token);
+                self::addHtmlInvalidFocusNavigationDiagnostic($diagnostics, $tagName, 'accesskey', $element, $token);
                 continue;
             }
 
@@ -6746,15 +6755,16 @@ final class Html5DomFragment
         array &$diagnostics,
         string $tagName,
         string $attributeName,
-        string $metadataAttribute
+        string $metadataAttribute,
+        \DOMElement $element
     ): void {
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'focus-navigation-review',
             'tag' => $tagName,
             'attribute' => $attributeName,
             'metadataAttribute' => $metadataAttribute,
             'reason' => 'focus-navigation-preserved-as-review-metadata',
-        ];
+        ], $element);
     }
 
     /**
@@ -6764,6 +6774,7 @@ final class Html5DomFragment
         array &$diagnostics,
         string $tagName,
         string $attributeName,
+        \DOMElement $element,
         ?string $token = null
     ): void {
         $diagnostic = [
@@ -6776,7 +6787,7 @@ final class Html5DomFragment
             $diagnostic['token'] = $token;
         }
 
-        $diagnostics[] = $diagnostic;
+        $diagnostics[] = self::diagnosticWithSourceLine($diagnostic, $element);
     }
 
     private static function isHtmlRevisionMetadataAttribute(string $tagName, string $name): bool

@@ -563,6 +563,18 @@ $captionSourceTables = array_values(array_filter(
     $captionSourceDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$sideCaptionDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="side-caption-grid" data-source="html-reader">
+<caption id="side-caption" class="caption-title" data-origin="html-reader" style="caption-side: left; color: green" onclick="blocked()">Side <em>caption</em></caption>
+<tbody>
+<tr><th>Scope</th><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$sideCaptionTables = array_values(array_filter(
+    $sideCaptionDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $summarySourceDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="summary-source-grid" summary="Legacy source table describes post counts by import state." data-source="html-reader">
 <caption>Summary source review</caption>
@@ -1697,6 +1709,7 @@ $document = new AstNode('document', [], [
     ...$visualRowHeadColspanTables,
     ...$multiBodyRowHeadTables,
     ...$captionSourceTables,
+    ...$sideCaptionTables,
     ...$axisSourceTables,
     ...$autoScopeTables,
     ...$captionMetadataTables,
@@ -4194,6 +4207,40 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test rendered unsafe caption source event attributes');
     }
     json_encode($captionSourcePacket, JSON_THROW_ON_ERROR);
+
+    $sideCaptionTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('caption') === 'Side caption') {
+            $sideCaptionTable = $node;
+            break;
+        }
+    }
+    $sideCaptionPacket = $sideCaptionTable instanceof AstNode ? $sideCaptionTable->attr('tableGeometry') : null;
+    $sideCaptionMarkdown = is_array($sideCaptionPacket)
+        ? array_values(array_filter(
+            $sideCaptionPacket['writerDowngrades']['markdown'] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-caption-side-review-required'
+        ))
+        : [];
+    if (
+        !is_array($sideCaptionPacket)
+        || ($sideCaptionPacket['summary']['captionSide'] ?? null) !== 'left'
+        || ($sideCaptionPacket['summary']['captionSideSupported'] ?? null) !== false
+        || ($sideCaptionPacket['summary']['captionSideReviewRequired'] ?? null) !== true
+        || ($sideCaptionPacket['summary']['captionPlacementFallback'] ?? null) !== 'after-table'
+        || count($sideCaptionMarkdown) !== 1
+        || ($sideCaptionMarkdown[0]['requiredFeature'] ?? null) !== 'raw-html-caption-side'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing side caption review metadata');
+    }
+    if (
+        !str_contains($blocks, '<table id="side-caption-grid" data-source="html-reader">')
+        || !str_contains($blocks, '</table><figcaption id="side-caption" class="wp-element-caption caption-title" data-origin="html-reader" style="caption-side: left; color: green">Side <em>caption</em></figcaption>')
+        || str_contains($blocks, 'onclick=')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing sanitized side caption WordPress fallback output');
+    }
+    json_encode($sideCaptionPacket, JSON_THROW_ON_ERROR);
 
     $summarySourceTable = $summarySourceTables[0] ?? null;
     $summarySourcePacket = $summarySourceTable instanceof AstNode ? $summarySourceTable->attr('tableGeometry') : null;

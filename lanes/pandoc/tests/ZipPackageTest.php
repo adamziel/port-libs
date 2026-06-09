@@ -7828,6 +7828,148 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $package->readBounded('/word/document.xml', -1));
     },
 
+    'preflights selected zip package entries before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected handoff</w:p></w:body></w:document>';
+        $imageBytes = "review image bytes\n";
+        $largeBytes = "large selected media bytes\n";
+        $unsupportedBytes = "unsupported selected media bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/image.png',
+                'data' => $imageBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/large.bin',
+                'data' => $largeBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/unsupported.bin',
+                'data' => $unsupportedBytes,
+                'method' => 12,
+                'centralCompressedSize' => strlen($unsupportedBytes),
+                'centralUncompressedSize' => strlen($unsupportedBytes),
+                'localCompressedSize' => strlen($unsupportedBytes),
+                'localUncompressedSize' => strlen($unsupportedBytes),
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/missing.xml', 'required' => true, 'kind' => 'file', 'role' => 'required-sidecar'],
+            ['name' => 'word/media/', 'required' => true, 'kind' => 'file', 'role' => 'spoofed-file'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'oversized-optional', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/media/unsupported.bin', 'required' => true, 'kind' => 'file', 'role' => 'unsupported-required'],
+            ['name' => 'word/optional.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 128);
+
+        $t->same(8, $summary['requestedEntryCount']);
+        $t->same(4, $summary['requiredEntryCount']);
+        $t->same(4, $summary['optionalEntryCount']);
+        $t->same(5, $summary['presentEntryCount']);
+        $t->same(2, $summary['missingEntryCount']);
+        $t->same(1, $summary['missingRequiredEntryCount']);
+        $t->same(1, $summary['missingOptionalEntryCount']);
+        $t->same(3, $summary['handoffEntryCount']);
+        $t->same(3, $summary['readableEntryCount']);
+        $t->same(4, $summary['failedEntryCount']);
+        $t->same(1, $summary['directoryMismatchEntryCount']);
+        $t->same(1, $summary['oversizedEntryCount']);
+        $t->same(1, $summary['unreadableEntryCount']);
+        $t->same(128, $summary['maxEntryUncompressedBytes']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same([
+            'missing-required-entry',
+            'directory-entry-not-file',
+            'entry-uncompressed-size-exceeds-limit',
+            'unreadable-entry',
+        ], $summary['issues']);
+
+        $documentEntry = $summary['entries'][0];
+        $t->same(0, $documentEntry['requestIndex']);
+        $t->same('/word/document.xml', $documentEntry['requestedName']);
+        $t->same('word/document.xml', $documentEntry['name']);
+        $t->same('main-document', $documentEntry['role']);
+        $t->same(true, $documentEntry['required']);
+        $t->same('file', $documentEntry['expectedKind']);
+        $t->same(true, $documentEntry['exists']);
+        $t->same(false, $documentEntry['isDirectory']);
+        $t->same(8, $documentEntry['compressionMethod']);
+        $t->same(strlen($documentXml), $documentEntry['uncompressedSize']);
+        $t->same(strlen($documentXml), $documentEntry['bytesRead']);
+        $t->same(hash('sha256', $documentXml), $documentEntry['contentSha256']);
+        $t->same('ready', $documentEntry['status']);
+        $t->same([], $documentEntry['issues']);
+
+        $directoryEntry = $summary['entries'][2];
+        $t->same('word/media/', $directoryEntry['name']);
+        $t->same('directory', $directoryEntry['expectedKind']);
+        $t->same(true, $directoryEntry['isDirectory']);
+        $t->same(0, $directoryEntry['bytesRead']);
+        $t->same(hash('sha256', ''), $directoryEntry['contentSha256']);
+        $t->same('ready', $directoryEntry['status']);
+
+        $missingRequired = $summary['entries'][3];
+        $t->same('word/missing.xml', $missingRequired['name']);
+        $t->same(false, $missingRequired['exists']);
+        $t->same('missing-required', $missingRequired['status']);
+        $t->same(['missing-required-entry'], $missingRequired['issues']);
+
+        $directoryMismatch = $summary['entries'][4];
+        $t->same('word/media/', $directoryMismatch['name']);
+        $t->same('file', $directoryMismatch['expectedKind']);
+        $t->same(['directory-entry-not-file'], $directoryMismatch['issues']);
+        $t->same('blocked', $directoryMismatch['status']);
+
+        $oversizedEntry = $summary['entries'][5];
+        $t->same('word/media/large.bin', $oversizedEntry['name']);
+        $t->same(8, $oversizedEntry['maxUncompressedBytes']);
+        $t->same(strlen($largeBytes), $oversizedEntry['uncompressedSize']);
+        $t->same(null, $oversizedEntry['bytesRead']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $oversizedEntry['issues']);
+
+        $unsupportedEntry = $summary['entries'][6];
+        $t->same('word/media/unsupported.bin', $unsupportedEntry['name']);
+        $t->same(12, $unsupportedEntry['compressionMethod']);
+        $t->same(false, $unsupportedEntry['isReadable']);
+        $t->same(['unreadable-entry'], $unsupportedEntry['issues']);
+        $t->contains('Unsupported ZIP compression method 12', $unsupportedEntry['error']);
+
+        $optionalMissing = $summary['entries'][7];
+        $t->same('word/optional.xml', $optionalMissing['name']);
+        $t->same(false, $optionalMissing['required']);
+        $t->same(false, $optionalMissing['exists']);
+        $t->same('missing-optional', $optionalMissing['status']);
+        $t->same([], $optionalMissing['issues']);
+
+        $t->same([$missingRequired, $directoryMismatch, $oversizedEntry, $unsupportedEntry], $summary['failedEntries']);
+        $t->same([$documentEntry, $summary['entries'][1], $directoryEntry], $summary['handoffEntries']);
+
+        $safeSummary = $package->entryHandoffPreflight([
+            'word/document.xml',
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file'],
+        ], 128);
+
+        $t->same(true, $safeSummary['isSupportedByBoundedReader']);
+        $t->same([], $safeSummary['issues']);
+        $t->same(2, $safeSummary['handoffEntryCount']);
+        $t->same(2, $safeSummary['readableEntryCount']);
+    },
+
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
         $mediaBytes = str_repeat("review media bytes\n", 24);

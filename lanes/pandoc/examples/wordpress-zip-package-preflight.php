@@ -3208,10 +3208,11 @@ $packagePlatformMetadataPreflight = $package->platformMetadataPreflight();
 $localHeaderOrderReviewPackage = ZipPackage::fromString($buildLocalHeaderOrderReviewBackedPackage());
 $localHeaderOrderReviewPreflight = $localHeaderOrderReviewPackage->localHeaderOrderPreflight();
 $localHeaderOrderReviewStrictPreflight = $localHeaderOrderReviewPackage->strictImportPreflight(4096, 100.0, 4096);
+$strictImportDocumentXml = '<w:document><w:body><w:p>Strict import source</w:p></w:body></w:document>';
 $strictImportPackage = ZipPackage::fromParts([
     [
         'name' => 'word/document.xml',
-        'data' => '<w:document><w:body><w:p>Strict import source</w:p></w:body></w:document>',
+        'data' => $strictImportDocumentXml,
         'modifiedAt' => $documentModifiedAt,
         'externalAttributes' => 0x81a40000,
     ],
@@ -3227,6 +3228,12 @@ $strictImportPackage = ZipPackage::fromParts([
     ],
 ]);
 $strictImportPreflight = $strictImportPackage->strictImportPreflight(4096, 100.0, 4096);
+$strictImportEntryHandoffPreflight = $strictImportPackage->entryHandoffPreflight([
+    ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+    ['name' => 'word/media/review.txt', 'required' => false, 'kind' => 'file', 'role' => 'attachment', 'maxUncompressedBytes' => 64],
+    ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+    ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-comments'],
+], 4096);
 $strictImportCentralDirectoryInventory = ZipPackage::centralDirectoryInventoryPreflight($strictImportPackage->bytes());
 $centralDirectoryDeclaredLowInventory = ZipPackage::centralDirectoryInventoryPreflight($rewriteZipEndOfCentralDirectory(
     $strictImportPackage->bytes(),
@@ -5161,6 +5168,23 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($strictImportEntryHandoffPreflight['isSupportedByBoundedReader'] ?? null) !== true
+        || ($strictImportEntryHandoffPreflight['requestedEntryCount'] ?? null) !== 4
+        || ($strictImportEntryHandoffPreflight['requiredEntryCount'] ?? null) !== 1
+        || ($strictImportEntryHandoffPreflight['optionalEntryCount'] ?? null) !== 3
+        || ($strictImportEntryHandoffPreflight['presentEntryCount'] ?? null) !== 3
+        || ($strictImportEntryHandoffPreflight['missingRequiredEntryCount'] ?? null) !== 0
+        || ($strictImportEntryHandoffPreflight['missingOptionalEntryCount'] ?? null) !== 1
+        || ($strictImportEntryHandoffPreflight['handoffEntryCount'] ?? null) !== 3
+        || ($strictImportEntryHandoffPreflight['failedEntryCount'] ?? null) !== 0
+        || ($strictImportEntryHandoffPreflight['issues'] ?? null) !== []
+        || ($strictImportEntryHandoffPreflight['handoffEntries'][0]['contentSha256'] ?? null) !== hash('sha256', $strictImportDocumentXml)
+        || ($strictImportEntryHandoffPreflight['entries'][3]['status'] ?? null) !== 'missing-optional'
+    ) {
+        throw new RuntimeException('Expected selected ZIP entry handoff preflight to accept required document/media entries and preserve optional missing parts');
+    }
+
+    if (
         ($centralDirectoryDeclaredLowInventory['declaredEntryCount'] ?? null) !== 2
         || ($centralDirectoryDeclaredLowInventory['scannedEntryCount'] ?? null) !== 3
         || ($centralDirectoryDeclaredLowInventory['entryCountDelta'] ?? null) !== 1
@@ -7053,6 +7077,10 @@ echo 'zipStrictImportPolicy=' . ($strictImportPreflight['isValid'] ? 'accepted' 
 echo 'zipStrictImportDiagnostics=' . implode(',', $strictImportPreflight['diagnostics']) . "\n";
 echo 'zipStrictImportCentralDirectoryEntries=' . $strictImportPreflight['centralDirectoryInventory']['entryCount'] . "\n";
 echo 'zipStrictImportCentralDirectorySupported=' . ($strictImportPreflight['centralDirectoryInventory']['isSupportedByBoundedReader'] ? 'true' : 'false') . "\n";
+echo 'zipEntryHandoffPolicy=' . ($strictImportEntryHandoffPreflight['isSupportedByBoundedReader'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipEntryHandoffReadyEntries=' . $strictImportEntryHandoffPreflight['handoffEntryCount'] . "\n";
+echo 'zipEntryHandoffMissingOptional=' . $strictImportEntryHandoffPreflight['missingOptionalEntryCount'] . "\n";
+echo 'zipEntryHandoffDiagnostics=' . implode(',', $strictImportEntryHandoffPreflight['issues']) . "\n";
 echo 'zipCentralDirectoryDeclaredLowKind=' . ($centralDirectoryDeclaredLowInventory['entryCountMismatchKind'] ?? 'none') . "\n";
 echo 'zipCentralDirectoryDeclaredLowExtraScanned=' . $centralDirectoryDeclaredLowInventory['extraScannedEntryCount'] . "\n";
 echo 'zipCentralDirectoryDeclaredHighKind=' . ($centralDirectoryDeclaredHighInventory['entryCountMismatchKind'] ?? 'none') . "\n";

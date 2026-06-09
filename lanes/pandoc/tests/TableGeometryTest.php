@@ -4347,6 +4347,90 @@ return [
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
     },
+    'reports non top bottom caption side values as geometry review requirements' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Side caption audit',
+            'captionSource' => [
+                'element' => 'caption',
+                'position' => 'before-table-sections',
+                'childIndex' => 0,
+                'captionSide' => 'left',
+                'sourceAttributes' => [
+                    'htmlAttributes' => [
+                        'style' => 'caption-side: left; color: green',
+                        'data-origin' => 'html-reader',
+                    ],
+                ],
+            ],
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'markdown');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoc');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'latex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
+
+        $t->same('left', $packet['captions']['long']['captionSide'] ?? null);
+        $t->same(false, $packet['captions']['long']['captionSideSupported'] ?? null);
+        $t->same(true, $packet['captions']['long']['captionSideReviewRequired'] ?? null);
+        $t->same('after-table', $packet['captions']['long']['captionPlacement'] ?? null);
+        $t->same('after-table', $packet['captions']['long']['captionPlacementFallback'] ?? null);
+        $t->same(false, $packet['captions']['long']['captionBeforeTable'] ?? null);
+        $t->same(true, $packet['captions']['long']['captionAfterTable'] ?? null);
+        $t->same('left', $packet['summary']['captionSide'] ?? null);
+        $t->same(false, $packet['summary']['captionSideSupported'] ?? null);
+        $t->same(true, $packet['summary']['captionSideReviewRequired'] ?? null);
+        $t->same('after-table', $packet['summary']['captionPlacement'] ?? null);
+        $t->same('after-table', $packet['summary']['captionPlacementFallback'] ?? null);
+
+        $t->same([
+            'markdown-caption-side-review-required',
+            'markdown-caption-source-attributes-require-raw-html',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same([
+            'asciidoc-caption-side-review-required',
+            'asciidoc-caption-source-attributes-require-raw-html',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
+        $t->same([
+            'latex-caption-side-review-required',
+            'latex-caption-source-attributes-review-required',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics));
+        $t->same('caption-side', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('raw-html-caption-side', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('left', $markdownDiagnostics[0]['captionSide'] ?? null);
+        $t->same(false, $markdownDiagnostics[0]['captionSideSupported'] ?? null);
+        $t->same(true, $markdownDiagnostics[0]['captionSideReviewRequired'] ?? null);
+        $t->same('after-table', $markdownDiagnostics[0]['captionPlacement'] ?? null);
+        $t->same('after-table', $markdownDiagnostics[0]['captionPlacementFallback'] ?? null);
+
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same($latexDiagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same(6, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-caption-side-review-required',
+            'markdown-caption-source-attributes-require-raw-html',
+            'asciidoc-caption-side-review-required',
+            'asciidoc-caption-source-attributes-require-raw-html',
+            'latex-caption-side-review-required',
+            'latex-caption-source-attributes-review-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->contains('<table>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption" style="caption-side: left; color: green" data-origin="html-reader">Side caption audit</figcaption>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
+    },
     'serializes block-level table caption provenance for importer review packets' => static function (TestRunner $t): void {
         $table = new AstNode('table', [
             'caption' => 'Fallback block caption text',

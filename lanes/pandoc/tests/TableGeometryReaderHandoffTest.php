@@ -328,6 +328,50 @@ HTML;
         $t->true(!str_contains($blocks, 'onclick='), 'Unsafe caption event attributes must not render');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports side captions as review required while preserving wordpress fallback placement' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="side-caption-grid" data-source="html-reader">
+<caption id="side-caption" class="caption-title" data-origin="html-reader" style="caption-side: left; color: green" onclick="blocked()">Side <em>caption</em></caption>
+<tbody><tr><th>Scope</th><td>Ready</td></tr></tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Side caption', $table->attr('caption'));
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('left', $packet['captions']['long']['captionSide'] ?? null);
+        $t->same(false, $packet['captions']['long']['captionSideSupported'] ?? null);
+        $t->same(true, $packet['captions']['long']['captionSideReviewRequired'] ?? null);
+        $t->same('after-table', $packet['captions']['long']['captionPlacementFallback'] ?? null);
+        $t->same('after-table', $packet['summary']['captionPlacement'] ?? null);
+        $t->same('after-table', $packet['summary']['captionPlacementFallback'] ?? null);
+        $t->same(true, $packet['summary']['captionAfterTable'] ?? null);
+        $t->same(true, $packet['summary']['captionSideReviewRequired'] ?? null);
+
+        $markdownDiagnostics = $packet['writerDowngrades']['markdown'] ?? [];
+        $markdownCodes = array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $markdownDiagnostics);
+        $t->same(true, in_array('markdown-caption-side-review-required', $markdownCodes, true));
+        $t->same(true, in_array('markdown-caption-source-attributes-require-raw-html', $markdownCodes, true));
+        $sideDiagnostics = array_values(array_filter(
+            $markdownDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-caption-side-review-required'
+        ));
+        $t->same(1, count($sideDiagnostics));
+        $t->same('left', $sideDiagnostics[0]['captionSide'] ?? null);
+        $t->same('raw-html-caption-side', $sideDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('after-table', $sideDiagnostics[0]['captionPlacementFallback'] ?? null);
+
+        $t->contains('<table id="side-caption-grid" data-source="html-reader">', $blocks);
+        $t->contains('<figcaption id="side-caption" class="wp-element-caption caption-title" data-origin="html-reader" style="caption-side: left; color: green">Side <em>caption</em></figcaption>', $blocks);
+        $t->true(strpos($blocks, '</table><figcaption') !== false, 'Side captions should keep the safe WordPress after-table fallback placement');
+        $t->true(!str_contains($blocks, 'onclick='), 'Unsafe caption event attributes must not render');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'counts html row header colspans as visual row-head columns' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="visual-rowhead-grid" data-source="html-reader">

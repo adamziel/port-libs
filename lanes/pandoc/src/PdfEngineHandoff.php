@@ -11016,6 +11016,7 @@ final class PdfEngineHandoff
             'ResetForm',
             'Sound',
             'SubmitForm',
+            'URI',
         ], true);
     }
 
@@ -11096,6 +11097,8 @@ final class PdfEngineHandoff
                 } elseif ($type === 'ImportData') {
                     $formActionCount++;
                     $issues[] = 'import-data-action';
+                } elseif ($type === 'URI') {
+                    $issues[] = 'uri-action';
                 }
             }
 
@@ -11180,6 +11183,11 @@ final class PdfEngineHandoff
         }
         if ($type === 'Launch') {
             return $this->pdfLaunchActionTarget($dictionary, $objects);
+        }
+        if ($type === 'URI') {
+            $uris = $this->extractPdfNamedStrings($dictionary, 'URI');
+
+            return $uris === [] ? null : trim($uris[0]);
         }
         if (in_array($type, ['SubmitForm', 'GoToR', 'ImportData'], true)) {
             return $this->extractPdfStringOrNameValue($dictionary, 'F');
@@ -18902,6 +18910,8 @@ final class PdfEngineHandoff
                     $issues[] = 'import-data-action';
                 } elseif ($type === 'ResetForm') {
                     $issues[] = 'reset-form-action';
+                } elseif ($type === 'URI') {
+                    $issues[] = 'uri-action';
                 }
             }
 

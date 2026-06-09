@@ -335,6 +335,43 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('Expected disclosure and hidden-state diagnostics to include source line metadata');
         }
     }
+    $globalMetadataDiagnostics = array_values(array_filter(
+        $fragment->diagnostics(),
+        static function (array $diagnostic): bool {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if (in_array($code, [
+                'language-direction-review',
+                'editing-state-review',
+                'translation-state-review',
+                'focus-navigation-review',
+                'popover-review',
+            ], true)) {
+                return true;
+            }
+
+            return $code === 'unsafe-attribute'
+                && in_array((string) ($diagnostic['attribute'] ?? ''), [
+                    'accesskey',
+                    'contenteditable',
+                    'dir',
+                    'draggable',
+                    'lang',
+                    'popover',
+                    'spellcheck',
+                    'tabindex',
+                    'translate',
+                    'xml:lang',
+                ], true);
+        }
+    ));
+    if ($globalMetadataDiagnostics === []) {
+        throw new RuntimeException('Expected global HTML metadata diagnostics for source line metadata review');
+    }
+    foreach ($globalMetadataDiagnostics as $diagnostic) {
+        if (($diagnostic['line'] ?? 0) <= 0) {
+            throw new RuntimeException('Expected global HTML metadata diagnostics to include source line metadata');
+        }
+    }
     foreach (['<html', '<body', '<base', '<title', '<link', '<meta', '<iframe', '<object', '<param', '<embed', '<portal', '<map', '<area', '<template', '<slot', '<legacy-', '<datalist', '<select', '<option', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'background:url', 'calc(50vw + url', 'calc(100vw + url', ' target=', 'download=', 'rel="opener"', ' referrerpolicy=', ' loading=', ' decoding=', ' fetchpriority=', ' crossorigin=', ' autoplay', ' controls', ' loop', ' muted', ' playsinline', ' preload=', ' controlslist=', ' width=', ' height=', ' popover=', 'popovertarget=', 'popovertargetaction=', ' contenteditable=', ' spellcheck=', ' draggable=', ' tabindex=', ' accesskey=', ' autofocus', ' translate=', ' lang=', ' xml:lang=', ' dir=', ' role=', ' aria-label=', ' aria-describedby=', ' aria-expanded=', ' aria-current=', ' aria-busy=', ' is=', ' part=', ' exportparts=', ' align=', ' cite=', ' datetime=', ' value=', ' min=', ' max=', ' low=', ' high=', ' optimum=', ' for=', ' method=', ' action=', ' autocomplete=', ' shadowrootmode=', ' shadowrootdelegatesfocus', ' shadowrootclonable', ' shadowrootserializable', ' selected', ' size=', ' required', ' disabled name=', ' name=" import-settings "', ' name="publish-status"', ' name="total-score"', ' name="comment-form"', ' form="legacy-form"', 'javascript:', 'ja/**/vascript', 'report-uri', 'tracker.example.test', 'bad policy', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'Bad object', 'Bad embed', 'preload-cover.png', 'orphan-source.avif', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'draft-token', 'private-token', 'Bad frame', 'Bad map region', 'bad-role', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml', ' itemscope', ' itemtype=', ' itemid=', ' itemref=', ' itemprop=', ' property=', ' typeof=', ' about=', ' resource=', ' vocab=', ' prefix='] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);

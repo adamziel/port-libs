@@ -2017,6 +2017,92 @@ return [
         $t->same('closed', $fragment->nodes()[0]['children'][5]['attrs']['data-pandoc-details-state'] ?? null);
         $t->same('open', $fragment->nodes()[0]['children'][7]['attrs']['data-pandoc-dialog-state'] ?? null);
     },
+    'adds source line metadata to global html metadata diagnostics before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<article lang=\"en-US\" dir=\"rtl\">\n"
+            . "<section contenteditable=\"bad state\" draggable=\"true\" spellcheck=\"false\" translate=\"no\" tabindex=\"not-int\" accesskey=\"a bad<tag>\" autofocus>Focus</section>\n"
+            . "<aside popover=\"bad state\" dir=\"sideways\">Popover</aside>\n"
+            . "<p lang=\"bad<tag>\" translate=\"maybe\" tabindex=\"5\" accesskey=\"z\">Text</p>\n"
+            . '</article>'
+        );
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/global-html-metadata-lines-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $globalMetadataDiagnostic = static fn (array $diagnostic): bool => in_array((string) ($diagnostic['code'] ?? ''), [
+            'language-direction-review',
+            'editing-state-review',
+            'translation-state-review',
+            'focus-navigation-review',
+            'popover-review',
+            'unsafe-attribute',
+        ], true);
+        $diagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            $globalMetadataDiagnostic
+        ));
+        $astDiagnostics = array_values(array_filter(
+            $document->children[0]->attr('diagnostics'),
+            $globalMetadataDiagnostic
+        ));
+
+        $expected = '<article data-pandoc-lang="en-US" data-pandoc-dir="rtl">' . "\n"
+            . '<section data-pandoc-draggable-state="true" data-pandoc-spellcheck-state="false" data-pandoc-translate-state="no" data-pandoc-accesskey="a" data-pandoc-autofocus-state="true">Focus</section>' . "\n"
+            . '<aside data-pandoc-popover-state="manual">Popover</aside>' . "\n"
+            . '<p data-pandoc-tabindex="5" data-pandoc-accesskey="z">Text</p>' . "\n"
+            . '</article>';
+
+        $t->same($expected, $fragment->serialize());
+        $t->contains($expected, $blocks);
+        $t->same('/migration/global-html-metadata-lines-review.html', $document->children[0]->attr('part'));
+        $t->same([
+            'language-direction-review',
+            'language-direction-review',
+            'unsafe-attribute',
+            'editing-state-review',
+            'editing-state-review',
+            'translation-state-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'focus-navigation-review',
+            'focus-navigation-review',
+            'unsafe-attribute',
+            'popover-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'focus-navigation-review',
+            'focus-navigation-review',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $diagnostics));
+        $t->same([
+            'lang',
+            'dir',
+            'contenteditable',
+            'draggable',
+            'spellcheck',
+            'translate',
+            'tabindex',
+            'accesskey',
+            'accesskey',
+            'autofocus',
+            'popover',
+            'popover',
+            'dir',
+            'lang',
+            'translate',
+            'tabindex',
+            'accesskey',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $diagnostics));
+        $t->same([1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $diagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $diagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astDiagnostics)
+        );
+        $t->same('bad<tag>', $diagnostics[7]['token'] ?? null);
+        $t->true(!str_contains($fragment->serialize(), 'bad state'), 'Expected invalid editing and popover state to stay diagnostic-only');
+        $t->true(!str_contains($fragment->serialize(), 'sideways'), 'Expected invalid direction to stay diagnostic-only');
+        $t->true(!str_contains($fragment->serialize(), '<tag'), 'Expected invalid metadata values to stay diagnostic-only');
+    },
     'converts popover states into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
