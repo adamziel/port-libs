@@ -105,6 +105,7 @@ review-binary:
   digest-bytes: !!binary |
     U291cmNl
     IFBhY2tldA==
+  invalid-bytes: !!binary "not base64!"
 optional-deadline:
 blank-note: # intentionally blank in source packet
 explicit-empty: ""
@@ -630,6 +631,10 @@ $invalidDoubleQuotedEscapeDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-double-quoted-escape'
 ));
+$invalidBinaryScalarDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-binary-scalar'
+));
 $duplicateSetDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'duplicate-key'
@@ -935,7 +940,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_column($documentMarkerComments, 'marker') !== ['---', '---', '---']) {
         throw new RuntimeException('YAML metadata self-test missing document marker names');
     }
-    if (array_column($documentMarkerComments, 'sourceLine') !== ['3', '8', '540']) {
+    if (array_column($documentMarkerComments, 'sourceLine') !== ['3', '8', '541']) {
         throw new RuntimeException('YAML metadata self-test missing document marker source lines');
     }
     if (($lateDirectiveMeta['review']['owner'] ?? '') !== 'Import Desk' || ($lateDirectiveMeta['late-review']['owner'] ?? '') !== 'Late Desk') {
@@ -1167,6 +1172,17 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['review-binary']['digest-bytes'] ?? '') !== 'Source Packet') {
         throw new RuntimeException('YAML metadata self-test missing explicit binary block-scalar decoding');
+    }
+    if (($meta['review-binary']['invalid-bytes'] ?? '') !== 'not base64!') {
+        throw new RuntimeException('YAML metadata self-test hid invalid binary metadata source');
+    }
+    if (
+        count($invalidBinaryScalarDiagnostics) !== 1
+        || ($invalidBinaryScalarDiagnostics[0]['path'] ?? '') !== '/review-binary/invalid-bytes'
+        || ($invalidBinaryScalarDiagnostics[0]['source'] ?? '') !== 'not base64!'
+        || ($invalidBinaryScalarDiagnostics[0]['expected'] ?? '') !== 'valid base64 for !!binary'
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing invalid binary scalar diagnostics');
     }
     if (!array_key_exists('optional-deadline', $meta) || $meta['optional-deadline'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing empty scalar deadline null');
@@ -1416,6 +1432,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '/typed-sequence-review/2' => ['timestamp', 'timestamp', '2026-06-08 12:34:56Z'],
         '/typed-sequence-review/3' => ['null', 'null', 'reviewer note is intentionally nulled'],
         '/source-captured-at' => ['timestamp', 'timestamp', '2026-06-05 06:46:51Z'],
+        '/review-binary/note-bytes' => ['binary', 'binary', '"UmV2aWV3IG1ldGFkYXRh"'],
+        '/review-binary/digest-bytes' => ['binary', 'binary', "U291cmNl\nIFBhY2tldA==\n"],
         '/typed-flow-review/elapsed' => ['number', 'int', '0:01:05'],
     ] as $expectedTypedPath => [$expectedType, $expectedTag, $expectedSource]) {
         $entry = $yamlTypedScalarProvenance[$expectedTypedPath] ?? null;
@@ -1550,6 +1568,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (array_key_exists('/typed-sequence-review/4', $yamlTypedScalarProvenance)) {
         throw new RuntimeException('YAML metadata self-test recorded invalid explicit nested sequence integer as a typed scalar');
+    }
+    if (array_key_exists('/review-binary/invalid-bytes', $yamlTypedScalarProvenance)) {
+        throw new RuntimeException('YAML metadata self-test recorded invalid explicit binary scalar as typed');
     }
     $yamlQuotedScalarProvenance = [];
     foreach ($yamlScalarProvenance as $entry) {
@@ -2796,6 +2817,7 @@ echo 'YAML reserved directive: ' . ($reservedDirectiveDirectives[0]['directive']
 echo 'YAML invalid merge diagnostics: ' . count($invalidMergeDiagnostics) . "\n";
 echo 'YAML invalid ordered pair diagnostics: ' . count($invalidOrderedPairDiagnostics) . "\n";
 echo 'YAML undefined tag handle diagnostics: ' . implode(', ', array_column($undefinedTagHandleReviewDiagnostics, 'path')) . "\n";
+echo 'YAML invalid binary diagnostics: ' . count($invalidBinaryScalarDiagnostics) . "\n";
 echo 'YAML duplicate set diagnostics: ' . implode(', ', array_column($duplicateSetDiagnostics, 'path')) . "\n";
 echo 'YAML alias diagnostic paths: ' . implode(', ', array_column($aliasYamlDiagnostics, 'path')) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";

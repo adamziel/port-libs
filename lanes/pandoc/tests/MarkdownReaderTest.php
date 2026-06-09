@@ -5672,6 +5672,85 @@ return [
         $t->same('typed-scalar-provenance-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="typed-scalar-provenance-yaml-body">Typed scalar provenance YAML body</h1>', $blocks);
     },
+    'records pandoc yaml explicit binary scalar provenance and invalid diagnostics' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Binary scalar **Packet**',
+            'review:',
+            '  note-bytes: !!binary "UmV2aWV3IG1ldGFkYXRh"',
+            '  digest-bytes: !!binary |',
+            '    U291cmNl',
+            '    IFBhY2tldA==',
+            '  invalid-bytes: !!binary "not base64!"',
+            'sequence-bytes:',
+            '  - !!binary',
+            '    SGVsbG8=',
+            '  - !!binary',
+            '    invalid@base64',
+            'flow-review: {note: !!binary "SGVsbG8=", invalid: !!binary "bad base64!"}',
+            '...',
+            '',
+            '# Binary scalar YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataScalarProvenance', []);
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Binary scalar **Packet**', $meta['title']);
+        $t->same('Review metadata', $meta['review']['note-bytes']);
+        $t->same('Source Packet', $meta['review']['digest-bytes']);
+        $t->same('not base64!', $meta['review']['invalid-bytes']);
+        $t->same('Hello', $meta['sequence-bytes'][0]);
+        $t->same('invalid@base64', $meta['sequence-bytes'][1]);
+        $t->same('Hello', $meta['flow-review']['note']);
+        $t->same('bad base64!', $meta['flow-review']['invalid']);
+        $t->same(false, array_key_exists('__yamlMetadataScalarProvenance', $meta));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+
+        $typed = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        $t->same(4, count($typed));
+        foreach ([
+            '/review/note-bytes' => ['"UmV2aWV3IG1ldGFkYXRh"', '4'],
+            '/review/digest-bytes' => ["U291cmNl\nIFBhY2tldA==\n", '5'],
+            '/sequence-bytes/0' => ['SGVsbG8=', '10'],
+            '/flow-review/note' => ['"SGVsbG8="', '14'],
+        ] as $path => [$source, $sourceLine]) {
+            $entry = $typed[$path] ?? null;
+            $t->true($entry !== null, 'missing YAML binary scalar provenance ' . $path);
+            $t->same('binary', $entry['scalarType'] ?? null);
+            $t->same('binary', $entry['explicitTag'] ?? null);
+            $t->same('scalar', $entry['valueKind'] ?? null);
+            $t->same($source, $entry['source'] ?? null);
+            $t->same($sourceLine, $entry['sourceLine'] ?? null);
+        }
+        $t->same(false, array_key_exists('/review/invalid-bytes', $typed));
+        $t->same(false, array_key_exists('/sequence-bytes/1', $typed));
+        $t->same(false, array_key_exists('/flow-review/invalid', $typed));
+
+        $binaryDiagnostics = array_values(array_filter(
+            $diagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-binary-scalar'
+        ));
+        $t->same(3, count($binaryDiagnostics));
+        $t->same(array_fill(0, 3, 'yaml-scalar'), array_column($binaryDiagnostics, 'type'));
+        $t->same(
+            ['/review/invalid-bytes', '/sequence-bytes/1', '/flow-review/invalid'],
+            array_column($binaryDiagnostics, 'path')
+        );
+        $t->same(['not base64!', 'invalid@base64', 'bad base64!'], array_column($binaryDiagnostics, 'source'));
+        $t->same(['8', '12', '14'], array_column($binaryDiagnostics, 'sourceLine'));
+        $t->same('valid base64 for !!binary', $binaryDiagnostics[0]['expected'] ?? null);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('binary-scalar-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="binary-scalar-yaml-body">Binary scalar YAML body</h1>', $blocks);
+    },
     'records pandoc yaml explicit typed block scalar provenance' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

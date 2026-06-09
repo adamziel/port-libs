@@ -2968,6 +2968,7 @@ final class MarkdownReader
             ($scalarType === 'boolean' && $kind !== 'boolean')
             || ($scalarType === 'null' && $kind !== 'null')
             || ($scalarType === 'number' && $kind !== 'number')
+            || ($scalarType === 'binary' && ($kind !== 'scalar' || !$this->isYamlValidBinaryScalarSource($source)))
             || ($scalarType === 'timestamp' && $kind !== 'scalar')
         ) {
             return;
@@ -3093,6 +3094,7 @@ final class MarkdownReader
             'null' => 'null',
             'int', 'float' => 'number',
             'timestamp' => 'timestamp',
+            'binary' => 'binary',
             default => null,
         };
     }
@@ -6282,8 +6284,41 @@ final class MarkdownReader
     {
         $compact = preg_replace('/\s+/', '', $value) ?? $value;
         $decoded = base64_decode($compact, true);
+        if ($decoded === false) {
+            $this->recordYamlInvalidBinaryScalarDiagnostic($value);
 
-        return $decoded === false ? $value : $decoded;
+            return $value;
+        }
+
+        return $decoded;
+    }
+
+    private function isYamlValidBinaryScalarSource(string $source): bool
+    {
+        $source = trim($source);
+        if ($source !== '' && (($source[0] === '"' && str_ends_with($source, '"')) || ($source[0] === "'" && str_ends_with($source, "'")))) {
+            $source = $this->unquoteYamlScalar($source);
+        }
+
+        $compact = preg_replace('/\s+/', '', $source) ?? $source;
+
+        return base64_decode($compact, true) !== false;
+    }
+
+    private function recordYamlInvalidBinaryScalarDiagnostic(string $source): void
+    {
+        $diagnostic = [
+            'type' => 'yaml-scalar',
+            'reason' => 'invalid-binary-scalar',
+            'source' => $source,
+            'expected' => 'valid base64 for !!binary',
+        ];
+        $path = $this->currentYamlMetadataDiagnosticPath();
+        if ($path !== null) {
+            $diagnostic['path'] = $path;
+        }
+
+        $this->yamlMetadataDiagnostics[] = $diagnostic + $this->yamlMetadataSourceLineAttrs();
     }
 
     private function isYamlAliasScalar(string $value): bool
