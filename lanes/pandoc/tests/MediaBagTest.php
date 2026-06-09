@@ -105,4 +105,48 @@ return [
         $t->same(sha1("unsafe bytes\n") . '.png', $escaped['path']);
         $t->same('image/png', $escaped['mimeType']);
     },
+
+    'deletes mapped media resources by canonical source key' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $keptBytes = "kept vector bytes\n";
+        $deletedBytes = "deleted raster bytes\n";
+        $bag->insertMedia('assets\\kept.svg', null, $keptBytes);
+        $bag->insertMedia('assets/review/../deleted.png', 'image/png', $deletedBytes);
+
+        $bag->deleteMedia('assets/deleted.png');
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => 'assets/kept.svg',
+                    'title' => 'Kept asset',
+                ], [new AstNode('text', ['text' => 'Kept asset'])]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => 'assets/deleted.png',
+                    'title' => 'Deleted asset',
+                ], [new AstNode('text', ['text' => 'Deleted asset'])]),
+            ]),
+        ]);
+
+        $items = $bag->mediaItems();
+        $directory = $bag->directory();
+        $extracted = $bag->extractMedia($document, 'review-media/');
+        $mappedDocument = $extracted['document'];
+
+        $t->true($bag->has('assets/kept.svg'));
+        $t->true(!$bag->has('assets/deleted.png'));
+        $t->same(1, count($items));
+        $t->same('assets/kept.svg', $items[0]['path']);
+        $t->same('image/svg+xml', $items[0]['mimeType']);
+        $t->same($keptBytes, $items[0]['contents']);
+        $t->same(strlen($keptBytes), $items[0]['byteLength']);
+        $t->same(sha1($keptBytes), $items[0]['sha1']);
+        $t->same($directory[0]['path'], $items[0]['path']);
+        $t->same(1, count($extracted['entries']));
+        $t->same('review-media/assets/kept.svg', $mappedDocument->children[0]->children[0]->attr('url'));
+        $t->same('assets/deleted.png', $mappedDocument->children[1]->children[0]->attr('url'));
+        $t->same(['media-resource-mapped:assets/kept.svg'], $extracted['diagnostics']);
+    },
 ];

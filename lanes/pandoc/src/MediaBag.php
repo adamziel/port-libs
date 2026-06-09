@@ -73,6 +73,11 @@ final class MediaBag
         ];
     }
 
+    public function deleteMedia(string $source): void
+    {
+        unset($this->itemsByCanonicalSource[self::canonicalizeSource($source)]);
+    }
+
     public function has(string $source): bool
     {
         return $this->lookup($source) !== null;
@@ -99,6 +104,28 @@ final class MediaBag
                 'byteLength' => $item['byteLength'],
                 'sha1' => $item['sha1'],
                 'source' => $item['source'],
+            ];
+        }
+
+        usort($items, static fn (array $a, array $b): int => $a['path'] <=> $b['path']);
+
+        return $items;
+    }
+
+    /**
+     * @return list<array{path:string, mimeType:string, byteLength:int, sha1:string, source:string, contents:string}>
+     */
+    public function mediaItems(): array
+    {
+        $items = [];
+        foreach ($this->itemsByCanonicalSource as $item) {
+            $items[] = [
+                'path' => $item['path'],
+                'mimeType' => $item['mimeType'],
+                'byteLength' => $item['byteLength'],
+                'sha1' => $item['sha1'],
+                'source' => $item['source'],
+                'contents' => $item['contents'],
             ];
         }
 
