@@ -26,6 +26,29 @@ final class EpubPackage
         'schema' => 'http://schema.org/',
         'xsd' => 'http://www.w3.org/2001/XMLSchema#',
     ];
+    private const CORE_MEDIA_TYPE_KINDS = [
+        'application/ecmascript' => 'script',
+        'application/font-sfnt' => 'font',
+        'application/font-woff' => 'font',
+        'application/javascript' => 'script',
+        'application/smil+xml' => 'media-overlay',
+        'application/vnd.ms-opentype' => 'font',
+        'application/x-dtbncx+xml' => 'navigation',
+        'application/xhtml+xml' => 'xhtml',
+        'audio/mp4' => 'audio',
+        'audio/mpeg' => 'audio',
+        'font/otf' => 'font',
+        'font/ttf' => 'font',
+        'font/woff' => 'font',
+        'font/woff2' => 'font',
+        'image/gif' => 'image',
+        'image/jpeg' => 'image',
+        'image/png' => 'image',
+        'image/svg+xml' => 'svg',
+        'image/webp' => 'image',
+        'text/css' => 'style',
+        'text/javascript' => 'script',
+    ];
 
     /**
      * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
@@ -38,6 +61,7 @@ final class EpubPackage
      * @param list<array<string, mixed>> $collections
      * @param array<string, mixed> $bindings
      * @param array<string, mixed> $mediaOverlays
+     * @param array<string, mixed> $manifestFallbacks
      * @param array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null $navigation
      * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}> $navigationSections
      */
@@ -54,6 +78,7 @@ final class EpubPackage
         private readonly array $collections,
         private readonly array $bindings,
         private readonly array $mediaOverlays,
+        private readonly array $manifestFallbacks,
         private readonly ?array $navigation,
         private readonly array $navigationSections,
     ) {
@@ -105,6 +130,7 @@ final class EpubPackage
             $opf['collections'],
             $opf['bindings'],
             $opf['mediaOverlays'],
+            $opf['manifestFallbacks'],
             $navigation['navigation'],
             $navigation['sections'],
         );
@@ -209,6 +235,14 @@ final class EpubPackage
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function manifestFallbacks(): array
+    {
+        return $this->manifestFallbacks;
+    }
+
+    /**
      * @return array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null
      */
     public function navigation(): ?array
@@ -301,6 +335,7 @@ final class EpubPackage
             : self::metadataLinkVocabularySummary($this->packageLinks);
         $remoteResourcePolicy = $this->remoteResourcePolicy();
         $mediaOverlayDiagnostics = self::mediaOverlayDiagnostics($this->mediaOverlays);
+        $manifestFallbacks = $this->manifestFallbacks();
 
         return [
             'opfPart' => $this->opfPartName,
@@ -317,6 +352,7 @@ final class EpubPackage
             'collections' => $this->collections,
             'bindings' => $this->bindings,
             'mediaOverlays' => $this->mediaOverlays,
+            'manifestFallbacks' => $manifestFallbacks,
             'navigation' => $this->navigation,
             'navigationSections' => $this->navigationSections,
             'assets' => $assetSummary,
@@ -367,6 +403,10 @@ final class EpubPackage
                 'mediaOverlayTargets' => $this->mediaOverlays['textTargets'],
                 'mediaOverlayAudioTargets' => $this->mediaOverlays['audioTargets'],
                 'mediaOverlayDiagnostics' => $mediaOverlayDiagnostics,
+                'manifestFallbacks' => $manifestFallbacks,
+                'manifestFallbackItems' => $manifestFallbacks['fallbackItems'],
+                'manifestFallbackStyleItems' => $manifestFallbacks['fallbackStyleItems'],
+                'manifestFallbackDiagnostics' => $manifestFallbacks['diagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
                 'pageListTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'page-list'),
                 'coverImagePart' => $assetSummary['coverImagePart'],
@@ -444,6 +484,7 @@ final class EpubPackage
      *     guideReferences:list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>,
      *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
+     *     manifestFallbacks:array<string, mixed>,
      *     spineTocId:?string
      * }
      */
@@ -483,6 +524,7 @@ final class EpubPackage
         $collections = self::parseCollections($root, $opfPartName, $package, $manifestById);
         $bindings = self::parseBindings(self::firstChildElement($root, 'bindings', self::OPF_NAMESPACE), $manifestById, $package);
         $mediaOverlays = self::parseMediaOverlays($manifestById, $metadata, $package);
+        $manifestFallbacks = self::manifestFallbackPreflight($manifestById, $package);
 
         return [
             'metadata' => $metadata,
@@ -494,6 +536,7 @@ final class EpubPackage
             'collections' => $collections,
             'bindings' => $bindings,
             'mediaOverlays' => $mediaOverlays,
+            'manifestFallbacks' => $manifestFallbacks,
             'spineTocId' => $spineElement->hasAttribute('toc') ? $spineElement->getAttribute('toc') : null,
         ];
     }
@@ -1227,8 +1270,8 @@ final class EpubPackage
 
     /**
      * @return array{
-     *     0:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}>,
-     *     1:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}>
+     *     0:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
+     *     1:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>
      * }
      */
     private static function parseManifest(\DOMElement $manifestElement, string $opfPartName, ZipPackage $package): array
@@ -1265,6 +1308,7 @@ final class EpubPackage
                 'mediaType' => $mediaType,
                 'properties' => self::splitTokens($itemElement->getAttribute('properties')),
                 'fallback' => $itemElement->hasAttribute('fallback') ? $itemElement->getAttribute('fallback') : null,
+                'fallbackStyle' => $itemElement->hasAttribute('fallback-style') ? $itemElement->getAttribute('fallback-style') : null,
                 'mediaOverlay' => $itemElement->hasAttribute('media-overlay') ? $itemElement->getAttribute('media-overlay') : null,
             ];
 
@@ -2803,6 +2847,310 @@ final class EpubPackage
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestFallbackPreflight(array $manifestById, ZipPackage $package): array
+    {
+        $items = [];
+        $itemsById = [];
+        $fallbackItems = [];
+        $fallbackStyleItems = [];
+        $diagnostics = [];
+        $fallbackDiagnosticCount = 0;
+        $fallbackStyleDiagnosticCount = 0;
+
+        foreach ($manifestById as $item) {
+            $fallbackId = self::nullableManifestId($item['fallback'] ?? null);
+            $fallbackStyleId = self::nullableManifestId($item['fallbackStyle'] ?? null);
+            if ($fallbackId === null && $fallbackStyleId === null) {
+                continue;
+            }
+
+            $report = self::manifestFallbackItemPreflight($item, $manifestById, $package);
+            $items[] = $report;
+            $itemsById[$report['id']] = $report;
+
+            if ($fallbackId !== null) {
+                $fallbackItems[] = $report;
+                $fallbackDiagnosticCount += count($report['fallbackDiagnostics']);
+            }
+
+            if ($fallbackStyleId !== null) {
+                $fallbackStyleItems[] = $report;
+                $fallbackStyleDiagnosticCount += count($report['fallbackStyleDiagnostics']);
+            }
+
+            foreach ($report['fallbackDiagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'id' => $report['id'],
+                    'kind' => 'fallback',
+                ] + $diagnostic;
+            }
+
+            foreach ($report['fallbackStyleDiagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'id' => $report['id'],
+                    'kind' => 'fallback-style',
+                ] + $diagnostic;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'fallbackCount' => count($fallbackItems),
+            'resolvedFallbackCount' => count(array_filter(
+                $fallbackItems,
+                static fn (array $item): bool => ($item['fallbackResolved'] ?? false) === true,
+            )),
+            'usableFallbackCount' => count(array_filter(
+                $fallbackItems,
+                static fn (array $item): bool => ($item['fallbackUsable'] ?? false) === true,
+            )),
+            'fallbackDiagnosticCount' => $fallbackDiagnosticCount,
+            'fallbackStyleCount' => count($fallbackStyleItems),
+            'resolvedFallbackStyleCount' => count(array_filter(
+                $fallbackStyleItems,
+                static fn (array $item): bool => ($item['fallbackStyleResolved'] ?? false) === true,
+            )),
+            'fallbackStyleDiagnosticCount' => $fallbackStyleDiagnosticCount,
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'fallbackItems' => $fallbackItems,
+            'fallbackStyleItems' => $fallbackStyleItems,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestFallbackItemPreflight(
+        array $item,
+        array $manifestById,
+        ZipPackage $package
+    ): array {
+        $fallback = self::manifestFallbackChainReport($item, $manifestById, $package, 'fallback');
+        $fallbackStyle = self::manifestFallbackChainReport($item, $manifestById, $package, 'fallbackStyle');
+
+        return [
+            'id' => (string) ($item['id'] ?? ''),
+            'href' => (string) ($item['href'] ?? ''),
+            'partName' => (string) ($item['partName'] ?? ''),
+            'mediaType' => (string) ($item['mediaType'] ?? ''),
+            'properties' => is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
+            'fallbackId' => $fallback['id'],
+            'fallbackResolved' => $fallback['resolved'],
+            'fallbackUsable' => $fallback['usable'],
+            'fallbackTerminalId' => $fallback['terminalId'],
+            'fallbackTerminalPartName' => $fallback['terminalPartName'],
+            'fallbackTerminalMediaType' => $fallback['terminalMediaType'],
+            'fallbackTerminalCoreMediaType' => $fallback['terminalCoreMediaType'],
+            'fallbackTerminalEpubContentDocument' => $fallback['terminalEpubContentDocument'],
+            'fallbackChain' => $fallback['chain'],
+            'fallbackDiagnostics' => $fallback['diagnostics'],
+            'fallbackStyleId' => $fallbackStyle['id'],
+            'fallbackStyleResolved' => $fallbackStyle['resolved'],
+            'fallbackStyleUsable' => $fallbackStyle['usable'],
+            'fallbackStyleTerminalId' => $fallbackStyle['terminalId'],
+            'fallbackStyleTerminalPartName' => $fallbackStyle['terminalPartName'],
+            'fallbackStyleTerminalMediaType' => $fallbackStyle['terminalMediaType'],
+            'fallbackStyleTerminalCssStyle' => $fallbackStyle['terminalCssStyle'],
+            'fallbackStyleChain' => $fallbackStyle['chain'],
+            'fallbackStyleDiagnostics' => $fallbackStyle['diagnostics'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array{id:?string, resolved:bool, usable:bool, chain:list<array<string, mixed>>, terminalId:?string, terminalPartName:?string, terminalMediaType:?string, terminalCoreMediaType:?bool, terminalEpubContentDocument:?bool, terminalCssStyle:?bool, diagnostics:list<array<string, mixed>>}
+     */
+    private static function manifestFallbackChainReport(
+        array $item,
+        array $manifestById,
+        ZipPackage $package,
+        string $attribute
+    ): array {
+        $fallbackId = self::nullableManifestId($item[$attribute] ?? null);
+        if ($fallbackId === null) {
+            return [
+                'id' => null,
+                'resolved' => false,
+                'usable' => false,
+                'chain' => [],
+                'terminalId' => null,
+                'terminalPartName' => null,
+                'terminalMediaType' => null,
+                'terminalCoreMediaType' => null,
+                'terminalEpubContentDocument' => null,
+                'terminalCssStyle' => null,
+                'diagnostics' => [],
+            ];
+        }
+
+        $chain = [];
+        $diagnostics = [];
+        $visited = [];
+        $sourceId = (string) ($item['id'] ?? '');
+        if ($sourceId !== '') {
+            $visited[$sourceId] = true;
+        }
+
+        $current = $item;
+        $next = $fallbackId;
+        $isStyle = $attribute === 'fallbackStyle';
+        $diagnosticNames = $isStyle
+            ? [
+                'cyclic' => 'cyclic-manifest-fallback-style-chain',
+                'missing' => 'missing-manifest-fallback-style-item',
+                'unsupported' => 'non-css-manifest-fallback-style',
+                'key' => 'fallbackStyle',
+                'cycleMessage' => 'EPUB OPF manifest fallback-style chain cycles before reaching a CSS resource',
+                'missingMessage' => 'EPUB OPF manifest fallback-style references an item id that is not in the OPF manifest',
+                'unsupportedMessage' => 'EPUB OPF manifest fallback-style chain terminates at a non-CSS resource',
+            ]
+            : [
+                'cyclic' => 'cyclic-manifest-fallback-chain',
+                'missing' => 'missing-manifest-fallback-item',
+                'unsupported' => 'unsupported-manifest-fallback-terminal',
+                'key' => 'fallback',
+                'cycleMessage' => 'EPUB OPF manifest fallback chain cycles before reaching a core media type',
+                'missingMessage' => 'EPUB OPF manifest fallback references an item id that is not in the OPF manifest',
+                'unsupportedMessage' => 'EPUB OPF manifest fallback chain terminates at another non-core media type',
+            ];
+
+        while ($next !== null) {
+            if (isset($visited[$next])) {
+                $diagnostics[] = [
+                    'type' => $diagnosticNames['cyclic'],
+                    'id' => (string) ($current['id'] ?? ''),
+                    $diagnosticNames['key'] => $next,
+                    'chainIds' => array_map(static fn (array $chainItem): string => (string) $chainItem['id'], $chain),
+                    'message' => $diagnosticNames['cycleMessage'],
+                ];
+                break;
+            }
+
+            $fallbackItem = $manifestById[$next] ?? null;
+            if (!is_array($fallbackItem)) {
+                $diagnostics[] = [
+                    'type' => $diagnosticNames['missing'],
+                    'id' => (string) ($current['id'] ?? ''),
+                    $diagnosticNames['key'] => $next,
+                    'message' => $diagnosticNames['missingMessage'],
+                ];
+                break;
+            }
+
+            $visited[$next] = true;
+            $current = $fallbackItem;
+            $chainItem = self::manifestFallbackChainItem($fallbackItem, $package);
+            $chain[] = $chainItem;
+
+            if ($isStyle && ($chainItem['cssStyle'] ?? false) === true) {
+                break;
+            }
+
+            $next = self::nullableManifestId($fallbackItem[$attribute] ?? null);
+        }
+
+        $terminal = $chain === [] ? null : $chain[count($chain) - 1];
+        if ($diagnostics === [] && is_array($terminal)) {
+            if ($isStyle && ($terminal['cssStyle'] ?? false) !== true) {
+                $diagnostics[] = [
+                    'type' => $diagnosticNames['unsupported'],
+                    'id' => (string) ($item['id'] ?? ''),
+                    'fallbackStyle' => $fallbackId,
+                    'terminalId' => (string) ($terminal['id'] ?? ''),
+                    'terminalMediaType' => (string) ($terminal['mediaType'] ?? ''),
+                    'message' => $diagnosticNames['unsupportedMessage'],
+                ];
+            } elseif (!$isStyle && ($terminal['coreMediaType'] ?? false) !== true) {
+                $diagnostics[] = [
+                    'type' => $diagnosticNames['unsupported'],
+                    'id' => (string) ($item['id'] ?? ''),
+                    'fallback' => $fallbackId,
+                    'terminalId' => (string) ($terminal['id'] ?? ''),
+                    'terminalMediaType' => (string) ($terminal['mediaType'] ?? ''),
+                    'message' => $diagnosticNames['unsupportedMessage'],
+                ];
+            }
+        }
+
+        return [
+            'id' => $fallbackId,
+            'resolved' => $diagnostics === [] && $chain !== [],
+            'usable' => $diagnostics === [] && $chain !== [],
+            'chain' => $chain,
+            'terminalId' => is_array($terminal) ? (string) $terminal['id'] : null,
+            'terminalPartName' => is_array($terminal) ? (string) $terminal['partName'] : null,
+            'terminalMediaType' => is_array($terminal) ? (string) $terminal['mediaType'] : null,
+            'terminalCoreMediaType' => is_array($terminal) ? (bool) $terminal['coreMediaType'] : null,
+            'terminalEpubContentDocument' => is_array($terminal) ? (bool) $terminal['epubContentDocument'] : null,
+            'terminalCssStyle' => is_array($terminal) ? (bool) $terminal['cssStyle'] : null,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestFallbackChainItem(array $item, ZipPackage $package): array
+    {
+        $mediaType = (string) ($item['mediaType'] ?? '');
+        $partName = (string) ($item['partName'] ?? '');
+        $entry = $partName !== '' && $package->has($partName) ? $package->entry($partName) : null;
+        $baseMediaType = self::mediaTypeBase($mediaType);
+        $coreKind = self::coreMediaTypeKind($mediaType);
+
+        return [
+            'id' => (string) ($item['id'] ?? ''),
+            'href' => (string) ($item['href'] ?? ''),
+            'partName' => $partName,
+            'mediaType' => $mediaType,
+            'baseMediaType' => $baseMediaType,
+            'properties' => is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
+            'exists' => $entry instanceof ZipPackageEntry,
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'coreMediaType' => $coreKind !== null,
+            'coreMediaTypeKind' => $coreKind,
+            'epubContentDocument' => in_array($baseMediaType, [self::XHTML_MEDIA_TYPE, 'image/svg+xml'], true),
+            'cssStyle' => $baseMediaType === 'text/css',
+            'fallbackId' => self::nullableManifestId($item['fallback'] ?? null),
+            'fallbackStyleId' => self::nullableManifestId($item['fallbackStyle'] ?? null),
+        ];
+    }
+
+    private static function nullableManifestId(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        return self::emptyToNull($value);
+    }
+
+    private static function mediaTypeBase(string $mediaType): string
+    {
+        return strtolower(trim(explode(';', $mediaType, 2)[0]));
+    }
+
+    private static function coreMediaTypeKind(string $mediaType): ?string
+    {
+        return self::CORE_MEDIA_TYPE_KINDS[self::mediaTypeBase($mediaType)] ?? null;
     }
 
     /**

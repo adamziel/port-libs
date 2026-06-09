@@ -43,7 +43,7 @@ $opfXml = <<<'XML'
     <item id="creator-audio" href="audio/creator-name.mp3" media-type="audio/mpeg"/>
     <item id="intro-audio" href="audio/intro.mp3" media-type="audio/mpeg"/>
     <item id="mo-intro" href="overlays/intro.smil" media-type="application/smil+xml"/>
-    <item id="review-widget" href="widgets/review-widget.bin" media-type="application/x-wordpress-review-widget"/>
+    <item id="review-widget" href="widgets/review-widget.bin" media-type="application/x-wordpress-review-widget" fallback="review-widget-handler" fallback-style="css"/>
     <item id="review-widget-handler" href="widgets/review-widget.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
   </manifest>
   <spine>
@@ -158,6 +158,8 @@ if (($argv[1] ?? '') === '--self-test') {
         [true, 1, 1, ['chapter1'], 4.0, 1],
         ['/EPUB/chapters/intro.xhtml'],
         ['/EPUB/audio/intro.mp3'],
+        [true, 1, 1, 0, 1, 1, 0],
+        ['review-widget', 'review-widget-handler', '/EPUB/widgets/review-widget.xhtml', 'application/xhtml+xml', 'css', '/EPUB/styles/import.css'],
     ];
     $actual = [
         $summary['wordpressImport']['title'],
@@ -215,6 +217,23 @@ if (($argv[1] ?? '') === '--self-test') {
         ],
         $summary['wordpressImport']['mediaOverlayTargets'],
         $summary['wordpressImport']['mediaOverlayAudioTargets'],
+        [
+            $summary['wordpressImport']['manifestFallbacks']['present'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['fallbackCount'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['resolvedFallbackCount'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['fallbackDiagnosticCount'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['fallbackStyleCount'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['resolvedFallbackStyleCount'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['fallbackStyleDiagnosticCount'] ?? null,
+        ],
+        [
+            $summary['wordpressImport']['manifestFallbacks']['itemsById']['review-widget']['id'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['itemsById']['review-widget']['fallbackTerminalId'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['itemsById']['review-widget']['fallbackTerminalPartName'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['itemsById']['review-widget']['fallbackTerminalMediaType'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['itemsById']['review-widget']['fallbackStyleTerminalId'] ?? null,
+            $summary['wordpressImport']['manifestFallbacks']['itemsById']['review-widget']['fallbackStyleTerminalPartName'] ?? null,
+        ],
     ];
 
     if ($actual !== $expected) {

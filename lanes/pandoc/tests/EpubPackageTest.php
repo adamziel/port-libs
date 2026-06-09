@@ -851,6 +851,112 @@ XML;
         $t->same($overlays['diagnostics'], $summary['wordpressImport']['mediaOverlayDiagnostics']);
     },
 
+    'summarizes OPF manifest fallback chains for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $fallbackXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Fallback review content.</p></body></html>';
+        $fallbackCss = 'body { color: #123456; }';
+        $opfWithFallbacks = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="custom-ok" href="widgets/custom-ok.bin" media-type="application/x-review-widget" fallback="ok-fallback" fallback-style="widget-style"/>
+    <item id="ok-fallback" href="text/ok-fallback.xhtml" media-type="application/xhtml+xml"/>
+    <item id="poster-heic" href="images/poster.heic" media-type="image/heic" fallback="cover"/>
+    <item id="custom-missing" href="widgets/custom-missing.bin" media-type="application/x-review-widget" fallback="missing-fallback"/>
+    <item id="custom-cycle-a" href="widgets/cycle-a.bin" media-type="application/x-review-widget" fallback="custom-cycle-b"/>
+    <item id="custom-cycle-b" href="widgets/cycle-b.bin" media-type="application/x-review-widget" fallback="custom-cycle-a"/>
+    <item id="bad-style-widget" href="widgets/bad-style.bin" media-type="application/x-review-widget" fallback-style="cover"/>
+    <item id="missing-style-widget" href="widgets/missing-style.bin" media-type="application/x-review-widget" fallback-style="missing-style"/>
+    <item id="style-cycle-a" href="widgets/style-cycle-a.bin" media-type="application/x-review-widget" fallback-style="style-cycle-b"/>
+    <item id="style-cycle-b" href="widgets/style-cycle-b.bin" media-type="application/x-review-widget" fallback-style="style-cycle-a"/>
+    <item id="widget-style" href="styles/widget.css" media-type="text/css"/>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithFallbacks],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/text/ok-fallback.xhtml', 'data' => $fallbackXhtml],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/styles/widget.css', 'data' => $fallbackCss],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/images/poster.heic', 'data' => 'HEIC'],
+            ['name' => 'EPUB/widgets/custom-ok.bin', 'data' => 'CUSTOM-OK'],
+            ['name' => 'EPUB/widgets/custom-missing.bin', 'data' => 'CUSTOM-MISSING'],
+            ['name' => 'EPUB/widgets/cycle-a.bin', 'data' => 'CYCLE-A'],
+            ['name' => 'EPUB/widgets/cycle-b.bin', 'data' => 'CYCLE-B'],
+            ['name' => 'EPUB/widgets/bad-style.bin', 'data' => 'BAD-STYLE'],
+            ['name' => 'EPUB/widgets/missing-style.bin', 'data' => 'MISSING-STYLE'],
+            ['name' => 'EPUB/widgets/style-cycle-a.bin', 'data' => 'STYLE-CYCLE-A'],
+            ['name' => 'EPUB/widgets/style-cycle-b.bin', 'data' => 'STYLE-CYCLE-B'],
+        ]));
+
+        $fallbacks = $epub->manifestFallbacks();
+        $summary = $epub->summary();
+        $itemsById = $fallbacks['itemsById'];
+
+        $t->same(true, $fallbacks['present']);
+        $t->same(9, $fallbacks['itemCount']);
+        $t->same(5, $fallbacks['fallbackCount']);
+        $t->same(2, $fallbacks['resolvedFallbackCount']);
+        $t->same(3, $fallbacks['fallbackDiagnosticCount']);
+        $t->same(5, $fallbacks['fallbackStyleCount']);
+        $t->same(1, $fallbacks['resolvedFallbackStyleCount']);
+        $t->same(4, $fallbacks['fallbackStyleDiagnosticCount']);
+
+        $ok = $itemsById['custom-ok'];
+        $t->same('ok-fallback', $ok['fallbackId']);
+        $t->same(true, $ok['fallbackResolved']);
+        $t->same(true, $ok['fallbackUsable']);
+        $t->same('ok-fallback', $ok['fallbackTerminalId']);
+        $t->same('/EPUB/text/ok-fallback.xhtml', $ok['fallbackTerminalPartName']);
+        $t->same('application/xhtml+xml', $ok['fallbackTerminalMediaType']);
+        $t->same(true, $ok['fallbackTerminalEpubContentDocument']);
+        $t->same(strlen($fallbackXhtml), $ok['fallbackChain'][0]['byteLength']);
+        $t->same(hash('crc32b', $fallbackXhtml), $ok['fallbackChain'][0]['crc32']);
+        $t->same('widget-style', $ok['fallbackStyleId']);
+        $t->same(true, $ok['fallbackStyleResolved']);
+        $t->same('/EPUB/styles/widget.css', $ok['fallbackStyleTerminalPartName']);
+        $t->same(hash('crc32b', $fallbackCss), $ok['fallbackStyleChain'][0]['crc32']);
+
+        $poster = $itemsById['poster-heic'];
+        $t->same('cover', $poster['fallbackId']);
+        $t->same(true, $poster['fallbackResolved']);
+        $t->same('image/png', $poster['fallbackTerminalMediaType']);
+        $t->same(false, $poster['fallbackTerminalEpubContentDocument']);
+        $t->same('image', $poster['fallbackChain'][0]['coreMediaTypeKind']);
+
+        $missing = $itemsById['custom-missing'];
+        $t->same(false, $missing['fallbackResolved']);
+        $t->same('missing-fallback', $missing['fallbackId']);
+        $t->same('missing-manifest-fallback-item', $missing['fallbackDiagnostics'][0]['type']);
+
+        $cycle = $itemsById['custom-cycle-a'];
+        $t->same(false, $cycle['fallbackResolved']);
+        $t->same(['custom-cycle-b'], array_column($cycle['fallbackChain'], 'id'));
+        $t->same('cyclic-manifest-fallback-chain', $cycle['fallbackDiagnostics'][0]['type']);
+
+        $badStyle = $itemsById['bad-style-widget'];
+        $t->same('cover', $badStyle['fallbackStyleId']);
+        $t->same(false, $badStyle['fallbackStyleResolved']);
+        $t->same('non-css-manifest-fallback-style', $badStyle['fallbackStyleDiagnostics'][0]['type']);
+
+        $missingStyle = $itemsById['missing-style-widget'];
+        $t->same('missing-manifest-fallback-style-item', $missingStyle['fallbackStyleDiagnostics'][0]['type']);
+
+        $styleCycle = $itemsById['style-cycle-a'];
+        $t->same(['style-cycle-b'], array_column($styleCycle['fallbackStyleChain'], 'id'));
+        $t->same('cyclic-manifest-fallback-style-chain', $styleCycle['fallbackStyleDiagnostics'][0]['type']);
+
+        $t->same($fallbacks, $summary['manifestFallbacks']);
+        $t->same($fallbacks, $summary['wordpressImport']['manifestFallbacks']);
+        $t->same(['custom-ok', 'poster-heic', 'custom-missing', 'custom-cycle-a', 'custom-cycle-b'], array_column($summary['wordpressImport']['manifestFallbackItems'], 'id'));
+        $t->same(['custom-ok', 'bad-style-widget', 'missing-style-widget', 'style-cycle-a', 'style-cycle-b'], array_column($summary['wordpressImport']['manifestFallbackStyleItems'], 'id'));
+        $t->same(['missing-manifest-fallback-item', 'cyclic-manifest-fallback-chain', 'cyclic-manifest-fallback-chain', 'non-css-manifest-fallback-style', 'missing-manifest-fallback-style-item', 'cyclic-manifest-fallback-style-chain', 'cyclic-manifest-fallback-style-chain'], array_column($summary['wordpressImport']['manifestFallbackDiagnostics'], 'type'));
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
