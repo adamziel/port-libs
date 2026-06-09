@@ -8173,6 +8173,13 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
+        if (preg_match('/^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)(?=\s|>|\/>)(?:\s+[^>]*)?\/?>/i', $line, $m) === 1) {
+            $tag = strtolower($m[1]);
+            if ($this->isCommonMarkBlankTerminatedRawHtmlTag($tag)) {
+                return $this->readRawHtmlUntilBlankLine($lines, $index, $tag === 'table');
+            }
+        }
+
         if (preg_match('/^ {0,3}<(abbr|address|animate|animateMotion|animateTransform|annotation|annotation-xml|article|aside|audio|bdi|bdo|button|canvas|circle|cite|clipPath|data|datalist|defs|desc|details|dfn|dialog|ellipse|feBlend|feComposite|feDropShadow|feFlood|feGaussianBlur|feOffset|fieldset|figcaption|figure|filter|footer|foreignObject|form|g|header|hgroup|iframe|image|label|legend|line|linearGradient|main|maligngroup|malignmark|map|marker|mark|mask|math|maction|metadata|menclose|merror|menu|meter|mfenced|mfrac|mglyph|mi|mlabeledtr|mlongdiv|mmultiscripts|mn|mo|mover|mpadded|mpath|mphantom|mprescripts|mroot|mrow|ms|mscarries|mscarry|msgroup|msline|mspace|msqrt|msrow|mstack|mstyle|msub|msubsup|msup|mtable|mtd|mtext|mtr|munder|munderover|nav|none|object|optgroup|option|output|path|pattern|picture|polygon|polyline|progress|radialGradient|rect|rp|rt|ruby|script|search|section|semantics|set|slot|small|stop|style|select|summary|svg|switch|symbol|template|text|textarea|textPath|time|tspan|use|var|video|view)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
@@ -13052,6 +13059,30 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
+    private function readRawHtmlUntilBlankLine(array $lines, int &$index, bool $interpretTableCells = false): AstNode
+    {
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+
+        while ($cursor < $count) {
+            if (trim($this->expandTabsToSpaces($lines[$cursor])) === '') {
+                break;
+            }
+
+            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            $content[] = $interpretTableCells ? $this->renderMarkdownInTableCells($line) : $line;
+            $cursor++;
+        }
+
+        $index = min(max($index, $cursor - 1), $count - 1);
+
+        return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
     private function readRawHtmlUntilClosingTag(array $lines, int &$index, string $tag, bool $interpretTableCells = false): AstNode
     {
         $content = [];
@@ -13074,6 +13105,73 @@ final class MarkdownReader
         $index = min($cursor, $count - 1);
 
         return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    private function isCommonMarkBlankTerminatedRawHtmlTag(string $tag): bool
+    {
+        return in_array($tag, [
+            'address',
+            'article',
+            'aside',
+            'base',
+            'basefont',
+            'blockquote',
+            'body',
+            'caption',
+            'center',
+            'col',
+            'colgroup',
+            'dd',
+            'details',
+            'dialog',
+            'dir',
+            'dl',
+            'dt',
+            'fieldset',
+            'figcaption',
+            'figure',
+            'footer',
+            'form',
+            'frame',
+            'frameset',
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'head',
+            'header',
+            'hr',
+            'html',
+            'iframe',
+            'legend',
+            'li',
+            'link',
+            'main',
+            'menu',
+            'menuitem',
+            'nav',
+            'noframes',
+            'ol',
+            'optgroup',
+            'option',
+            'p',
+            'param',
+            'search',
+            'section',
+            'summary',
+            'table',
+            'tbody',
+            'td',
+            'tfoot',
+            'th',
+            'thead',
+            'title',
+            'tr',
+            'track',
+            'ul',
+        ], true);
     }
 
     private function rawHtmlLineSelfClosesTag(string $line, string $tag): bool

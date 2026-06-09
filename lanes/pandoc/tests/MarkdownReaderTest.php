@@ -12622,6 +12622,32 @@ HTML;
         $t->contains('<p>&lt;/ div&gt;&lt;/.div&gt;</p>', $blocks);
         $t->contains('<!-- pandoc --help -->', $blocks);
     },
+    'maps commonmark raw html blocks to blank-line boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<section data-source="commonmark-raw">',
+            'Native raw import boundary',
+            '',
+            '# Parsed after boundary',
+            '',
+            '</section>',
+            '',
+            'Tail paragraph.',
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+        $t->same('raw_html', $document->children[0]->type);
+        $t->same("<section data-source=\"commonmark-raw\">\nNative raw import boundary", $document->children[0]->attr('html'));
+        $t->same('heading', $document->children[1]->type);
+        $t->same('Parsed after boundary', $document->children[1]->attr('text'));
+        $t->same('raw_html', $document->children[2]->type);
+        $t->same('</section>', $document->children[2]->attr('html'));
+        $t->same('paragraph', $document->children[3]->type);
+        $t->same('Tail paragraph.', $document->children[3]->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . '<section data-source="commonmark-raw">' . "\n" . 'Native raw import boundary', $blocks);
+        $t->contains('<h1 id="parsed-after-boundary">Parsed after boundary</h1>', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '</section>', $blocks);
+    },
     'maps upstream markdown raw email and emoji extension cases' => static function (TestRunner $t): void {
         $rawEmailDocument = (new MarkdownReader())->read('**@user**');
         $emojiDocument = (new MarkdownReader())->read(':smile: and :+1:');
