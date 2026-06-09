@@ -340,6 +340,46 @@ return [
         $t->same('packet', $roundTrip->children[6]->attr('id'));
         $t->same('horizontal_rule', $roundTrip->children[7]->type);
     },
+    'renders pandoc div attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
+        $packet = [
+            'blocks' => [
+                ['t' => 'Div', 'c' => [
+                    [
+                        'review-div',
+                        ['html-writer', 'wp-review'],
+                        [
+                            ['data-review', 'attributes'],
+                            ['aria-label', 'Reviewer region'],
+                            ['xml:lang', 'en-GB'],
+                            ['style', 'color:red'],
+                            ['onclick', 'alert(1)'],
+                            ['onmouseover', 'blocked'],
+                        ],
+                    ],
+                    [
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Str', 'c' => 'Wrapped'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'content'],
+                        ]],
+                    ],
+                ]],
+            ],
+        ];
+
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $div = $document->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('div', $div->type);
+        $t->same('review-div', $div->attr('id'));
+        $t->same(['html-writer', 'wp-review'], $div->attr('classes'));
+        $t->same('en-GB', $div->attr('attributes')['xml:lang'] ?? null);
+        $t->contains('<div id="review-div" class="html-writer wp-review" data-review="attributes" aria-label="Reviewer region" xml:lang="en-GB"><p>Wrapped content</p></div>', $blocks);
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe style attributes must not render on Pandoc Div output');
+        $t->true(!str_contains($blocks, 'onclick='), 'Unsafe event handler attributes must not render on Pandoc Div output');
+        $t->true(!str_contains($blocks, 'onmouseover='), 'Unsafe mouse event attributes must not render on Pandoc Div output');
+    },
     'round trips pandoc json table captions through shared table ast' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',
