@@ -48,6 +48,49 @@ BIB;
         $t->same('Donald Ervin', $items['manual']['author'][0]['given']);
         $t->same('et al.', $items['manual']['author'][1]['literal']);
     },
+    'carries biblatex subtitle eprint identifiers and access metadata into csl items' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{preprint,
+  author         = {Ng, Nia},
+  title          = {Obscure Archive Packet},
+  subtitle       = {Source Review Appendix},
+  titleaddon     = {migration note},
+  date           = {2026-06-09},
+  url            = {https://example.test/preprint},
+  urldate        = {2026-06-10},
+  eprinttype     = {arXiv},
+  eprintclass    = {cs.DL},
+  eprint         = {2606.00001},
+  isbn           = {978-1-4028-9462-6},
+  issn           = {2049-3630},
+  langid         = {en-US},
+  keywords       = {pandoc, wordpress; archive},
+  abstract       = {Bounded CSL handoff for reviewer archives.},
+  addendum       = {Import note attached}
+}
+BIB;
+
+        $items = (new BibtexCslProcessor())->cslItems($source);
+        $item = $items['preprint'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('webpage', $item['type']);
+        $t->same('Obscure Archive Packet: Source Review Appendix', $item['title']);
+        $t->same('migration note', $item['title-addon']);
+        $t->same([2026, 6, 9], $item['issued']['date-parts'][0]);
+        $t->same([2026, 6, 10], $item['accessed']['date-parts'][0]);
+        $t->same('arXiv', $item['archive']);
+        $t->same('cs.DL', $item['archive-place']);
+        $t->same('2606.00001', $item['archive_location']);
+        $t->same('arXiv:cs.DL:2606.00001', $item['archive-summary']);
+        $t->same('978-1-4028-9462-6', $item['ISBN']);
+        $t->same('2049-3630', $item['ISSN']);
+        $t->same('en-US', $item['language']);
+        $t->same(['pandoc', 'wordpress', 'archive'], $item['keyword']);
+        $t->same('Bounded CSL handoff for reviewer archives.', $item['abstract']);
+        $t->same('Import note attached', $item['note']);
+        $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

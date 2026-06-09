@@ -395,16 +395,37 @@ final class BibtexCslProcessor
             ],
         ];
 
+        $title = $this->composedTitle($fields, ['title'], ['subtitle']);
+        if ($title !== null && $title !== '') {
+            $item['title'] = $title;
+        }
+
+        $containerTitle = $this->composedTitle($fields, ['journaltitle', 'journal', 'booktitle'], ['journalsubtitle', 'booksubtitle']);
+        if ($containerTitle !== null && $containerTitle !== '') {
+            $item['container-title'] = $containerTitle;
+        }
+
         $stringFields = [
-            'title' => ['title'],
-            'container-title' => ['journaltitle', 'journal', 'booktitle'],
+            'short-title' => ['shorttitle'],
+            'title-addon' => ['titleaddon'],
+            'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
             'volume' => ['volume'],
             'issue' => ['number', 'issue'],
             'page' => ['pages', 'page'],
             'DOI' => ['doi'],
             'URL' => ['url'],
+            'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
             'publisher' => ['publisher', 'institution', 'organization'],
             'publisher-place' => ['address', 'location', 'publisher-place'],
+            'ISBN' => ['isbn'],
+            'ISSN' => ['issn'],
+            'archive' => ['archiveprefix', 'eprinttype', 'archive'],
+            'archive-place' => ['eprintclass', 'archiveplace', 'archive-place'],
+            'archive_location' => ['eprint', 'archive-location', 'archive_location'],
+            'language' => ['language', 'langid', 'hyphenation'],
+            'abstract' => ['abstract', 'annotation', 'annote'],
+            'note' => ['note', 'addendum'],
+            'genre' => ['type', 'entrysubtype'],
         ];
 
         foreach ($stringFields as $target => $names) {
@@ -426,7 +447,47 @@ final class BibtexCslProcessor
             $item['issued'] = ['date-parts' => [$date]];
         }
 
+        $accessed = $this->datePartsFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
+        if ($accessed !== null) {
+            $item['accessed'] = ['date-parts' => [$accessed]];
+        }
+
+        $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword']));
+        if ($keywords !== []) {
+            $item['keyword'] = $keywords;
+        }
+
+        if (($item['archive'] ?? '') !== '' || ($item['archive_location'] ?? '') !== '') {
+            $summaryParts = [];
+            foreach (['archive', 'archive-place', 'archive_location'] as $field) {
+                if (($item[$field] ?? '') !== '') {
+                    $summaryParts[] = (string) $item[$field];
+                }
+            }
+            $item['archive-summary'] = implode(':', $summaryParts);
+        }
+
         return $item;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $titleNames
+     * @param list<string> $subtitleNames
+     */
+    private function composedTitle(array $fields, array $titleNames, array $subtitleNames): ?string
+    {
+        $title = $this->firstField($fields, $titleNames);
+        if ($title === null || $title === '') {
+            return null;
+        }
+
+        $subtitle = $this->firstField($fields, $subtitleNames);
+        if ($subtitle === null || $subtitle === '') {
+            return $title;
+        }
+
+        return $title . ': ' . $subtitle;
     }
 
     private function cslType(string $type): string
@@ -462,7 +523,25 @@ final class BibtexCslProcessor
      */
     private function dateParts(array $fields): ?array
     {
-        $date = $fields['date'] ?? '';
+        return $this->datePartsFromFields($fields, ['date'], ['year', 'month', 'day']);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $dateFields
+     * @param list<string> $ymdFields
+     * @return list<int>|null
+     */
+    private function datePartsFromFields(array $fields, array $dateFields, array $ymdFields): ?array
+    {
+        $date = '';
+        foreach ($dateFields as $field) {
+            if (($fields[$field] ?? '') !== '') {
+                $date = $fields[$field];
+                break;
+            }
+        }
+
         if ($date !== '' && preg_match('/^(-?\d{1,4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/', $date, $m) === 1) {
             $parts = [(int) $m[1]];
             if (($m[2] ?? '') !== '') {
@@ -475,16 +554,50 @@ final class BibtexCslProcessor
             return $parts;
         }
 
-        if (($fields['year'] ?? '') === '') {
+        if ($ymdFields === []) {
             return null;
         }
 
-        $parts = [(int) $fields['year']];
-        if (($fields['month'] ?? '') !== '' && ctype_digit($fields['month'])) {
-            $parts[] = (int) $fields['month'];
+        [$yearField, $monthField, $dayField] = $ymdFields + [null, null, null];
+        if (!is_string($yearField) || ($fields[$yearField] ?? '') === '') {
+            return null;
+        }
+
+        $parts = [(int) $fields[$yearField]];
+        $month = is_string($monthField) ? ($fields[$monthField] ?? '') : '';
+        if ($month !== '' && ctype_digit($month)) {
+            $parts[] = (int) $month;
+        }
+
+        $day = is_string($dayField) ? ($fields[$dayField] ?? '') : '';
+        if ($day !== '' && ctype_digit($day)) {
+            if (count($parts) === 1) {
+                $parts[] = 1;
+            }
+            $parts[] = (int) $day;
         }
 
         return $parts;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function keywordList(?string $value): array
+    {
+        if ($value === null || trim($value) === '') {
+            return [];
+        }
+
+        $keywords = [];
+        foreach (preg_split('/[,;]+/', $value) ?: [] as $keyword) {
+            $keyword = trim($keyword);
+            if ($keyword !== '') {
+                $keywords[] = $keyword;
+            }
+        }
+
+        return $keywords;
     }
 
     /**
