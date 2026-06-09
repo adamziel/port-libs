@@ -277,6 +277,55 @@ return [
         $t->same('MetaString', $taggedMapPacket['meta']['source']['t']);
         $t->same('tagged-document-map', $taggedMapPacket['meta']['source']['c']);
     },
+    'preserves simplified metadata maps with constructor-like keys' => static function (TestRunner $t): void {
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'sourcePacket' => [
+                    't' => 'review-packet',
+                    'c' => [
+                        'queue' => 'wp-import',
+                        'priority' => 2,
+                    ],
+                    'status' => 'needs-review',
+                ],
+                'nested' => [
+                    [
+                        't' => 'review-note',
+                        'c' => 'literal metadata payload',
+                    ],
+                ],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Constructor-like'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'metadata'],
+                ]],
+            ],
+        ]);
+
+        $meta = $document->attr('meta');
+        $encoded = $writer->toArray($document);
+        $roundTrip = $reader->readPacket($encoded)->attr('meta');
+
+        $t->same('map', $meta['sourcePacket']['type']);
+        $t->same('review-packet', $meta['sourcePacket']['items']['t']);
+        $t->same('map', $meta['sourcePacket']['items']['c']['type']);
+        $t->same('wp-import', $meta['sourcePacket']['items']['c']['items']['queue']);
+        $t->same('2', $meta['sourcePacket']['items']['c']['items']['priority']);
+        $t->same('needs-review', $meta['sourcePacket']['items']['status']);
+        $t->same('list', $meta['nested']['type']);
+        $t->same('map', $meta['nested']['items'][0]['type']);
+        $t->same('review-note', $meta['nested']['items'][0]['items']['t']);
+        $t->same('literal metadata payload', $meta['nested']['items'][0]['items']['c']);
+        $t->same('MetaMap', $encoded['meta']['sourcePacket']['t']);
+        $t->same('MetaMap', $encoded['meta']['sourcePacket']['c']['c']['t']);
+        $t->same('review-packet', $roundTrip['sourcePacket']['items']['t']);
+        $t->same('literal metadata payload', $roundTrip['nested']['items'][0]['items']['c']);
+    },
     'writes shared ast documents as pandoc json filter exchange shape' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

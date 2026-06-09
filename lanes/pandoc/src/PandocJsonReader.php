@@ -152,7 +152,7 @@ final class PandocJsonReader
             && !array_is_list($value)
             && isset($value['t'])
             && is_string($value['t'])
-            && (array_key_exists('c', $value) || str_starts_with($value['t'], 'Meta'));
+            && str_starts_with($value['t'], 'Meta');
     }
 
     private function readPlainMetaValue(mixed $value): mixed
