@@ -9858,6 +9858,102 @@ XML;
         $t->same('target-source-not-loaded', $stops['rIdCommentImage']['stopReason']);
         $t->same('/word/media/comment.png', $stops['rIdCommentImage']['targetPart']);
     },
+    'summarizes OPC relationship source closure coverage for non DOCX package review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+  <Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>
+XML;
+
+        $workbookRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSheet1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdMissingTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+  <Relationship Id="rIdExternalReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/sheet-source" TargetMode="External"/>
+  <Relationship Id="rIdRelsPayload" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="_rels/workbook.xml.rels"/>
+</Relationships>
+XML;
+
+        $worksheetRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
+  <Relationship Id="rIdBackToWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="../workbook.xml#cycle"/>
+</Relationships>
+XML;
+
+        $coreRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCorePreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../xl/media/core.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'xl/workbook.xml', 'data' => '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'],
+            ['name' => 'xl/_rels/workbook.xml.rels', 'data' => $workbookRelationshipsXml],
+            ['name' => 'xl/worksheets/sheet1.xml', 'data' => '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'],
+            ['name' => 'xl/worksheets/_rels/sheet1.xml.rels', 'data' => $worksheetRelationshipsXml],
+            ['name' => 'xl/styles.xml', 'data' => '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'],
+            ['name' => 'xl/drawings/drawing1.xml', 'data' => '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'docProps/_rels/core.xml.rels', 'data' => $coreRelationshipsXml],
+        ]));
+
+        $summary = $graph->relationshipSourceClosureCoverageSummary(
+            '/',
+            OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE
+        );
+
+        $t->same('/', $summary['source']);
+        $t->same(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE, $summary['relationshipType']);
+        $t->same(false, $summary['valid']);
+        $t->same(['missing-in-package', 'targets-relationship-part'], $summary['issues']);
+        $t->same(4, $summary['sourceCount']);
+        $t->same(3, $summary['expandedSourceCount']);
+        $t->same(1, $summary['outsideSourceCount']);
+        $t->same(6, $summary['stopCount']);
+        $t->same([
+            '/',
+            '/xl/workbook.xml',
+            '/xl/worksheets/sheet1.xml',
+        ], $summary['expandedSourceNames']);
+        $t->same(['/docProps/core.xml'], $summary['outsideSourceNames']);
+        $t->same([
+            '/' => 0,
+            '/xl/workbook.xml' => 1,
+            '/xl/worksheets/sheet1.xml' => 2,
+        ], $summary['sourceDepths']);
+        $t->same([
+            'cycle-target' => 1,
+            'external-target' => 1,
+            'missing-target' => 1,
+            'relationship-part-target' => 1,
+            'target-source-not-loaded' => 2,
+        ], $summary['stopReasonCounts']);
+        $t->same(['rIdBackToWorkbook'], $summary['stopIdsByReason']['cycle-target']);
+        $t->same(['rIdDrawing', 'rIdStyles'], $summary['stopIdsByReason']['target-source-not-loaded']);
+        $t->same(['/xl/theme/theme1.xml'], $summary['missingTargetParts']);
+        $t->same(['/xl/_rels/workbook.xml.rels'], $summary['relationshipPartTargetParts']);
+        $t->same(['/xl/drawings/drawing1.xml', '/xl/styles.xml'], $summary['unloadedTargetSources']);
+        $t->same(['https://example.test/sheet-source'], $summary['externalTargets']);
+        $t->same(['rIdMissingTheme', 'rIdRelsPayload'], $summary['invalidStopIds']);
+        $t->same(2, $summary['invalidStopCount']);
+    },
     'rejects malformed OPC relationship graph package inputs' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],

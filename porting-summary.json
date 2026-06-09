@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 06:05:55 UTC",
-    "sourceCommit": "11b5789183ebb8ab34ff922479caf161e9cc4881",
-    "sourceCommitShort": "11b5789183eb",
+    "generated": "2026-06-09 06:06:52 UTC",
+    "sourceCommit": "9486b33090f10d947652a41c9fcf1ee72d96f117",
+    "sourceCommitShort": "9486b33090f1",
     "sourceBranch": "unknown",
-    "dashboardCommit": "11b5789183ebb8ab34ff922479caf161e9cc4881",
-    "dashboardCommitShort": "11b5789183eb",
+    "dashboardCommit": "9486b33090f10d947652a41c9fcf1ee72d96f117",
+    "dashboardCommitShort": "9486b33090f1",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2808",
-            "coverage": "2,808 / 2,276 (123.4%)",
+            "mapped": "2809",
+            "coverage": "2,809 / 2,276 (123.4%)",
             "mapPercent": "123.4%",
             "unmapped": "0",
-            "php": "2,419 pass / 0 fail",
+            "php": "2,420 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC upstream-runner dependency audit current-base slice on...",
+            "audit": "2026-06-09 UTC OPC XML relationships current-base slice on base dd0f2...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For upstream-runner dependency follow-up, hydrate or verify t...",
-            "remainingGate": "No new native support component is needed for this upstream-runner de...",
+            "nextTarget": "For OPC relationship follow-up, target a non-overlapping grap...",
+            "remainingGate": "No local blocker",
             "commit": "pending fast ba..."
         },
         {

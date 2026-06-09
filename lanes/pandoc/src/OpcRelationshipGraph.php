@@ -1814,6 +1814,113 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{source:string, relationshipType:?string, valid:bool, issues:list<string>, sourceCount:int, expandedSourceCount:int, outsideSourceCount:int, stopCount:int, expandedSourceNames:list<string>, outsideSourceNames:list<string>, sourceDepths:array<string,int>, stopReasonCounts:array<string,int>, stopIdsByReason:array<string,list<string>>, stopTargetsByReason:array<string,list<string>>, invalidStopCount:int, invalidStopIds:list<string>, missingTargetParts:list<string>, relationshipPartTargetParts:list<string>, unloadedTargetSources:list<string>, externalTargets:list<string>}
+     */
+    public function relationshipSourceClosureCoverageSummary(string $sourcePartName = '/', ?string $relationshipType = null): array
+    {
+        $closure = $this->relationshipSourceClosureInventory($sourcePartName, $relationshipType);
+        $summary = [
+            'source' => $closure['source'],
+            'relationshipType' => $closure['relationshipType'],
+            'valid' => $closure['valid'],
+            'issues' => $closure['issues'],
+            'sourceCount' => count($closure['sources']),
+            'expandedSourceCount' => $closure['expandedSourceCount'],
+            'outsideSourceCount' => $closure['outsideSourceCount'],
+            'stopCount' => $closure['stopCount'],
+            'expandedSourceNames' => [],
+            'outsideSourceNames' => [],
+            'sourceDepths' => [],
+            'stopReasonCounts' => [],
+            'stopIdsByReason' => [],
+            'stopTargetsByReason' => [],
+            'invalidStopCount' => 0,
+            'invalidStopIds' => [],
+            'missingTargetParts' => [],
+            'relationshipPartTargetParts' => [],
+            'unloadedTargetSources' => [],
+            'externalTargets' => [],
+        ];
+
+        foreach ($closure['sources'] as $source) {
+            $sourceName = (string) $source['source'];
+            if ($source['reachable']) {
+                self::appendUniqueString($summary['expandedSourceNames'], $sourceName);
+                if ($source['depth'] !== null) {
+                    $summary['sourceDepths'][$sourceName] = (int) $source['depth'];
+                }
+            } else {
+                self::appendUniqueString($summary['outsideSourceNames'], $sourceName);
+            }
+        }
+
+        foreach ($closure['stops'] as $stop) {
+            $reason = (string) $stop['stopReason'];
+            $summary['stopReasonCounts'][$reason] = ($summary['stopReasonCounts'][$reason] ?? 0) + 1;
+            $summary['stopIdsByReason'][$reason] ??= [];
+            $summary['stopTargetsByReason'][$reason] ??= [];
+            self::appendUniqueString($summary['stopIdsByReason'][$reason], (string) $stop['id']);
+
+            $stopTarget = $stop['targetPart'] ?? $stop['target'] ?? null;
+            if (is_string($stopTarget) && $stopTarget !== '') {
+                self::appendUniqueString($summary['stopTargetsByReason'][$reason], $stopTarget);
+            }
+
+            if (!$stop['valid']) {
+                $summary['invalidStopCount']++;
+                self::appendUniqueString($summary['invalidStopIds'], (string) $stop['id']);
+            }
+
+            if ($reason === 'missing-target' && is_string($stop['targetPart'] ?? null)) {
+                self::appendUniqueString($summary['missingTargetParts'], $stop['targetPart']);
+            }
+
+            if ($reason === 'relationship-part-target' && is_string($stop['targetPart'] ?? null)) {
+                self::appendUniqueString($summary['relationshipPartTargetParts'], $stop['targetPart']);
+            }
+
+            if ($reason === 'target-source-not-loaded') {
+                $targetSource = $stop['targetSource'] ?? $stop['targetPart'] ?? null;
+                if (is_string($targetSource) && $targetSource !== '') {
+                    self::appendUniqueString($summary['unloadedTargetSources'], $targetSource);
+                }
+            }
+
+            if ($reason === 'external-target') {
+                self::appendUniqueString($summary['externalTargets'], (string) $stop['target']);
+            }
+        }
+
+        foreach ([
+            'expandedSourceNames',
+            'outsideSourceNames',
+            'invalidStopIds',
+            'missingTargetParts',
+            'relationshipPartTargetParts',
+            'unloadedTargetSources',
+            'externalTargets',
+            'issues',
+        ] as $listKey) {
+            sort($summary[$listKey], SORT_STRING);
+        }
+
+        ksort($summary['sourceDepths'], SORT_STRING);
+        ksort($summary['stopReasonCounts'], SORT_STRING);
+        ksort($summary['stopIdsByReason'], SORT_STRING);
+        foreach ($summary['stopIdsByReason'] as &$ids) {
+            sort($ids, SORT_STRING);
+        }
+        unset($ids);
+        ksort($summary['stopTargetsByReason'], SORT_STRING);
+        foreach ($summary['stopTargetsByReason'] as &$targets) {
+            sort($targets, SORT_STRING);
+        }
+        unset($targets);
+
+        return $summary;
+    }
+
+    /**
      * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, relationshipTypePoliciesValid:bool, packageParts:list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, relationshipPartLoadAction:?string, relationshipPartLoadReason:?string, sourceExists:?bool, valid:bool, issues:list<string>}>, contentTypeOverrides:list<array{partName:string, contentType:string, exists:bool, packagePartName:?string, partNameExactMatch:bool, partNameEquivalentMatch:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, relationshipTargets:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipTypePolicies:list<array{type:string, relationshipCount:int, sourceCount:int, sources:list<string>, idsBySource:array<string, list<string>>, internalCount:int, externalCount:int, validCount:int, invalidCount:int, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, targetParts:list<string>, contentTypes:list<string>, knownRole:?string, sourceScope:string, singletonScope:?string, policyValid:bool, policyIssues:list<string>, issues:list<string>}>}
      */
     public function preflightPackageConsistency(): array

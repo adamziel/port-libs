@@ -1615,6 +1615,10 @@ $packagePartRelationshipCoverage = $graph->packagePartRelationshipCoverageSummar
     OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE
 );
 $relationshipSourceClosure = $graph->relationshipSourceClosureInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
+$relationshipSourceClosureCoverage = $graph->relationshipSourceClosureCoverageSummary(
+    '/',
+    OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE
+);
 $relationshipSourceClosureSources = [];
 foreach ($relationshipSourceClosure['sources'] as $source) {
     $relationshipSourceClosureSources[$source['source']] = [
@@ -2428,6 +2432,7 @@ $summary = [
     'relationshipSources' => $graph->sourcePartNames(),
     'relationshipSourceInventory' => $relationshipSourceInventory,
     'relationshipSourceClosure' => $relationshipSourceClosureSummary,
+    'relationshipSourceClosureCoverage' => $relationshipSourceClosureCoverage,
     'officeDocumentRelationshipReadiness' => $officeDocumentRelationshipReadiness,
     'relationshipTypeInventory' => $relationshipTypeInventory,
     'relationshipRolePolicySummary' => $relationshipRolePolicySummary,
@@ -2557,6 +2562,26 @@ $summary = [
             'issues' => $relationshipSourceClosureSummary['issues'],
             'sources' => array_values($relationshipSourceClosureSummary['sources']),
             'stops' => array_values($relationshipSourceClosureSummary['stops']),
+        ],
+        'relationshipClosureCoverage' => [
+            'valid' => $relationshipSourceClosureCoverage['valid'],
+            'sourceCount' => $relationshipSourceClosureCoverage['sourceCount'],
+            'expandedSourceCount' => $relationshipSourceClosureCoverage['expandedSourceCount'],
+            'outsideSourceCount' => $relationshipSourceClosureCoverage['outsideSourceCount'],
+            'stopCount' => $relationshipSourceClosureCoverage['stopCount'],
+            'expandedSourceNames' => $relationshipSourceClosureCoverage['expandedSourceNames'],
+            'outsideSourceNames' => $relationshipSourceClosureCoverage['outsideSourceNames'],
+            'sourceDepths' => $relationshipSourceClosureCoverage['sourceDepths'],
+            'stopReasonCounts' => $relationshipSourceClosureCoverage['stopReasonCounts'],
+            'stopIdsByReason' => $relationshipSourceClosureCoverage['stopIdsByReason'],
+            'stopTargetsByReason' => $relationshipSourceClosureCoverage['stopTargetsByReason'],
+            'invalidStopCount' => $relationshipSourceClosureCoverage['invalidStopCount'],
+            'invalidStopIds' => $relationshipSourceClosureCoverage['invalidStopIds'],
+            'missingTargetParts' => $relationshipSourceClosureCoverage['missingTargetParts'],
+            'relationshipPartTargetParts' => $relationshipSourceClosureCoverage['relationshipPartTargetParts'],
+            'unloadedTargetSources' => $relationshipSourceClosureCoverage['unloadedTargetSources'],
+            'externalTargets' => $relationshipSourceClosureCoverage['externalTargets'],
+            'issues' => $relationshipSourceClosureCoverage['issues'],
         ],
         'packagePartRelationshipCoverage' => [
             'valid' => $packagePartRelationshipCoverage['valid'],
@@ -3211,6 +3236,28 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipSourceClosure']['stops']['rIdMalformedType']['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
         || ($summary['wordpressImport']['relationshipClosureReview']['expandedSourceCount'] ?? null) !== 4
         || ($summary['wordpressImport']['relationshipClosureReview']['stopCount'] ?? null) !== 16
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['valid'] ?? null) !== false
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['sourceCount'] ?? null) !== 5
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['expandedSourceCount'] ?? null) !== 4
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['outsideSourceCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['stopCount'] ?? null) !== 16
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['expandedSourceNames'] ?? null) !== ['/', '/word/document.xml', '/word/footnotes.xml', '/word/review source.xml']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['outsideSourceNames'] ?? null) !== ['/_xmlsignatures/origin.sigs']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['sourceDepths'] ?? null) !== ['/' => 0, '/word/document.xml' => 1, '/word/footnotes.xml' => 2, '/word/review source.xml' => 2]
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['stopReasonCounts'] ?? null) !== ['cycle-target' => 2, 'external-target' => 5, 'target-source-not-loaded' => 9]
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['stopIdsByReason']['cycle-target'] ?? null) !== ['rIdInternalBookmark', 'rIdInternalReviewState']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['stopIdsByReason']['external-target'] ?? null) !== ['rIdMalformedType', 'rIdRelativeReviewer', 'rIdReviewer', 'rIdSchemeRelativeReviewer', 'rIdUnsafeReviewer']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['stopIdsByReason']['target-source-not-loaded'] ?? null) !== ['rIdDiagram', 'rIdDraftReview', 'rIdEmbeddedOle', 'rIdEmbeddedWorkbook', 'rIdFootnoteImage', 'rIdHero', 'rIdReviewSourceImage', 'rIdReviewSourceProperties', 'rIdStyles']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['stopTargetsByReason']['cycle-target'] ?? null) !== ['/word/document.xml']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['stopTargetsByReason']['external-target'] ?? null) !== ['//cdn.example.test/review/source.html', 'https://example.test/source-with-bad-type', 'https://example.test/wp-admin/post.php?post=42&action=edit', 'javascript:alert(1)', 'review/source.html#packet']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['stopTargetsByReason']['target-source-not-loaded'] ?? null) !== ['/customXml/itemProps1.xml', '/word/draft.xml', '/word/embeddings/oleObject1.bin', '/word/embeddings/source workbook.xlsx', '/word/media/footnote-source.png', '/word/media/hero image.PNG', '/word/media/review source.png', '/word/media/source diagram.svg', '/word/styles.xml']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['invalidStopCount'] ?? null) !== 3
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['invalidStopIds'] ?? null) !== ['rIdMalformedType', 'rIdSchemeRelativeReviewer', 'rIdUnsafeReviewer']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['missingTargetParts'] ?? null) !== []
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['relationshipPartTargetParts'] ?? null) !== []
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['unloadedTargetSources'] ?? null) !== ['/customXml/itemProps1.xml', '/word/draft.xml', '/word/embeddings/oleObject1.bin', '/word/embeddings/source workbook.xlsx', '/word/media/footnote-source.png', '/word/media/hero image.PNG', '/word/media/review source.png', '/word/media/source diagram.svg', '/word/styles.xml']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['externalTargets'] ?? null) !== ['//cdn.example.test/review/source.html', 'https://example.test/source-with-bad-type', 'https://example.test/wp-admin/post.php?post=42&action=edit', 'javascript:alert(1)', 'review/source.html#packet']
+        || ($summary['wordpressImport']['relationshipClosureCoverage']['issues'] ?? null) !== ['external-target-network-path-base-uri', 'external-target-unsafe-scheme', 'relationship-type-not-absolute-uri']
         || ($summary['officeDocumentRelationshipReadiness']['valid'] ?? null) !== false
         || ($summary['officeDocumentRelationshipReadiness']['issues'] ?? null) !== ['external-target-network-path-base-uri', 'external-target-unsafe-scheme', 'internal-hyperlink-target', 'invalid-custom-xml-content-type', 'relationship-type-not-absolute-uri']
         || ($summary['officeDocumentRelationshipReadiness']['documentPart'] ?? null) !== '/word/document.xml'
