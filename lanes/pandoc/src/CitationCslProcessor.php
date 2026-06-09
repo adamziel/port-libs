@@ -354,7 +354,8 @@ final class CitationCslProcessor
     {
         $state = $this->emptyCitationPositionState();
         $positioned = $this->annotateCitationPositions($document, $state);
-        $citationNumbers = $this->citationNumbersForIds($this->sortBibliographyIds($this->uniqueKnownCitationIds($positioned)));
+        $firstReferenceNoteNumbers = $this->firstReferenceNoteNumbersForDocument($positioned);
+        $citationNumbers = $this->citationNumbersForIds($this->sortBibliographyIds($this->uniqueKnownCitationIds($positioned), $firstReferenceNoteNumbers));
         $numbered = $this->annotateCitationNumbers($positioned, $citationNumbers);
         $ids = $this->uniqueKnownCitationIds($numbered);
         $givenNameDisambiguationModes = $this->givenNameDisambiguationModesForIds($ids);
@@ -396,7 +397,7 @@ final class CitationCslProcessor
         $yearSuffixes = $this->yearSuffixesForIds($ids);
         $firstReferenceNoteNumbers = $this->firstReferenceNoteNumbersForDocument($document);
         $ids = array_values(array_filter(
-            $this->sortBibliographyIds($ids),
+            $this->sortBibliographyIds($ids, $firstReferenceNoteNumbers),
             fn (string $id): bool => !$this->itemSkipsBibliography($id)
         ));
         if ($ids === []) {
@@ -4319,9 +4320,10 @@ final class CitationCslProcessor
 
     /**
      * @param list<string> $ids
+     * @param array<string, string> $firstReferenceNoteNumbers
      * @return list<string>
      */
-    private function sortBibliographyIds(array $ids): array
+    private function sortBibliographyIds(array $ids, array $firstReferenceNoteNumbers = []): array
     {
         $sortKeys = $this->style->bibliographySortKeys();
         if ($sortKeys === [] || count($ids) < 2) {
@@ -4330,10 +4332,16 @@ final class CitationCslProcessor
 
         $entries = [];
         foreach ($ids as $index => $id) {
+            $canonicalId = $this->canonicalCitationId($id);
+            $item = $this->itemsById[$canonicalId] ?? null;
+            if ($item !== null) {
+                $item = $this->itemWithFirstReferenceNoteNumber($item, $firstReferenceNoteNumbers[$canonicalId] ?? $firstReferenceNoteNumbers[$id] ?? '');
+            }
+
             $entries[] = [
                 'index' => $index,
                 'id' => $id,
-                'item' => $this->itemsById[$id] ?? null,
+                'item' => $item,
                 'fallback' => $id,
             ];
         }
@@ -4601,6 +4609,7 @@ final class CitationCslProcessor
             'source' => $this->normalizeSortText((string) ($item['source'] ?? '')),
             'type' => $this->normalizeSortText((string) $item['type']),
             'citation-number' => sprintf('%08d', (int) $this->primaryCitationNumberForId((string) ($item['id'] ?? ''))),
+            'first-reference-note-number' => $this->numberVariableSortValue($item, $variable, $scope),
             'page', 'page-first', 'number', 'edition', 'volume', 'issue', 'chapter-number', 'number-of-pages',
             'number-of-volumes', 'collection-number', 'section', 'part-number', 'part', 'printing-number',
             'supplement', 'supplement-number', 'version' => $this->numberVariableSortValue($item, $variable, $scope),

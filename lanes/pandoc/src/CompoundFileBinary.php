@@ -386,8 +386,15 @@ final class CompoundFileBinary
         if ($sector !== self::ENDOFCHAIN) {
             throw new \RuntimeException('CFB sector chain is not terminated for ' . $label);
         }
-        if ($expectedSize !== null && $bytes < $expectedSize) {
-            throw new \RuntimeException('CFB sector chain is shorter than declared for ' . $label);
+        if ($expectedSize !== null) {
+            if ($bytes < $expectedSize) {
+                throw new \RuntimeException('CFB sector chain is shorter than declared for ' . $label);
+            }
+
+            $expectedSectorCount = $expectedSize === 0 ? 0 : intdiv($expectedSize + $this->sectorSize - 1, $this->sectorSize);
+            if (count($sectorIds) > $expectedSectorCount) {
+                throw new \RuntimeException('CFB sector chain is longer than declared for ' . $label);
+            }
         }
 
         return $sectorIds;
@@ -446,6 +453,10 @@ final class CompoundFileBinary
         }
         if ($bytes < $expectedSize) {
             throw new \RuntimeException('CFB mini-sector chain is shorter than declared for ' . $label);
+        }
+        $expectedMiniSectorCount = $expectedSize === 0 ? 0 : intdiv($expectedSize + $this->miniSectorSize - 1, $this->miniSectorSize);
+        if (count($sectorIds) > $expectedMiniSectorCount) {
+            throw new \RuntimeException('CFB mini-sector chain is longer than declared for ' . $label);
         }
 
         return $sectorIds;

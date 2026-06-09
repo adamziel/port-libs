@@ -181,6 +181,7 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
             $flags |= 0x0008;
         }
         $diskStart = (int) ($entry['diskStart'] ?? 0);
+        $comment = (string) ($entry['comment'] ?? '');
         $centralExtra = (string) ($entry['centralExtra'] ?? $entry['extra'] ?? '');
         $localExtra = (string) ($entry['localExtra'] ?? $entry['extra'] ?? '');
 
@@ -235,12 +236,12 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
             $centralUncompressedSize,
             strlen($name),
             strlen($centralExtra),
-            0,
+            strlen($comment),
             $diskStart,
             0,
             0,
             $centralLocalHeaderOffset
-        ) . $name . $centralExtra;
+        ) . $name . $centralExtra . $comment;
         $centralRecords[] = [
             'order' => (int) ($entry['centralIndex'] ?? $entryIndex),
             'index' => $entryIndex,
@@ -317,6 +318,12 @@ $zipWithCentralDirectorySignature = static function (string $zip, string $signat
         . pack('Vv', 0x05054b50, strlen($signatureData))
         . $signatureData
         . substr($zip, $eocdOffset);
+};
+
+$zipUnicodeExtra = static function (int $id, string $rawBytes, string $utf8Text): string {
+    $payload = pack('CV', 1, (int) sprintf('%u', crc32($rawBytes))) . $utf8Text;
+
+    return pack('vv', $id, strlen($payload)) . $payload;
 };
 
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
@@ -1049,6 +1056,32 @@ try {
 } catch (RuntimeException) {
     $zip64ExtraFieldExtractionBlocked = true;
 }
+$unicodeExtraFieldRawName = 'word/media/review-image.bin';
+$unicodeExtraFieldUnicodeName = "word/media/review-\u{2603}.png";
+$unicodeExtraFieldRawComment = 'legacy reviewer comment';
+$unicodeExtraFieldUnicodeComment = "Unicode reviewer \u{2603} comment";
+$unicodeExtraFieldPathExtra = $zipUnicodeExtra(0x7075, $unicodeExtraFieldRawName, $unicodeExtraFieldUnicodeName);
+$unicodeExtraFieldCommentExtra = $zipUnicodeExtra(0x6375, $unicodeExtraFieldRawComment, $unicodeExtraFieldUnicodeComment);
+$unicodeExtraFieldZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => $unicodeExtraFieldRawName,
+        'data' => 'valid unicode extra metadata',
+        'flags' => 0,
+        'comment' => $unicodeExtraFieldRawComment,
+        'localExtra' => $unicodeExtraFieldPathExtra,
+        'centralExtra' => $unicodeExtraFieldPathExtra . $unicodeExtraFieldCommentExtra,
+    ],
+], 'unicode extra field stream fixture');
+$unicodeExtraFieldZipGzip = GzipStream::build($unicodeExtraFieldZipBytes, [
+    'filename' => 'wordpress-unicode-extra-fields.zip',
+    'comment' => 'ZIP Unicode extra field preflight fixture',
+    'headerCrc' => true,
+]);
+$unicodeExtraFieldInspection = ArchiveCompressionStream::inspectZipUnicodeExtraFieldPolicy(
+    $unicodeExtraFieldZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($unicodeExtraFieldZipBytes)
+);
 $centralDirectoryZipBytes = $zipWithCentralDirectorySignature($zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -2099,6 +2132,19 @@ if (in_array('--self-test', $argv, true)) {
             'diskStart',
         ],
         'zip64ExtraFieldGzipFilename' => 'wordpress-zip64-extra-package.zip',
+        'zipUnicodeExtraFieldFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipUnicodeExtraFieldEntryCount' => 1,
+        'zipUnicodeExtraFieldUnicodeCount' => 1,
+        'zipUnicodeExtraFieldCentralCount' => 1,
+        'zipUnicodeExtraFieldLocalCount' => 1,
+        'zipUnicodeExtraFieldCommentCount' => 1,
+        'zipUnicodeExtraFieldIssueCount' => 0,
+        'zipUnicodeExtraFieldSupportedByBoundedReader' => true,
+        'zipUnicodeExtraFieldIssues' => [],
+        'zipUnicodeExtraFieldName' => $unicodeExtraFieldRawName,
+        'zipUnicodeExtraFieldUnicodeName' => $unicodeExtraFieldUnicodeName,
+        'zipUnicodeExtraFieldUnicodeComment' => $unicodeExtraFieldUnicodeComment,
+        'zipUnicodeExtraFieldGzipFilename' => 'wordpress-unicode-extra-fields.zip',
         'zipCentralDirectoryFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipCentralDirectoryType' => 'zip-central-directory-inventory-policy',
         'zipCentralDirectoryEntryCount' => 2,
@@ -2765,6 +2811,24 @@ if (in_array('--self-test', $argv, true)) {
         || ($zip64ExtraFieldInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zip64ExtraFieldGzipFilename']
         || isset($zip64ExtraFieldInspection['package'])
         || !$zip64ExtraFieldExtractionBlocked
+        || $unicodeExtraFieldInspection['format'] !== $expected['zipUnicodeExtraFieldFormat']
+        || $unicodeExtraFieldInspection['zipBytes'] !== $unicodeExtraFieldZipBytes
+        || $unicodeExtraFieldInspection['packageByteSize'] !== strlen($unicodeExtraFieldZipBytes)
+        || $unicodeExtraFieldInspection['entryCount'] !== $expected['zipUnicodeExtraFieldEntryCount']
+        || $unicodeExtraFieldInspection['unicodeExtraFieldEntryCount'] !== $expected['zipUnicodeExtraFieldUnicodeCount']
+        || $unicodeExtraFieldInspection['centralUnicodePathEntryCount'] !== $expected['zipUnicodeExtraFieldCentralCount']
+        || $unicodeExtraFieldInspection['localUnicodePathEntryCount'] !== $expected['zipUnicodeExtraFieldLocalCount']
+        || $unicodeExtraFieldInspection['unicodeCommentEntryCount'] !== $expected['zipUnicodeExtraFieldCommentCount']
+        || $unicodeExtraFieldInspection['issueEntryCount'] !== $expected['zipUnicodeExtraFieldIssueCount']
+        || $unicodeExtraFieldInspection['isSupportedByBoundedReader'] !== $expected['zipUnicodeExtraFieldSupportedByBoundedReader']
+        || $unicodeExtraFieldInspection['issues'] !== $expected['zipUnicodeExtraFieldIssues']
+        || ($unicodeExtraFieldInspection['entries'][0]['name'] ?? null) !== $expected['zipUnicodeExtraFieldName']
+        || ($unicodeExtraFieldInspection['entries'][0]['centralUnicodePath']['text'] ?? null) !== $expected['zipUnicodeExtraFieldUnicodeName']
+        || ($unicodeExtraFieldInspection['entries'][0]['localUnicodePath']['text'] ?? null) !== $expected['zipUnicodeExtraFieldUnicodeName']
+        || ($unicodeExtraFieldInspection['entries'][0]['unicodePathMatchesLocalHeader'] ?? null) !== true
+        || ($unicodeExtraFieldInspection['entries'][0]['unicodeComment']['text'] ?? null) !== $expected['zipUnicodeExtraFieldUnicodeComment']
+        || ($unicodeExtraFieldInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipUnicodeExtraFieldGzipFilename']
+        || isset($unicodeExtraFieldInspection['package'])
         || $centralDirectoryInspection['format'] !== $expected['zipCentralDirectoryFormat']
         || $centralDirectoryInspection['type'] !== $expected['zipCentralDirectoryType']
         || $centralDirectoryInspection['zipBytes'] !== $centralDirectoryZipBytes
@@ -3336,6 +3400,13 @@ echo 'zip64ExtraField.issues=' . implode(',', $zip64ExtraFieldInspection['issues
 echo 'zip64ExtraField.requiredFields=' . implode(',', $zip64ExtraFieldInspection['entries'][0]['centralZip64RequiredFields']) . "\n";
 echo 'zip64ExtraField.gzipFilename=' . $zip64ExtraFieldInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zip64ExtraField.extractionBlocked=' . ($zip64ExtraFieldExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zipUnicodeExtraField.format=' . $unicodeExtraFieldInspection['format'] . "\n";
+echo 'zipUnicodeExtraField.entryCount=' . $unicodeExtraFieldInspection['entryCount'] . "\n";
+echo 'zipUnicodeExtraField.unicodeCount=' . $unicodeExtraFieldInspection['unicodeExtraFieldEntryCount'] . "\n";
+echo 'zipUnicodeExtraField.issues=' . implode(',', $unicodeExtraFieldInspection['issues']) . "\n";
+echo 'zipUnicodeExtraField.name=' . ($unicodeExtraFieldInspection['entries'][0]['centralUnicodePath']['text'] ?? '') . "\n";
+echo 'zipUnicodeExtraField.comment=' . ($unicodeExtraFieldInspection['entries'][0]['unicodeComment']['text'] ?? '') . "\n";
+echo 'zipUnicodeExtraField.gzipFilename=' . $unicodeExtraFieldInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipCentralDirectory.format=' . $centralDirectoryInspection['format'] . "\n";
 echo 'zipCentralDirectory.entryCount=' . $centralDirectoryInspection['entryCount'] . "\n";
 echo 'zipCentralDirectory.signatureLength=' . $centralDirectoryInspection['centralDirectorySignatureLength'] . "\n";

@@ -119,6 +119,11 @@ final class DocxReader
     private array $currentThemeFonts = [];
 
     /**
+     * @var array<string, string>
+     */
+    private array $currentThemeColors = [];
+
+    /**
      * @var array<string, array<string, mixed>>
      */
     private array $currentCustomXmlPartsByStoreItemId = [];
@@ -154,6 +159,11 @@ final class DocxReader
         $theme = $this->readTheme($package, $graph, $documentPart);
         $themeFonts = $theme['fonts'] ?? [];
         $this->currentThemeFonts = is_array($themeFonts) ? $themeFonts : [];
+        $themeColors = $theme['colors']['byName'] ?? [];
+        $this->currentThemeColors = is_array($themeColors) ? array_filter(
+            $themeColors,
+            static fn (mixed $value): bool => is_string($value) && $value !== '',
+        ) : [];
         $referencedNotes = $this->loadReferencedNotes($package, $graph, $documentPart);
         $styles = $this->loadStyles($package, $graph, $documentPart);
         $numbering = $this->loadNumbering($package, $graph, $documentPart);
@@ -6407,6 +6417,7 @@ final class DocxReader
                 $removeExactAttributes,
                 'data-docx-color',
                 'data-docx-theme-color',
+                'data-docx-theme-color-rgb',
                 'data-docx-theme-tint',
                 'data-docx-theme-shade'
             );
@@ -6855,6 +6866,41 @@ final class DocxReader
         return is_string($font) && $font !== '' ? $font : null;
     }
 
+    private function themeColorRgb(string $name): ?string
+    {
+        if ($this->currentThemeColors === []) {
+            return null;
+        }
+
+        foreach ([$name, strtolower($name), $this->normalizedThemeColorName($name)] as $candidate) {
+            if ($candidate === '') {
+                continue;
+            }
+
+            $rgb = $this->currentThemeColors[$candidate] ?? null;
+            if (is_string($rgb) && $rgb !== '') {
+                return $rgb;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizedThemeColorName(string $name): string
+    {
+        $normalized = strtolower(preg_replace('/[^A-Za-z0-9]+/', '', $name) ?? $name);
+
+        return match ($normalized) {
+            'dark1', 'text1' => 'dk1',
+            'light1', 'background1' => 'lt1',
+            'dark2', 'text2' => 'dk2',
+            'light2', 'background2' => 'lt2',
+            'hyperlink' => 'hlink',
+            'followedhyperlink', 'folhlink' => 'folHlink',
+            default => $name,
+        };
+    }
+
     /**
      * @return array{classes:list<string>, attributes:array<string, string>}|null
      */
@@ -7007,6 +7053,16 @@ final class DocxReader
                     $shadingAttributes['data-docx-shading-' . $target] = trim($value);
                 }
             }
+            foreach ([
+                'themeFill' => 'data-docx-shading-theme-fill-rgb',
+                'themeColor' => 'data-docx-shading-theme-color-rgb',
+            ] as $source => $target) {
+                $themeValue = trim((string) ($this->wordAttr($shading, $source) ?? ''));
+                $themeRgb = $themeValue !== '' ? $this->themeColorRgb($themeValue) : null;
+                if ($themeRgb !== null) {
+                    $shadingAttributes[$target] = $themeRgb;
+                }
+            }
 
             if ($shadingAttributes !== []) {
                 $classes[] = 'docx-shading';
@@ -7054,6 +7110,10 @@ final class DocxReader
             $suffix = $this->metadataClassSuffix($themeColor);
             if ($suffix !== null) {
                 $classes[] = 'docx-theme-color-' . $suffix;
+            }
+            $themeRgb = $this->themeColorRgb($themeColor);
+            if ($themeRgb !== null) {
+                $attributes['data-docx-theme-color-rgb'] = $themeRgb;
             }
         }
 
@@ -12475,9 +12535,19 @@ final class DocxReader
             return $theme;
         }
 
+        $name = trim($root->getAttribute('name'));
+        if ($name !== '') {
+            $theme['name'] = $name;
+        }
+
         $fonts = $this->themeFontScheme($root);
         if ($fonts !== []) {
             $theme['fonts'] = $fonts;
+        }
+
+        $colors = $this->themeColorScheme($root);
+        if ($colors !== []) {
+            $theme['colors'] = $colors;
         }
 
         return $theme;
@@ -12531,6 +12601,152 @@ final class DocxReader
         }
 
         return $fonts;
+    }
+
+    /**
+     * @return array{schemeName?:string, count:int, items:list<array{name:string, kind:string, value:?string, rgb:?string}>, byName:array<string, string>}
+     */
+    private function themeColorScheme(\DOMElement $theme): array
+    {
+        $themeElements = $this->firstChildElement($theme, self::DRAWINGML_MAIN_NS, 'themeElements');
+        if (!$themeElements instanceof \DOMElement) {
+            return [];
+        }
+
+        $colorScheme = $this->firstChildElement($themeElements, self::DRAWINGML_MAIN_NS, 'clrScheme');
+        if (!$colorScheme instanceof \DOMElement) {
+            return [];
+        }
+
+        $items = [];
+        $byName = [];
+        foreach ($colorScheme->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAWINGML_MAIN_NS) {
+                continue;
+            }
+
+            $name = $child->localName;
+            if (!in_array($name, ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink'], true)) {
+                continue;
+            }
+
+            $color = $this->themeColorSchemeEntry($child);
+            if ($color === null) {
+                continue;
+            }
+
+            $item = ['name' => $name] + $color;
+            $items[] = $item;
+            if (is_string($item['rgb']) && $item['rgb'] !== '') {
+                $byName[$name] = $item['rgb'];
+                foreach ($this->themeColorAliases($name) as $alias) {
+                    $byName[$alias] = $item['rgb'];
+                }
+            }
+        }
+
+        if ($items === []) {
+            return [];
+        }
+
+        $scheme = [
+            'count' => count($items),
+            'items' => $items,
+            'byName' => $byName,
+        ];
+        $schemeName = trim($colorScheme->getAttribute('name'));
+        if ($schemeName !== '') {
+            $scheme = ['schemeName' => $schemeName] + $scheme;
+        }
+
+        return $scheme;
+    }
+
+    /**
+     * @return array{kind:string, value:?string, rgb:?string}|null
+     */
+    private function themeColorSchemeEntry(\DOMElement $container): ?array
+    {
+        foreach ($container->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAWINGML_MAIN_NS) {
+                continue;
+            }
+
+            if ($child->localName === 'srgbClr') {
+                $rgb = $this->normalizedRgb($child->getAttribute('val'));
+                if ($rgb === null) {
+                    continue;
+                }
+
+                return [
+                    'kind' => 'srgb',
+                    'value' => $rgb,
+                    'rgb' => $rgb,
+                ];
+            }
+
+            if ($child->localName === 'sysClr') {
+                $value = trim($child->getAttribute('val'));
+                $rgb = $this->normalizedRgb($child->getAttribute('lastClr'));
+
+                return [
+                    'kind' => 'system',
+                    'value' => $value !== '' ? $value : null,
+                    'rgb' => $rgb,
+                ];
+            }
+
+            if ($child->localName === 'prstClr') {
+                $value = trim($child->getAttribute('val'));
+                if ($value === '') {
+                    continue;
+                }
+
+                return [
+                    'kind' => 'preset',
+                    'value' => $value,
+                    'rgb' => null,
+                ];
+            }
+
+            if ($child->localName === 'schemeClr') {
+                $value = trim($child->getAttribute('val'));
+                if ($value === '') {
+                    continue;
+                }
+
+                return [
+                    'kind' => 'scheme',
+                    'value' => $value,
+                    'rgb' => null,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizedRgb(string $value): ?string
+    {
+        $value = strtoupper(trim($value));
+
+        return preg_match('/^[0-9A-F]{6}$/D', $value) === 1 ? $value : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function themeColorAliases(string $name): array
+    {
+        return match ($name) {
+            'dk1' => ['dark1', 'text1'],
+            'lt1' => ['light1', 'background1'],
+            'dk2' => ['dark2', 'text2'],
+            'lt2' => ['light2', 'background2'],
+            'hlink' => ['hyperlink'],
+            'folHlink' => ['followedHyperlink', 'followed-hyperlink'],
+            default => [],
+        };
     }
 
     /**

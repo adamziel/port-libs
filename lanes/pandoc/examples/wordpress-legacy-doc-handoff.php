@@ -3133,6 +3133,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (CompoundFileBinary::fromBytes($regularOnlyCfb)->readStream('WordDocument') !== $regularOnlyWordDocument) {
         throw new RuntimeException('Legacy DOC handoff self-test missing regular-only CFB preflight fixture');
     }
+    $overlongRegularStreamChain = $regularOnlyCfb . str_repeat('R', $sectorSize);
+    $overlongRegularStreamChain = substr_replace($overlongRegularStreamChain, $u32(10), 512 + (9 * 4), 4);
+    $overlongRegularStreamChain = substr_replace($overlongRegularStreamChain, $u32($end), 512 + (10 * 4), 4);
     foreach ([
         'absent MiniFAT FREESECT start sentinel' => substr_replace($regularOnlyCfb, $u32($free), 60, 4),
         'absent MiniFAT FATSECT start sentinel' => substr_replace($regularOnlyCfb, $u32($fatSector), 60, 4),
@@ -3174,6 +3177,24 @@ if (($argv[1] ?? '') === '--self-test') {
     $unusedPhysicalSectorId = intdiv(strlen($docBytes) - $sectorSize, $sectorSize);
     $docBytesWithUnusedPhysicalSector = $docBytes . str_repeat("\0", $sectorSize);
     $unownedFatMarkerEntryOffset = 512 + ($unusedPhysicalSectorId * 4);
+    $rootMiniStreamSize = unpack('Vvalue', substr($docBytes, $directoryFieldOffset(0, 120), 4))['value'];
+    $extraMiniSector = intdiv((int) $rootMiniStreamSize + $miniSectorSize - 1, $miniSectorSize);
+    $wordMiniSectorCount = intdiv((int) $wordDocumentLocation['size'] + $miniSectorSize - 1, $miniSectorSize);
+    $lastWordMiniSector = (int) $wordDocumentLocation['startSector'] + $wordMiniSectorCount - 1;
+    $firstMiniFatSector = unpack('Vvalue', substr($docBytes, 60, 4))['value'];
+    $overlongMiniStreamChain = substr_replace($docBytes, $u64((int) $rootMiniStreamSize + $miniSectorSize), $directoryFieldOffset(0, 120), 8);
+    $overlongMiniStreamChain = substr_replace(
+        $overlongMiniStreamChain,
+        $u32($extraMiniSector),
+        512 + ((int) $firstMiniFatSector * $sectorSize) + ($lastWordMiniSector * 4),
+        4
+    );
+    $overlongMiniStreamChain = substr_replace(
+        $overlongMiniStreamChain,
+        $u32($end),
+        512 + ((int) $firstMiniFatSector * $sectorSize) + ($extraMiniSector * 4),
+        4
+    );
     $unusedDirectoryEntryId = count($nodes);
     if (($unusedDirectoryEntryId * 128) >= (count($directoryChunks) * $sectorSize)) {
         throw new RuntimeException('Legacy DOC handoff fixture did not preserve an unused CFB directory entry');
@@ -3198,6 +3219,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'unowned CFB FATSECT marker on physical sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32(0xfffffffd), $unownedFatMarkerEntryOffset, 4),
         'unowned CFB DIFSECT marker on physical sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32(0xfffffffc), $unownedFatMarkerEntryOffset, 4),
         'unreferenced CFB allocated sector' => substr_replace($docBytesWithUnusedPhysicalSector, $u32($end), $unownedFatMarkerEntryOffset, 4),
+        'overlong CFB regular stream chain' => $overlongRegularStreamChain,
+        'overlong CFB mini stream chain' => $overlongMiniStreamChain,
         'CFB root sibling directory reference' => substr_replace($docBytes, $u32($wordDocumentDirectoryId), $directoryFieldOffset(0, 68), 4),
         'CFB stream child directory reference' => substr_replace($docBytes, $u32($objectPoolDirectoryId), $directoryFieldOffset($wordDocumentDirectoryId, 76), 4),
         'CFB stream storage CLSID metadata' => substr_replace($docBytes, "\x01", $directoryFieldOffset($wordDocumentDirectoryId, 80), 1),

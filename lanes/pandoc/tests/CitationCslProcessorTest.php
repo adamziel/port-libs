@@ -18820,6 +18820,98 @@ XML);
         $t->contains('<dt>Roe 2024</dt><dd>first-note 3rd raw 3. Roe, Pat. Later Note Source C.</dd>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>first-note 1st raw 1. Smith, Ada. First Note Source A.</dd>', $blocks);
     },
+    'sorts bounded csl note bibliography by first reference note number' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'alpha-late',
+                'type' => 'report',
+                'title' => 'Alpha Late Packet',
+                'author' => [
+                    ['family' => 'Alpha', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'middle-second',
+                'type' => 'report',
+                'title' => 'Middle Second Packet',
+                'author' => [
+                    ['family' => 'Middle', 'given' => 'Mia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'zeta-first',
+                'type' => 'report',
+                'title' => 'Zeta First Packet',
+                'author' => [
+                    ['family' => 'Zeta', 'given' => 'Zoe'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="note" default-locale="en-US">
+  <info>
+    <title>Bounded First Reference Note Sort Review</title>
+    <id>https://example.test/styles/bounded-first-reference-note-sort-review</id>
+    <updated>2026-06-09T04:31:40+00:00</updated>
+  </info>
+  <macro name="source-key">
+    <group delimiter=" ">
+      <names variable="author"/>
+      <date variable="issued"><date-part name="year"/></date>
+    </group>
+  </macro>
+  <citation>
+    <layout delimiter="; ">
+      <group delimiter=" ">
+        <number variable="citation-number" prefix="#"/>
+        <text macro="source-key"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="first-reference-note-number"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <number variable="first-reference-note-number"/>
+      <number variable="citation-number" prefix="#"/>
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('first-reference-note-number', $summary['bibliographySort'][0]['variable'] ?? null);
+
+        $document = (new MarkdownReader())->read(
+            'First note.[^z]'
+            . "\n\n" . 'Second note.[^m]'
+            . "\n\n" . 'Third note.[^a]'
+            . "\n\n" . '[^z]: Zeta first [@zeta-first].'
+            . "\n\n" . '[^m]: Middle second [@middle-second].'
+            . "\n\n" . '[^a]: Alpha late [@alpha-late].'
+        );
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+
+        $t->contains('<li id="fn-1"><p>Zeta first #1 Zeta 2026.</p>', $blocks);
+        $t->contains('<li id="fn-2"><p>Middle second #2 Middle 2025.</p>', $blocks);
+        $t->contains('<li id="fn-3"><p>Alpha late #3 Alpha 2024.</p>', $blocks);
+
+        $zetaPosition = strpos($blocks, '<dt>Zeta 2026</dt><dd>1 :: #1 :: Zeta, Zoe :: Zeta First Packet</dd>');
+        $middlePosition = strpos($blocks, '<dt>Middle 2025</dt><dd>2 :: #2 :: Middle, Mia :: Middle Second Packet</dd>');
+        $alphaPosition = strpos($blocks, '<dt>Alpha 2024</dt><dd>3 :: #3 :: Alpha, Ada :: Alpha Late Packet</dd>');
+
+        $t->true(is_int($zetaPosition), 'Zeta bibliography entry is present');
+        $t->true(is_int($middlePosition), 'Middle bibliography entry is present');
+        $t->true(is_int($alphaPosition), 'Alpha bibliography entry is present');
+        $t->true($zetaPosition < $middlePosition && $middlePosition < $alphaPosition, 'Bibliography entries are ordered by first reference note number');
+    },
     'applies bounded csl part number labels and text forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

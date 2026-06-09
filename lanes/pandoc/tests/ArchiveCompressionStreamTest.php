@@ -325,6 +325,12 @@ $zipWithCentralDirectorySignature = static function (string $zip, string $signat
         . substr($zip, $eocdOffset);
 };
 
+$zipUnicodeExtra = static function (int $id, string $rawBytes, string $utf8Text): string {
+    $payload = pack('CV', 1, (int) sprintf('%u', crc32($rawBytes))) . $utf8Text;
+
+    return pack('vv', $id, strlen($payload)) . $payload;
+};
+
 $packZip64UInt64 = static function (int $value): string {
     return pack('VV', $value & 0xffffffff, intdiv($value, 0x100000000));
 };
@@ -5214,6 +5220,114 @@ return [
                 strlen($zipBytes)
             )
         );
+    },
+
+    'preflights zip unicode extra fields across archive streams before package exposure' => static function (TestRunner $t) use ($zipFixtureBytes, $zipUnicodeExtra): void {
+        $rawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $rawComment = 'legacy reviewer comment';
+        $unicodeComment = "Unicode reviewer \u{2603} comment";
+        $unicodePathExtra = $zipUnicodeExtra(0x7075, $rawName, $unicodeName);
+        $unicodeCommentExtra = $zipUnicodeExtra(0x6375, $rawComment, $unicodeComment);
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => $rawName,
+                'data' => 'valid unicode extra metadata',
+                'flags' => 0,
+                'comment' => $rawComment,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra . $unicodeCommentExtra,
+            ],
+        ], 'unicode extra field stream fixture');
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-unicode-extra-fields.zip',
+                'comment' => 'ZIP Unicode extra field preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('unicode extra field reviewer metadata', 14)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipUnicodeExtraFieldPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same($format, $inspection['format']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(1, $inspection['entryCount']);
+            $t->same(1, $inspection['unicodeExtraFieldEntryCount']);
+            $t->same(1, $inspection['centralUnicodePathEntryCount']);
+            $t->same(1, $inspection['localUnicodePathEntryCount']);
+            $t->same(1, $inspection['unicodeCommentEntryCount']);
+            $t->same(0, $inspection['issueEntryCount']);
+            $t->same(true, $inspection['isSupportedByBoundedReader']);
+            $t->same([], $inspection['issues']);
+            $t->same($rawName, $inspection['entries'][0]['name']);
+            $t->same('cp437', $inspection['entries'][0]['nameEncoding']);
+            $t->same($unicodeName, $inspection['entries'][0]['centralUnicodePath']['text']);
+            $t->same($unicodeName, $inspection['entries'][0]['localUnicodePath']['text']);
+            $t->same(true, $inspection['entries'][0]['unicodePathMatchesLocalHeader']);
+            $t->same($unicodeComment, $inspection['entries'][0]['unicodeComment']['text']);
+            $t->same(false, array_key_exists('package', $inspection));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipUnicodeExtraFieldPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipUnicodeExtraFieldPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+        $missingLocalZipBytes = $zipFixtureBytes([
+            [
+                'name' => $rawName,
+                'data' => 'central unicode path without matching local metadata',
+                'flags' => 0,
+                'centralExtra' => $unicodePathExtra,
+            ],
+        ], 'missing local unicode extra field stream fixture');
+        $missingLocalInspection = ArchiveCompressionStream::inspectZipUnicodeExtraFieldPolicy(
+            GzipStream::build($missingLocalZipBytes, [
+                'filename' => 'wordpress-unicode-extra-missing-local.zip',
+            ]),
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($missingLocalZipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-unicode-extra-fields.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('ZIP Unicode extra field preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('unicode extra field reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->same(false, $missingLocalInspection['isSupportedByBoundedReader']);
+        $t->same(1, $missingLocalInspection['issueEntryCount']);
+        $t->same(['unicode-path-local-extra-field-missing'], $missingLocalInspection['issues']);
+        $t->same($unicodeName, $missingLocalInspection['issueEntries'][0]['centralUnicodePath']['text']);
+        $t->same(false, $missingLocalInspection['issueEntries'][0]['hasLocalUnicodePath']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($missingLocalZipBytes));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectZipUnicodeExtraFieldPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($zipBytes)
+        ));
     },
 
     'preflights zip central directory provenance across compressed archive streams' => static function (TestRunner $t) use ($zipFixtureBytes, $zipWithCentralDirectorySignature): void {

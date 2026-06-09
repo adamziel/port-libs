@@ -2355,6 +2355,65 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($overlongMiniFatChain));
     },
+    'rejects CFB stream chains longer than declared stream sizes before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32, $u64): void {
+        $sectorSize = 512;
+        $endOfChain = 0xfffffffe;
+        $regularWordDocument = str_pad($buildSimpleWordDocument("Overlong regular chain guard packet\r"), 4096, "\0");
+        $regularBytes = $buildCfb([
+            'WordDocument' => $regularWordDocument,
+        ], false);
+        $extraRegularSector = intdiv(strlen($regularBytes) - $sectorSize, $sectorSize);
+        $lastRegularSector = 2 + intdiv(strlen($regularWordDocument) + $sectorSize - 1, $sectorSize) - 1;
+        $regularOverlong = $regularBytes . str_repeat('R', $sectorSize);
+        $regularOverlong = substr_replace($regularOverlong, $u32($extraRegularSector), $sectorSize + ($lastRegularSector * 4), 4);
+        $regularOverlong = substr_replace($regularOverlong, $u32($endOfChain), $sectorSize + ($extraRegularSector * 4), 4);
+
+        $t->same($regularWordDocument, CompoundFileBinary::fromBytes($regularBytes)->readStream('WordDocument'));
+        try {
+            CompoundFileBinary::fromBytes($regularOverlong);
+
+            throw new RuntimeException('Expected overlong CFB regular stream chain to fail');
+        } catch (RuntimeException $exception) {
+            $t->contains('sector chain is longer than declared', $exception->getMessage());
+        }
+
+        $miniWordDocument = $buildSimpleWordDocument("Overlong mini chain guard packet\r");
+        $miniBytes = $buildCfb([
+            'WordDocument' => $miniWordDocument,
+        ]);
+        $directorySectorOffset = $sectorSize + $sectorSize;
+        $miniSectorSize = 64;
+        $rootMiniStreamSize = unpack('Vvalue', substr($miniBytes, $directorySectorOffset + 120, 4))['value'];
+        $wordDirectoryOffset = $directorySectorOffset + 128;
+        $wordMiniStartSector = unpack('Vvalue', substr($miniBytes, $wordDirectoryOffset + 116, 4))['value'];
+        $wordStreamSize = unpack('Vvalue', substr($miniBytes, $wordDirectoryOffset + 120, 4))['value'];
+        $wordMiniSectorCount = intdiv((int) $wordStreamSize + $miniSectorSize - 1, $miniSectorSize);
+        $lastWordMiniSector = (int) $wordMiniStartSector + $wordMiniSectorCount - 1;
+        $extraMiniSector = intdiv((int) $rootMiniStreamSize + $miniSectorSize - 1, $miniSectorSize);
+        $miniFatSector = unpack('Vvalue', substr($miniBytes, 60, 4))['value'];
+        $miniOverlong = substr_replace($miniBytes, $u64((int) $rootMiniStreamSize + $miniSectorSize), $directorySectorOffset + 120, 8);
+        $miniOverlong = substr_replace(
+            $miniOverlong,
+            $u32($extraMiniSector),
+            $sectorSize + ((int) $miniFatSector * $sectorSize) + ($lastWordMiniSector * 4),
+            4
+        );
+        $miniOverlong = substr_replace(
+            $miniOverlong,
+            $u32($endOfChain),
+            $sectorSize + ((int) $miniFatSector * $sectorSize) + ($extraMiniSector * 4),
+            4
+        );
+
+        $t->same($miniWordDocument, CompoundFileBinary::fromBytes($miniBytes)->readStream('WordDocument'));
+        try {
+            CompoundFileBinary::fromBytes($miniOverlong);
+
+            throw new RuntimeException('Expected overlong CFB mini stream chain to fail');
+        } catch (RuntimeException $exception) {
+            $t->contains('mini-sector chain is longer than declared', $exception->getMessage());
+        }
+    },
     'rejects allocated CFB MiniFAT entries beyond the root mini stream before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("MiniFAT allocation guard packet\r"),

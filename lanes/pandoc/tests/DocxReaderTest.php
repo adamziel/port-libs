@@ -1234,6 +1234,52 @@ $themeFontDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$themeColorContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+</Types>
+XML;
+
+$themeColorDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+</Relationships>
+XML;
+
+$themeColorThemeXml = <<<'XML'
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Review Color Theme">
+  <a:themeElements>
+    <a:clrScheme name="WordPress Review Colors">
+      <a:dk1><a:sysClr val="windowText" lastClr="111111"/></a:dk1>
+      <a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>
+      <a:accent1><a:srgbClr val="4472C4"/></a:accent1>
+      <a:accent2><a:srgbClr val="ED7D31"/></a:accent2>
+      <a:hlink><a:srgbClr val="0563C1"/></a:hlink>
+      <a:folHlink><a:srgbClr val="954F72"/></a:folHlink>
+    </a:clrScheme>
+  </a:themeElements>
+</a:theme>
+XML;
+
+$themeColorDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Theme colors </w:t></w:r>
+      <w:r><w:rPr><w:color w:val="auto" w:themeColor="accent1" w:themeTint="33"/></w:rPr><w:t>accent source</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:rPr><w:shd w:val="clear" w:themeFill="accent2" w:themeColor="text1"/></w:rPr><w:t>shaded source</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> plus </w:t></w:r>
+      <w:r><w:rPr><w:color w:themeColor="followedHyperlink" w:themeShade="80"/></w:rPr><w:t>visited source</w:t></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $stylesNumberingDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -4222,6 +4268,22 @@ $buildThemeFontPackage = static function () use (
     ]);
 };
 
+$buildThemeColorPackage = static function () use (
+    $themeColorContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $themeColorDocumentRelationshipsXml,
+    $themeColorDocumentXml,
+    $themeColorThemeXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $themeColorContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $themeColorDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $themeColorDocumentRelationshipsXml],
+        ['name' => 'word/theme/theme1.xml', 'data' => $themeColorThemeXml],
+    ]);
+};
+
 $buildTableSpanPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableSpanDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -6525,6 +6587,72 @@ return [
         $t->contains('<span class="docx-theme-font docx-font" data-docx-theme-font-ascii="majorHAnsi" data-docx-font-ascii="Aptos Display"', $blocks);
         $t->contains('<span class="docx-theme-font docx-font" data-docx-theme-font-ascii="minorHAnsi" data-docx-font-ascii="Aptos"', $blocks);
         $t->contains('<span class="docx-font docx-theme-font" data-docx-font-ascii="Source Serif" data-docx-font-hansi="Source Serif" data-docx-theme-font-east-asia="minorEastAsia"', $blocks);
+    },
+    'resolves DOCX theme color scheme into reviewer run metadata spans' => static function (TestRunner $t) use ($buildThemeColorPackage): void {
+        $result = (new DocxReader())->readPackage($buildThemeColorPackage());
+        $document = $result['document'];
+        $theme = $result['metadata']['docxTheme'];
+        $colors = $theme['colors'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('/word/theme/theme1.xml', $theme['part']);
+        $t->same('Review Color Theme', $theme['name']);
+        $t->same('WordPress Review Colors', $colors['schemeName']);
+        $t->same(6, $colors['count']);
+        $t->same('dk1', $colors['items'][0]['name']);
+        $t->same('system', $colors['items'][0]['kind']);
+        $t->same('windowText', $colors['items'][0]['value']);
+        $t->same('111111', $colors['items'][0]['rgb']);
+        $t->same('accent1', $colors['items'][2]['name']);
+        $t->same('srgb', $colors['items'][2]['kind']);
+        $t->same('4472C4', $colors['items'][2]['rgb']);
+        $t->same('4472C4', $colors['byName']['accent1']);
+        $t->same('111111', $colors['byName']['text1']);
+        $t->same('954F72', $colors['byName']['followedHyperlink']);
+        $t->same($theme, $result['importReport']['theme']);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(7, count($paragraph->children));
+        $t->same('Theme colors ', $paragraph->children[0]->attr('text'));
+
+        $accent = $paragraph->children[1];
+        $t->same('span', $accent->type);
+        $t->same(['docx-color', 'docx-color-auto', 'docx-theme-color', 'docx-theme-color-accent1'], $accent->attr('classes'));
+        $accentAttrs = $accent->attr('attributes');
+        $t->same('auto', $accentAttrs['data-docx-color']);
+        $t->same('accent1', $accentAttrs['data-docx-theme-color']);
+        $t->same('4472C4', $accentAttrs['data-docx-theme-color-rgb']);
+        $t->same('33', $accentAttrs['data-docx-theme-tint']);
+        $t->same('accent source', $accent->children[0]->attr('text'));
+
+        $shading = $paragraph->children[3];
+        $t->same('span', $shading->type);
+        $t->same(['docx-shading'], $shading->attr('classes'));
+        $shadingAttrs = $shading->attr('attributes');
+        $t->same('clear', $shadingAttrs['data-docx-shading-val']);
+        $t->same('accent2', $shadingAttrs['data-docx-shading-theme-fill']);
+        $t->same('text1', $shadingAttrs['data-docx-shading-theme-color']);
+        $t->same('ED7D31', $shadingAttrs['data-docx-shading-theme-fill-rgb']);
+        $t->same('111111', $shadingAttrs['data-docx-shading-theme-color-rgb']);
+        $t->same('shaded source', $shading->children[0]->attr('text'));
+
+        $visited = $paragraph->children[5];
+        $t->same('span', $visited->type);
+        $t->same(['docx-theme-color', 'docx-theme-color-followedhyperlink'], $visited->attr('classes'));
+        $visitedAttrs = $visited->attr('attributes');
+        $t->same('followedHyperlink', $visitedAttrs['data-docx-theme-color']);
+        $t->same('954F72', $visitedAttrs['data-docx-theme-color-rgb']);
+        $t->same('80', $visitedAttrs['data-docx-theme-shade']);
+        $t->same('visited source', $visited->children[0]->attr('text'));
+
+        $t->contains('[accent source]{.docx-color .docx-color-auto .docx-theme-color .docx-theme-color-accent1 data-docx-color="auto" data-docx-theme-color="accent1" data-docx-theme-color-rgb="4472C4" data-docx-theme-tint="33"}', $markdown);
+        $t->contains('[shaded source]{.docx-shading data-docx-shading-val="clear" data-docx-shading-theme-fill="accent2" data-docx-shading-theme-color="text1" data-docx-shading-theme-fill-rgb="ED7D31" data-docx-shading-theme-color-rgb="111111"}', $markdown);
+        $t->contains('[visited source]{.docx-theme-color .docx-theme-color-followedhyperlink data-docx-theme-color="followedHyperlink" data-docx-theme-color-rgb="954F72" data-docx-theme-shade="80"}', $markdown);
+        $t->contains('<span class="docx-color docx-color-auto docx-theme-color docx-theme-color-accent1" data-docx-color="auto" data-docx-theme-color="accent1" data-docx-theme-color-rgb="4472C4" data-docx-theme-tint="33">accent source</span>', $blocks);
+        $t->contains('<span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-theme-fill="accent2" data-docx-shading-theme-color="text1" data-docx-shading-theme-fill-rgb="ED7D31" data-docx-shading-theme-color-rgb="111111">shaded source</span>', $blocks);
+        $t->contains('<span class="docx-theme-color docx-theme-color-followedhyperlink" data-docx-theme-color="followedHyperlink" data-docx-theme-color-rgb="954F72" data-docx-theme-shade="80">visited source</span>', $blocks);
     },
     'preserves nested DOCX numbering levels as child AST lists' => static function (TestRunner $t) use ($buildNestedNumberingPackage): void {
         $document = (new DocxReader())->readDocument($buildNestedNumberingPackage());
