@@ -1790,6 +1790,7 @@ $summary = [
     'documentVariables' => $result['documentVariables'],
     'saveHistory' => $result['saveHistory'],
     'externalFileReferences' => $result['externalFileReferences'],
+    'subdocumentReferences' => $result['subdocumentReferences'],
     'routeSlip' => $result['routeSlip'],
     'difatSector' => $difatSector,
     'blockCount' => count($result['document']->children),
@@ -1894,6 +1895,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['externalFileReferences'][2]['path'] ?? '') !== 'https://e.test/c.doc' || ($summary['externalFileReferences'][2]['referenceType'] ?? '') !== 'subdocument' || ($summary['externalFileReferences'][2]['fileSystem'] ?? '') !== 'non-file-system') {
         throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm include-field source metadata');
+    }
+    if (($summary['metadata']['subdocumentReferenceCount'] ?? null) !== 2 || count($summary['subdocumentReferences'] ?? []) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm subdocument reference inventory');
+    }
+    if (($summary['metadata']['subdocumentReferencePolicy'] ?? '') !== 'metadata-only-native-review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbFnm subdocument reference metadata-only policy');
+    }
+    if (($summary['subdocumentReferences'][0]['path'] ?? '') !== 'C:\Legacy\Subdocs\appendix-a.doc' || ($summary['subdocumentReferences'][0]['relationshipRole'] ?? '') !== 'master-subdocument-link' || ($summary['subdocumentReferences'][0]['externalFileReferenceIndex'] ?? null) !== 0) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing master subdocument reference metadata');
+    }
+    if (($summary['subdocumentReferences'][1]['path'] ?? '') !== 'https://e.test/c.doc' || ($summary['subdocumentReferences'][1]['pathKind'] ?? '') !== 'external-url' || ($summary['subdocumentReferences'][1]['externalFileReferenceIndex'] ?? null) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing URL subdocument reference metadata');
     }
     foreach ([
         'data-legacy-doc-include-external-reference-index="2"',

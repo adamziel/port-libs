@@ -3102,6 +3102,7 @@ return [
         $result = (new LegacyDocReader())->readBytes($docBytes);
         $metadata = $result['metadata'];
         $externalFileReferences = $result['externalFileReferences'];
+        $subdocumentReferences = $result['subdocumentReferences'];
         $blocks = (new WordPressBlockWriter())->write($result['document']);
         $markdown = (new MarkdownWriter())->write($result['document']);
 
@@ -3139,6 +3140,25 @@ return [
         $t->same(0x10, $externalFileReferences[1]['fnfb']);
         $t->same(['non-file-system'], $externalFileReferences[1]['fileSystemFlags']);
         $t->same('non-file-system', $externalFileReferences[1]['fileSystem']);
+        $t->same(1, count($subdocumentReferences));
+        $t->same(1, $metadata['subdocumentReferenceCount']);
+        $t->same('metadata-only-native-review', $metadata['subdocumentReferencePolicy']);
+        $t->same($subdocumentReferences, $metadata['subdocumentReferences']);
+        $t->same($subdocumentReferences, $result['document']->attr('subdocumentReferences'));
+        $t->same($subdocumentReferences, $result['document']->attr('meta')['subdocumentReferences']);
+        $t->same(0, $subdocumentReferences[0]['index']);
+        $t->same('SttbFnm', $subdocumentReferences[0]['sourceTable']);
+        $t->same(0, $subdocumentReferences[0]['externalFileReferenceIndex']);
+        $t->same($subdocumentPath, $subdocumentReferences[0]['path']);
+        $t->same('Subdocs\chapter1.doc', $subdocumentReferences[0]['relativePath']);
+        $t->same('chapter1.doc', $subdocumentReferences[0]['basename']);
+        $t->same(2, $subdocumentReferences[0]['documentIndex']);
+        $t->same(0x0025, $subdocumentReferences[0]['fnpi']);
+        $t->same('ntfs', $subdocumentReferences[0]['fileSystem']);
+        $t->same('file-path', $subdocumentReferences[0]['pathKind']);
+        $t->same('metadata-only-native-review', $subdocumentReferences[0]['extractionPolicy']);
+        $t->same(false, $subdocumentReferences[0]['canExposeBytes']);
+        $t->same('master-subdocument-link', $subdocumentReferences[0]['relationshipRole']);
         $t->contains('<p>External filename review packet</p>', $blocks);
         $t->contains('External filename review packet', $markdown);
         $t->true(!str_contains($blocks, 'chapter1.doc'));
@@ -3200,6 +3220,75 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
             'WordDocument' => $missingTableWordDocument,
         ])));
+    },
+    'classifies legacy DOC SttbFnm subdocument references for master-document review' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbFnm, $u32): void {
+        $localSubdocument = 'C:\Legacy\Subdocs\chapter2.doc';
+        $remoteSubdocument = 'https://example.test/subdocs/appendix-b.doc';
+        $externalFileTable = $sttbFnm([
+            [
+                'path' => $localSubdocument,
+                'referenceTypeCode' => 5,
+                'documentIndex' => 4,
+                'ichRelative' => 10,
+                'fnfb' => 0x08,
+            ],
+            [
+                'path' => 'https://example.test/mailmerge.csv',
+                'referenceTypeCode' => 3,
+                'documentIndex' => 5,
+                'ichRelative' => 0xff,
+                'fnfb' => 0x10,
+            ],
+            [
+                'path' => $remoteSubdocument,
+                'referenceTypeCode' => 5,
+                'documentIndex' => 6,
+                'ichRelative' => 0xff,
+                'fnfb' => 0x10,
+            ],
+        ]);
+        $wordDocument = $buildExtendedFibWordDocument("Master document packet\r");
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x02da, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($externalFileTable)), 0x02de, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $externalFileTable,
+        ]));
+        $subdocumentReferences = $result['subdocumentReferences'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $markdown = (new MarkdownWriter())->write($result['document']);
+
+        $t->same(2, count($subdocumentReferences));
+        $t->same(2, $metadata['subdocumentReferenceCount']);
+        $t->same('metadata-only-native-review', $metadata['subdocumentReferencePolicy']);
+        $t->same($subdocumentReferences, $metadata['subdocumentReferences']);
+        $t->same($subdocumentReferences, $result['document']->attr('subdocumentReferences'));
+        $t->same($subdocumentReferences, $result['document']->attr('meta')['subdocumentReferences']);
+        $t->same(0, $subdocumentReferences[0]['index']);
+        $t->same(0, $subdocumentReferences[0]['externalFileReferenceIndex']);
+        $t->same($localSubdocument, $subdocumentReferences[0]['path']);
+        $t->same('Subdocs\chapter2.doc', $subdocumentReferences[0]['relativePath']);
+        $t->same('chapter2.doc', $subdocumentReferences[0]['basename']);
+        $t->same(4, $subdocumentReferences[0]['documentIndex']);
+        $t->same(0x0045, $subdocumentReferences[0]['fnpi']);
+        $t->same('ntfs', $subdocumentReferences[0]['fileSystem']);
+        $t->same('file-path', $subdocumentReferences[0]['pathKind']);
+        $t->same('master-subdocument-link', $subdocumentReferences[0]['relationshipRole']);
+        $t->same(false, $subdocumentReferences[0]['canExposeBytes']);
+        $t->same(1, $subdocumentReferences[1]['index']);
+        $t->same(2, $subdocumentReferences[1]['externalFileReferenceIndex']);
+        $t->same($remoteSubdocument, $subdocumentReferences[1]['path']);
+        $t->same('appendix-b.doc', $subdocumentReferences[1]['basename']);
+        $t->same(6, $subdocumentReferences[1]['documentIndex']);
+        $t->same('non-file-system', $subdocumentReferences[1]['fileSystem']);
+        $t->same('external-url', $subdocumentReferences[1]['pathKind']);
+        $t->same(3, $metadata['externalFileReferenceCount']);
+        $t->contains('<p>Master document packet</p>', $blocks);
+        $t->contains('Master document packet', $markdown);
+        $t->true(!str_contains($blocks, 'chapter2.doc'));
+        $t->true(!str_contains($blocks, 'appendix-b.doc'));
     },
     'relates legacy DOC include fields to matching SttbFnm external filename records' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbFnm, $u32): void {
         $fieldBegin = "\x13";

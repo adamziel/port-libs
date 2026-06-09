@@ -260,6 +260,7 @@ $summary = [
     'withDelimsFractionMathml' => $converter->texToMathMl('{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}'),
     'colorPhantomCancelMathml' => $converter->texToMathMl('\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}'),
     'colorDeclarationMathml' => $converter->texToMathMl('\\color{reviewblue} p_i + m_i + \\frac{a}{b}'),
+    'colorTexTokenMathml' => $converter->texToMathMl('\\textcolor{red}x_i + \\textcolor[HTML]{336699}\\operatorname{media} + \\textcolor[rgb]{0.2,0.4,0.6}p_i + \\color[RGB]{51,102,153}\\frac12'),
     'xcolorModelMathml' => $converter->texToMathMl('\\textcolor[HTML]{336699}{\\operatorname{media}} + \\textcolor[rgb]{0.2,0.4,0.6}{p_i} + \\color[gray]{.5} m_i + q_i'),
     'colorBoxMathml' => $converter->texToMathMl('\\colorbox{yellow}{p_i + m_i} + \\colorbox[HTML]{fff9cc}{\\operatorname{media}} + \\fcolorbox{red}{yellow}{q_i} + \\fcolorbox[RGB]{51,102,153}{255,249,204}{\\frac{a}{b}}'),
     'boxedMathml' => $converter->texToMathMl('\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j'),
@@ -443,6 +444,17 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['xcolorModelMathml'], '<mstyle mathcolor="#808080"><mrow><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><msub><mi>q</mi><mi>i</mi></msub></mrow></mstyle>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test did not map bounded xcolor model arguments');
+    }
+
+    if (
+        str_contains($summary['colorTexTokenMathml'], '<mi>\\textcolor</mi>')
+        || str_contains($summary['colorTexTokenMathml'], '<mo>[</mo>')
+        || !str_contains($summary['colorTexTokenMathml'], '<msub><mstyle mathcolor="red"><mi>x</mi></mstyle><mi>i</mi></msub>')
+        || !str_contains($summary['colorTexTokenMathml'], '<mstyle mathcolor="#336699"><mi>media</mi></mstyle>')
+        || !str_contains($summary['colorTexTokenMathml'], '<msub><mstyle mathcolor="#336699"><mi>p</mi></mstyle><mi>i</mi></msub>')
+        || !str_contains($summary['colorTexTokenMathml'], '<mstyle mathcolor="#336699"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map bounded color TeX-token arguments');
     }
 
     if (

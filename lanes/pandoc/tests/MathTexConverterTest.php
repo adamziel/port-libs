@@ -1797,6 +1797,28 @@ return [
         $t->contains('<menclose notation="downdiagonalstrike"><msub><mi>y</mi><mi>i</mi></msub></menclose>', $cancelMathml);
         $t->contains('<menclose notation="updiagonalstrike downdiagonalstrike"><msub><mi>z</mi><mi>i</mi></msub></menclose>', $cancelMathml);
     },
+    'converts bounded tex color token arguments to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $tokenMathml = $converter->texToMathMl('\\textcolor{red}x_i + \\textcolor{#336699}\\operatorname{media} + \\textcolor{review-blue}\\sqrt q_i', true);
+        $modelTokenMathml = $converter->texToMathMl('\\textcolor[HTML]{336699}\\operatorname{media} + \\textcolor[rgb]{0.2,0.4,0.6}p_i + \\color[RGB]{51,102,153}\\frac12', true);
+        $groupMathml = $converter->texToMathMl('\\textcolor{red}{x_i + y_i} + \\color{green}{a+b}');
+        $declarationMathml = $converter->texToMathMl('\\color{red} p_i + m_i + \\frac{a}{b}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $tokenMathml);
+        $t->contains('<msub><mstyle mathcolor="red"><mi>x</mi></mstyle><mi>i</mi></msub>', $tokenMathml);
+        $t->contains('<mstyle mathcolor="#336699"><mi>media</mi></mstyle>', $tokenMathml);
+        $t->contains('<msub><mstyle mathcolor="review-blue"><msqrt><mi>q</mi></msqrt></mstyle><mi>i</mi></msub>', $tokenMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\textcolor{red}x_i + \\textcolor{#336699}\\operatorname{media} + \\textcolor{review-blue}\\sqrt q_i</annotation>', $tokenMathml);
+        $t->contains('<mstyle mathcolor="#336699"><mi>media</mi></mstyle>', $modelTokenMathml);
+        $t->contains('<msub><mstyle mathcolor="#336699"><mi>p</mi></mstyle><mi>i</mi></msub>', $modelTokenMathml);
+        $t->contains('<mstyle mathcolor="#336699"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle>', $modelTokenMathml);
+        $t->contains('<mstyle mathcolor="red"><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow></mstyle>', $groupMathml);
+        $t->contains('<mstyle mathcolor="green"><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow></mstyle>', $groupMathml);
+        $t->contains('<mstyle mathcolor="red"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></mrow></mstyle>', $declarationMathml);
+        $t->true(!str_contains($tokenMathml . $modelTokenMathml, '<mi>\\textcolor</mi>') && !str_contains($modelTokenMathml, '<mo>[</mo>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textcolor{red}{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textcolor{red}_1'));
+    },
     'converts bounded tex color declarations to scoped mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $declarationMathml = $converter->texToMathMl('\\color{red} p_i + m_i + \\frac{a}{b}', true);

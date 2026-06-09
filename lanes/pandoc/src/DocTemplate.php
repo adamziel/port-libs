@@ -4251,6 +4251,7 @@ CSS;
     private function registerPartialResources(array $resources, string $templatePath, array $searchDirectories, array $partialExtensionFallbacks, array &$partials, array &$sources): void
     {
         foreach ($searchDirectories as $directory) {
+            $availableRelativePaths = $this->availableRelativePartialResourcePaths($resources, $templatePath, $directory);
             foreach ($partialExtensionFallbacks as $extension) {
                 foreach ($resources as $resourcePath => $source) {
                     if ($resourcePath === $templatePath) {
@@ -4262,7 +4263,7 @@ CSS;
                         continue;
                     }
 
-                    foreach ($this->partialAliasesForResourcePath($relativePath, $extension) as $alias) {
+                    foreach ($this->partialAliasesForResourcePath($relativePath, $extension, $availableRelativePaths) as $alias) {
                         if (!array_key_exists($alias, $partials)) {
                             $partials[$alias] = $source;
                             $sources[$alias] = $resourcePath;
@@ -4271,6 +4272,27 @@ CSS;
                 }
             }
         }
+    }
+
+    /**
+     * @param array<string, string> $resources
+     * @return array<string, true>
+     */
+    private function availableRelativePartialResourcePaths(array $resources, string $templatePath, string $directory): array
+    {
+        $paths = [];
+        foreach ($resources as $resourcePath => $_source) {
+            if ($resourcePath === $templatePath) {
+                continue;
+            }
+
+            $relativePath = $this->relativeTemplateResourceChild($resourcePath, $directory);
+            if ($relativePath !== null) {
+                $paths[$relativePath] = true;
+            }
+        }
+
+        return $paths;
     }
 
     /**
@@ -4402,9 +4424,10 @@ CSS;
     }
 
     /**
+     * @param array<string, true> $availableRelativePaths
      * @return list<string>
      */
-    private function partialAliasesForResourcePath(string $relativePath, string $mainExtension): array
+    private function partialAliasesForResourcePath(string $relativePath, string $mainExtension, array $availableRelativePaths = []): array
     {
         $basename = $this->templateResourceBasename($relativePath);
         $extension = $this->templateResourceExtension($basename);
@@ -4414,10 +4437,20 @@ CSS;
 
         $aliases = [$relativePath];
         if ($extension === $mainExtension) {
+            $baseExtension = $this->extensionQualifiedResourceBaseExtension($extension);
+            if ($baseExtension !== null) {
+                $baseAlias = substr($relativePath, 0, -strlen($extension)) . $baseExtension;
+                if (!array_key_exists($baseAlias, $availableRelativePaths)) {
+                    $aliases[] = $baseAlias;
+                }
+            }
+        }
+
+        if ($extension === $mainExtension) {
             $aliases[] = substr($relativePath, 0, -strlen($extension));
         }
 
-        return $aliases;
+        return array_values(array_unique($aliases));
     }
 
     /**

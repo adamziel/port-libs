@@ -17,12 +17,25 @@ final class BibtexCslParser
         'holder',
         'translator',
         'bookauthor',
+        'chair',
+        'collection-editor',
+        'collectioneditor',
+        'compiler',
+        'composer',
+        'contributor',
+        'curator',
         'director',
+        'editor-translator',
+        'editorial-director',
+        'editorialdirector',
+        'editortranslator',
         'eventorganizer',
         'executive-producer',
         'executiveproducer',
         'guest',
         'host',
+        'illustrator',
+        'interviewer',
         'narrator',
         'organizer',
         'organization',
@@ -30,6 +43,9 @@ final class BibtexCslParser
         'originalauthor',
         'performer',
         'producer',
+        'recipient',
+        'reviewed-author',
+        'reviewedauthor',
         'script-writer',
         'scriptwriter',
         'commentator',
@@ -850,6 +866,26 @@ final class BibtexCslParser
         $director = self::namesFromBibtexField($fields, 'director');
         if ($director !== []) {
             $item['director'] = $director;
+        }
+
+        foreach ([
+            'chair' => ['chair'],
+            'collection-editor' => ['collectioneditor', 'collection-editor'],
+            'compiler' => ['compiler'],
+            'composer' => ['composer'],
+            'contributor' => ['contributor'],
+            'curator' => ['curator'],
+            'editor-translator' => ['editortranslator', 'editor-translator'],
+            'editorial-director' => ['editorialdirector', 'editorial-director'],
+            'illustrator' => ['illustrator'],
+            'interviewer' => ['interviewer'],
+            'recipient' => ['recipient'],
+            'reviewed-author' => ['reviewedauthor', 'reviewed-author'],
+        ] as $cslNameVariable => $fieldNames) {
+            $names = self::namesFromFirstBibtexField($fields, $fieldNames);
+            if ($names !== []) {
+                $item[$cslNameVariable] = $names;
+            }
         }
 
         $eventOrganizer = self::eventOrganizerNames($type, $fields);

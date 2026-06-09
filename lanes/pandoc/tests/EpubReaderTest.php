@@ -2836,6 +2836,101 @@ XML;
         $t->same($result['collections'], $result['importReport']['collections']);
         $t->same($roleReport, $result['document']->attr('collections')[0]['roleReport']);
     },
+    'summarizes OPF collection link relations and review targets' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithCollectionLinks = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="locked-audio" href="audio/locked.mp3" media-type="audio/mpeg"/>'
+                . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithCollectionLinks = str_replace(
+            '<link rel="first" href="text/chapter1.xhtml#intro" media-type="application/xhtml+xml" properties="preview"/>',
+            '<link rel="first preview" href="text/chapter1.xhtml#intro" media-type="application/xhtml+xml" properties="preview sample"/>',
+            $opfWithCollectionLinks
+        );
+        $opfWithCollectionLinks = str_replace(
+            '<link rel="record" href="https://example.invalid/source-record" media-type="text/html"/>',
+            '<link id="external-record" rel="record alternate" href="https://example.invalid/source-record" media-type="text/html" properties="schema-org reviewer"/>'
+                . '<link id="missing-review" rel="review" href="text/missing.xhtml" media-type="application/xhtml+xml"/>'
+                . '<link id="locked-audio-link" rel="voicing" href="audio/locked.mp3" media-type="audio/mpeg"/>'
+                . '<link id="unclassified" href="text/chapter2.xhtml#media" media-type="application/xhtml+xml"/>',
+            $opfWithCollectionLinks
+        );
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="OEBPS/audio/locked.mp3"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithCollectionLinks,
+            null,
+            [
+                ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+                ['name' => 'OEBPS/audio/locked.mp3', 'data' => 'LOCKED-MP3'],
+            ]
+        ));
+
+        $series = $result['collections'][0];
+        $report = $series['linkReport'];
+
+        $t->same(5, $series['linkCount']);
+        $t->same(4, $series['localLinkCount']);
+        $t->same(1, $series['externalLinkCount']);
+        $t->same(1, $series['missingLinkCount']);
+        $t->same(1, $series['encryptedLinkCount']);
+        $t->same(true, $report['present']);
+        $t->same(5, $report['count']);
+        $t->same(4, $report['localCount']);
+        $t->same(1, $report['externalCount']);
+        $t->same(1, $report['missingCount']);
+        $t->same(1, $report['encryptedCount']);
+        $t->same(1, $report['recordLinkCount']);
+        $t->same(4, $report['reviewRequiredCount']);
+        $t->same(['first', 'preview', 'record', 'alternate', 'review', 'voicing'], $report['relTokens']);
+        $t->same([
+            'first' => 1,
+            'preview' => 1,
+            'record' => 1,
+            'alternate' => 1,
+            'review' => 1,
+            'voicing' => 1,
+        ], $report['relCounts']);
+        $t->same('chapter-1', $report['linksByRel']['first'][0]['manifestId']);
+        $t->same('external-record', $report['linksByRel']['record'][0]['id']);
+        $t->same('locked-audio-link', $report['linksByRel']['voicing'][0]['id']);
+        $t->same(['preview', 'sample', 'schema-org', 'reviewer'], $report['propertyTokens']);
+        $t->same([
+            'preview' => 1,
+            'sample' => 1,
+            'schema-org' => 1,
+            'reviewer' => 1,
+        ], $report['propertyCounts']);
+        $t->same($report['relTokens'], $series['collectionLinkRelTokens']);
+        $t->same($report['relCounts'], $series['collectionLinkRelCounts']);
+        $t->same($report['linksByRel'], $series['collectionLinksByRel']);
+        $t->same($report['propertyTokens'], $series['collectionLinkPropertyTokens']);
+        $t->same($report['propertyCounts'], $series['collectionLinkPropertyCounts']);
+        $t->same([
+            'external-collection-link',
+            'missing-collection-reference',
+            'missing-collection-link-rel',
+        ], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $report['diagnostics']));
+        $t->same(3, $report['diagnosticCount']);
+        $t->same('external-record', $report['diagnostics'][0]['id']);
+        $t->same('missing-review', $report['diagnostics'][1]['id']);
+        $t->same('unclassified', $report['diagnostics'][2]['id']);
+        $t->same(true, $series['links'][3]['encrypted']);
+        $t->same(false, $series['links'][3]['canExposeBytes']);
+        $t->same($report['diagnostics'], $series['collectionLinkDiagnostics']);
+        $t->same($report, $result['importReport']['collections'][0]['linkReport']);
+        $t->same($report, $result['document']->attr('collections')[0]['linkReport']);
+        $t->same(1, $series['children'][0]['linkReport']['count']);
+        $t->same(['sample'], $series['children'][0]['linkReport']['relTokens']);
+    },
     'resolves OPF manifest fallback chains for foreign spine XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $slideshowFallbackXhtml): void {
         $opfWithFallbackSpine = str_replace(
             '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',

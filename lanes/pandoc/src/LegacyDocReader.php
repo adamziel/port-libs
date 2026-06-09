@@ -176,7 +176,7 @@ final class LegacyDocReader
     private array $activeListOverrides = [];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
     public function readBytes(string $bytes): array
     {
@@ -184,7 +184,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -274,6 +274,12 @@ final class LegacyDocReader
             $metadata['externalFileReferenceCount'] = count($externalFileReferences);
             $metadata['externalFileReferencePolicy'] = 'metadata-only-native-review';
             $metadata['externalFileReferences'] = $externalFileReferences;
+        }
+        $subdocumentReferences = $this->subdocumentReferenceReport($externalFileReferences);
+        if ($subdocumentReferences !== []) {
+            $metadata['subdocumentReferenceCount'] = count($subdocumentReferences);
+            $metadata['subdocumentReferencePolicy'] = 'metadata-only-native-review';
+            $metadata['subdocumentReferences'] = $subdocumentReferences;
         }
         $routeSlip = $this->routeSlipReport($wordDocument, $tableStream);
         if ($routeSlip !== []) {
@@ -509,6 +515,7 @@ final class LegacyDocReader
             'documentVariables' => $documentVariables,
             'saveHistory' => $saveHistory,
             'externalFileReferences' => $externalFileReferences,
+            'subdocumentReferences' => $subdocumentReferences,
             'routeSlip' => $routeSlip,
         ];
 
@@ -569,6 +576,7 @@ final class LegacyDocReader
             'documentVariables' => $documentVariables,
             'saveHistory' => $saveHistory,
             'externalFileReferences' => $externalFileReferences,
+            'subdocumentReferences' => $subdocumentReferences,
             'routeSlip' => $routeSlip,
         ];
     }
@@ -4009,6 +4017,55 @@ final class LegacyDocReader
     }
 
     /**
+     * @param list<array<string,mixed>> $externalFileReferences
+     * @return list<array<string,mixed>>
+     */
+    private function subdocumentReferenceReport(array $externalFileReferences): array
+    {
+        $subdocuments = [];
+        foreach ($externalFileReferences as $reference) {
+            if (($reference['referenceType'] ?? null) !== 'subdocument') {
+                continue;
+            }
+
+            $path = (string) ($reference['path'] ?? '');
+            if ($path === '') {
+                continue;
+            }
+
+            $record = [
+                'index' => count($subdocuments),
+                'sourceTable' => (string) ($reference['sourceTable'] ?? 'SttbFnm'),
+                'externalFileReferenceIndex' => (int) ($reference['index'] ?? 0),
+                'relationshipRole' => 'master-subdocument-link',
+                'path' => $path,
+                'pathKind' => $this->legacyPathKind($path),
+                'pathCharacterCount' => (int) ($reference['pathCharacterCount'] ?? $this->textCharacterLength($path)),
+                'basename' => (string) ($reference['basename'] ?? $this->legacyPathBasename($path)),
+                'fnpi' => (int) ($reference['fnpi'] ?? 0),
+                'documentIndex' => (int) ($reference['documentIndex'] ?? 0),
+                'ichRelative' => (int) ($reference['ichRelative'] ?? 0xff),
+                'fileSystem' => (string) ($reference['fileSystem'] ?? 'unknown'),
+                'canExposeBytes' => false,
+                'extractionPolicy' => (string) ($reference['extractionPolicy'] ?? 'metadata-only-native-review'),
+            ];
+            if (isset($reference['relativePath']) && is_string($reference['relativePath']) && $reference['relativePath'] !== '') {
+                $record['relativePath'] = $reference['relativePath'];
+            }
+            if (isset($reference['fileSystemFlags']) && is_array($reference['fileSystemFlags'])) {
+                $record['fileSystemFlags'] = array_values(array_map(
+                    static fn (mixed $flag): string => (string) $flag,
+                    $reference['fileSystemFlags']
+                ));
+            }
+
+            $subdocuments[] = $record;
+        }
+
+        return $subdocuments;
+    }
+
+    /**
      * @return list<array<string,mixed>>
      */
     private function parseSttbFnm(string $bytes): array
@@ -4318,6 +4375,11 @@ final class LegacyDocReader
         $slash = strrpos($normalized, '/');
 
         return $slash === false ? $path : substr($normalized, $slash + 1);
+    }
+
+    private function legacyPathKind(string $path): string
+    {
+        return preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $path) === 1 ? 'external-url' : 'file-path';
     }
 
     /**

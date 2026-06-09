@@ -3621,7 +3621,7 @@ final class MathTexConverter
     private function parseColorCommand(string $source, int &$offset, string $command): string
     {
         $color = $this->readMathColorArgument($source, $offset, $command)['color'];
-        $content = $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content');
+        $content = $this->parseRequiredTexToken($source, $offset, $command . ' content');
 
         return '<mstyle mathcolor="' . $this->esc($color) . '">' . $content . '</mstyle>';
     }

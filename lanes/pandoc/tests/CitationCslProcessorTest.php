@@ -5690,6 +5690,126 @@ XML);
             'recipient' => 'Editorial Desk',
         ]]));
     },
+    'maps bounded biblatex direct csl participant creator fields into metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@misc{participant-fields-source,
+  title = {Participant Fields Packet},
+  date = {2026},
+  chair = {{Program Committee}},
+  collectioneditor = {Curator, Eli},
+  composer = {Morton, Mia},
+  contributor = {{Migration Contributors}},
+  editortranslator = {Garcia, Gia},
+  recipient = {Reader, Rhea},
+  chair+an = {1=agenda verified},
+  recipient+an:family = {1=recipient family verified}
+}
+
+@book{editorial-fields-source,
+  title = {Editorial Fields Packet},
+  date = {2025},
+  compiler = {Roe, Pat and {{Migration Desk}}},
+  curator = {Curator, Eli},
+  editorialdirector = {Editorial, Eden},
+  illustrator = {Illustrator, Iris},
+  interviewer = {Interviewer, Inez},
+  reviewedauthor = {Reviewed, Riley},
+  reviewedauthor+an = {1=review context verified}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('Program Committee', $items[0]['chair'][0]['literal'] ?? null);
+        $t->same('Curator', $items[0]['collection-editor'][0]['family'] ?? null);
+        $t->same('Morton', $items[0]['composer'][0]['family'] ?? null);
+        $t->same('Migration Contributors', $items[0]['contributor'][0]['literal'] ?? null);
+        $t->same('Garcia', $items[0]['editor-translator'][0]['family'] ?? null);
+        $t->same('Reader', $items[0]['recipient'][0]['family'] ?? null);
+        $t->same('agenda verified', $items[0]['chair'][0]['annotations'][0]['value'] ?? null);
+        $t->same('family', $items[0]['recipient'][0]['annotations'][0]['part'] ?? null);
+        $t->same('Roe', $items[1]['compiler'][0]['family'] ?? null);
+        $t->same('Migration Desk', $items[1]['compiler'][1]['literal'] ?? null);
+        $t->same('Editorial', $items[1]['editorial-director'][0]['family'] ?? null);
+        $t->same('Reviewed', $items[1]['reviewed-author'][0]['family'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $participant = $processor->item('participant-fields-source');
+        $t->same('Program Committee', $participant['chairs'][0]['literal'] ?? null);
+        $t->same('Curator', $participant['collectionEditors'][0]['family'] ?? null);
+        $t->same('Morton', $participant['composers'][0]['family'] ?? null);
+        $t->same('Migration Contributors', $participant['contributors'][0]['literal'] ?? null);
+        $t->same('Garcia', $participant['editorTranslators'][0]['family'] ?? null);
+        $t->same('Reader', $participant['recipients'][0]['family'] ?? null);
+        $editorial = $processor->item('editorial-fields-source');
+        $t->same('Roe', $editorial['compilers'][0]['family'] ?? null);
+        $t->same('Curator', $editorial['curators'][0]['family'] ?? null);
+        $t->same('Editorial', $editorial['editorialDirectors'][0]['family'] ?? null);
+        $t->same('Illustrator', $editorial['illustrators'][0]['family'] ?? null);
+        $t->same('Interviewer', $editorial['interviewers'][0]['family'] ?? null);
+        $t->same('Reviewed', $editorial['reviewedAuthors'][0]['family'] ?? null);
+        $t->same('review context verified', $editorial['reviewedAuthors'][0]['annotations'][0]['value'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="chair"/>
+        <names variable="collection-editor"/>
+        <names variable="composer"/>
+        <names variable="contributor"/>
+        <names variable="editor-translator"/>
+        <names variable="recipient"/>
+        <names variable="compiler"/>
+        <names variable="curator"/>
+        <names variable="editorial-director"/>
+        <names variable="illustrator"/>
+        <names variable="interviewer"/>
+        <names variable="reviewed-author"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="chair"/>
+      <names variable="collection-editor"/>
+      <names variable="composer"/>
+      <names variable="contributor"/>
+      <names variable="editor-translator"/>
+      <names variable="recipient"/>
+      <names variable="compiler"/>
+      <names variable="curator"/>
+      <names variable="editorial-director"/>
+      <names variable="illustrator"/>
+      <names variable="interviewer"/>
+      <names variable="reviewed-author"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('(Program Committee | Curator | Morton | Migration Contributors | Garcia | Reader; Roe and Migration Desk | Curator | Editorial | Illustrator | Interviewer | Reviewed)', $styled->renderCitationCluster([
+            $citation('participant-fields-source', '[@participant-fields-source]'),
+            $citation('editorial-fields-source', '[@editorial-fields-source]'),
+        ]));
+        $t->same(
+            'Participant Fields Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified',
+            $styled->renderBibliographyEntry('participant-fields-source')
+        );
+        $t->same(
+            'Editorial Fields Packet :: Roe, Pat; Migration Desk :: Curator, Eli :: Editorial, Eden :: Illustrator, Iris :: Interviewer, Inez :: Reviewed, Riley :: Reviewed author 1: review context verified',
+            $styled->renderBibliographyEntry('editorial-fields-source')
+        );
+
+        $document = (new MarkdownReader())->read('Imported bibliography [@participant-fields-source; @editorial-fields-source] keeps direct CSL participant roles visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Imported bibliography (Program Committee | Curator | Morton | Migration Contributors | Garcia | Reader; Roe and Migration Desk | Curator | Editorial | Illustrator | Interviewer | Reviewed) keeps direct CSL participant roles visible.</p>', $blocks);
+        $t->contains('<dt>Participant Fields Packet 2026</dt><dd>Participant Fields Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified</dd>', $blocks);
+        $t->contains('<dt>Editorial Fields Packet 2025</dt><dd>Editorial Fields Packet :: Roe, Pat; Migration Desk :: Curator, Eli :: Editorial, Eden :: Illustrator, Iris :: Interviewer, Inez :: Reviewed, Riley :: Reviewed author 1: review context verified</dd>', $blocks);
+    },
     'maps bounded biblatex primary editor type roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{primary-compiler-review,

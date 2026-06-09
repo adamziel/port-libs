@@ -7599,6 +7599,7 @@ final class EpubReader
         $collectionDirection = self::direction($collectionElement);
         $role = self::nullableAttribute($collectionElement, 'role');
         $roleReport = self::collectionRoleReport($role, $prefixBindings);
+        $linkReport = self::collectionLinkReport($links);
 
         return [
             'id' => self::nullableAttribute($collectionElement, 'id'),
@@ -7612,7 +7613,115 @@ final class EpubReader
                 ? $this->readMetadata($metadataElement, '', false, $prefixBindings, $collectionLanguage, $collectionDirection)
                 : [],
             'links' => $links,
+            'linkReport' => $linkReport,
+            'linkCount' => $linkReport['count'],
+            'localLinkCount' => $linkReport['localCount'],
+            'externalLinkCount' => $linkReport['externalCount'],
+            'missingLinkCount' => $linkReport['missingCount'],
+            'encryptedLinkCount' => $linkReport['encryptedCount'],
+            'collectionLinkRelTokens' => $linkReport['relTokens'],
+            'collectionLinkRelCounts' => $linkReport['relCounts'],
+            'collectionLinksByRel' => $linkReport['linksByRel'],
+            'collectionLinkPropertyTokens' => $linkReport['propertyTokens'],
+            'collectionLinkPropertyCounts' => $linkReport['propertyCounts'],
+            'collectionLinkDiagnostics' => $linkReport['diagnostics'],
             'children' => $children,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     *
+     * @return array<string, mixed>
+     */
+    private static function collectionLinkReport(array $links): array
+    {
+        $relCounts = [];
+        $linksByRel = [];
+        $propertyCounts = [];
+        $diagnostics = [];
+        $localCount = 0;
+        $externalCount = 0;
+        $missingCount = 0;
+        $encryptedCount = 0;
+        $recordLinkCount = 0;
+        $reviewRequiredCount = 0;
+
+        foreach ($links as $index => $link) {
+            $external = ($link['external'] ?? false) === true;
+            $exists = ($link['exists'] ?? false) === true;
+            $encrypted = ($link['encrypted'] ?? false) === true;
+            $part = is_string($link['part'] ?? null) ? $link['part'] : null;
+            $linkDiagnostics = is_array($link['diagnostics'] ?? null) ? $link['diagnostics'] : [];
+
+            if ($external) {
+                ++$externalCount;
+            } elseif ($part !== null && $part !== '') {
+                ++$localCount;
+            }
+            if (!$external && !$exists) {
+                ++$missingCount;
+            }
+            if ($encrypted) {
+                ++$encryptedCount;
+            }
+
+            $rels = is_array($link['rel'] ?? null) ? array_values($link['rel']) : [];
+            if ($external || (!$exists && !$external) || $encrypted || $linkDiagnostics !== [] || $rels === []) {
+                ++$reviewRequiredCount;
+            }
+            if ($rels === []) {
+                $diagnostics[] = [
+                    'type' => 'missing-collection-link-rel',
+                    'index' => $index,
+                    'id' => is_string($link['id'] ?? null) ? $link['id'] : null,
+                    'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                    'message' => 'EPUB OPF collection link is missing rel tokens for review handoff classification',
+                ];
+            }
+            foreach ($rels as $rel) {
+                $rel = (string) $rel;
+                $relCounts[$rel] = ($relCounts[$rel] ?? 0) + 1;
+                $linksByRel[$rel][] = $link;
+                if ($rel === 'record') {
+                    ++$recordLinkCount;
+                }
+            }
+
+            foreach (is_array($link['properties'] ?? null) ? $link['properties'] : [] as $property) {
+                $property = (string) $property;
+                $propertyCounts[$property] = ($propertyCounts[$property] ?? 0) + 1;
+            }
+
+            foreach ($linkDiagnostics as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'index' => $index,
+                    'id' => is_string($link['id'] ?? null) ? $link['id'] : null,
+                    'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                ] + $diagnostic;
+            }
+        }
+
+        return [
+            'present' => $links !== [],
+            'count' => count($links),
+            'localCount' => $localCount,
+            'externalCount' => $externalCount,
+            'missingCount' => $missingCount,
+            'encryptedCount' => $encryptedCount,
+            'recordLinkCount' => $recordLinkCount,
+            'reviewRequiredCount' => $reviewRequiredCount,
+            'relTokens' => array_keys($relCounts),
+            'relCounts' => $relCounts,
+            'linksByRel' => $linksByRel,
+            'propertyTokens' => array_keys($propertyCounts),
+            'propertyCounts' => $propertyCounts,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 

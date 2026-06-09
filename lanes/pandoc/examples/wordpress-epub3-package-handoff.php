@@ -883,6 +883,12 @@ XML;
     if (($result['collections'][0]['links'][1]['diagnostics'][0]['type'] ?? null) !== 'external-collection-link') {
         throw new RuntimeException('Expected EPUB OPF collection external link to be reported without fetching');
     }
+    if (($result['collections'][0]['linkReport']['relTokens'] ?? null) !== ['first', 'record'] || ($result['collections'][0]['linkReport']['propertyTokens'] ?? null) !== ['preview']) {
+        throw new RuntimeException('Expected EPUB OPF collection link rel/property summary for WordPress review');
+    }
+    if (($result['collections'][0]['linkReport']['externalCount'] ?? null) !== 1 || ($result['collections'][0]['linkReport']['diagnostics'][0]['type'] ?? null) !== 'external-collection-link') {
+        throw new RuntimeException('Expected EPUB OPF collection link report to retain external record diagnostics');
+    }
     if (($result['metadata']['links'][0]['target'] ?? null) !== '/EPUB/meta/review-record.json') {
         throw new RuntimeException('Expected EPUB OPF metadata link to resolve to the review record package part');
     }
@@ -1690,6 +1696,8 @@ echo 'collectionRole=' . ($result['collections'][0]['role'] ?? '') . "\n";
 echo 'collectionTitleLanguage=' . ($result['collections'][0]['metadata']['titleDetails'][0]['language'] ?? '') . "\n";
 echo 'collectionTitleDirection=' . ($result['collections'][0]['metadata']['titleDetails'][0]['direction'] ?? '') . "\n";
 echo 'collectionFirstTarget=' . ($result['collections'][0]['links'][0]['target'] ?? '') . "\n";
+echo 'collectionLinkRels=' . implode(',', $result['collections'][0]['linkReport']['relTokens'] ?? []) . "\n";
+echo 'collectionExternalLinks=' . ($result['collections'][0]['linkReport']['externalCount'] ?? 0) . "\n";
 echo 'metadataLinks=' . count($result['metadata']['links'] ?? []) . "\n";
 echo 'metadataRecordTarget=' . ($result['metadata']['links'][0]['target'] ?? '') . "\n";
 echo 'metadataRecordLanguage=' . ($result['metadata']['links'][0]['language'] ?? '') . "\n";

@@ -342,6 +342,42 @@ HTML,
         }
     }
 
+    $explicitBaseExtensionPartialFallback = (new DocTemplate())->renderResource('packets/review', [
+        'packets/review.html+smart' => <<<'HTML'
+<article class="explicit-base-extension-partials">
+${ components/header.html() }
+${ components/status.html() }
+</article>
+HTML,
+        'packets/components/header.html+smart' => '<header class="exact-base-fallback">$title$</header>' . "\n",
+        'packets/components/status.html+smart' => '<p class="exact-base-fallback">$status$</p>' . "\n",
+    ], [
+        'title' => 'Explicit base-extension partial packet',
+        'status' => 'WordPress review ready',
+    ], null, 'html+smart');
+    foreach ([
+        '<article class="explicit-base-extension-partials">',
+        '<header class="exact-base-fallback">Explicit base-extension partial packet</header>',
+        '<p class="exact-base-fallback">WordPress review ready</p>',
+    ] as $needle) {
+        if (!str_contains($explicitBaseExtensionPartialFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate explicit base-extension partial fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
+    $explicitBaseExtensionPartialPreference = (new DocTemplate())->renderResource('packets/review', [
+        'packets/review.html+smart' => '${ components/header.html() }',
+        'packets/components/header.html+smart' => '<header class="exact">$title$</header>',
+        'packets/components/header.html' => '<header class="base">$title$</header>',
+    ], [
+        'title' => 'Explicit base extension wins',
+    ], null, 'html+smart');
+    if ($explicitBaseExtensionPartialPreference !== '<header class="base">Explicit base extension wins</header>') {
+        fwrite(STDERR, "Unexpected doctemplate explicit base-extension partial preference\n");
+        exit(1);
+    }
+
     $extensionQualifiedDefault = (new DocTemplate())->renderResource('templates/default', [], [
         'body' => 'Extension-qualified Markdown default fallback',
     ], null, 'markdown_strict+emoji-hard_line_breaks');

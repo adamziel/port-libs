@@ -1552,6 +1552,41 @@ HTML;
         ]), $baseOutput);
     },
 
+    'resolves explicit base-extension partial calls to exact extension resources when base is absent' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $exactOnly = $renderer->renderResource('templates/review', [
+            'templates/review.html+smart' => <<<'HTML'
+<article>
+${ components/header.html() }
+${ components/warning-row.html() }
+</article>
+HTML,
+            'templates/components/header.html+smart' => '<header class="exact-only">$title$</header>' . "\n",
+            'templates/components/warning-row.html+smart' => '<p class="exact-only">$warning$</p>' . "\n",
+        ], [
+            'title' => 'Exact Extension Packet',
+            'warning' => 'Review HTML extension resource',
+        ], null, 'html+smart');
+
+        $t->same(implode("\n", [
+            '<article>',
+            '<header class="exact-only">Exact Extension Packet</header>',
+            '<p class="exact-only">Review HTML extension resource</p>',
+            '</article>',
+        ]), $exactOnly);
+
+        $basePreferred = $renderer->renderResource('templates/review', [
+            'templates/review.html+smart' => '${ components/header.html() }',
+            'templates/components/header.html+smart' => '<header class="exact">$title$</header>',
+            'templates/components/header.html' => '<header class="base">$title$</header>',
+        ], [
+            'title' => 'Base Preferred Packet',
+        ], null, 'html+smart');
+
+        $t->same('<header class="base">Base Preferred Packet</header>', $basePreferred);
+    },
+
     'renders bounded pandoc default html4 template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
