@@ -1457,6 +1457,30 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes bounded gb12345 traditional chinese source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec4204742313233343520b2e2cad4a3acb1b1bea9a1a3');
+        $decoded = UnicodeText::decodeBytes($bytes, 'gb12345');
+        $document = (new MarkdownReader())->readBytes($bytes, 'gb12345-90');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $gbkComparison = UnicodeText::decodeBytes($bytes, 'gbk');
+        $badTrail = UnicodeText::decodeBytes("\xD6\"A", 'gb12345');
+        $unmappedPair = UnicodeText::decodeBytes("\xA2\xA1A", 'csgb12345');
+
+        $t->same('gb12345', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# 簡體\n\n中文 GB12345 測試，北京。", $decoded['text']);
+        $t->same("# 简体\n\n中文 GB12345 测试，北京。", $gbkComparison['text']);
+        $t->same(['encoding' => 'gb12345', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('簡體', $document->children[0]->attr('text'));
+        $t->same('中文 GB12345 測試，北京。', $document->children[1]->attr('text'));
+        $t->same(25, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="簡體">簡體</h1>', $blocks);
+        $t->contains('<p>中文 GB12345 測試，北京。</p>', $blocks);
+        $t->same("\u{FFFD}\"A", $badTrail['text']);
+        $t->same(1, $badTrail['repairs']);
+        $t->same("\u{FFFD}A", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+    },
     'decodes bounded gb18030 four byte source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# GB18030\n\nEmoji \x94\x39\xFC\x36 CJK \x95\x32\x82\x36 Latin \x81\x30\x8B\x38 Euro \xA2\xE3.";
         $decoded = UnicodeText::decodeBytes($bytes, 'gb18030');

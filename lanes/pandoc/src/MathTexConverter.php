@@ -3764,13 +3764,13 @@ final class MathTexConverter
     {
         $firstColor = $this->readMathColorArgument($source, $offset, $command);
         if ($command === 'colorbox') {
-            $content = $this->parseRequiredNonEmptyGroup($source, $offset, 'colorbox content');
+            $content = $this->parseRequiredTexToken($source, $offset, 'colorbox content');
 
             return '<mstyle mathbackground="' . $this->esc($firstColor['color']) . '">' . $content . '</mstyle>';
         }
 
         $backgroundColor = $this->readMathColorArgument($source, $offset, $command, $firstColor['model'])['color'];
-        $content = $this->parseRequiredNonEmptyGroup($source, $offset, 'fcolorbox content');
+        $content = $this->parseRequiredTexToken($source, $offset, 'fcolorbox content');
 
         return '<menclose notation="box" mathbackground="' . $this->esc($backgroundColor) . '" data-tex-framecolor="' . $this->esc($firstColor['color']) . '">'
             . $content
@@ -4025,8 +4025,8 @@ final class MathTexConverter
 
     private function parseCancelToCommand(string $source, int &$offset): string
     {
-        $target = $this->parseRequiredNonEmptyGroup($source, $offset, 'cancelto target');
-        $content = $this->parseRequiredNonEmptyGroup($source, $offset, 'cancelto content');
+        $target = $this->parseRequiredTexToken($source, $offset, 'cancelto target');
+        $content = $this->parseRequiredTexToken($source, $offset, 'cancelto content');
 
         return '<mover>'
             . '<menclose notation="updiagonalstrike">' . $content . '</menclose>'

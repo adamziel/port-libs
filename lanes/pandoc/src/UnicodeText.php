@@ -4182,6 +4182,20 @@ final class UnicodeText
         0xd6d0 => 0x4e2d,
     ];
 
+    /** @var array<int, int> */
+    private const GB12345_PAIRS = [
+        0xa1a3 => 0x3002,
+        0xa3ac => 0xff0c,
+        0xb1b1 => 0x5317,
+        0xb2e2 => 0x6e2c,
+        0xbcf2 => 0x7c21,
+        0xbea9 => 0x4eac,
+        0xcad4 => 0x8a66,
+        0xcce5 => 0x9ad4,
+        0xcec4 => 0x6587,
+        0xd6d0 => 0x4e2d,
+    ];
+
     /** @var list<array{0:int, 1:int}> */
     private const GB18030_RANGES = [
         [0, 0x0080],
@@ -4556,6 +4570,7 @@ final class UnicodeText
             || $normalized === 'iso-2022-jp'
             || $normalized === 'big5'
             || $normalized === 'gbk'
+            || $normalized === 'gb12345'
             || $normalized === 'gb18030'
             || $normalized === 'euc-kr'
             || $normalized === 'windows-949'
@@ -4568,6 +4583,7 @@ final class UnicodeText
                 'iso-2022-jp' => self::decodeIso2022Jp($bytes),
                 'big5' => self::decodeBig5($bytes),
                 'gbk' => self::decodeGbk($bytes),
+                'gb12345' => self::decodeGb12345($bytes),
                 'gb18030' => self::decodeGb18030($bytes),
                 'euc-kr' => self::decodeEucKr($bytes),
                 'windows-949' => self::decodeEucKr($bytes, true),
@@ -5197,6 +5213,7 @@ final class UnicodeText
             'gb18030' => 'gb18030',
             'gbk', 'gb2312', 'gb2312:1980', 'csgb2312', 'csiso58gb231280',
             'cp936', 'ms936', 'windows936', 'xgbk', 'xcp936', 'euccn' => 'gbk',
+            'gb12345', 'gb1234590', 'gb12345:1990', 'csgb12345' => 'gb12345',
             'euckr', 'cseuckr', 'csksc56011987', 'korean', 'isoir149', 'ksc5601', 'ksc56011987',
             'ksc56011989' => 'euc-kr',
             'windows949', 'cp949', 'ms949', 'uhc' => 'windows-949',
@@ -6519,6 +6536,49 @@ final class UnicodeText
             }
 
             $out .= self::fromCodepoint(self::GBK_PAIRS[$pair]);
+            $offset++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeGb12345(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte <= 0x7f) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+
+            if ($byte < 0xa1 || $byte > 0xfe || $offset + 1 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $trail = ord($bytes[$offset + 1]);
+            if ($trail < 0xa1 || $trail > 0xfe) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $pair = ($byte << 8) | $trail;
+            if (!isset(self::GB12345_PAIRS[$pair])) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint(self::GB12345_PAIRS[$pair]);
             $offset++;
         }
 

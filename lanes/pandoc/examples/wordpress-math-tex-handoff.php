@@ -104,6 +104,8 @@ Xcolor model audit $\textcolor[HTML]{336699}{\operatorname{media}} + \textcolor[
 
 Color box audit $\colorbox{yellow}{p_i + m_i} + \colorbox[HTML]{fff9cc}{\operatorname{media}} + \fcolorbox{red}{yellow}{q_i} + \fcolorbox[RGB]{51,102,153}{255,249,204}{\frac{a}{b}}$ keeps review box metadata.
 
+Token color and cancel box audit $\colorbox{yellow}x_i + \fcolorbox{red}{yellow}q_i + \cancelto0r_i + \cancelto\alpha\frac12$ keeps texToken boxes semantic.
+
 Boxed equation audit $\boxed{p_i + m_i} + \boxed{\frac{a}{b}}_j$ stays semantic.
 
 Overlap layout audit $\smash{\frac{a}{b}} + \smash[t]{p_i} + \smash[b]{m_i} + \mathllap{L_i} + \mathrlap{R_i} + \mathclap{x+y}$ stays semantic.
@@ -288,6 +290,7 @@ $summary = [
     'colorTexTokenMathml' => $converter->texToMathMl('\\textcolor{red}x_i + \\textcolor[HTML]{336699}\\operatorname{media} + \\textcolor[rgb]{0.2,0.4,0.6}p_i + \\color[RGB]{51,102,153}\\frac12'),
     'xcolorModelMathml' => $converter->texToMathMl('\\textcolor[HTML]{336699}{\\operatorname{media}} + \\textcolor[rgb]{0.2,0.4,0.6}{p_i} + \\color[gray]{.5} m_i + q_i'),
     'colorBoxMathml' => $converter->texToMathMl('\\colorbox{yellow}{p_i + m_i} + \\colorbox[HTML]{fff9cc}{\\operatorname{media}} + \\fcolorbox{red}{yellow}{q_i} + \\fcolorbox[RGB]{51,102,153}{255,249,204}{\\frac{a}{b}}'),
+    'tokenColorBoxCancelMathml' => $converter->texToMathMl('\\colorbox{yellow}x_i + \\fcolorbox{red}{yellow}q_i + \\cancelto0r_i + \\cancelto\\alpha\\frac12'),
     'boxedMathml' => $converter->texToMathMl('\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j'),
     'smashOverlapMathml' => $converter->texToMathMl('\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}'),
     'tokenLayoutWrapperMathml' => $converter->texToMathMl('\\smash x_i + \\smash[t] y^2 + \\mathllap L_i + \\mathrlap R + \\clap C'),
@@ -528,6 +531,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['tokenColorBoxCancelMathml'], '<mi>\\colorbox</mi>')
+        || str_contains($summary['tokenColorBoxCancelMathml'], '<mi>\\fcolorbox</mi>')
+        || str_contains($summary['tokenColorBoxCancelMathml'], '<mi>\\cancelto</mi>')
+        || !str_contains($summary['tokenColorBoxCancelMathml'], '<msub><mstyle mathbackground="yellow"><mi>x</mi></mstyle><mi>i</mi></msub>')
+        || !str_contains($summary['tokenColorBoxCancelMathml'], '<msub><menclose notation="box" mathbackground="yellow" data-tex-framecolor="red"><mi>q</mi></menclose><mi>i</mi></msub>')
+        || !str_contains($summary['tokenColorBoxCancelMathml'], '<msub><mover><menclose notation="updiagonalstrike"><mi>r</mi></menclose><mn>0</mn></mover><mi>i</mi></msub>')
+        || !str_contains($summary['tokenColorBoxCancelMathml'], '<mover><menclose notation="updiagonalstrike"><mfrac><mn>1</mn><mn>2</mn></mfrac></menclose><mi>α</mi></mover>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map bounded color and cancel box TeX-token arguments');
+    }
+
+    if (
         !str_contains($summary['rowSpacingMathml'], 'rowspacing=".5em"')
         || !str_contains($summary['rowSpacingMathml'], 'data-tex-rowspacing="after-row-1:.5em"')
     ) {
@@ -720,6 +735,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}\\)</span>',
         '<span class="math inline">\\(\\textcolor[HTML]{336699}{\\operatorname{media}} + \\textcolor[rgb]{0.2,0.4,0.6}{p_i} + \\color[gray]{.5} m_i + q_i\\)</span>',
         '<span class="math inline">\\(\\colorbox{yellow}{p_i + m_i} + \\colorbox[HTML]{fff9cc}{\\operatorname{media}} + \\fcolorbox{red}{yellow}{q_i} + \\fcolorbox[RGB]{51,102,153}{255,249,204}{\\frac{a}{b}}\\)</span>',
+        '<span class="math inline">\\(\\colorbox{yellow}x_i + \\fcolorbox{red}{yellow}q_i + \\cancelto0r_i + \\cancelto\\alpha\\frac12\\)</span>',
         '<span class="math inline">\\(\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j\\)</span>',
         '<span class="math inline">\\(\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}\\)</span>',
         '<span class="math inline">\\(\\smash x_i + \\smash[t] y^2 + \\mathllap L_i + \\mathrlap R + \\clap C\\)</span>',
@@ -965,6 +981,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}</annotation>',
         '<annotation encoding="application/x-tex">\\textcolor[HTML]{336699}{\\operatorname{media}} + \\textcolor[rgb]{0.2,0.4,0.6}{p_i} + \\color[gray]{.5} m_i + q_i</annotation>',
         '<annotation encoding="application/x-tex">\\colorbox{yellow}{p_i + m_i} + \\colorbox[HTML]{fff9cc}{\\operatorname{media}} + \\fcolorbox{red}{yellow}{q_i} + \\fcolorbox[RGB]{51,102,153}{255,249,204}{\\frac{a}{b}}</annotation>',
+        '<annotation encoding="application/x-tex">\\colorbox{yellow}x_i + \\fcolorbox{red}{yellow}q_i + \\cancelto0r_i + \\cancelto\\alpha\\frac12</annotation>',
         '<annotation encoding="application/x-tex">\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}</annotation>',
         '<annotation encoding="application/x-tex">\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i</annotation>',
         '<annotation encoding="application/x-tex">\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}</annotation>',

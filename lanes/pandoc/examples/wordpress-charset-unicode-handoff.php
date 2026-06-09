@@ -208,6 +208,9 @@ $big5PointerText = UnicodeText::decodeBytes("\x88\x62\x88\x64\x88\xA3\x88\xA5", 
 $gbkBytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
 $gbkSource = (new MarkdownReader())->readBytes($gbkBytes, 'gbk');
 $gbkText = (string) $gbkSource->children[1]->attr('text');
+$gb12345Bytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec4204742313233343520b2e2cad4a3acb1b1bea9a1a3');
+$gb12345Source = (new MarkdownReader())->readBytes($gb12345Bytes, 'gb12345-90');
+$gb12345Text = (string) $gb12345Source->children[1]->attr('text');
 $gb18030Bytes = "# GB18030\n\nEmoji \x94\x39\xFC\x36 CJK \x95\x32\x82\x36 Latin \x81\x30\x8B\x38 Euro \xA2\xE3.";
 $gb18030Source = (new MarkdownReader())->readBytes($gb18030Bytes, 'gb18030');
 $gb18030Text = (string) $gb18030Source->children[1]->attr('text');
@@ -866,6 +869,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gbkSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gbkText)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'GB12345 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $gb12345Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gb12345Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gb12345Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'GB18030 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $gb18030Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gb18030Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gb18030Text)])]),
@@ -1413,6 +1421,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>GBK source</td><td>中文 GBK 测试，北京。</td><td>gbk:21</td>')) {
         throw new RuntimeException('charset handoff self-test missing GBK decode audit row');
+    }
+    if (($gb12345Source->attr('sourceEncoding')['encoding'] ?? '') !== 'gb12345') {
+        throw new RuntimeException('charset handoff self-test missing GB12345 source encoding');
+    }
+    if (!str_contains($blocks, '<td>GB12345 source</td><td>中文 GB12345 測試，北京。</td><td>gb12345:25</td>')) {
+        throw new RuntimeException('charset handoff self-test missing GB12345 decode audit row');
     }
     if (($gb18030Source->attr('sourceEncoding')['encoding'] ?? '') !== 'gb18030') {
         throw new RuntimeException('charset handoff self-test missing GB18030 source encoding');

@@ -2054,6 +2054,27 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\fcolorbox[HTML]{336699}{fff9}{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\fcolorbox[RGB]{51,102,153}[rgb]{1,1,1}{x}'));
     },
+    'converts bounded tex colorbox fcolorbox and cancelto token arguments to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $backgroundMathml = $converter->texToMathMl('\\colorbox{yellow}x_i + \\colorbox[HTML]{fff9cc}\\operatorname{media}', true);
+        $framedMathml = $converter->texToMathMl('\\fcolorbox{red}{yellow}q_i + \\fcolorbox[RGB]{51,102,153}{255,249,204}\\frac12', true);
+        $cancelToMathml = $converter->texToMathMl('\\cancelto0x_i + \\cancelto\\alpha\\frac12', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\cancelto0x_i');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $backgroundMathml);
+        $t->contains('<msub><mstyle mathbackground="yellow"><mi>x</mi></mstyle><mi>i</mi></msub><mo>+</mo><mstyle mathbackground="#fff9cc"><mi>media</mi></mstyle>', $backgroundMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\colorbox{yellow}x_i + \\colorbox[HTML]{fff9cc}\\operatorname{media}</annotation>', $backgroundMathml);
+        $t->contains('<msub><menclose notation="box" mathbackground="yellow" data-tex-framecolor="red"><mi>q</mi></menclose><mi>i</mi></msub>', $framedMathml);
+        $t->contains('<menclose notation="box" mathbackground="#fff9cc" data-tex-framecolor="#336699"><mfrac><mn>1</mn><mn>2</mn></mfrac></menclose>', $framedMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\fcolorbox{red}{yellow}q_i + \\fcolorbox[RGB]{51,102,153}{255,249,204}\\frac12</annotation>', $framedMathml);
+        $t->contains('<msub><mover><menclose notation="updiagonalstrike"><mi>x</mi></menclose><mn>0</mn></mover><mi>i</mi></msub><mo>+</mo><mover><menclose notation="updiagonalstrike"><mfrac><mn>1</mn><mn>2</mn></mfrac></menclose><mi>α</mi></mover>', $cancelToMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\cancelto0x_i + \\cancelto\\alpha\\frac12</annotation>', $cancelToMathml);
+        $t->contains('alttext="enclosed x over 0 sub i"', $accessibleMathml);
+        $t->contains('intent="subscript(over(enclose(x),0),i)"', $accessibleMathml);
+        $t->true(!str_contains($backgroundMathml . $framedMathml . $cancelToMathml, '<mi>\\colorbox</mi>'));
+        $t->true(!str_contains($backgroundMathml . $framedMathml . $cancelToMathml, '<mi>\\fcolorbox</mi>'));
+        $t->true(!str_contains($backgroundMathml . $framedMathml . $cancelToMathml, '<mi>\\cancelto</mi>'));
+    },
     'converts bounded tex boxed expressions to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $boxedMathml = $converter->texToMathMl('\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j', true);
