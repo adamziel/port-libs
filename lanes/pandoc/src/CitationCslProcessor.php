@@ -271,23 +271,40 @@ final class CitationCslProcessor
         return $missing;
     }
 
+    /**
+     * @return list<array{id:string, source:string, rawLocator:string, locatorLabel:string, locatorValue:string, reason:string, severity:string}>
+     */
+    public function citationLocatorDiagnostics(AstNode $node): array
+    {
+        $diagnostics = [];
+        $this->collectCitationLocatorDiagnostics($node, $diagnostics);
+
+        return $diagnostics;
+    }
+
     public function normalizeCitation(AstNode $citation): AstNode
     {
         if ($citation->type !== 'citation') {
             throw new \InvalidArgumentException('Expected citation AST node');
         }
 
+        $locatorDiagnostics = $this->citationLocatorDiagnosticsForCitation($citation);
         $id = (string) $citation->attr('id', '');
         $item = $this->itemsById[$id] ?? null;
         if ($item === null) {
+            $attrs = [
+                ...$citation->attrs,
+                'cslStyleClass' => $this->style->styleClass(),
+                'rendered' => $this->sourceCitationText($citation),
+                'missingCslItem' => true,
+            ];
+            if ($locatorDiagnostics !== []) {
+                $attrs['cslLocatorDiagnostics'] = $locatorDiagnostics;
+            }
+
             return new AstNode(
                 'citation',
-                [
-                    ...$citation->attrs,
-                    'cslStyleClass' => $this->style->styleClass(),
-                    'rendered' => $this->sourceCitationText($citation),
-                    'missingCslItem' => true,
-                ],
+                $attrs,
                 $citation->children
             );
         }
@@ -304,6 +321,7 @@ final class CitationCslProcessor
                 'cslLabel' => $this->citationAuthorLabel($item, $citation),
                 'cslYear' => $this->citationYear($item),
                 'cslItem' => $item,
+                'cslLocatorDiagnostics' => $locatorDiagnostics !== [] ? $locatorDiagnostics : null,
             ], static fn (mixed $value): bool => $value !== null),
             $citation->children
         );
@@ -344,6 +362,10 @@ final class CitationCslProcessor
         }
         if ($missing !== []) {
             $attrs['missingCslItems'] = $missing;
+        }
+        $locatorDiagnostics = $this->citationLocatorDiagnostics(new AstNode('citation_group', $group->attrs, $citations));
+        if ($locatorDiagnostics !== []) {
+            $attrs['cslLocatorDiagnostics'] = $locatorDiagnostics;
         }
 
         return new AstNode(
@@ -3876,6 +3898,120 @@ final class CitationCslProcessor
         foreach ($node->children as $child) {
             $this->collectCitationIds($child, $ids);
         }
+    }
+
+    /**
+     * @param list<array{id:string, source:string, rawLocator:string, locatorLabel:string, locatorValue:string, reason:string, severity:string}> $diagnostics
+     */
+    private function collectCitationLocatorDiagnostics(AstNode $node, array &$diagnostics): void
+    {
+        if ($node->type === 'citation') {
+            foreach ($this->citationLocatorDiagnosticsForCitation($node) as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectCitationLocatorDiagnostics($child, $diagnostics);
+        }
+    }
+
+    /**
+     * @return list<array{id:string, source:string, rawLocator:string, locatorLabel:string, locatorValue:string, reason:string, severity:string}>
+     */
+    private function citationLocatorDiagnosticsForCitation(AstNode $citation): array
+    {
+        $parts = $this->citationLocatorParts($citation);
+        if ($parts['value'] === '') {
+            return [];
+        }
+
+        $rawLocator = $this->inlineValue($citation->attr('locator', ''));
+        $explicitValue = $this->inlineValue($citation->attr('locatorValue', ''));
+        $rawLabel = trim((string) $citation->attr('locatorLabel', ''));
+        $base = [
+            'id' => (string) $citation->attr('id', ''),
+            'source' => $this->sourceCitationText($citation),
+            'rawLocator' => $rawLocator,
+            'locatorLabel' => $parts['label'],
+            'locatorValue' => $parts['value'],
+        ];
+
+        $diagnostics = [];
+        if (!$this->supportedCitationLocatorLabel($parts['label'])) {
+            $diagnostics[] = [
+                ...$base,
+                'reason' => 'citation-locator-unsupported-label',
+                'severity' => 'warning',
+            ];
+        }
+
+        if ($rawLocator === '' && $explicitValue !== '' && $rawLabel === '') {
+            $diagnostics[] = [
+                ...$base,
+                'reason' => 'citation-locator-explicit-value-defaulted-page',
+                'severity' => 'info',
+            ];
+        }
+
+        if (
+            $rawLocator !== ''
+            && $parts['label'] === 'page'
+            && !$this->citationLocatorTextHasKnownLabel($rawLocator)
+        ) {
+            $diagnostics[] = [
+                ...$base,
+                'reason' => 'citation-locator-unlabeled-page-fallback',
+                'severity' => 'info',
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    private function citationLocatorTextHasKnownLabel(string $locator): bool
+    {
+        $locator = trim(preg_replace('/\s+/u', ' ', $locator) ?? $locator);
+        if ($locator === '') {
+            return false;
+        }
+
+        $parts = $this->inferCitationLocatorParts($locator);
+
+        return !($parts['label'] === 'page' && $parts['value'] === $locator);
+    }
+
+    private function supportedCitationLocatorLabel(string $label): bool
+    {
+        return in_array($this->normalizedLocatorLabel($label), [
+            'appendix',
+            'article-locator',
+            'book',
+            'canon',
+            'chapter',
+            'column',
+            'elocation',
+            'equation',
+            'figure',
+            'folio',
+            'issue',
+            'line',
+            'note',
+            'number',
+            'opus',
+            'page',
+            'paragraph',
+            'part',
+            'rule',
+            'section',
+            'sub-verbo',
+            'supplement',
+            'table',
+            'timestamp',
+            'title',
+            'verse',
+            'volume',
+        ], true);
     }
 
     /**

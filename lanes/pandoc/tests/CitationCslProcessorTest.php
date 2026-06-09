@@ -13975,6 +13975,82 @@ XML
 XML
         ));
     },
+    'applies bounded citation locator diagnostics for unlabeled and unsupported locators' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locator-diagnostics-source',
+                'type' => 'report',
+                'title' => 'Locator Diagnostics Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Locator Diagnostics Review Style</title>
+    <id>https://example.test/styles/bounded-locator-diagnostics-review</id>
+    <updated>2026-06-09T20:24:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $document = (new MarkdownReader())->read('Locator diagnostics [@locator-diagnostics-source, p. 7; @locator-diagnostics-source, plate A; @locator-diagnostics-source, sec. 4-5].');
+        $diagnostics = $processor->citationLocatorDiagnostics($document);
+        $t->same(1, count($diagnostics));
+        $t->same('locator-diagnostics-source', $diagnostics[0]['id'] ?? null);
+        $t->same('@locator-diagnostics-source, plate A', $diagnostics[0]['source'] ?? null);
+        $t->same('plate A', $diagnostics[0]['rawLocator'] ?? null);
+        $t->same('page', $diagnostics[0]['locatorLabel'] ?? null);
+        $t->same('plate A', $diagnostics[0]['locatorValue'] ?? null);
+        $t->same('citation-locator-unlabeled-page-fallback', $diagnostics[0]['reason'] ?? null);
+        $t->same('info', $diagnostics[0]['severity'] ?? null);
+
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $cluster = $processed->children[0]->children[1];
+        $t->same('(Vale, p. 7; Vale, p. plate A; Vale, secs. 4–5)', $cluster->attr('rendered'));
+        $t->same('citation-locator-unlabeled-page-fallback', $cluster->attr('cslLocatorDiagnostics')[0]['reason'] ?? null);
+        $t->same('citation-locator-unlabeled-page-fallback', $cluster->children[1]->attr('cslLocatorDiagnostics')[0]['reason'] ?? null);
+
+        $unknownLabel = new AstNode('citation', [
+            'id' => 'locator-diagnostics-source',
+            'text' => '[@locator-diagnostics-source, scene intro]',
+            'locatorLabel' => 'scene',
+            'locatorValue' => 'intro',
+        ]);
+        $unknownDiagnostics = $processor->citationLocatorDiagnostics($unknownLabel);
+        $t->same(1, count($unknownDiagnostics));
+        $t->same('scene', $unknownDiagnostics[0]['locatorLabel'] ?? null);
+        $t->same('intro', $unknownDiagnostics[0]['locatorValue'] ?? null);
+        $t->same('citation-locator-unsupported-label', $unknownDiagnostics[0]['reason'] ?? null);
+        $t->same('warning', $unknownDiagnostics[0]['severity'] ?? null);
+        $t->same('citation-locator-unsupported-label', $processor->normalizeCitation($unknownLabel)->attr('cslLocatorDiagnostics')[0]['reason'] ?? null);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Locator diagnostics (Vale, p. 7; Vale, p. plate A; Vale, secs. 4–5).</p>', $blocks);
+        $t->contains('<dt>Vale 2026</dt><dd>Vale, Rae. Locator Diagnostics Packet.</dd>', $blocks);
+    },
     'applies bounded csl is numeric conditionals for locators and number variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
