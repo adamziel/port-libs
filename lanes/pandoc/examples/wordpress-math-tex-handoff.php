@@ -57,6 +57,8 @@ Symbol override alias audit $\arg z + \hbar\omega + \digamma + \varnothing + a \
 
 Extended relation alias audit $\beth + \gimel + \daleth + a \leqq b + c \geqq d + x \doteq y + P \nsubseteq Q + u \nparallel v$ stays semantic.
 
+Unicode symbol-map alias audit $\AC + \twoheadleftarrow + \hookleftarrow + A \nleftarrow B + C \nrightarrow D + E \nleftrightarrow F + P \nsubset Q + R \nsupset S$ stays semantic.
+
 Variant Greek and underbar audit $\varGamma + \varDelta + \varrho_i + \varsigma + \upUpsilon + \overbar{x_i + y_i} + \underbar{\operatorname{draft}}$ stays semantic.
 
 Display audit:
@@ -263,6 +265,7 @@ $summary = [
     'relationHarpoonAliasMathml' => $converter->texToMathMl('A \\prec B + C \\succ D + E \\ll F + G \\gg H + x \\nearrow y + a \\searrow b + L \\leftharpoonup M + N \\rightharpoondown O + P \\rightleftharpoons Q + p \\because q + f \\multimap g'),
     'symbolOverrideAliasMathml' => $converter->texToMathMl('\\arg z + \\hbar\\omega + \\digamma + \\varnothing + a \\dag b + c \\ddag d + A \\lhd B + C \\unrhd D + M \\longmapsto N + \\blacklozenge'),
     'extendedRelationAliasMathml' => $converter->texToMathMl('\\beth + \\gimel + \\daleth + a \\leqq b + c \\geqq d + x \\doteq y + P \\nsubseteq Q + u \\nparallel v'),
+    'unicodeSymbolMapAliasMathml' => $converter->texToMathMl('\\AC + \\twoheadleftarrow + \\hookleftarrow + A \\nleftarrow B + C \\nrightarrow D + E \\nleftrightarrow F + P \\nsubset Q + R \\nsupset S'),
     'variantGreekUnderbarAliasMathml' => $converter->texToMathMl('\\varGamma + \\varDelta + \\varrho_i + \\varsigma + \\upUpsilon + \\overbar{x_i + y_i} + \\underbar{\\operatorname{draft}}'),
     'plainRootMathml' => $converter->texToMathMl('\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}'),
     'texTokenArgumentMathml' => $converter->texToMathMl('\\sqrt x_i + \\sqrt[3]y_j + \\frac12 + \\dfrac a b + \\binom n k + \\overset\\alpha q_i + \\underset 0 r_i + \\boxed s_i + \\phantom t_i + \\hphantom u_i + \\vphantom v_i + \\cancel w_i + \\bcancel x + \\xcancel y'),
@@ -598,6 +601,19 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['unicodeSymbolMapAliasMathml'], '<mi>\\AC</mi>')
+        || str_contains($summary['unicodeSymbolMapAliasMathml'], '<mi>\\twoheadleftarrow</mi>')
+        || str_contains($summary['unicodeSymbolMapAliasMathml'], '<mi>\\hookleftarrow</mi>')
+        || str_contains($summary['unicodeSymbolMapAliasMathml'], '<mi>\\nleftarrow</mi>')
+        || str_contains($summary['unicodeSymbolMapAliasMathml'], '<mi>\\nsubset</mi>')
+        || !str_contains($summary['unicodeSymbolMapAliasMathml'], '<mo>⏦</mo><mo>+</mo><mo>↞</mo><mo>+</mo><mo>↩</mo>')
+        || !str_contains($summary['unicodeSymbolMapAliasMathml'], '<mi>A</mi><mo>↚</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>↛</mo><mi>D</mi><mo>+</mo><mi>E</mi><mo>↮</mo><mi>F</mi>')
+        || !str_contains($summary['unicodeSymbolMapAliasMathml'], '<mi>P</mi><mo>⊄</mo><mi>Q</mi><mo>+</mo><mi>R</mi><mo>⊅</mo><mi>S</mi>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map unicode symbol-map aliases');
+    }
+
+    if (
         str_contains($summary['variantGreekUnderbarAliasMathml'], '<mi>\\varGamma</mi>')
         || str_contains($summary['variantGreekUnderbarAliasMathml'], '<mi>\\varrho</mi>')
         || str_contains($summary['variantGreekUnderbarAliasMathml'], '<mi>\\overbar</mi>')
@@ -675,6 +691,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(A \\prec B + C \\succ D + E \\ll F + G \\gg H + x \\nearrow y + a \\searrow b + L \\leftharpoonup M + N \\rightharpoondown O + P \\rightleftharpoons Q + p \\because q + f \\multimap g\\)</span>',
         '<span class="math inline">\\(\\arg z + \\hbar\\omega + \\digamma + \\varnothing + a \\dag b + c \\ddag d + A \\lhd B + C \\unrhd D + M \\longmapsto N + \\blacklozenge\\)</span>',
         '<span class="math inline">\\(\\beth + \\gimel + \\daleth + a \\leqq b + c \\geqq d + x \\doteq y + P \\nsubseteq Q + u \\nparallel v\\)</span>',
+        '<span class="math inline">\\(\\AC + \\twoheadleftarrow + \\hookleftarrow + A \\nleftarrow B + C \\nrightarrow D + E \\nleftrightarrow F + P \\nsubset Q + R \\nsupset S\\)</span>',
         '<span class="math display">\\[\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\sqrt[3]{x_i + y_i} + \\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c} + \\dfrac{q_i}{r_i} + \\genfrac{\\langle}{\\rangle}{0pt}{0}{n}{k} + \\widehat{\\operatorname{quality}} + \\vec{v}_i + \\begin{pmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{pmatrix} + \\begin{aligned}x_i &amp;= \\operatorname{score}(p_i) \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{aligned} + \\begin{array}{l|c|r}\\alpha &amp; \\beta &amp; \\omega \\\\ \\hline 1 &amp; 2 &amp; 3\\end{array} + \\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases} + \\forall p_i \\in P \\Rightarrow p_i \\notin \\emptyset + \\alpha \\times \\omega\\]</span>',
         '<span class="math inline">\\(\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}\\)</span>',
         '<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mn>3</mn></mroot><mo>+</mo><mroot><mfrac><mi>a</mi><mi>b</mi></mfrac><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mroot>',
@@ -938,6 +955,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mi>ℶ</mi><mo>+</mo><mi>ℷ</mi><mo>+</mo><mi>ℸ</mi><mo>+</mo><mi>a</mi><mo>≦</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>≧</mo><mi>d</mi><mo>+</mo><mi>x</mi><mo>≐</mo><mi>y</mi>',
         '<mi>P</mi><mo>⊈</mo><mi>Q</mi><mo>+</mo><mi>u</mi><mo>∦</mo><mi>v</mi>',
         '<annotation encoding="application/x-tex">\\beth + \\gimel + \\daleth + a \\leqq b + c \\geqq d + x \\doteq y + P \\nsubseteq Q + u \\nparallel v</annotation>',
+        '<mo>⏦</mo><mo>+</mo><mo>↞</mo><mo>+</mo><mo>↩</mo>',
+        '<mi>A</mi><mo>↚</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>↛</mo><mi>D</mi><mo>+</mo><mi>E</mi><mo>↮</mo><mi>F</mi>',
+        '<mi>P</mi><mo>⊄</mo><mi>Q</mi><mo>+</mo><mi>R</mi><mo>⊅</mo><mi>S</mi>',
+        '<annotation encoding="application/x-tex">\\AC + \\twoheadleftarrow + \\hookleftarrow + A \\nleftarrow B + C \\nrightarrow D + E \\nleftrightarrow F + P \\nsubset Q + R \\nsupset S</annotation>',
         '<mi>𝛤</mi><mo>+</mo><mi>𝛥</mi><mo>+</mo><msub><mi>𝜚</mi><mi>i</mi></msub><mo>+</mo><mi>𝜍</mi><mo>+</mo><mi>ϒ</mi>',
         '<mover accent="true"><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mo>¯</mo></mover><mo>+</mo><munder accentunder="true"><mi>draft</mi><mo>̱</mo></munder>',
         '<annotation encoding="application/x-tex">\\varGamma + \\varDelta + \\varrho_i + \\varsigma + \\upUpsilon + \\overbar{x_i + y_i} + \\underbar{\\operatorname{draft}}</annotation>',

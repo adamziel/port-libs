@@ -872,6 +872,25 @@ return [
         $t->true(!str_contains($combinedMathml, '<mi>\\lesssim</mi>'));
         $t->true(!str_contains($combinedMathml, '<mi>\\rightsquigarrow</mi>'));
     },
+    'converts bounded texmath unicode symbol map aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $arrowMathml = $converter->texToMathMl('\\twoheadleftarrow + \\hookleftarrow + \\nleftarrow + \\nrightarrow + \\nleftrightarrow', true);
+        $setMathml = $converter->texToMathMl('A \\nsubset B + C \\nsupset D + \\AC');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\AC + A \\nleftarrow B + C \\nsubset D');
+        $combinedMathml = $arrowMathml . $setMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $arrowMathml);
+        $t->contains('<mo>↞</mo><mo>+</mo><mo>↩</mo><mo>+</mo><mo>↚</mo><mo>+</mo><mo>↛</mo><mo>+</mo><mo>↮</mo>', $arrowMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\twoheadleftarrow + \\hookleftarrow + \\nleftarrow + \\nrightarrow + \\nleftrightarrow</annotation>', $arrowMathml);
+        $t->contains('<mi>A</mi><mo>⊄</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>⊅</mo><mi>D</mi><mo>+</mo><mo>⏦</mo>', $setMathml);
+        $t->contains('<annotation encoding="application/x-tex">A \\nsubset B + C \\nsupset D + \\AC</annotation>', $setMathml);
+        $t->contains('alttext="AC current plus A not left arrow B plus C not subset D"', $accessibleMathml);
+        $t->contains('intent="row(ac_current,plus,a,not_left_arrow,b,plus,c,not_subset,d)"', $accessibleMathml);
+        $t->true(!str_contains($combinedMathml, '<mi>\\twoheadleftarrow</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\hookleftarrow</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\nleftarrow</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\AC</mi>'));
+    },
     'converts bounded texmath relation and harpoon aliases to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $orderMathml = $converter->texToMathMl('A \\prec B + C \\succ D + E \\ll F + G \\gg H + P \\precsim Q + R \\succsim S + U \\subsetneq V + W \\supsetneq X', true);
