@@ -8223,6 +8223,13 @@ final class Html5DomFragment
         if ($summary['nestedItemCount'] > 0) {
             $attrs['data-pandoc-microdata-nested-item-count'] = (string) $summary['nestedItemCount'];
         }
+        self::markHtmlMicrodataRepeatedPropertyMetadata(
+            $element,
+            $tagName,
+            $attrs,
+            $summary['repeatedProperties'],
+            $diagnostics
+        );
 
         $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'microdata-item-review',
@@ -8437,6 +8444,25 @@ final class Html5DomFragment
             $attrs['data-pandoc-microdata-nested-item-count'] = (string) $nestedItemCount;
         }
 
+        $combinedSummary = self::htmlMicrodataItemPropertySummary($children);
+        foreach ($summary['propertyCounts'] as $property => $count) {
+            $combinedSummary['propertyCounts'][$property] = ($combinedSummary['propertyCounts'][$property] ?? 0) + $count;
+        }
+        $repeatedProperties = self::htmlMicrodataRepeatedProperties($combinedSummary['propertyCounts']);
+        $previousRepeatedMetadata = $attrs['data-pandoc-microdata-repeated-properties'] ?? null;
+        $previousRepeatedCount = $attrs['data-pandoc-microdata-repeated-property-count'] ?? null;
+        $repeatedMetadataChanged = false;
+        if ($repeatedProperties !== []) {
+            $repeatedMetadata = implode(' ', $repeatedProperties);
+            if (strlen($repeatedMetadata) <= 512) {
+                $attrs['data-pandoc-microdata-repeated-properties'] = $repeatedMetadata;
+                $repeatedMetadataChanged = $repeatedMetadata !== $previousRepeatedMetadata;
+            }
+            $attrs['data-pandoc-microdata-repeated-property-count'] = (string) count($repeatedProperties);
+            $repeatedMetadataChanged = $repeatedMetadataChanged
+                || (string) count($repeatedProperties) !== $previousRepeatedCount;
+        }
+
         $node['attrs'] = $attrs;
         $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
             'code' => 'microdata-itemref-property-review',
@@ -8450,6 +8476,16 @@ final class Html5DomFragment
             'nestedItemCount' => $summary['nestedItemCount'],
             'reason' => 'microdata-itemref-properties-preserved-as-review-metadata',
         ], $node);
+        if ($repeatedProperties !== [] && $repeatedMetadataChanged) {
+            $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
+                'code' => 'microdata-repeated-property-review',
+                'tag' => (string) ($node['name'] ?? ''),
+                'attribute' => 'itemref',
+                'metadataAttribute' => 'data-pandoc-microdata-repeated-properties',
+                'repeatedPropertyCount' => count($repeatedProperties),
+                'reason' => 'microdata-repeated-properties-preserved-as-review-metadata',
+            ], $node);
+        }
     }
 
     /**
@@ -8513,24 +8549,27 @@ final class Html5DomFragment
 
     /**
      * @param list<array<string, mixed>> $nodes
-     * @return array{properties:list<string>, propertyCount:int, valueCount:int, nestedItemCount:int}
+     * @return array{properties:list<string>, propertyCounts:array<string, int>, repeatedProperties:list<string>, propertyCount:int, valueCount:int, nestedItemCount:int}
      */
     private static function htmlMicrodataItemPropertySummary(array $nodes): array
     {
         $summary = [
             'properties' => [],
+            'propertyCounts' => [],
+            'repeatedProperties' => [],
             'propertyCount' => 0,
             'valueCount' => 0,
             'nestedItemCount' => 0,
         ];
         self::collectHtmlMicrodataItemPropertySummary($nodes, $summary);
+        $summary['repeatedProperties'] = self::htmlMicrodataRepeatedProperties($summary['propertyCounts']);
 
         return $summary;
     }
 
     /**
      * @param list<array<string, mixed>> $nodes
-     * @param array{properties:list<string>, propertyCount:int, valueCount:int, nestedItemCount:int} $summary
+     * @param array{properties:list<string>, propertyCounts:array<string, int>, repeatedProperties:list<string>, propertyCount:int, valueCount:int, nestedItemCount:int} $summary
      */
     private static function collectHtmlMicrodataItemPropertySummary(array $nodes, array &$summary): void
     {
@@ -8547,6 +8586,7 @@ final class Html5DomFragment
                     if (!in_array($property, $summary['properties'], true)) {
                         $summary['properties'][] = $property;
                     }
+                    $summary['propertyCounts'][$property] = ($summary['propertyCounts'][$property] ?? 0) + 1;
                     ++$propertyCount;
                     ++$summary['propertyCount'];
                 }
@@ -8566,6 +8606,54 @@ final class Html5DomFragment
                 self::collectHtmlMicrodataItemPropertySummary($node['children'], $summary);
             }
         }
+    }
+
+    /**
+     * @param array<string, int> $propertyCounts
+     * @return list<string>
+     */
+    private static function htmlMicrodataRepeatedProperties(array $propertyCounts): array
+    {
+        $repeated = [];
+        foreach ($propertyCounts as $property => $count) {
+            if ($count > 1) {
+                $repeated[] = $property;
+            }
+        }
+
+        return $repeated;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<string> $repeatedProperties
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlMicrodataRepeatedPropertyMetadata(
+        \DOMElement $element,
+        string $tagName,
+        array &$attrs,
+        array $repeatedProperties,
+        array &$diagnostics
+    ): void {
+        if ($repeatedProperties === []) {
+            return;
+        }
+
+        $repeatedMetadata = implode(' ', $repeatedProperties);
+        if (strlen($repeatedMetadata) <= 512) {
+            $attrs['data-pandoc-microdata-repeated-properties'] = $repeatedMetadata;
+        }
+        $attrs['data-pandoc-microdata-repeated-property-count'] = (string) count($repeatedProperties);
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'microdata-repeated-property-review',
+            'tag' => $tagName,
+            'attribute' => 'itemscope',
+            'metadataAttribute' => 'data-pandoc-microdata-repeated-properties',
+            'repeatedPropertyCount' => count($repeatedProperties),
+            'reason' => 'microdata-repeated-properties-preserved-as-review-metadata',
+        ], $element);
     }
 
     /**

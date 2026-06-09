@@ -2563,8 +2563,12 @@ return [
             $fragment->diagnostics(),
             static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'microdata-item-review'
         ));
+        $repeatedPropertyDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'microdata-repeated-property-review'
+        ));
 
-        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Event" data-pandoc-microdata-properties="name alternateName location startDate" data-pandoc-microdata-property-count="5" data-pandoc-microdata-value-count="4" data-pandoc-microdata-nested-item-count="1">'
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Event" data-pandoc-microdata-properties="name alternateName location startDate" data-pandoc-microdata-property-count="5" data-pandoc-microdata-value-count="4" data-pandoc-microdata-nested-item-count="1" data-pandoc-microdata-repeated-properties="startDate" data-pandoc-microdata-repeated-property-count="1">'
             . '<h1 data-pandoc-microdata-property="name alternateName" data-pandoc-microdata-value="Launch review">Launch review</h1>'
             . '<section data-pandoc-microdata-property="location" data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Place" data-pandoc-microdata-properties="name address" data-pandoc-microdata-property-count="2" data-pandoc-microdata-value-count="2">'
             . '<span data-pandoc-microdata-property="name" data-pandoc-microdata-value="Main Hall">Main Hall</span><span data-pandoc-microdata-property="address" data-pandoc-microdata-value="1 Review Way">1 Review Way</span></section>'
@@ -2583,6 +2587,8 @@ return [
             'data-pandoc-microdata-property-count' => '5',
             'data-pandoc-microdata-value-count' => '4',
             'data-pandoc-microdata-nested-item-count' => '1',
+            'data-pandoc-microdata-repeated-properties' => 'startDate',
+            'data-pandoc-microdata-repeated-property-count' => '1',
         ], $nodes[0]['attrs']);
         $t->same([
             'data-pandoc-microdata-property' => 'location',
@@ -2592,6 +2598,9 @@ return [
             'data-pandoc-microdata-property-count' => '2',
             'data-pandoc-microdata-value-count' => '2',
         ], $nodes[0]['children'][1]['attrs']);
+        $t->same(1, count($repeatedPropertyDiagnostics));
+        $t->same('itemscope', $repeatedPropertyDiagnostics[0]['attribute'] ?? null);
+        $t->same(1, $repeatedPropertyDiagnostics[0]['repeatedPropertyCount'] ?? null);
         $t->same('/migration/microdata-item-summary-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/events/launch.html', $document->children[0]->attr('baseUrl'));
         foreach ([' itemscope', ' itemtype=', ' itemprop='] as $sourceAttribute) {
@@ -2647,6 +2656,54 @@ return [
             $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source microdata attribute: ' . $sourceAttribute);
         }
     },
+    'marks repeated microdata properties introduced by itemref summary merge' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article itemscope itemtype="https://schema.org/Event" itemref="event-alias">'
+            . '<h1 itemprop="name">Launch review</h1>'
+            . '</article>'
+            . '<p id="event-alias" itemprop="name">Launch alias</p>',
+            'https://source.example.test/import/events/repeated.html'
+        );
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/microdata-repeated-property-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $repeatedPropertyDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'microdata-repeated-property-review'
+        ));
+
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Event" data-pandoc-microdata-ref="event-alias" data-pandoc-microdata-ref-count="1" data-pandoc-microdata-ref-resolved="event-alias" data-pandoc-microdata-ref-resolved-count="1" data-pandoc-microdata-properties="name" data-pandoc-microdata-property-count="2" data-pandoc-microdata-value-count="2" data-pandoc-microdata-repeated-properties="name" data-pandoc-microdata-repeated-property-count="1">'
+            . '<h1 data-pandoc-microdata-property="name" data-pandoc-microdata-value="Launch review">Launch review</h1></article>'
+            . '<p id="event-alias" data-pandoc-microdata-property="name" data-pandoc-microdata-value="Launch alias">Launch alias</p>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same([
+            'data-pandoc-microdata-scope' => 'true',
+            'data-pandoc-microdata-type' => 'https://schema.org/Event',
+            'data-pandoc-microdata-ref' => 'event-alias',
+            'data-pandoc-microdata-ref-count' => '1',
+            'data-pandoc-microdata-ref-resolved' => 'event-alias',
+            'data-pandoc-microdata-ref-resolved-count' => '1',
+            'data-pandoc-microdata-properties' => 'name',
+            'data-pandoc-microdata-property-count' => '2',
+            'data-pandoc-microdata-value-count' => '2',
+            'data-pandoc-microdata-repeated-properties' => 'name',
+            'data-pandoc-microdata-repeated-property-count' => '1',
+        ], $nodes[0]['attrs']);
+        $t->same(1, count($repeatedPropertyDiagnostics));
+        $t->same('itemref', $repeatedPropertyDiagnostics[0]['attribute'] ?? null);
+        $t->same(1, $repeatedPropertyDiagnostics[0]['repeatedPropertyCount'] ?? null);
+        $t->same('/migration/microdata-repeated-property-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/events/repeated.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' itemscope', ' itemtype=', ' itemref=', ' itemprop='] as $sourceAttribute) {
+            $t->true(!str_contains($html, $sourceAttribute), 'Expected source microdata attribute to be replaced: ' . $sourceAttribute);
+            $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source microdata attribute: ' . $sourceAttribute);
+        }
+    },
     'merges resolved microdata itemref properties into scoped item summaries before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article itemscope itemtype="https://schema.org/Event" itemref="venue sponsor embedded missing-id">'
@@ -2667,8 +2724,12 @@ return [
             $fragment->diagnostics(),
             static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'microdata-itemref-property-review'
         ));
+        $repeatedPropertyDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'microdata-repeated-property-review'
+        ));
 
-        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Event" data-pandoc-microdata-ref="venue sponsor embedded missing-id" data-pandoc-microdata-ref-count="4" data-pandoc-microdata-ref-resolved="venue sponsor embedded" data-pandoc-microdata-ref-resolved-count="3" data-pandoc-microdata-ref-missing="missing-id" data-pandoc-microdata-ref-missing-count="1" data-pandoc-microdata-properties="name performer location address sponsor" data-pandoc-microdata-property-count="6" data-pandoc-microdata-value-count="4" data-pandoc-microdata-nested-item-count="2">'
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Event" data-pandoc-microdata-ref="venue sponsor embedded missing-id" data-pandoc-microdata-ref-count="4" data-pandoc-microdata-ref-resolved="venue sponsor embedded" data-pandoc-microdata-ref-resolved-count="3" data-pandoc-microdata-ref-missing="missing-id" data-pandoc-microdata-ref-missing-count="1" data-pandoc-microdata-properties="name performer location address sponsor" data-pandoc-microdata-property-count="6" data-pandoc-microdata-value-count="4" data-pandoc-microdata-nested-item-count="2" data-pandoc-microdata-repeated-properties="name" data-pandoc-microdata-repeated-property-count="1">'
             . '<h1 data-pandoc-microdata-property="name" data-pandoc-microdata-value="Launch review">Launch review</h1>'
             . '<section id="embedded" data-pandoc-microdata-property="performer" data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Person" data-pandoc-microdata-properties="name" data-pandoc-microdata-property-count="1" data-pandoc-microdata-value-count="1"><span data-pandoc-microdata-property="name" data-pandoc-microdata-value="In-tree performer">In-tree performer</span></section>'
             . '</article>'
@@ -2691,6 +2752,8 @@ return [
             'data-pandoc-microdata-property-count' => '6',
             'data-pandoc-microdata-value-count' => '4',
             'data-pandoc-microdata-nested-item-count' => '2',
+            'data-pandoc-microdata-repeated-properties' => 'name',
+            'data-pandoc-microdata-repeated-property-count' => '1',
         ], $nodes[0]['attrs']);
         $t->same(1, count($itemRefPropertyDiagnostics));
         $t->same(4, $itemRefPropertyDiagnostics[0]['referenceCount']);
@@ -2698,6 +2761,9 @@ return [
         $t->same(4, $itemRefPropertyDiagnostics[0]['propertyCount']);
         $t->same(3, $itemRefPropertyDiagnostics[0]['valueCount']);
         $t->same(1, $itemRefPropertyDiagnostics[0]['nestedItemCount']);
+        $t->same(1, count($repeatedPropertyDiagnostics));
+        $t->same('itemref', $repeatedPropertyDiagnostics[0]['attribute'] ?? null);
+        $t->same(1, $repeatedPropertyDiagnostics[0]['repeatedPropertyCount'] ?? null);
         $t->same('/migration/microdata-itemref-properties-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/events/launch.html', $document->children[0]->attr('baseUrl'));
         foreach ([' itemscope', ' itemtype=', ' itemref=', ' itemprop='] as $sourceAttribute) {
