@@ -1685,6 +1685,7 @@ final class CslStyle
             'section',
             'part-number',
             'part',
+            'supplement',
             'version',
         ];
     }

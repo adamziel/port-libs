@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class TableGeometry
 {
     private const WIDTH_EPSILON = 0.000001;
+    private const SOURCE_HTML_HEADER_SCOPES = ['col', 'row', 'colgroup', 'rowgroup'];
 
     public static function columnCount(AstNode $table): int
     {
@@ -767,6 +768,7 @@ final class TableGeometry
         array_push($diagnostics, ...self::widthDiagnostics($table, $diagnostics !== []));
         array_push($diagnostics, ...self::spanNormalizationDiagnostics($table));
         array_push($diagnostics, ...self::duplicateHeaderIdDiagnostics($table));
+        array_push($diagnostics, ...self::invalidSourceScopeDiagnostics($table));
         $declaredColumnCount = self::declaredColumnCount($table);
         foreach (self::sectionRowGroups($table, null) as $group) {
             $rows = $group['rows'];
@@ -863,6 +865,55 @@ final class TableGeometry
                 'headerCellCount' => count($locations),
                 'locations' => $locations,
             ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function invalidSourceScopeDiagnostics(AstNode $table): array
+    {
+        $diagnostics = [];
+        foreach (self::sectionGrids($table) as $sectionGrid) {
+            $section = (string) ($sectionGrid['section'] ?? '');
+            foreach ($sectionGrid['rows'] as $rowIndex => $slots) {
+                foreach ($slots as $slot) {
+                    if (($slot['kind'] ?? '') !== 'cell') {
+                        continue;
+                    }
+
+                    $node = $slot['node'] ?? null;
+                    $rawScope = self::cellSourceHtmlScopeRaw($node);
+                    if ($rawScope === '' || self::isSourceHtmlScope($rawScope)) {
+                        continue;
+                    }
+
+                    $presence = self::sourceHtmlAttributePresence($node, 'scope');
+                    $diagnostic = [
+                        'code' => 'table-header-scope-invalid',
+                        'source' => 'html-table-scope',
+                        'attributeSource' => (string) ($presence['source'] ?? ''),
+                        'section' => $section,
+                        'row' => (int) $rowIndex,
+                        'column' => (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0),
+                        'sourceCell' => (int) ($slot['sourceCell'] ?? 0),
+                        'sourceColumn' => (int) ($slot['sourceColumn'] ?? 0),
+                        ...self::sourceRowCoordinateFields(
+                            (int) ($slot['sourceRow'] ?? $rowIndex),
+                            max(1, (int) ($slot['sourceRowspan'] ?? $slot['rowspan'] ?? 1))
+                        ),
+                        'rawScope' => $rawScope,
+                        'allowedScopes' => self::SOURCE_HTML_HEADER_SCOPES,
+                        'fallbackScope' => self::headerScope($slot),
+                        'headerCell' => (bool) ($slot['headerCell'] ?? false),
+                        'text' => $node instanceof AstNode ? self::plainText($node) : '',
+                    ];
+
+                    $diagnostics[] = $diagnostic;
+                }
+            }
         }
 
         return $diagnostics;
@@ -3529,9 +3580,19 @@ final class TableGeometry
 
     private static function cellSourceHtmlScope(mixed $node): string
     {
-        $scope = strtolower(self::sourceHtmlAttribute($node, 'scope'));
+        $scope = self::cellSourceHtmlScopeRaw($node);
 
-        return in_array($scope, ['col', 'row', 'colgroup', 'rowgroup'], true) ? $scope : '';
+        return self::isSourceHtmlScope($scope) ? $scope : '';
+    }
+
+    private static function cellSourceHtmlScopeRaw(mixed $node): string
+    {
+        return strtolower(self::sourceHtmlAttribute($node, 'scope'));
+    }
+
+    private static function isSourceHtmlScope(string $scope): bool
+    {
+        return in_array($scope, self::SOURCE_HTML_HEADER_SCOPES, true);
     }
 
     private static function cellSourceHtmlAbbr(mixed $node): string
@@ -5011,6 +5072,8 @@ final class TableGeometry
         $normalizedSpanCount = 0;
         $emptyTableSectionCount = 0;
         $emptyTableRowCount = 0;
+        $invalidSourceScopeCount = 0;
+        $invalidSourceScopes = [];
         foreach ($diagnostics as $diagnostic) {
             $code = (string) ($diagnostic['code'] ?? '');
             if ($code !== '') {
@@ -5021,6 +5084,12 @@ final class TableGeometry
             } elseif ($code === 'table-has-no-cells') {
                 $emptyTableSectionCount = max($emptyTableSectionCount, (int) ($diagnostic['sectionCount'] ?? 0));
                 $emptyTableRowCount = max($emptyTableRowCount, (int) ($diagnostic['rowCount'] ?? 0));
+            } elseif ($code === 'table-header-scope-invalid') {
+                $invalidSourceScopeCount++;
+                $invalidSourceScope = trim((string) ($diagnostic['rawScope'] ?? ''));
+                if ($invalidSourceScope !== '') {
+                    $invalidSourceScopes[] = $invalidSourceScope;
+                }
             }
         }
 
@@ -5113,6 +5182,9 @@ final class TableGeometry
             'hasEmptyTable' => in_array('table-has-no-cells', $diagnosticCodes, true),
             'emptyTableSectionCount' => $emptyTableSectionCount,
             'emptyTableRowCount' => $emptyTableRowCount,
+            'hasInvalidSourceScopes' => $invalidSourceScopeCount > 0,
+            'invalidSourceScopeCount' => $invalidSourceScopeCount,
+            'invalidSourceScopes' => array_values(array_unique($invalidSourceScopes)),
             'hasCaption' => (string) ($captions['long']['text'] ?? '') !== '',
             'hasShortCaption' => (string) ($captions['short']['text'] ?? '') !== '',
             'captionInlineTypes' => array_values(array_map(

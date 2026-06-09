@@ -41,6 +41,11 @@ return [
         $t->same('fish', SyntaxHighlighter::normalizeLanguage('fish'));
         $t->same('fish', SyntaxHighlighter::normalizeLanguage('fish-shell'));
         $t->same('fish', SyntaxHighlighter::normalizeLanguage('language-fish'));
+        $t->same('fortran', SyntaxHighlighter::normalizeLanguage('fortran'));
+        $t->same('fortran', SyntaxHighlighter::normalizeLanguage('fortran-free'));
+        $t->same('fortran', SyntaxHighlighter::normalizeLanguage('fortran-fixed'));
+        $t->same('fortran', SyntaxHighlighter::normalizeLanguage('f90'));
+        $t->same('fortran', SyntaxHighlighter::normalizeLanguage('language-f08'));
         $t->same('sed', SyntaxHighlighter::normalizeLanguage('sed'));
         $t->same('sed', SyntaxHighlighter::normalizeLanguage('gsed'));
         $t->same('sed', SyntaxHighlighter::normalizeLanguage('gnu-sed'));
@@ -3998,6 +4003,54 @@ return [
         $t->same('tclsh', $directTcl['requestedLanguage']);
         $t->contains('<span class="kw">if</span> <span class="op">{</span><span class="va">$title</span> <span class="op">ne</span> <span class="st">&quot;&quot;</span><span class="op">}</span>', $directTcl['html']);
         $t->contains('<span class="fu">puts</span> <span class="op">[</span><span class="fu">string</span> <span class="va">trim</span> <span class="va">$title</span><span class="op">]</span>', $directTcl['html']);
+    },
+    'highlights fortran review modules with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[82] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Fortran review module code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $directFortran = $highlighter->highlight(
+            'subroutine queue(packet); call normalize_title(packet); end subroutine queue',
+            'fortran-free'
+        );
+
+        $t->same('f90', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('fortran', SyntaxHighlighter::normalizeLanguage('f90'));
+        $t->same('fortran', SyntaxHighlighter::normalizeLanguage('f77'));
+        $t->same('fortran', SyntaxHighlighter::normalizeLanguage('fortran-free'));
+        $t->same('fortran', SyntaxHighlighter::normalizeLanguage('language-fortran-fixed'));
+        $t->same('fortran', $highlighted['language']);
+        $t->same('f90', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1300, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource f90 numberLines"><code class="sourceCode fortran" style="counter-reset: source-line 1299;">', $highlighted['html']);
+        $t->contains('<span id="fortran-review-1300"><a href="#fortran-review-1300"></a><span class="co">! Fortran WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="va">wp_import_review</span>', $highlighted['html']);
+        $t->contains('<span class="kw">implicit</span> <span class="kw">none</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span> <span class="op">::</span> <span class="va">review_packet</span>', $highlighted['html']);
+        $t->contains('<span class="dt">integer</span> <span class="op">::</span> <span class="va">source_id</span>', $highlighted['html']);
+        $t->contains('<span class="dt">character</span><span class="op">(</span><span class="ot">len</span><span class="op">=:),</span> <span class="ot">allocatable</span> <span class="op">::</span> <span class="va">title</span>', $highlighted['html']);
+        $t->contains('<span class="kw">pure</span> <span class="kw">function</span> <span class="fu">normalized_title</span><span class="op">(</span><span class="va">packet</span><span class="op">)</span> <span class="kw">result</span><span class="op">(</span><span class="va">title</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span><span class="op">(</span><span class="va">review_packet</span><span class="op">),</span> <span class="ot">intent</span><span class="op">(</span><span class="kw">in</span><span class="op">)</span> <span class="op">::</span> <span class="va">packet</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span> <span class="op">=</span> <span class="fu">trim</span><span class="op">(</span><span class="va">packet</span><span class="op">%</span><span class="va">title</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="fu">len_trim</span><span class="op">(</span><span class="va">title</span><span class="op">)</span> <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="kw">then</span>', $highlighted['html']);
+        $t->contains('<span class="fu">write</span><span class="op">(</span><span class="va">title</span><span class="op">,</span> <span class="st">&#039;(A,I0)&#039;</span><span class="op">)</span> <span class="st">&#039;Import &#039;</span><span class="op">,</span> <span class="va">packet</span><span class="op">%</span><span class="va">source_id</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<span class="kw">end</span> <span class="kw">module</span> <span class="va">wp_import_review</span>', $wordpressBlock);
+        $t->same('fortran', $directFortran['language']);
+        $t->same('fortran-free', $directFortran['requestedLanguage']);
+        $t->contains('<span class="kw">subroutine</span> <span class="fu">queue</span><span class="op">(</span><span class="va">packet</span><span class="op">);</span> <span class="kw">call</span> <span class="fu">normalize_title</span><span class="op">(</span><span class="va">packet</span><span class="op">);</span> <span class="kw">end</span> <span class="kw">subroutine</span> <span class="va">queue</span>', $directFortran['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

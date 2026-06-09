@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class WordPressBlockWriter
 {
+    private const TABLE_CELL_SCOPES = ['col', 'row', 'colgroup', 'rowgroup'];
+
     /** @var list<AstNode> */
     private array $footnotes = [];
 
@@ -1523,7 +1525,7 @@ final class WordPressBlockWriter
         }
 
         $scope = (string) ($accessibilityAttrs['scope'] ?? '');
-        if ($scope !== '' && !isset($lowerSourceAttrs['scope'])) {
+        if ($scope !== '' && $this->sourceTableCellScope($cell) === '') {
             $attrs .= ' scope="' . $this->esc($scope) . '"';
         }
 
@@ -1551,6 +1553,19 @@ final class WordPressBlockWriter
         }
 
         return trim((string) $node->attr('id', ''));
+    }
+
+    private function sourceTableCellScope(AstNode $cell): string
+    {
+        $htmlAttributes = $cell->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+
+        $htmlAttributes = $this->mergedStoredHtmlAttributes($cell, $htmlAttributes);
+        $scope = strtolower(trim((string) ($htmlAttributes['scope'] ?? '')));
+
+        return in_array($scope, self::TABLE_CELL_SCOPES, true) ? $scope : '';
     }
 
     /**
@@ -1684,6 +1699,12 @@ final class WordPressBlockWriter
             $normalized = strtolower(trim($value));
 
             return in_array($normalized, ['false', '0', 'no', 'off'], true) ? null : 'nowrap';
+        }
+
+        if ($name === 'scope') {
+            $scope = strtolower(trim($value));
+
+            return in_array($scope, self::TABLE_CELL_SCOPES, true) ? $scope : null;
         }
 
         if ($name !== 'dir') {

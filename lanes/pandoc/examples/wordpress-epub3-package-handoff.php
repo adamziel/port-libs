@@ -794,6 +794,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!in_array('bodymatter', $chapterSemantics['semanticTypes'] ?? [], true) || !in_array('pagebreak', $chapterSemantics['semanticTypes'] ?? [], true)) {
         throw new RuntimeException('Expected EPUB XHTML semantic type annotations to be summarized for package review');
     }
+    if (($chapterSemantics['embeddedResourcesByKind']['audio'][0]['manifestId'] ?? null) !== 'audio-chapter') {
+        throw new RuntimeException('Expected EPUB XHTML embedded audio resources to resolve to OPF manifest assets');
+    }
+    if (($result['document']->children[0]->attr('contentEmbeddedResources')[0]['kind'] ?? null) !== 'audio') {
+        throw new RuntimeException('Expected WordPress spine block to expose EPUB XHTML embedded resource metadata');
+    }
     if (($chapterSemantics['semanticItemsByType']['pagebreak'][0]['id'] ?? null) !== 'page-1' || ($chapterSemantics['semanticItemsByType']['pagebreak'][0]['attributes']['title'] ?? null) !== '1') {
         throw new RuntimeException('Expected EPUB XHTML pagebreak semantic metadata to preserve source attributes');
     }

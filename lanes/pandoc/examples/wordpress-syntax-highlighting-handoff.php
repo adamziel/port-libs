@@ -514,6 +514,12 @@ if (!$lineHighlightCodeBlock instanceof PortLibs\Pandoc\AstNode || $lineHighligh
 }
 $lineHighlight = $highlighter->highlightCodeBlock($lineHighlightCodeBlock, 'kate');
 $lineHighlightWordpressBlock = $highlighter->wordpressHtmlBlock($lineHighlightCodeBlock, 'kate');
+$fortranCodeBlock = $document->children[82] ?? null;
+if (!$fortranCodeBlock instanceof PortLibs\Pandoc\AstNode || $fortranCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Fortran review code block');
+}
+$fortran = $highlighter->highlightCodeBlock($fortranCodeBlock, 'zenburn');
+$fortranWordpressBlock = $highlighter->wordpressHtmlBlock($fortranCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2239,6 +2245,27 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($lineHighlightWordpressBlock, 'data-pandoc-line-highlight="1283"')) {
         throw new RuntimeException('Expected line-highlight metadata in WordPress HTML block');
+    }
+    if (($fortran['language'] ?? '') !== 'fortran') {
+        throw new RuntimeException('Expected Fortran language alias handoff');
+    }
+    if (($fortran['requestedLanguage'] ?? '') !== 'f90') {
+        throw new RuntimeException('Expected Fortran requested-language metadata');
+    }
+    if (($fortran['lineNumbering']['start'] ?? null) !== 1300) {
+        throw new RuntimeException('Expected Fortran line-number start handoff');
+    }
+    if (!str_contains($fortran['html'], '<span class="kw">module</span> <span class="va">wp_import_review</span>')) {
+        throw new RuntimeException('Expected Fortran module token handoff');
+    }
+    if (!str_contains($fortran['html'], '<span class="kw">pure</span> <span class="kw">function</span> <span class="fu">normalized_title</span>')) {
+        throw new RuntimeException('Expected Fortran function declaration token handoff');
+    }
+    if (!str_contains($fortran['html'], '<span class="fu">write</span><span class="op">(</span><span class="va">title</span>')) {
+        throw new RuntimeException('Expected Fortran write intrinsic token handoff');
+    }
+    if (!str_contains($fortranWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected Fortran WordPress style metadata');
     }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');

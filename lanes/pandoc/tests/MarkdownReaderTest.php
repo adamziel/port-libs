@@ -3771,6 +3771,79 @@ return [
         $t->same('ordered-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="ordered-yaml-body">Ordered YAML body</h1>', $blocks);
     },
+    'records pandoc yaml invalid ordered pair diagnostics without hiding metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Invalid ordered pair **Packet**',
+            'ordered-review: !!omap',
+            '  - source-title: Original export',
+            '    owner: Import Desk',
+            '  - [bad, key]',
+            '  - status: queued',
+            'flow-review: !!pairs [{owner: Import Desk, role: editor}, [bad, key], status]',
+            'references:',
+            '  - id: invalid-ordered-ref',
+            '    metadata:',
+            '      source-order: !!pairs',
+            '        - source: front',
+            '          status: queued',
+            '        - source: body',
+            '...',
+            '',
+            '# Invalid ordered YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = array_values(array_filter(
+            $document->attr('yamlMetadataDiagnostics', []),
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-ordered-pair-member'
+        ));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Invalid ordered pair **Packet**', $meta['title']);
+        $t->same('source-title', $meta['ordered-review'][0]['key']);
+        $t->same('Original export', $meta['ordered-review'][0]['value']);
+        $t->same('owner', $meta['ordered-review'][1]['key']);
+        $t->same('Import Desk', $meta['ordered-review'][1]['value']);
+        $t->same('[bad, key]', $meta['ordered-review'][2]['key']);
+        $t->same(null, $meta['ordered-review'][2]['value']);
+        $t->same('status', $meta['ordered-review'][3]['key']);
+        $t->same('queued', $meta['ordered-review'][3]['value']);
+        $t->same('owner', $meta['flow-review'][0]['key']);
+        $t->same('role', $meta['flow-review'][1]['key']);
+        $t->same('[bad, key]', $meta['flow-review'][2]['key']);
+        $t->same('status', $meta['flow-review'][3]['key']);
+        $t->same('source', $meta['references'][0]['metadata']['source-order'][0]['key']);
+        $t->same('front', $meta['references'][0]['metadata']['source-order'][0]['value']);
+        $t->same('status', $meta['references'][0]['metadata']['source-order'][1]['key']);
+        $t->same('queued', $meta['references'][0]['metadata']['source-order'][1]['value']);
+        $t->same('source', $meta['references'][0]['metadata']['source-order'][2]['key']);
+        $t->same('body', $meta['references'][0]['metadata']['source-order'][2]['value']);
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same(6, count($diagnostics));
+        $t->same(
+            [
+                '/ordered-review/0',
+                '/ordered-review/1',
+                '/flow-review/0',
+                '/flow-review/1',
+                '/flow-review/2',
+                '/references/0/metadata/source-order/0',
+            ],
+            array_column($diagnostics, 'path')
+        );
+        $t->same(['omap', 'omap', 'pairs', 'pairs', 'pairs', 'pairs'], array_column($diagnostics, 'explicitTag'));
+        $t->same(['0', '1', '0', '1', '2', '0'], array_column($diagnostics, 'pairIndex'));
+        $t->same(['mapping', 'sequence', 'mapping', 'sequence', 'scalar', 'mapping'], array_column($diagnostics, 'valueKind'));
+        $t->same(array_fill(0, 6, 'single-pair mapping'), array_column($diagnostics, 'expected'));
+        $t->same(
+            ['2', null, '2', null, null, '2'],
+            array_map(static fn (array $diagnostic): ?string => $diagnostic['memberCount'] ?? null, $diagnostics)
+        );
+        $t->same(['4', '6', '8', '8', '8', '13'], array_column($diagnostics, 'sourceLine'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('invalid-ordered-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="invalid-ordered-yaml-body">Invalid ordered YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml timestamp and binary explicit tags in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

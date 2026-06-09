@@ -2714,6 +2714,46 @@ final class ArchiveCompressionStream
     /**
      * @return array<string, mixed>
      */
+    public static function inspectZipCentralDirectoryInventoryPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $zipBytes = self::decodeZipBytes($bytes, $format, $maxUncompressedBytes);
+        $policy = ZipPackage::centralDirectoryInventoryPreflight($zipBytes);
+        $diagnostics = $policy['issues'];
+
+        if (($policy['hasCentralDirectorySignature'] ?? false) === true) {
+            $diagnostics[] = 'central-directory-signature-unverified';
+        }
+
+        $diagnostics = array_values(array_unique($diagnostics));
+        $signature = is_array($policy['centralDirectorySignature'] ?? null)
+            ? $policy['centralDirectorySignature']
+            : null;
+
+        return [
+            'format' => $format,
+            'zipBytes' => $zipBytes,
+            'packageByteSize' => strlen($zipBytes),
+            'type' => 'zip-central-directory-inventory-policy',
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $diagnostics === [] ? 'metadata-only-no-extraction' : 'central-directory-inventory-review',
+            'diagnostics' => $diagnostics,
+            'centralDirectorySignatureVerification' => $signature === null
+                ? 'not-present'
+                : 'not-performed-native-bounded-reader',
+            'centralDirectorySignatureLength' => $signature === null ? 0 : (int) $signature['dataLength'],
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function inspectZipArchiveExtraDataRecordPolicy(
         string $bytes,
         string $format,

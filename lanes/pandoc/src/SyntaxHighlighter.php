@@ -103,10 +103,22 @@ final class SyntaxHighlighter
         'exs' => 'elixir',
         'fennel' => 'fennel',
         'fennel-lang' => 'fennel',
+        'f' => 'fortran',
+        'f03' => 'fortran',
+        'f08' => 'fortran',
+        'f18' => 'fortran',
+        'f77' => 'fortran',
+        'f90' => 'fortran',
+        'f95' => 'fortran',
         'fnl' => 'fennel',
         'flutter' => 'dart',
         'fish' => 'fish',
         'fish-shell' => 'fish',
+        'for' => 'fortran',
+        'fortran' => 'fortran',
+        'fortran-fixed' => 'fortran',
+        'fortran-free' => 'fortran',
+        'ftn' => 'fortran',
         'git-diff' => 'diff',
         'gawk' => 'awk',
         'gnu-sed' => 'sed',
@@ -792,6 +804,7 @@ final class SyntaxHighlighter
             'erlang' => $this->tokenizeErlang($code),
             'fennel' => $this->tokenizeFennel($code),
             'fish' => $this->tokenizeFish($code),
+            'fortran' => $this->tokenizeFortran($code),
             'go' => $this->tokenizeGo($code),
             'graphql' => $this->tokenizeGraphql($code),
             'hcl' => $this->tokenizeHcl($code),
@@ -1516,6 +1529,30 @@ final class SyntaxHighlighter
             ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
             ['operator', '/^(?:\\|\\||&&|2>>?|&>>?|>>?|<<?|==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeFortran(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^![^\\n]*/'],
+            ['comment', '/^[cC*](?:\\s|$)[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:''|[^'])*'/s"],
+            ['operator', '/^&(?=\\s*(?:\\r?\\n|!|$))/'],
+            ['attribute', '/^\\b(?:allocatable|asynchronous|contiguous|dimension|external|intent|intrinsic|optional|parameter|pointer|protected|save|target|value|volatile)\\b(?=\\s*(?:\\(|,|::|\\)|$))/i'],
+            ['keyword', '/^\\b(?:abstract|allocate|associate|block|call|case|class|common|contains|continue|cycle|data|deallocate|do|else|elseif|end|enddo|endif|entry|equivalence|exit|extends|forall|format|function|if|implicit|import|include|in|inout|interface|module|namelist|none|only|operator|out|private|procedure|program|public|pure|recursive|result|return|select|stop|submodule|subroutine|then|type|use|where|while)\\b/i'],
+            ['constant', '/^\\.(?:false|true)\\.(?:_[A-Za-z0-9_]+)?/i'],
+            ['datatype', '/^\\b(?:character|complex|double\\s+precision|integer|logical|real)\\b/i'],
+            ['function', '/^\\b(?:abs|adjustl|adjustr|allocated|associated|char|count|index|int|kind|len|len_trim|logical|max|maxval|merge|min|minval|mod|nint|pack|present|real|repeat|scan|selected_int_kind|selected_real_kind|size|sum|trim|write)\\b(?=\\s*\\()/i'],
+            ['number', '/^-?\\b(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eEdD][+-]?\\d+)?(?:_[A-Za-z0-9_]+)?\\b/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['attribute', '/^\\b(?:access|action|advance|decimal|delim|encoding|errmsg|file|fmt|form|iostat|iomsg|kind|len|mold|pad|position|recl|source|stat|status|unit)\\b(?=\\s*=)/i'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:::|=>|==|\\/=|<=|>=|\\/\\/|\\*\\*|\\.(?:and|eq|eqv|ge|gt|le|lt|ne|neqv|not|or)\\.|[{}()[\\];,.+*\\/%=!<>?:&|^-])/i'],
         ]);
     }
 

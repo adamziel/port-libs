@@ -1021,6 +1021,7 @@ final class CitationCslProcessor
             'chapterNumber' => self::firstStringField($item, ['chapter-number', 'chapterNumber']),
             'section' => self::stringField($item, 'section'),
             'part' => self::stringField($item, 'part'),
+            'supplement' => self::stringField($item, 'supplement'),
             'genre' => self::stringField($item, 'genre'),
             'entrySubtype' => self::firstStringField($item, ['entry-subtype', 'entrySubtype', 'entrysubtype']),
             'gender' => $biblatexGender,
@@ -8041,6 +8042,7 @@ final class CitationCslProcessor
             'chapter-number' => (string) $item['chapterNumber'],
             'section' => (string) $item['section'],
             'part', 'part-number' => (string) $item['part'],
+            'supplement' => (string) ($item['supplement'] ?? ''),
             'genre' => (string) $item['genre'],
             'entry-subtype', 'entrysubtype' => (string) $item['entrySubtype'],
             'gender', 'biblatex-gender', 'biblatexgender' => (string) ($item['biblatexGender'] ?? $item['gender'] ?? ''),
@@ -8229,6 +8231,7 @@ final class CitationCslProcessor
             'section',
             'part-number',
             'part',
+            'supplement',
             'version',
         ], true);
     }

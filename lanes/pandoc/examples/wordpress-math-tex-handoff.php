@@ -78,6 +78,8 @@ Accent alias audit $\acute{x} + \grave{y} + \breve{z} + \check{a} + \mathring{A}
 
 Above and below audit $\overset{\text{new}}{p_i} + \underset{0}{\lim}_{n \to \infty} a_n + \overbrace{x + y}^{\text{sum}} + \underbrace{m_i}_{\text{media}} + \displaystyle \frac{q}{r}$ stays semantic.
 
+Unbraced brace audit $\overbrace x_i^n + \underbrace y_j + \overbracket x^2 + \underbracket y_0$ keeps texToken bases semantic.
+
 Buildrel relation audit $\buildrel{\text{def}}\over= + A \buildrel{\operatorname{iso}}\over\longrightarrow B$ stays semantic.
 
 Infix audit ${a+b \over c+d} + {n \choose k} + {n \atop k} + {p_i \brack m_i} + {x+y \brace z} + {n \bangle k}$ stays semantic.
@@ -95,6 +97,8 @@ Color box audit $\colorbox{yellow}{p_i + m_i} + \colorbox[HTML]{fff9cc}{\operato
 Boxed equation audit $\boxed{p_i + m_i} + \boxed{\frac{a}{b}}_j$ stays semantic.
 
 Overlap layout audit $\smash{\frac{a}{b}} + \smash[t]{p_i} + \smash[b]{m_i} + \mathllap{L_i} + \mathrlap{R_i} + \mathclap{x+y}$ stays semantic.
+
+Unbraced layout audit $\smash x_i + \smash[t] y^2 + \mathllap L_i + \mathrlap R + \clap C$ keeps texToken boxes semantic.
 
 Math alphabet audit $\mathrm{d}x + \mathbf{v_i} + \mathit{n} + \mathsf{S} + \mathtt{code} + \mathcal{F}_n + \mathbb{R} + \mathfrak{g} + \mathscr{L} + \boldsymbol{\alpha}_i$ stays semantic.
 
@@ -255,6 +259,7 @@ $summary = [
     'primeMathml' => $converter->texToMathMl("f'(x) + g''_i + h_i''' + \\partial^\\prime f + y^\\backprime"),
     'accentAliasMathml' => $converter->texToMathMl('\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}'),
     'aboveBelowMathml' => $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}'),
+    'tokenBraceWrapperMathml' => $converter->texToMathMl('\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0'),
     'buildrelMathml' => $converter->texToMathMl('\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B'),
     'infixFractionMathml' => $converter->texToMathMl('{a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}'),
     'withDelimsFractionMathml' => $converter->texToMathMl('{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}'),
@@ -265,6 +270,7 @@ $summary = [
     'colorBoxMathml' => $converter->texToMathMl('\\colorbox{yellow}{p_i + m_i} + \\colorbox[HTML]{fff9cc}{\\operatorname{media}} + \\fcolorbox{red}{yellow}{q_i} + \\fcolorbox[RGB]{51,102,153}{255,249,204}{\\frac{a}{b}}'),
     'boxedMathml' => $converter->texToMathMl('\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j'),
     'smashOverlapMathml' => $converter->texToMathMl('\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}'),
+    'tokenLayoutWrapperMathml' => $converter->texToMathMl('\\smash x_i + \\smash[t] y^2 + \\mathllap L_i + \\mathrlap R + \\clap C'),
     'mathVariantMathml' => $converter->texToMathMl('\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i'),
     'mathAlphanumericMathml' => $converter->texToMathMl('\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}'),
     'mathAlphabetAliasMathml' => $converter->texToMathMl('\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}'),
@@ -559,6 +565,33 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['tokenBraceWrapperMathml'], '<mi>\\overbrace</mi>')
+        || str_contains($summary['tokenBraceWrapperMathml'], '<mi>\\underbrace</mi>')
+        || str_contains($summary['tokenBraceWrapperMathml'], '<mi>\\overbracket</mi>')
+        || str_contains($summary['tokenBraceWrapperMathml'], '<mi>\\underbracket</mi>')
+        || !str_contains($summary['tokenBraceWrapperMathml'], '<msubsup><mover><mi>x</mi><mo>⏞</mo></mover><mi>i</mi><mi>n</mi></msubsup>')
+        || !str_contains($summary['tokenBraceWrapperMathml'], '<msub><munder><mi>y</mi><mo>⏟</mo></munder><mi>j</mi></msub>')
+        || !str_contains($summary['tokenBraceWrapperMathml'], '<msup><mover><mi>x</mi><mo>⎴</mo></mover><mn>2</mn></msup>')
+        || !str_contains($summary['tokenBraceWrapperMathml'], '<msub><munder><mi>y</mi><mo>⎵</mo></munder><mn>0</mn></msub>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map unbraced brace and bracket wrappers');
+    }
+
+    if (
+        str_contains($summary['tokenLayoutWrapperMathml'], '<mi>\\smash</mi>')
+        || str_contains($summary['tokenLayoutWrapperMathml'], '<mi>\\mathllap</mi>')
+        || str_contains($summary['tokenLayoutWrapperMathml'], '<mi>\\mathrlap</mi>')
+        || str_contains($summary['tokenLayoutWrapperMathml'], '<mi>\\clap</mi>')
+        || !str_contains($summary['tokenLayoutWrapperMathml'], '<msub><mpadded height="0" depth="0"><mi>x</mi></mpadded><mi>i</mi></msub>')
+        || !str_contains($summary['tokenLayoutWrapperMathml'], '<msup><mpadded height="0"><mi>y</mi></mpadded><mn>2</mn></msup>')
+        || !str_contains($summary['tokenLayoutWrapperMathml'], '<msub><mpadded width="0" lspace="-1width"><mi>L</mi></mpadded><mi>i</mi></msub>')
+        || !str_contains($summary['tokenLayoutWrapperMathml'], '<mpadded width="0"><mi>R</mi></mpadded>')
+        || !str_contains($summary['tokenLayoutWrapperMathml'], '<mpadded width="0" lspace="-0.5width"><mi>C</mi></mpadded>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map unbraced smash and overlap wrappers');
+    }
+
+    if (
         str_contains($summary['bracedNotRelationMathml'], '<menclose notation="updiagonalstrike"><mo>')
         || !str_contains($summary['bracedNotRelationMathml'], '<mi>x</mi><mo>∉</mo><mi>S</mi><mo>+</mo><mi>y</mi><mo>≠</mo><mi>z</mi><mo>+</mo><mi>q</mi><mo>≰</mo><mi>r</mi><mo>+</mo><mi>u</mi><mo>≱</mo><mi>v</mi>')
     ) {
@@ -598,6 +631,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(f&#039;(x) + g&#039;&#039;_i + h_i&#039;&#039;&#039; + \\partial^\\prime f + y^\\backprime\\)</span>',
         '<span class="math inline">\\(\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}\\)</span>',
         '<span class="math inline">\\(\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}\\)</span>',
+        '<span class="math inline">\\(\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0\\)</span>',
+        '<annotation encoding="application/x-tex">\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0</annotation>',
         '<span class="math inline">\\(\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B\\)</span>',
         '<span class="math inline">\\({a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}\\)</span>',
         '<span class="math inline">\\({a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}\\)</span>',
@@ -606,6 +641,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\colorbox{yellow}{p_i + m_i} + \\colorbox[HTML]{fff9cc}{\\operatorname{media}} + \\fcolorbox{red}{yellow}{q_i} + \\fcolorbox[RGB]{51,102,153}{255,249,204}{\\frac{a}{b}}\\)</span>',
         '<span class="math inline">\\(\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j\\)</span>',
         '<span class="math inline">\\(\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}\\)</span>',
+        '<span class="math inline">\\(\\smash x_i + \\smash[t] y^2 + \\mathllap L_i + \\mathrlap R + \\clap C\\)</span>',
+        '<annotation encoding="application/x-tex">\\smash x_i + \\smash[t] y^2 + \\mathllap L_i + \\mathrlap R + \\clap C</annotation>',
         '<span class="math inline">\\(\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i\\)</span>',
         '<span class="math inline">\\(\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}\\)</span>',
         '<span class="math inline">\\(\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}\\)</span>',

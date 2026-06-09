@@ -5944,6 +5944,122 @@ XML;
         $t->same(['remote-resources'], $cleanBlock->attr('resourceReviewFlags'));
         $t->same([], $cleanBlock->attr('contentResourceReviewFlags'));
     },
+    'summarizes EPUB XHTML embedded media object and frame resources for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $embeddedXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <audio id="intro-audio-player" src="../audio/intro.mp3"/>
+    <video id="review-video" src="../video/review.mp4" poster="../images/poster.png">
+      <source id="review-video-hd" src="../video/review-hd.mp4" type="video/mp4"/>
+      <track id="review-captions" kind="captions" srclang="en" label="English" src="../captions/review.vtt"/>
+    </video>
+    <object id="model-review" data="../interactive/model.bin" type="application/x-model"/>
+    <embed id="remote-widget" src="https://widgets.example.test/epub/widget.html" type="text/html"/>
+    <iframe id="missing-frame" src="../frames/missing.xhtml"></iframe>
+  </body>
+</html>
+XML;
+        $opfWithEmbeddedResources = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>'
+            . '<item id="embedded-media" href="text/embedded.xhtml" media-type="application/xhtml+xml"/>'
+            . '<item id="intro-audio" href="audio/intro.mp3" media-type="audio/mpeg"/>'
+            . '<item id="review-video" href="video/review.mp4" media-type="video/mp4"/>'
+            . '<item id="review-video-hd" href="video/review-hd.mp4" media-type="video/mp4"/>'
+            . '<item id="poster-image" href="images/poster.png" media-type="image/png"/>'
+            . '<item id="review-captions" href="captions/review.vtt" media-type="text/vtt"/>'
+            . '<item id="model-bin" href="interactive/model.bin" media-type="application/x-model"/>',
+            $opfXml
+        );
+        $opfWithEmbeddedResources = str_replace(
+            '</spine>',
+            '<itemref idref="embedded-media"/></spine>',
+            $opfWithEmbeddedResources
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithEmbeddedResources,
+            null,
+            [
+                ['name' => 'OEBPS/text/embedded.xhtml', 'data' => $embeddedXhtml],
+                ['name' => 'OEBPS/audio/intro.mp3', 'data' => 'INTRO-MP3'],
+                ['name' => 'OEBPS/video/review.mp4', 'data' => 'VIDEO-MP4'],
+                ['name' => 'OEBPS/video/review-hd.mp4', 'data' => 'VIDEO-HD'],
+                ['name' => 'OEBPS/images/poster.png', 'data' => 'POSTER-PNG', 'compressionMethod' => 0],
+                ['name' => 'OEBPS/captions/review.vtt', 'data' => "WEBVTT\n\n00:00.000 --> 00:01.000\nReview"],
+                ['name' => 'OEBPS/interactive/model.bin', 'data' => 'MODEL-BYTES'],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/embedded.xhtml'];
+        $block = $result['document']->children[2];
+
+        $t->same(1, $report['embeddedResourceAssetCount']);
+        $t->same(8, $report['embeddedResourceCount']);
+        $t->same(1, $report['externalEmbeddedResourceCount']);
+        $t->same(1, $report['missingEmbeddedResourceCount']);
+        $t->same(0, $report['encryptedEmbeddedResourceCount']);
+        $t->same(['audio', 'video', 'poster', 'source', 'track', 'object', 'embed', 'iframe'], $report['embeddedResourceKinds']);
+        $t->same(2, count($report['embeddedResourceDiagnostics']));
+        $t->same(['external-xhtml-content-reference', 'missing-xhtml-content-reference'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $report['embeddedResourceDiagnostics']));
+
+        $t->same(8, $asset['embeddedResourceCount']);
+        $t->same(['audio', 'video', 'poster', 'source', 'track', 'object', 'embed', 'iframe'], $asset['embeddedResourceKinds']);
+        $t->same(1, $asset['externalEmbeddedResourceCount']);
+        $t->same(1, $asset['missingEmbeddedResourceCount']);
+
+        $audio = $asset['embeddedResources'][0];
+        $t->same('audio', $audio['kind']);
+        $t->same('media-playback', $audio['policy']);
+        $t->same('../audio/intro.mp3', $audio['href']);
+        $t->same('/OEBPS/audio/intro.mp3', $audio['part']);
+        $t->same('intro-audio', $audio['manifestId']);
+        $t->same('audio/mpeg', $audio['mediaType']);
+        $t->same(9, $audio['byteLength']);
+        $t->same(false, $audio['requiresReview']);
+
+        $video = $asset['embeddedResourcesByKind']['video'][0];
+        $t->same('/OEBPS/video/review.mp4', $video['part']);
+        $t->same('review-video', $video['manifestId']);
+        $t->same('video/mp4', $video['mediaType']);
+
+        $poster = $asset['embeddedResourcesByKind']['poster'][0];
+        $t->same('media-poster', $poster['policy']);
+        $t->same('/OEBPS/images/poster.png', $poster['part']);
+        $t->same('poster-image', $poster['manifestId']);
+
+        $source = $asset['embeddedResourcesByKind']['source'][0];
+        $t->same('/OEBPS/video/review-hd.mp4', $source['part']);
+        $t->same('review-video-hd', $source['manifestId']);
+
+        $track = $asset['embeddedResourcesByKind']['track'][0];
+        $t->same('timed-text-track', $track['policy']);
+        $t->same('/OEBPS/captions/review.vtt', $track['part']);
+        $t->same('review-captions', $track['manifestId']);
+        $t->same('text/vtt', $track['mediaType']);
+
+        $object = $asset['embeddedResourcesByKind']['object'][0];
+        $t->same('interactive-embedded-content', $object['policy']);
+        $t->same(true, $object['requiresReview']);
+        $t->same('/OEBPS/interactive/model.bin', $object['part']);
+        $t->same('model-bin', $object['manifestId']);
+
+        $embed = $asset['embeddedResourcesByKind']['embed'][0];
+        $t->same(true, $embed['external']);
+        $t->same('https://widgets.example.test/epub/widget.html', $embed['target']);
+        $t->same('external-xhtml-content-reference', $embed['diagnostics'][0]['type']);
+
+        $iframe = $asset['embeddedResourcesByKind']['iframe'][0];
+        $t->same(false, $iframe['exists']);
+        $t->same('/OEBPS/frames/missing.xhtml', $iframe['part']);
+        $t->same('missing-xhtml-content-reference', $iframe['diagnostics'][0]['type']);
+
+        $t->same($asset['embeddedResources'], $block->attr('contentEmbeddedResources'));
+        $t->same($asset['embeddedResourceDiagnostics'], $block->attr('contentEmbeddedResourceDiagnostics'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reports cover image attachment candidates and unmanifested package assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage(
             null,

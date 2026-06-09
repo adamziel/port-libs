@@ -225,6 +225,12 @@ ordered-review:
     - owner: QA Desk
     - "source:key": "metadata: value"
 flow-ordered-review: {steps: !!omap [{stage: collected}, {stage: normalized}], reviewers: !!pairs [{owner: Import Desk}, {owner: QA Desk}]}
+invalid-ordered-review: !!omap
+  - source-title: Original export
+    owner: Import Desk
+  - [bad, key]
+  - status: queued
+invalid-pairs-review: !!pairs [{owner: Import Desk, role: editor}, [bad, key], status]
 review-notes:
   - |-
     Preserve original front matter.
@@ -583,6 +589,10 @@ $streamOverrideDiagnostics = array_values(array_filter(
 $flowNullKeyDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'flow-key-only-null'
+));
+$invalidOrderedPairDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-ordered-pair-member'
 ));
 $blocks = (new WordPressBlockWriter())->write($document);
 $abstractBlocks = $meta['abstractBlocks'] ?? [];
@@ -1474,6 +1484,56 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-ordered-review']['reviewers'][0]['value'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test missing flow pairs metadata');
     }
+    if (($meta['invalid-ordered-review'][0]['key'] ?? '') !== 'source-title' || ($meta['invalid-ordered-review'][0]['value'] ?? '') !== 'Original export') {
+        throw new RuntimeException('YAML metadata self-test missing invalid ordered-map first key');
+    }
+    if (($meta['invalid-ordered-review'][1]['key'] ?? '') !== 'owner' || ($meta['invalid-ordered-review'][1]['value'] ?? '') !== 'Import Desk') {
+        throw new RuntimeException('YAML metadata self-test failed to preserve invalid ordered-map extra key');
+    }
+    if (
+        ($meta['invalid-ordered-review'][2]['key'] ?? '') !== '[bad, key]'
+        || !array_key_exists('value', $meta['invalid-ordered-review'][2] ?? [])
+        || $meta['invalid-ordered-review'][2]['value'] !== null
+    ) {
+        throw new RuntimeException('YAML metadata self-test failed to preserve invalid ordered-map sequence member');
+    }
+    if (($meta['invalid-pairs-review'][0]['key'] ?? '') !== 'owner' || ($meta['invalid-pairs-review'][1]['key'] ?? '') !== 'role') {
+        throw new RuntimeException('YAML metadata self-test failed to preserve invalid pairs multi-key member');
+    }
+    if (($meta['invalid-pairs-review'][2]['key'] ?? '') !== '[bad, key]' || ($meta['invalid-pairs-review'][3]['key'] ?? '') !== 'status') {
+        throw new RuntimeException('YAML metadata self-test failed to preserve invalid pairs scalar members');
+    }
+    if (count($invalidOrderedPairDiagnostics) !== 5) {
+        throw new RuntimeException('YAML metadata self-test missing invalid ordered-pair diagnostics');
+    }
+    $invalidOrderedPairDiagnosticsByPath = [];
+    foreach ($invalidOrderedPairDiagnostics as $diagnostic) {
+        $invalidOrderedPairDiagnosticsByPath[$diagnostic['path'] ?? ''] = $diagnostic;
+    }
+    foreach ([
+        '/invalid-ordered-review/0' => ['omap', '0', 'mapping', '2'],
+        '/invalid-ordered-review/1' => ['omap', '1', 'sequence', null],
+        '/invalid-pairs-review/0' => ['pairs', '0', 'mapping', '2'],
+        '/invalid-pairs-review/1' => ['pairs', '1', 'sequence', null],
+        '/invalid-pairs-review/2' => ['pairs', '2', 'scalar', null],
+    ] as $expectedPath => [$expectedTag, $expectedIndex, $expectedKind, $expectedMemberCount]) {
+        $diagnostic = $invalidOrderedPairDiagnosticsByPath[$expectedPath] ?? null;
+        if ($diagnostic === null) {
+            throw new RuntimeException('YAML metadata self-test missing invalid ordered-pair diagnostic ' . $expectedPath);
+        }
+        if (($diagnostic['type'] ?? '') !== 'yaml-ordered-pair' || ($diagnostic['expected'] ?? '') !== 'single-pair mapping') {
+            throw new RuntimeException('YAML metadata self-test has wrong invalid ordered-pair diagnostic type ' . $expectedPath);
+        }
+        if (($diagnostic['explicitTag'] ?? '') !== $expectedTag || ($diagnostic['pairIndex'] ?? '') !== $expectedIndex) {
+            throw new RuntimeException('YAML metadata self-test has wrong invalid ordered-pair index ' . $expectedPath);
+        }
+        if (($diagnostic['valueKind'] ?? '') !== $expectedKind || (($diagnostic['memberCount'] ?? null) !== $expectedMemberCount)) {
+            throw new RuntimeException('YAML metadata self-test has wrong invalid ordered-pair value kind ' . $expectedPath);
+        }
+        if (($diagnostic['sourceLine'] ?? '') === '') {
+            throw new RuntimeException('YAML metadata self-test missing invalid ordered-pair source line ' . $expectedPath);
+        }
+    }
     if (($meta['review-notes'][0] ?? '') !== "Preserve original front matter.\nKeep reviewer line breaks.") {
         throw new RuntimeException('YAML metadata self-test missing literal sequence block scalar note');
     }
@@ -2268,6 +2328,7 @@ echo 'Quoted ambiguous fields: ' . ($meta['no'] ?? '') . ' / ' . ($meta['Off'] ?
 echo 'YAML diagnostics: ' . count($yamlDiagnostics) . "\n";
 echo 'YAML invalid TAG directives: ' . count($invalidTagDiagnostics) . "\n";
 echo 'YAML invalid merge diagnostics: ' . count($invalidMergeDiagnostics) . "\n";
+echo 'YAML invalid ordered pair diagnostics: ' . count($invalidOrderedPairDiagnostics) . "\n";
 echo 'YAML alias diagnostic paths: ' . implode(', ', array_column($aliasYamlDiagnostics, 'path')) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
 echo 'YAML custom tag provenance paths: ' . implode(', ', array_filter(array_column($yamlTagProvenance, 'path'))) . "\n";

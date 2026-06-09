@@ -893,6 +893,38 @@ $sourceColgroupScopeTable = new AstNode('table', [
     ]),
 ]);
 
+$invalidSourceScopeTable = new AstNode('table', [
+    'caption' => 'Invalid source scope accessibility grid',
+    'alignments' => ['left', 'right'],
+    'accessibilityHeaders' => true,
+    'accessibilityIdPrefix' => 'Invalid Scope Grid',
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Document',
+                'htmlAttributes' => [
+                    'id' => 'invalid-scope-document',
+                    'scope' => 'columnish',
+                ],
+            ], [new AstNode('text', ['text' => 'Document'])]),
+            new AstNode('table_cell', [
+                'text' => 'State',
+                'htmlAttributes' => [
+                    'id' => 'invalid-scope-state',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $abbreviatedHeaderTable = new AstNode('table', [
     'caption' => 'Abbreviated header review',
     'alignments' => ['left', 'right'],
@@ -1336,6 +1368,7 @@ $document = new AstNode('document', [], [
     $astAttributeTable,
     $sourceRowgroupScopeTable,
     $sourceColgroupScopeTable,
+    $invalidSourceScopeTable,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -1961,6 +1994,25 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing source colgroup WordPress header relationships');
     }
     json_encode($sourceColgroupPacket, JSON_THROW_ON_ERROR);
+
+    $invalidSourceScopePacket = TableGeometry::reviewPacket($invalidSourceScopeTable, ['idPrefix' => 'Invalid Scope Grid']);
+    if (
+        ($invalidSourceScopePacket['summary']['diagnosticCodes'] ?? null) !== ['table-header-scope-invalid']
+        || ($invalidSourceScopePacket['summary']['hasInvalidSourceScopes'] ?? null) !== true
+        || ($invalidSourceScopePacket['summary']['invalidSourceScopeCount'] ?? null) !== 1
+        || ($invalidSourceScopePacket['summary']['invalidSourceScopes'] ?? null) !== ['columnish']
+        || ($invalidSourceScopePacket['diagnostics'][0]['fallbackScope'] ?? null) !== 'col'
+        || ($invalidSourceScopePacket['headerAssociations']['headerCells'][0]['sourceScope'] ?? null) !== null
+    ) {
+        throw new RuntimeException('Table geometry self-test missing invalid source scope audit metadata');
+    }
+    if (!str_contains($blocks, '<th scope="col" id="invalid-scope-document" style="text-align:left">Document</th><th id="invalid-scope-state" scope="col" style="text-align:right">State</th>')) {
+        throw new RuntimeException('Table geometry self-test missing invalid source scope fallback WordPress output');
+    }
+    if (str_contains($blocks, 'scope="columnish"')) {
+        throw new RuntimeException('Table geometry self-test leaked invalid source scope into WordPress output');
+    }
+    json_encode($invalidSourceScopePacket, JSON_THROW_ON_ERROR);
 
     $duplicateHeaderPacket = TableGeometry::reviewPacket($duplicateHeaderTable, [
         'idPrefix' => 'Duplicate Header Grid',

@@ -11331,6 +11331,8 @@ final class EpubReader
                 'contentViewport' => $contentReport['metadata']['viewport'],
                 'contentViewports' => $contentReport['metadata']['viewports'],
                 'contentReferences' => $contentReport['references'],
+                'contentEmbeddedResources' => $contentReport['embeddedResources'],
+                'contentEmbeddedResourceDiagnostics' => $contentReport['embeddedResourceDiagnostics'],
                 'contentLinks' => $contentReport['links'],
                 'contentLinkDiagnostics' => $contentReport['linkDiagnostics'],
                 'contentRefreshes' => $contentReport['refreshes'],
@@ -13268,6 +13270,186 @@ final class EpubReader
     }
 
     /**
+     * @param list<array<string, mixed>> $references
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function xhtmlEmbeddedResourceReferences(array $references): array
+    {
+        $items = [];
+        foreach ($references as $reference) {
+            $kind = self::xhtmlEmbeddedResourceKind($reference);
+            if ($kind === null) {
+                continue;
+            }
+
+            $diagnostics = is_array($reference['diagnostics'] ?? null)
+                ? array_values($reference['diagnostics'])
+                : [];
+            $external = ($reference['external'] ?? false) === true;
+            $missing = ($reference['exists'] ?? true) !== true && !$external;
+            $encrypted = ($reference['encrypted'] ?? false) === true;
+            $policy = self::xhtmlEmbeddedResourcePolicy($kind);
+
+            $item = [
+                'index' => count($items),
+                'sourceReferenceIndex' => is_int($reference['index'] ?? null) ? $reference['index'] : null,
+                'kind' => $kind,
+                'policy' => $policy,
+                'requiresReview' => in_array($kind, ['embed', 'iframe', 'object'], true)
+                    || $external
+                    || $missing
+                    || $encrypted
+                    || $diagnostics !== [],
+                'element' => strtolower((string) ($reference['element'] ?? '')),
+                'attribute' => (string) ($reference['attribute'] ?? ''),
+                'href' => is_string($reference['href'] ?? null) ? $reference['href'] : null,
+                'target' => is_string($reference['target'] ?? null) ? $reference['target'] : null,
+                'part' => is_string($reference['part'] ?? null) ? $reference['part'] : null,
+                'fragment' => is_string($reference['fragment'] ?? null) ? $reference['fragment'] : null,
+                'fragmentKind' => is_string($reference['fragmentKind'] ?? null) ? $reference['fragmentKind'] : null,
+                'epubCfi' => is_array($reference['epubCfi'] ?? null) ? $reference['epubCfi'] : null,
+                'mediaFragment' => is_array($reference['mediaFragment'] ?? null) ? $reference['mediaFragment'] : null,
+                'external' => $external,
+                'exists' => (bool) ($reference['exists'] ?? false),
+                'byteLength' => is_int($reference['byteLength'] ?? null) ? $reference['byteLength'] : null,
+                'crc32' => is_string($reference['crc32'] ?? null) ? $reference['crc32'] : null,
+                'manifestId' => is_string($reference['manifestId'] ?? null) ? $reference['manifestId'] : null,
+                'mediaType' => is_string($reference['mediaType'] ?? null) ? $reference['mediaType'] : null,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => (bool) ($reference['canExposeBytes'] ?? false),
+                'diagnostics' => $diagnostics,
+            ];
+
+            if (isset($reference['srcsetCandidateIndex'])) {
+                $item['srcsetCandidateIndex'] = (int) $reference['srcsetCandidateIndex'];
+                $item['srcsetCandidate'] = is_string($reference['srcsetCandidate'] ?? null)
+                    ? $reference['srcsetCandidate']
+                    : $item['href'];
+                $item['srcsetDescriptor'] = is_string($reference['srcsetDescriptor'] ?? null)
+                    ? $reference['srcsetDescriptor']
+                    : null;
+            }
+
+            $items[] = $item;
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $reference
+     */
+    private static function xhtmlEmbeddedResourceKind(array $reference): ?string
+    {
+        $element = strtolower((string) ($reference['element'] ?? ''));
+        $attribute = strtolower((string) ($reference['attribute'] ?? ''));
+
+        if ($element === 'audio' && $attribute === 'src') {
+            return 'audio';
+        }
+        if ($element === 'video') {
+            return $attribute === 'poster' ? 'poster' : ($attribute === 'src' ? 'video' : null);
+        }
+        if ($element === 'source' && in_array($attribute, ['src', 'srcset'], true)) {
+            return 'source';
+        }
+        if ($element === 'track' && $attribute === 'src') {
+            return 'track';
+        }
+        if ($element === 'object' && $attribute === 'data') {
+            return 'object';
+        }
+        if ($element === 'embed' && $attribute === 'src') {
+            return 'embed';
+        }
+        if ($element === 'iframe' && $attribute === 'src') {
+            return 'iframe';
+        }
+
+        return null;
+    }
+
+    private static function xhtmlEmbeddedResourcePolicy(string $kind): string
+    {
+        return match ($kind) {
+            'audio', 'video' => 'media-playback',
+            'poster' => 'media-poster',
+            'source' => 'media-source',
+            'track' => 'timed-text-track',
+            'embed', 'object' => 'interactive-embedded-content',
+            'iframe' => 'embedded-frame',
+            default => 'embedded-resource',
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $resources
+     *
+     * @return list<string>
+     */
+    private static function xhtmlEmbeddedResourceKinds(array $resources): array
+    {
+        $kinds = [];
+        foreach ($resources as $resource) {
+            $kind = is_string($resource['kind'] ?? null) ? $resource['kind'] : '';
+            if ($kind !== '' && !in_array($kind, $kinds, true)) {
+                $kinds[] = $kind;
+            }
+        }
+
+        return $kinds;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $resources
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function xhtmlEmbeddedResourcesByKind(array $resources): array
+    {
+        $byKind = [];
+        foreach ($resources as $resource) {
+            $kind = is_string($resource['kind'] ?? null) ? $resource['kind'] : '';
+            if ($kind === '') {
+                continue;
+            }
+
+            $byKind[$kind] ??= [];
+            $byKind[$kind][] = $resource;
+        }
+
+        return $byKind;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $resources
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function xhtmlEmbeddedResourceDiagnostics(array $resources): array
+    {
+        $diagnostics = [];
+        foreach ($resources as $resource) {
+            foreach (is_array($resource['diagnostics'] ?? null) ? $resource['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'embeddedResourceIndex' => $resource['index'] ?? null,
+                    'kind' => $resource['kind'] ?? null,
+                    'element' => $resource['element'] ?? null,
+                    'attribute' => $resource['attribute'] ?? null,
+                    'href' => $resource['href'] ?? null,
+                ] + $diagnostic;
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
      * @param list<array<string, mixed>> $xhtmlAssets
      *
      * @return array<string, mixed>
@@ -13303,6 +13485,13 @@ final class EpubReader
         $invalidViewportCount = 0;
         $viewportItems = [];
         $viewportDiagnostics = [];
+        $embeddedResourceAssetCount = 0;
+        $embeddedResourceCount = 0;
+        $externalEmbeddedResourceCount = 0;
+        $missingEmbeddedResourceCount = 0;
+        $encryptedEmbeddedResourceCount = 0;
+        $embeddedResourceItems = [];
+        $embeddedResourceDiagnostics = [];
         $scriptCount = 0;
         $linkAssetCount = 0;
         $linkCount = 0;
@@ -13409,6 +13598,31 @@ final class EpubReader
                     ++$assetStyleReviewRequiredCount;
                 }
             }
+            $assetEmbeddedResources = [];
+            foreach (is_array($report['embeddedResources'] ?? null) ? $report['embeddedResources'] : [] as $resource) {
+                if (is_array($resource)) {
+                    $assetEmbeddedResources[] = $resource;
+                }
+            }
+            $assetEmbeddedResourceDiagnostics = [];
+            foreach (is_array($report['embeddedResourceDiagnostics'] ?? null) ? $report['embeddedResourceDiagnostics'] : [] as $diagnostic) {
+                if (is_array($diagnostic)) {
+                    $assetEmbeddedResourceDiagnostics[] = $diagnostic;
+                }
+            }
+            $assetExternalEmbeddedResourceCount = count(array_filter(
+                $assetEmbeddedResources,
+                static fn (array $resource): bool => ($resource['external'] ?? false) === true,
+            ));
+            $assetMissingEmbeddedResourceCount = count(array_filter(
+                $assetEmbeddedResources,
+                static fn (array $resource): bool => ($resource['exists'] ?? true) !== true
+                    && ($resource['external'] ?? false) !== true,
+            ));
+            $assetEncryptedEmbeddedResourceCount = count(array_filter(
+                $assetEmbeddedResources,
+                static fn (array $resource): bool => ($resource['encrypted'] ?? false) === true,
+            ));
             $item = [
                 'id' => (string) ($asset['id'] ?? ''),
                 'part' => $part,
@@ -13433,6 +13647,15 @@ final class EpubReader
                 'metadataDiagnostics' => is_array($metadata['diagnostics'] ?? null) ? array_values($metadata['diagnostics']) : [],
                 'referenceCount' => count(is_array($report['references'] ?? null) ? $report['references'] : []),
                 'references' => is_array($report['references'] ?? null) ? array_values($report['references']) : [],
+                'embeddedResourceCount' => count($assetEmbeddedResources),
+                'embeddedResources' => $assetEmbeddedResources,
+                'embeddedResourceKinds' => self::xhtmlEmbeddedResourceKinds($assetEmbeddedResources),
+                'embeddedResourcesByKind' => self::xhtmlEmbeddedResourcesByKind($assetEmbeddedResources),
+                'externalEmbeddedResourceCount' => $assetExternalEmbeddedResourceCount,
+                'missingEmbeddedResourceCount' => $assetMissingEmbeddedResourceCount,
+                'encryptedEmbeddedResourceCount' => $assetEncryptedEmbeddedResourceCount,
+                'embeddedResourceDiagnosticCount' => count($assetEmbeddedResourceDiagnostics),
+                'embeddedResourceDiagnostics' => $assetEmbeddedResourceDiagnostics,
                 'linkCount' => count(is_array($report['links'] ?? null) ? $report['links'] : []),
                 'links' => is_array($report['links'] ?? null) ? array_values($report['links']) : [],
                 'activeLinkCount' => count(array_filter(
@@ -13522,6 +13745,14 @@ final class EpubReader
             ];
 
             $referenceCount += $item['referenceCount'];
+            $embeddedResourceCount += $item['embeddedResourceCount'];
+            $externalEmbeddedResourceCount += $item['externalEmbeddedResourceCount'];
+            $missingEmbeddedResourceCount += $item['missingEmbeddedResourceCount'];
+            $encryptedEmbeddedResourceCount += $item['encryptedEmbeddedResourceCount'];
+            if ($item['embeddedResourceCount'] > 0) {
+                ++$embeddedResourceAssetCount;
+                array_push($embeddedResourceItems, ...$item['embeddedResources']);
+            }
             $linkCount += $item['linkCount'];
             $activeLinkCount += $item['activeLinkCount'];
             $passiveLinkCount += $item['passiveLinkCount'];
@@ -13629,6 +13860,11 @@ final class EpubReader
                     'part' => $part,
                 ] + $diagnostic;
             }
+            foreach ($item['embeddedResourceDiagnostics'] as $diagnostic) {
+                $embeddedResourceDiagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
             foreach ($item['semanticDiagnostics'] as $diagnostic) {
                 $semanticDiagnostics[] = [
                     'part' => $part,
@@ -13680,6 +13916,15 @@ final class EpubReader
             'encryptedReferenceCount' => count($encryptedReferences),
             'cfiReferenceCount' => count($cfiReferences),
             'mediaFragmentReferenceCount' => count($mediaFragmentReferences),
+            'embeddedResourceAssetCount' => $embeddedResourceAssetCount,
+            'embeddedResourceCount' => $embeddedResourceCount,
+            'externalEmbeddedResourceCount' => $externalEmbeddedResourceCount,
+            'missingEmbeddedResourceCount' => $missingEmbeddedResourceCount,
+            'encryptedEmbeddedResourceCount' => $encryptedEmbeddedResourceCount,
+            'embeddedResourceKinds' => self::xhtmlEmbeddedResourceKinds($embeddedResourceItems),
+            'embeddedResourcesByKind' => self::xhtmlEmbeddedResourcesByKind($embeddedResourceItems),
+            'embeddedResourceItems' => $embeddedResourceItems,
+            'embeddedResourceDiagnostics' => $embeddedResourceDiagnostics,
             'mathmlAssetCount' => $mathmlAssetCount,
             'svgAssetCount' => $svgAssetCount,
             'scriptedAssetCount' => $scriptedAssetCount,
@@ -13791,6 +14036,8 @@ final class EpubReader
                 'reviewFlags' => [],
                 'metadata' => self::emptyXhtmlContentMetadataReport($part),
                 'references' => [],
+                'embeddedResources' => [],
+                'embeddedResourceDiagnostics' => [],
                 'links' => [],
                 'linkDiagnostics' => [],
                 'refreshes' => [],
@@ -13961,6 +14208,8 @@ final class EpubReader
         foreach ($metadata['diagnostics'] as $diagnostic) {
             $diagnostics[] = $diagnostic;
         }
+        $embeddedResources = self::xhtmlEmbeddedResourceReferences($references);
+        $embeddedResourceDiagnostics = self::xhtmlEmbeddedResourceDiagnostics($embeddedResources);
 
         return [
             'part' => $part,
@@ -13968,6 +14217,8 @@ final class EpubReader
             'reviewFlags' => self::xhtmlContentReviewFlags($flags),
             'metadata' => $metadata,
             'references' => $references,
+            'embeddedResources' => $embeddedResources,
+            'embeddedResourceDiagnostics' => $embeddedResourceDiagnostics,
             'links' => $links,
             'linkDiagnostics' => $linkDiagnostics,
             'refreshes' => $refreshes,
@@ -17159,6 +17410,8 @@ final class EpubReader
                 'contentViewport' => $asset['contentViewport'] ?? [],
                 'contentViewports' => $asset['contentViewports'] ?? [],
                 'contentReferences' => $asset['contentReferences'] ?? [],
+                'contentEmbeddedResources' => $asset['contentEmbeddedResources'] ?? [],
+                'contentEmbeddedResourceDiagnostics' => $asset['contentEmbeddedResourceDiagnostics'] ?? [],
                 'contentLinks' => $asset['contentLinks'] ?? [],
                 'contentLinkDiagnostics' => $asset['contentLinkDiagnostics'] ?? [],
                 'contentRefreshes' => $asset['contentRefreshes'] ?? [],

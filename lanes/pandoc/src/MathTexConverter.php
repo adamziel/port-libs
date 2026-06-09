@@ -2888,28 +2888,28 @@ final class MathTexConverter
 
         if ($command === 'overbrace') {
             return '<mover>'
-                . $this->parseRequiredNonEmptyGroup($source, $offset, 'overbrace base')
+                . $this->parseRequiredTexToken($source, $offset, 'overbrace base')
                 . '<mo>⏞</mo>'
                 . '</mover>';
         }
 
         if ($command === 'underbrace') {
             return '<munder>'
-                . $this->parseRequiredNonEmptyGroup($source, $offset, 'underbrace base')
+                . $this->parseRequiredTexToken($source, $offset, 'underbrace base')
                 . '<mo>⏟</mo>'
                 . '</munder>';
         }
 
         if ($command === 'overbracket') {
             return '<mover>'
-                . $this->parseRequiredNonEmptyGroup($source, $offset, 'overbracket base')
+                . $this->parseRequiredTexToken($source, $offset, 'overbracket base')
                 . '<mo>⎴</mo>'
                 . '</mover>';
         }
 
         if ($command === 'underbracket') {
             return '<munder>'
-                . $this->parseRequiredNonEmptyGroup($source, $offset, 'underbracket base')
+                . $this->parseRequiredTexToken($source, $offset, 'underbracket base')
                 . '<mo>⎵</mo>'
                 . '</munder>';
         }
@@ -3835,7 +3835,7 @@ final class MathTexConverter
         $attributes = $this->smashPaddingAttributes($this->readOptionalSmashPosition($source, $offset));
 
         return '<mpadded' . $attributes . '>'
-            . $this->parseRequiredNonEmptyGroup($source, $offset, 'smash content')
+            . $this->parseRequiredTexToken($source, $offset, 'smash content')
             . '</mpadded>';
     }
 
@@ -3878,7 +3878,7 @@ final class MathTexConverter
         }
 
         return '<mpadded' . $attributes . '>'
-            . $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content')
+            . $this->parseRequiredTexToken($source, $offset, $command . ' content')
             . '</mpadded>';
     }
 

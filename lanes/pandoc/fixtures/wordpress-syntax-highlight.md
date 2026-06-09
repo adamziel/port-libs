@@ -1552,3 +1552,23 @@ if ($title === '') {
 }
 echo esc_html($title);
 ```
+
+``` {.f90 #fortran-review .numberLines startFrom=1300}
+! Fortran WordPress import review helper
+module wp_import_review
+  implicit none
+  type :: review_packet
+    integer :: source_id
+    character(len=:), allocatable :: title
+  end type review_packet
+contains
+  pure function normalized_title(packet) result(title)
+    type(review_packet), intent(in) :: packet
+    character(len=:), allocatable :: title
+    title = trim(packet%title)
+    if (len_trim(title) == 0) then
+      write(title, '(A,I0)') 'Import ', packet%source_id
+    end if
+  end function normalized_title
+end module wp_import_review
+```

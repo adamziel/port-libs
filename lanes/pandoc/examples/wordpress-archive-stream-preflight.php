@@ -295,6 +295,18 @@ $buildZip64EndOfCentralDirectoryZip = static function (string $zip) use ($packZi
     return substr($zip, 0, $eocdOffset) . $zip64Eocd . $zip64Locator . $eocd;
 };
 
+$zipWithCentralDirectorySignature = static function (string $zip, string $signatureData = 'central-signature'): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if (! is_int($eocdOffset)) {
+        throw new RuntimeException('ZIP fixture is missing an end of central directory record.');
+    }
+
+    return substr($zip, 0, $eocdOffset)
+        . pack('Vv', 0x05054b50, strlen($signatureData))
+        . $signatureData
+        . substr($zip, $eocdOffset);
+};
+
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
 $legacyContentBytes = "# Legacy contiguous source packet\n\nReady for WordPress archive review.\n";
@@ -968,6 +980,28 @@ try {
 } catch (RuntimeException) {
     $zip64ExtraFieldExtractionBlocked = true;
 }
+$centralDirectoryZipBytes = $zipWithCentralDirectorySignature($zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Central directory archive stream review</w:p></w:body></w:document>',
+        'compressionMethod' => 8,
+    ],
+], 'central directory provenance review fixture'), 'central-signature');
+$centralDirectoryZipGzip = GzipStream::build($centralDirectoryZipBytes, [
+    'filename' => 'wordpress-central-directory-package.zip',
+    'comment' => 'central directory provenance fixture',
+    'headerCrc' => true,
+]);
+$centralDirectoryInspection = ArchiveCompressionStream::inspectZipCentralDirectoryInventoryPolicy(
+    $centralDirectoryZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($centralDirectoryZipBytes)
+);
 $splitZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -1790,6 +1824,16 @@ if (in_array('--self-test', $argv, true)) {
             'diskStart',
         ],
         'zip64ExtraFieldGzipFilename' => 'wordpress-zip64-extra-package.zip',
+        'zipCentralDirectoryFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipCentralDirectoryType' => 'zip-central-directory-inventory-policy',
+        'zipCentralDirectoryEntryCount' => 2,
+        'zipCentralDirectoryDiagnostics' => ['central-directory-signature-unverified'],
+        'zipCentralDirectoryHandoffPolicy' => 'review-before-conversion',
+        'zipCentralDirectoryExtractionPolicy' => 'central-directory-inventory-review',
+        'zipCentralDirectoryVerification' => 'not-performed-native-bounded-reader',
+        'zipCentralDirectorySignatureLocation' => 'between-central-directory-and-eocd',
+        'zipCentralDirectoryEntryNames' => ['[Content_Types].xml', 'word/document.xml'],
+        'zipCentralDirectoryGzipFilename' => 'wordpress-central-directory-package.zip',
         'zipSplitFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipSplitEntryCount' => 3,
         'zipSplitDiskNumber' => 1,
@@ -2345,6 +2389,25 @@ if (in_array('--self-test', $argv, true)) {
         || ($zip64ExtraFieldInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zip64ExtraFieldGzipFilename']
         || isset($zip64ExtraFieldInspection['package'])
         || !$zip64ExtraFieldExtractionBlocked
+        || $centralDirectoryInspection['format'] !== $expected['zipCentralDirectoryFormat']
+        || $centralDirectoryInspection['type'] !== $expected['zipCentralDirectoryType']
+        || $centralDirectoryInspection['zipBytes'] !== $centralDirectoryZipBytes
+        || $centralDirectoryInspection['packageByteSize'] !== strlen($centralDirectoryZipBytes)
+        || $centralDirectoryInspection['declaredEntryCount'] !== $expected['zipCentralDirectoryEntryCount']
+        || $centralDirectoryInspection['scannedEntryCount'] !== $expected['zipCentralDirectoryEntryCount']
+        || $centralDirectoryInspection['entryCount'] !== $expected['zipCentralDirectoryEntryCount']
+        || $centralDirectoryInspection['hasCentralDirectorySignature'] !== true
+        || $centralDirectoryInspection['centralDirectorySignatureLength'] !== strlen('central-signature')
+        || $centralDirectoryInspection['centralDirectorySignatureVerification'] !== $expected['zipCentralDirectoryVerification']
+        || ($centralDirectoryInspection['centralDirectorySignature']['location'] ?? null) !== $expected['zipCentralDirectorySignatureLocation']
+        || ($centralDirectoryInspection['centralDirectorySignature']['dataLength'] ?? null) !== strlen('central-signature')
+        || $centralDirectoryInspection['diagnostics'] !== $expected['zipCentralDirectoryDiagnostics']
+        || $centralDirectoryInspection['issues'] !== []
+        || $centralDirectoryInspection['handoffPolicy'] !== $expected['zipCentralDirectoryHandoffPolicy']
+        || $centralDirectoryInspection['extractionPolicy'] !== $expected['zipCentralDirectoryExtractionPolicy']
+        || array_column($centralDirectoryInspection['entries'], 'name') !== $expected['zipCentralDirectoryEntryNames']
+        || ($centralDirectoryInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipCentralDirectoryGzipFilename']
+        || isset($centralDirectoryInspection['package'])
         || $splitZipInspection['format'] !== $expected['zipSplitFormat']
         || $splitZipInspection['zipBytes'] !== $splitZipBytes
         || $splitZipInspection['packageByteSize'] !== strlen($splitZipBytes)
@@ -2805,6 +2868,13 @@ echo 'zip64ExtraField.issues=' . implode(',', $zip64ExtraFieldInspection['issues
 echo 'zip64ExtraField.requiredFields=' . implode(',', $zip64ExtraFieldInspection['entries'][0]['centralZip64RequiredFields']) . "\n";
 echo 'zip64ExtraField.gzipFilename=' . $zip64ExtraFieldInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zip64ExtraField.extractionBlocked=' . ($zip64ExtraFieldExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zipCentralDirectory.format=' . $centralDirectoryInspection['format'] . "\n";
+echo 'zipCentralDirectory.entryCount=' . $centralDirectoryInspection['entryCount'] . "\n";
+echo 'zipCentralDirectory.signatureLength=' . $centralDirectoryInspection['centralDirectorySignatureLength'] . "\n";
+echo 'zipCentralDirectory.verification=' . $centralDirectoryInspection['centralDirectorySignatureVerification'] . "\n";
+echo 'zipCentralDirectory.handoffPolicy=' . $centralDirectoryInspection['handoffPolicy'] . "\n";
+echo 'zipCentralDirectory.diagnostics=' . implode(',', $centralDirectoryInspection['diagnostics']) . "\n";
+echo 'zipCentralDirectory.gzipFilename=' . $centralDirectoryInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipSplit.format=' . $splitZipInspection['format'] . "\n";
 echo 'zipSplit.entryCount=' . $splitZipInspection['entryCount'] . "\n";
 echo 'zipSplit.issues=' . implode(',', $splitZipInspection['issues']) . "\n";

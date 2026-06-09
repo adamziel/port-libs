@@ -7924,17 +7924,133 @@ final class DocxReader
             }
 
             $docPr = $this->drawingPropertiesForElement($chart, $drawing);
+            $geometryAttrs = $this->drawingGeometryAttrs($this->drawingContainerForElement($chart, $drawing));
+            $metadataAttrs = $this->mergeNodeMetadataAttrs(
+                $geometryAttrs,
+                $this->chartEmbeddedDataAttrs($relationship, $package, $relationships)
+            );
             $nodes[] = $this->drawingRelationshipPlaceholderNode(
                 'chart',
                 $relationship,
                 $package,
                 $relationships,
                 $docPr,
-                $this->drawingGeometryAttrs($this->drawingContainerForElement($chart, $drawing))
+                $metadataAttrs
             );
         }
 
         return $nodes;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function chartEmbeddedDataAttrs(
+        OpcRelationship $chartRelationship,
+        ZipPackage $package,
+        OpcRelationships $relationships
+    ): array {
+        $attrs = [
+            'classes' => [],
+            'attributes' => [],
+        ];
+
+        if ($chartRelationship->isExternal()) {
+            return $attrs;
+        }
+
+        $chartTargetPart = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($chartRelationship));
+        if (!$package->has($chartTargetPart)) {
+            return $attrs;
+        }
+
+        try {
+            $chartDom = self::loadXml($package->read($chartTargetPart), 'DOCX chart part ' . $chartTargetPart);
+        } catch (\InvalidArgumentException) {
+            $attrs['classes'][] = 'docx-chart-data-missing';
+            $attrs['attributes']['data-docx-chart-external-data-issues'] = 'invalid-chart-part';
+
+            return $attrs;
+        }
+
+        $chartRoot = $chartDom->documentElement;
+        if (!$chartRoot instanceof \DOMElement) {
+            return $attrs;
+        }
+
+        $externalData = $this->firstDescendantElement($chartRoot, self::DRAWINGML_CHART_NS, 'externalData');
+        if (!$externalData instanceof \DOMElement) {
+            return $attrs;
+        }
+
+        $relationshipPart = OpcRelationships::relationshipPartNameForSource($chartTargetPart);
+        $attrs['attributes']['data-docx-chart-relationship-part'] = $relationshipPart;
+
+        $externalDataId = $this->relationshipAttr($externalData, 'id');
+        if ($externalDataId !== null && $externalDataId !== '') {
+            $attrs['attributes']['data-docx-chart-external-data-id'] = $externalDataId;
+        }
+
+        $autoUpdate = $this->chartExternalDataAutoUpdate($externalData);
+        if ($autoUpdate !== null) {
+            $attrs['attributes']['data-docx-chart-external-data-auto-update'] = $autoUpdate;
+        }
+
+        if (!OpcRelationships::packageHasRelationshipsForSource($package, $chartTargetPart)) {
+            $attrs['classes'][] = 'docx-chart-data-missing';
+            $attrs['attributes']['data-docx-chart-external-data-issues'] = 'missing-relationship-part';
+
+            return $attrs;
+        }
+
+        try {
+            $chartRelationships = OpcRelationships::fromPackage($package, $chartTargetPart);
+        } catch (\InvalidArgumentException | \RuntimeException) {
+            $attrs['classes'][] = 'docx-chart-data-missing';
+            $attrs['attributes']['data-docx-chart-external-data-issues'] = 'invalid-relationship-part';
+
+            return $attrs;
+        }
+
+        $attrs['attributes']['data-docx-chart-relationship-count'] = (string) count($chartRelationships->all());
+        if ($externalDataId === null || $externalDataId === '') {
+            $attrs['classes'][] = 'docx-chart-data-missing';
+            $attrs['attributes']['data-docx-chart-external-data-issues'] = 'missing-relationship-id';
+
+            return $attrs;
+        }
+
+        $externalDataRelationship = $chartRelationships->byId($externalDataId);
+        if (!$externalDataRelationship instanceof OpcRelationship) {
+            $attrs['classes'][] = 'docx-chart-data-missing';
+            $attrs['attributes']['data-docx-chart-external-data-issues'] = 'missing-relationship';
+
+            return $attrs;
+        }
+
+        $attrs['classes'][] = 'docx-chart-embedded-data';
+        $attrs['attributes']['data-docx-chart-external-data-type'] = $externalDataRelationship->type;
+        $targetAttrs = $this->drawingRelationshipTargetAttrs($externalDataRelationship, $package, $chartRelationships);
+        foreach ($targetAttrs as $name => $value) {
+            $attrs['attributes']['data-docx-chart-external-data-' . $name] = $value;
+        }
+
+        $targetPart = $targetAttrs['target-part'] ?? null;
+        if (is_string($targetPart) && $targetPart !== '' && $package->has($targetPart)) {
+            $attrs['attributes']['data-docx-chart-external-data-bytes'] = (string) strlen($package->read($targetPart));
+        }
+
+        return $attrs;
+    }
+
+    private function chartExternalDataAutoUpdate(\DOMElement $externalData): ?string
+    {
+        $autoUpdate = $this->firstChildElement($externalData, self::DRAWINGML_CHART_NS, 'autoUpdate');
+        if (!$autoUpdate instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->normalizedOnOffAttribute($autoUpdate, 'val') ?? 'true';
     }
 
     /**

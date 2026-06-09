@@ -561,6 +561,42 @@ $buildSourceScopedHeaderDocument = static function (): AstNode {
     ]);
 };
 
+$buildInvalidSourceScopeDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Invalid source scope accessibility grid',
+            'alignments' => ['left', 'right'],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Invalid Scope Grid',
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Document',
+                        'htmlAttributes' => [
+                            'id' => 'invalid-scope-document',
+                            'scope' => 'columnish',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Document'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'State',
+                        'htmlAttributes' => [
+                            'id' => 'valid-scope-state',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildSourceRowgroupHeaderDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -2761,6 +2797,50 @@ return [
         $t->same('row', $packet['accessibility']['body:0:0:0']['scope'] ?? null);
         $t->contains('<th id="source-posts" scope="row" rowspan="2" style="text-align:left">Posts</th><td headers="legacy-count source-posts" style="text-align:right">42</td><td headers="source-state source-posts" style="text-align:center">Ready</td>', $blocks);
         $t->contains('<tr><td headers="source-count" style="text-align:right">7</td><td headers="source-state" style="text-align:center">Review</td></tr>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'reports invalid source scope values while falling back to computed header scope' => static function (TestRunner $t) use ($buildInvalidSourceScopeDocument): void {
+        $document = $buildInvalidSourceScopeDocument();
+        $table = $document->children[0];
+        $diagnostics = TableGeometry::diagnostics($table);
+        $invalidScopeDiagnostics = array_values(array_filter(
+            $diagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'table-header-scope-invalid'
+        ));
+        $accessibility = TableGeometry::accessibilityAttributes($table, 'Invalid Scope Grid');
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Invalid Scope Grid']);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($invalidScopeDiagnostics));
+        $diagnostic = $invalidScopeDiagnostics[0] ?? [];
+        $t->same('html-table-scope', $diagnostic['source'] ?? null);
+        $t->same('htmlAttributes', $diagnostic['attributeSource'] ?? null);
+        $t->same('head', $diagnostic['section'] ?? null);
+        $t->same(0, $diagnostic['row'] ?? null);
+        $t->same(0, $diagnostic['column'] ?? null);
+        $t->same(0, $diagnostic['sourceCell'] ?? null);
+        $t->same(0, $diagnostic['sourceColumn'] ?? null);
+        $t->same(0, $diagnostic['sourceRow'] ?? null);
+        $t->same([0, 1], $diagnostic['sourceRowRange'] ?? null);
+        $t->same('columnish', $diagnostic['rawScope'] ?? null);
+        $t->same(['col', 'row', 'colgroup', 'rowgroup'], $diagnostic['allowedScopes'] ?? null);
+        $t->same('col', $diagnostic['fallbackScope'] ?? null);
+        $t->same(true, $diagnostic['headerCell'] ?? null);
+        $t->same('Document', $diagnostic['text'] ?? null);
+
+        $t->same('invalid-scope-document', $accessibility['head:0:0:0']['id'] ?? null);
+        $t->same('col', $accessibility['head:0:0:0']['scope'] ?? null);
+        $t->same(['invalid-scope-document'], $accessibility['body:0:0:0']['headers'] ?? null);
+        $t->same(['table-header-scope-invalid'], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same(true, $packet['summary']['hasInvalidSourceScopes'] ?? null);
+        $t->same(1, $packet['summary']['invalidSourceScopeCount'] ?? null);
+        $t->same(['columnish'], $packet['summary']['invalidSourceScopes'] ?? null);
+        $t->same('columnish', $packet['sections'][0]['rows'][0]['slots'][0]['sourceAttributes']['htmlAttributes']['scope'] ?? null);
+        $t->same('col', $packet['headerAssociations']['headerCells'][0]['scope'] ?? null);
+        $t->true(!isset($packet['headerAssociations']['headerCells'][0]['sourceScope']), 'Invalid source scope must not override computed header scope');
+        $t->contains('<th scope="col" id="invalid-scope-document" style="text-align:left">Document</th>', $blocks);
+        $t->contains('<td headers="invalid-scope-document" style="text-align:left">Posts</td>', $blocks);
+        $t->true(!str_contains($blocks, 'scope="columnish"'), 'Invalid source scope must not leak into WordPress output');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'applies explicit source rowgroup headers across the current row group only' => static function (TestRunner $t) use ($buildSourceRowgroupHeaderDocument): void {

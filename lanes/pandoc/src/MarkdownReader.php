@@ -3962,7 +3962,11 @@ final class MarkdownReader
                     trim($this->stripYamlFlowComments($sourceValue . "\n" . implode("\n", $children)))
                 );
 
-            $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate($candidate, $this->yamlMetadataCurrentSourceLine);
+            $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate(
+                $candidate,
+                $this->yamlMetadataCurrentSourceLine,
+                $explicitTag
+            );
             if ($flowPairs !== null) {
                 $this->recordYamlCollectionProvenance('sequence', 'flow', count($flowPairs), null, $childrenSourceLines ?? [], $explicitTag);
 
@@ -3987,7 +3991,11 @@ final class MarkdownReader
             $candidate = $this->stripYamlTrailingComment(
                 trim($this->stripYamlFlowComments(implode("\n", $normalized)))
             );
-            $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate($candidate, $this->yamlMetadataCurrentSourceLine);
+            $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate(
+                $candidate,
+                $this->yamlMetadataCurrentSourceLine,
+                $explicitTag
+            );
             if ($flowPairs !== null) {
                 $this->recordYamlCollectionProvenance('sequence', 'flow', count($flowPairs), null, $childrenSourceLines, $explicitTag);
 
@@ -3995,7 +4003,11 @@ final class MarkdownReader
             }
         }
 
-        $pairs = $this->yamlOrderedPairsFromSequence($this->parseYamlSequence($normalized, $childrenSourceLines));
+        $pairs = $this->yamlOrderedPairsFromSequence(
+            $this->parseYamlSequence($normalized, $childrenSourceLines),
+            $explicitTag,
+            $this->yamlBlockSequenceItemSourceLines($normalized, $childrenSourceLines)
+        );
         $this->recordYamlCollectionProvenance('sequence', 'block', count($pairs), null, $childrenSourceLines, $explicitTag);
 
         return $pairs;
@@ -4004,7 +4016,11 @@ final class MarkdownReader
     /**
      * @return list<array{key:string, value:mixed}>|null
      */
-    private function parseYamlExplicitOrderedPairsFlowCandidate(string $candidate, ?int $sourceLine = null): ?array
+    private function parseYamlExplicitOrderedPairsFlowCandidate(
+        string $candidate,
+        ?int $sourceLine = null,
+        string $explicitTag = 'pairs'
+    ): ?array
     {
         $candidate = trim($candidate);
         if ($candidate === '' || $candidate[0] !== '[' || !str_ends_with(rtrim($candidate), ']')) {
@@ -4017,25 +4033,60 @@ final class MarkdownReader
 
         $source = substr(rtrim($candidate), 1, -1);
         $items = [];
+        $itemSourceLines = [];
         foreach ($this->splitYamlFlowItemsWithLineOffsets($source) as $flowItem) {
+            $itemSourceLine = $this->yamlMetadataSourceLineWithOffset($sourceLine, $flowItem['lineOffset']);
             $items[] = $this->withYamlMetadataSourceLine(
-                $this->yamlMetadataSourceLineWithOffset($sourceLine, $flowItem['lineOffset']),
+                $itemSourceLine,
                 fn (): mixed => $this->parseYamlScalarValue($flowItem['item'])
             );
+            $itemSourceLines[] = $itemSourceLine;
         }
 
-        return $this->yamlOrderedPairsFromSequence($items);
+        return $this->yamlOrderedPairsFromSequence($items, $explicitTag, $itemSourceLines);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<int|null> $sourceLines
+     * @return list<int|null>
+     */
+    private function yamlBlockSequenceItemSourceLines(array $lines, array $sourceLines): array
+    {
+        $itemSourceLines = [];
+        foreach ($lines as $index => $line) {
+            if (preg_match('/^-[ \t]?/', $line) === 1) {
+                $itemSourceLines[] = $sourceLines[$index] ?? null;
+            }
+        }
+
+        return $itemSourceLines;
     }
 
     /**
      * @param list<mixed> $items
+     * @param list<int|null> $itemSourceLines
      * @return list<array{key:string, value:mixed}>
      */
-    private function yamlOrderedPairsFromSequence(array $items): array
+    private function yamlOrderedPairsFromSequence(
+        array $items,
+        string $explicitTag = 'pairs',
+        array $itemSourceLines = []
+    ): array
     {
         $pairs = [];
-        foreach ($items as $item) {
+        foreach ($items as $index => $item) {
             if ($this->isYamlAssociativeArray($item)) {
+                if (count($item) !== 1) {
+                    $this->recordYamlInvalidOrderedPairMemberDiagnostic(
+                        $item,
+                        $explicitTag,
+                        $index,
+                        $itemSourceLines[$index] ?? null,
+                        count($item)
+                    );
+                }
+
                 foreach ($item as $key => $value) {
                     $pairKey = (string) $key;
                     if ($pairKey === '') {
@@ -4050,6 +4101,12 @@ final class MarkdownReader
                 continue;
             }
 
+            $this->recordYamlInvalidOrderedPairMemberDiagnostic(
+                $item,
+                $explicitTag,
+                $index,
+                $itemSourceLines[$index] ?? null
+            );
             $pairKey = $this->normalizeYamlExplicitMappingKey($item);
             if ($pairKey === null || $pairKey === '') {
                 continue;
@@ -4062,6 +4119,35 @@ final class MarkdownReader
         }
 
         return $pairs;
+    }
+
+    private function recordYamlInvalidOrderedPairMemberDiagnostic(
+        mixed $value,
+        string $explicitTag,
+        int $pairIndex,
+        ?int $sourceLine,
+        ?int $memberCount = null
+    ): void
+    {
+        $diagnostic = [
+            'type' => 'yaml-ordered-pair',
+            'reason' => 'invalid-ordered-pair-member',
+            'path' => $this->yamlMetadataPathWithSegment($pairIndex),
+            'explicitTag' => $explicitTag,
+            'pairIndex' => (string) $pairIndex,
+            'valueKind' => $this->yamlMetadataValueKind($value),
+            'expected' => 'single-pair mapping',
+        ];
+        if ($memberCount !== null) {
+            $diagnostic['memberCount'] = (string) $memberCount;
+        }
+        if ($sourceLine !== null) {
+            $diagnostic['sourceLine'] = (string) $sourceLine;
+        } else {
+            $diagnostic += $this->yamlMetadataSourceLineAttrs();
+        }
+
+        $this->yamlMetadataDiagnostics[] = $diagnostic;
     }
 
     /**

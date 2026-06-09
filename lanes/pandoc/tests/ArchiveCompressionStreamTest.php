@@ -302,6 +302,18 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
         . $packageComment;
 };
 
+$zipWithCentralDirectorySignature = static function (string $zip, string $signatureData = 'central-signature', ?int $declaredLength = null): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if (! is_int($eocdOffset)) {
+        throw new \RuntimeException('ZIP fixture is missing an end of central directory record.');
+    }
+
+    return substr($zip, 0, $eocdOffset)
+        . pack('Vv', 0x05054b50, $declaredLength ?? strlen($signatureData))
+        . $signatureData
+        . substr($zip, $eocdOffset);
+};
+
 $packZip64UInt64 = static function (int $value): string {
     return pack('VV', $value & 0xffffffff, intdiv($value, 0x100000000));
 };
@@ -4764,6 +4776,130 @@ return [
         $t->throws(
             \RuntimeException::class,
             static fn (): array => ArchiveCompressionStream::inspectZip64ExtraFieldPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
+    'preflights zip central directory provenance across compressed archive streams' => static function (TestRunner $t) use ($zipFixtureBytes, $zipWithCentralDirectorySignature): void {
+        $documentXml = '<w:document><w:body><w:p>Central directory signature stream provenance</w:p></w:body></w:document>';
+        $zipBytes = $zipWithCentralDirectorySignature($zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'compressionMethod' => 8,
+            ],
+        ], 'central directory provenance fixture'), 'central-signature');
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-central-directory-package.zip',
+                'comment' => 'central directory provenance fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('central directory reviewer metadata', 8)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipCentralDirectoryInventoryPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same('zip-central-directory-inventory-policy', $inspection['type']);
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(2, $inspection['declaredEntryCount']);
+            $t->same(2, $inspection['diskEntryCount']);
+            $t->same(2, $inspection['scannedEntryCount']);
+            $t->same(2, $inspection['entryCount']);
+            $t->same($inspection['centralDirectorySize'], $inspection['scannedCentralDirectoryBytes']);
+            $t->same(0, $inspection['centralDirectoryTailBytes']);
+            $t->same(false, $inspection['hasEntryCountMismatch']);
+            $t->same(true, $inspection['hasCentralDirectorySignature']);
+            $t->same('between-central-directory-and-eocd', $inspection['centralDirectorySignature']['location']);
+            $t->same(strlen('central-signature'), $inspection['centralDirectorySignature']['dataLength']);
+            $t->same(strlen('central-signature'), $inspection['centralDirectorySignatureLength']);
+            $t->same('not-performed-native-bounded-reader', $inspection['centralDirectorySignatureVerification']);
+            $t->same(true, $inspection['isSupportedByBoundedReader']);
+            $t->same([], $inspection['issues']);
+            $t->same(['central-directory-signature-unverified'], $inspection['diagnostics']);
+            $t->same('review-before-conversion', $inspection['handoffPolicy']);
+            $t->same('central-directory-inventory-review', $inspection['extractionPolicy']);
+            $t->same(['[Content_Types].xml', 'word/document.xml'], array_column($inspection['entries'], 'name'));
+            $t->same([0, 1], array_column($inspection['entries'], 'centralDirectoryIndex'));
+            $t->same(false, array_key_exists('package', $inspection));
+        }
+
+        $cleanZipBytes = $zipFixtureBytes([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Unsigned central directory</w:p></w:body></w:document>',
+                'compressionMethod' => 8,
+            ],
+        ], 'unsigned central directory provenance fixture');
+        $cleanInspection = ArchiveCompressionStream::inspectZipCentralDirectoryInventoryPolicy(
+            $cleanZipBytes,
+            ArchiveCompressionStream::FORMAT_ZIP,
+            strlen($cleanZipBytes)
+        );
+        $gzipInspection = ArchiveCompressionStream::inspectZipCentralDirectoryInventoryPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $zlibInspection = ArchiveCompressionStream::inspectZipCentralDirectoryInventoryPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_ZLIB_ZIP],
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP,
+            strlen($zipBytes)
+        );
+        $rawInspection = ArchiveCompressionStream::inspectZipCentralDirectoryInventoryPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP],
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipCentralDirectoryInventoryPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same(false, $cleanInspection['hasCentralDirectorySignature']);
+        $t->same(null, $cleanInspection['centralDirectorySignature']);
+        $t->same(0, $cleanInspection['centralDirectorySignatureLength']);
+        $t->same('not-present', $cleanInspection['centralDirectorySignatureVerification']);
+        $t->same([], $cleanInspection['diagnostics']);
+        $t->same('within-thresholds', $cleanInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $cleanInspection['extractionPolicy']);
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-central-directory-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('central directory provenance fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('zlib-deflate', $zlibInspection['stream']['type']);
+        $t->same('raw-deflate', $rawInspection['stream']['type']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('central directory reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipCentralDirectoryInventoryPolicy(
                 $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
                 ArchiveCompressionStream::FORMAT_GZIP_TAR,
                 strlen($zipBytes)

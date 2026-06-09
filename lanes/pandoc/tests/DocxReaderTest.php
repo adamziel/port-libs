@@ -428,6 +428,7 @@ $drawingPlaceholderContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
   <Override PartName="/word/diagrams/data1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml"/>
@@ -445,6 +446,22 @@ $drawingPlaceholderRelationshipsXml = <<<'XML'
   <Relationship Id="rIdDiagramStyle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle" Target="diagrams/quickStyle1.xml"/>
   <Relationship Id="rIdDiagramColors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors" Target="diagrams/colors1.xml"/>
 </Relationships>
+XML;
+
+$drawingPlaceholderChartRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdChartWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/chart-data.xlsx"/>
+</Relationships>
+XML;
+
+$drawingPlaceholderChartXml = <<<'XML'
+<c:chartSpace
+  xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:externalData r:id="rIdChartWorkbook">
+    <c:autoUpdate val="0"/>
+  </c:externalData>
+</c:chartSpace>
 XML;
 
 $drawingPlaceholderDocumentXml = <<<'XML'
@@ -3697,6 +3714,8 @@ $buildDrawingPlaceholderPackage = static function () use (
     $drawingPlaceholderContentTypesXml,
     $packageRelationshipsXml,
     $drawingPlaceholderRelationshipsXml,
+    $drawingPlaceholderChartRelationshipsXml,
+    $drawingPlaceholderChartXml,
     $drawingPlaceholderDocumentXml
 ): ZipPackage {
     return ZipPackage::fromParts([
@@ -3704,7 +3723,9 @@ $buildDrawingPlaceholderPackage = static function () use (
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $drawingPlaceholderDocumentXml],
         ['name' => 'word/_rels/document.xml.rels', 'data' => $drawingPlaceholderRelationshipsXml],
-        ['name' => 'word/charts/chart1.xml', 'data' => '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>'],
+        ['name' => 'word/charts/chart1.xml', 'data' => $drawingPlaceholderChartXml],
+        ['name' => 'word/charts/_rels/chart1.xml.rels', 'data' => $drawingPlaceholderChartRelationshipsXml],
+        ['name' => 'word/embeddings/chart-data.xlsx', 'data' => 'XLSXCHARTDATA'],
         ['name' => 'word/diagrams/data1.xml', 'data' => '<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
         ['name' => 'word/diagrams/layout1.xml', 'data' => '<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
         ['name' => 'word/diagrams/quickStyle1.xml', 'data' => '<dgm:styleDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
@@ -5143,7 +5164,7 @@ return [
 
         $chart = $paragraph->children[1];
         $t->same('span', $chart->type);
-        $t->same(['docx-drawing-placeholder', 'docx-drawing-chart'], $chart->attr('classes'));
+        $t->same(['docx-drawing-placeholder', 'docx-drawing-chart', 'docx-chart-embedded-data'], $chart->attr('classes'));
         $t->same('DOCX chart: Quarterly sales chart', $chart->children[0]->attr('text'));
         $chartAttributes = $chart->attr('attributes');
         $t->same('chart', $chartAttributes['data-docx-drawing-kind']);
@@ -5158,6 +5179,17 @@ return [
         $t->same('false', $chartAttributes['data-docx-external']);
         $t->same('true', $chartAttributes['data-docx-exists']);
         $t->same('application/vnd.openxmlformats-officedocument.drawingml.chart+xml', $chartAttributes['data-docx-content-type']);
+        $t->same('/word/charts/_rels/chart1.xml.rels', $chartAttributes['data-docx-chart-relationship-part']);
+        $t->same('1', $chartAttributes['data-docx-chart-relationship-count']);
+        $t->same('rIdChartWorkbook', $chartAttributes['data-docx-chart-external-data-id']);
+        $t->same('false', $chartAttributes['data-docx-chart-external-data-auto-update']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/package', $chartAttributes['data-docx-chart-external-data-type']);
+        $t->same('/word/embeddings/chart-data.xlsx', $chartAttributes['data-docx-chart-external-data-target']);
+        $t->same('/word/embeddings/chart-data.xlsx', $chartAttributes['data-docx-chart-external-data-target-part']);
+        $t->same('false', $chartAttributes['data-docx-chart-external-data-external']);
+        $t->same('true', $chartAttributes['data-docx-chart-external-data-exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $chartAttributes['data-docx-chart-external-data-content-type']);
+        $t->same('13', $chartAttributes['data-docx-chart-external-data-bytes']);
 
         $t->same(' and ', $paragraph->children[2]->attr('text'));
         $diagram = $paragraph->children[3];
@@ -5180,13 +5212,17 @@ return [
         $t->same('/word/diagrams/colors1.xml', $diagramAttributes['data-docx-diagram-colors-target-part']);
         $t->same('.', $paragraph->children[4]->attr('text'));
 
-        $t->contains('[DOCX chart: Quarterly sales chart]{.docx-drawing-placeholder .docx-drawing-chart', $markdown);
+        $t->contains('[DOCX chart: Quarterly sales chart]{.docx-drawing-placeholder .docx-drawing-chart .docx-chart-embedded-data', $markdown);
         $t->contains('data-docx-relationship-id="rIdChart"', $markdown);
+        $t->contains('data-docx-chart-external-data-id="rIdChartWorkbook"', $markdown);
+        $t->contains('data-docx-chart-external-data-target-part="/word/embeddings/chart-data.xlsx"', $markdown);
         $t->contains('[DOCX diagram: Review workflow diagram]{.docx-drawing-placeholder .docx-drawing-diagram', $markdown);
         $t->contains('data-docx-diagram-data-id="rIdDiagramData"', $markdown);
 
-        $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart"', $blocks);
+        $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart docx-chart-embedded-data"', $blocks);
         $t->contains('data-docx-relationship-id="rIdChart"', $blocks);
+        $t->contains('data-docx-chart-external-data-id="rIdChartWorkbook"', $blocks);
+        $t->contains('data-docx-chart-external-data-target-part="/word/embeddings/chart-data.xlsx"', $blocks);
         $t->contains('DOCX chart: Quarterly sales chart</span>', $blocks);
         $t->contains('<span class="docx-drawing-placeholder docx-drawing-diagram"', $blocks);
         $t->contains('data-docx-diagram-data-id="rIdDiagramData"', $blocks);
@@ -5194,7 +5230,7 @@ return [
 
         $report = $result['importReport'];
         $t->same(5, $report['relationshipCount']);
-        $t->same(5, $report['reachableRelationshipCount']);
+        $t->same(6, $report['reachableRelationshipCount']);
         $t->same([], $report['relationshipIssues']);
         $t->same(0, $report['media']['count']);
     },

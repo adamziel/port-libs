@@ -1734,6 +1734,7 @@ return [
         $converter = new MathTexConverter();
         $aboveBelowMathml = $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n', true);
         $braceMathml = $converter->texToMathMl('\\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}}');
+        $tokenBraceMathml = $converter->texToMathMl('\\overbrace x_i^n + \\underbrace y_j', true);
         $styleMathml = $converter->texToMathMl('\\displaystyle \\frac{a}{b} + \\textstyle c + \\scriptstyle d_i + \\scriptscriptstyle e');
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $aboveBelowMathml);
@@ -1742,6 +1743,9 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n</annotation>', $aboveBelowMathml);
         $t->contains('<msup><mover><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mo>⏞</mo></mover><mtext>sum</mtext></msup>', $braceMathml);
         $t->contains('<msub><munder><msub><mi>m</mi><mi>i</mi></msub><mo>⏟</mo></munder><mtext>media</mtext></msub>', $braceMathml);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $tokenBraceMathml);
+        $t->contains('<msubsup><mover><mi>x</mi><mo>⏞</mo></mover><mi>i</mi><mi>n</mi></msubsup><mo>+</mo><msub><munder><mi>y</mi><mo>⏟</mo></munder><mi>j</mi></msub>', $tokenBraceMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overbrace x_i^n + \\underbrace y_j</annotation>', $tokenBraceMathml);
         $t->contains('<mstyle displaystyle="true"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle><mo>+</mo><mstyle displaystyle="false"><mi>c</mi></mstyle>', $styleMathml);
         $t->contains('<mstyle scriptlevel="1"><msub><mi>d</mi><mi>i</mi></msub></mstyle><mo>+</mo><mstyle scriptlevel="2"><mi>e</mi></mstyle>', $styleMathml);
     },
@@ -1770,12 +1774,15 @@ return [
     'converts bounded tex overbracket and underbracket accents to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $bracketMathml = $converter->texToMathMl('\\overbracket{p_i + m_i}^{\\text{review}} + \\underbracket{q_i}_{0}', true);
+        $tokenBracketMathml = $converter->texToMathMl('\\overbracket x^2 + \\underbracket y_0');
         $accessibleMathml = $converter->texToAccessibleMathMl('\\overbracket{x+y} + \\underbracket{z}');
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $bracketMathml);
         $t->contains('<msup><mover><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow><mo>⎴</mo></mover><mtext>review</mtext></msup>', $bracketMathml);
         $t->contains('<msub><munder><msub><mi>q</mi><mi>i</mi></msub><mo>⎵</mo></munder><mn>0</mn></msub>', $bracketMathml);
         $t->contains('<annotation encoding="application/x-tex">\\overbracket{p_i + m_i}^{\\text{review}} + \\underbracket{q_i}_{0}</annotation>', $bracketMathml);
+        $t->contains('<msup><mover><mi>x</mi><mo>⎴</mo></mover><mn>2</mn></msup><mo>+</mo><msub><munder><mi>y</mi><mo>⎵</mo></munder><mn>0</mn></msub>', $tokenBracketMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overbracket x^2 + \\underbracket y_0</annotation>', $tokenBracketMathml);
         $t->contains('alttext="x plus y over over bracket plus z under under bracket"', $accessibleMathml);
         $t->contains('intent="row(over(row(x,plus,y),over_bracket),plus,under(z,under_bracket))"', $accessibleMathml);
     },
@@ -1903,6 +1910,7 @@ return [
         $converter = new MathTexConverter();
         $smashMathml = $converter->texToMathMl('\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i}', true);
         $overlapMathml = $converter->texToMathMl('\\mathllap{p_i} + \\mathrlap{m_i} + \\mathclap{x+y} + \\llap{L} + \\rlap{R} + \\clap{C}');
+        $tokenLayoutMathml = $converter->texToMathMl('\\smash x_i + \\smash[t] y^2 + \\mathllap L_i + \\mathrlap R + \\clap C', true);
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $smashMathml);
         $t->contains('<mpadded height="0" depth="0"><mfrac><mi>a</mi><mi>b</mi></mfrac></mpadded>', $smashMathml);
@@ -1914,6 +1922,10 @@ return [
         $t->contains('<mpadded width="0" lspace="-0.5width"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow></mpadded>', $overlapMathml);
         $t->contains('<mpadded width="0" lspace="-1width"><mi>L</mi></mpadded><mo>+</mo><mpadded width="0"><mi>R</mi></mpadded><mo>+</mo><mpadded width="0" lspace="-0.5width"><mi>C</mi></mpadded>', $overlapMathml);
         $t->contains('<annotation encoding="application/x-tex">\\mathllap{p_i} + \\mathrlap{m_i} + \\mathclap{x+y} + \\llap{L} + \\rlap{R} + \\clap{C}</annotation>', $overlapMathml);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $tokenLayoutMathml);
+        $t->contains('<msub><mpadded height="0" depth="0"><mi>x</mi></mpadded><mi>i</mi></msub><mo>+</mo><msup><mpadded height="0"><mi>y</mi></mpadded><mn>2</mn></msup>', $tokenLayoutMathml);
+        $t->contains('<msub><mpadded width="0" lspace="-1width"><mi>L</mi></mpadded><mi>i</mi></msub><mo>+</mo><mpadded width="0"><mi>R</mi></mpadded><mo>+</mo><mpadded width="0" lspace="-0.5width"><mi>C</mi></mpadded>', $tokenLayoutMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\smash x_i + \\smash[t] y^2 + \\mathllap L_i + \\mathrlap R + \\clap C</annotation>', $tokenLayoutMathml);
     },
     'converts bounded tex cancelto target annotations to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

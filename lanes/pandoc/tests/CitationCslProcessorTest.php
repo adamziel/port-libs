@@ -18375,6 +18375,111 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Multi Section Packet :: secs. front matter; migration notes</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Single Section Notice :: sec. metro review</dd>', $blocks);
     },
+    'applies bounded csl supplement number labels and text forms' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'supplement-source',
+                'type' => 'report',
+                'title' => 'Migration Supplement Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'supplement' => '2',
+            ],
+            [
+                'id' => 'supplement-range',
+                'type' => 'report',
+                'title' => 'Range Supplement Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'supplement' => '3-4',
+            ],
+            [
+                'id' => 'named-supplement',
+                'type' => 'report',
+                'title' => 'Named Supplement Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'supplement' => 'appendix packet',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Supplement Number Review</title>
+    <id>https://example.test/styles/bounded-supplement-number-review</id>
+    <updated>2026-06-09T01:59:28+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <choose>
+          <if is-numeric="supplement">
+            <group delimiter=" ">
+              <label variable="supplement" form="short"/>
+              <number variable="supplement" form="ordinal"/>
+              <text variable="supplement" form="roman" prefix="roman "/>
+            </group>
+          </if>
+          <else>
+            <text variable="supplement" prefix="supplement "/>
+          </else>
+        </choose>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="supplement"/>
+        <text variable="supplement" form="long-ordinal"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $children = $summary['citationRendering'][0]['children'] ?? [];
+        $branches = $children[1]['branches'] ?? [];
+        $supplementBranchChildren = $branches[0]['children'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'][1]['children'] ?? [];
+        $t->same('Bounded Supplement Number Review', $summary['title'] ?? null);
+        $t->same(['supplement'], $branches[0]['isNumeric'] ?? null);
+        $t->same('supplement', $supplementBranchChildren[0]['variable'] ?? null);
+        $t->same('short', $supplementBranchChildren[0]['form'] ?? null);
+        $t->same('supplement', $supplementBranchChildren[1]['variable'] ?? null);
+        $t->same('ordinal', $supplementBranchChildren[1]['form'] ?? null);
+        $t->same('supplement', $supplementBranchChildren[2]['variable'] ?? null);
+        $t->same('roman', $supplementBranchChildren[2]['form'] ?? null);
+        $t->same('supplement', $bibliographyChildren[0]['variable'] ?? null);
+        $t->same('supplement', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('long-ordinal', $bibliographyChildren[1]['form'] ?? null);
+        $t->same('2', $processor->item('supplement-source')['supplement'] ?? null);
+
+        $t->same('(Smith supp. 2nd roman ii; Ng supps. 3rd-4th roman iii-iv; Roe supplement appendix packet)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'supplement-source', 'text' => '[@supplement-source]']),
+            new AstNode('citation', ['id' => 'supplement-range', 'text' => '[@supplement-range]']),
+            new AstNode('citation', ['id' => 'named-supplement', 'text' => '[@named-supplement]']),
+        ]));
+        $t->same('Migration Supplement Packet :: supplement second', $processor->renderBibliographyEntry('supplement-source'));
+        $t->same('Range Supplement Packet :: supplements third-fourth', $processor->renderBibliographyEntry('supplement-range'));
+        $t->same('Named Supplement Packet :: supplement appendix packet', $processor->renderBibliographyEntry('named-supplement'));
+
+        $document = (new MarkdownReader())->read('Supplemented imports [@supplement-source; @supplement-range; @named-supplement] keep source supplement numbers visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Supplemented imports (Smith supp. 2nd roman ii; Ng supps. 3rd-4th roman iii-iv; Roe supplement appendix packet) keep source supplement numbers visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Migration Supplement Packet :: supplement second</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Range Supplement Packet :: supplements third-fourth</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>Named Supplement Packet :: supplement appendix packet</dd>', $blocks);
+    },
     'renders bounded csl source variables for bibliography provenance' => static function (TestRunner $t): void {
         $items = [
             [
