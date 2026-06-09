@@ -2922,6 +2922,55 @@ return [
         $t->contains('non-empty pandoc-cli conditional source artifacts with hashes', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks pandoc cli version option source semantic drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc-cli/src/pandoc.hs'] = str_replace(
+            [
+                's == "-v" || s == "--version"',
+                'takeWhile (/= "--") rawArgs',
+                'let versionOr action = if hasVersion then versionInfoCLI else action',
+                '"server": args -> versionOr $ runServer args',
+                'parseOptionsFromArgs options defaultOpts prg args',
+                'Left e -> handleOptInfo engine e',
+                'versionInfo getFeatures (Just $ T.unpack (engineName scriptingEngine)) versionSuffix',
+            ],
+            [
+                's == "--help"',
+                'rawArgs',
+                'let versionOr action = action',
+                '"server": args -> runServer args',
+                'parseOptionsFromArgs options defaultOpts "pandoc" args',
+                'Left e -> handleOptInfo noEngine e',
+                'pure ()',
+            ],
+            $files['pandoc-cli/src/pandoc.hs']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $missing = $audit['cliExecutableClosure']['missingSourceSemantics']['pandoc-cli/src/pandoc.hs'];
+        $t->contains('detects short and long version options', implode(',', $missing));
+        $t->contains('stops version detection at option separator', implode(',', $missing));
+        $t->contains('guards commands with version handler', implode(',', $missing));
+        $t->contains('routes server subcommand through version handler', implode(',', $missing));
+        $t->contains('parses options with executable program name', implode(',', $missing));
+        $t->contains('handles option info with selected engine', implode(',', $missing));
+        $t->contains('reports feature list and scripting engine in version output', implode(',', $missing));
+
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing pandoc-cli executable source semantics', $blocked);
+        $t->contains('pandoc-cli/src/pandoc.hs (detects short and long version options, stops version detection at option separator, guards commands with version handler', $blocked);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'blocks pandoc cli conditional source semantic drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $files['pandoc-cli/src/pandoc.hs'] = implode("\n", [
@@ -2964,7 +3013,8 @@ return [
 
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('missing pandoc-cli executable source semantics', $blocked);
-        $t->contains('pandoc-cli/src/pandoc.hs (imports server shim module, routes server executable name', $blocked);
+        $t->contains('pandoc-cli/src/pandoc.hs (imports server shim module, detects short and long version options', $blocked);
+        $t->contains('routes server executable name', $blocked);
         $t->contains('pandoc-cli/no-server/PandocCLI/Server.hs (routes cgi placeholder to unsupported handler, routes server placeholder to unsupported handler, exits with unsupported status)', $blocked);
         $t->same([], $audit['nonMutatingPlan']);
     },

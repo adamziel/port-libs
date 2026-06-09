@@ -6343,6 +6343,101 @@ XML;
         $t->same(false, $policies[$settingsType]['policyValid']);
         $t->same(false, isset($policies[$hyperlinkType]));
     },
+    'classifies DrawingML relationship roles without source singleton constraints' => static function (TestRunner $t): void {
+        $chartType = OpcRelationshipGraph::DRAWINGML_CHART_RELATIONSHIP_TYPE;
+        $diagramDataType = OpcRelationshipGraph::DRAWINGML_DIAGRAM_DATA_RELATIONSHIP_TYPE;
+        $diagramLayoutType = OpcRelationshipGraph::DRAWINGML_DIAGRAM_LAYOUT_RELATIONSHIP_TYPE;
+        $diagramQuickStyleType = OpcRelationshipGraph::DRAWINGML_DIAGRAM_QUICK_STYLE_RELATIONSHIP_TYPE;
+        $diagramColorsType = OpcRelationshipGraph::DRAWINGML_DIAGRAM_COLORS_RELATIONSHIP_TYPE;
+
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/word/charts/chart2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/word/diagrams/data1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml"/>
+  <Override PartName="/word/diagrams/layout1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml"/>
+  <Override PartName="/word/diagrams/quickStyle1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml"/>
+  <Override PartName="/word/diagrams/colors1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdChartOne" Type="{$chartType}" Target="charts/chart1.xml"/>
+  <Relationship Id="rIdChartTwo" Type="{$chartType}" Target="charts/chart2.xml"/>
+  <Relationship Id="rIdDiagramData" Type="{$diagramDataType}" Target="diagrams/data1.xml"/>
+  <Relationship Id="rIdDiagramLayout" Type="{$diagramLayoutType}" Target="diagrams/layout1.xml"/>
+  <Relationship Id="rIdDiagramQuickStyle" Type="{$diagramQuickStyleType}" Target="diagrams/quickStyle1.xml"/>
+  <Relationship Id="rIdDiagramColors" Type="{$diagramColorsType}" Target="diagrams/colors1.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/charts/chart1.xml', 'data' => '<c:chartSpace/>'],
+            ['name' => 'word/charts/chart2.xml', 'data' => '<c:chartSpace/>'],
+            ['name' => 'word/diagrams/data1.xml', 'data' => '<dgm:dataModel/>'],
+            ['name' => 'word/diagrams/layout1.xml', 'data' => '<dgm:layoutDef/>'],
+            ['name' => 'word/diagrams/quickStyle1.xml', 'data' => '<dgm:styleDef/>'],
+            ['name' => 'word/diagrams/colors1.xml', 'data' => '<dgm:colorsDef/>'],
+        ]));
+
+        $documentInventory = [];
+        foreach ($graph->relationshipTypeInventory('/word/document.xml') as $type) {
+            $documentInventory[$type['type']] = $type;
+        }
+
+        foreach ([
+            $chartType => ['role' => 'chart', 'count' => 2, 'ids' => ['rIdChartOne', 'rIdChartTwo']],
+            $diagramDataType => ['role' => 'diagram-data', 'count' => 1, 'ids' => ['rIdDiagramData']],
+            $diagramLayoutType => ['role' => 'diagram-layout', 'count' => 1, 'ids' => ['rIdDiagramLayout']],
+            $diagramQuickStyleType => ['role' => 'diagram-quick-style', 'count' => 1, 'ids' => ['rIdDiagramQuickStyle']],
+            $diagramColorsType => ['role' => 'diagram-colors', 'count' => 1, 'ids' => ['rIdDiagramColors']],
+        ] as $relationshipType => $expected) {
+            $entry = $documentInventory[$relationshipType] ?? null;
+            $t->same(true, is_array($entry));
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $t->same($expected['role'], $entry['knownRole']);
+            $t->same('any-source', $entry['sourceScope']);
+            $t->same(null, $entry['singletonScope']);
+            $t->same(true, $entry['policyValid']);
+            $t->same([], $entry['policyIssues']);
+            $t->same($expected['count'], $entry['relationshipCount']);
+            $t->same(['/word/document.xml'], $entry['sources']);
+            $t->same($expected['ids'], $entry['idsBySource']['/word/document.xml']);
+        }
+
+        $consistency = $graph->preflightPackageConsistency();
+        $policies = [];
+        foreach ($consistency['relationshipTypePolicies'] as $policy) {
+            $policies[$policy['type']] = $policy;
+        }
+
+        $t->same(true, $consistency['relationshipTypePoliciesValid']);
+        $t->same('chart', $policies[$chartType]['knownRole'] ?? null);
+        $t->same(true, array_key_exists('singletonScope', $policies[$chartType]));
+        $t->same(null, $policies[$chartType]['singletonScope']);
+        $t->same(true, $policies[$chartType]['policyValid'] ?? null);
+        $t->same('diagram-data', $policies[$diagramDataType]['knownRole'] ?? null);
+        $t->same('diagram-layout', $policies[$diagramLayoutType]['knownRole'] ?? null);
+        $t->same('diagram-quick-style', $policies[$diagramQuickStyleType]['knownRole'] ?? null);
+        $t->same('diagram-colors', $policies[$diagramColorsType]['knownRole'] ?? null);
+    },
     'preflights OPC relationship type policies in package consistency' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

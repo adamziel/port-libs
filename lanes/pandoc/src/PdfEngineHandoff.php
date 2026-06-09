@@ -336,6 +336,7 @@ final class PdfEngineHandoff
      *     pdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     pdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
+     *     pdfStructureParentTreePolicy: array<string, mixed>,
      *     pdfStructureIdTree: list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     pdfStructureAttributes: list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
@@ -802,6 +803,7 @@ final class PdfEngineHandoff
         $pdfLegalAttestationMetadata = [];
         $pdfTaggingMetadata = [];
         $pdfStructureParentTree = [];
+        $pdfStructureParentTreePolicy = [];
         $pdfStructureIdTree = [];
         $pdfStructureElements = [];
         $pdfStructureAttributes = [];
@@ -926,6 +928,7 @@ final class PdfEngineHandoff
                 $pdfLegalAttestationMetadata = $pdfInspection['legalAttestationMetadata'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfStructureParentTree = $pdfInspection['structureParentTree'];
+                $pdfStructureParentTreePolicy = $pdfInspection['structureParentTreePolicy'];
                 $pdfStructureIdTree = $pdfInspection['structureIdTree'];
                 $pdfStructureElements = $pdfInspection['structureElements'];
                 $pdfStructureAttributes = $pdfInspection['structureAttributes'];
@@ -2140,6 +2143,42 @@ final class PdfEngineHandoff
                     }
                     if ($parentTreeMissingCount > 0) {
                         $diagnostics[] = 'pdf-byte-structure-parent-tree-missing:' . $parentTreeMissingCount;
+                    }
+                }
+                if ($pdfStructureParentTreePolicy !== []) {
+                    $reviewStatus = is_string($pdfStructureParentTreePolicy['reviewStatus'] ?? null)
+                        ? $pdfStructureParentTreePolicy['reviewStatus']
+                        : 'unknown';
+                    $diagnostics[] = 'pdf-byte-structure-parent-tree-policy:' . $reviewStatus;
+                    if (isset($pdfStructureParentTreePolicy['entries']) && is_array($pdfStructureParentTreePolicy['entries']) && $pdfStructureParentTreePolicy['entries'] !== []) {
+                        $diagnostics[] = 'pdf-byte-structure-parent-tree-policy-entries:' . count($pdfStructureParentTreePolicy['entries']);
+                    }
+                    if (isset($pdfStructureParentTreePolicy['markedContentMcids']) && is_array($pdfStructureParentTreePolicy['markedContentMcids']) && $pdfStructureParentTreePolicy['markedContentMcids'] !== []) {
+                        $diagnostics[] = 'pdf-byte-structure-parent-tree-policy-marked-mcids:' . count($pdfStructureParentTreePolicy['markedContentMcids']);
+                    }
+                    foreach ([
+                        'missingStructureReferences' => 'missing-references',
+                        'nonStructureReferences' => 'non-structure-references',
+                        'duplicateMcids' => 'duplicate-mcids',
+                        'outOfLimitMcids' => 'out-of-limit-mcids',
+                        'missingMarkedContentMcids' => 'missing-marked-content-mcids',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfStructureParentTreePolicy[$policyKey]) && is_array($pdfStructureParentTreePolicy[$policyKey]) && $pdfStructureParentTreePolicy[$policyKey] !== []) {
+                            $diagnostics[] = 'pdf-byte-structure-parent-tree-policy-' . $diagnosticName . ':' . count($pdfStructureParentTreePolicy[$policyKey]);
+                        }
+                    }
+                    if (isset($pdfStructureParentTreePolicy['issues']) && is_array($pdfStructureParentTreePolicy['issues']) && $pdfStructureParentTreePolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-structure-parent-tree-policy-issues:' . count($pdfStructureParentTreePolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfStructureParentTreePolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-structure-parent-tree-policy-issue:' . $issue . ':' . $count;
+                        }
                     }
                 }
                 if ($pdfStructureAttributes !== []) {
@@ -3368,6 +3407,7 @@ final class PdfEngineHandoff
             'pdfLegalAttestationMetadata' => $pdfLegalAttestationMetadata,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfStructureParentTree' => $pdfStructureParentTree,
+            'pdfStructureParentTreePolicy' => $pdfStructureParentTreePolicy,
             'pdfStructureIdTree' => $pdfStructureIdTree,
             'pdfStructureElements' => $pdfStructureElements,
             'pdfStructureAttributes' => $pdfStructureAttributes,
@@ -3513,6 +3553,7 @@ final class PdfEngineHandoff
      *     finalPdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     finalPdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
+     *     finalPdfStructureParentTreePolicy: array<string, mixed>,
      *     finalPdfStructureIdTree: list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     finalPdfStructureAttributes: list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
@@ -3772,6 +3813,7 @@ final class PdfEngineHandoff
             'finalPdfLegalAttestationMetadata' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationMetadata'] ?? null) ? $finalRun['pdfLegalAttestationMetadata'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfStructureParentTree' => is_array($finalRun) && is_array($finalRun['pdfStructureParentTree'] ?? null) ? $finalRun['pdfStructureParentTree'] : [],
+            'finalPdfStructureParentTreePolicy' => is_array($finalRun) && is_array($finalRun['pdfStructureParentTreePolicy'] ?? null) ? $finalRun['pdfStructureParentTreePolicy'] : [],
             'finalPdfStructureIdTree' => is_array($finalRun) && is_array($finalRun['pdfStructureIdTree'] ?? null) ? $finalRun['pdfStructureIdTree'] : [],
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
             'finalPdfStructureAttributes' => is_array($finalRun) && is_array($finalRun['pdfStructureAttributes'] ?? null) ? $finalRun['pdfStructureAttributes'] : [],
@@ -4906,6 +4948,7 @@ final class PdfEngineHandoff
      *     viewerPreferences:array<string, bool|int|string>,
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     structureParentTree:list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
+     *     structureParentTreePolicy:array<string, mixed>,
      *     structureIdTree:list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
      *     structureElements:list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     structureAttributes:list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
@@ -5007,6 +5050,17 @@ final class PdfEngineHandoff
         $pageOutputIntents = $this->extractPdfPageOutputIntents($pdfBytes, $catalog);
         $language = $this->extractPdfCatalogLanguage($pdfBytes, $catalog);
         $taggingMetadata = $this->extractPdfTaggingMetadata($pdfBytes, $catalog);
+        $structureParentTree = $this->extractPdfStructureParentTree($pdfBytes, $catalog);
+        $structureElements = $this->extractPdfStructureElements($pdfBytes);
+        $markedContentProperties = $this->extractPdfMarkedContentProperties($pdfBytes, $catalog);
+        $markedContentArtifacts = $this->extractPdfMarkedContentArtifacts($pdfBytes, $catalog);
+        $structureParentTreePolicy = $this->summarizePdfStructureParentTreePolicy(
+            $structureParentTree,
+            $structureElements,
+            $pageContentStreams,
+            $markedContentProperties,
+            $markedContentArtifacts
+        );
         $encryption = $this->extractPdfEncryptionInfo($pdfBytes);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
         foreach ($embeddedFiles as $embeddedFile) {
@@ -5084,15 +5138,16 @@ final class PdfEngineHandoff
             'catalogRequirements' => $this->extractPdfCatalogRequirements($pdfBytes, $catalog),
             'legalAttestationMetadata' => $this->extractPdfLegalAttestationMetadata($pdfBytes, $catalog),
             'taggingMetadata' => $taggingMetadata,
-            'structureParentTree' => $this->extractPdfStructureParentTree($pdfBytes, $catalog),
+            'structureParentTree' => $structureParentTree,
+            'structureParentTreePolicy' => $structureParentTreePolicy,
             'structureIdTree' => $this->extractPdfStructureIdTree($pdfBytes, $catalog),
-            'structureElements' => $this->extractPdfStructureElements($pdfBytes),
+            'structureElements' => $structureElements,
             'structureAttributes' => $this->extractPdfStructureAttributes($pdfBytes),
             'structureUserProperties' => $this->extractPdfStructureUserProperties($pdfBytes),
             'structureClassMap' => $this->extractPdfStructureClassMap($pdfBytes, $catalog),
             'structureClassUsage' => $this->extractPdfStructureClassUsage($pdfBytes, $catalog),
-            'markedContentProperties' => $this->extractPdfMarkedContentProperties($pdfBytes, $catalog),
-            'markedContentArtifacts' => $this->extractPdfMarkedContentArtifacts($pdfBytes, $catalog),
+            'markedContentProperties' => $markedContentProperties,
+            'markedContentArtifacts' => $markedContentArtifacts,
             'optionalContentGroups' => $optionalContent['groups'],
             'optionalContentConfig' => $optionalContent['config'],
             'optionalContentMemberships' => $this->extractPdfOptionalContentMemberships($pdfBytes, $catalog),
@@ -11624,6 +11679,213 @@ final class PdfEngineHandoff
             'missingReferences' => $missingReferences,
             'limits' => $limits,
         ];
+    }
+
+    /**
+     * @param list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}> $parentTree
+     * @param list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}> $structureElements
+     * @param list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}> $pageContentStreams
+     * @param list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}> $markedContentProperties
+     * @param list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}> $markedContentArtifacts
+     * @return array<string, mixed>
+     */
+    private function summarizePdfStructureParentTreePolicy(
+        array $parentTree,
+        array $structureElements,
+        array $pageContentStreams,
+        array $markedContentProperties,
+        array $markedContentArtifacts
+    ): array {
+        if ($parentTree === [] && $structureElements === [] && $pageContentStreams === [] && $markedContentProperties === [] && $markedContentArtifacts === []) {
+            return [];
+        }
+
+        $structureObjects = [];
+        foreach ($structureElements as $element) {
+            if (is_string($element['object'] ?? null) && $element['object'] !== '') {
+                $structureObjects[$element['object']] = true;
+            }
+        }
+
+        $artifactMcids = [];
+        $artifactPropertyNames = [];
+        foreach ($markedContentArtifacts as $artifact) {
+            if (is_int($artifact['mcid'] ?? null) && $artifact['mcid'] >= 0) {
+                $artifactMcids[$artifact['mcid']] = true;
+            }
+            if (is_string($artifact['propertyName'] ?? null) && $artifact['propertyName'] !== '') {
+                $artifactPropertyNames[$artifact['propertyName']] = true;
+            }
+        }
+
+        $markedContentMcids = [];
+        foreach ($pageContentStreams as $stream) {
+            foreach (($stream['mcidValues'] ?? []) as $mcid) {
+                if (is_int($mcid) && $mcid >= 0 && !isset($artifactMcids[$mcid])) {
+                    $markedContentMcids[$mcid] = true;
+                }
+            }
+        }
+        foreach ($markedContentProperties as $property) {
+            if (is_string($property['propertyName'] ?? null) && isset($artifactPropertyNames[$property['propertyName']])) {
+                continue;
+            }
+            if (is_int($property['mcid'] ?? null) && $property['mcid'] >= 0 && !isset($artifactMcids[$property['mcid']])) {
+                $markedContentMcids[$property['mcid']] = true;
+            }
+        }
+
+        if ($parentTree === [] && $structureElements === [] && $markedContentMcids === []) {
+            return [];
+        }
+
+        $mcidCounts = [];
+        $parentMcids = [];
+        $referencedObjects = [];
+        $missingReferences = [];
+        $nonStructureReferences = [];
+        $outOfLimitMcids = [];
+        foreach ($parentTree as $entry) {
+            $mcid = $entry['mcid'];
+            $mcidCounts[$mcid] = ($mcidCounts[$mcid] ?? 0) + 1;
+            $parentMcids[$mcid] = true;
+
+            foreach (($entry['structureReferences'] ?? []) as $reference) {
+                if (!is_string($reference) || $reference === '') {
+                    continue;
+                }
+                $referencedObjects[$reference] = true;
+                if (in_array($reference, $entry['missingReferences'] ?? [], true)) {
+                    $missingReferences[$reference] = true;
+                    continue;
+                }
+                if (!isset($structureObjects[$reference])) {
+                    $nonStructureReferences[$reference] = true;
+                }
+            }
+
+            $limits = $entry['limits'] ?? [];
+            if (count($limits) >= 2 && ($mcid < $limits[0] || $mcid > $limits[1])) {
+                $outOfLimitMcids[$mcid] = true;
+            }
+        }
+
+        $duplicateMcids = [];
+        foreach ($mcidCounts as $mcid => $count) {
+            if ($count > 1) {
+                $duplicateMcids[(int) $mcid] = true;
+            }
+        }
+
+        $missingMarkedContentMcids = [];
+        foreach (array_keys($markedContentMcids) as $mcid) {
+            if (!isset($parentMcids[(int) $mcid])) {
+                $missingMarkedContentMcids[(int) $mcid] = true;
+            }
+        }
+
+        $duplicateMcidList = $this->sortedIntegerKeys($duplicateMcids);
+        $outOfLimitMcidList = $this->sortedIntegerKeys($outOfLimitMcids);
+        $markedContentMcidList = $this->sortedIntegerKeys($markedContentMcids);
+        $missingMarkedContentMcidList = $this->sortedIntegerKeys($missingMarkedContentMcids);
+        $referencedObjectList = $this->sortedPdfReferenceKeys($referencedObjects);
+        $missingReferenceList = $this->sortedPdfReferenceKeys($missingReferences);
+        $nonStructureReferenceList = $this->sortedPdfReferenceKeys($nonStructureReferences);
+
+        $issues = [];
+        if ($duplicateMcidList !== []) {
+            $issues[] = 'duplicate-parent-mcid';
+        }
+        if ($outOfLimitMcidList !== []) {
+            $issues[] = 'parent-mcid-outside-limits';
+        }
+        if ($missingReferenceList !== []) {
+            $issues[] = 'missing-structure-reference';
+        }
+        if ($nonStructureReferenceList !== []) {
+            $issues[] = 'non-structure-reference';
+        }
+        if ($missingMarkedContentMcidList !== []) {
+            $issues[] = 'marked-content-mcid-missing-parent';
+        }
+        if ($parentTree === [] && $markedContentMcidList !== []) {
+            $issues[] = 'parent-tree-missing-for-marked-content';
+        }
+        sort($issues, SORT_STRING);
+
+        $entries = [];
+        foreach ($parentTree as $entry) {
+            $entryIssues = [];
+            if (in_array($entry['mcid'], $duplicateMcidList, true)) {
+                $entryIssues[] = 'duplicate-parent-mcid';
+            }
+            if (in_array($entry['mcid'], $outOfLimitMcidList, true)) {
+                $entryIssues[] = 'parent-mcid-outside-limits';
+            }
+            if (($entry['missingReferences'] ?? []) !== []) {
+                $entryIssues[] = 'missing-structure-reference';
+            }
+            foreach (($entry['structureReferences'] ?? []) as $reference) {
+                if (is_string($reference) && in_array($reference, $nonStructureReferenceList, true)) {
+                    $entryIssues[] = 'non-structure-reference';
+                    break;
+                }
+            }
+            $entryIssues = $this->uniqueStrings($entryIssues);
+            sort($entryIssues, SORT_STRING);
+
+            $entries[] = [
+                'source' => $entry['source'],
+                'nodeObject' => $entry['nodeObject'],
+                'mcid' => $entry['mcid'],
+                'valueKind' => $entry['valueKind'],
+                'structureReferences' => $entry['structureReferences'],
+                'missingReferences' => $entry['missingReferences'],
+                'reviewStatus' => $entryIssues === [] ? 'ok' : 'review',
+                'issues' => $entryIssues,
+            ];
+        }
+
+        return [
+            'source' => 'structure-parent-tree',
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'parentTreeEntryCount' => count($parentTree),
+            'structureElementCount' => count($structureElements),
+            'markedContentMcidCount' => count($markedContentMcidList),
+            'referencedStructureObjects' => $referencedObjectList,
+            'missingStructureReferences' => $missingReferenceList,
+            'nonStructureReferences' => $nonStructureReferenceList,
+            'duplicateMcids' => $duplicateMcidList,
+            'outOfLimitMcids' => $outOfLimitMcidList,
+            'markedContentMcids' => $markedContentMcidList,
+            'missingMarkedContentMcids' => $missingMarkedContentMcidList,
+            'issues' => $issues,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private function sortedIntegerKeys(array $values): array
+    {
+        $keys = array_map('intval', array_keys($values));
+        sort($keys, SORT_NUMERIC);
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string, bool> $values
+     * @return list<string>
+     */
+    private function sortedPdfReferenceKeys(array $values): array
+    {
+        $references = array_keys($values);
+        usort($references, fn (string $a, string $b): int => $this->pdfReferenceSortKey($a) <=> $this->pdfReferenceSortKey($b));
+
+        return $references;
     }
 
     /**

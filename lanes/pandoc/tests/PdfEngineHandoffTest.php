@@ -4800,6 +4800,160 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfStructureParentTree'] ?? null);
     },
 
+    'fake runner summarizes bounded pdf structure parent tree integrity policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/parent-policy.pdf']);
+        $contentBytes = implode("\n", [
+            '/Span << /MCID 0 >> BDC',
+            'BT (Title) Tj ET',
+            'EMC',
+            '/Figure << /MCID 5 >> BDC',
+            'BT (Figure) Tj ET',
+            'EMC',
+            '/Artifact << /Type /Pagination /MCID 7 >> BDC',
+            'BT (Header artifact) Tj ET',
+            'EMC',
+            '',
+        ]);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /Properties << /Figure 21 0 R >> >> /Contents 20 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R 11 0 R] /ParentTree 12 0 R /ParentTreeNextKey 6 >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /H1 /P 9 0 R /Pg 3 0 R /K 0 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /StructElem /S /Figure /P 9 0 R /Pg 3 0 R /K 5 /Alt (Figure) >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Nums [0 10 0 R 0 11 0 R 2 99 0 R 4 13 0 R] /Limits [0 3] >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Type /Annot /Subtype /Text >>',
+            'endobj',
+            '20 0 obj',
+            '<< /Length ' . strlen($contentBytes) . ' >>',
+            'stream',
+            $contentBytes,
+            'endstream',
+            'endobj',
+            '21 0 obj',
+            '<< /MCID 5 /Alt (Figure property metadata) >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/parent-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/parent-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'source' => 'structure-parent-tree',
+            'reviewStatus' => 'review',
+            'parentTreeEntryCount' => 4,
+            'structureElementCount' => 2,
+            'markedContentMcidCount' => 2,
+            'referencedStructureObjects' => ['10 0 R', '11 0 R', '13 0 R', '99 0 R'],
+            'missingStructureReferences' => ['99 0 R'],
+            'nonStructureReferences' => ['13 0 R'],
+            'duplicateMcids' => [0],
+            'outOfLimitMcids' => [4],
+            'markedContentMcids' => [0, 5],
+            'missingMarkedContentMcids' => [5],
+            'issues' => [
+                'duplicate-parent-mcid',
+                'marked-content-mcid-missing-parent',
+                'missing-structure-reference',
+                'non-structure-reference',
+                'parent-mcid-outside-limits',
+            ],
+            'entries' => [
+                [
+                    'source' => 'structTreeRoot.ParentTree',
+                    'nodeObject' => '12 0 R',
+                    'mcid' => 0,
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['10 0 R'],
+                    'missingReferences' => [],
+                    'reviewStatus' => 'review',
+                    'issues' => ['duplicate-parent-mcid'],
+                ],
+                [
+                    'source' => 'structTreeRoot.ParentTree',
+                    'nodeObject' => '12 0 R',
+                    'mcid' => 0,
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['11 0 R'],
+                    'missingReferences' => [],
+                    'reviewStatus' => 'review',
+                    'issues' => ['duplicate-parent-mcid'],
+                ],
+                [
+                    'source' => 'structTreeRoot.ParentTree',
+                    'nodeObject' => '12 0 R',
+                    'mcid' => 2,
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['99 0 R'],
+                    'missingReferences' => ['99 0 R'],
+                    'reviewStatus' => 'review',
+                    'issues' => ['missing-structure-reference'],
+                ],
+                [
+                    'source' => 'structTreeRoot.ParentTree',
+                    'nodeObject' => '12 0 R',
+                    'mcid' => 4,
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['13 0 R'],
+                    'missingReferences' => [],
+                    'reviewStatus' => 'review',
+                    'issues' => ['non-structure-reference', 'parent-mcid-outside-limits'],
+                ],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureParentTreePolicy'] ?? null);
+        $t->contains('pdf-byte-structure-parent-tree-policy:review', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-entries:4', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-marked-mcids:2', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-missing-references:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-non-structure-references:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-duplicate-mcids:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-out-of-limit-mcids:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-missing-marked-content-mcids:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-issues:5', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-issue:duplicate-parent-mcid:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-issue:marked-content-mcid-missing-parent:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-issue:missing-structure-reference:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-issue:non-structure-reference:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-issue:parent-mcid-outside-limits:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureParentTreePolicy'] ?? null);
+    },
+
     'fake runner extracts bounded pdf structure element accessibility metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/struct-elements.pdf']);

@@ -4910,6 +4910,12 @@ final class OpcRelationshipGraph
             ];
         }
 
+        foreach (self::drawingMlRelationshipRoles() as $relationshipType => $role) {
+            $definitions[$relationshipType] = [
+                'role' => $role,
+            ];
+        }
+
         return $definitions;
     }
 
@@ -4931,6 +4937,20 @@ final class OpcRelationshipGraph
             self::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE => 'custom-xml-properties',
             self::WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE => 'comments-extended',
             self::WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE => 'glossary-document',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function drawingMlRelationshipRoles(): array
+    {
+        return [
+            self::DRAWINGML_CHART_RELATIONSHIP_TYPE => 'chart',
+            self::DRAWINGML_DIAGRAM_DATA_RELATIONSHIP_TYPE => 'diagram-data',
+            self::DRAWINGML_DIAGRAM_LAYOUT_RELATIONSHIP_TYPE => 'diagram-layout',
+            self::DRAWINGML_DIAGRAM_QUICK_STYLE_RELATIONSHIP_TYPE => 'diagram-quick-style',
+            self::DRAWINGML_DIAGRAM_COLORS_RELATIONSHIP_TYPE => 'diagram-colors',
         ];
     }
 
