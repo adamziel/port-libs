@@ -7739,6 +7739,61 @@ MD;
         $t->same('ordered-writer-body', $roundTripped->children[0]->attr('id'));
         $t->contains('<h1 id="ordered-writer-body">Ordered writer body</h1>', $blocks);
     },
+    'writes pandoc yaml set metadata using explicit collection provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Set writer **Packet**',
+            'review-labels: !!set {front-matter, wordpress, "source:key"}',
+            'empty-labels: !!set {}',
+            'review:',
+            '  required-labels: !!set {approved, import}',
+            '  label-groups:',
+            '    - !!set {draft, published}',
+            '    - !!set',
+            '      ? queued',
+            '      ? "needs:review"',
+            '...',
+            '',
+            '# Set writer body',
+        ]));
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $provenance = $roundTripped->attr('yamlMetadataCollectionProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $t->contains("review-labels: !!set\n  ? front-matter\n  ? wordpress\n  ? \"source:key\"", $markdown);
+        $t->contains('empty-labels: !!set {}', $markdown);
+        $t->contains("  required-labels: !!set\n    ? approved\n    ? import", $markdown);
+        $t->contains("  label-groups:\n    - !!set\n      ? draft\n      ? published", $markdown);
+        $t->contains("    - !!set\n      ? queued\n      ? \"needs:review\"", $markdown);
+        $t->same(false, str_contains($markdown, 'front-matter: null'));
+        $t->same(false, str_contains($markdown, 'approved: null'));
+        $t->same(['front-matter' => null, 'wordpress' => null, 'source:key' => null], $meta['review-labels']);
+        $t->same([], $meta['empty-labels']);
+        $t->same(['approved' => null, 'import' => null], $meta['review']['required-labels']);
+        $t->same(['draft' => null, 'published' => null], $meta['review']['label-groups'][0]);
+        $t->same(['queued' => null, 'needs:review' => null], $meta['review']['label-groups'][1]);
+        $t->same(false, array_key_exists('__yamlMetadataCollectionProvenance', $meta));
+
+        $taggedCollections = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') !== 'yaml-collection' || !isset($entry['explicitTag'])) {
+                continue;
+            }
+
+            $taggedCollections[$entry['path'] ?? ''] = $entry['explicitTag'];
+        }
+
+        $t->same('set', $taggedCollections['/review-labels'] ?? null);
+        $t->same('set', $taggedCollections['/empty-labels'] ?? null);
+        $t->same('set', $taggedCollections['/review/required-labels'] ?? null);
+        $t->same('set', $taggedCollections['/review/label-groups/0'] ?? null);
+        $t->same('set', $taggedCollections['/review/label-groups/1'] ?? null);
+        $t->same('set-writer-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="set-writer-body">Set writer body</h1>', $blocks);
+    },
     'writes pandoc yaml multiline metadata as block scalars' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [

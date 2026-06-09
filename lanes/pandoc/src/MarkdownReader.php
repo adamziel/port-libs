@@ -2433,7 +2433,10 @@ final class MarkdownReader
         ?string $explicitTag = null,
         ?array $contentLines = null
     ): void {
-        if (!$this->yamlMetadataRecordCollectionProvenance || $memberCount < 1) {
+        if (
+            !$this->yamlMetadataRecordCollectionProvenance
+            || ($memberCount < 1 && ($explicitTag === null || $explicitTag === ''))
+        ) {
             return;
         }
 

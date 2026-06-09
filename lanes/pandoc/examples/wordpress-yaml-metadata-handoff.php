@@ -2192,8 +2192,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($metadataMarkdown, "flow-ordered-review:\n  steps: !!omap\n    - stage: collected\n    - stage: normalized\n  reviewers: !!pairs\n    - owner: \"Import Desk\"")) {
         throw new RuntimeException('YAML metadata self-test did not preserve flow ordered collection tags in writer metadata');
     }
+    if (
+        !str_contains($metadataMarkdown, "review-label-set: !!set\n  ? front-matter\n  ? wordpress\n  ? \"source:key\"")
+        || !str_contains($metadataMarkdown, "block-label-set: !!set\n  ? migration\n  ? \"qa:review\"")
+        || !str_contains($metadataMarkdown, "sequence-label-sets:\n  - !!set\n    ? draft\n    ? published\n  - !!set\n    ? queued\n    ? \"needs:review\"")
+    ) {
+        throw new RuntimeException('YAML metadata self-test did not preserve explicit set tags in writer metadata');
+    }
     if (str_contains($metadataMarkdown, "reviewer-pairs:\n    - key: owner")) {
         throw new RuntimeException('YAML metadata self-test flattened ordered pair metadata into key/value records');
+    }
+    if (str_contains($metadataMarkdown, "review-label-set:\n  front-matter: null") || str_contains($metadataMarkdown, "block-label-set:\n  migration: null")) {
+        throw new RuntimeException('YAML metadata self-test flattened set metadata into null-valued maps');
     }
     if (
         !str_contains($metadataMarkdown, "writer-hashtag-label: \"#needs-review\"")
@@ -2260,12 +2270,16 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
     foreach ([
+        '/review-label-set' => 'set',
+        '/block-label-set' => 'set',
+        '/sequence-label-sets/0' => 'set',
+        '/sequence-label-sets/1' => 'set',
         '/ordered-review/reviewer-pairs' => 'pairs',
         '/flow-ordered-review/steps' => 'omap',
         '/flow-ordered-review/reviewers' => 'pairs',
     ] as $expectedPath => $expectedTag) {
         if (($metadataRoundTripCollectionTags[$expectedPath] ?? null) !== $expectedTag) {
-            throw new RuntimeException('YAML metadata self-test lost writer ordered collection tag at ' . $expectedPath);
+            throw new RuntimeException('YAML metadata self-test lost writer explicit collection tag at ' . $expectedPath);
         }
     }
     if (($metadataRoundTripMeta['source-uri'] ?? '') !== '/exports/packet#front-matter') {
