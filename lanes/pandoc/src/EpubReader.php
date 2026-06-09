@@ -11228,6 +11228,8 @@ final class EpubReader
                 'contentRefreshDiagnostics' => $contentReport['refreshDiagnostics'],
                 'contentSideEffects' => $contentReport['sideEffects'],
                 'contentSideEffectDiagnostics' => $contentReport['sideEffectDiagnostics'],
+                'contentStyles' => $contentReport['styles'],
+                'contentStyleDiagnostics' => $contentReport['styleDiagnostics'],
                 'contentScripts' => $contentReport['scripts'],
                 'contentScriptEventHandlers' => $contentReport['scriptEventHandlers'],
                 'contentJavascriptReferences' => $contentReport['javascriptReferences'],
@@ -13216,6 +13218,17 @@ final class EpubReader
         $sideEffectReviewRequiredCount = 0;
         $sideEffectItems = [];
         $sideEffectDiagnostics = [];
+        $styleAssetCount = 0;
+        $styleCount = 0;
+        $styleElementCount = 0;
+        $styleAttributeCount = 0;
+        $styleReferenceCount = 0;
+        $externalStyleReferenceCount = 0;
+        $missingStyleReferenceCount = 0;
+        $encryptedStyleReferenceCount = 0;
+        $styleReviewRequiredCount = 0;
+        $styleItems = [];
+        $styleDiagnostics = [];
         $scriptEventHandlerCount = 0;
         $javascriptReferenceCount = 0;
         $scriptItems = [];
@@ -13259,6 +13272,32 @@ final class EpubReader
                 $assetEncryptedSideEffectReferenceCount += is_int($sideEffect['encryptedReferenceCount'] ?? null) ? $sideEffect['encryptedReferenceCount'] : 0;
                 if (($sideEffect['requiresReview'] ?? false) === true) {
                     ++$assetSideEffectReviewRequiredCount;
+                }
+            }
+            $assetStyles = [];
+            foreach (is_array($report['styles'] ?? null) ? $report['styles'] : [] as $style) {
+                if (is_array($style)) {
+                    $assetStyles[] = $style;
+                }
+            }
+            $assetStyleDiagnostics = [];
+            foreach (is_array($report['styleDiagnostics'] ?? null) ? $report['styleDiagnostics'] : [] as $diagnostic) {
+                if (is_array($diagnostic)) {
+                    $assetStyleDiagnostics[] = $diagnostic;
+                }
+            }
+            $assetStyleReferenceCount = 0;
+            $assetExternalStyleReferenceCount = 0;
+            $assetMissingStyleReferenceCount = 0;
+            $assetEncryptedStyleReferenceCount = 0;
+            $assetStyleReviewRequiredCount = 0;
+            foreach ($assetStyles as $style) {
+                $assetStyleReferenceCount += is_int($style['referenceCount'] ?? null) ? $style['referenceCount'] : 0;
+                $assetExternalStyleReferenceCount += is_int($style['externalReferenceCount'] ?? null) ? $style['externalReferenceCount'] : 0;
+                $assetMissingStyleReferenceCount += is_int($style['missingReferenceCount'] ?? null) ? $style['missingReferenceCount'] : 0;
+                $assetEncryptedStyleReferenceCount += is_int($style['encryptedReferenceCount'] ?? null) ? $style['encryptedReferenceCount'] : 0;
+                if (($style['requiresReview'] ?? false) === true) {
+                    ++$assetStyleReviewRequiredCount;
                 }
             }
             $item = [
@@ -13329,6 +13368,23 @@ final class EpubReader
                 'sideEffectReviewRequiredCount' => $assetSideEffectReviewRequiredCount,
                 'sideEffectDiagnosticCount' => count($assetSideEffectDiagnostics),
                 'sideEffectDiagnostics' => $assetSideEffectDiagnostics,
+                'styleCount' => count($assetStyles),
+                'styles' => $assetStyles,
+                'styleElementCount' => count(array_filter(
+                    $assetStyles,
+                    static fn (array $style): bool => ($style['kind'] ?? null) === 'style-element',
+                )),
+                'styleAttributeCount' => count(array_filter(
+                    $assetStyles,
+                    static fn (array $style): bool => ($style['kind'] ?? null) === 'style-attribute',
+                )),
+                'styleReferenceCount' => $assetStyleReferenceCount,
+                'externalStyleReferenceCount' => $assetExternalStyleReferenceCount,
+                'missingStyleReferenceCount' => $assetMissingStyleReferenceCount,
+                'encryptedStyleReferenceCount' => $assetEncryptedStyleReferenceCount,
+                'styleReviewRequiredCount' => $assetStyleReviewRequiredCount,
+                'styleDiagnosticCount' => count($assetStyleDiagnostics),
+                'styleDiagnostics' => $assetStyleDiagnostics,
                 'scriptCount' => count(is_array($report['scripts'] ?? null) ? $report['scripts'] : []),
                 'scripts' => is_array($report['scripts'] ?? null) ? array_values($report['scripts']) : [],
                 'scriptEventHandlerCount' => count(is_array($report['scriptEventHandlers'] ?? null) ? $report['scriptEventHandlers'] : []),
@@ -13382,6 +13438,18 @@ final class EpubReader
             if ($item['sideEffectCount'] > 0) {
                 ++$sideEffectAssetCount;
                 array_push($sideEffectItems, ...$item['sideEffects']);
+            }
+            $styleCount += $item['styleCount'];
+            $styleElementCount += $item['styleElementCount'];
+            $styleAttributeCount += $item['styleAttributeCount'];
+            $styleReferenceCount += $item['styleReferenceCount'];
+            $externalStyleReferenceCount += $item['externalStyleReferenceCount'];
+            $missingStyleReferenceCount += $item['missingStyleReferenceCount'];
+            $encryptedStyleReferenceCount += $item['encryptedStyleReferenceCount'];
+            $styleReviewRequiredCount += $item['styleReviewRequiredCount'];
+            if ($item['styleCount'] > 0) {
+                ++$styleAssetCount;
+                array_push($styleItems, ...$item['styles']);
             }
             $scriptCount += $item['scriptCount'];
             $scriptEventHandlerCount += $item['scriptEventHandlerCount'];
@@ -13477,6 +13545,11 @@ final class EpubReader
                     'part' => $part,
                 ] + $diagnostic;
             }
+            foreach ($item['styleDiagnostics'] as $diagnostic) {
+                $styleDiagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
             foreach ($item['metadataDiagnostics'] as $diagnostic) {
                 $viewportDiagnostics[] = [
                     'part' => $part,
@@ -13524,6 +13597,17 @@ final class EpubReader
             'sideEffectReviewRequiredCount' => $sideEffectReviewRequiredCount,
             'sideEffectItems' => $sideEffectItems,
             'sideEffectDiagnostics' => $sideEffectDiagnostics,
+            'styleAssetCount' => $styleAssetCount,
+            'styleCount' => $styleCount,
+            'styleElementCount' => $styleElementCount,
+            'styleAttributeCount' => $styleAttributeCount,
+            'styleReferenceCount' => $styleReferenceCount,
+            'externalStyleReferenceCount' => $externalStyleReferenceCount,
+            'missingStyleReferenceCount' => $missingStyleReferenceCount,
+            'encryptedStyleReferenceCount' => $encryptedStyleReferenceCount,
+            'styleReviewRequiredCount' => $styleReviewRequiredCount,
+            'styleItems' => $styleItems,
+            'styleDiagnostics' => $styleDiagnostics,
             'scriptCount' => $scriptCount,
             'scriptEventHandlerCount' => $scriptEventHandlerCount,
             'javascriptReferenceCount' => $javascriptReferenceCount,
@@ -13580,6 +13664,7 @@ final class EpubReader
         $links = [];
         $refreshes = [];
         $sideEffects = [];
+        $styles = [];
         $scriptEventHandlers = [];
         $javascriptReferences = [];
         $switches = [];
@@ -13603,6 +13688,8 @@ final class EpubReader
                 'refreshDiagnostics' => [],
                 'sideEffects' => [],
                 'sideEffectDiagnostics' => [],
+                'styles' => [],
+                'styleDiagnostics' => [],
                 'scripts' => [],
                 'scriptEventHandlers' => [],
                 'javascriptReferences' => [],
@@ -13640,6 +13727,7 @@ final class EpubReader
                 $links,
                 $refreshes,
                 $sideEffects,
+                $styles,
                 $scripts,
                 $scriptEventHandlers,
                 $javascriptReferences,
@@ -13695,6 +13783,16 @@ final class EpubReader
             }
         }
         array_push($diagnostics, ...$sideEffectDiagnostics);
+        $styleDiagnostics = [];
+        foreach ($styles as $style) {
+            foreach ($style['diagnostics'] as $diagnostic) {
+                $styleDiagnostics[] = [
+                    'styleIndex' => $style['index'],
+                    'styleKind' => $style['kind'],
+                    'styleId' => $style['id'],
+                ] + $diagnostic;
+            }
+        }
         foreach ($scripts as $script) {
             foreach ($script['diagnostics'] as $diagnostic) {
                 $scriptDiagnostics[] = [
@@ -13767,6 +13865,8 @@ final class EpubReader
             'refreshDiagnostics' => $refreshDiagnostics,
             'sideEffects' => $sideEffects,
             'sideEffectDiagnostics' => $sideEffectDiagnostics,
+            'styles' => $styles,
+            'styleDiagnostics' => $styleDiagnostics,
             'scripts' => $scripts,
             'scriptEventHandlers' => $scriptEventHandlers,
             'javascriptReferences' => $javascriptReferences,
@@ -14093,6 +14193,7 @@ final class EpubReader
      * @param list<array<string, mixed>> $links
      * @param list<array<string, mixed>> $refreshes
      * @param list<array<string, mixed>> $sideEffects
+     * @param list<array<string, mixed>> $styles
      * @param list<array<string, mixed>> $scripts
      * @param list<array<string, mixed>> $scriptEventHandlers
      * @param list<array<string, mixed>> $javascriptReferences
@@ -14111,6 +14212,7 @@ final class EpubReader
         array &$links,
         array &$refreshes,
         array &$sideEffects,
+        array &$styles,
         array &$scripts,
         array &$scriptEventHandlers,
         array &$javascriptReferences,
@@ -14159,6 +14261,34 @@ final class EpubReader
                 $flags['encryptedReferences'] = true;
             }
             $links[] = $link;
+        }
+        if ($namespace === self::XHTML_NS && $localName === 'style') {
+            $style = $this->xhtmlInlineStyleReport(
+                $package,
+                $part,
+                $element,
+                $manifestByPart,
+                'style-element',
+                'text',
+                (string) $element->textContent,
+                count($styles),
+                count($references)
+            );
+            if ($style['referenceCount'] > 0 || $style['diagnostics'] !== []) {
+                $flags['inlineStyles'] = true;
+                $flags['linkedResources'] = true;
+            }
+            if ($style['externalReferenceCount'] > 0) {
+                $flags['remoteResources'] = true;
+            }
+            if ($style['missingReferenceCount'] > 0) {
+                $flags['missingReferences'] = true;
+            }
+            if ($style['encryptedReferenceCount'] > 0) {
+                $flags['encryptedReferences'] = true;
+            }
+            array_push($references, ...$style['references']);
+            $styles[] = $style;
         }
         if ($namespace === self::XHTML_NS && $localName === 'meta') {
             $refresh = $this->xhtmlMetaRefreshReport(
@@ -14248,6 +14378,36 @@ final class EpubReader
                 $manifestByPart,
                 count($semantics)
             );
+        }
+
+        $styleAttribute = self::nullableAttribute($element, 'style');
+        if ($namespace === self::XHTML_NS && $styleAttribute !== null && trim($styleAttribute) !== '') {
+            $style = $this->xhtmlInlineStyleReport(
+                $package,
+                $part,
+                $element,
+                $manifestByPart,
+                'style-attribute',
+                'style',
+                $styleAttribute,
+                count($styles),
+                count($references)
+            );
+            if ($style['referenceCount'] > 0 || $style['diagnostics'] !== []) {
+                $flags['inlineStyles'] = true;
+                $flags['linkedResources'] = true;
+            }
+            if ($style['externalReferenceCount'] > 0) {
+                $flags['remoteResources'] = true;
+            }
+            if ($style['missingReferenceCount'] > 0) {
+                $flags['missingReferences'] = true;
+            }
+            if ($style['encryptedReferenceCount'] > 0) {
+                $flags['encryptedReferences'] = true;
+            }
+            array_push($references, ...$style['references']);
+            $styles[] = $style;
         }
 
         foreach (self::xhtmlEventHandlerAttributes($element) as $attributeName) {
@@ -14341,6 +14501,7 @@ final class EpubReader
                 $links,
                 $refreshes,
                 $sideEffects,
+                $styles,
                 $scripts,
                 $scriptEventHandlers,
                 $javascriptReferences,
@@ -14350,6 +14511,120 @@ final class EpubReader
                 $elementIds
             );
         }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function xhtmlInlineStyleReport(
+        ZipPackage $package,
+        string $part,
+        \DOMElement $element,
+        array $manifestByPart,
+        string $kind,
+        string $attribute,
+        string $css,
+        int $index,
+        int $referenceIndex
+    ): array {
+        $references = [];
+        $diagnostics = [];
+        foreach (self::cssReferenceTokens($css) as $token) {
+            $reference = $this->packageReference(
+                $package,
+                $part,
+                (string) $token['href'],
+                $manifestByPart,
+                'xhtml-inline-style'
+            );
+            $referenceDiagnostics = $reference['diagnostics'];
+            if (($reference['encrypted'] ?? false) === true) {
+                $referenceDiagnostics[] = [
+                    'type' => 'encrypted-xhtml-inline-style-reference',
+                    'part' => $reference['part'],
+                    'message' => 'EPUB XHTML inline CSS references an encrypted package part that cannot be exposed directly',
+                ];
+            }
+
+            $item = [
+                'index' => $referenceIndex + count($references),
+                'styleIndex' => $index,
+                'styleReferenceIndex' => count($references),
+                'kind' => (string) $token['kind'],
+                'source' => $kind,
+                'element' => $element->localName,
+                'elementId' => self::nullableAttribute($element, 'id'),
+                'attribute' => $attribute,
+                'href' => (string) $token['href'],
+                'raw' => (string) $token['raw'],
+                'target' => $reference['target'],
+                'part' => $reference['part'],
+                'fragment' => $reference['fragment'],
+                'fragmentKind' => $reference['fragmentKind'],
+                'epubCfi' => $reference['epubCfi'],
+                'mediaFragment' => $reference['mediaFragment'],
+                'external' => $reference['external'],
+                'exists' => $reference['exists'],
+                'byteLength' => $reference['byteLength'],
+                'crc32' => $reference['crc32'],
+                'manifestId' => $reference['manifestId'],
+                'mediaType' => $reference['mediaType'],
+                'encrypted' => $reference['encrypted'],
+                'canExposeBytes' => $reference['canExposeBytes'],
+                'diagnostics' => $referenceDiagnostics,
+            ];
+            foreach (['imageSetCandidateIndex', 'imageSetCandidate', 'imageSetDescriptor', 'imageSetType'] as $tokenKey) {
+                if (array_key_exists($tokenKey, $token)) {
+                    $item[$tokenKey] = $token[$tokenKey];
+                }
+            }
+            foreach (['importCondition', 'importLayer', 'importLayerAnonymous', 'importSupports', 'importMedia'] as $tokenKey) {
+                if (array_key_exists($tokenKey, $token)) {
+                    $item[$tokenKey] = $token[$tokenKey];
+                }
+            }
+
+            foreach ($referenceDiagnostics as $diagnostic) {
+                $diagnostics[] = [
+                    'referenceIndex' => $item['index'],
+                    'styleReferenceIndex' => $item['styleReferenceIndex'],
+                    'kind' => $item['kind'],
+                    'href' => $item['href'],
+                ] + $diagnostic;
+            }
+            $references[] = $item;
+        }
+
+        $summary = self::xhtmlSideEffectReferenceSummary($references);
+
+        return [
+            'index' => $index,
+            'kind' => $kind,
+            'sourcePart' => $part,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'attribute' => $attribute,
+            'media' => $kind === 'style-element' ? self::nullableAttribute($element, 'media') : null,
+            'type' => $kind === 'style-element' ? self::nullableAttribute($element, 'type') : null,
+            'title' => $kind === 'style-element' ? self::nullableAttribute($element, 'title') : null,
+            'cssLength' => strlen($css),
+            'cssSha256' => $css === '' ? null : hash('sha256', $css),
+            'references' => $references,
+            'referenceCount' => $summary['referenceCount'],
+            'externalReferenceCount' => $summary['externalReferenceCount'],
+            'missingReferenceCount' => $summary['missingReferenceCount'],
+            'encryptedReferenceCount' => $summary['encryptedReferenceCount'],
+            'requiresReview' => $references !== [] || $diagnostics !== [],
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**
@@ -15688,7 +15963,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{mathml:bool, svg:bool, scripted:bool, linkedResources:bool, switch:bool, trigger:bool, sideEffects:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
+     * @return array{mathml:bool, svg:bool, scripted:bool, linkedResources:bool, inlineStyles:bool, switch:bool, trigger:bool, sideEffects:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
      */
     private static function emptyXhtmlContentResourceFlags(): array
     {
@@ -15697,6 +15972,7 @@ final class EpubReader
             'svg' => false,
             'scripted' => false,
             'linkedResources' => false,
+            'inlineStyles' => false,
             'switch' => false,
             'trigger' => false,
             'sideEffects' => false,
@@ -15719,6 +15995,7 @@ final class EpubReader
             'svg' => 'svg',
             'scripted' => 'scripted',
             'linkedResources' => 'linked-resources',
+            'inlineStyles' => 'inline-styles',
             'switch' => 'switch',
             'trigger' => 'trigger',
             'sideEffects' => 'side-effects',
@@ -16779,6 +17056,8 @@ final class EpubReader
                 'contentRefreshDiagnostics' => $asset['contentRefreshDiagnostics'] ?? [],
                 'contentSideEffects' => $asset['contentSideEffects'] ?? [],
                 'contentSideEffectDiagnostics' => $asset['contentSideEffectDiagnostics'] ?? [],
+                'contentStyles' => $asset['contentStyles'] ?? [],
+                'contentStyleDiagnostics' => $asset['contentStyleDiagnostics'] ?? [],
                 'contentScripts' => $asset['contentScripts'] ?? [],
                 'contentScriptEventHandlers' => $asset['contentScriptEventHandlers'] ?? [],
                 'contentJavascriptReferences' => $asset['contentJavascriptReferences'] ?? [],

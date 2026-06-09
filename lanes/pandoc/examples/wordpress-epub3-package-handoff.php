@@ -194,11 +194,15 @@ $chapterXhtml = <<<'XML'
     <meta name="viewport" content="width=1024,height=768"/>
     <meta id="source-refresh" http-equiv="refresh" content="0; url=#source"/>
     <link id="chapter-style-link" rel="stylesheet" href="../styles/review.css" type="text/css" media="screen"/>
+    <style id="chapter-inline-style" media="screen">
+      .inline-cover { background-image: url("../images/cover.png"); }
+    </style>
   </head>
   <body epub:type="bodymatter chapter" xml:lang="en" dir="ltr">
     <h1 id="source" epub:type="title">Source chapter</h1>
     <span id="page-1" epub:type="pagebreak" title="1"></span>
     <p>EPUB XHTML content is preserved for WordPress import review.</p>
+    <p id="inline-style-review" style="background-image: url('../images/legacy-cover.jpg')">Inline CSS resource metadata stays available for import review.</p>
     <p>Remote media marker: <img src="https://cdn.example.test/images/source.png" alt="remote source"/></p>
     <p>Responsive cover candidate: <img src="../images/cover.png" srcset="../images/cover.png 1x, ../images/legacy-cover.jpg 2x" alt="responsive cover"/></p>
     <form id="source-review-form" action="https://forms.example.test/epub/source-review" method="post">
@@ -1142,6 +1146,9 @@ XML;
     if (($result['xhtmlResourceReport']['sideEffectReferenceCount'] ?? null) !== 4 || ($result['xhtmlResourceReport']['externalSideEffectReferenceCount'] ?? null) !== 2 || ($result['xhtmlResourceReport']['missingSideEffectReferenceCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB XHTML side-effect targets to count external and missing targets without loading them');
     }
+    if (($result['xhtmlResourceReport']['styleAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['styleCount'] ?? null) !== 2 || ($result['xhtmlResourceReport']['styleReferenceCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB XHTML inline style resource references to stay available for review');
+    }
     $chapterRefreshes = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['refreshes'] ?? [];
     if (($chapterRefreshes[0]['id'] ?? null) !== 'source-refresh' || ($chapterRefreshes[0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB XHTML meta refresh target to resolve against the source chapter');
@@ -1169,10 +1176,20 @@ XML;
     if (($result['document']->children[0]->attr('contentSideEffects')[0]['id'] ?? null) !== 'source-review-form') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML side-effect metadata');
     }
-    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'linked-resources', 'switch', 'trigger', 'side-effects', 'remote-resources']) {
+    $chapterStyles = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['styles'] ?? [];
+    if (($chapterStyles[0]['kind'] ?? null) !== 'style-element' || ($chapterStyles[0]['references'][0]['part'] ?? null) !== '/EPUB/images/cover.png') {
+        throw new RuntimeException('Expected EPUB XHTML style element resource to resolve against package image parts');
+    }
+    if (($chapterStyles[1]['kind'] ?? null) !== 'style-attribute' || ($chapterStyles[1]['id'] ?? null) !== 'inline-style-review' || ($chapterStyles[1]['references'][0]['part'] ?? null) !== '/EPUB/images/legacy-cover.jpg') {
+        throw new RuntimeException('Expected EPUB XHTML style attribute resource to resolve against package image parts');
+    }
+    if (($result['document']->children[0]->attr('contentStyles') ?? []) !== $chapterStyles) {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML inline style metadata');
+    }
+    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'linked-resources', 'inline-styles', 'switch', 'trigger', 'side-effects', 'remote-resources']) {
         throw new RuntimeException('Expected EPUB XHTML content review flags for the source chapter');
     }
-    if (($result['document']->children[0]->attr('contentResourceReviewFlags') ?? []) !== ['mathml', 'svg', 'linked-resources', 'switch', 'trigger', 'side-effects', 'remote-resources']) {
+    if (($result['document']->children[0]->attr('contentResourceReviewFlags') ?? []) !== ['mathml', 'svg', 'linked-resources', 'inline-styles', 'switch', 'trigger', 'side-effects', 'remote-resources']) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML content review flags');
     }
     if (($result['document']->children[0]->attr('contentLinks')[0]['id'] ?? null) !== 'chapter-style-link') {
@@ -1744,6 +1761,13 @@ echo 'xhtmlSideEffectReferences=' . ($result['xhtmlResourceReport']['sideEffectR
 echo 'chapterSideEffectKinds=' . implode(',', array_map(
     static fn (array $item): string => (string) ($item['kind'] ?? ''),
     $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['sideEffects'] ?? []
+)) . "\n";
+echo 'xhtmlInlineStyleAssets=' . ($result['xhtmlResourceReport']['styleAssetCount'] ?? 0) . "\n";
+echo 'xhtmlInlineStyles=' . ($result['xhtmlResourceReport']['styleCount'] ?? 0) . "\n";
+echo 'xhtmlInlineStyleReferences=' . ($result['xhtmlResourceReport']['styleReferenceCount'] ?? 0) . "\n";
+echo 'chapterInlineStyleKinds=' . implode(',', array_map(
+    static fn (array $item): string => (string) ($item['kind'] ?? ''),
+    $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['styles'] ?? []
 )) . "\n";
 echo 'xhtmlViewportAssets=' . ($result['xhtmlResourceReport']['viewportAssetCount'] ?? 0) . "\n";
 echo 'chapterViewport=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['raw'] ?? '') . "\n";

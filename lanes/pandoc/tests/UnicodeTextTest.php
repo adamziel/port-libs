@@ -1812,6 +1812,26 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 8, 'Myanmar/Khmer conjunct wrapped line exceeds requested width');
         }
     },
+    'keeps javanese balinese and sundanese virama stacks intact for display slicing' => static function (TestRunner $t): void {
+        $javaneseKna = "\u{A98F}\u{A9C0}\u{A9A4}";
+        $balineseKsa = "\u{1B13}\u{1B44}\u{1B31}";
+        $sundaneseKna = "\u{1B8A}\u{1BAA}\u{1B94}";
+        $text = $javaneseKna . $balineseKsa . $sundaneseKna . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("Stack {$javaneseKna}{$balineseKsa} {$sundaneseKna} tail", 9, '  ');
+
+        $t->same(1, UnicodeText::displayWidth($javaneseKna));
+        $t->same(1, UnicodeText::displayWidth($balineseKsa));
+        $t->same(1, UnicodeText::displayWidth($sundaneseKna));
+        $t->same(4, UnicodeText::displayWidth($text));
+        $t->same([$javaneseKna, $balineseKsa, $sundaneseKna, 'X'], UnicodeText::graphemes($text));
+        $t->same([$javaneseKna, $balineseKsa . $sundaneseKna . 'X'], UnicodeText::splitAtDisplayWidth($text, 1));
+        $t->same([$javaneseKna, $balineseKsa, $sundaneseKna, 'X'], UnicodeText::splitByDisplayBreakpoints($text, [1, 2, 3]));
+        $t->same($balineseKsa . '   ', UnicodeText::padDisplay($balineseKsa, 4));
+        $t->same(['Stack ' . $javaneseKna . $balineseKsa, '  ' . $sundaneseKna . ' tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 9, 'Javanese/Balinese/Sundanese virama stack wrapped line exceeds requested width');
+        }
+    },
     'keeps thai and lao sara am grapheme clusters intact for display slicing' => static function (TestRunner $t): void {
         $thai = "\u{0E01}\u{0E33}";
         $lao = "\u{0EA5}\u{0EB3}";

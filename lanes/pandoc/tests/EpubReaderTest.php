@@ -4430,6 +4430,135 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB XHTML inline style resource references for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $inlineStyleXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>Inline style review chapter</title>
+    <style id="inline-style" media="screen">
+      @import url("../styles/linked.css") screen and (min-width: 40em);
+      .hero { background-image: image-set(url("../images/cover.png") 1x, "https://cdn.example.test/epub/hero@2x.png" 2x type("image/png")); }
+      .missing { background-image: url("../images/missing-style.png"); }
+    </style>
+  </head>
+  <body>
+    <p id="styled-paragraph" style="background-image: url('../images/cover.png'); border-image-source: url(https://cdn.example.test/borders/review.png)">Inline CSS package references stay reviewable.</p>
+  </body>
+</html>
+XML;
+        $opfWithInlineStyles = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="inline-style-content" href="text/inline-style.xhtml" media-type="application/xhtml+xml" properties="remote-resources"/>'
+                . '<item id="linked-style" href="styles/linked.css" media-type="text/css"/>'
+                . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithInlineStyles = str_replace(
+            '</spine>',
+            '<itemref idref="inline-style-content"/></spine>',
+            $opfWithInlineStyles
+        );
+
+        $linkedCss = 'body { color: #222; }';
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithInlineStyles,
+            null,
+            [
+                ['name' => 'OEBPS/text/inline-style.xhtml', 'data' => $inlineStyleXhtml],
+                ['name' => 'OEBPS/styles/linked.css', 'data' => $linkedCss],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/inline-style.xhtml'];
+
+        $t->same(1, $report['styleAssetCount']);
+        $t->same(2, $report['styleCount']);
+        $t->same(1, $report['styleElementCount']);
+        $t->same(1, $report['styleAttributeCount']);
+        $t->same(6, $report['styleReferenceCount']);
+        $t->same(2, $report['externalStyleReferenceCount']);
+        $t->same(1, $report['missingStyleReferenceCount']);
+        $t->same(2, $report['externalReferenceCount']);
+        $t->same(1, $report['missingReferenceCount']);
+
+        $t->same(6, $asset['referenceCount']);
+        $t->same(2, $asset['styleCount']);
+        $t->same(6, $asset['styleReferenceCount']);
+        $t->same(['linked-resources', 'inline-styles', 'remote-resources', 'missing-references'], $asset['reviewFlags']);
+        $t->same(true, $asset['flags']['inlineStyles']);
+        $t->same(true, $asset['flags']['linkedResources']);
+        $t->same(true, $asset['flags']['remoteResources']);
+        $t->same(true, $asset['flags']['missingReferences']);
+
+        $styleElement = $asset['styles'][0];
+        $t->same('style-element', $styleElement['kind']);
+        $t->same('inline-style', $styleElement['id']);
+        $t->same('screen', $styleElement['media']);
+        $t->same('text', $styleElement['attribute']);
+        $t->same(4, $styleElement['referenceCount']);
+        $t->same(1, $styleElement['externalReferenceCount']);
+        $t->same(1, $styleElement['missingReferenceCount']);
+        $t->same(true, $styleElement['cssLength'] > 0);
+        $t->same(64, strlen($styleElement['cssSha256']));
+
+        $import = $styleElement['references'][0];
+        $t->same('import', $import['kind']);
+        $t->same('../styles/linked.css', $import['href']);
+        $t->same('/OEBPS/styles/linked.css', $import['part']);
+        $t->same('linked-style', $import['manifestId']);
+        $t->same('text/css', $import['mediaType']);
+        $t->same('screen and (min-width: 40em)', $import['importMedia']);
+
+        $localImageSet = $styleElement['references'][1];
+        $t->same('image-set', $localImageSet['kind']);
+        $t->same('/OEBPS/images/cover.png', $localImageSet['part']);
+        $t->same('cover-image', $localImageSet['manifestId']);
+        $t->same('1x', $localImageSet['imageSetDescriptor']);
+
+        $remoteImageSet = $styleElement['references'][2];
+        $t->same(true, $remoteImageSet['external']);
+        $t->same('https://cdn.example.test/epub/hero@2x.png', $remoteImageSet['target']);
+        $t->same('2x type("image/png")', $remoteImageSet['imageSetDescriptor']);
+        $t->same('image/png', $remoteImageSet['imageSetType']);
+        $t->same('external-xhtml-inline-style-reference', $remoteImageSet['diagnostics'][0]['type']);
+
+        $missing = $styleElement['references'][3];
+        $t->same('url', $missing['kind']);
+        $t->same('/OEBPS/images/missing-style.png', $missing['part']);
+        $t->same(false, $missing['exists']);
+        $t->same('missing-xhtml-inline-style-reference', $missing['diagnostics'][0]['type']);
+
+        $styleAttribute = $asset['styles'][1];
+        $t->same('style-attribute', $styleAttribute['kind']);
+        $t->same('p', $styleAttribute['element']);
+        $t->same('styled-paragraph', $styleAttribute['id']);
+        $t->same('style', $styleAttribute['attribute']);
+        $t->same(2, $styleAttribute['referenceCount']);
+        $t->same('../images/cover.png', $styleAttribute['references'][0]['href']);
+        $t->same('/OEBPS/images/cover.png', $styleAttribute['references'][0]['part']);
+        $t->same('https://cdn.example.test/borders/review.png', $styleAttribute['references'][1]['href']);
+        $t->same(true, $styleAttribute['references'][1]['external']);
+        $t->same('external-xhtml-inline-style-reference', $styleAttribute['references'][1]['diagnostics'][0]['type']);
+
+        $remoteResources = $result['remoteResources'];
+        $t->same(1, $remoteResources['declaredCount']);
+        $t->same(1, $remoteResources['observedAssetCount']);
+        $t->same(2, $remoteResources['remoteReferenceCount']);
+        $t->same(2, $remoteResources['xhtmlExternalReferenceCount']);
+        $t->same(true, $remoteResources['observedItemsByPart']['/OEBPS/text/inline-style.xhtml']['manifestDeclared']);
+        $t->same('style-element', $remoteResources['observedItemsByPart']['/OEBPS/text/inline-style.xhtml']['remoteReferences'][0]['source']);
+        $t->same('style-attribute', $remoteResources['observedItemsByPart']['/OEBPS/text/inline-style.xhtml']['remoteReferences'][1]['source']);
+
+        $scanBlock = $result['document']->children[2];
+        $t->same('/OEBPS/text/inline-style.xhtml', $scanBlock->attr('part'));
+        $t->same($asset['styles'], $scanBlock->attr('contentStyles'));
+        $t->same($asset['styleDiagnostics'], $scanBlock->attr('contentStyleDiagnostics'));
+        $t->same($asset['references'], $scanBlock->attr('contentReferences'));
+        $t->same($asset['reviewFlags'], $scanBlock->attr('contentResourceReviewFlags'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reports EPUB XHTML scripted content sources for static review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $scriptedXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">

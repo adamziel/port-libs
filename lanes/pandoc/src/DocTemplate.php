@@ -5681,14 +5681,40 @@ CSS;
      */
     private function parsePartialCallExpression(string $expression): ?array
     {
-        if (!preg_match('/^([\\p{L}\\p{N}_.\\/\\\\-]+)\\(\\)(?:\\[(.*)\\])?(?:\\/(.*))?$/su', $expression, $matches)) {
+        if (!preg_match('/^([\\p{L}\\p{N}_.\\/\\\\-]+)\\(\\)(.*)$/su', $expression, $matches)) {
             return null;
+        }
+
+        $suffix = $matches[2] ?? '';
+        $separator = null;
+        if ($suffix !== '' && $suffix[0] === '[') {
+            $separatorEnd = strpos($suffix, ']');
+            if ($separatorEnd === false) {
+                return null;
+            }
+
+            $separator = substr($suffix, 1, $separatorEnd - 1);
+            $suffix = substr($suffix, $separatorEnd + 1);
+        }
+
+        if ($suffix !== '' && $suffix[0] !== '/') {
+            return null;
+        }
+
+        $pipeSource = $suffix === '' ? '' : substr($suffix, 1);
+        [$pipeSource, $trailingSeparator] = $this->extractTrailingSeparator($pipeSource);
+        if ($trailingSeparator !== null) {
+            if ($separator !== null) {
+                throw new \UnexpectedValueException('Conflicting doctemplate partial separators');
+            }
+
+            $separator = $trailingSeparator;
         }
 
         return [
             'name' => $this->normalizePartialName($matches[1]),
-            'separator' => array_key_exists(2, $matches) ? $matches[2] : null,
-            'pipes' => $this->parsePipeSuffix($matches[3] ?? '', $expression),
+            'separator' => $separator,
+            'pipes' => $this->parsePipeSuffix($pipeSource, $expression),
         ];
     }
 

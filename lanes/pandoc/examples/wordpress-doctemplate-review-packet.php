@@ -25,6 +25,7 @@ HTML,
 warnings	queued
 for $title$$~$</p>
 <p class="next-warning">${ warnings/rest/first:components/next-warning()/uppercase }</p>
+<p class="warning-rollup">${ warnings/rest:components/next-warning()/uppercase[ | ] }</p>
 <p class="ticket">Ticket: ${ review-id/left 8 "[" "]" }</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 <p class="review-sources">${ reviewSources/rest/uppercase[ / ] }</p>
@@ -181,6 +182,7 @@ if (in_array('--self-test', $argv, true)) {
         '<h1>BATCH 42 REVIEW</h1>',
         '<p class="summary">27 warnings queued for Batch 42 Review</p>',
         '<p class="next-warning">LINKS/LINKS: VERIFY EDIT LINKS BEFORE PUBLISH</p>',
+        '<p class="warning-rollup">LINKS/LINKS: VERIFY EDIT LINKS BEFORE PUBLISH | 魚/魚: CONFIRM MULTILINGUAL SOURCE LABEL SPACING | BATCH-4/BATCH-4: GENERATED REVIEWER CHECKPOINT 4',
         '<p class="ticket">Ticket: [        ]</p>',
         '<p class="authors">Migration bot, Content editor</p>',
         '<p class="review-sources">LINKS / LAYOUT</p>',

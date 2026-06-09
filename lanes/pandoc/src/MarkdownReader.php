@@ -6928,12 +6928,9 @@ final class MarkdownReader
 
     private function parseDocBookInformalTable(string $xml): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded || !$dom->documentElement instanceof \DOMElement) {
+        try {
+            $dom = XmlHtml5Dom::parseXmlDocument($xml, 'DocBook informal table XML');
+        } catch (\InvalidArgumentException) {
             return null;
         }
 
@@ -7055,19 +7052,12 @@ final class MarkdownReader
 
     private function parseHtmlDocument(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8">' . $html,
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
+        $dom = XmlHtml5Dom::parseHtmlDocument($html);
+        if (!$dom instanceof \DOMDocument) {
             return null;
         }
 
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = XmlHtml5Dom::htmlBody($dom);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -7201,19 +7191,7 @@ final class MarkdownReader
 
     private function parseHtmlInlineFragmentParagraph(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -7285,19 +7263,7 @@ final class MarkdownReader
 
     private function parseHtmlParagraphElement(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -7378,19 +7344,7 @@ final class MarkdownReader
 
     private function parseHtmlHeadingElement(string $html, int $level): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -7510,19 +7464,7 @@ final class MarkdownReader
 
     private function parseHtmlPreCodeBlock(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -7556,19 +7498,7 @@ final class MarkdownReader
 
     private function parseHtmlBlockQuoteBlock(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -7583,19 +7513,7 @@ final class MarkdownReader
 
     private function parseHtmlListBlock(string $html, string $tag): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -7610,19 +7528,7 @@ final class MarkdownReader
 
     private function parseHtmlDefinitionListBlock(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -8120,19 +8026,7 @@ final class MarkdownReader
 
     private function htmlTableBlockIsEmpty(string $html): bool
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return false;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($html);
         if (!$body instanceof \DOMElement) {
             return false;
         }
@@ -8168,22 +8062,9 @@ final class MarkdownReader
 
     private function parseStructuredHtmlTable(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $source = preg_match('/^\s*(?:<!doctype\s+html\b|<html\b)/i', $html) === 1
-            ? '<?xml encoding="UTF-8">' . $html
-            : '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>';
-        $loaded = $dom->loadHTML(
-            $source,
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = preg_match('/^\s*(?:<!doctype\s+html\b|<html\b)/i', $html) === 1
+            ? XmlHtml5Dom::parseHtmlDocumentBody($html)
+            : XmlHtml5Dom::parseHtmlFragmentBody($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }

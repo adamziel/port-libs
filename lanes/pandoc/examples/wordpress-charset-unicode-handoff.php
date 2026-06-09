@@ -235,6 +235,10 @@ $indicViramaSlices = UnicodeText::splitByDisplayBreakpoints(
 $myanmarConjunct = "\u{1000}\u{1039}\u{1000}";
 $khmerConjunct = "\u{1780}\u{17D2}\u{1780}";
 $southeastAsianConjunctSlices = UnicodeText::splitByDisplayBreakpoints($myanmarConjunct . $khmerConjunct . 'X', [1, 2]);
+$javaneseViramaStack = "\u{A98F}\u{A9C0}\u{A9A4}";
+$balineseViramaStack = "\u{1B13}\u{1B44}\u{1B31}";
+$sundaneseViramaStack = "\u{1B8A}\u{1BAA}\u{1B94}";
+$insularViramaStackSlices = UnicodeText::splitByDisplayBreakpoints($javaneseViramaStack . $balineseViramaStack . $sundaneseViramaStack . 'X', [1, 2, 3]);
 $thaiSaraAm = "\u{0E01}\u{0E33}";
 $laoSaraAm = "\u{0EA5}\u{0EB3}";
 $thaiLaoAmSlices = UnicodeText::splitByDisplayBreakpoints($thaiSaraAm . $laoSaraAm . 'X', [2, 4]);
@@ -406,6 +410,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Myanmar/Khmer conjuncts'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $southeastAsianConjunctSlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $southeastAsianConjunctSlices))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Javanese/Balinese/Sundanese stacks'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $insularViramaStackSlices)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $insularViramaStackSlices))])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Thai/Lao AM'])]),
@@ -920,6 +929,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Myanmar/Khmer conjuncts</td><td>' . $myanmarConjunct . ' / ' . $khmerConjunct . ' / X</td><td>1,1,1</td>')) {
         throw new RuntimeException('charset handoff self-test missing Myanmar/Khmer conjunct display-width audit');
+    }
+    if (!str_contains($blocks, '<td>Javanese/Balinese/Sundanese stacks</td><td>' . $javaneseViramaStack . ' / ' . $balineseViramaStack . ' / ' . $sundaneseViramaStack . ' / X</td><td>1,1,1,1</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Javanese/Balinese/Sundanese stack display-width audit');
     }
     if (!str_contains($blocks, '<td>Thai/Lao AM</td><td>' . $thaiSaraAm . ' / ' . $laoSaraAm . ' / X</td><td>2,2,1</td>')) {
         throw new RuntimeException('charset handoff self-test missing Thai/Lao AM display-width audit');

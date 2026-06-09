@@ -6262,8 +6262,11 @@ final class UnicodeText
             || $codepoint === 0x0ccd
             || $codepoint === 0x0d4d
             || $codepoint === 0x0dca
+            || $codepoint === 0x1b44
+            || $codepoint === 0x1baa
             || $codepoint === 0x1039
-            || $codepoint === 0x17d2;
+            || $codepoint === 0x17d2
+            || $codepoint === 0xa9c0;
     }
 
     private static function isBoundedIndicConsonant(int $codepoint): bool
@@ -6281,8 +6284,12 @@ final class UnicodeText
             || ($codepoint >= 0x0c95 && $codepoint <= 0x0cb9)
             || ($codepoint >= 0x0d15 && $codepoint <= 0x0d39)
             || ($codepoint >= 0x0d9a && $codepoint <= 0x0dc6)
+            || ($codepoint >= 0x1b13 && $codepoint <= 0x1b33)
+            || ($codepoint >= 0x1b45 && $codepoint <= 0x1b4c)
+            || ($codepoint >= 0x1b8a && $codepoint <= 0x1ba0)
             || ($codepoint >= 0x1000 && $codepoint <= 0x102a)
-            || ($codepoint >= 0x1780 && $codepoint <= 0x17a2);
+            || ($codepoint >= 0x1780 && $codepoint <= 0x17a2)
+            || ($codepoint >= 0xa98f && $codepoint <= 0xa9b2);
     }
 
     private static function isUnicodeFormatControl(int $codepoint): bool

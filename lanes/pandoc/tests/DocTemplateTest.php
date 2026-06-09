@@ -1305,6 +1305,42 @@ TPL;
         ]), $output);
     },
 
+    'joins pandoc doctemplate applied partials after partial pipes with trailing separators' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+        $template = <<<'TPL'
+Rows: ${ warnings:warning-row()/uppercase[ | ] }
+Sections: ${ sections/rest:section-row()/chomp[ / ] }
+Legacy separator order: ${ warnings:warning-row()[ + ]/lowercase }
+TPL;
+
+        $output = $renderer->render($template, [
+            'warnings' => [
+                ['source' => 'media', 'message' => 'Confirm alt text'],
+                ['source' => 'links', 'message' => 'Review redirects'],
+            ],
+            'sections' => [
+                ['title' => 'Ignored first'],
+                ['title' => 'Metadata'],
+                ['title' => 'Body'],
+            ],
+        ], [
+            'warning-row' => '<span data-source="$it.source$">$it.source$: $it.message$</span>',
+            'section-row' => '$it.title$' . "\n",
+        ]);
+
+        $t->same(implode("\n", [
+            'Rows: <SPAN DATA-SOURCE="MEDIA">MEDIA: CONFIRM ALT TEXT</SPAN> | <SPAN DATA-SOURCE="LINKS">LINKS: REVIEW REDIRECTS</SPAN>',
+            'Sections: Metadata / Body',
+            'Legacy separator order: <span data-source="media">media: confirm alt text</span> + <span data-source="links">links: review redirects</span>',
+        ]), $output);
+
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render(
+            '${ warnings:warning-row()[, ]/uppercase[ | ] }',
+            ['warnings' => ['one']],
+            ['warning-row' => '$it$'],
+        ));
+    },
+
     'renders pandoc doctemplate partials inside explicit loops with current item context' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Warnings:
