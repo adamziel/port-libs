@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 08:23:42 UTC",
-    "sourceCommit": "e8462716baed1244ed5b9f195429af80b17d479b",
-    "sourceCommitShort": "e8462716baed",
+    "generated": "2026-06-09 08:27:08 UTC",
+    "sourceCommit": "74c403cbe737c46e0ac97bf44356a62c4452c78b",
+    "sourceCommitShort": "74c403cbe737",
     "sourceBranch": "unknown",
-    "dashboardCommit": "e8462716baed1244ed5b9f195429af80b17d479b",
-    "dashboardCommitShort": "e8462716baed",
+    "dashboardCommit": "74c403cbe737c46e0ac97bf44356a62c4452c78b",
+    "dashboardCommitShort": "74c403cbe737",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,895 / 2,276 (127.2%)",
             "mapPercent": "127.2%",
             "unmapped": "0",
-            "php": "2,525 pass / 0 fail",
-            "phase": "native PHP Pandoc current-base HTML5 DOM/raw-review support; link res...",
-            "audit": "2026-06-09 UTC isolated pandoc-html-link-resource-tags current-base s...",
-            "currentWork": "Pandoc HTML reader raw-control preservation now includes link resource tags alongside...",
+            "php": "2,526 pass / 0 fail",
+            "phase": "native PHP Pandoc current-base HTML5 DOM/raw-review support; meta tag...",
+            "audit": "2026-06-09 UTC isolated pandoc-html-meta-tags current-base slice on a...",
+            "currentWork": "Pandoc HTML reader raw-control preservation now includes meta tags alongside iframe/i...",
             "nextTarget": "Continue current-base Pandoc no-external-tooling slices acros...",
-            "remainingGate": "No new native support component is needed for this HTML link-resource...",
+            "remainingGate": "No new native support component is needed for this HTML meta-tag slice.",
             "commit": "pending fast ba..."
         },
         {

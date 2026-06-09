@@ -13991,6 +13991,35 @@ XML;
         $t->contains('<p>Before <link data-source="batch-43" href="https://example.test/help" rel="help"> after.</p>', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before  after.'), 'HTML document link resource tag should not be dropped from the paragraph');
     },
+    'maps upstream html reader meta tags as raw review markup' => static function (TestRunner $t): void {
+        $meta = '<meta name="review-source" content="batch-44" data-source="batch-44">';
+        $blockDocument = (new MarkdownReader())->read($meta . "\n\nAfter the metadata tag.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($meta, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the metadata tag.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $meta, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;meta'), 'Standalone meta tag should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . '<meta name="review-source" content="batch-44" data-source="batch-44">'
+            . ' after.</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineMeta = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<meta content="batch-44" data-source="batch-44" name="review-source">', $inlineMeta->attr('html'));
+        $t->contains('<p>Before <meta content="batch-44" data-source="batch-44" name="review-source"> after.</p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before  after.'), 'HTML document meta tag should not be dropped from the paragraph');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
