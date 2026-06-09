@@ -198,6 +198,64 @@ return [
         $t->same(['media-resource-mapped:' . $source], $extracted['diagnostics']);
     },
 
+    'loads percent encoded relative media urls through decoded resource keys' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $bytes = "encoded filename bytes\n";
+        $unsafeBytes = "unsafe traversal bytes\n";
+        $source = 'assets/review%20figure.png';
+        $unsafeSource = 'unsafe/%2e%2e/escape.png';
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $source,
+                    'title' => 'Review figure',
+                ], [new AstNode('text', ['text' => 'Review figure'])]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $unsafeSource,
+                    'title' => 'Unsafe figure',
+                ], [new AstNode('text', ['text' => 'Unsafe figure'])]),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            'assets/review figure.png' => [
+                'contents' => $bytes,
+                'mimeType' => 'image/png',
+            ],
+            'unsafe/../escape.png' => [
+                'contents' => $unsafeBytes,
+                'mimeType' => 'image/png',
+            ],
+        ]);
+        $directory = $bag->directory();
+
+        $t->same([
+            'media-resource-loaded:' . $source,
+            'media-resource-missing:' . $unsafeSource,
+        ], $filled['diagnostics']);
+        $t->same(1, count($directory));
+        $t->same($source, $directory[0]['source']);
+        $t->same('assets/review figure.png', $directory[0]['path']);
+        $t->same('image/png', $directory[0]['mimeType']);
+        $t->same(strlen($bytes), $directory[0]['byteLength']);
+        $t->same(sha1($bytes), $directory[0]['sha1']);
+        $t->true(!str_contains($directory[0]['path'], '%'), 'Decoded safe media path should not preserve percent escapes');
+
+        $missingPlaceholder = $filled['document']->children[1]->children[0];
+        $t->same('span', $missingPlaceholder->type);
+        $t->same($unsafeSource, $missingPlaceholder->attr('attributes')['original-image-src']);
+
+        $extracted = $bag->extractMedia($filled['document'], 'review-media');
+        $mappedDocument = $extracted['document'];
+        $t->same('review-media/assets/review figure.png', $mappedDocument->children[0]->children[0]->attr('url'));
+        $t->same('span', $mappedDocument->children[1]->children[0]->type);
+        $t->same('review-media/assets/review figure.png', $extracted['entries'][0]['path']);
+        $t->same('assets/review figure.png', $extracted['entries'][0]['mediaPath']);
+        $t->same(['media-resource-mapped:' . $source], $extracted['diagnostics']);
+    },
+
     'deletes mapped media resources by canonical source key' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $keptBytes = "kept vector bytes\n";

@@ -431,6 +431,11 @@ final class MediaBag
             $keys[] = $pathOnlySource;
             $keys[] = self::canonicalizeSource($pathOnlySource);
         }
+        $decodedPathOnlySource = self::decodedRelativeSourceKey($pathOnlySource);
+        if ($decodedPathOnlySource !== null) {
+            $keys[] = $decodedPathOnlySource;
+            $keys[] = self::canonicalizeSource($decodedPathOnlySource);
+        }
 
         return array_values(array_unique($keys));
     }
@@ -467,6 +472,24 @@ final class MediaBag
         }
 
         return null;
+    }
+
+    private static function decodedRelativeSourceKey(string $source): ?string
+    {
+        if (str_starts_with($source, 'data:') || self::isUri($source) || !str_contains($source, '%')) {
+            return null;
+        }
+
+        $decoded = rawurldecode($source);
+        if (
+            $decoded === $source
+            || str_contains($decoded, "\0")
+            || !self::isSafeRelativeMediaPath($decoded)
+        ) {
+            return null;
+        }
+
+        return $decoded;
     }
 
     private function placeholderFor(AstNode $image): AstNode
