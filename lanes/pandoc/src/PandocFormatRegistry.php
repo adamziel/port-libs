@@ -183,6 +183,31 @@ final class PandocFormatRegistry
         '.[1-9]' => 'man',
     ];
 
+    /** @var list<string> */
+    private const RICH_PACKAGE_INPUT_FORMATS = [
+        'docx',
+        'epub',
+        'ipynb',
+        'odt',
+        'pptx',
+        'xlsx',
+    ];
+
+    /** @var list<string> */
+    private const RICH_PACKAGE_OUTPUT_FORMATS = [
+        'chunkedhtml',
+        'docx',
+        'epub',
+        'epub2',
+        'epub3',
+        'icml',
+        'ipynb',
+        'odt',
+        'opendocument',
+        'pdf',
+        'pptx',
+    ];
+
     /** @var array<string, string> */
     private const INPUT_ALIASES = [
         'bits' => 'jats',
@@ -517,6 +542,22 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return list<string>
+     */
+    public static function richPackageInputFormats(): array
+    {
+        return self::RICH_PACKAGE_INPUT_FORMATS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function richPackageOutputFormats(): array
+    {
+        return self::RICH_PACKAGE_OUTPUT_FORMATS;
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function inputAliases(): array
@@ -581,6 +622,22 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function richPackageInputSupport(): array
+    {
+        return self::onlyFormats(self::phpInputSupport(), self::RICH_PACKAGE_INPUT_FORMATS);
+    }
+
+    /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function richPackageOutputSupport(): array
+    {
+        return self::onlyFormats(self::phpOutputSupport(), self::RICH_PACKAGE_OUTPUT_FORMATS);
+    }
+
+    /**
      * @return list<string>
      */
     public static function unsupportedInputFormats(): array
@@ -594,6 +651,22 @@ final class PandocFormatRegistry
     public static function unsupportedOutputFormats(): array
     {
         return self::formatsWithStatus(self::phpOutputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedRichPackageInputFormats(): array
+    {
+        return self::formatsWithStatus(self::richPackageInputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedRichPackageOutputFormats(): array
+    {
+        return self::formatsWithStatus(self::richPackageOutputSupport(), 'unsupported');
     }
 
     /**

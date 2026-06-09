@@ -145,6 +145,75 @@ return [
             $t->same($hasOutput ? 'unsupported' : 'not-applicable', $direction['outputStatus'], "Roff manual format {$format} output status mismatch");
         }
     },
+    'tracks rich package formats and unsupported direct writer parity' => static function (TestRunner $t): void {
+        $t->same([
+            'docx',
+            'epub',
+            'ipynb',
+            'odt',
+            'pptx',
+            'xlsx',
+        ], PandocFormatRegistry::richPackageInputFormats());
+        $t->same([
+            'chunkedhtml',
+            'docx',
+            'epub',
+            'epub2',
+            'epub3',
+            'icml',
+            'ipynb',
+            'odt',
+            'opendocument',
+            'pdf',
+            'pptx',
+        ], PandocFormatRegistry::richPackageOutputFormats());
+
+        $inputSupport = PandocFormatRegistry::richPackageInputSupport();
+        $outputSupport = PandocFormatRegistry::richPackageOutputSupport();
+
+        $t->same(PandocFormatRegistry::richPackageInputFormats(), array_keys($inputSupport));
+        $t->same(PandocFormatRegistry::richPackageOutputFormats(), array_keys($outputSupport));
+
+        $t->same('partial', $inputSupport['docx']['status']);
+        $t->same(DocxReader::class, $inputSupport['docx']['implementation']);
+        $t->same('partial', $inputSupport['epub']['status']);
+        $t->same(EpubReader::class, $inputSupport['epub']['implementation']);
+        $t->same('partial', $inputSupport['odt']['status']);
+        $t->same(OdtReader::class, $inputSupport['odt']['implementation']);
+
+        $t->same([
+            'ipynb',
+            'pptx',
+            'xlsx',
+        ], PandocFormatRegistry::unsupportedRichPackageInputFormats());
+        foreach (PandocFormatRegistry::unsupportedRichPackageInputFormats() as $format) {
+            $t->same('unsupported', $inputSupport[$format]['status'], "Rich package input {$format} should not claim direct native parity");
+            $t->same('', $inputSupport[$format]['implementation']);
+            $t->contains('No native PHP reader or writer is registered', $inputSupport[$format]['notes']);
+        }
+
+        $t->same([
+            'chunkedhtml',
+            'docx',
+            'epub',
+            'epub2',
+            'epub3',
+            'icml',
+            'ipynb',
+            'odt',
+            'opendocument',
+            'pdf',
+            'pptx',
+        ], PandocFormatRegistry::unsupportedRichPackageOutputFormats());
+        foreach (PandocFormatRegistry::unsupportedRichPackageOutputFormats() as $format) {
+            $t->same('unsupported', $outputSupport[$format]['status'], "Rich package output {$format} should not claim direct native writer parity");
+            $t->same('', $outputSupport[$format]['implementation']);
+            $t->contains('No native PHP reader or writer is registered', $outputSupport[$format]['notes']);
+        }
+
+        $t->same(34, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
+    },
     'tracks wiki format input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
         $directions = PandocFormatRegistry::wikiFormatDirections();
         $inputFormats = PandocFormatRegistry::wikiInputFormats();
