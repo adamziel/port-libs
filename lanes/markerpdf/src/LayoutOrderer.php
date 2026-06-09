@@ -170,6 +170,19 @@ final class LayoutOrderer
         ['page_number', 'pageNumber', 'page_numbers', 'pageNumbers', 'page_num', 'pageNum', 'page_nums', 'pageNums', 'doc_page_number', 'docPageNumber', 'doc_page_numbers', 'docPageNumbers', 'document_page_number', 'documentPageNumber', 'document_page_numbers', 'documentPageNumbers', 'pdftext_page_number', 'pdftextPageNumber', 'pdftext_page_numbers', 'pdftextPageNumbers', 'source_page_number', 'sourcePageNumber', 'source_page_numbers', 'sourcePageNumbers'],
         ['selected_page_number', 'selectedPageNumber', 'selected_page_numbers', 'selectedPageNumbers', 'trimmed_page_number', 'trimmedPageNumber', 'trimmed_page_numbers', 'trimmedPageNumbers', 'relative_page_number', 'relativePageNumber', 'relative_page_numbers', 'relativePageNumbers', 'selected_page_num', 'selectedPageNum', 'selected_page_nums', 'selectedPageNums', 'trimmed_page_num', 'trimmedPageNum', 'trimmed_page_nums', 'trimmedPageNums', 'relative_page_num', 'relativePageNum', 'relative_page_nums', 'relativePageNums'],
     ];
+    private const ORDER_RESULT_POSITION_KEYS = [
+        'position',
+        'reading_order',
+        'readingOrder',
+        'order_position',
+        'orderPosition',
+        'order_index',
+        'orderIndex',
+        'rank',
+        'sequence',
+        'sort_order',
+        'sortOrder',
+    ];
 
     private MarkerSettings $settings;
 
@@ -699,13 +712,9 @@ final class LayoutOrderer
                 continue;
             }
 
-            $position = $index + 1;
-            if (array_key_exists('position', $box)) {
-                $positionValue = $this->integerValue($box['position']);
-                if ($positionValue === null) {
-                    continue;
-                }
-                $position = $positionValue;
+            $position = $this->orderBoxPosition($box, $index + 1);
+            if ($position === null) {
+                continue;
             }
 
             $sanitized[] = [
@@ -715,6 +724,22 @@ final class LayoutOrderer
         }
 
         return $sanitized;
+    }
+
+    /**
+     * @param array<string, mixed> $box
+     */
+    private function orderBoxPosition(array $box, int $fallback): ?int
+    {
+        foreach (self::ORDER_RESULT_POSITION_KEYS as $key) {
+            if (!array_key_exists($key, $box)) {
+                continue;
+            }
+
+            return $this->integerValue($box[$key]);
+        }
+
+        return $fallback;
     }
 
     /**
