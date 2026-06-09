@@ -2645,6 +2645,68 @@ return [
         $t->true(!str_contains($html, '</tr><td data-review="cell">'), 'Expected orphan sibling cells to be wrapped in a generated row');
         $t->true(!str_contains($html, '</caption><td>'), 'Expected direct table cells to be wrapped in a generated row');
     },
+    'wraps orphan table sections and columns before sanitized WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article>'
+            . '<caption>Loose summary</caption><col span="2"><colgroup><col class="narrow"></colgroup>'
+            . '<thead><td>Loose head A</td><th>Loose head B</th></thead>'
+            . '<tbody><tr><td>Loose body</td></tr></tbody><tfoot><td>Loose total</td></tfoot>'
+            . '<table class="legacy"><caption>Source columns</caption><col span="3"><tbody><td>Direct body</td></tbody></table>'
+            . '<p>after</p>'
+            . '</article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/orphan-table-section-column-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $diagnosticCounts = array_count_values($policyDiagnostics);
+
+        $expected = '<article>'
+            . '<table><caption>Loose summary</caption><colgroup><col span="2"></colgroup><colgroup><col class="narrow"></colgroup>'
+            . '<thead><tr><td>Loose head A</td><th>Loose head B</th></tr></thead>'
+            . '<tbody><tr><td>Loose body</td></tr></tbody><tfoot><tr><td>Loose total</td></tr></tfoot></table>'
+            . '<table class="legacy"><caption>Source columns</caption><colgroup><col span="3"></colgroup><tbody><tr><td>Direct body</td></tr></tbody></table>'
+            . '<p>after</p>'
+            . '</article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Loose summaryLoose head ALoose head BLoose bodyLoose totalSource columnsDirect bodyafter', $fragment->textContent());
+        $t->same(['article', 'caption', 'col', 'colgroup', 'p', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(2, $diagnosticCounts['table-orphan-column-repaired'] ?? 0);
+        $t->same(1, $diagnosticCounts['table-orphan-column-group-repaired'] ?? 0);
+        $t->same(1, $diagnosticCounts['table-orphan-caption-repaired'] ?? 0);
+        $t->same(3, $diagnosticCounts['table-orphan-section-repaired'] ?? 0);
+        $t->same(4, $diagnosticCounts['table-orphan-cell-repaired'] ?? 0);
+        $t->same('article', $nodes[0]['name']);
+        $t->same('table', $nodes[0]['children'][0]['name']);
+        $t->same('caption', $nodes[0]['children'][0]['children'][0]['name']);
+        $t->same('colgroup', $nodes[0]['children'][0]['children'][1]['name']);
+        $t->same(['span' => '2'], $nodes[0]['children'][0]['children'][1]['children'][0]['attrs']);
+        $t->same(['class' => 'narrow'], $nodes[0]['children'][0]['children'][2]['children'][0]['attrs']);
+        $t->same('thead', $nodes[0]['children'][0]['children'][3]['name']);
+        $t->same('tr', $nodes[0]['children'][0]['children'][3]['children'][0]['name']);
+        $t->same('tfoot', $nodes[0]['children'][0]['children'][5]['name']);
+        $t->same('tr', $nodes[0]['children'][0]['children'][5]['children'][0]['name']);
+        $t->same('table', $nodes[0]['children'][1]['name']);
+        $t->same('colgroup', $nodes[0]['children'][1]['children'][1]['name']);
+        $t->same('tbody', $nodes[0]['children'][1]['children'][2]['name']);
+        $t->same('tr', $nodes[0]['children'][1]['children'][2]['children'][0]['name']);
+        $t->same('/migration/orphan-table-section-column-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<article><caption>'), 'Expected orphan caption to be wrapped in a generated table');
+        $t->true(!str_contains($html, '<article><col'), 'Expected orphan col to be wrapped in a generated table colgroup');
+        $t->true(!str_contains($html, '</caption><col span="3">'), 'Expected direct table col to be wrapped in a generated colgroup');
+        $t->true(!str_contains($html, '<thead><td>'), 'Expected direct section cells to be wrapped in generated rows');
+    },
     'resolves safe relative URLs from trusted HTML base metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://example.test/import/posts/source.html?draft=1">'

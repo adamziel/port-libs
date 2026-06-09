@@ -206,6 +206,22 @@ $cellBackgroundTables = array_values(array_filter(
     $cellBackgroundDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$cellBorderPresentationDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="cell-border-presentation-grid" data-source="html-reader">
+<caption>Cell border presentation review</caption>
+<thead>
+<tr><th style="border-color: #336699; border-style: dashed; border-width: 2px">Source</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr><td style="border-color: rgb(51, 102, 153); border-style: solid">Posts</td><td style="border-width: thin medium thick 2px">Ready</td></tr>
+<tr><td>Media</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML);
+$cellBorderPresentationTables = array_values(array_filter(
+    $cellBorderPresentationDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $backgroundColorDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="background-color-grid" data-source="html-reader" bgcolor="#FFF4CC" style="background-color: #e6ffed; background-image:url(javascript:alert(1))">
 <caption>Background color review</caption>
@@ -1296,6 +1312,7 @@ $document = new AstNode('document', [], [
     ...$legacySpacingTables,
     ...$cellNoWrapTables,
     ...$cellBackgroundTables,
+    ...$cellBorderPresentationTables,
     ...$backgroundColorTables,
     ...$layoutWidthTables,
     ...$layoutHeightTables,
@@ -2670,6 +2687,54 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($cellBackgroundPacket, JSON_THROW_ON_ERROR);
     json_encode($cellBackgroundDowngrades, JSON_THROW_ON_ERROR);
+
+    $cellBorderPresentationTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'cell-border-presentation-grid') {
+            $cellBorderPresentationTable = $node;
+            break;
+        }
+    }
+    $cellBorderPresentationPacket = $cellBorderPresentationTable instanceof AstNode ? $cellBorderPresentationTable->attr('tableGeometry') : null;
+    $cellBorderPresentationDowngrades = $cellBorderPresentationTable instanceof AstNode ? TableGeometry::reviewPacket($cellBorderPresentationTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $cellBorderPresentationDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $cellBorderPresentationDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'cell-border-presentation'
+        ));
+        $cellBorderPresentationDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$cellBorderPresentationTable instanceof AstNode
+        || !is_array($cellBorderPresentationPacket)
+        || ($cellBorderPresentationPacket['summary']['hasCellBorderPresentations'] ?? null) !== true
+        || ($cellBorderPresentationPacket['summary']['cellBorderPresentationCount'] ?? null) !== 3
+        || ($cellBorderPresentationPacket['summary']['cellBorderPresentationColumns'] ?? null) !== [0, 1]
+        || ($cellBorderPresentationPacket['summary']['cellBorderPresentationSections'] ?? null) !== ['head', 'body']
+        || ($cellBorderPresentationPacket['summary']['cellBorderPresentationColors'] ?? null) !== ['#336699', 'rgb(51, 102, 153)']
+        || ($cellBorderPresentationPacket['summary']['cellBorderPresentationStyles'] ?? null) !== ['dashed', 'solid']
+        || ($cellBorderPresentationPacket['summary']['cellBorderPresentationWidths'] ?? null) !== ['2px', 'thin medium thick 2px']
+        || ($cellBorderPresentationPacket['cellBorderPresentations'][0]['attributes'] ?? null) !== ['border-color' => '#336699', 'border-style' => 'dashed', 'border-width' => '2px']
+        || ($cellBorderPresentationPacket['cellBorderPresentations'][2]['borderWidth'] ?? null) !== 'thin medium thick 2px'
+        || ($cellBorderPresentationDiagnostics['markdown']['code'] ?? null) !== 'markdown-cell-border-presentation-require-raw-html'
+        || ($cellBorderPresentationDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-cell-border-presentation-review-required'
+        || ($cellBorderPresentationDiagnostics['latex']['code'] ?? null) !== 'latex-cell-border-presentation-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML cell border presentation metadata');
+    }
+    if (
+        !str_contains($blocks, '<th style="border-color: #336699; border-style: dashed; border-width: 2px">Source</th><th>Status</th>')
+        || !str_contains($blocks, '<td style="border-color: rgb(51, 102, 153); border-style: solid">Posts</td><td style="border-width: thin medium thick 2px">Ready</td>')
+        || !str_contains($blocks, '<td>Media</td><td>Review</td>')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing WordPress cell border presentation output');
+    }
+    json_encode($cellBorderPresentationPacket, JSON_THROW_ON_ERROR);
+    json_encode($cellBorderPresentationDowngrades, JSON_THROW_ON_ERROR);
 
     $backgroundColorTable = null;
     foreach ($document->children as $node) {

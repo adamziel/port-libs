@@ -2427,6 +2427,10 @@ XML;
             ['name' => '_xmlsignatures/sig-manifest-cross-check.xml', 'data' => $signatureXml],
         ]));
 
+        $relationshipTransforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-manifest-cross-check.xml');
+        $expectedPayloadBytes = $relationshipTransforms[0]['relationshipXmlBytes'];
+        $expectedPayloadHash = $relationshipTransforms[0]['relationshipXmlSha256'];
+
         $metadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig-manifest-cross-check.xml');
         $object = $metadata['objects'][0];
         $references = [];
@@ -2443,6 +2447,8 @@ XML;
         $heroReference = $references['/word/media/hero.png'];
         $t->same(true, $heroReference['relationshipTransformTargetMatched']);
         $t->same(1, $heroReference['relationshipTransformTargetMatchCount']);
+        $t->same([$expectedPayloadBytes], $heroReference['relationshipTransformPayloadByteCounts']);
+        $t->same([$expectedPayloadHash], $heroReference['relationshipTransformPayloadSha256s']);
         $t->same('/word/_rels/document.xml.rels', $heroReference['relationshipTransformTargetMatches'][0]['relationshipPartName']);
         $t->same('/word/document.xml', $heroReference['relationshipTransformTargetMatches'][0]['source']);
         $t->same(0, $heroReference['relationshipTransformTargetMatches'][0]['referenceIndex']);
@@ -2455,12 +2461,16 @@ XML;
         $t->same([], $heroReference['relationshipTransformTargetMatches'][0]['relationshipIssues']);
         $t->same(true, $heroReference['relationshipTransformTargetMatches'][0]['transformValid']);
         $t->same([], $heroReference['relationshipTransformTargetMatches'][0]['transformIssues']);
+        $t->same($expectedPayloadBytes, $heroReference['relationshipTransformTargetMatches'][0]['relationshipXmlBytes']);
+        $t->same($expectedPayloadHash, $heroReference['relationshipTransformTargetMatches'][0]['relationshipXmlSha256']);
         $t->same(true, $heroReference['valid']);
         $t->same([], $heroReference['issues']);
 
         $workbookReference = $references['/word/embeddings/source workbook.xlsx'];
         $t->same(true, $workbookReference['relationshipTransformTargetMatched']);
         $t->same(1, $workbookReference['relationshipTransformTargetMatchCount']);
+        $t->same([$expectedPayloadBytes], $workbookReference['relationshipTransformPayloadByteCounts']);
+        $t->same([$expectedPayloadHash], $workbookReference['relationshipTransformPayloadSha256s']);
         $t->same('rIdEmbeddedWorkbook', $workbookReference['relationshipTransformTargetMatches'][0]['id']);
         $t->same('/word/embeddings/source workbook.xlsx', $workbookReference['relationshipTransformTargetMatches'][0]['targetPart']);
         $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $workbookReference['relationshipTransformTargetMatches'][0]['contentType']);
@@ -2468,12 +2478,16 @@ XML;
         $t->same(true, $workbookReference['relationshipTransformTargetMatches'][0]['selectedBySourceType']);
         $t->same(true, $workbookReference['relationshipTransformTargetMatches'][0]['relationshipValid']);
         $t->same(true, $workbookReference['relationshipTransformTargetMatches'][0]['transformValid']);
+        $t->same($expectedPayloadBytes, $workbookReference['relationshipTransformTargetMatches'][0]['relationshipXmlBytes']);
+        $t->same($expectedPayloadHash, $workbookReference['relationshipTransformTargetMatches'][0]['relationshipXmlSha256']);
         $t->same(true, $workbookReference['valid']);
         $t->same([], $workbookReference['issues']);
 
         $documentReference = $references['/word/document.xml'];
         $t->same(false, $documentReference['relationshipTransformTargetMatched']);
         $t->same(0, $documentReference['relationshipTransformTargetMatchCount']);
+        $t->same([], $documentReference['relationshipTransformPayloadByteCounts']);
+        $t->same([], $documentReference['relationshipTransformPayloadSha256s']);
         $t->same([], $documentReference['relationshipTransformTargetMatches']);
         $t->same(true, $documentReference['valid']);
         $t->same([], $documentReference['issues']);

@@ -2286,4 +2286,96 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table cell border presentation metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="cell-border-presentation-grid" data-source="html-reader">
+<caption>Cell border presentation review</caption>
+<thead>
+<tr><th style="border-color: #336699; border-style: dashed; border-width: 2px">Source</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr><td style="border-color: rgb(51, 102, 153); border-style: solid">Posts</td><td style="border-width: thin medium thick 2px">Ready</td></tr>
+<tr><td>Media</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $borderDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'cell-border-presentation'
+            ));
+            $borderDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $borders = is_array($packet['cellBorderPresentations'] ?? null) ? $packet['cellBorderPresentations'] : [];
+        $t->same(3, count($borders));
+        $t->same(true, $packet['summary']['hasCellBorderPresentations'] ?? null);
+        $t->same(3, $packet['summary']['cellBorderPresentationCount'] ?? null);
+        $t->same([0, 1], $packet['summary']['cellBorderPresentationColumns'] ?? null);
+        $t->same(['head', 'body'], $packet['summary']['cellBorderPresentationSections'] ?? null);
+        $t->same(['#336699', 'rgb(51, 102, 153)'], $packet['summary']['cellBorderPresentationColors'] ?? null);
+        $t->same(['dashed', 'solid'], $packet['summary']['cellBorderPresentationStyles'] ?? null);
+        $t->same(['2px', 'thin medium thick 2px'], $packet['summary']['cellBorderPresentationWidths'] ?? null);
+
+        $t->same('Source', $borders[0]['text'] ?? null);
+        $t->same(true, $borders[0]['headerCell'] ?? null);
+        $t->same(0, $borders[0]['column'] ?? null);
+        $t->same('#336699', $borders[0]['borderColor'] ?? null);
+        $t->same('dashed', $borders[0]['borderStyle'] ?? null);
+        $t->same('2px', $borders[0]['borderWidth'] ?? null);
+        $t->same([
+            'border-color' => '#336699',
+            'border-style' => 'dashed',
+            'border-width' => '2px',
+        ], $borders[0]['attributes'] ?? null);
+        $t->same('border-color: #336699; border-style: dashed; border-width: 2px', $borders[0]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+
+        $t->same('Posts', $borders[1]['text'] ?? null);
+        $t->same(0, $borders[1]['column'] ?? null);
+        $t->same('rgb(51, 102, 153)', $borders[1]['borderColor'] ?? null);
+        $t->same('solid', $borders[1]['borderStyle'] ?? null);
+        $t->same(['border-color' => 'rgb(51, 102, 153)', 'border-style' => 'solid'], $borders[1]['attributes'] ?? null);
+
+        $t->same('Ready', $borders[2]['text'] ?? null);
+        $t->same(1, $borders[2]['column'] ?? null);
+        $t->same('thin medium thick 2px', $borders[2]['borderWidth'] ?? null);
+        $t->same(['border-width' => 'thin medium thick 2px'], $borders[2]['attributes'] ?? null);
+
+        $t->same([
+            'markdown-cell-border-presentation-require-raw-html',
+            'asciidoc-cell-border-presentation-review-required',
+            'latex-cell-border-presentation-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $borderDiagnostics['markdown'],
+            $borderDiagnostics['asciidoc'],
+            $borderDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-cell-border-presentation', $borderDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-cell-border-presentation', $borderDiagnostics['markdown']['source'] ?? null);
+        $t->same(3, $borderDiagnostics['markdown']['cellCount'] ?? null);
+        $t->same([0, 1], $borderDiagnostics['markdown']['columns'] ?? null);
+        $t->same(['head', 'body'], $borderDiagnostics['markdown']['sections'] ?? null);
+        $t->same(['#336699', 'rgb(51, 102, 153)'], $borderDiagnostics['markdown']['colors'] ?? null);
+        $t->same(['dashed', 'solid'], $borderDiagnostics['markdown']['styles'] ?? null);
+        $t->same(['2px', 'thin medium thick 2px'], $borderDiagnostics['markdown']['widths'] ?? null);
+
+        $t->contains('<th style="border-color: #336699; border-style: dashed; border-width: 2px">Source</th><th>Status</th>', $blocks);
+        $t->contains('<td style="border-color: rgb(51, 102, 153); border-style: solid">Posts</td><td style="border-width: thin medium thick 2px">Ready</td>', $blocks);
+        $t->contains('<td>Media</td><td>Review</td>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
 ];

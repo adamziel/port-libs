@@ -380,7 +380,7 @@ final class Html5DomFragment
         }
 
         if ($mode === 'html' && $foreignContext === null && !self::isDirectHtmlTableContext($parent)) {
-            $nodes = self::wrapOrphanHtmlTableRowsAndCells($nodes, $diagnostics);
+            $nodes = self::wrapOrphanHtmlTableStructure($nodes, $diagnostics);
         }
 
         return $nodes;
@@ -2392,28 +2392,40 @@ final class Html5DomFragment
         $fostered = [];
         $cleanChildren = [];
         $pendingCells = [];
+        $pendingColumns = [];
 
         $flushPendingCells = static function () use (&$pendingCells, &$cleanChildren): void {
             if ($pendingCells === []) {
                 return;
             }
 
-            $row = [
-                'type' => 'element',
-                'name' => 'tr',
-                'attrs' => [],
-                'children' => $pendingCells,
-            ];
-            if (isset($pendingCells[0]['line']) && is_int($pendingCells[0]['line'])) {
-                $row['line'] = $pendingCells[0]['line'];
+            $cleanChildren[] = self::generatedHtmlTableRow($pendingCells);
+            $pendingCells = [];
+        };
+        $flushPendingColumns = static function () use (&$pendingColumns, &$cleanChildren): void {
+            if ($pendingColumns === []) {
+                return;
             }
 
-            $cleanChildren[] = $row;
-            $pendingCells = [];
+            $cleanChildren[] = self::generatedHtmlTableColumnGroup($pendingColumns);
+            $pendingColumns = [];
         };
 
         foreach ($children as $child) {
+            if (self::isHtmlTableColumnNode($child) && strtolower($context) === 'table') {
+                $flushPendingCells();
+                $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
+                    'code' => 'table-orphan-column-repaired',
+                    'context' => 'table',
+                    'tag' => 'col',
+                    'reason' => 'table-column-wrapped-in-generated-colgroup',
+                ], $child);
+                $pendingColumns[] = $child;
+                continue;
+            }
+
             if (self::isHtmlTableCellNode($child) && self::allowsGeneratedHtmlTableRows($context)) {
+                $flushPendingColumns();
                 $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
                     'code' => 'table-orphan-cell-repaired',
                     'context' => strtolower($context),
@@ -2425,6 +2437,7 @@ final class Html5DomFragment
             }
 
             $flushPendingCells();
+            $flushPendingColumns();
 
             if (self::isFosteredHtmlTableNode($child, $context)) {
                 $diagnostics[] = self::diagnosticWithNormalizedNodeLine(
@@ -2446,6 +2459,7 @@ final class Html5DomFragment
         }
 
         $flushPendingCells();
+        $flushPendingColumns();
 
         return [$fostered, $cleanChildren];
     }
@@ -2455,52 +2469,93 @@ final class Html5DomFragment
      * @param list<array<string, mixed>> $diagnostics
      * @return list<array<string, mixed>>
      */
-    private static function wrapOrphanHtmlTableRowsAndCells(array $nodes, array &$diagnostics): array
+    private static function wrapOrphanHtmlTableStructure(array $nodes, array &$diagnostics): array
     {
         $wrapped = [];
+        $pendingTableChildren = [];
         $pendingRows = [];
         $pendingCells = [];
+        $pendingColumns = [];
 
         $flushPendingCells = static function () use (&$pendingCells, &$pendingRows): void {
             if ($pendingCells === []) {
                 return;
             }
 
-            $row = [
-                'type' => 'element',
-                'name' => 'tr',
-                'attrs' => [],
-                'children' => $pendingCells,
-            ];
-            if (isset($pendingCells[0]['line']) && is_int($pendingCells[0]['line'])) {
-                $row['line'] = $pendingCells[0]['line'];
-            }
-
-            $pendingRows[] = $row;
+            $pendingRows[] = self::generatedHtmlTableRow($pendingCells);
             $pendingCells = [];
         };
 
-        $flushPendingRows = static function () use (&$pendingRows, &$wrapped): void {
+        $flushPendingRows = static function () use (&$pendingRows, &$pendingTableChildren): void {
             if ($pendingRows === []) {
                 return;
             }
 
-            $table = [
-                'type' => 'element',
-                'name' => 'table',
-                'attrs' => [],
-                'children' => $pendingRows,
-            ];
-            if (isset($pendingRows[0]['line']) && is_int($pendingRows[0]['line'])) {
-                $table['line'] = $pendingRows[0]['line'];
+            array_push($pendingTableChildren, ...$pendingRows);
+            $pendingRows = [];
+        };
+        $flushPendingColumns = static function () use (&$pendingColumns, &$pendingTableChildren): void {
+            if ($pendingColumns === []) {
+                return;
             }
 
-            $wrapped[] = $table;
-            $pendingRows = [];
+            $pendingTableChildren[] = self::generatedHtmlTableColumnGroup($pendingColumns);
+            $pendingColumns = [];
+        };
+        $flushPendingTable = static function () use (
+            &$pendingTableChildren,
+            &$pendingRows,
+            &$pendingCells,
+            &$pendingColumns,
+            &$wrapped,
+            $flushPendingCells,
+            $flushPendingRows,
+            $flushPendingColumns
+        ): void {
+            $flushPendingColumns();
+            $flushPendingCells();
+            $flushPendingRows();
+            if ($pendingTableChildren === []) {
+                return;
+            }
+
+            $wrapped[] = self::generatedHtmlTable($pendingTableChildren);
+            $pendingTableChildren = [];
         };
 
         foreach ($nodes as $node) {
+            if (self::isHtmlTableColumnNode($node)) {
+                $flushPendingCells();
+                $flushPendingRows();
+                $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
+                    'code' => 'table-orphan-column-repaired',
+                    'context' => 'fragment',
+                    'tag' => 'col',
+                    'reason' => 'orphan-table-column-wrapped-in-generated-table-colgroup',
+                ], $node);
+                $pendingColumns[] = $node;
+                continue;
+            }
+
+            if (self::isHtmlTableContainerNode($node)) {
+                $flushPendingColumns();
+                $flushPendingCells();
+                $flushPendingRows();
+                [$fostered, $cleanNode] = self::normalizeHtmlTableOrphanContainer($node, $diagnostics);
+                if ($fostered !== []) {
+                    $flushPendingTable();
+                    array_push($wrapped, ...$fostered);
+                }
+                $diagnostics[] = self::diagnosticWithNormalizedNodeLine(
+                    self::htmlTableOrphanContainerDiagnostic($cleanNode),
+                    $cleanNode
+                );
+                $pendingTableChildren[] = $cleanNode;
+                continue;
+            }
+
             if (self::isHtmlTableRowNode($node)) {
+                $flushPendingColumns();
                 $flushPendingCells();
                 $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
                     'code' => 'table-orphan-row-repaired',
@@ -2513,6 +2568,7 @@ final class Html5DomFragment
             }
 
             if (self::isHtmlTableCellNode($node)) {
+                $flushPendingColumns();
                 $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
                     'code' => 'table-orphan-cell-repaired',
                     'context' => 'fragment',
@@ -2523,13 +2579,11 @@ final class Html5DomFragment
                 continue;
             }
 
-            $flushPendingCells();
-            $flushPendingRows();
+            $flushPendingTable();
             $wrapped[] = $node;
         }
 
-        $flushPendingCells();
-        $flushPendingRows();
+        $flushPendingTable();
 
         return $wrapped;
     }
@@ -2559,6 +2613,132 @@ final class Html5DomFragment
         }
 
         return in_array(strtolower((string) ($node['name'] ?? '')), ['td', 'th'], true);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private static function isHtmlTableColumnNode(array $node): bool
+    {
+        return ($node['type'] ?? '') === 'element'
+            && strtolower((string) ($node['name'] ?? '')) === 'col';
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private static function isHtmlTableContainerNode(array $node): bool
+    {
+        if (($node['type'] ?? '') !== 'element') {
+            return false;
+        }
+
+        return in_array(
+            strtolower((string) ($node['name'] ?? '')),
+            ['caption', 'colgroup', 'thead', 'tbody', 'tfoot'],
+            true
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @return array<string, string>
+     */
+    private static function htmlTableOrphanContainerDiagnostic(array $node): array
+    {
+        $name = strtolower((string) ($node['name'] ?? ''));
+
+        return match ($name) {
+            'caption' => [
+                'code' => 'table-orphan-caption-repaired',
+                'context' => 'fragment',
+                'tag' => 'caption',
+                'reason' => 'orphan-table-caption-wrapped-in-generated-table',
+            ],
+            'colgroup' => [
+                'code' => 'table-orphan-column-group-repaired',
+                'context' => 'fragment',
+                'tag' => 'colgroup',
+                'reason' => 'orphan-table-column-group-wrapped-in-generated-table',
+            ],
+            default => [
+                'code' => 'table-orphan-section-repaired',
+                'context' => 'fragment',
+                'tag' => $name,
+                'reason' => 'orphan-table-section-wrapped-in-generated-table',
+            ],
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:list<array<string, mixed>>, 1:array<string, mixed>}
+     */
+    private static function normalizeHtmlTableOrphanContainer(array $node, array &$diagnostics): array
+    {
+        if (!self::isHtmlTableModelContext((string) ($node['name'] ?? ''))) {
+            return [[], $node];
+        }
+
+        return self::normalizeHtmlTableElementParts($node, $diagnostics);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @return array<string, mixed>
+     */
+    private static function generatedHtmlTableRow(array $cells): array
+    {
+        $row = [
+            'type' => 'element',
+            'name' => 'tr',
+            'attrs' => [],
+            'children' => $cells,
+        ];
+        if (isset($cells[0]['line']) && is_int($cells[0]['line'])) {
+            $row['line'] = $cells[0]['line'];
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columns
+     * @return array<string, mixed>
+     */
+    private static function generatedHtmlTableColumnGroup(array $columns): array
+    {
+        $colgroup = [
+            'type' => 'element',
+            'name' => 'colgroup',
+            'attrs' => [],
+            'children' => $columns,
+        ];
+        if (isset($columns[0]['line']) && is_int($columns[0]['line'])) {
+            $colgroup['line'] = $columns[0]['line'];
+        }
+
+        return $colgroup;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @return array<string, mixed>
+     */
+    private static function generatedHtmlTable(array $children): array
+    {
+        $table = [
+            'type' => 'element',
+            'name' => 'table',
+            'attrs' => [],
+            'children' => $children,
+        ];
+        if (isset($children[0]['line']) && is_int($children[0]['line'])) {
+            $table['line'] = $children[0]['line'];
+        }
+
+        return $table;
     }
 
     private static function allowsGeneratedHtmlTableRows(string $context): bool

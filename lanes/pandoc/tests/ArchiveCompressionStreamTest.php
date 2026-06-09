@@ -1358,6 +1358,7 @@ return [
             ArchiveCompressionStream::FORMAT_TAR,
             strlen($archive)
         );
+        $checksumPolicy = TarArchive::checksumPolicyPreflight($archive);
 
         $t->true(strlen($longDocumentName) > 100);
         $t->true(strlen($longDirectoryName) > 100);
@@ -1378,6 +1379,13 @@ return [
         $t->same($longDocumentName, $inspection['entryLayouts'][0]['gnuLongName']);
         $t->same('gnu-long-name', $inspection['entryLayouts'][1]['nameSource']);
         $t->same($longDirectoryName, $inspection['entryLayouts'][1]['gnuLongName']);
+        $t->same(['gnu-long-name', 'regular-file', 'gnu-long-name', 'directory'], array_column($checksumPolicy['entries'], 'role'));
+        $t->same(['gnu-long-name', null, 'gnu-long-name', null], array_column($checksumPolicy['entries'], 'metadataKind'));
+        $t->same($longDocumentName, $checksumPolicy['entries'][0]['metadataValue']);
+        $t->same(strlen($longDocumentName), $checksumPolicy['entries'][0]['metadataValueSize']);
+        $t->same($longDirectoryName, $checksumPolicy['entries'][2]['metadataValue']);
+        $t->same(strlen($longDirectoryName), $checksumPolicy['entries'][2]['metadataValueSize']);
+        $t->same([0, 0, 0, 0], array_column($checksumPolicy['entries'], 'paxHeaderCount'));
     },
 
     'reads base-256 tar numeric fields for package fixture entries' => static function (TestRunner $t) use ($rawTarHeader, $base256TarField, $rewriteTarHeaderFields): void {
@@ -1439,6 +1447,7 @@ return [
         $signedBytes = "# Historic signed checksum packet\n\nReady for archive review.\n";
         $unsignedRecord = $rawTarHeader($unsignedName, '0', $unsignedBytes, 1780479092, false);
         $paxRecord = $rawTarHeader('PaxHeaders/checksum', 'x', $paxPayload([
+            'comment' => 'checksum review metadata',
             'path' => $signedName,
             'size' => (string) strlen($signedBytes),
         ]), 1780479093, false);
@@ -1471,6 +1480,10 @@ return [
         $t->same(['tar-header-historic-signed-checksum'], $inspection['diagnostics']);
         $t->same([$unsignedName, 'PaxHeaders/checksum', $signedName], array_column($inspection['entries'], 'name'));
         $t->same(['regular-file', 'pax-local', 'regular-file'], array_column($inspection['entries'], 'role'));
+        $t->same([null, 'pax-local', null], array_column($inspection['entries'], 'metadataKind'));
+        $t->same([0, 3, 0], array_column($inspection['entries'], 'paxHeaderCount'));
+        $t->same(['comment', 'path', 'size'], $inspection['entries'][1]['paxHeaderKeys']);
+        $t->same(null, $inspection['entries'][1]['metadataValue']);
         $t->same([
             'posix-unsigned',
             'posix-unsigned-and-historic-signed',

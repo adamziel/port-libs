@@ -1777,7 +1777,8 @@ final class TableGeometry
      *     flatGrid:array{columnCount:int,rows:list<array<string, mixed>>,summary:array<string, mixed>},
      *     flatGridFallbacks:list<array<string, mixed>>,
      *     summary:array<string, mixed>,
-     *     cellBackgrounds:list<array<string, mixed>>
+     *     cellBackgrounds:list<array<string, mixed>>,
+     *     cellBorderPresentations:list<array<string, mixed>>
      * }
      */
     public static function reviewPacket(AstNode $table, array $options = []): array
@@ -1795,6 +1796,7 @@ final class TableGeometry
         $cellDecimalAlignments = self::cellDecimalAlignments($coverageRecords);
         $cellNoWraps = self::cellNoWraps($coverageRecords);
         $cellBackgrounds = self::cellBackgrounds($coverageRecords);
+        $cellBorderPresentations = self::cellBorderPresentations($coverageRecords);
         $rowGroups = self::rowGroups($table, $columnCount);
         $sourceSummary = self::sourceSummaryRecord($table);
         $tableLayout = self::tableLayoutMetadata($table);
@@ -1835,6 +1837,7 @@ final class TableGeometry
             'cellDecimalAlignments' => $cellDecimalAlignments,
             'cellNoWraps' => $cellNoWraps,
             'cellBackgrounds' => $cellBackgrounds,
+            'cellBorderPresentations' => $cellBorderPresentations,
             'directionality' => $directionality,
             'widthSummary' => $widthSummary,
             'sections' => self::serializableSectionGrids($sections),
@@ -1860,6 +1863,7 @@ final class TableGeometry
                 $cellDecimalAlignments,
                 $cellNoWraps,
                 $cellBackgrounds,
+                $cellBorderPresentations,
                 $rowGroups,
                 $headerAssociations,
                 $rowHeaderMap,
@@ -4854,6 +4858,7 @@ final class TableGeometry
      * @param list<array<string, mixed>> $cellDecimalAlignments
      * @param list<array<string, mixed>> $cellNoWraps
      * @param list<array<string, mixed>> $cellBackgrounds
+     * @param list<array<string, mixed>> $cellBorderPresentations
      * @param list<array<string, mixed>> $rowGroups
      * @param array<string, mixed> $headerAssociations
      * @param array<string, mixed> $rowHeaderMap
@@ -4880,6 +4885,7 @@ final class TableGeometry
         array $cellDecimalAlignments,
         array $cellNoWraps,
         array $cellBackgrounds,
+        array $cellBorderPresentations,
         array $rowGroups,
         array $headerAssociations,
         array $rowHeaderMap,
@@ -5215,6 +5221,13 @@ final class TableGeometry
             'cellBackgroundSections' => self::cellBackgroundStringValues($cellBackgrounds, 'section'),
             'cellBackgroundColors' => self::cellBackgroundStringValues($cellBackgrounds, 'backgroundColor'),
             'cellBackgroundSources' => self::cellBackgroundStringValues($cellBackgrounds, 'backgroundColorSource'),
+            'cellBorderPresentationCount' => count($cellBorderPresentations),
+            'hasCellBorderPresentations' => $cellBorderPresentations !== [],
+            'cellBorderPresentationColumns' => self::cellBorderPresentationColumns($cellBorderPresentations),
+            'cellBorderPresentationSections' => self::cellBorderPresentationStringValues($cellBorderPresentations, 'section'),
+            'cellBorderPresentationColors' => self::cellBorderPresentationStringValues($cellBorderPresentations, 'borderColor'),
+            'cellBorderPresentationStyles' => self::cellBorderPresentationStringValues($cellBorderPresentations, 'borderStyle'),
+            'cellBorderPresentationWidths' => self::cellBorderPresentationStringValues($cellBorderPresentations, 'borderWidth'),
             'rowGroupCount' => $rowGroupSummary['rowGroupCount'],
             'bodyGroupCount' => $rowGroupSummary['bodyGroupCount'],
             'hasMultipleBodyGroups' => $rowGroupSummary['hasMultipleBodyGroups'],
@@ -5590,6 +5603,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::cellBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
@@ -5673,6 +5687,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::cellBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
@@ -5772,6 +5787,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::cellBorderPresentationWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
@@ -6633,6 +6649,223 @@ final class TableGeometry
             'sections' => self::cellBackgroundStringValues($records, 'section'),
             'colors' => self::cellBackgroundStringValues($records, 'backgroundColor'),
             'backgroundColorSources' => self::cellBackgroundStringValues($records, 'backgroundColorSource'),
+            'cells' => $records,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
+    private static function cellBorderPresentations(array $coverage): array
+    {
+        $records = [];
+        foreach ($coverage as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $node = $record['node'] ?? null;
+            $border = self::cellBorderPresentationFromNode($node);
+            if ($border === []) {
+                continue;
+            }
+
+            $columns = self::intList($record['columns'] ?? []);
+            if ($columns === []) {
+                continue;
+            }
+
+            $cell = [
+                'section' => (string) ($record['section'] ?? ''),
+                'rowRole' => (string) ($record['rowRole'] ?? ''),
+                'row' => max(0, (int) ($record['row'] ?? 0)),
+                'globalRow' => max(0, (int) ($record['globalRow'] ?? 0)),
+                'column' => min($columns),
+                'endColumn' => max($columns) + 1,
+                'columns' => $columns,
+                'source' => 'html-table-cell-border-presentation',
+                'text' => $node instanceof AstNode ? self::plainText($node) : '',
+            ];
+
+            foreach (['sourceRow', 'sourceCell', 'sourceColumn', 'colspan', 'rowspan', 'rawColspan', 'rawRowspan'] as $key) {
+                if (isset($record[$key]) && is_numeric($record[$key])) {
+                    $cell[$key] = (int) $record[$key];
+                }
+            }
+
+            foreach (['sourceRows', 'globalRows'] as $key) {
+                $values = self::intList($record[$key] ?? []);
+                if ($values !== []) {
+                    $cell[$key] = $values;
+                }
+            }
+
+            if (($record['headerCell'] ?? false) === true) {
+                $cell['headerCell'] = true;
+            }
+
+            foreach (['borderColor', 'borderStyle', 'borderWidth'] as $key) {
+                $value = trim((string) ($border[$key] ?? ''));
+                if ($value !== '') {
+                    $cell[$key] = $value;
+                }
+            }
+
+            foreach (['attributes', 'sourceAttributes'] as $key) {
+                $attributes = is_array($border[$key] ?? null) ? $border[$key] : [];
+                if ($attributes !== []) {
+                    $cell[$key] = $attributes;
+                }
+            }
+
+            $records[] = $cell;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function cellBorderPresentationFromNode(mixed $node): array
+    {
+        if (!$node instanceof AstNode) {
+            return [];
+        }
+
+        $style = self::sourceHtmlAttribute($node, 'style');
+        if ($style === '') {
+            return [];
+        }
+
+        $attributes = [];
+        $borderColor = self::normalizeTableBorderColorStyleAttribute($style);
+        if ($borderColor !== '') {
+            $attributes['border-color'] = $borderColor;
+        }
+
+        $borderStyle = self::normalizeTableBorderStyleStyleAttribute($style);
+        if ($borderStyle !== '') {
+            $attributes['border-style'] = $borderStyle;
+        }
+
+        $borderWidth = self::normalizeTableBorderWidthStyleAttribute($style);
+        if ($borderWidth !== '') {
+            $attributes['border-width'] = $borderWidth;
+        }
+
+        if ($attributes === []) {
+            return [];
+        }
+
+        ksort($attributes);
+        $sourceAttributes = [];
+        $htmlAttributes = self::stringAttributeMap($node->attr('htmlAttributes', []), true);
+        if ($htmlAttributes !== []) {
+            $sourceAttributes['htmlAttributes'] = $htmlAttributes;
+        }
+        $nodeAttributes = self::stringAttributeMap($node->attr('attributes', []), false);
+        if ($nodeAttributes !== []) {
+            $sourceAttributes['attributes'] = $nodeAttributes;
+        }
+
+        $record = [
+            'source' => 'html-table-cell-border-presentation',
+            'attributes' => $attributes,
+        ];
+        if ($borderColor !== '') {
+            $record['borderColor'] = $borderColor;
+        }
+        if ($borderStyle !== '') {
+            $record['borderStyle'] = $borderStyle;
+        }
+        if ($borderWidth !== '') {
+            $record['borderWidth'] = $borderWidth;
+        }
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<int>
+     */
+    private static function cellBorderPresentationColumns(array $records): array
+    {
+        $columns = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            foreach (self::intList($record['columns'] ?? []) as $column) {
+                $columns[] = $column;
+            }
+        }
+
+        return array_values(array_unique($columns));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function cellBorderPresentationStringValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $value = trim((string) ($record[$key] ?? ''));
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function cellBorderPresentationWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-cell-border-presentation-require-raw-html', 'raw-html-cell-border-presentation'],
+            'asciidoc' => ['asciidoc-cell-border-presentation-review-required', 'cell-border-presentation-review'],
+            'latex' => ['latex-cell-border-presentation-review-required', 'table-cell-border-presentation-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $records = self::cellBorderPresentations(self::cellCoverage($table));
+        if ($records === []) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'cell-border-presentation',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-cell-border-presentation',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'cellCount' => count($records),
+            'columns' => self::cellBorderPresentationColumns($records),
+            'sections' => self::cellBorderPresentationStringValues($records, 'section'),
+            'colors' => self::cellBorderPresentationStringValues($records, 'borderColor'),
+            'styles' => self::cellBorderPresentationStringValues($records, 'borderStyle'),
+            'widths' => self::cellBorderPresentationStringValues($records, 'borderWidth'),
             'cells' => $records,
         ]];
     }

@@ -2316,6 +2316,8 @@ $summary = [
                 'contentType' => $reference['contentType'],
                 'relationshipTransformTargetMatched' => $reference['relationshipTransformTargetMatched'],
                 'relationshipTransformTargetMatchCount' => $reference['relationshipTransformTargetMatchCount'],
+                'relationshipTransformPayloadByteCounts' => $reference['relationshipTransformPayloadByteCounts'],
+                'relationshipTransformPayloadSha256s' => $reference['relationshipTransformPayloadSha256s'],
                 'relationshipTransformTargetMatches' => array_values(array_map(
                     static fn (array $match): array => [
                         'relationshipPartName' => $match['relationshipPartName'],
@@ -2326,6 +2328,8 @@ $summary = [
                         'selectedBySourceType' => $match['selectedBySourceType'],
                         'relationshipValid' => $match['relationshipValid'],
                         'transformValid' => $match['transformValid'],
+                        'relationshipXmlBytes' => $match['relationshipXmlBytes'],
+                        'relationshipXmlSha256' => $match['relationshipXmlSha256'],
                     ],
                     $reference['relationshipTransformTargetMatches']
                 )),
@@ -2642,6 +2646,8 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['digestValueDecodedBytes'] ?? null) !== 3
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatched'] ?? null) !== true
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatchCount'] ?? null) !== 1
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformPayloadByteCounts'] ?? null) !== [$signatureRelationshipTransformXmlBytes]
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformPayloadSha256s'] ?? null) !== [$signatureRelationshipTransformXmlSha256]
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['source'] ?? null) !== '/word/document.xml'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['id'] ?? null) !== 'rIdHero'
@@ -2649,6 +2655,8 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['selectedBySourceType'] ?? null) !== false
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['relationshipValid'] ?? null) !== true
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['transformValid'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['relationshipXmlBytes'] ?? null) !== $signatureRelationshipTransformXmlBytes
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['relationshipXmlSha256'] ?? null) !== $signatureRelationshipTransformXmlSha256
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['valid'] ?? null) !== true
         || ($summary['digitalSignatureSignedInfoReferences'][0]['uri'] ?? null) !== '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
         || ($summary['digitalSignatureSignedInfoReferences'][0]['targetPart'] ?? null) !== '/word/_rels/document.xml.rels'
@@ -2688,11 +2696,15 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['contentType'] ?? null) !== 'image/png'
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatched'] ?? null) !== true
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatchCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformPayloadByteCounts'] ?? null) !== [$signatureRelationshipTransformXmlBytes]
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformPayloadSha256s'] ?? null) !== [$signatureRelationshipTransformXmlSha256]
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['id'] ?? null) !== 'rIdHero'
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['source'] ?? null) !== '/word/document.xml'
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['selectedBySourceId'] ?? null) !== true
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['selectedBySourceType'] ?? null) !== false
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['relationshipXmlBytes'] ?? null) !== $signatureRelationshipTransformXmlBytes
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['relationshipXmlSha256'] ?? null) !== $signatureRelationshipTransformXmlSha256
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['targetPart'] ?? null) !== '/word/_rels/document.xml.rels'
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipPart'] ?? null) !== true

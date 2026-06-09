@@ -263,6 +263,11 @@ final class TarArchive
      *         matchesUnsigned:bool,
      *         matchesSigned:bool,
      *         checksumKind:string,
+     *         metadataKind:?string,
+     *         metadataValue:?string,
+     *         metadataValueSize:?int,
+     *         paxHeaderCount:int,
+     *         paxHeaderKeys:list<string>,
      *         policy:string,
      *         diagnostics:list<string>
      *     }>
@@ -359,7 +364,11 @@ final class TarArchive
                     self::trimNullField(substr($header, 0, 100)),
                     'gnu-long-name',
                     $typeFlag,
-                    TarArchiveEntry::NAME_SOURCE_HEADER
+                    TarArchiveEntry::NAME_SOURCE_HEADER,
+                    [
+                        'metadataKind' => 'gnu-long-name',
+                        'metadataValue' => $pendingGnuLongName,
+                    ]
                 );
                 $cursor = $nextCursor;
                 continue;
@@ -388,7 +397,11 @@ final class TarArchive
                     self::trimNullField(substr($header, 0, 100)),
                     'gnu-long-link',
                     $typeFlag,
-                    TarArchiveEntry::NAME_SOURCE_HEADER
+                    TarArchiveEntry::NAME_SOURCE_HEADER,
+                    [
+                        'metadataKind' => 'gnu-long-link',
+                        'metadataValue' => $pendingGnuLongLink,
+                    ]
                 );
                 $cursor = $nextCursor;
                 continue;
@@ -413,6 +426,8 @@ final class TarArchive
                     $globalPaxHeaders = self::applyPaxHeaderRecords($globalPaxHeaders, $headers);
                 }
 
+                $paxHeaderKeys = array_keys($headers);
+                sort($paxHeaderKeys);
                 $metadataRecordCount++;
                 $entries[] = self::checksumPolicyRecord(
                     $checksum,
@@ -424,7 +439,11 @@ final class TarArchive
                     self::trimNullField(substr($header, 0, 100)),
                     $typeFlag === self::TYPE_PAX_EXTENDED ? 'pax-local' : 'pax-global',
                     $typeFlag,
-                    TarArchiveEntry::NAME_SOURCE_HEADER
+                    TarArchiveEntry::NAME_SOURCE_HEADER,
+                    [
+                        'metadataKind' => $typeFlag === self::TYPE_PAX_EXTENDED ? 'pax-local' : 'pax-global',
+                        'paxHeaderKeys' => $paxHeaderKeys,
+                    ]
                 );
                 $cursor = $nextCursor;
                 continue;
@@ -2921,6 +2940,11 @@ final class TarArchive
      *     matchesUnsigned:bool,
      *     matchesSigned:bool,
      *     checksumKind:string,
+     *     metadataKind:?string,
+     *     metadataValue:?string,
+     *     metadataValueSize:?int,
+     *     paxHeaderCount:int,
+     *     paxHeaderKeys:list<string>,
      *     policy:string,
      *     diagnostics:list<string>
      * }
@@ -2935,11 +2959,15 @@ final class TarArchive
         string $name,
         string $role,
         string $typeFlag,
-        string $nameSource
+        string $nameSource,
+        array $metadata = []
     ): array {
         $diagnostics = $checksum['checksumKind'] === 'historic-signed'
             ? ['tar-header-historic-signed-checksum']
             : [];
+        $metadataKind = is_string($metadata['metadataKind'] ?? null) ? $metadata['metadataKind'] : null;
+        $metadataValue = is_string($metadata['metadataValue'] ?? null) ? $metadata['metadataValue'] : null;
+        $paxHeaderKeys = is_array($metadata['paxHeaderKeys'] ?? null) ? array_values($metadata['paxHeaderKeys']) : [];
 
         return [
             'name' => $name,
@@ -2959,6 +2987,11 @@ final class TarArchive
             'matchesUnsigned' => $checksum['matchesUnsigned'],
             'matchesSigned' => $checksum['matchesSigned'],
             'checksumKind' => $checksum['checksumKind'],
+            'metadataKind' => $metadataKind,
+            'metadataValue' => $metadataValue,
+            'metadataValueSize' => $metadataValue === null ? null : strlen($metadataValue),
+            'paxHeaderCount' => count($paxHeaderKeys),
+            'paxHeaderKeys' => $paxHeaderKeys,
             'policy' => 'accepted-checksum-provenance',
             'diagnostics' => $diagnostics,
         ];

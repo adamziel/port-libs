@@ -3035,9 +3035,9 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @param list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, target:string, targetPart:?string, contentType:?string, external:bool, valid:bool, issues:list<string>}>}> $transforms
+     * @param list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, target:string, targetPart:?string, contentType:?string, external:bool, valid:bool, issues:list<string>}>, relationshipXmlBytes:?int, relationshipXmlSha256:?string}> $transforms
      *
-     * @return array<string, list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>>
+     * @return array<string, list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>>
      */
     private static function signatureRelationshipTransformTargetIndex(array $transforms): array
     {
@@ -3065,6 +3065,8 @@ final class OpcRelationshipGraph
                     'relationshipIssues' => $relationship['issues'],
                     'transformValid' => $transform['valid'],
                     'transformIssues' => $transform['issues'],
+                    'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+                    'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
                 ];
             }
         }
@@ -3090,7 +3092,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @param array<string, list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>> $relationshipTransformTargetIndex
+     * @param array<string, list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>> $relationshipTransformTargetIndex
      * @param array<string, list<string>> $sameDocumentIdIndex
      * @param array<string, int> $signatureObjectIdCounts
      *
@@ -3183,9 +3185,9 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @param array<string, list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>> $relationshipTransformTargetIndex
+     * @param array<string, list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>> $relationshipTransformTargetIndex
      *
-     * @return array{manifestCount:int, manifestIds:list<string>, duplicateManifestIds:list<string>, missingManifestIdCount:int, issues:list<string>, references:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipTransformTargetMatched:bool, relationshipTransformTargetMatchCount:int, relationshipTransformTargetMatches:list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>}
+     * @return array{manifestCount:int, manifestIds:list<string>, duplicateManifestIds:list<string>, missingManifestIdCount:int, issues:list<string>, references:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipTransformTargetMatched:bool, relationshipTransformTargetMatchCount:int, relationshipTransformPayloadByteCounts:list<int>, relationshipTransformPayloadSha256s:list<string>, relationshipTransformTargetMatches:list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     private static function digitalSignatureObjectManifestReferences(
         \DOMElement $object,
@@ -3369,9 +3371,9 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @param array<string, list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>> $relationshipTransformTargetIndex
+     * @param array<string, list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>> $relationshipTransformTargetIndex
      *
-     * @return array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipTransformTargetMatched:bool, relationshipTransformTargetMatchCount:int, relationshipTransformTargetMatches:list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>}>, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}
+     * @return array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipTransformTargetMatched:bool, relationshipTransformTargetMatchCount:int, relationshipTransformPayloadByteCounts:list<int>, relationshipTransformPayloadSha256s:list<string>, relationshipTransformTargetMatches:list<array{signaturePart:string, referenceIndex:int, relationshipPartName:?string, source:?string, id:string, type:string, target:string, targetPart:string, contentType:?string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipValid:bool, relationshipIssues:list<string>, transformValid:bool, transformIssues:list<string>, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}
      */
     private static function digitalSignatureManifestReferenceMetadata(
         \DOMElement $reference,
@@ -3453,6 +3455,25 @@ final class OpcRelationshipGraph
         $relationshipTransformTargetMatches = $targetPart === null
             ? []
             : ($relationshipTransformTargetIndex[self::partNameEquivalenceKey($targetPart)] ?? []);
+        $relationshipTransformPayloadByteCounts = [];
+        $relationshipTransformPayloadSha256s = [];
+        foreach ($relationshipTransformTargetMatches as $match) {
+            if (
+                $match['relationshipXmlBytes'] !== null
+                && !in_array($match['relationshipXmlBytes'], $relationshipTransformPayloadByteCounts, true)
+            ) {
+                $relationshipTransformPayloadByteCounts[] = $match['relationshipXmlBytes'];
+            }
+
+            if (
+                $match['relationshipXmlSha256'] !== null
+                && !in_array($match['relationshipXmlSha256'], $relationshipTransformPayloadSha256s, true)
+            ) {
+                $relationshipTransformPayloadSha256s[] = $match['relationshipXmlSha256'];
+            }
+        }
+        sort($relationshipTransformPayloadByteCounts, SORT_NUMERIC);
+        sort($relationshipTransformPayloadSha256s, SORT_STRING);
 
         return [
             'manifestId' => $manifestId,
@@ -3463,6 +3484,8 @@ final class OpcRelationshipGraph
             'contentType' => $contentType,
             'relationshipTransformTargetMatched' => $relationshipTransformTargetMatches !== [],
             'relationshipTransformTargetMatchCount' => count($relationshipTransformTargetMatches),
+            'relationshipTransformPayloadByteCounts' => $relationshipTransformPayloadByteCounts,
+            'relationshipTransformPayloadSha256s' => $relationshipTransformPayloadSha256s,
             'relationshipTransformTargetMatches' => $relationshipTransformTargetMatches,
             'digestAlgorithm' => $digestAlgorithm,
             'digestAlgorithmKnown' => $digestPolicy['known'],
