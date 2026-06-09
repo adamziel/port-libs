@@ -1774,3 +1774,40 @@ slice. It reuses the existing Markdown inline parser/renderer, span attribute
 helpers, WordPress inline renderer, and AST node shape; no DOCX/OpenXML, PDF,
 EPUB/ODT, CFB, citation, Unicode/charset, metadata, archive, compression,
 syntax-highlighting, or external conversion component is activated.
+
+## 2026-06-09 Markdown alert blockquote extension parity slice
+
+The current-base pass maps Pandoc's Markdown alerts extension for
+GitHub/CommonMark-style blockquote alert markers. Upstream Pandoc documents the
+extension as producing HTML like an outer alert-type div with a nested
+`div.title`, for the `note`, `tip`, `important`, `warning`, and `caution`
+alert types.
+
+The native PHP reader now parses blockquotes that begin with `[!NOTE]`,
+`[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, or `[!CAUTION]` into a classed `div`
+node with a title child and parsed body blocks. Unsupported markers remain
+ordinary blockquotes. The native Markdown writer emits simple alert divs back
+as blockquote alert markers while leaving attributed divs on the existing
+fenced-div path.
+
+WordPress handoff evidence covers the same reader path: the block writer emits
+nested classed div markup for imported alert review content, preserving inline
+strong markup and list content without invoking Pandoc, Cabal/Haskell runners,
+browser renderers, online services, or external validators.
+
+Focused local verification on 2026-06-09 after the Markdown alert blockquote
+slice: `php -l` passed for `MarkdownReader.php`, `MarkdownWriter.php`, and
+`MarkdownReaderTest.php`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 6,328
+assertions, and 0 failures.
+
+Root verification on 2026-06-09 after the Markdown alert blockquote slice:
+`php tools/run-tests.php lanes/pandoc/tests` passed 42 test files, 57,689
+assertions, and 0 failures.
+
+Dependency closure: no new support component is needed for this alert
+blockquote slice. It reuses the existing blockquote scanner, Markdown
+reader/writer block collection paths, div attribute handling, WordPress block
+writer, and AST node shape; no DOCX/OpenXML, PDF, EPUB/ODT, CFB, citation,
+Unicode/charset, metadata, archive, compression, syntax-highlighting, or
+external conversion component is activated.

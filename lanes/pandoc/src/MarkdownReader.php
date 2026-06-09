@@ -7992,9 +7992,48 @@ final class MarkdownReader
         }
 
         $index = $cursor - 1;
+
+        $alert = $this->buildAlertBlockQuote($content);
+        if ($alert !== null) {
+            return $alert;
+        }
+
         $inner = $this->read(implode("\n", $content));
 
         return new AstNode('blockquote', [], $inner->children);
+    }
+
+    /**
+     * @param list<string> $content
+     */
+    private function buildAlertBlockQuote(array $content): ?AstNode
+    {
+        $first = $content[0] ?? null;
+        if ($first === null || preg_match('/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/i', $first, $m) !== 1) {
+            return null;
+        }
+
+        $type = strtolower($m[1]);
+        $bodyLines = array_slice($content, 1);
+        while ($bodyLines !== [] && trim($bodyLines[0]) === '') {
+            array_shift($bodyLines);
+        }
+
+        $title = ucfirst($type);
+        $children = [
+            new AstNode('div', ['classes' => ['title']], [
+                new AstNode('paragraph', ['text' => $title], [new AstNode('text', ['text' => $title])]),
+            ]),
+        ];
+        if ($bodyLines !== []) {
+            $body = $this->read(implode("\n", $bodyLines));
+            array_push($children, ...$body->children);
+        }
+
+        return new AstNode('div', [
+            'classes' => [$type],
+            'htmlAttributes' => ['class' => $type],
+        ], $children);
     }
 
     /**

@@ -1653,6 +1653,11 @@ final class MarkdownWriter
      */
     private function renderDivBlock(AstNode $node, int $indent): array
     {
+        $alertType = $this->alertDivType($node);
+        if ($alertType !== null) {
+            return $this->renderAlertDivBlock($node, $alertType, $indent);
+        }
+
         $attrs = $this->renderLinkAttributes($node);
         $prefix = str_repeat(' ', $indent);
         $body = $this->renderBlockCollection($node->children);
@@ -1670,6 +1675,42 @@ final class MarkdownWriter
             ...array_map(static fn (string $line): string => $prefix . $line, explode("\n", $body)),
             $closing,
         ];
+    }
+
+    private function alertDivType(AstNode $node): ?string
+    {
+        $attrs = $this->linkAttrTuple($node);
+        if ($attrs['id'] !== '' || $attrs['attributes'] !== [] || count($attrs['classes']) !== 1) {
+            return null;
+        }
+
+        $type = strtolower($attrs['classes'][0]);
+
+        return in_array($type, ['note', 'tip', 'important', 'warning', 'caution'], true) ? $type : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderAlertDivBlock(AstNode $node, string $type, int $indent): array
+    {
+        $children = $node->children;
+        if (($children[0] ?? null)?->type === 'div' && $children[0]->attr('classes', []) === ['title']) {
+            array_shift($children);
+        }
+
+        $body = $this->renderBlockCollection($children);
+        $prefix = str_repeat(' ', $indent) . '>';
+        $lines = [$prefix . ' [!' . strtoupper($type) . ']'];
+        if ($body === '') {
+            return $lines;
+        }
+
+        foreach (explode("\n", $body) as $line) {
+            $lines[] = $line === '' ? $prefix : $prefix . ' ' . $line;
+        }
+
+        return $lines;
     }
 
     /**

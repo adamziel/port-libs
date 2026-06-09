@@ -11018,6 +11018,41 @@ MD;
         $t->same('paragraph', $quote->children[0]->type);
         $t->same('This is a block quote. It is pretty short.', $quote->children[0]->attr('text'));
     },
+    'maps pandoc markdown alert blockquotes through reader writer and wordpress handoff' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '> [!TIP]',
+            '> Preserve imported callout text with **inline review** markup.',
+            '>',
+            '> - Confirm media attachments',
+            '> - Publish after audit',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $alert = $document->children[0];
+        $title = $alert->children[0];
+        $paragraph = $alert->children[1];
+        $list = $alert->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('div', $alert->type);
+        $t->same(['tip'], $alert->attr('classes'));
+        $t->same(['class' => 'tip'], $alert->attr('htmlAttributes'));
+        $t->same('div', $title->type);
+        $t->same(['title'], $title->attr('classes'));
+        $t->same('Tip', $title->children[0]->attr('text'));
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('inline review', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same('bullet_list', $list->type);
+        $t->same('Confirm media attachments', $list->children[0]->attr('text'));
+        $t->same($markdown, (new MarkdownWriter())->write($document));
+        $t->contains('<div class="tip"><div class="title"><p>Tip</p></div><p>Preserve imported callout text with <strong>inline review</strong> markup.</p><ul><li>Confirm media attachments</li><li>Publish after audit</li></ul></div>', $blocks);
+
+        $note = (new MarkdownReader())->read("> [!NOTE]\n> Short note.");
+        $warning = (new MarkdownReader())->read("> [!WARNING]\n> Verify source links.");
+        $normalQuote = (new MarkdownReader())->read("> [!TODO]\n> Unsupported marker stays a quote.");
+        $t->same(['note'], $note->children[0]->attr('classes'));
+        $t->same(['warning'], $warning->children[0]->attr('classes'));
+        $t->same('blockquote', $normalQuote->children[0]->type);
+    },
     'maps upstream testsuite block quote with code list and nested quotes' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("> Code in a block quote:\n> \n>     sub status {\n>         print \"working\";\n>     }\n> \n> A list:\n> \n> 1. item one\n> 2. item two\n>\n> Nested block quotes:\n>\n> > nested\n>\n>>  nested\n>");
         $quote = $document->children[0];
