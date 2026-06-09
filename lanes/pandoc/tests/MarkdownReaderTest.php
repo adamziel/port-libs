@@ -14611,6 +14611,151 @@ XML;
         $t->contains('<p>Before <picture data-source="batch-50"><source media="(min-width: 800px)" srcset="wide.webp"></picture></p>', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document picture container should not be dropped from the paragraph');
     },
+    'maps upstream html reader button controls as raw review markup' => static function (TestRunner $t): void {
+        $button = '<button type="button" data-source="batch-51">Approve</button>';
+        $buttonBlock = "<button type=\"button\" data-source=\"batch-51\">\nApprove\n</button>";
+        $blockDocument = (new MarkdownReader())->read($buttonBlock . "\n\nAfter the button control.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($buttonBlock, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the button control.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $buttonBlock, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;button'), 'Standalone button control should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $button . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineButton = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<button data-source="batch-51" type="button">Approve</button>', $inlineButton->attr('html'));
+        $t->contains('<p>Before <button data-source="batch-51" type="button">Approve</button></p>', $htmlOutput);
+    },
+    'maps upstream html reader textarea controls as raw review markup' => static function (TestRunner $t): void {
+        $textarea = '<textarea name="notes" data-source="batch-51">Line one</textarea>';
+        $blockDocument = (new MarkdownReader())->read($textarea . "\n\nAfter the textarea control.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($textarea, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the textarea control.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $textarea, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;textarea'), 'Standalone textarea control should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $textarea . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineTextarea = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<textarea data-source="batch-51" name="notes">Line one</textarea>', $inlineTextarea->attr('html'));
+        $t->contains('<p>Before <textarea data-source="batch-51" name="notes">Line one</textarea></p>', $htmlOutput);
+    },
+    'maps upstream html reader datalist controls as raw review markup' => static function (TestRunner $t): void {
+        $datalist = '<datalist id="formats" data-source="batch-51"><option value="docx"></option></datalist>';
+        $blockDocument = (new MarkdownReader())->read($datalist . "\n\nAfter the datalist control.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($datalist, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the datalist control.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $datalist, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;datalist'), 'Standalone datalist control should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $datalist . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineDatalist = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<datalist data-source="batch-51" id="formats"><option value="docx"></option></datalist>', $inlineDatalist->attr('html'));
+        $t->contains('<p>Before <datalist data-source="batch-51" id="formats"><option value="docx"></option></datalist></p>', $htmlOutput);
+    },
+    'maps upstream html reader output controls as raw review markup' => static function (TestRunner $t): void {
+        $output = '<output name="score" data-source="batch-51">98</output>';
+        $blockDocument = (new MarkdownReader())->read($output . "\n\nAfter the output control.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($output, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the output control.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $output, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;output'), 'Standalone output control should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $output . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineOutput = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<output data-source="batch-51" name="score">98</output>', $inlineOutput->attr('html'));
+        $t->contains('<p>Before <output data-source="batch-51" name="score">98</output></p>', $htmlOutput);
+    },
+    'maps upstream html reader progress controls as raw review markup' => static function (TestRunner $t): void {
+        $progress = '<progress max="100" value="42" data-source="batch-51"></progress>';
+        $blockDocument = (new MarkdownReader())->read($progress . "\n\nAfter the progress control.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($progress, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the progress control.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $progress, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;progress'), 'Standalone progress control should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $progress . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineProgress = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<progress data-source="batch-51" max="100" value="42"></progress>', $inlineProgress->attr('html'));
+        $t->contains('<p>Before <progress data-source="batch-51" max="100" value="42"></progress></p>', $htmlOutput);
+    },
+    'maps upstream html reader meter controls as raw review markup' => static function (TestRunner $t): void {
+        $meter = '<meter min="0" max="10" value="7" data-source="batch-51">7</meter>';
+        $blockDocument = (new MarkdownReader())->read($meter . "\n\nAfter the meter control.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($meter, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the meter control.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $meter, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;meter'), 'Standalone meter control should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $meter . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineMeter = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<meter data-source="batch-51" max="10" min="0" value="7">7</meter>', $inlineMeter->attr('html'));
+        $t->contains('<p>Before <meter data-source="batch-51" max="10" min="0" value="7">7</meter></p>', $htmlOutput);
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
