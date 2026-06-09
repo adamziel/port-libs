@@ -272,7 +272,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return list<array{id:string, source:string, rawLocator:string, locatorLabel:string, locatorValue:string, reason:string, severity:string}>
+     * @return list<array{id:string, source:string, rawLocator:string, rawLocatorLabel:string, locatorLabel:string, locatorValue:string, reason:string, severity:string}>
      */
     public function citationLocatorDiagnostics(AstNode $node): array
     {
@@ -3901,7 +3901,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param list<array{id:string, source:string, rawLocator:string, locatorLabel:string, locatorValue:string, reason:string, severity:string}> $diagnostics
+     * @param list<array{id:string, source:string, rawLocator:string, rawLocatorLabel:string, locatorLabel:string, locatorValue:string, reason:string, severity:string}> $diagnostics
      */
     private function collectCitationLocatorDiagnostics(AstNode $node, array &$diagnostics): void
     {
@@ -3917,7 +3917,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return list<array{id:string, source:string, rawLocator:string, locatorLabel:string, locatorValue:string, reason:string, severity:string}>
+     * @return list<array{id:string, source:string, rawLocator:string, rawLocatorLabel:string, locatorLabel:string, locatorValue:string, reason:string, severity:string}>
      */
     private function citationLocatorDiagnosticsForCitation(AstNode $citation): array
     {
@@ -3935,6 +3935,7 @@ final class CitationCslProcessor
                 'id' => (string) $citation->attr('id', ''),
                 'source' => $this->sourceCitationText($citation),
                 'rawLocator' => $rawLocator,
+                'rawLocatorLabel' => $rawLabel,
                 'locatorLabel' => $normalizedLabel,
                 'locatorValue' => '',
                 'reason' => 'citation-locator-label-without-value',
@@ -3946,6 +3947,7 @@ final class CitationCslProcessor
                     'id' => (string) $citation->attr('id', ''),
                     'source' => $this->sourceCitationText($citation),
                     'rawLocator' => $rawLocator,
+                    'rawLocatorLabel' => $rawLabel,
                     'locatorLabel' => $normalizedLabel,
                     'locatorValue' => '',
                     'reason' => 'citation-locator-unsupported-label',
@@ -3960,6 +3962,7 @@ final class CitationCslProcessor
             'id' => (string) $citation->attr('id', ''),
             'source' => $this->sourceCitationText($citation),
             'rawLocator' => $rawLocator,
+            'rawLocatorLabel' => $rawLabel,
             'locatorLabel' => $parts['label'],
             'locatorValue' => $parts['value'],
         ];
@@ -3978,6 +3981,18 @@ final class CitationCslProcessor
                 ...$base,
                 'reason' => 'citation-locator-explicit-value-defaulted-page',
                 'severity' => 'info',
+            ];
+        }
+
+        if (
+            $rawLabel !== ''
+            && $explicitValue === ''
+            && $this->normalizedLocatorLabel($rawLabel) !== $parts['label']
+        ) {
+            $diagnostics[] = [
+                ...$base,
+                'reason' => 'citation-locator-label-without-explicit-value',
+                'severity' => 'warning',
             ];
         }
 

@@ -14154,6 +14154,37 @@ XML
         $t->same('warning', $diagnostics[0]['severity'] ?? null);
         $t->same('citation-locator-label-without-value', $processor->normalizeCitation($citation)->attr('cslLocatorDiagnostics')[0]['reason'] ?? null);
         $t->same('(Vale)', $processor->renderCitationCluster([$citation]));
+
+        $labelOnly = new AstNode('citation', [
+            'id' => 'locator-label-only-source',
+            'text' => '[@locator-label-only-source, chapter 4]',
+            'locator' => '4',
+            'locatorLabel' => 'chapter',
+        ]);
+        $diagnostics = $processor->citationLocatorDiagnostics($labelOnly);
+        $t->same(2, count($diagnostics));
+        $t->same([
+            'citation-locator-label-without-explicit-value',
+            'citation-locator-unlabeled-page-fallback',
+        ], array_column($diagnostics, 'reason'));
+        $t->same(['warning', 'info'], array_column($diagnostics, 'severity'));
+        $t->same('locator-label-only-source', $diagnostics[0]['id'] ?? null);
+        $t->same('[@locator-label-only-source, chapter 4]', $diagnostics[0]['source'] ?? null);
+        $t->same('4', $diagnostics[0]['rawLocator'] ?? null);
+        $t->same('chapter', $diagnostics[0]['rawLocatorLabel'] ?? null);
+        $t->same('page', $diagnostics[0]['locatorLabel'] ?? null);
+        $t->same('4', $diagnostics[0]['locatorValue'] ?? null);
+        $t->same('citation-locator-label-without-explicit-value', $processor->normalizeCitation($labelOnly)->attr('cslLocatorDiagnostics')[0]['reason'] ?? null);
+        $t->same('(Vale, p. 4)', $processor->renderCitationCluster([$labelOnly]));
+
+        $inferable = new AstNode('citation', [
+            'id' => 'locator-label-only-source',
+            'text' => '[@locator-label-only-source, chap. 4]',
+            'locator' => 'chap. 4',
+            'locatorLabel' => 'chapter',
+        ]);
+        $t->same([], $processor->citationLocatorDiagnostics($inferable));
+        $t->same('(Vale, chap. 4)', $processor->renderCitationCluster([$inferable]));
     },
     'applies bounded citation locator diagnostics when unsupported explicit labels omit values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
