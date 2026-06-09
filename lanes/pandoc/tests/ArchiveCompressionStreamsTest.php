@@ -154,6 +154,29 @@ return [
         $t->throws(RuntimeException::class, static fn (): array => ArchiveCompressionStreams::gzipMembers($badTrailerSize));
     },
 
+    'ignores gzip trailing nul padding after valid archive members' => static function (TestRunner $t) use ($buildGzipMember): void {
+        $member = $buildGzipMember('archive body', [
+            'name' => 'padded-review-packet.tar',
+            'comment' => 'null padded stream',
+            'mtime' => 1780479044,
+        ]);
+        $padded = $member . str_repeat("\0", 12);
+
+        $members = ArchiveCompressionStreams::gzipMembers($padded);
+
+        $t->same(1, count($members));
+        $t->same('archive body', $members[0]['data']);
+        $t->same('padded-review-packet.tar', $members[0]['originalName']);
+        $t->same(1780479044, $members[0]['modifiedAt']);
+        $t->same(strlen($member), $members[0]['compressedOffset'] + $members[0]['compressedSize'] + 8);
+        $t->same('archive body', ArchiveCompressionStreams::gzipDecode($padded));
+        $t->throws(RuntimeException::class, static fn (): array => ArchiveCompressionStreams::gzipMembers(str_repeat("\0", 8)));
+        $t->throws(
+            RuntimeException::class,
+            static fn (): string => ArchiveCompressionStreams::gzipDecode($member . "\0review-trailer")
+        );
+    },
+
     'extracts gzip-compressed tar entries for wordpress import packets' => static function (TestRunner $t) use ($buildGzipMember, $buildTarArchive): void {
         $longMediaPath = 'content/media/uploads/2026/06/' . str_repeat('source-', 8) . 'hero.txt';
         $tar = $buildTarArchive([

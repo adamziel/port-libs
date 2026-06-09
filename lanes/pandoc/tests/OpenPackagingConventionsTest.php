@@ -627,6 +627,42 @@ XML;
         $t->same(null, $targets['rIdTrailingDotSegment']['exists']);
         $t->same(null, $targets['rIdTrailingDotSegment']['contentType']);
     },
+    'rejects OPC package path control bytes after URI decoding' => static function (TestRunner $t): void {
+        $validXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/media/source%20diagram.png" ContentType="image/png"/>
+  <Override PartName="/customXml/%C3%A9preuve.xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $types = OpcContentTypes::fromXml($validXml);
+        $utf8Name = "\u{00E9}" . 'preuve.xml';
+
+        $t->same('/word/media/source diagram.png', OpcPackagePath::canonicalPartNameFromUri('/word/media/source%20diagram.png'));
+        $t->same('/word/media/source%20diagram.png', OpcPackagePath::partNameToUri('/word/media/source diagram.png'));
+        $t->same('image/png', $types->contentTypeForPart('/word/media/source%20diagram.png'));
+        $t->same('application/xml', $types->contentTypeForPart('/customXml/' . $utf8Name));
+
+        foreach ([
+            '/word/media/source%01diagram.png',
+            '/word/media/source%1Fdiagram.png',
+            '/word/media/source%7Fdiagram.png',
+        ] as $partName) {
+            $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartNameFromUri($partName));
+
+            $xml = '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="' . $partName . '" ContentType="image/png"/></Types>';
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
+        }
+
+        foreach ([
+            "/word/media/source\ndiagram.png",
+            "/word/media/source\tdiagram.png",
+            "/word/media/source\x7Fdiagram.png",
+        ] as $partName) {
+            $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName($partName));
+        }
+    },
     'rejects OPC content type records with unexpected attributes or child content' => static function (TestRunner $t): void {
         $validWithWhitespace = OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml">   </Default><Override PartName="/word/document.xml" ContentType="application/xml"/></Types>');
         $t->same('application/xml', $validWithWhitespace->contentTypeForPart('/word/document.xml'));

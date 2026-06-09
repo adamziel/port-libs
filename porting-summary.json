@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 11:57:42 UTC",
-    "sourceCommit": "d0b9e372269ba8acf347a4cb15875a77c00d13f9",
-    "sourceCommitShort": "d0b9e372269b",
+    "generated": "2026-06-09 11:59:11 UTC",
+    "sourceCommit": "126b8b9066e2a269936d2b7483f9d6b947fabaf0",
+    "sourceCommitShort": "126b8b9066e2",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d0b9e372269ba8acf347a4cb15875a77c00d13f9",
-    "dashboardCommitShort": "d0b9e372269b",
+    "dashboardCommit": "126b8b9066e2a269936d2b7483f9d6b947fabaf0",
+    "dashboardCommitShort": "126b8b9066e2",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,936 / 2,276 (129.0%)",
             "mapPercent": "129.0%",
             "unmapped": "0",
-            "php": "2,736 pass / 0 fail",
-            "phase": "native PHP Pandoc XML/HTML5 DOM srcdoc provenance handoff",
-            "audit": "2026-06-09 UTC current-base XML/HTML5 DOM slice: wrap iframe srcdoc c...",
-            "currentWork": "HTML fragment review packets preserve iframe srcdoc boundaries, resolved srcdoc base...",
-            "nextTarget": "Continue non-overlapping native conversion support under ODF/...",
-            "remainingGate": "No Word, Pandoc, model, or GPU path used.",
+            "php": "2,738 pass / 0 fail",
+            "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
+            "audit": "updated 2026-06-09: opc-package-path-control-bytes current-base slice...",
+            "currentWork": "OPC package path/content-type handling now rejects control-byte package part names af...",
+            "nextTarget": "Extend Pandoc JSON support only with a bounded non-overlappin...",
+            "remainingGate": "No local blocker",
             "commit": "pending fast ba..."
         },
         {

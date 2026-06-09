@@ -39,6 +39,10 @@ final class OpcPackagePath
                 throw new \InvalidArgumentException('OPC part path segments must not end with a dot');
             }
 
+            if (preg_match('/[\x00-\x1F\x7F]/', $segment) === 1) {
+                throw new \InvalidArgumentException('OPC part path segments must not contain control characters');
+            }
+
             $segments[] = $segment;
         }
 
@@ -152,7 +156,7 @@ final class OpcPackagePath
                 throw new \InvalidArgumentException($label . ' contains unsafe percent-encoded dot segment');
             }
 
-            if (str_contains($decoded, "\0") || str_contains($decoded, '/') || str_contains($decoded, '\\')) {
+            if (preg_match('/[\x00-\x1F\x7F]/', $decoded) === 1 || str_contains($decoded, '/') || str_contains($decoded, '\\')) {
                 throw new \InvalidArgumentException($label . ' contains unsafe percent-encoded path bytes');
             }
 

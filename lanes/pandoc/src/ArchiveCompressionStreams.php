@@ -37,11 +37,16 @@ final class ArchiveCompressionStreams
 
         while ($cursor < $length) {
             $memberOffset = $cursor;
-            self::assertRange($bytes, $cursor, 10, 'gzip member header');
+            if (!self::hasGzipMemberHeaderAt($bytes, $cursor)) {
+                $padding = substr($bytes, $cursor);
+                if ($members !== [] && trim($padding, "\0") === '') {
+                    break;
+                }
 
-            if (substr($bytes, $cursor, 2) !== self::GZIP_HEADER_SIGNATURE) {
                 throw new \RuntimeException("Invalid GZIP member signature at offset {$cursor}");
             }
+
+            self::assertRange($bytes, $cursor, 10, 'gzip member header');
 
             $method = ord($bytes[$cursor + 2]);
             if ($method !== 8) {
@@ -131,6 +136,12 @@ final class ArchiveCompressionStreams
         }
 
         return $members;
+    }
+
+    private static function hasGzipMemberHeaderAt(string $bytes, int $offset): bool
+    {
+        return $offset + 2 <= strlen($bytes)
+            && substr($bytes, $offset, 2) === self::GZIP_HEADER_SIGNATURE;
     }
 
     public static function gzipDecode(string $bytes): string
