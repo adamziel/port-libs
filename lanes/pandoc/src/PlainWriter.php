@@ -29,6 +29,8 @@ final class PlainWriter
      *     wrappedBlockCount:int,
      *     softWrapBreakCount:int,
      *     outputLineCount:int,
+     *     blankSourceLineCount:int,
+     *     blankOutputLineCount:int,
      *     maxOutputDisplayWidth:int,
      *     overColumnLineCount:int,
      *     maxOverColumnDisplayWidth:int,
@@ -52,6 +54,8 @@ final class PlainWriter
      *       blockType:string,
      *       sourceLineCount:int,
      *       outputLineCount:int,
+     *       blankSourceLineCount:int,
+     *       blankOutputLineCount:int,
      *       maxSourceDisplayWidth:int,
      *       maxOutputDisplayWidth:int,
      *       overColumnLineCount:int,
@@ -89,6 +93,8 @@ final class PlainWriter
         $wrappedBlockCount = 0;
         $softWrapBreakCount = 0;
         $outputLineCount = 0;
+        $blankSourceLineCount = 0;
+        $blankOutputLineCount = 0;
         $maxOutputDisplayWidth = 0;
         $overColumnLineCount = 0;
         $maxOverColumnDisplayWidth = 0;
@@ -126,6 +132,8 @@ final class PlainWriter
 
             $sourceLineCount = count($sourceLines);
             $wrappedLineCount = count($wrappedLines);
+            $blockBlankSourceLineCount = $this->blankLineCount($sourceLines);
+            $blockBlankOutputLineCount = $this->blankLineCount($wrappedLines);
             $wrapped = $wrappedLineCount > $sourceLineCount;
             if ($wrapped) {
                 ++$wrappedBlockCount;
@@ -140,6 +148,8 @@ final class PlainWriter
             $overColumnLineCount += $overColumn['count'];
             $maxOverColumnDisplayWidth = max($maxOverColumnDisplayWidth, $overColumn['maxDisplayWidth']);
             $outputLineCount += $this->nonEmptyLineCount($wrappedLines);
+            $blankSourceLineCount += $blockBlankSourceLineCount;
+            $blankOutputLineCount += $blockBlankOutputLineCount;
 
             $opportunities = UnicodeText::lineBreakOpportunities($source, $ambiguousWidth);
             $typeCounts = $this->lineBreakOpportunityTypeCounts($opportunities['opportunities']);
@@ -164,6 +174,8 @@ final class PlainWriter
                 'blockType' => $node->type,
                 'sourceLineCount' => $sourceLineCount,
                 'outputLineCount' => $wrappedLineCount,
+                'blankSourceLineCount' => $blockBlankSourceLineCount,
+                'blankOutputLineCount' => $blockBlankOutputLineCount,
                 'maxSourceDisplayWidth' => $sourceMax,
                 'maxOutputDisplayWidth' => $outputMax,
                 'overColumnLineCount' => $overColumn['count'],
@@ -196,6 +208,8 @@ final class PlainWriter
                 'wrappedBlockCount' => $wrappedBlockCount,
                 'softWrapBreakCount' => $softWrapBreakCount,
                 'outputLineCount' => $outputLineCount,
+                'blankSourceLineCount' => $blankSourceLineCount,
+                'blankOutputLineCount' => $blankOutputLineCount,
                 'maxOutputDisplayWidth' => $maxOutputDisplayWidth,
                 'overColumnLineCount' => $overColumnLineCount,
                 'maxOverColumnDisplayWidth' => $maxOverColumnDisplayWidth,
@@ -535,6 +549,21 @@ final class PlainWriter
         $count = 0;
         foreach ($lines as $line) {
             if ($line !== '') {
+                ++$count;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function blankLineCount(array $lines): int
+    {
+        $count = 0;
+        foreach ($lines as $line) {
+            if ($line === '') {
                 ++$count;
             }
         }

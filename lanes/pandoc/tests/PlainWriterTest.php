@@ -56,6 +56,8 @@ return [
             'blockType' => 'paragraph',
             'sourceLineCount' => 1,
             'outputLineCount' => 3,
+            'blankSourceLineCount' => 0,
+            'blankOutputLineCount' => 0,
             'maxSourceDisplayWidth' => 51,
             'maxOutputDisplayWidth' => 22,
             'overColumnLineCount' => 0,
@@ -102,6 +104,8 @@ return [
             'blockType' => 'code_block',
             'sourceLineCount' => 3,
             'outputLineCount' => 3,
+            'blankSourceLineCount' => 0,
+            'blankOutputLineCount' => 0,
             'maxSourceDisplayWidth' => 33,
             'maxOutputDisplayWidth' => 33,
             'overColumnLineCount' => 2,
@@ -149,6 +153,8 @@ return [
             'blockType' => 'code_block',
             'sourceLineCount' => 2,
             'outputLineCount' => 4,
+            'blankSourceLineCount' => 0,
+            'blankOutputLineCount' => 0,
             'maxSourceDisplayWidth' => 24,
             'maxOutputDisplayWidth' => 9,
             'overColumnLineCount' => 0,
@@ -192,6 +198,8 @@ return [
             'blockType' => 'code_block',
             'sourceLineCount' => 1,
             'outputLineCount' => 2,
+            'blankSourceLineCount' => 0,
+            'blankOutputLineCount' => 0,
             'maxSourceDisplayWidth' => 28,
             'maxOutputDisplayWidth' => 16,
             'overColumnLineCount' => 0,
@@ -256,6 +264,8 @@ return [
             'blockType' => 'code_block',
             'sourceLineCount' => 2,
             'outputLineCount' => 3,
+            'blankSourceLineCount' => 0,
+            'blankOutputLineCount' => 0,
             'maxSourceDisplayWidth' => 18,
             'maxOutputDisplayWidth' => 13,
             'overColumnLineCount' => 0,
@@ -308,6 +318,8 @@ return [
             'blockType' => 'code_block',
             'sourceLineCount' => 1,
             'outputLineCount' => 6,
+            'blankSourceLineCount' => 0,
+            'blankOutputLineCount' => 0,
             'maxSourceDisplayWidth' => 33,
             'maxOutputDisplayWidth' => 8,
             'overColumnLineCount' => 0,
@@ -355,6 +367,53 @@ return [
         $t->same(2, $result['diagnostics']['blocks'][0]['softWrapBreakCount']);
         $t->same(1, $result['diagnostics']['blocks'][0]['lineFeedBreakCount']);
     },
+    'reports blank lines in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "Alpha queue\n\nBeta tail"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 8]))->writeWithDiagnostics($document);
+
+        $t->same("Alpha\nqueue\n\nBeta\ntail", $result['text']);
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(2, $result['diagnostics']['softWrapBreakCount']);
+        $t->same(4, $result['diagnostics']['outputLineCount']);
+        $t->same(1, $result['diagnostics']['blankSourceLineCount']);
+        $t->same(1, $result['diagnostics']['blankOutputLineCount']);
+        $t->same(5, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(2, $result['diagnostics']['hardBreakCount']);
+        $t->same(2, $result['diagnostics']['lineFeedBreakCount']);
+        $t->same(2, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(2, $result['diagnostics']['spaceBreakOpportunityCount']);
+        $t->same([
+            'blockIndex' => 0,
+            'blockType' => 'code_block',
+            'sourceLineCount' => 3,
+            'outputLineCount' => 5,
+            'blankSourceLineCount' => 1,
+            'blankOutputLineCount' => 1,
+            'maxSourceDisplayWidth' => 11,
+            'maxOutputDisplayWidth' => 5,
+            'overColumnLineCount' => 0,
+            'maxOverColumnDisplayWidth' => 0,
+            'wrapped' => true,
+            'softWrapBreakCount' => 2,
+            'lineFeedBreakCount' => 2,
+            'lineSeparatorBreakCount' => 0,
+            'paragraphSeparatorBreakCount' => 0,
+            'spaceBreakOpportunityCount' => 2,
+            'unicodeSpaceBreakOpportunityCount' => 0,
+            'maxUnicodeSpaceDisplayAdvance' => 0,
+            'tabBreakOpportunityCount' => 0,
+            'maxTabDisplayAdvance' => 0,
+            'zeroWidthSpaceBreakOpportunityCount' => 0,
+            'softHyphenBreakOpportunityCount' => 0,
+            'visibleBreakAfterOpportunityCount' => 0,
+            'protectedSeparatorCount' => 0,
+            'lineEndingNormalizationCount' => 0,
+        ], $result['diagnostics']['blocks'][0]);
+    },
     'reports unicode hard separator counts in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('code_block', ['text' => "Alpha\u{2028}Beta Gamma\u{2029}Delta\r\nEpsilon"]),
@@ -382,6 +441,8 @@ return [
             'blockType' => 'code_block',
             'sourceLineCount' => 2,
             'outputLineCount' => 4,
+            'blankSourceLineCount' => 0,
+            'blankOutputLineCount' => 0,
             'maxSourceDisplayWidth' => 20,
             'maxOutputDisplayWidth' => 10,
             'overColumnLineCount' => 0,
