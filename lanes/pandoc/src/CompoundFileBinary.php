@@ -1114,10 +1114,8 @@ final class CompoundFileBinary
 
         $ticks = ($high * 4294967296) + $low;
         $seconds = intdiv($ticks, 10000000) - 11644473600;
-        if ($seconds < 0) {
-            return null;
-        }
+        $timestamp = (new \DateTimeImmutable('@' . $seconds))->setTimezone(new \DateTimeZone('UTC'));
 
-        return gmdate('Y-m-d\TH:i:s\Z', $seconds);
+        return $timestamp->format('Y-m-d\TH:i:s\Z');
     }
 }

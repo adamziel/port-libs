@@ -2187,6 +2187,28 @@ return [
         $t->same('ObjectPool/_42', $streamDirectory[0]['storagePath']);
         $t->same(strlen('timestamped native attachment bytes'), $streamDirectory[0]['bytes']);
     },
+    'preserves pre-1970 CFB directory storage timestamps for legacy DOC provenance' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Older timestamped review packet\r"),
+            'ObjectPool/_42/' . "\x01" . 'Ole10Native' => 'older native attachment bytes',
+        ], true, [
+            'ObjectPool/_42' => [
+                'createdAt' => '1965-04-07T08:09:10Z',
+                'modifiedAt' => '1965-04-08T09:10:11Z',
+            ],
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $directoryByPath = [];
+        foreach ($result['directoryEntries'] as $entry) {
+            $directoryByPath[(string) $entry['path']] = $entry;
+        }
+
+        $t->same(1, $result['metadata']['cfbTimestampedDirectoryEntryCount']);
+        $t->same('1965-04-07T08:09:10Z', $directoryByPath['ObjectPool/_42']['createdAt']);
+        $t->same('1965-04-08T09:10:11Z', $directoryByPath['ObjectPool/_42']['modifiedAt']);
+        $t->same($result['directoryEntries'], $result['document']->attr('cfbDirectoryEntries'));
+    },
     'preserves CFB directory CLSID and state-bit provenance for legacy DOC storage review' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $rootClsid = '00112233-4455-6677-8899-aabbccddeeff';
         $objectPoolClsid = '00020906-0000-0000-c000-000000000046';

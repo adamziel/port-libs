@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 11:07:50 UTC",
-    "sourceCommit": "36699f87265153e398897b76b4dc655b33b5a1a0",
-    "sourceCommitShort": "36699f872651",
+    "generated": "2026-06-09 11:08:53 UTC",
+    "sourceCommit": "a2cc5cfa80e13fd6914cb68cf7b8843b95c149e5",
+    "sourceCommitShort": "a2cc5cfa80e1",
     "sourceBranch": "unknown",
-    "dashboardCommit": "36699f87265153e398897b76b4dc655b33b5a1a0",
-    "dashboardCommitShort": "36699f872651",
+    "dashboardCommit": "a2cc5cfa80e13fd6914cb68cf7b8843b95c149e5",
+    "dashboardCommitShort": "a2cc5cfa80e1",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,691 pass / 0 fail",
-            "phase": "native PHP Pandoc syntax highlighting handoff; CSS percentage units a...",
-            "audit": "2026-06-09 UTC rebased pandoc-css-percent-unit-syntax slice on accept...",
-            "currentWork": "Pandoc syntax-highlight review packets now preserve CSS percent values and dashed ide...",
+            "php": "2,693 pass / 0 fail",
+            "phase": "native PHP Pandoc MarkdownReader MathML semantics annotation handoff;...",
+            "audit": "2026-06-09 UTC worker-pandoc-markdown-mathml-semantics slice on accep...",
+            "currentWork": "Pandoc MarkdownReader handoff now preserves empty self-closing MathML annotation-xml...",
             "nextTarget": "Continue non-overlapping native conversion support under ODF/...",
-            "remainingGate": "No external highlighter is needed.",
+            "remainingGate": "No external converter is needed.",
             "commit": "pending fast ba..."
         },
         {

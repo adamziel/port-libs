@@ -13031,7 +13031,10 @@ final class MarkdownReader
         while ($cursor < $count) {
             $line = $this->normalizeRawHtmlLine($lines[$cursor]);
             $content[] = $interpretTableCells ? $this->renderMarkdownInTableCells($line) : $line;
-            if (preg_match($closingPattern, $line) === 1) {
+            if (
+                preg_match($closingPattern, $line) === 1
+                || (count($content) === 1 && $this->rawHtmlLineSelfClosesTag($line, $tag))
+            ) {
                 break;
             }
             $cursor++;
@@ -13040,6 +13043,11 @@ final class MarkdownReader
         $index = min($cursor, $count - 1);
 
         return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    private function rawHtmlLineSelfClosesTag(string $line, string $tag): bool
+    {
+        return preg_match('/^ {0,3}<' . preg_quote($tag, '/') . '(?:\s+[^>]*)?\/>[ \t]*$/i', $line) === 1;
     }
 
     private function normalizeRawHtmlLine(string $line): string

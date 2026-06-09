@@ -15648,6 +15648,20 @@ XML;
         $t->contains('<!-- wp:html -->' . "\n" . $annotationXml, $blocks);
         $t->true(!str_contains($blocks, '&lt;annotation-xml'), 'Standalone MathML annotation-xml should not be escaped into reviewer text');
     },
+    'maps upstream html reader empty mathml annotation xml as one raw review block' => static function (TestRunner $t): void {
+        $annotationXml = '<annotation-xml encoding="MathML-Content" data-source="batch-64" />';
+        $document = (new MarkdownReader())->read($annotationXml . "\n\nAfter the empty annotation xml.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($annotationXml, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the empty annotation xml.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $annotationXml, $blocks);
+        $t->true(!str_contains($blockHtml->attr('html'), 'After the empty annotation xml.'), 'Self-closing MathML annotation-xml should not absorb following Markdown');
+    },
     'maps upstream html reader mathml mfenced fragments as raw review markup' => static function (TestRunner $t): void {
         $mfenced = '<mfenced data-source="batch-63"><mi>x</mi></mfenced>';
         $document = (new MarkdownReader())->read($mfenced . "\n\nAfter the fenced expression.");
