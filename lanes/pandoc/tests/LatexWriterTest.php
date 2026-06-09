@@ -299,4 +299,32 @@ return [
             'Macro \texttt{[unsupported inline command: UnsupportedInlineCommand - \textbackslash{}write18\{curl example.test\}]}',
         ]), (new LatexWriter())->write($document));
     },
+    'renders unsupported block command inline child payloads as review text' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $space = static fn (): AstNode => new AstNode('space');
+
+        $document = new AstNode('document', [], [
+            new AstNode('unsupported_command', [
+                'command' => 'UnmappedBlockCommand',
+                'reason' => 'block command carries inline arguments',
+            ], [
+                $text('Review'),
+                $space(),
+                new AstNode('emph', [], [$text('inline')]),
+                $space(),
+                new AstNode('raw_inline', [
+                    'format' => 'html',
+                    'text' => '<span data-review="1">unsafe</span>',
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '\begin{quote}',
+            '\texttt{[unsupported block command: UnmappedBlockCommand - block command carries inline arguments]}',
+            '',
+            'Review \emph{inline} \texttt{[unsupported inline command: raw html - <span data-review="1">unsafe</span>]}',
+            '\end{quote}',
+        ]), (new LatexWriter())->write($document));
+    },
 ];

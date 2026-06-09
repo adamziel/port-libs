@@ -683,13 +683,62 @@ final class LatexWriter
             $this->renderCommand('texttt', $this->unsupportedCommandLabel($node, 'block')),
         ];
 
-        $children = $this->renderBlockGroup($node->children);
+        $children = $this->renderUnsupportedCommandBlockChildren($node->children);
         if ($children !== []) {
             $lines[] = '';
             array_push($lines, ...$children);
         }
 
         $lines[] = '\end{quote}';
+
+        return $lines;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<string>
+     */
+    private function renderUnsupportedCommandBlockChildren(array $children): array
+    {
+        $lines = [];
+        $inlineRun = [];
+        foreach ($children as $child) {
+            if ($this->isInlineNode($child)) {
+                $inlineRun[] = $child;
+                continue;
+            }
+
+            if ($inlineRun !== []) {
+                $inline = $this->renderInlines($inlineRun);
+                if ($inline !== '') {
+                    if ($lines !== []) {
+                        $lines[] = '';
+                    }
+                    $lines[] = $inline;
+                }
+                $inlineRun = [];
+            }
+
+            $block = $this->renderBlock($child);
+            if ($block === []) {
+                continue;
+            }
+
+            if ($lines !== []) {
+                $lines[] = '';
+            }
+            array_push($lines, ...$block);
+        }
+
+        if ($inlineRun !== []) {
+            $inline = $this->renderInlines($inlineRun);
+            if ($inline !== '') {
+                if ($lines !== []) {
+                    $lines[] = '';
+                }
+                $lines[] = $inline;
+            }
+        }
 
         return $lines;
     }
