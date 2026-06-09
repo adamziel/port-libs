@@ -24,6 +24,7 @@ final class EpubPackage
      * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestItems
      * @param list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}> $spine
      * @param list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}> $guideReferences
+     * @param array<string, mixed> $bindings
      * @param array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null $navigation
      * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}> $navigationSections
      */
@@ -36,6 +37,7 @@ final class EpubPackage
         private readonly array $manifestItems,
         private readonly array $spine,
         private readonly array $guideReferences,
+        private readonly array $bindings,
         private readonly ?array $navigation,
         private readonly array $navigationSections,
     ) {
@@ -83,6 +85,7 @@ final class EpubPackage
             $opf['manifestItems'],
             $opf['spine'],
             $opf['guideReferences'],
+            $opf['bindings'],
             $navigation['navigation'],
             $navigation['sections'],
         );
@@ -152,6 +155,14 @@ final class EpubPackage
     public function guideReferences(): array
     {
         return $this->guideReferences;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function bindings(): array
+    {
+        return $this->bindings;
     }
 
     /**
@@ -241,6 +252,7 @@ final class EpubPackage
             'manifest' => $this->manifestItems,
             'readingOrder' => $this->spine,
             'guide' => $this->guideReferences,
+            'bindings' => $this->bindings,
             'navigation' => $this->navigation,
             'navigationSections' => $this->navigationSections,
             'assets' => $assetSummary,
@@ -267,6 +279,8 @@ final class EpubPackage
                     $navigationEntries,
                 )),
                 'guideReferences' => $this->guideReferences,
+                'mediaTypeBindings' => $this->bindings['items'],
+                'mediaTypeBindingDiagnostics' => $this->bindings['diagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
                 'pageListTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'page-list'),
                 'coverImagePart' => $assetSummary['coverImagePart'],
@@ -341,6 +355,7 @@ final class EpubPackage
      *     manifestItems:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
      *     spine:list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}>,
      *     guideReferences:list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>,
+     *     bindings:array<string, mixed>,
      *     spineTocId:?string
      * }
      */
@@ -364,6 +379,7 @@ final class EpubPackage
         [$manifestById, $manifestItems] = self::parseManifest($manifestElement, $opfPartName, $package);
         $spine = self::parseSpine($spineElement, $manifestById);
         $guideReferences = self::parseGuide(self::firstChildElement($root, 'guide', self::OPF_NAMESPACE), $opfPartName, $package);
+        $bindings = self::parseBindings(self::firstChildElement($root, 'bindings', self::OPF_NAMESPACE), $manifestById, $package);
 
         return [
             'metadata' => $metadata,
@@ -371,6 +387,7 @@ final class EpubPackage
             'manifestItems' => $manifestItems,
             'spine' => $spine,
             'guideReferences' => $guideReferences,
+            'bindings' => $bindings,
             'spineTocId' => $spineElement->hasAttribute('toc') ? $spineElement->getAttribute('toc') : null,
         ];
     }
@@ -1096,6 +1113,90 @@ final class EpubPackage
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
+     *
+     * @return array<string, mixed>
+     */
+    private static function parseBindings(?\DOMElement $bindingsElement, array $manifestById, ZipPackage $package): array
+    {
+        if (!$bindingsElement instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'itemCount' => 0,
+                'boundMediaTypes' => [],
+                'items' => [],
+                'diagnostics' => [],
+            ];
+        }
+
+        $items = [];
+        $diagnostics = [];
+        $boundMediaTypes = [];
+
+        foreach (self::childElements($bindingsElement, 'mediaType', self::OPF_NAMESPACE) as $index => $mediaTypeElement) {
+            $mediaType = trim($mediaTypeElement->getAttribute('media-type'));
+            $handlerId = trim($mediaTypeElement->getAttribute('handler'));
+            $handler = $handlerId === '' ? null : ($manifestById[$handlerId] ?? null);
+            $itemDiagnostics = [];
+
+            if ($mediaType === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-binding-media-type',
+                    'message' => 'EPUB OPF binding mediaType entry is missing media-type',
+                ];
+            } else {
+                $boundMediaTypes[] = $mediaType;
+            }
+
+            if ($handlerId === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-binding-handler',
+                    'mediaType' => $mediaType === '' ? null : $mediaType,
+                    'message' => 'EPUB OPF binding mediaType entry is missing handler',
+                ];
+            } elseif (!is_array($handler)) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-binding-handler-manifest-item',
+                    'mediaType' => $mediaType === '' ? null : $mediaType,
+                    'handlerId' => $handlerId,
+                    'message' => 'EPUB OPF binding handler does not reference a manifest item',
+                ];
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+
+            $handlerPartName = is_array($handler) ? (string) $handler['partName'] : null;
+            $entry = $handlerPartName !== null && $package->has($handlerPartName)
+                ? $package->entry($handlerPartName)
+                : null;
+
+            $items[] = [
+                'index' => $index,
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'handlerId' => $handlerId === '' ? null : $handlerId,
+                'handlerHref' => is_array($handler) ? (string) $handler['href'] : null,
+                'handlerPartName' => $handlerPartName,
+                'handlerMediaType' => is_array($handler) ? (string) $handler['mediaType'] : null,
+                'handlerProperties' => is_array($handler) ? $handler['properties'] : [],
+                'handlerExists' => $entry instanceof ZipPackageEntry,
+                'handlerByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'handlerCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'diagnostics' => $itemDiagnostics,
+            ];
+        }
+
+        return [
+            'present' => true,
+            'itemCount' => count($items),
+            'boundMediaTypes' => array_values(array_unique($boundMediaTypes)),
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**

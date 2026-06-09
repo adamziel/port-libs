@@ -464,6 +464,107 @@ BIB;
         $t->contains('Smith 2026' . "\n" . ':   Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.', $markdown);
         $t->contains('Roe 2027' . "\n" . ':   Roe, Pat. Chapter Review Notes. Manual Override. Review Press, 2027.', $markdown);
     },
+    'maps bounded crossref parent subtitle and title addon into child containers' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@proceedings{review-proceedings,
+  options    = {dataonly},
+  editor     = {Curator, Eli},
+  title      = {Source Review Proceedings},
+  subtitle   = {Reviewer Packet Track},
+  titleaddon = {Proceedings supplement},
+  publisher  = {Review Press},
+  date       = {2026}
+}
+
+@inproceedings{crossref-subtitle-paper,
+  author   = {Ng, Nia},
+  title    = {Packet Audit Trails},
+  pages    = {12--18},
+  crossref = {review-proceedings}
+}
+
+@periodical{review-journal,
+  options    = {dataonly},
+  title      = {Journal of Import Reviews},
+  subtitle   = {Source Desk Notes},
+  titleaddon = {Online supplement},
+  date       = {2025}
+}
+
+@article{crossref-subtitle-article,
+  author   = {Roe, Pat},
+  title    = {Journal Child Packet},
+  pages    = {7--9},
+  crossref = {review-journal}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Packet Audit Trails', $items[0]['title'] ?? null);
+        $t->same('Source Review Proceedings: Reviewer Packet Track', $items[0]['container-title'] ?? null);
+        $t->same('Proceedings supplement', $items[0]['container-title-addon'] ?? null);
+        $t->same('Reviewer Packet Track', $items[0]['rawBibtex']['fields']['booksubtitle'] ?? null);
+        $t->same('Proceedings supplement', $items[0]['rawBibtex']['fields']['booktitleaddon'] ?? null);
+        $t->same(null, $items[0]['rawBibtex']['fields']['subtitle'] ?? null);
+        $t->same(null, $items[0]['rawBibtex']['fields']['titleaddon'] ?? null);
+        $t->same('Journal Child Packet', $items[1]['title'] ?? null);
+        $t->same('Journal of Import Reviews: Source Desk Notes', $items[1]['container-title'] ?? null);
+        $t->same('Online supplement', $items[1]['container-title-addon'] ?? null);
+        $t->same('Source Desk Notes', $items[1]['rawBibtex']['fields']['journalsubtitle'] ?? null);
+        $t->same('Online supplement', $items[1]['rawBibtex']['fields']['journaltitleaddon'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $paper = $processor->item('crossref-subtitle-paper');
+        $article = $processor->item('crossref-subtitle-article');
+        $t->same('Packet Audit Trails', $paper['title'] ?? null);
+        $t->same('Source Review Proceedings: Reviewer Packet Track', $paper['containerTitle'] ?? null);
+        $t->same('Proceedings supplement', $paper['containerTitleAddon'] ?? null);
+        $t->same([2026], $paper['issuedDate']['parts'] ?? null);
+        $t->same('Journal Child Packet', $article['title'] ?? null);
+        $t->same('Journal of Import Reviews: Source Desk Notes', $article['containerTitle'] ?? null);
+        $t->same('Online supplement', $article['containerTitleAddon'] ?? null);
+        $t->same([2025], $article['issuedDate']['parts'] ?? null);
+        $t->same('(Ng 2026; Roe 2025)', $processor->renderCitationCluster([
+            $citation('crossref-subtitle-paper', '[@crossref-subtitle-paper]'),
+            $citation('crossref-subtitle-article', '[@crossref-subtitle-article]'),
+        ]));
+        $t->same('Ng, Nia. Packet Audit Trails. Source Review Proceedings: Reviewer Packet Track. Proceedings supplement. Review Press, 2026. 12-18.', $processor->renderBibliographyEntry('crossref-subtitle-paper'));
+        $t->same('Roe, Pat. Journal Child Packet. Journal of Import Reviews: Source Desk Notes. Online supplement. 2025. 7-9.', $processor->renderBibliographyEntry('crossref-subtitle-article'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="container-title"/>
+        <text variable="container-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="container-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Packet Audit Trails | Source Review Proceedings: Reviewer Packet Track | Proceedings supplement; Journal Child Packet | Journal of Import Reviews: Source Desk Notes | Online supplement]', $styled->renderCitationCluster([
+            $citation('crossref-subtitle-paper', '[@crossref-subtitle-paper]'),
+            $citation('crossref-subtitle-article', '[@crossref-subtitle-article]'),
+        ]));
+        $t->same('Packet Audit Trails :: Source Review Proceedings: Reviewer Packet Track :: Proceedings supplement', $styled->renderBibliographyEntry('crossref-subtitle-paper'));
+
+        $document = (new MarkdownReader())->read('Crossref subtitle source @crossref-subtitle-paper and journal packet [@crossref-subtitle-article] keep parent container titles intact.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Crossref subtitle source Ng (2026) and journal packet (Roe 2025) keep parent container titles intact.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Packet Audit Trails. Source Review Proceedings: Reviewer Packet Track. Proceedings supplement. Review Press, 2026. 12-18.</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Journal Child Packet. Journal of Import Reviews: Source Desk Notes. Online supplement. 2025. 7-9.</dd>', $blocks);
+    },
     'inherits bounded biblatex reference crossref titles into child containers' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @reference{migration-reference,

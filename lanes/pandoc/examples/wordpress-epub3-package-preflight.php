@@ -34,6 +34,8 @@ $opfXml = <<<'XML'
     <item id="chapter2" href="chapters/review.xhtml" media-type="application/xhtml+xml"/>
     <item id="cover" href="media/cover.png" media-type="image/png" properties="cover-image"/>
     <item id="css" href="styles/import.css" media-type="text/css"/>
+    <item id="review-widget" href="widgets/review-widget.bin" media-type="application/x-wordpress-review-widget"/>
+    <item id="review-widget-handler" href="widgets/review-widget.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
   </manifest>
   <spine>
     <itemref idref="chapter1"/>
@@ -43,6 +45,10 @@ $opfXml = <<<'XML'
     <reference type="text" title="Start reading" href="chapters/intro.xhtml"/>
     <reference type="cover" title="Cover" href="media/cover.png"/>
   </guide>
+  <bindings>
+    <mediaType media-type="application/x-wordpress-review-widget" handler="review-widget-handler"/>
+    <mediaType media-type="application/x-missing-widget" handler="missing-widget-handler"/>
+  </bindings>
 </package>
 XML;
 
@@ -78,6 +84,8 @@ $package = ZipPackage::fromParts([
     ['name' => 'EPUB/chapters/review.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review checklist</h1></body></html>'],
     ['name' => 'EPUB/media/cover.png', 'data' => 'PNG'],
     ['name' => 'EPUB/styles/import.css', 'data' => 'body { line-height: 1.5; }'],
+    ['name' => 'EPUB/widgets/review-widget.bin', 'data' => 'WIDGET'],
+    ['name' => 'EPUB/widgets/review-widget.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review widget fallback</h1></body></html>'],
 ]);
 
 $epub = EpubPackage::fromPackage($package);
@@ -96,6 +104,9 @@ if (($argv[1] ?? '') === '--self-test') {
         'WordPress EPUB Import Packet',
         'Data Liberation Team',
         'urn:uuid:wordpress-import-epub',
+        'application/x-wordpress-review-widget',
+        '/EPUB/widgets/review-widget.xhtml',
+        'missing-binding-handler-manifest-item',
     ];
     $actual = [
         $summary['wordpressImport']['title'],
@@ -109,6 +120,9 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['wordpressImport']['metadataDetails']['sortTitle'],
         $summary['wordpressImport']['metadataDetails']['creatorsByRole']['aut'][0]['text'] ?? null,
         $summary['wordpressImport']['metadataDetails']['identifiersByType']['15'][0]['value'] ?? null,
+        $summary['wordpressImport']['mediaTypeBindings'][0]['mediaType'] ?? null,
+        $summary['wordpressImport']['mediaTypeBindings'][0]['handlerPartName'] ?? null,
+        $summary['wordpressImport']['mediaTypeBindingDiagnostics'][0]['type'] ?? null,
     ];
 
     if ($actual !== $expected) {

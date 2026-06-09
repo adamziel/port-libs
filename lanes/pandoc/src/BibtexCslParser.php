@@ -584,13 +584,23 @@ final class BibtexCslParser
 
         $containerField = self::crossrefTitleContainerField($childType);
         if ($containerField !== null && !self::hasAnyField($childFields, ['booktitle', 'journaltitle', 'journal'])) {
-            $parentTitle = $parentFields['booktitle'] ?? $parentFields['journaltitle'] ?? $parentFields['journal'] ?? $parentFields['title'] ?? '';
-            if (trim($parentTitle) !== '') {
-                $inherited[$containerField] = $parentTitle;
+            $containerParts = self::crossrefParentContainerTitleParts($containerField, $parentFields);
+            if (trim($containerParts['title']) !== '') {
+                $inherited[$containerField] = $containerParts['title'];
+            }
+
+            $subtitleField = self::crossrefContainerSubtitleField($containerField);
+            if (trim($containerParts['subtitle']) !== '' && !self::hasAnyField($childFields, [$subtitleField])) {
+                $inherited[$subtitleField] = $containerParts['subtitle'];
+            }
+
+            $titleAddonField = self::crossrefContainerTitleAddonField($containerField);
+            if (trim($containerParts['titleAddon']) !== '' && !self::hasAnyField($childFields, [$titleAddonField])) {
+                $inherited[$titleAddonField] = $containerParts['titleAddon'];
             }
         }
 
-        unset($inherited['title']);
+        unset($inherited['title'], $inherited['subtitle'], $inherited['titleaddon']);
 
         return $inherited;
     }
@@ -609,6 +619,51 @@ final class BibtexCslParser
             'suppcollection' => 'booktitle',
             default => null,
         };
+    }
+
+    /**
+     * @param array<string, string> $parentFields
+     * @return array{title:string, subtitle:string, titleAddon:string}
+     */
+    private static function crossrefParentContainerTitleParts(string $containerField, array $parentFields): array
+    {
+        $subtitleFields = $containerField === 'journal'
+            ? ['journalsubtitle', 'booksubtitle', 'subtitle']
+            : ['booksubtitle', 'journalsubtitle', 'subtitle'];
+        $titleAddonFields = $containerField === 'journal'
+            ? ['journaltitleaddon', 'booktitleaddon', 'titleaddon']
+            : ['booktitleaddon', 'journaltitleaddon', 'titleaddon'];
+
+        return [
+            'title' => self::firstRawField($parentFields, ['booktitle', 'journaltitle', 'journal', 'title']),
+            'subtitle' => self::firstRawField($parentFields, $subtitleFields),
+            'titleAddon' => self::firstRawField($parentFields, $titleAddonFields),
+        ];
+    }
+
+    private static function crossrefContainerSubtitleField(string $containerField): string
+    {
+        return $containerField === 'journal' ? 'journalsubtitle' : 'booksubtitle';
+    }
+
+    private static function crossrefContainerTitleAddonField(string $containerField): string
+    {
+        return $containerField === 'journal' ? 'journaltitleaddon' : 'booktitleaddon';
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private static function firstRawField(array $fields, array $names): string
+    {
+        foreach ($names as $name) {
+            if (isset($fields[$name]) && trim($fields[$name]) !== '') {
+                return $fields[$name];
+            }
+        }
+
+        return '';
     }
 
     /**

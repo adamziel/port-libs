@@ -179,6 +179,69 @@ return [
         $t->same(['chapter1', 'chapter2'], array_column($epub->spine(), 'idref'));
     },
 
+    'summarizes OPF media-type bindings for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Slideshow fallback</h1></body></html>';
+        $opfWithBindings = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="slideshow" href="widgets/source-slideshow.bin" media-type="application/x-demo-slideshow"/>
+    <item id="slideshow-handler" href="widgets/slideshow-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>',
+            $epub3OpfXml
+        );
+        $opfWithBindings = str_replace(
+            '</spine>',
+            '</spine>
+  <bindings>
+    <mediaType media-type="application/x-demo-slideshow" handler="slideshow-handler"/>
+    <mediaType media-type="application/x-review-widget" handler="missing-handler"/>
+    <mediaType handler="slideshow-handler"/>
+  </bindings>',
+            $opfWithBindings
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithBindings],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/widgets/source-slideshow.bin', 'data' => 'SLIDESHOW'],
+            ['name' => 'EPUB/widgets/slideshow-fallback.xhtml', 'data' => $handlerXhtml],
+        ]));
+
+        $bindings = $epub->bindings();
+        $summary = $epub->summary();
+
+        $t->same(true, $bindings['present']);
+        $t->same(3, $bindings['itemCount']);
+        $t->same(['application/x-demo-slideshow', 'application/x-review-widget'], $bindings['boundMediaTypes']);
+        $t->same('application/x-demo-slideshow', $bindings['items'][0]['mediaType']);
+        $t->same('slideshow-handler', $bindings['items'][0]['handlerId']);
+        $t->same('widgets/slideshow-fallback.xhtml', $bindings['items'][0]['handlerHref']);
+        $t->same('/EPUB/widgets/slideshow-fallback.xhtml', $bindings['items'][0]['handlerPartName']);
+        $t->same('application/xhtml+xml', $bindings['items'][0]['handlerMediaType']);
+        $t->same(['scripted'], $bindings['items'][0]['handlerProperties']);
+        $t->same(true, $bindings['items'][0]['handlerExists']);
+        $t->same(strlen($handlerXhtml), $bindings['items'][0]['handlerByteLength']);
+        $t->same([], $bindings['items'][0]['diagnostics']);
+        $t->same('application/x-review-widget', $bindings['items'][1]['mediaType']);
+        $t->same('missing-handler', $bindings['items'][1]['handlerId']);
+        $t->same(false, $bindings['items'][1]['handlerExists']);
+        $t->same(null, $bindings['items'][1]['handlerPartName']);
+        $t->same('missing-binding-handler-manifest-item', $bindings['items'][1]['diagnostics'][0]['type']);
+        $t->same(null, $bindings['items'][2]['mediaType']);
+        $t->same('missing-binding-media-type', $bindings['items'][2]['diagnostics'][0]['type']);
+        $t->same(2, count($bindings['diagnostics']));
+        $t->same(1, $bindings['diagnostics'][0]['index']);
+        $t->same(2, $bindings['diagnostics'][1]['index']);
+        $t->same($bindings, $summary['bindings']);
+        $t->same($bindings['items'], $summary['wordpressImport']['mediaTypeBindings']);
+        $t->same($bindings['diagnostics'], $summary['wordpressImport']['mediaTypeBindingDiagnostics']);
+    },
+
     'preserves OPF metadata refinements for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithRefinements = str_replace(
             '<dc:title>WordPress Migration Guide</dc:title>',
