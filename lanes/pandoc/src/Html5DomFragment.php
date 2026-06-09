@@ -2734,6 +2734,12 @@ final class Html5DomFragment
         $target = $element->getAttribute($sourceAttribute);
         $normalizedTarget = self::normalizeUrlAttributeValue($target);
         if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-url',
+                'tag' => $tagName,
+                'attribute' => $sourceAttribute,
+            ], $element);
+
             return null;
         }
 

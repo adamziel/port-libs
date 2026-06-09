@@ -3877,6 +3877,48 @@ LATEX;
         ], null, 's5'));
     },
 
+    'renders pandoc default dzslides no-css fallback styles from upstream template' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $dzslides = $renderer->renderResource('templates/default', [], [
+            'lang' => 'en',
+            'dir' => 'ltr',
+            'pagetitle' => 'DZSlides No CSS Packet',
+            'title' => 'DZSlides Native Defaults',
+            'subtitle' => 'WordPress review deck',
+            'author' => ['Migration bot'],
+            'institute' => ['Review desk'],
+            'date' => '2026-06-09',
+            'body' => '<section><h2>Imported body</h2><figure><img src="review.png"><figcaption>Review image</figcaption></figure></section>',
+            'dzslides-core' => '<script>window.__dzslidesNoCss = true;</script>',
+        ], null, 'dzslides+smart');
+
+        foreach ([
+            "<link href='https://fonts.googleapis.com/css?family=Oswald' rel='stylesheet'>",
+            '/* A section is a slide. It\'s size is 800x600, and this will never change */',
+            'counter-increment: slideidx;',
+            'content: counter(slideidx, decimal-leading-zero);',
+            '.view head > title {',
+            'h1, h2 {',
+            'blockquote:before {',
+            'content: open-quote;',
+            'figure > img, figure > video {',
+            'width: 100%; height: 100%;',
+            'footer {',
+            '-moz-transition: left 400ms linear 0s;',
+            '.view section[aria-selected] {',
+            '.incremental > *[aria-selected] ~ * { opacity: 0; }',
+            '#progress-bar {',
+            '<h1 class="title">DZSlides Native Defaults</h1>',
+            '<span class="author">Migration bot</span> · <span class="institute">Review desk</span> · <span class="date">2026-06-09</span>',
+            '<script>window.__dzslidesNoCss = true;</script>',
+        ] as $needle) {
+            $t->contains($needle, $dzslides);
+        }
+
+        $t->same(false, str_contains($dzslides, '<link rel="stylesheet" href="review-slides.css">'));
+    },
+
     'renders bounded pandoc default office and epub template resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

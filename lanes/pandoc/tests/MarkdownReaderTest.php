@@ -6417,6 +6417,88 @@ return [
         $t->contains('<h1 id="tagged-quoted-explicit-key-body">Tagged quoted explicit key body</h1>', $blockOutput);
         $t->contains('<h1 id="flow-tagged-quoted-explicit-key-body">Flow tagged quoted explicit key body</h1>', $flowOutput);
     },
+    'records pandoc yaml explicit collection key provenance for review handoff' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Explicit collection key provenance **Packet**',
+            '? [source, uri]',
+            ': https://example.test/import#sequence-key',
+            '?',
+            '  source: owner',
+            '  desk: import',
+            ': Import Desk',
+            'review:',
+            '  ? [owner, desk]',
+            '  : Import Desk',
+            '  ? {labels: [source, qa], active: true}',
+            '  :',
+            '    - migration',
+            '    - wordpress',
+            'flow-review: {? [source, key]: metadata value, ? {type: review, ticket: 7}: kept}',
+            'flow-null-review: {? [source, uri], ? {owner: desk}, status: approved}',
+            'set-review: !!set',
+            '  ? [qa, true]',
+            '  ? {source: label}',
+            '...',
+            '',
+            '# Explicit collection key provenance body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataCollectionProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Explicit collection key provenance **Packet**', $meta['title']);
+        $t->same('https://example.test/import#sequence-key', $meta['[source, uri]']);
+        $t->same('Import Desk', $meta['{source: owner, desk: import}']);
+        $t->same('Import Desk', $meta['review']['[owner, desk]']);
+        $t->same(['migration', 'wordpress'], $meta['review']['{labels: [source, qa], active: true}']);
+        $t->same('metadata value', $meta['flow-review']['[source, key]']);
+        $t->same('kept', $meta['flow-review']['{type: review, ticket: 7}']);
+        $t->true(array_key_exists('[source, uri]', $meta['flow-null-review']) && $meta['flow-null-review']['[source, uri]'] === null);
+        $t->true(array_key_exists('{owner: desk}', $meta['flow-null-review']) && $meta['flow-null-review']['{owner: desk}'] === null);
+        $t->true(array_key_exists('[qa, true]', $meta['set-review']) && $meta['set-review']['[qa, true]'] === null);
+        $t->true(array_key_exists('{source: label}', $meta['set-review']) && $meta['set-review']['{source: label}'] === null);
+        $t->same(false, array_key_exists('__yamlMetadataCollectionProvenance', $meta));
+
+        $collectionKeys = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') !== 'yaml-explicit-key-collection') {
+                continue;
+            }
+
+            $collectionKeys[$entry['path'] ?? ''] = $entry;
+        }
+
+        foreach ([
+            '/[source, uri]' => ['sequence', 'flow', '2', 'block', '[source, uri]'],
+            '/{source: owner, desk: import}' => ['mapping', 'block', '2', 'block', "source: owner\ndesk: import"],
+            '/review/[owner, desk]' => ['sequence', 'flow', '2', 'block', '[owner, desk]'],
+            '/review/{labels: [source, qa], active: true}' => ['mapping', 'flow', '2', 'block', '{labels: [source, qa], active: true}'],
+            '/flow-review/[source, key]' => ['sequence', 'flow', '2', 'flow', '[source, key]'],
+            '/flow-review/{type: review, ticket: 7}' => ['mapping', 'flow', '2', 'flow', '{type: review, ticket: 7}'],
+            '/flow-null-review/[source, uri]' => ['sequence', 'flow', '2', 'flow-null', '[source, uri]'],
+            '/flow-null-review/{owner: desk}' => ['mapping', 'flow', '1', 'flow-null', '{owner: desk}'],
+            '/set-review/[qa, true]' => ['sequence', 'flow', '2', 'set', '[qa, true]'],
+            '/set-review/{source: label}' => ['mapping', 'flow', '1', 'set', '{source: label}'],
+        ] as $expectedPath => [$expectedKind, $expectedStyle, $expectedCount, $expectedSyntax, $expectedSource]) {
+            $entry = $collectionKeys[$expectedPath] ?? null;
+            $t->true($entry !== null, 'missing YAML explicit collection key provenance ' . $expectedPath);
+            $t->same($expectedKind, $entry['kind'] ?? null);
+            $t->same($expectedStyle, $entry['style'] ?? null);
+            $t->same($expectedCount, $entry['memberCount'] ?? null);
+            $t->same($expectedSyntax, $entry['syntax'] ?? null);
+            $t->same($expectedSource, $entry['source'] ?? null);
+            $t->same($expectedPath, $entry['path'] ?? null);
+        }
+
+        $t->same('1', $collectionKeys['/[source, uri]']['sourceLineCount'] ?? null);
+        $t->same('2', $collectionKeys['/{source: owner, desk: import}']['sourceLineCount'] ?? null);
+        $t->same('6', $collectionKeys['/{source: owner, desk: import}']['sourceLine'] ?? null);
+        $t->same('6', $collectionKeys['/{source: owner, desk: import}']['contentStartLine'] ?? null);
+        $t->same('7', $collectionKeys['/{source: owner, desk: import}']['contentEndLine'] ?? null);
+        $t->same('explicit-collection-key-provenance-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="explicit-collection-key-provenance-body">Explicit collection key provenance body</h1>', $blocks);
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

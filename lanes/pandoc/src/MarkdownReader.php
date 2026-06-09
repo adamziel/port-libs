@@ -2010,6 +2010,14 @@ final class MarkdownReader
             $keyProvenanceSourceLine,
             $keyProvenanceContentSourceLines
         );
+        $this->recordYamlExplicitKeyCollectionProvenance(
+            $keyProvenanceSource,
+            $keyValue,
+            $key,
+            'block',
+            $keyProvenanceSourceLine,
+            $keyProvenanceContentSourceLines
+        );
         foreach ($separatorComments as [$comment, $commentSourceLine]) {
             $this->withYamlMetadataPathSegment(
                 $key,
@@ -2151,6 +2159,14 @@ final class MarkdownReader
             $keyProvenanceSource,
             $key,
             'block',
+            $keyProvenanceSourceLine,
+            $keyProvenanceContentSourceLines
+        );
+        $this->recordYamlExplicitKeyCollectionProvenance(
+            $keyProvenanceSource,
+            $keyValue,
+            $key,
+            'block-null',
             $keyProvenanceSourceLine,
             $keyProvenanceContentSourceLines
         );
@@ -2759,6 +2775,79 @@ final class MarkdownReader
         }
 
         $this->yamlMetadataScalarProvenance[] = $entry;
+    }
+
+    /**
+     * @param list<int|null> $sourceLines
+     */
+    private function recordYamlExplicitKeyCollectionProvenance(
+        ?string $source,
+        mixed $keyValue,
+        string $normalizedKey,
+        string $syntax,
+        ?int $sourceLine = null,
+        array $sourceLines = []
+    ): void {
+        if (!$this->yamlMetadataRecordCollectionProvenance || $source === null || !is_array($keyValue)) {
+            return;
+        }
+
+        $source = trim($this->stripYamlTrailingComment($source));
+        if ($source === '') {
+            return;
+        }
+
+        if (preg_match('/^\?[ \t]+(.+)$/s', $source, $m) === 1) {
+            $source = trim($m[1]);
+        }
+
+        [$collectionSource, , $tags] = $this->parseYamlValueDirectives($source, false);
+        $collectionSource = trim($this->stripYamlTrailingComment($collectionSource));
+        if ($collectionSource === '') {
+            return;
+        }
+
+        $sourceLine ??= $this->yamlMetadataCurrentSourceLine;
+        $sourceLineCount = max(1, substr_count($source, "\n") + 1);
+        $style = (
+            str_starts_with($collectionSource, '[')
+            || str_starts_with($collectionSource, '{')
+        ) ? 'flow' : 'block';
+
+        $entry = [
+            'type' => 'yaml-explicit-key-collection',
+            'kind' => array_is_list($keyValue) ? 'sequence' : 'mapping',
+            'style' => $style,
+            'memberCount' => (string) count($keyValue),
+            'source' => $source,
+            'sourceLineCount' => (string) $sourceLineCount,
+            'multiline' => $sourceLineCount === 1 ? 'false' : 'true',
+            'syntax' => $syntax,
+            'key' => $normalizedKey,
+            'path' => $this->yamlMetadataPathWithSegment($normalizedKey),
+        ];
+        if ($collectionSource !== $source) {
+            $entry['collectionSource'] = $collectionSource;
+        }
+
+        $explicitTag = $this->yamlExplicitCoreCollectionTag($tags);
+        if ($explicitTag !== null) {
+            $entry['explicitTag'] = $explicitTag;
+        }
+        if ($sourceLine !== null) {
+            $entry['sourceLine'] = (string) $sourceLine;
+        }
+
+        $sourceLineNumbers = array_values(array_filter(
+            array_merge([$sourceLine], $sourceLines),
+            static fn (?int $line): bool => $line !== null
+        ));
+        if ($sourceLineNumbers !== []) {
+            $entry['contentStartLine'] = (string) $sourceLineNumbers[0];
+            $entry['contentEndLine'] = (string) $sourceLineNumbers[count($sourceLineNumbers) - 1];
+        }
+
+        $this->yamlMetadataCollectionProvenance[] = $entry;
     }
 
     /**
@@ -4359,13 +4448,14 @@ final class MarkdownReader
                         $keyTagStart = count($this->yamlMetadataTagProvenance);
                         $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
                         $keyAliasStart = count($this->yamlMetadataAliasProvenance);
-                        $key = $this->normalizeYamlFlowKeyOnlyItem($item);
+                        [$key, $keyValue] = $this->normalizeYamlFlowKeyOnlyItemWithValue($item);
                         if ($key !== '') {
                             $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
                             $this->retargetYamlAnchorProvenanceFrom($keyAnchorStart, $key);
                             $this->retargetYamlAliasProvenanceFrom($keyAliasStart, $key);
                             if ($this->isYamlExplicitMappingKeyLine(trim($item))) {
                                 $this->recordYamlExplicitKeyScalarProvenance($item, $key, 'flow-null', $itemSourceLine);
+                                $this->recordYamlExplicitKeyCollectionProvenance($item, $keyValue, $key, 'flow-null', $itemSourceLine);
                             }
                             if (array_key_exists($key, $seenKeys)) {
                                 $this->recordYamlDuplicateKeyDiagnostic($key);
@@ -4385,7 +4475,7 @@ final class MarkdownReader
                     $keyTagStart = count($this->yamlMetadataTagProvenance);
                     $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
                     $keyAliasStart = count($this->yamlMetadataAliasProvenance);
-                    [$key, $quotedKey] = $this->normalizeYamlFlowKeyWithQuote($sourceKey);
+                    [$key, $quotedKey, $keyValue] = $this->normalizeYamlFlowKeyWithQuote($sourceKey);
                     if ($key === '') {
                         return;
                     }
@@ -4395,6 +4485,7 @@ final class MarkdownReader
                     $this->retargetYamlAliasProvenanceFrom($keyAliasStart, $key);
                     if ($this->isYamlExplicitMappingKeyLine(trim($sourceKey))) {
                         $this->recordYamlExplicitKeyScalarProvenance($sourceKey, $key, 'flow', $itemSourceLine);
+                        $this->recordYamlExplicitKeyCollectionProvenance($sourceKey, $keyValue, $key, 'flow', $itemSourceLine);
                     }
                     $value = $this->withYamlMetadataPathSegment(
                         (string) $key,
@@ -4531,7 +4622,8 @@ final class MarkdownReader
                     $keyTagStart = count($this->yamlMetadataTagProvenance);
                     $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
                     $keyAliasStart = count($this->yamlMetadataAliasProvenance);
-                    $key = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarKeyValue($item));
+                    $keyValue = $this->parseYamlScalarKeyValue($item);
+                    $key = $this->normalizeYamlExplicitMappingKey($keyValue);
                     if ($key === null || $key === '') {
                         return;
                     }
@@ -4541,6 +4633,7 @@ final class MarkdownReader
                     $this->retargetYamlAliasProvenanceFrom($keyAliasStart, $key);
                     if ($this->isYamlExplicitMappingKeyLine($item)) {
                         $this->recordYamlExplicitKeyScalarProvenance($item, $key, 'set', $itemSourceLine);
+                        $this->recordYamlExplicitKeyCollectionProvenance($item, $keyValue, $key, 'set', $itemSourceLine);
                     }
                     if (array_key_exists($key, $set)) {
                         $this->recordYamlDuplicateKeyDiagnostic($key);
@@ -4633,6 +4726,14 @@ final class MarkdownReader
             if ($keyProvenanceSource !== null) {
                 $this->recordYamlExplicitKeyScalarProvenance(
                     $keyProvenanceSource,
+                    $key,
+                    'set',
+                    $keyProvenanceSourceLine,
+                    $keyProvenanceContentSourceLines
+                );
+                $this->recordYamlExplicitKeyCollectionProvenance(
+                    $keyProvenanceSource,
+                    $keyValue,
                     $key,
                     'set',
                     $keyProvenanceSourceLine,
@@ -5077,18 +5178,38 @@ final class MarkdownReader
 
     private function normalizeYamlFlowKeyOnlyItem(string $item): string
     {
+        $normalized = $this->normalizeYamlFlowKeyOnlyItemWithValue($item)[0];
+
+        return $normalized;
+    }
+
+    /**
+     * @return array{0:string, 1:mixed}
+     */
+    private function normalizeYamlFlowKeyOnlyItemWithValue(string $item): array
+    {
+        $value = $this->parseYamlFlowKeyOnlyItemValue($item);
+        if ($value === null) {
+            return ['', null];
+        }
+
+        $normalized = $this->normalizeYamlExplicitMappingKey($value);
+
+        return [$normalized ?? '', $value];
+    }
+
+    private function parseYamlFlowKeyOnlyItemValue(string $item): mixed
+    {
         $item = trim($item);
         if ($item === '') {
-            return '';
+            return null;
         }
 
         if (preg_match('/^\?[ \t]+(.+)$/s', $item, $m) === 1) {
             $item = trim($m[1]);
         }
 
-        $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarKeyValue($item));
-
-        return $normalized ?? '';
+        return $this->parseYamlScalarKeyValue($item);
     }
 
     private function normalizeYamlFlowKey(string $key): string
@@ -5097,30 +5218,35 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{0:string, 1:bool}
+     * @return array{0:string, 1:bool, 2:mixed}
      */
     private function normalizeYamlFlowKeyWithQuote(string $key): array
     {
         $key = trim($key);
         if ($key === '') {
-            return ['', false];
+            return ['', false, null];
         }
 
         if (preg_match('/^\?[ \t]+(.+)$/s', $key, $m) === 1) {
-            $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarKeyValue(trim($m[1])));
+            $value = $this->parseYamlScalarKeyValue(trim($m[1]));
+            $normalized = $this->normalizeYamlExplicitMappingKey($value);
 
-            return [$normalized ?? '', $this->isYamlQuotedFlowKey($key)];
+            return [$normalized ?? '', $this->isYamlQuotedFlowKey($key), $value];
         }
 
         if (($key[0] === '"' && str_ends_with($key, '"')) || ($key[0] === "'" && str_ends_with($key, "'"))) {
-            return [$this->unquoteYamlScalar($key), true];
+            $value = $this->unquoteYamlScalar($key);
+
+            return [$value, true, $value];
         }
 
         if ($this->yamlPlainMappingKeyMayStartWithDirective($key)) {
-            return $this->normalizeYamlPlainMappingKeyDirectives($key, false);
+            [$normalized, $quoted] = $this->normalizeYamlPlainMappingKeyDirectives($key, false);
+
+            return [$normalized, $quoted, $normalized];
         }
 
-        return [$key, false];
+        return [$key, false, $key];
     }
 
     /**

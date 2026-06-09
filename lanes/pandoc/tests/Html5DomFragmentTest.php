@@ -785,9 +785,9 @@ return [
         $t->same('Fallback captionObject fallback reviewApplet fallbackafter', $fragment->textContent());
         $t->same(['a', 'b', 'p', 'span'], $summary['elementNames']);
         $t->same(['applet', 'iframe', 'object', 'param', 'script'], $summary['blockedTags']);
-        $t->same([], $summary['filteredAttributes']);
-        $t->same(5, $summary['diagnostics']);
-        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
+        $t->same(['data'], $summary['filteredAttributes']);
+        $t->same(6, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-url', 'blocked-tag'], $fragment->diagnosticCodes());
         $t->same('text', $nodes[0]['type']);
         $t->same('Fallback ', $nodes[0]['text']);
         $t->same('b', $nodes[1]['name']);
@@ -881,7 +881,7 @@ return [
         $t->same(['a', 'p'], $summary['elementNames']);
         $t->same(['base', 'embed', 'object'], $summary['blockedTags']);
         $t->same(['data', 'src'], $summary['filteredAttributes']);
-        $t->same(['blocked-tag', 'blocked-tag', 'embedded-source-review', 'blocked-tag', 'blocked-tag', 'normalized-url', 'embedded-source-review'], $policyDiagnostics);
+        $t->same(['blocked-tag', 'blocked-tag', 'embedded-source-review', 'blocked-tag', 'blocked-tag', 'unsafe-url', 'normalized-url', 'embedded-source-review'], $policyDiagnostics);
         $t->same('a', $nodes[0]['name']);
         $t->same([
             'href' => 'https://source.example.test/import/posts/docs/source.pdf',
@@ -904,6 +904,76 @@ return [
         $t->true(!str_contains($html, 'Bad embed'), 'Expected unsafe embed title to stay hidden with its source');
         $t->true(!str_contains($blocks, '<object'), 'Expected WordPress blocks to omit object wrapper');
         $t->true(!str_contains($blocks, '<embed'), 'Expected WordPress blocks to omit embed wrapper');
+    },
+    'adds source line metadata to object and embed source diagnostics before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<article>\n"
+            . "<object data=\"./docs/review.pdf\" title=\"Review PDF\"></object>\n"
+            . "<object data=\"java&#10;script:alert(1)\" title=\"Bad object\"><p>Unsafe fallback</p></object>\n"
+            . "<embed src=\" h&#9;ttps://cdn.example.test/media/demo.mp4 \" title=\"Demo\">\n"
+            . "<embed src=\"java&#10;script:alert(1)\" title=\"Bad embed\">\n"
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/object-embed-diagnostic-lines-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $embeddedDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $tag = (string) ($diagnostic['tag'] ?? '');
+
+                return in_array($code, ['embedded-source-review', 'normalized-url', 'unsafe-url'], true)
+                    && in_array($tag, ['object', 'embed'], true);
+            }
+        ));
+        $astEmbeddedDiagnostics = array_values(array_filter(
+            $document->children[0]->attr('diagnostics'),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $tag = (string) ($diagnostic['tag'] ?? '');
+
+                return in_array($code, ['embedded-source-review', 'normalized-url', 'unsafe-url'], true)
+                    && in_array($tag, ['object', 'embed'], true);
+            }
+        ));
+
+        $expected = '<article>' . "\n"
+            . '<a href="https://source.example.test/import/posts/docs/review.pdf" data-pandoc-object-data="true" title="Review PDF">Review PDF</a>' . "\n"
+            . '<p>Unsafe fallback</p>' . "\n"
+            . '<a href="https://cdn.example.test/media/demo.mp4" data-pandoc-embed-src="true" title="Demo">Demo</a>' . "\n\n"
+            . '</article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('/migration/object-embed-diagnostic-lines-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->same(5, count($embeddedDiagnostics));
+        $t->same(
+            ['embedded-source-review', 'unsafe-url', 'unsafe-url', 'normalized-url', 'embedded-source-review'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $embeddedDiagnostics)
+        );
+        $t->same(
+            ['object', 'object', 'embed', 'embed', 'embed'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['tag'] ?? ''), $embeddedDiagnostics)
+        );
+        $t->same(
+            ['data', 'data', 'src', 'src', 'src'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $embeddedDiagnostics)
+        );
+        $t->same([2, 3, 5, 4, 4], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $embeddedDiagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $embeddedDiagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astEmbeddedDiagnostics)
+        );
+        $t->true(!str_contains($html, '<object'), 'Expected object wrappers to be stripped');
+        $t->true(!str_contains($html, '<embed'), 'Expected embed wrappers to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe object/embed URLs to stay diagnostic-only');
+        $t->true(!str_contains($html, 'Bad object'), 'Expected unsafe object title to stay hidden with its source');
+        $t->true(!str_contains($html, 'Bad embed'), 'Expected unsafe embed title to stay hidden with its source');
     },
     'unwraps iframe srcdoc content through sanitizer before WordPress handoff' => static function (TestRunner $t): void {
         $srcdoc = htmlspecialchars(

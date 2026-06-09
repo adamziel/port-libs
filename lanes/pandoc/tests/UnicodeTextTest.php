@@ -1601,6 +1601,32 @@ return [
         $t->contains('<h1 id="big5-kana">Big5 Kana</h1>', $blocks);
         $t->contains('<p>Kana ヾゝゞ々 ぁあ; digits ０１２.</p>', $blocks);
     },
+    'decodes big5 greek and bopomofo row bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Big5 A3\n\nGreek \xA3\x44\xA3\x50\xA3\x5B \xA3\x5C\xA3\x73; bopomofo \xA3\x74\xA3\x75\xA3\x7E.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'big5-hkscs');
+        $document = (new MarkdownReader())->readBytes($bytes, 'cn-big5');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $rowProbe = UnicodeText::decodeBytes("\xA3\x44\xA3\x50\xA3\x5B\xA3\x5C\xA3\x73\xA3\x74\xA3\x75\xA3\x7E", 'big5');
+        $unmappedNeighbor = UnicodeText::decodeBytes("\xA3\xBFZ", 'big5');
+
+        $t->same('big5', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Big5 A3\n\nGreek ΑΝΩ αω; bopomofo ㄅㄆㄏ.", $decoded['text']);
+        $t->same('ΑΝΩαωㄅㄆㄏ', $rowProbe['text']);
+        $t->same(0, $rowProbe['repairs']);
+        $t->same(11, UnicodeText::displayWidth($rowProbe['text']));
+        $t->same(16, UnicodeText::displayWidth($rowProbe['text'], 'wide'));
+        $t->same(['ΑΝΩ', 'αω', 'ㄅㄆㄏ'], UnicodeText::splitByDisplayBreakpoints($rowProbe['text'], [6, 10], 'wide'));
+        $t->same(['encoding' => 'big5', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Big5 A3', $document->children[0]->attr('text'));
+        $t->same('Greek ΑΝΩ αω; bopomofo ㄅㄆㄏ.', $document->children[1]->attr('text'));
+        $t->same(30, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(35, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="big5-a3">Big5 A3</h1>', $blocks);
+        $t->contains('<p>Greek ΑΝΩ αω; bopomofo ㄅㄆㄏ.</p>', $blocks);
+        $t->same("\u{FFFD}Z", $unmappedNeighbor['text']);
+        $t->same(1, $unmappedNeighbor['repairs']);
+    },
     'decodes cp950 big5 extension bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# CP950\n\nCP950 Euro \xA3\xE1 glyphs \xF9\xD6\xF9\xD7 box \xF9\xDD\xF9\xDE\xF9\xDF.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp950');

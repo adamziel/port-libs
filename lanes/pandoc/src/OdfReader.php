@@ -6114,6 +6114,8 @@ final class OdfReader
             'page-variable-get',
             'chapter',
             'file-name',
+            'sheet-name',
+            'table-formula',
             'template-name',
             'line-number',
             'word-count',
@@ -6404,10 +6406,13 @@ final class OdfReader
             'referenceFormat' => self::nullable(self::attr($field, self::TEXT_NS, 'reference-format')),
             'noteClass' => self::nullable(self::attr($field, self::TEXT_NS, 'note-class')),
             'formula' => self::nullable(self::attr($field, self::TEXT_NS, 'formula')),
+            'cellRangeAddress' => self::nullable(self::attr($field, self::TABLE_NS, 'cell-range-address')),
             'condition' => self::nullable(self::attr($field, self::TEXT_NS, 'condition')),
             'display' => self::nullable(self::attr($field, self::TEXT_NS, 'display')),
             'databaseName' => self::nullable(self::attr($field, self::TEXT_NS, 'database-name')),
-            'tableName' => self::nullable(self::attr($field, self::TEXT_NS, 'table-name')),
+            'tableName' => self::nullable(self::attr($field, self::TEXT_NS, 'table-name') !== ''
+                ? self::attr($field, self::TEXT_NS, 'table-name')
+                : self::attr($field, self::TABLE_NS, 'table-name')),
             'tableType' => self::nullable(self::attr($field, self::TEXT_NS, 'table-type')),
             'columnName' => self::nullable(self::attr($field, self::TEXT_NS, 'column-name')),
             'rowNumber' => self::nullable(self::attr($field, self::TEXT_NS, 'row-number')),
@@ -6944,7 +6949,7 @@ final class OdfReader
             return $text;
         }
 
-        foreach (['selectedValue', 'stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'currentValue', 'dateValue', 'timeValue', 'booleanValue', 'rowNumber', 'databaseName', 'refName'] as $name) {
+        foreach (['selectedValue', 'stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'currentValue', 'dateValue', 'timeValue', 'booleanValue', 'rowNumber', 'databaseName', 'tableName', 'formula', 'refName'] as $name) {
             $value = $metadata[$name] ?? null;
             if (is_bool($value)) {
                 return $value ? 'true' : 'false';

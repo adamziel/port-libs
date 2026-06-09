@@ -1649,6 +1649,40 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('YAML metadata self-test missing explicit collection tag provenance ' . $expectedPath . ' ' . $expectedTag);
         }
     }
+    $yamlExplicitCollectionKeyProvenance = [];
+    foreach ($yamlCollectionProvenance as $entry) {
+        if (($entry['type'] ?? '') === 'yaml-explicit-key-collection') {
+            $yamlExplicitCollectionKeyProvenance[$entry['path'] ?? ''] = $entry;
+        }
+    }
+    foreach ([
+        '/[sequence, source-uri]' => ['sequence', 'flow', '2', 'block', '[sequence, source-uri]'],
+        '/{source: uri, type: review}' => ['mapping', 'flow', '2', 'block', '{source: uri, type: review}'],
+        '/{source: owner, desk: import}' => ['mapping', 'block', '2', 'block', "source: owner\ndesk: import"],
+        '/sequence-key-review/[owner, desk]' => ['sequence', 'flow', '2', 'block', '[owner, desk]'],
+        '/sequence-key-label-set/[qa, true]' => ['sequence', 'flow', '2', 'set', '[qa, true]'],
+        '/map-key-review/{owner: desk, ticket: 7}' => ['mapping', 'flow', '2', 'block', '{owner: desk, ticket: 7}'],
+        '/flow-explicit-review/[source, uri]' => ['sequence', 'flow', '2', 'flow', '[source, uri]'],
+        '/flow-explicit-review/{owner: desk, ticket: 7}' => ['mapping', 'flow', '2', 'flow', '{owner: desk, ticket: 7}'],
+        '/flow-explicit-null-review/[source, uri]' => ['sequence', 'flow', '2', 'flow-null', '[source, uri]'],
+        '/flow-explicit-null-review/{owner: desk, ticket: 7}' => ['mapping', 'flow', '2', 'flow-null', '{owner: desk, ticket: 7}'],
+        '/block-explicit-null-review/[source, uri]' => ['sequence', 'flow', '2', 'block-null', '[source, uri]'],
+        '/block-explicit-null-review/{owner: desk, ticket: 7}' => ['mapping', 'flow', '2', 'block-null', '{owner: desk, ticket: 7}'],
+    ] as $expectedCollectionKeyPath => [$expectedKind, $expectedStyle, $expectedCount, $expectedSyntax, $expectedSource]) {
+        $entry = $yamlExplicitCollectionKeyProvenance[$expectedCollectionKeyPath] ?? null;
+        if ($entry === null) {
+            throw new RuntimeException('YAML metadata self-test missing explicit collection key provenance ' . $expectedCollectionKeyPath);
+        }
+        if (
+            ($entry['kind'] ?? '') !== $expectedKind
+            || ($entry['style'] ?? '') !== $expectedStyle
+            || ($entry['memberCount'] ?? '') !== $expectedCount
+            || ($entry['syntax'] ?? '') !== $expectedSyntax
+            || ($entry['source'] ?? '') !== $expectedSource
+        ) {
+            throw new RuntimeException('YAML metadata self-test has wrong explicit collection key provenance ' . $expectedCollectionKeyPath);
+        }
+    }
     $foundPlainReviewCollectionRange = false;
     foreach ($yamlCollectionProvenance as $entry) {
         if (($entry['path'] ?? '') !== '/plain-continuation-review') {

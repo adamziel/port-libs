@@ -1620,6 +1620,40 @@ HTML,
         }
     }
 
+    $dzslidesNoCssFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'lang' => 'en',
+        'dir' => 'ltr',
+        'pagetitle' => 'Legacy Slide No CSS Review',
+        'title' => 'Legacy Slide Native Defaults',
+        'subtitle' => 'WordPress review deck',
+        'author' => ['Migration bot'],
+        'institute' => ['Review desk'],
+        'date' => '2026-06-09',
+        'body' => '<section><h2>Imported no-CSS slide body</h2><figure><img src="review.png"><figcaption>Review image</figcaption></figure></section>',
+        'dzslides-core' => '<script>window.__legacySlideNoCss = true;</script>',
+    ], null, 'dzslides+smart');
+    foreach ([
+        "<link href='https://fonts.googleapis.com/css?family=Oswald' rel='stylesheet'>",
+        "/* A section is a slide. It's size is 800x600, and this will never change */",
+        'counter-increment: slideidx;',
+        'blockquote:before {',
+        'figure > img, figure > video {',
+        '.view section[aria-selected] {',
+        '.incremental > *[aria-selected] ~ * { opacity: 0; }',
+        '<h1 class="title">Legacy Slide Native Defaults</h1>',
+        '<span class="author">Migration bot</span> · <span class="institute">Review desk</span> · <span class="date">2026-06-09</span>',
+        '<script>window.__legacySlideNoCss = true;</script>',
+    ] as $needle) {
+        if (!str_contains($dzslidesNoCssFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate dzslides no-css fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+    if (str_contains($dzslidesNoCssFallback, '<link rel="stylesheet" href="review-slides.css">')) {
+        fwrite(STDERR, "Unexpected custom CSS link in doctemplate dzslides no-css fallback\n");
+        exit(1);
+    }
+
     $typstFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'title' => 'Typst Default Review',
         'subtitle' => 'Native metadata handoff',

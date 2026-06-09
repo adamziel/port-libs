@@ -229,6 +229,9 @@ $big5PunctuationText = (string) $big5PunctuationSource->children[1]->attr('text'
 $big5KanaBytes = "# Big5 Kana\n\nKana \xC6\xA1\xC6\xA2\xC6\xA3\xC6\xA4 \xC6\xA5\xC6\xA6; digits \xA2\xAF\xA2\xB0\xA2\xB1.";
 $big5KanaSource = (new MarkdownReader())->readBytes($big5KanaBytes, 'big5-hkscs');
 $big5KanaText = (string) $big5KanaSource->children[1]->attr('text');
+$big5A3Bytes = "# Big5 A3\n\nGreek \xA3\x44\xA3\x50\xA3\x5B \xA3\x5C\xA3\x73; bopomofo \xA3\x74\xA3\x75\xA3\x7E.";
+$big5A3Source = (new MarkdownReader())->readBytes($big5A3Bytes, 'cn-big5');
+$big5A3Text = (string) $big5A3Source->children[1]->attr('text');
 $cp950Bytes = "# CP950\n\nCP950 Euro \xA3\xE1 glyphs \xF9\xD6\xF9\xD7 box \xF9\xDD\xF9\xDE\xF9\xDF.";
 $cp950Source = (new MarkdownReader())->readBytes($cp950Bytes, 'windows-950');
 $cp950Text = (string) $cp950Source->children[1]->attr('text');
@@ -962,6 +965,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($big5KanaSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($big5KanaText)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Big5 A3 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $big5A3Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($big5A3Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($big5A3Text) . '/' . UnicodeText::displayWidth($big5A3Text, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CP950 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $cp950Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($cp950Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($cp950Text) . '/' . UnicodeText::displayWidth($cp950Text, 'wide')])]),
@@ -1581,6 +1589,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Big5 kana source</td><td>Kana ヾゝゞ々 ぁあ; digits ０１２.</td><td>big5:34</td>')) {
         throw new RuntimeException('charset handoff self-test missing Big5 kana extension decode audit row');
+    }
+    if (($big5A3Source->attr('sourceEncoding')['encoding'] ?? '') !== 'big5') {
+        throw new RuntimeException('charset handoff self-test missing Big5 A3 source encoding');
+    }
+    if (!str_contains($blocks, '<td>Big5 A3 source</td><td>Greek ΑΝΩ αω; bopomofo ㄅㄆㄏ.</td><td>big5:30/35</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Big5 A3 Greek/Bopomofo decode audit row');
     }
     if (($cp950Source->attr('sourceEncoding')['encoding'] ?? '') !== 'cp950') {
         throw new RuntimeException('charset handoff self-test missing CP950 source encoding');

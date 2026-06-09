@@ -6055,6 +6055,64 @@ XML;
         $t->contains('<span class="odf-field odf-field-page-continuation" data-odf-field-type="page-continuation" data-odf-field-string-value="continued on next page" data-odf-field-select-page="next">continued on next page</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-page-continuation" data-odf-field-type="page-continuation" data-odf-field-string-value="continued from previous page" data-odf-field-select-page="previous">continued from previous page</span>', $blocksHtml);
     },
+    'maps ODT sheet name and table formula fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithSpreadsheetFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Sheet <text:sheet-name table:table-name="Review Sheet">Review Sheet</text:sheet-name> formula <text:table-formula text:formula="of:=SUM([.B2:.B4])" table:cell-range-address="Review Sheet.B2:Review Sheet.B4" office:value-type="float" office:value="42" style:data-style-name="ReviewFloat">42</text:table-formula> and fallback <text:sheet-name table:table-name="Archive Sheet"/> stay reviewable.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithSpreadsheetFields));
+        $paragraph = $result['document']->children[0];
+        $sheet = $paragraph->children[1];
+        $formula = $paragraph->children[3];
+        $fallback = $paragraph->children[5];
+
+        $t->same('Sheet Review Sheet formula 42 and fallback Archive Sheet stay reviewable.', $paragraph->attr('text'));
+        $t->same('span', $sheet->type);
+        $t->same(['odf-field', 'odf-field-sheet-name'], $sheet->attr('classes'));
+        $t->same('sheet-name', $sheet->attr('fieldType'));
+        $t->same('Review Sheet', $sheet->attr('fieldMetadata')['tableName']);
+        $t->same('Review Sheet', $sheet->attr('attributes')['data-odf-field-table-name']);
+        $t->same('Review Sheet', $sheet->children[0]->attr('text'));
+
+        $t->same('span', $formula->type);
+        $t->same(['odf-field', 'odf-field-table-formula'], $formula->attr('classes'));
+        $t->same('table-formula', $formula->attr('fieldType'));
+        $t->same('of:=SUM([.B2:.B4])', $formula->attr('fieldMetadata')['formula']);
+        $t->same('Review Sheet.B2:Review Sheet.B4', $formula->attr('fieldMetadata')['cellRangeAddress']);
+        $t->same('float', $formula->attr('fieldMetadata')['valueType']);
+        $t->same('42', $formula->attr('fieldMetadata')['value']);
+        $t->same('ReviewFloat', $formula->attr('fieldMetadata')['styleName']);
+        $t->same('of:=SUM([.B2:.B4])', $formula->attr('attributes')['data-odf-field-formula']);
+        $t->same('Review Sheet.B2:Review Sheet.B4', $formula->attr('attributes')['data-odf-field-cell-range-address']);
+        $t->same('float', $formula->attr('attributes')['data-odf-field-value-type']);
+        $t->same('42', $formula->attr('attributes')['data-odf-field-value']);
+        $t->same('ReviewFloat', $formula->attr('attributes')['data-odf-field-style-name']);
+        $t->same('42', $formula->children[0]->attr('text'));
+
+        $t->same('sheet-name', $fallback->attr('fieldType'));
+        $t->same('Archive Sheet', $fallback->attr('fieldMetadata')['tableName']);
+        $t->same('Archive Sheet', $fallback->children[0]->attr('text'));
+        $t->same(3, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Review Sheet]{.odf-field .odf-field-sheet-name data-odf-field-type="sheet-name" data-odf-field-table-name="Review Sheet"}', $markdown);
+        $t->contains('[42]{.odf-field .odf-field-table-formula data-odf-field-type="table-formula" data-odf-field-formula="of:=SUM([.B2:.B4])" data-odf-field-cell-range-address="Review Sheet.B2:Review Sheet.B4" data-odf-field-value-type="float" data-odf-field-value="42" data-odf-field-style-name="ReviewFloat"}', $markdown);
+        $t->contains('[Archive Sheet]{.odf-field .odf-field-sheet-name data-odf-field-type="sheet-name" data-odf-field-table-name="Archive Sheet"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-sheet-name" data-odf-field-type="sheet-name" data-odf-field-table-name="Review Sheet">Review Sheet</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-table-formula" data-odf-field-type="table-formula" data-odf-field-formula="of:=SUM([.B2:.B4])" data-odf-field-cell-range-address="Review Sheet.B2:Review Sheet.B4" data-odf-field-value-type="float" data-odf-field-value="42" data-odf-field-style-name="ReviewFloat">42</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-sheet-name" data-odf-field-type="sheet-name" data-odf-field-table-name="Archive Sheet">Archive Sheet</span>', $blocksHtml);
+    },
     'maps ODT conditional and hidden text fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithConditionalFields = <<<'XML'
 <office:document-content
